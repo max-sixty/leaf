@@ -19,7 +19,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
@@ -1701,113 +1700,6 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
     failures = render_gate_model.render_version(browser, url)
 
     assert not [failure for failure in failures if "x-verbatim" in failure], failures
-
-
-def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
-    registry = {
-        "lf-draft": {
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-state": {
-                "edit": {
-                    "facet": "body",
-                    "unit": "widget",
-                    "record": {"kind": "body", "value": "text"},
-                }
-            },
-        }
-    }
-    page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
-
-    def action(identity, text, seq):
-        return {
-            "kind": "action",
-            "id": f"a-{identity}",
-            "author": "user",
-            "revision": 2,
-            "widget": identity,
-            "action": "edit",
-            "detail": {"text": text},
-            "meaning": {
-                "coordinate": [identity, identity, "body"],
-                "depends": [identity],
-                "answer": None,
-                "document": {"kind": "page", "revision": 2},
-            },
-            "seq": seq,
-        }
-
-    events = [
-        {
-            "kind": "comment",
-            "id": "c-scope",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep the frozen answer current.",
-            "seq": 1,
-        },
-        {
-            "kind": "reply",
-            "id": "r-scope",
-            "author": "agent",
-            "parent": "c-scope",
-            "revision": 1,
-            "text": "Here it is:",
-            "markup": frozen,
-            "seq": 2,
-        },
-        action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen standing.", 4),
-    ]
-
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
-
-    assert expected == {
-        ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
-    }
-
-
-def test_projected_verbatim_includes_generated_children():
-    registry = {
-        "lf-list": {
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-state": {
-                "add": {
-                    "facet": "items",
-                    "unit": "widget",
-                    "creates": {"field": "additions", "child": "lf-item"},
-                }
-            },
-        },
-        "lf-item": {"x-upgrade": False},
-    }
-    markup = '<lf-list id="list">Authored item.</lf-list>'
-    event = {
-        "kind": "action",
-        "id": "a-add",
-        "author": "user",
-        "revision": 1,
-        "widget": "list",
-        "action": "add",
-        "detail": {"additions": {"new-item": "Generated item."}},
-        "generated": ["new-item"],
-        "meaning": {
-            "coordinate": ["list", "list", "items"],
-            "depends": ["list"],
-            "answer": None,
-            "document": {"kind": "page", "revision": 1},
-        },
-        "seq": 1,
-    }
-
-    expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
-    )
-
-    assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
 
 
 def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(

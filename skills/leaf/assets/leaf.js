@@ -501,6 +501,7 @@ selectionComposer = createSelectionComposer({
   fabPositioned: (...args) => responseSurface.fabPositioned(...args),
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   endFabFocus: (...args) => responseSurface.endFabFocus(...args),
+  landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   refreshFab: (...args) => responseSurface.refreshFab(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),

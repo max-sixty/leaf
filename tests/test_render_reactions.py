@@ -1505,6 +1505,58 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
     expect(control).to_be_focused()
 
 
+def landed(page):
+    """What the reader is standing on, named by whatever identifies it: a leaf class, an
+    authored id, or the tag. `body` is the page itself, where a landing lets go."""
+    return page.evaluate(
+        """() => {
+          let node = document.activeElement;
+          while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+          if (!node || node === document.body) return 'body';
+          return (
+            [...node.classList].find(
+              (name) => name.startsWith('lf-') && name !== 'lf-ui',
+            ) ||
+            node.id ||
+            node.tagName.toLowerCase()
+          );
+        }"""
+    )
+
+
+def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser, serve):
+    """Opening the bar's other responses re-places it on the anchor already standing. That
+    is the same gesture continuing, not a fresh one that stood the reader nowhere, so the
+    way out still ends on the proxy the bar was opened from — as it does for a reader who
+    goes straight back out."""
+    page_markup = leaf_page(
+        "picture gallery",
+        """
+<h1 id="top">Picture gallery</h1>
+<section id="gallery">
+  <h2>Gallery</h2>
+  <svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg>
+</section>
+""",
+    )
+    page = open_page(browser, serve(page_markup))
+    control = page.locator(".lf-visual-action").first
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+    page.get_by_role("button", name="Show other responses").click()
+    expect(page.locator(".lf-fab-bar")).to_have_class(
+        re.compile(r"\blf-response-open\b")
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert landed(page) == "lf-visual-action", landed(page)
+
+
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
     """A retained proxy resolves its stable anchor when focused. It does not keep a
     renderer node that has been replaced, and it opens the container before scrolling."""

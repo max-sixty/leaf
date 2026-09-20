@@ -707,6 +707,17 @@ export function createResponseSurface({
       });
     return true;
   }
+  // Where a bar on this anchor hands the reader back: the control the gesture stood them
+  // on, or the margin's own proxy for the same anchor where that control has gone, found
+  // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
+  // of its own and the reader lands on the page — the element the bar is about is not a
+  // landing merely for being named, an ⌥-aimed press having never stood them on it.
+  const handBackTo = (anchor, origin) =>
+    anchor && !anchor.quote && origin
+      ? origin.isConnected
+        ? origin
+        : visualActionAnchor(anchor)
+      : null;
   function showFab(
     anchor,
     target = null,
@@ -717,19 +728,7 @@ export function createResponseSurface({
     const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
-    // Where the box hands the reader back, when a gesture supplied a visual proxy to
-    // open it from: that control, or the margin's own proxy for the same anchor where
-    // it has gone. Without one the box has nowhere of its own and the reader lands on
-    // the page — the element the box is about is not a landing merely for being named,
-    // an ⌥-aimed press having never stood them on it.
-    const returnTarget =
-      leavingBar && previous && !previous.quote
-        ? previousOrigin?.isConnected
-          ? previousOrigin
-          : previousOrigin
-            ? visualActionAnchor(previous)
-            : null
-        : null;
+    const returnTarget = leavingBar ? handBackTo(previous, previousOrigin) : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -750,7 +749,17 @@ export function createResponseSurface({
       stopFabPositioning({ reset: true });
     fabAnchor = anchor;
     fabFloating = !fabAnchor || (place && !keptInline);
-    fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
+    // A call that names the anchor already standing and supplies no control is the same
+    // bar being re-placed — the other-responses toggle, leaving react mode, a scroll —
+    // rather than a fresh gesture that stood the reader nowhere. It keeps the control the
+    // opening gesture stood them on; otherwise the way out of a bar the reader opened
+    // from a proxy would depend on what they did inside it.
+    fabOrigin =
+      fabAnchor && origin?.isConnected
+        ? origin
+        : fabAnchor && previous && sameAnchor(previous, fabAnchor)
+          ? previousOrigin
+          : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
     fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
@@ -837,12 +846,7 @@ export function createResponseSurface({
     return root instanceof ShadowRoot ? root.host : place;
   };
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
-  const fabReturnTo = () =>
-    fabAnchor && !fabAnchor.quote
-      ? fabOrigin?.isConnected
-        ? fabOrigin
-        : visualActionAnchor(fabAnchor)
-      : null;
+  const fabReturnTo = () => handBackTo(fabAnchor, fabOrigin);
 
   // Where a comment about this item is written: the composer, on the item, which is what a
   // click through the ⌥ aim already opens. It reached for the widget's own conversation seat

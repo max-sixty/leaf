@@ -566,7 +566,6 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
-  visualActionAnchor: anchorControls.visualActionAnchor,
   standingConversation,
   standingElement,
 });

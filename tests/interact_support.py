@@ -631,10 +631,12 @@ def state_json(d):
     return json.loads(result.output)
 
 
-# One comment and two decisions on one suggestion — the whole vocabulary these
-# threads are read out of. `REJECT` is spelt off `ACCEPT` because the two answering
-# the same widget is the entire premise: a decision supersedes the one before it on
-# the widget that sent it, the way a second `move` supersedes the first on one card.
+# A question and the accept that answers it, written as a stored log holds them:
+# ids of their own and the `meaning` admission stamped on the action. For a test
+# that needs an answered thread in a page directory and is about something else —
+# what a floored widget retracts, what a second facet joins — so the pair is
+# premise rather than subject. A test whose subject is the settlement states its
+# page and its log instead, and lets the door derive the meaning.
 COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
 ACCEPT = {
     "kind": "action",
@@ -650,15 +652,6 @@ ACCEPT = {
         "answer": "c1",
     },
 }
-REJECT = {
-    **ACCEPT,
-    "action": "reject",
-    "detail": {},
-    "meaning": {**ACCEPT["meaning"], "answer": None},
-}
-RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
-
-
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it."""
     entering = threading.Event()

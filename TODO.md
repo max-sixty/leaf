@@ -174,7 +174,9 @@ is now stated under #6.
 - **#7 — Test model rules without rebuilding whole browser journeys.** The fixtures landed
   in #862 and #863: `interact_support.ModelPage` states a page for the append door, and
   `tests/model_folds.py` folds one through `browser_state`, both from literal markup and a
-  literal log. Nine tests use them. What remains is not a sweep. The premise this item
+  literal log. The thread-settlement rules, the multi-revision folds and the door's
+  refusals on authored markup are all stated through them now. What remains is not a
+  sweep. The premise this item
   carried — 325 browser tests across 14,750 lines that a model fixture would replace — did
   not survive measurement. In a seeded random sample of 40 of those, none was a pure Python
   fold: 17 were JavaScript folds, 22 browser facts, 1 mixed, putting pure folds at no more

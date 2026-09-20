@@ -4,9 +4,11 @@
 package layer, the media directory, and the set of paths a watcher subscribes
 to. Each is a pure reading of a directory tree, so these state the tree and ask
 for the reading — no server is started, no watcher subscribes, and no browser
-opens. They are here rather than in `test_render_export.py`, whose file-level
-nightly mark held them back from the gate that would catch a regression when it
-lands.
+opens.
+
+That is why they are here and not beside the preview's browser tests. A nightly
+mark is file-level, with no per-test escape, so a Python-decided reading filed
+in a nightly module runs nowhere near the change that breaks it.
 """
 
 import argparse

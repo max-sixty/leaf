@@ -4887,8 +4887,14 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(ta1).to_be_focused()
 
 
-def test_returning_from_threads_restores_the_exact_ask(browser, serve):
-    """A repainted tray restores the Ask that was focused, not its first row."""
+def test_a_tray_reached_from_another_tray_leaves_both_of_them_shut(browser, serve):
+    """The surface a reader was already in does not come back when the next one goes.
+
+    `g T` from the Asks tray puts Threads up in its place, and the one Escape that takes
+    Threads off lands on the page rather than reopening the tray the reader came from.
+    Nothing records that they were in it, and the descent Escape matches is the one that
+    the state in front of them describes: Threads over the page.
+    """
     html = ADDRESSED_PAGE.replace(
         "</main>",
         """

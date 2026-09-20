@@ -1276,7 +1276,6 @@ export function createAskView({
     markHere,
     goToAsk,
     stepAsk,
-    restoreTrayFocus: (id) => asksList.focusAfterPaint(id),
     landedAt: () => landed,
     setLanded: (value) => (landed = value),
   };

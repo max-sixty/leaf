@@ -2680,11 +2680,35 @@ export function createMarginProjection({
       // reveal folds with the card, and a bare marker has none — the entry is a control
       // they may never have stood on, a `t` from the page having put the card up
       // without going near the margin, so the landing is the page it is anchored to.
+      //
+      // Under it means on the entry this card would land on. A cluster left unfolded on
+      // another entry stands beside the card, not beneath it — the card retains the
+      // margin's focus while it is up, so a `t` walk carries the card away from the
+      // cluster and leaves it open — and landing on this entry would hand the next
+      // press a fold that teleports focus somewhere third. So the question goes to
+      // `optionsRung`, the step that would actually answer next, which also declines
+      // for a host that has gone or an entry whose own state holds its actions open.
+      // Hiding the popover hands focus back to the control that opened it, which after
+      // a walk is a control in the cluster the card has since left. That return is
+      // transit rather than the reader arriving, and the landing below moves them on
+      // from it in the same press, so the cluster is told not to read it as their
+      // leaving — otherwise one press would take the card and the cluster together.
       out: () => {
-        const standing =
-          expandedOptionsKey && expandedOptionsKey !== forcedInlineOptionsKey;
-        closePreview(Boolean(standing));
-        if (!standing) letGo();
+        const entry = previewMarginEntry?.lfEntry;
+        const standing = Boolean(
+          entry &&
+          expandedOptionsKey === entry.key &&
+          expandedOptionsKey !== forcedInlineOptionsKey &&
+          optionsRung(),
+        );
+        const wasSettlingOptionsFocus = settlingOptionsFocus;
+        settlingOptionsFocus = true;
+        try {
+          closePreview(standing);
+          if (!standing) letGo();
+        } finally {
+          settlingOptionsFocus = wasSettlingOptionsFocus;
+        }
       },
     };
   }

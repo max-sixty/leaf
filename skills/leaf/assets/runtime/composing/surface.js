@@ -788,11 +788,10 @@ export function createResponseSurface({
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
       else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected) {
         returnTarget.focus({ preventScroll: true });
-        // Its own tab stop or nothing: the box lands the reader back on what it was
-        // about where that is something they could have been standing on, and on the
-        // page where it is a passage or a container they could not. Lending a stop to
-        // an author's element here would leave `tabindex` on the page for as long as
-        // the reader stayed there, which is a change to the document they never made.
+        // The proxy may have gone hidden since the gesture opened the box — a fold that
+        // closed under it, a row that re-rendered — and focus on a hidden control does
+        // nothing and reports nothing. The page is the landing then, as it is for a box
+        // that had no proxy to begin with.
         if (!returnTarget.matches(":focus")) letGo();
       } else if (
         leavingBar ||

@@ -5856,17 +5856,16 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
 
 
 @pytest.mark.parametrize("panel_open", [False, True])
-def test_a_comment_sent_from_a_control_hands_that_control_back(
+def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     browser, serve, panel_open
 ):
-    """One press comments, and one Escape returns the control that press displaced.
+    """The send leaves the reader two levels down, and each press takes off one.
 
     `c` opens the box on whatever the reader is standing in without moving them off it,
-    and the send carries the reader on into the thread the comment became: a card it
-    puts up, or the thread's place in a panel that was already open. Both surfaces
-    answer the one press, so one Escape hands back the place it displaced, taking off
-    the card and leaving the panel, rather than landing the reader wherever the thread
-    happens to hang or walking them out through the list.
+    and the send carries them into the thread the comment became: a card it puts up, or
+    the thread's place in a panel that was already open. The box hands them to the
+    thread, and the surface holding that thread is the next step, so leaving costs the
+    two presses the descent did. The control `c` was pressed from is not a landing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5918,15 +5917,16 @@ def seeded_thread(page, page_dir, passage):
     return sent
 
 
-def test_a_note_pressed_into_an_open_panel_hands_the_note_back(browser, serve):
-    """A press that moves the reader into a panel already standing still owes them their place.
+def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
+    browser, serve
+):
+    """A thread reached through the panel is left by the list it sits in.
 
     The note opens its thread where the thread is indexed: the card with Threads shut,
-    and the thread's card in the list with them open. That second press puts nothing up,
-    and it has still taken the reader off the note, so one Escape gives the note back and
-    leaves the panel open, as the one it opened would have been taken off. The way back
-    holds while the reader walks the list from there, since `t` from a thread records no
-    frame of its own.
+    and the thread's place in the list with them open. `t` then walks the reader on to a
+    second thread. Letting go of that one lands on the list holding it — the level it is
+    part of — and leaves the panel standing. The note is on the page they left when they
+    entered the panel, and a walk is not a descent to rewind.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5950,12 +5950,13 @@ def test_a_note_pressed_into_an_open_panel_hands_the_note_back(browser, serve):
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
 
 
-def test_a_margin_marker_pressed_with_threads_open_hands_itself_back(browser, serve):
-    """The marker lands its thread in an open panel, and one Escape gives the marker back.
+def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve):
+    """The marker lands the reader in a reply box, and the box's level is the thread.
 
-    With Threads shut the marker puts the card up, as its own press; with them open it
-    carries the reader into the thread's place in the list, which puts nothing up, and
-    the panel that was already open stays.
+    With Threads open the marker carries them to the thread's place in the list and into
+    its reply box. Letting go of the box hands them to the thread it belongs to, and the
+    panel that was already open stays. The marker is Leaf's own control beside the words
+    it marks rather than a place they were standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5980,12 +5981,12 @@ def test_a_margin_marker_pressed_with_threads_open_hands_itself_back(browser, se
 
 @pytest.mark.parametrize("entry", ["note", "comment"])
 def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, entry):
-    """The card a press put up is that press's to take off whatever thread it shows.
+    """The card a press put up is one level to take off whatever thread it shows.
 
-    `t` from the card walks it on to the next thread without a frame of its own, so the
-    one Escape still closes the card and hands back the place the press that put it up
-    displaced: the note, or the control `c` was pressed from. It must not land the reader
-    on the margin entry the card hangs from, which they never stood on.
+    `t` walks the card on to the next thread without adding a level, so the one Escape
+    still closes it. The landing is the page: neither the note nor the control `c` was
+    pressed from is standing any more, and the margin entry the card now hangs from is
+    one the reader never stood on.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6021,16 +6022,76 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     assert page.evaluate("() => document.activeElement === document.body")
 
 
+def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve):
+    """A cluster unfolded on another entry stands beside the card, not under it.
+
+    The card holds the margin's context while it is up, so a cluster the reader unfolded
+    stays open as `t` walks the card on to a thread on a different entry. Landing on the
+    entry the card now hangs from would hand the next press a fold belonging to an entry
+    somewhere else, so the card lands on the page and the cluster answers after it, at
+    the entry the reader actually unfolded.
+    """
+    page = open_page(
+        browser,
+        serve(
+            ACTION_PAGE,
+            events=[
+                COMMENT_ON_SUGGESTION,
+                {
+                    "kind": "comment",
+                    "author": "agent",
+                    "revision": 1,
+                    "text": "The plain paragraph carries a thread of its own.",
+                    "anchor": {"section": "insert"},
+                },
+            ],
+        ),
+    )
+    resized(page, 1440, 900)
+    unfolded = page.locator('[data-lf-margin-for="sug-refill"]')
+    more = unfolded.locator(":scope > .lf-margin-more")
+    options = unfolded.locator(":scope > .lf-margin-options")
+    more.click()
+    expect(options).to_be_visible()
+
+    thread_margin_entry = options.locator(
+        '.lf-margin-reading-option[data-lf-kinds="comment"]'
+    )
+    thread_margin_entry.click()
+    preview = page.locator(".lf-margin-preview")
+    card = preview.locator(".lf-conversation-thread")
+    expect(preview).to_be_visible()
+    card.focus()
+    shown = card.get_attribute("data-thread")
+
+    # The walk carries the card to a thread whose own margin entry is already standing,
+    # so nothing unfolds to hang it from and nothing folds the cluster: the card holds
+    # the margin's context, so the reader's cluster is still open behind it.
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-thread", shown)
+    expect(options).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    expect(options).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
+
+    page.keyboard.press("Escape")
+    expect(options).to_be_hidden()
+    expect(more).to_be_focused()
+
+
 @pytest.mark.parametrize("second", ["note", "marker"])
-def test_a_press_that_puts_its_thread_in_a_standing_card_hands_itself_back(
+def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     browser, serve, second
 ):
-    """A press from outside the card that puts its thread there is the card's way out.
+    """A press from outside replaces what the card shows rather than stacking a level.
 
-    The card shows one thread, so the second press has put up the card the reader now
-    sees, as a pointer press would have after the first card light-dismissed. One Escape
-    closes it and hands back the second note or marker, never the first note, whose
-    card the second press already replaced.
+    The card shows one thread, so the second note or marker changes its contents and
+    leaves one card standing, as a pointer press would have after the first card
+    light-dismissed. One Escape closes it, and the landing is the page it is anchored
+    to: neither note nor marker is a place the reader was standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)

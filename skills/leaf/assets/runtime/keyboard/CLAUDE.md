@@ -66,17 +66,24 @@ The levels, from the floor up:
 
 1. **The document** — the reader's position in the authored page, and the destinations
    they can stand on. This is the floor; Escape's job ends here.
-2. **Page-side state**, put on out on the page without entering chrome: a selection, a
-   captured target, an unfolded margin cluster, the page composer, Draw and Design mode.
-   Standing on a destination is not one of these: a reader puts page-side state on while
-   already standing where they are, so it comes off before the let-go, which is the last
-   step before the surfaces.
+2. **A page mode**: Draw, Design. A mode is the stance the whole page is in rather than
+   something standing on part of it, so everything else the reader puts up while one
+   holds is put up inside it, and the mode is the last thing off before the document.
 3. **Auxiliary surfaces**: the Threads panel, the trays.
 4. **Layers of a surface**: the panel's narrowing, a widget's filter.
-5. **Native layers**: a margin card, the versions menu, a modal dialog.
-6. **Boxes**: a composer, a reply box, a find box, which their surface contains.
+5. **Page-side state**, put on out on the page without entering chrome: a selection, a
+   captured target, an unfolded margin cluster, the page composer. Standing on a
+   destination is not one of these: a reader puts page-side state on while already
+   standing where they are, so it comes off before the let-go.
+6. **Native layers**: a margin card, the versions menu, a modal dialog.
+7. **Boxes**: a composer, a reply box, a find box, which their surface contains.
 
-Levels 2 and 3 are not nested: a reader can hold a selection out on the page and have
+What separates 2 from 5, which are both put on out on the page, is how much of the page
+each holds: a mode holds all of it and a selection holds one part, so a surface opened
+afterwards is inside the mode and beside the selection. That is why a panel a send
+opened while Design mode stood closes before the mode does.
+
+Levels 3 and 5 are not nested: a reader can hold a selection out on the page and have
 the panel open beside it, and neither is inside the other. What decides them, and any
 other two steps standing at once, is **containment before kind**: a step rooted inside
 the surface holding focus answers before that surface, and a step rooted outside it
@@ -87,8 +94,7 @@ and `RUNG_LADDER`, rank siblings, which is the only order they can state.
 A bounded interaction — the Go-to sequence, the target chooser, page search, reactions,
 the command reference — owns the keyboard while it stands and unwinds itself. It is not
 a level, and it hands the reader back itself. Draw and Design mode are not of that kind:
-they persist until the reader leaves them, so they come off the ladder at level 2, and
-a panel a send opened while one stood closes before the mode does.
+they persist until the reader leaves them, so each is a level of its own on the ladder.
 
 Each step lands the reader at the parent of what it closed: a box at its container, a
 standing at its floor, a surface at the document. **A landing in the document is the

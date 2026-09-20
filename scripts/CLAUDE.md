@@ -5,6 +5,11 @@ so a host copies these along with it, but nothing under `skills/leaf` reads them
 runtime. Python tools use the environment pinned by the root `pyproject.toml` and
 `uv.lock`; the browser contributor build uses `package.json` and `package-lock.json`.
 
+Because the payload is the tracked tree, what a script generates lands under `.tmp/`
+unless an install reads that output from a committed path. The vendored bundles below
+are that exception; evidence, previews, staged sites, and probe results are not, and a
+run of one of them leaves the tracked tree unchanged.
+
 Each script's own docstring and `--help` own its behavior, flags, and lifecycle. This
 file says which script owns what, and the rules that hold across them.
 
@@ -91,6 +96,15 @@ rules a new or changed example has to meet.
   photographs of the same staged scene beside it — the README's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
   Keep the latter while the product can make those frames stale.
+
+## MCP Apps probe
+
+`mcp-app/run-direct-probe.sh` bundles the runtime into a `ui://` resource and runs it
+in a pinned checkout of the official reference host; `mcp-app/README.md` owns its
+inputs, flags, and what each run checks. Its evidence is scratch under
+`.tmp/mcp-app/experiments/<number>/`, replaced whenever that number runs again. No
+install reads it, so what survives a run is the part a maintainer copies into
+`notes/mcp-apps/experiments/<number>/` because the written-up result cites it.
 
 ## Vendored bundles
 

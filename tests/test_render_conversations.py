@@ -1704,6 +1704,13 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
     approve = page.locator(".lf-signoff")
     expect(approve).to_have_text("Approve version")
     expect(page.locator(".lf-threads")).not_to_contain_text("Approved")
+    thread = page.locator(".lf-threads > .lf-thread")
+    separator = page.locator(".lf-general").evaluate(
+        "node => getComputedStyle(node).borderTopColor"
+    )
+    assert (
+        thread.evaluate("node => getComputedStyle(node).borderBottomColor") != separator
+    )
 
     events_model.append_event(
         serve.page_dir,
@@ -1719,6 +1726,9 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
 
     expect(page.locator(".lf-threads")).to_contain_text("Approved")
     expect(approve).to_have_text("✓ Version approved")
+    assert (
+        thread.evaluate("node => getComputedStyle(node).borderBottomColor") == separator
+    )
 
 
 def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):

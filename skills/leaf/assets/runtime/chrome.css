@@ -1042,7 +1042,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: var(--lf-thread-pad); margin-bottom: 16px;
     --lf-block-frame: 1; }
   .lf-pinned + .lf-thread { padding-top: 4px; }
-  .lf-threads > .lf-thread:not([hidden]):not(:has(~ .lf-thread:not([hidden]))) {
+  .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long

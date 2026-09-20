@@ -623,10 +623,10 @@ export function createAskView({
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
   // listener-facing projection on each exact action control. A widget that already owns
   // a binding-badge face lends that face and its exact placement; other actions get chrome at
-  // the visible margin entry's corner. Off-screen actions keep their working badge and name
-  // on the shortcut bar but wear no chip. A nearer keyboard layer suppresses the row and both
-  // projections through the exact reachable bindings, so a digit never stays
-  // promised after a sequence, text box, or modal has taken it.
+  // the visible margin entry's corner. Off-screen actions keep their digit in the shortcut
+  // bar's range and their name in the command reference, but wear no chip. A nearer
+  // keyboard layer suppresses the row and both projections through the exact reachable
+  // bindings, so a digit never stays promised after a sequence, text box, or modal takes it.
   const wornBindingBadges = new Map();
   const wornShortcuts = new Map();
   function exposedBindingBadge(bindingBadge, control, visible) {

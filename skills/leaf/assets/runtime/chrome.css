@@ -921,7 +921,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Search and filter disclosure share one toolbar. A nondefault view keeps its
      criteria and result count visible even while the filter choices are folded. */
   leaf-thread-narrowing { display: contents; }
-  .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px; }
+  .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px 6px; }
   /* type=search, so the platform's own clear control does that work: an ✕ of the
      runtime's own would be a second way to say the same thing, drawn worse. */
   .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: 13px;
@@ -1016,7 +1016,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      heading. It is the question renderThreads asks to know how much of the top is
      covered, so one class states both the mechanics and the measurement boundary. */
   .lf-pinned { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
-    margin: 0; padding: 12px 8px 8px; background: var(--card); }
+    margin: 0; padding: 6px 8px 2px; background: var(--card); }
   .lf-group { display: block; width: 100%; box-sizing: border-box; border: none;
     font: inherit; font-size: var(--t-6); font-weight: 600;
     text-align: left; color: var(--muted);
@@ -1041,6 +1041,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid transparent; border-block-end-color: var(--rule);
     padding: var(--lf-thread-pad); margin-bottom: 16px;
     --lf-block-frame: 1; }
+  .lf-pinned + .lf-thread { padding-top: 4px; }
+  .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
+    border-block-end-color: transparent; margin-bottom: 0; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the

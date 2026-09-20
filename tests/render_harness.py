@@ -1297,6 +1297,17 @@ def shortcut_bar_text(page):
     return page.locator(".lf-shortcut-bar").inner_text()
 
 
+def ask_actions_hint(digits):
+    """What the shortcut bar's Ask row says for an Ask holding `digits` numbered routes.
+
+    The row names the live range and one fixed word for the group; each action's own
+    title stays on its control and in the command reference. Tests read that wording
+    from here rather than spelling it out, so changing what the runtime says is one
+    edit here and not a sweep of every assertion that happens to quote it.
+    """
+    return f"{digits}\nAsk actions"
+
+
 def open_versions(page):
     """Open the Versions destination through its complete keyboard route."""
     page.keyboard.press("g")

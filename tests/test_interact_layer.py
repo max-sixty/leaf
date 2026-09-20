@@ -707,7 +707,7 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
     finally:
         evidence.unlink(missing_ok=True)
         for parent in (results, *results.parents):
-            if parent == PLUGIN_ROOT:
+            if parent in (PLUGIN_ROOT, PLUGIN_ROOT / ".tmp"):
                 break
             with contextlib.suppress(OSError):
                 parent.rmdir()

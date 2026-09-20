@@ -22,7 +22,7 @@ Each run creates a fresh page and writes its evidence under
 `.tmp/mcp-app/experiments/<number>/results/`, replacing whatever that number
 wrote before. The probe leaves the tracked tree alone: an install is the tracked
 tree and nothing in one reads probe evidence. Copy into
-`notes/mcp-apps/experiments/<number>/` the part a written-up result cites —
+`notes/mcp-apps/experiments/<number>/results/` the part a written-up result cites —
 `reference-host.json` and `source.sha256` identify the run in a few hundred
 bytes; a screenshot earns its megabyte only where the prose points at it. The
 runner stops its servers on completion; `--keep-live` keeps the passing preview

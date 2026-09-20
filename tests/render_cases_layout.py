@@ -1233,19 +1233,6 @@ def other_leaf(live_leaf):
     return live_leaf("other", "The other leaf")
 
 
-# The page's scroll after it has stopped moving. A native Space is a smooth scroll, so
-# reading straight after the press reads a frame of the glide and calls it the answer —
-# which is the whole of what CLAUDE.md's wait norm is about.
-SCROLL_SETTLE_MS = 50
-SCROLL_STILL = """(hold) => {
-  const at = document.scrollingElement.scrollTop;
-  if (at !== window.__lfScrollAt) {
-    window.__lfScrollAt = at;
-    window.__lfScrollSince = performance.now();
-    return false;
-  }
-  return performance.now() - window.__lfScrollSince > hold;
-}"""
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the tray.
 MANY_ASKS_PAGE = leaf_page(

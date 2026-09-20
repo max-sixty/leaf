@@ -34,7 +34,6 @@ from render_cases_interaction import (
     ROOM_HELD,
     ROOM_WIDGETS,
     ROOMS,
-    SCROLL_SETTLED,
     SHORT_SUGGESTION,
     STANDING_ASK,
     SUGGESTION_IN_CONTEXT_PAGE,
@@ -44,7 +43,6 @@ from render_cases_interaction import (
     sent_events,
 )
 from render_cases_layout import (
-    SCROLL_SETTLE_MS,
     banner_control,
     unfolded_button,
 )
@@ -90,6 +88,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     shortcut_bar_text,
@@ -241,7 +240,7 @@ def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
     page.locator("#plan-return").hover()
     page.mouse.wheel(0, 450)
     page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
-    page.wait_for_function(SCROLL_SETTLED)
+    scroll_settled(page)
     plan_scroll = page.evaluate("document.scrollingElement.scrollTop")
     # Locator.click scrolls this sticky descendant back to its static-flow position.
     # A reader clicks the strip where it is painted, preserving the reading above.
@@ -270,7 +269,7 @@ def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
     page.wait_for_function(
         "() => document.querySelector('#detail-pane > .lf-pane-content > .lf-pane-body').scrollTop > 100"
     )
-    page.wait_for_function(SCROLL_SETTLED)
+    scroll_settled(page, scroller="#detail-pane > .lf-pane-content > .lf-pane-body")
     detail_scroll = detail.evaluate("element => element.scrollTop")
     plan.click()
     expect(plan).to_have_attribute("aria-selected", "true")
@@ -324,7 +323,7 @@ def test_root_tab_targets_remain_global_and_export_in_authored_order(
         context=browser.new_context(viewport={"width": 1280, "height": 720}),
     )
     tabs = page.locator("#root-tabs")
-    page.wait_for_function(SCROLL_SETTLED)
+    scroll_settled(page)
     expect(page.locator("#plan-stages")).to_be_in_viewport()
     arrival = page.evaluate("""() => ({
       target: document.querySelector('#plan-stages').getBoundingClientRect().top,
@@ -1627,7 +1626,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     expect(details).to_have_attribute("open", "")
     expect(page.locator(":target")).to_have_attribute("id", hrefs[1][1:])
     expect(page).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     top = page.locator("h3").evaluate("heading => heading.getBoundingClientRect().top")
     assert 0 <= top < 150, f"the revealed heading stopped at {top}px"
 
@@ -1852,7 +1851,7 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     expect(page.locator("#section-two > h2")).to_have_attribute("id", "title-two")
     toc.get_by_role("link", name="Move the readers").click()
     expect(page.locator(":target")).to_have_attribute("id", "section-three")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     arrival = page.locator("#section-three").evaluate(
         """section => {
           const root = document.scrollingElement;
@@ -2244,7 +2243,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     ), "the fading label was visible but not the pointer target"
     page.mouse.click(label_point["x"], label_point["y"])
     expect(page).to_have_url(re.compile(r"#prepare$"))
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     assert page.evaluate("window.lfTocPressed") is True
     expect(prepare).to_have_attribute("aria-current", "location")
     assert prepare.evaluate("node => node.matches(':hover')")
@@ -2321,7 +2320,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(verify).to_have_css("pointer-events", "auto")
     verify.click()
     expect(page).to_have_url(re.compile(r"#verify$"))
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     frames = page.evaluate("window.lfTocFrames")
     travelled = [position for position in frames if position > 0]
     assert len({round(position) for position in travelled}) >= 3, frames
@@ -2335,7 +2334,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(start).to_have_css("pointer-events", "auto")
     start.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     expect(page.locator(":target")).to_have_attribute("id", start_href[1:])
     assert (
         page.locator(start_href).evaluate("node => node.getBoundingClientRect().top")
@@ -2350,7 +2349,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     prepare.click()
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     after_navigation = nav.bounding_box()
     assert after_navigation is not None
     assert after_navigation == nav_box, "following a link moved the contents rail"
@@ -3053,29 +3052,12 @@ def test_a_keyboard_move_keeps_the_card_in_view(
         }"""
         where = [column, row, axis]
         page.wait_for_function(placement, arg=where)
-        page.evaluate(
-            """axis => {
-              const box = axis === 'column'
-                ? document.querySelector('#crowd') : document.scrollingElement;
-              window.__lfMoveScroll = axis === 'column' ? box.scrollLeft : box.scrollTop;
-              window.__lfMoveScrollSince = performance.now();
-            }""",
-            axis,
-        )
-        page.wait_for_function(
-            """([axis, hold]) => {
-              const box = axis === 'column'
-                ? document.querySelector('#crowd') : document.scrollingElement;
-              const now = axis === 'column' ? box.scrollLeft : box.scrollTop;
-              if (now !== window.__lfMoveScroll) {
-                window.__lfMoveScroll = now;
-                window.__lfMoveScrollSince = performance.now();
-                return false;
-              }
-              return performance.now() - window.__lfMoveScrollSince > hold;
-            }""",
-            arg=[axis, SCROLL_SETTLE_MS],
-        )
+        # A move along the columns travels the board's own scrollport; a move down a
+        # column travels the document.
+        if axis == "column":
+            scroll_settled(page, scroller="#crowd", axis="x")
+        else:
+            scroll_settled(page)
         page.wait_for_function(placement, arg=where)
 
     grip.focus()
@@ -3130,11 +3112,7 @@ def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     # Read only once the document has held one position. Without cancellation, the
     # abandoned smooth reveal continues past Escape and settles with the restored,
     # focused card above the viewport.
-    page.evaluate(
-        """() => { window.__lfScroll = document.scrollingElement.scrollTop;
-                    window.__lfScrollSince = performance.now(); }"""
-    )
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     page.wait_for_function(
         "() => document.querySelector('#sq-card-0').getAnimations().length === 0"
     )
@@ -6820,7 +6798,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     expect(page.locator("#storage-decision")).to_be_focused()
     expect(page.locator("#storage-decision")).to_have_attribute("data-lf-ask", "1")
     expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     # Where the reader was left is on the screen the walk has just arranged, and the pick
     # the walk used to stand them on is the measurement that says the two cannot both be.
     standing = page.evaluate(
@@ -7378,9 +7356,9 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
     # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     page.keyboard.press("a")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_text(["1", "2"])
@@ -7398,7 +7376,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
           scrollTo(0, scrollY + last.top - line.top - 1);
         }"""
     )
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_count(1)
@@ -7476,7 +7454,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
 
     page.keyboard.press("a")
     expect(page.locator("#sc-sug")).to_be_focused()
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     landed = page.evaluate(
         """() => {
@@ -7521,11 +7499,11 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
     page.evaluate(
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     page.keyboard.press("Shift+a")  # back to the nearest ask above, which is the change
     expect(page.locator("#ar-sug")).to_be_focused()
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     landed = page.evaluate(
         """() => {
@@ -7593,7 +7571,7 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#ac-sug")).to_be_focused()
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     seen = page.evaluate(
         """() => {
@@ -7632,7 +7610,7 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
 
     page.keyboard.press("a")
     expect(page.locator("#sc-sug")).to_be_focused()
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     arrived = page.evaluate("() => document.scrollingElement.scrollTop")
     assert arrived > 0, "the walk did not travel to the ask at all"
 
@@ -7640,17 +7618,15 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     # the change's foot is still on screen, so this is the same view with the reader's
     # own adjustment in it.
     page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     held = page.evaluate("() => document.scrollingElement.scrollTop")
     assert held == arrived - 40, "the page did not take the reader's own adjustment"
 
     # The press's own announcement is the edge this absence stands behind. `goToAsk`
     # travels before it announces, so a live region that has spoken again is a press whose
     # travel has already been decided and begun. Waiting on the scroll alone cannot say
-    # that: two equal samples taken before a glide starts are the reading a page that
-    # never moved gives, and the settle probe carries its last reading between waits, so
-    # it answered from the nudge that came before this press. The sentinel makes it take a
-    # fresh sample and then hold, which is the window a travel would appear in.
+    # that: frames held still before a glide starts read the same as a page that never
+    # moved, and only the announcement puts the read behind the decision.
     observe_live_region(page)
     page.keyboard.press("a")  # one ask, so the clamped walk stays on it
     page.wait_for_function(
@@ -7660,8 +7636,7 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
     assert "" in page.evaluate("window.__lfLiveRegionChanges")
     expect(page.locator("#sc-sug")).to_be_focused()
-    page.evaluate("() => { window.__lfScroll = -1; }")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
         "the walk travelled to an ask the reader could already see"
     )
@@ -8856,7 +8831,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # assertions are then about the landing: measured from the wrapper's own rect the
     # change sits at the document's origin, so the reader is carried to the top of the
     # page — up from where they stood, with the change still below the fold.
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )
@@ -8927,7 +8902,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
     ) == [0, 0], "the page's own style no longer takes the wrapper's box away"
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") > was, (
         "the walk went up rather than down, which is where the document's origin is"
     )

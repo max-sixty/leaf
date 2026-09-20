@@ -1683,6 +1683,67 @@ def page_right(page):
     return page.evaluate(f"() => {SHELL_BOX}.right")
 
 
+# How long a scroller holds one position before its travel is over, counted in the
+# browser's own rendering frames.
+SCROLL_STILL_FRAMES = 3
+
+SCROLL_STILL = """([selector, axis, frames]) => {
+  const box = selector ? document.querySelector(selector) : document.scrollingElement;
+  if (!box) return false;
+  const at = axis === "x" ? box.scrollLeft : box.scrollTop;
+  const held = globalThis.__lfScrollStill;
+  globalThis.__lfScrollStill =
+    held && held.at === at ? { at, frames: held.frames + 1 } : { at, frames: 0 };
+  return globalThis.__lfScrollStill.frames >= frames;
+}"""
+
+
+def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
+    """Wait until the scroller has arrived, rather than until it pauses on the way.
+
+    One gesture's travel is two moves. `scrollRevealedElement` (anchor-travel.js) places
+    the element's nested scrollports at once and then glides the scroller that owns it to
+    the centring position, so between the instant move and the glide's first step the page
+    stands still for a rendering frame or more. A wait that asks only "has the number held
+    for N milliseconds" cannot tell that pause from the arrival, and it answers with the
+    place the instant move left — which a test then measures, scrolls from, and loses when
+    the glide lands on top of its own `scrollTo`.
+
+    Which reading it gives is decided by the machine and not by the page. The window has to
+    be shorter than the pause to be safe, and the pause is a frame gap: on this checkout the
+    instant move reports at 9ms and the glide's first step at 43ms, so a 50ms window already
+    spans it, and every frame the runner drops widens it further. That is why the reading
+    held here and lost on the nightly run, where two browsers share four cores
+    (`tests/test_render_widgets.py::test_ask_binding_badges_do_not_cover_their_key_line`,
+    run 35527368685).
+
+    Frames are the unit the browser schedules a glide in. The compositor advances the
+    scroller on every frame the animation runs, independently of the main thread, so a
+    still frame can only be one the animation has not started on — and a loaded machine
+    takes *fewer* frames through that pause, not more. A hold counted in frames therefore
+    means the same thing on every machine, where a hold counted in milliseconds means
+    whatever the frame rate makes of it.
+
+    Playwright polls `wait_for_function` on `requestAnimationFrame`, so one evaluation is
+    one frame. The count is this helper's own: it clears the record each time rather than
+    leaving a caller to delete the last wait's state before its own can mean anything.
+
+    A wait that runs out names the scroller it was watching and the reading it gave up
+    on, so a scroller that never stops and a selector that matches nothing read
+    differently."""
+    page.evaluate("() => { delete globalThis.__lfScrollStill; }")
+    try:
+        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
+    except PlaywrightTimeout:
+        where = scroller or "the document"
+        held = page.evaluate(
+            "() => globalThis.__lfScrollStill ?? null",
+        )
+        raise AssertionError(
+            f"{where} never held one position for {frames} frames: gave up on {held}"
+        ) from None
+
+
 def panel_settled(page, open=True):
     """Wait for the panel to reach `open`, which is the settled page.
 

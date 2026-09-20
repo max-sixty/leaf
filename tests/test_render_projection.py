@@ -52,7 +52,6 @@ from render_cases_interaction import (
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SCROLL_SETTLED,
     SEATED_ASK_ENTRY,
     SEATED_ASK_MODULE,
     STANDING_ACTIONS,
@@ -71,7 +70,6 @@ from render_cases_interaction import (
     trial_family,
 )
 from render_cases_layout import (
-    SCROLL_SETTLE_MS,
     token_colour,
     unfolded_button,
 )
@@ -109,6 +107,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -4109,7 +4108,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     for ask in ASKS_IN_ORDER[:3]:
         page.keyboard.press("a")
         expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     # Ask travel now starts at the Ask's opening, which normally makes the coarse
     # reading agree with the saved landing. Look back just far enough to make the two

@@ -675,20 +675,6 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the Asks tray's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
-# The document's scroll once it has stopped moving. A leaf's travel is a glide, so any
-# reading taken while it runs is of a place the gesture passes through rather than of
-# where it went — and "the decision is on screen" is one of those places, true for a moment
-# in the wrong position before the glide has started. A test that waited on that passed
-# with the travel bug put back, which is how this came to be written.
-SCROLL_SETTLED = """(hold) => {
-  const now = document.scrollingElement.scrollTop;
-  if (now !== window.__lfScroll) {
-    window.__lfScroll = now;
-    window.__lfScrollSince = performance.now();
-    return false;
-  }
-  return performance.now() - window.__lfScrollSince > hold;
-}"""
 # Where the tray's rows say their decision's own words, which is the half of a row a static
 # lint can never read: the words are whatever the page renders, after every upgrade.
 # Every widget that measures a number off a live box, authored into the page and sent in

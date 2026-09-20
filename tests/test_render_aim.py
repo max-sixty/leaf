@@ -21,7 +21,6 @@ from render_cases_interaction import (
     ASK_PAGE,
     ASKS_PAGE,
     HOLD_MOTION,
-    SCROLL_SETTLED,
     SUGGESTION_PAGE,
     live_url,
 )
@@ -39,7 +38,6 @@ from render_cases_layout import (
     LEGEND_TRUE,
     NAMED,
     PAGE_MARKUP,
-    SCROLL_SETTLE_MS,
     aim_targets,
     draw_edge,
     edge_settled,
@@ -70,6 +68,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     stamp_page,
@@ -453,7 +452,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
         page.mouse.move(8, 450)
         page.mouse.wheel(0, -200)
         page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
-        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
         assert page.evaluate("scrollY") < revealed_scroll
         expect(page.locator(".lf-fab-bar")).to_have_attribute(
             "data-lf-placement", placement
@@ -536,7 +535,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     for _ in range(math.ceil((maximum_scroll - last_scroll) / 150)):
         page.mouse.wheel(0, 150)
         page.wait_for_function("before => scrollY > before", arg=last_scroll)
-        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
         moved = page.evaluate("scrollY")
         assert moved > last_scroll
         assert bar.evaluate(
@@ -602,7 +601,7 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     page.wait_for_function(
         "() => document.getElementById('passage').getBoundingClientRect().bottom < 0"
     )
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     covered = page.evaluate(
         """() => {

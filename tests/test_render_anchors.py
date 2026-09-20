@@ -21,7 +21,6 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SCROLL_SETTLED,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -77,6 +76,7 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     shortcut_bar_text,
@@ -3946,15 +3946,18 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     page, place_bottom = clearance_page(browser, serve)
     # 10px into the band keeps the line's middle, where the press lands, off the bar.
     covered = place_bottom(10)
-    page.evaluate("() => { delete window.__lfScroll; delete window.__lfScrollSince; }")
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-conversation-thread")).to_be_focused()
-    # A trip waits on a conversation refresh before it moves, so hold longer than that.
-    page.wait_for_function(SCROLL_SETTLED, arg=400)
+    # A trip waits on the conversation refresh before it decides to move, and that same
+    # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
+    # So the card standing where the pass put it is the edge a travel would have been
+    # asked for behind; read the page's own position from there rather than from a hold
+    # long enough to have covered the wait.
+    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
+    scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         covered["scroll"], abs=1
     )
-    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
 
 
 def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):

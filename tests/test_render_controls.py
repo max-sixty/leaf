@@ -37,8 +37,6 @@ from render_cases_layout import (
     NEIGHBOURHOOD,
     PANEL_DIFF_MARKUP,
     RING_NAMES,
-    SCROLL_SETTLE_MS,
-    SCROLL_STILL,
     SHOT_SRC,
     SHOTS,
     UNBREAKABLE_PAGE,
@@ -88,6 +86,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     stamp_page,
@@ -3287,7 +3286,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
             )
         # And then the rest of the glide, so the next key's reset lands on a scroll
         # that is over rather than on one still on its way somewhere.
-        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
@@ -3315,7 +3314,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     # A reader reading: native Space still pages through the document from body.
     page.keyboard.press("Space")
     page.wait_for_function(SCROLLED)
-    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
     was = page.evaluate(top)
 
     # Opened with the pointer, the button holds focus and the browser withholds the ring.
@@ -3340,7 +3339,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.wait_for_function(
         "(was) => document.scrollingElement.scrollTop > was", arg=was
     )
-    page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     # Opened from the keyboard, and left the same way one opened by pointer is: the
     # panel's parent is the document, so Escape lands the reader there rather than on
@@ -3530,17 +3529,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page.wait_for_function(
         "at => document.querySelector('.lf-threads').scrollTop > at", arg=after_page
     )
-    page.evaluate(
-        "() => { window.__lfAuxiliaryScroll = -1;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); }"
-    )
-    page.wait_for_function(
-        "hold => { const now = document.querySelector('.lf-threads').scrollTop;"
-        " if (now !== window.__lfAuxiliaryScroll) { window.__lfAuxiliaryScroll = now;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); return false; }"
-        " return performance.now() - window.__lfAuxiliaryScrollSince > hold; }",
-        arg=50,
-    )
+    scroll_settled(page, scroller=".lf-threads")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == covered_at
 
     # Focus already inside the auxiliary surface is not a reason to move it at either crossing.
@@ -3707,18 +3696,7 @@ def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serv
     page.wait_for_function(
         "() => document.querySelector('.lf-asks-panel .lf-tray-list').scrollTop > 0"
     )
-    page.evaluate(
-        "() => { window.__lfAuxiliaryScroll = -1;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); }"
-    )
-    page.wait_for_function(
-        "hold => { const now = document.querySelector("
-        "'.lf-asks-panel .lf-tray-list').scrollTop;"
-        " if (now !== window.__lfAuxiliaryScroll) { window.__lfAuxiliaryScroll = now;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); return false; }"
-        " return performance.now() - window.__lfAuxiliaryScrollSince > hold; }",
-        arg=50,
-    )
+    scroll_settled(page, scroller=".lf-asks-panel .lf-tray-list")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
     row = tray.locator(f'.lf-asks-row[data-lf-at="{identity}"]')

@@ -319,6 +319,13 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
 
+A module that puts the reader somewhere calls `focusDestination(element)` rather than
+`element.focus()`, wherever that place is not already a control. It lends the element the
+tab stop a control has for exactly as long as it holds it, so the browser's own Tab order
+continues from there and no `tabindex` is left on the page behind the reader. What needs
+it is a widget's own Escape step landing them back in the thing it took them out of: the
+patch a file filter belongs to, the exhibit a box was about.
+
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
 transitions, not a Web Animations call a module makes for itself, so `motion` is where a

@@ -100,6 +100,11 @@ export function takesLetters(node) {
 // screen. It is also the fallback here, for a viewport holding nothing to land on — a
 // tall bounded region, a run of figures — where the honest answer is that the reader has
 // no reading position for the browser to continue from.
+//
+// A surface covering the page makes it inert, so neither half of this reaches it and
+// focus stays where the closing layer leaves it, inside that surface. That is the right
+// answer rather than a gap: the page is not somewhere the reader can be while it is
+// covered, and the surface is the floor they are standing on.
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;

@@ -14,7 +14,7 @@ HUB = model.leaf_page(
     "command hub",
     """<h1 id="h">Atlas</h1>
 <lf-command id="atlas" label="Replace the parser">
-  <lf-task id="goal-parser" status="active"><strong>Replace the XML parser</strong></lf-task>
+  <lf-task id="goal-parser" status="active" talk><strong>Replace the XML parser</strong></lf-task>
 </lf-command>""",
 )
 # A request held against a goal and the agent's answer to it. `holds` names the

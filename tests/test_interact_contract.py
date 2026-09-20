@@ -8,6 +8,7 @@ import threading
 import time
 from copy import deepcopy
 
+import model_folds as model
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -19,8 +20,6 @@ from interact_support import (
     PAGE,
     PAGE_PACKAGES,
     PILOT_PURGE,
-    REJECT,
-    RESOLVE,
     SHELVED,
     TRIAL_CACHE,
     TRIAL_LOG,
@@ -45,7 +44,6 @@ from interact_support import (
     element_declaration,
     fetch,
     live_versions,
-    logged,
     publish,
     published,
     stamp,
@@ -240,19 +238,56 @@ def test_only_declared_generated_children_add_mapping_keys_to_liveness():
     ]
 
 
-def test_an_accept_carries_its_thread_resolution(page_dir):
+# Two suggestions on one page, and the decisions a reader takes on them. The
+# widgets are here rather than named only in the events because a settlement
+# rests on its widget: the door derives each action's coordinate and its answer
+# from this markup, so a log that named a widget the page has not got would be
+# refused rather than folded.
+SETTLED = model.leaf_page(
+    "feeders",
+    """<h1 id="feeders">Feeders</h1>
+<lf-suggestion id="sug-a">
+  <lf-old><p id="a-old">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p id="a-new">Refill when the camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="sug-b">
+  <lf-old><p id="b-old">Check the cameras weekly.</p></lf-old>
+  <lf-new><p id="b-new">Check the cameras each morning.</p></lf-new>
+</lf-suggestion>""",
+)
+ASKED = {"kind": "comment", "text": "cameras are flaky"}
+PICKED = {
+    "kind": "action",
+    "widget": "sug-a",
+    "action": "accept",
+    "detail": {"resolves": "e1"},
+}
+TURNED_DOWN = {"kind": "action", "widget": "sug-a", "action": "reject", "detail": {}}
+CLOSED = {"kind": "resolve", "parent": "e1"}
+
+
+def settlement(*events):
+    """What the thread `e1` stands resolved by, after exactly this log."""
+    return model.threads(model.reading(SETTLED, events))["e1"]["resolved"]
+
+
+def test_an_accept_carries_its_thread_resolution():
     """One atomic event: the accept snapshots the thread it answers, because the
     honoring version retires the wrapper that held the `resolves` mapping and a
     second POST could fail alone. A reject answers nothing."""
-    threads = logged(
-        page_dir,
-        COMMENT,
-        {"kind": "comment", "id": "c2", "author": "user", "text": "the other thing"},
-        ACCEPT,
-        {**REJECT, "widget": "sug-b"},
+    threads = model.threads(
+        model.reading(
+            SETTLED,
+            (
+                ASKED,
+                {"kind": "comment", "text": "the other thing"},
+                PICKED,
+                {**TURNED_DOWN, "widget": "sug-b"},
+            ),
+        )
     )
-    assert threads["c1"]["resolved"]["widget"] == "sug-a"
-    assert threads["c2"]["resolved"] is None
+    assert threads["e1"]["resolved"]["widget"] == "sug-a"
+    assert threads["e2"]["resolved"] is None
 
 
 def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
@@ -453,7 +488,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     assert len(undos) == 1
 
 
-def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
+def test_a_reject_after_an_accept_reopens_the_thread():
     """A thread stands settled by its widget's standing answer, not by the fact an
     answer was once given. Turning the fix down and leaving the question filed away
     as answered by it is invisible from both sides — the fold reports the suggestion
@@ -461,53 +496,48 @@ def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
 
     Read across the reject rather than after it: an assertion that the thread is open
     passes just as well on a log where the accept never settled it."""
-    assert logged(page_dir, COMMENT, ACCEPT)["c1"]["resolved"]["action"] == "accept"
-    assert logged(page_dir, REJECT)["c1"]["resolved"] is None
+    assert settlement(ASKED, PICKED)["action"] == "accept"
+    assert settlement(ASKED, PICKED, TURNED_DOWN) is None
 
 
-def test_an_accept_after_a_reject_settles_the_thread(page_dir):
+def test_an_accept_after_a_reject_settles_the_thread():
     """The other order, which the one-way latch already got right — this pins it
     against the fix for the latch, not against the latch. A fold that kept the
     first answer per widget rather than the last reads every case here correctly
     except this one, where nothing would ever settle the thread."""
-    assert logged(page_dir, COMMENT, REJECT)["c1"]["resolved"] is None
-    assert logged(page_dir, ACCEPT)["c1"]["resolved"]["action"] == "accept"
+    assert settlement(ASKED, TURNED_DOWN) is None
+    assert settlement(ASKED, TURNED_DOWN, PICKED)["action"] == "accept"
 
 
-def test_a_resolve_between_two_decisions_outlives_the_second(page_dir):
+def test_a_resolve_between_two_decisions_outlives_the_second():
     """A resolve is a person saying the conversation is done, and the log cannot
     take that back the way it takes back a decision. The one-way latch got this
     right by never clearing anything; what it pins is the obvious wrong fix for the
     latch — a reject that clears whatever its widget resolved — which would wipe a
     press made in between. Settling in place is what makes it hold: the superseded
     accept never stood, so it has nothing to clear."""
-    assert (
-        logged(page_dir, COMMENT, ACCEPT, RESOLVE)["c1"]["resolved"]["kind"]
-        == "resolve"
-    )
-    assert logged(page_dir, REJECT)["c1"]["resolved"]["kind"] == "resolve"
+    assert settlement(ASKED, PICKED, CLOSED)["kind"] == "resolve"
+    assert settlement(ASKED, PICKED, CLOSED, TURNED_DOWN)["kind"] == "resolve"
 
 
-def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again(page_dir):
+def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     """The two ways an answer stops standing compose, and this is where they meet: a
     reject supersedes the accept before it, and taking the reject back leaves the
     accept standing as the widget's answer once more. A withdrawal read only by the
     walk and not by the standing answer would leave the thread open with the log
     holding nothing that says so."""
-    assert (
-        logged(page_dir, COMMENT, ACCEPT, {**REJECT, "id": "r1"})["c1"]["resolved"]
-        is None
-    )
-    undone = {"kind": "undo", "author": "user", "undoes": "r1"}
-    assert logged(page_dir, undone)["c1"]["resolved"]["action"] == "accept"
+    assert settlement(ASKED, PICKED, TURNED_DOWN) is None
+    # The reject is the third event written, so `e3` is what the undo names.
+    taken_back = {"kind": "undo", "undoes": "e3"}
+    assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["action"] == "accept"
 
 
-def test_another_widget_s_answer_holds_a_thread_two_widgets_answered(page_dir):
+def test_another_widget_s_answer_holds_a_thread_two_widgets_answered():
     """Superseding is per widget, because the decision is. Two suggestions can answer one
     question, and deciding against the second says nothing about the first — a fold
     keyed on the thread instead of the widget would have let it."""
-    threads = logged(page_dir, COMMENT, {**ACCEPT, "widget": "sug-b"}, ACCEPT, REJECT)
-    assert threads["c1"]["resolved"]["widget"] == "sug-b"
+    held = settlement(ASKED, {**PICKED, "widget": "sug-b"}, PICKED, TURNED_DOWN)
+    assert held["widget"] == "sug-b"
 
 
 def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):

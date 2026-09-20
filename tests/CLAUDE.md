@@ -33,6 +33,14 @@ browser gate and the shared chrome contracts whose regressions must block a pull
 uv run pytest tests
 ```
 
+`tests/runtime/` is the same gate's other half, run by Node rather than pytest. It holds
+the shipped runtime's folds, imported into the document object model
+`tests/runtime/dom.mjs` puts up:
+
+```sh
+npm run test:runtime
+```
+
 A test is nightly when a pull request can land without it: the broad browser corpus in
 most `test_render_*.py` modules, and the published site in `test_site.py`. The everyday
 gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`, and
@@ -112,6 +120,24 @@ built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree
 has not got, an `x-` key the guide omits, a table that has drifted from the
 registry it was generated from.
+
+`tests/runtime/*.test.mjs` holds what a runtime module decides on its own: a value
+folded from values, a tree question answered from the tree. The division from
+`test_render_*.py` is the one `model_folds.py` draws on the Python side — the subject
+decides, not the machinery — with one boundary that is particular to running outside
+Chrome. An engine supplies more than paint, and where a fold rests on a primitive whose
+implementation differs, the fold is a browser fact: `text-alignment.js` reads
+`Intl.Segmenter`, which parts differently on dotted identifiers under Node and Chrome,
+so its test stays in the browser suite however little DOM it touches. Ask both engines
+rather than reading the module. `tests/runtime/dom.mjs` owns that world: the document
+object model these imports land in, and the map from the `/runtime/…` and `/vendor/…`
+specifiers a served page answers to the files under `skills/leaf/assets/`.
+
+`scripts/browser/application.test.mjs` also reaches runtime folds, and the subject is
+what separates them: it tests the publisher, which composes `foldProjection`,
+`foldThreads`, `foldWidgetStates` and the pending model into one reading, so a claim
+about that composition belongs there. A claim about what one of those modules decides
+belongs here, where it is imported the way a page imports it.
 
 The authored-source render gate runs every public example, regression page, and
 developer gallery independently. The broad Axe baseline uses the feature gallery at

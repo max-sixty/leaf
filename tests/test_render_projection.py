@@ -5511,46 +5511,6 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
-def test_state_origin_readings_compose_on_one_target(browser, serve):
-    """Each provenance channel gets one standing reading on a target.
-
-    Independent reader facets collapse to one Page Map reading, while reader, report,
-    and restatement origins remain separate. An outline property could only show the
-    last of these; the projection handed to the margin must preserve all three.
-    """
-    page = open_page(browser, serve(REPORT_PAGE))
-    origins = page.evaluate(
-        """async () => {
-          const [{projectionOrigins}, {authoredStates}] = await Promise.all([
-            window.__lfRuntimeImport('/runtime/projection/model.js'),
-            window.__lfRuntimeImport('/runtime/projection/authored.js'),
-          ]);
-          const entry = (id, kind, facet) => ({
-            unit: 't-parser',
-            e: {id, kind},
-            spec: {facet, record: null},
-            value: null,
-          });
-          const projection = {
-            classified: new Map([
-              ['old-reader', {e: {id: 'old-reader'}, restated: ['t-parser']}],
-            ]),
-            desired: new Map([
-              ['reader-status', entry('reader-status', 'action', 'status')],
-              ['reader-owner', entry('reader-owner', 'action', 'owner')],
-              ['report-progress', entry('report-progress', 'report', 'progress')],
-            ]),
-          };
-          return projectionOrigins(authoredStates, projection);
-        }"""
-    )
-    assert origins == [
-        {"origin": "restated", "unit": "t-parser"},
-        {"origin": "reader", "unit": "t-parser"},
-        {"origin": "reported", "unit": "t-parser"},
-    ]
-
-
 def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     browser, serve, tmp_path, monkeypatch
 ):

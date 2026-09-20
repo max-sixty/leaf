@@ -964,60 +964,6 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     }
 
 
-def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serve):
-    """Derived state declarations belong to one complete registry generation.
-
-    Warming the index must not make later generations inherit its declarations. Both
-    channels contribute, while only recorded declarations contribute owner selectors.
-    """
-    page = open_page(browser, serve(SHORT_SUGGESTION))
-    indexed = page.evaluate(
-        """async () => {
-          const {
-            recordedWidgetSelector,
-            registry,
-            stateSpecs,
-          } = await window.__lfRuntimeImport('/runtime/registry.js');
-          const before = stateSpecs();
-          const generation = registry.$layer.generation;
-          Object.assign(registry, {
-            'lf-index-action': {
-              'x-state': { set: { record: { role: 'value' } } },
-            },
-            'lf-index-report': {
-              'x-report': { measure: { record: { role: 'body' } } },
-            },
-            'lf-index-recordless': {
-              'x-state': { settle: {} },
-            },
-          });
-          registry.$layer = {
-            ...registry.$layer,
-            generation: `${generation}-next`,
-          };
-          const after = stateSpecs();
-          return {
-            beforeHadProbe: before.some(({ tag }) => tag.startsWith('lf-index-')),
-            declarations: after
-              .filter(({ tag }) => tag.startsWith('lf-index-'))
-              .map(({ tag, channel, verb, spec }) => [tag, channel, verb, !!spec.record]),
-            recorded: recordedWidgetSelector()
-              .split(',')
-              .filter((tag) => tag.startsWith('lf-index-')),
-          };
-        }"""
-    )
-    assert indexed == {
-        "beforeHadProbe": False,
-        "declarations": [
-            ["lf-index-action", "x-state", "set", True],
-            ["lf-index-report", "x-report", "measure", True],
-            ["lf-index-recordless", "x-state", "settle", False],
-        ],
-        "recorded": ["lf-index-action", "lf-index-report"],
-    }
-
-
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     """Acquiring web storage can itself throw before any method is called.
 

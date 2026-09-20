@@ -21,6 +21,7 @@ node = "npm ci"
 # main moves.
 [[pre-merge]]
 tests = "uv run pytest tests"
+folds = "npm run test:runtime"
 
 # A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before
 # anyone reaches a merge. Install in the background rather than blocking the switch; the

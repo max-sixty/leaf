@@ -101,18 +101,6 @@ def _diff_page(*specimens):
     )
 
 
-def test_a_missing_node_has_no_passage_location(browser, serve):
-    """No DOM node means no passage location, rather than a runtime error."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    found = page.evaluate(
-        """async () => {
-          const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
-          return closestAcross(null, 'main');
-        }"""
-    )
-    assert found is None
-
-
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
     """The document reserves exactly the head covered by the painted banner.
 

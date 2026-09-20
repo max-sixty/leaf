@@ -652,6 +652,8 @@ ACCEPT = {
         "answer": "c1",
     },
 }
+
+
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it."""
     entering = threading.Event()

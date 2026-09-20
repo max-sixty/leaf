@@ -3528,17 +3528,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page.wait_for_function(
         "at => document.querySelector('.lf-threads').scrollTop > at", arg=after_page
     )
-    page.evaluate(
-        "() => { window.__lfAuxiliaryScroll = -1;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); }"
-    )
-    page.wait_for_function(
-        "hold => { const now = document.querySelector('.lf-threads').scrollTop;"
-        " if (now !== window.__lfAuxiliaryScroll) { window.__lfAuxiliaryScroll = now;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); return false; }"
-        " return performance.now() - window.__lfAuxiliaryScrollSince > hold; }",
-        arg=50,
-    )
+    scroll_settled(page, scroller=".lf-threads")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == covered_at
 
     # Focus already inside the auxiliary surface is not a reason to move it at either crossing.
@@ -3705,18 +3695,7 @@ def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serv
     page.wait_for_function(
         "() => document.querySelector('.lf-asks-panel .lf-tray-list').scrollTop > 0"
     )
-    page.evaluate(
-        "() => { window.__lfAuxiliaryScroll = -1;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); }"
-    )
-    page.wait_for_function(
-        "hold => { const now = document.querySelector("
-        "'.lf-asks-panel .lf-tray-list').scrollTop;"
-        " if (now !== window.__lfAuxiliaryScroll) { window.__lfAuxiliaryScroll = now;"
-        " window.__lfAuxiliaryScrollSince = performance.now(); return false; }"
-        " return performance.now() - window.__lfAuxiliaryScrollSince > hold; }",
-        arg=50,
-    )
+    scroll_settled(page, scroller=".lf-asks-panel .lf-tray-list")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
     row = tray.locator(f'.lf-asks-row[data-lf-at="{identity}"]')

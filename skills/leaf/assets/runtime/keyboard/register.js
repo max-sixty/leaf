@@ -28,8 +28,11 @@
 
    `RUNG_LADDER` is Escape's fallback for state the reader reached without a registered
    entry: a captured target, a pointer-opened tray, a panel open on arrival, ordinary
-   focus traversal. Standing on something is not a rung but the "standing" scope ahead of
-   the frames, since letting go is the newest thing the reader can undo. Its rungs
+   focus traversal. It is the order among siblings rather than the whole order: `rung`
+   reads containment over it, so a surface the reader is standing in comes off before one
+   they are not, and a selection left out on the page waits behind the panel they are
+   reading a thread in. Standing on something is not a rung but the "standing" scope ahead
+   of the frames, since letting go is the newest thing the reader can undo. Its rungs
    are contributed like everything else, each by the owner of the state it takes off, and
    `rung` resolves them into the one `navigation.back` row every surface reads. One row
    rather than one per step, because the ladder is one capability whose sentence changes:
@@ -40,6 +43,8 @@
    registered way back. */
 import { bindings, checked, word } from "./bindings.js";
 import { current, outsideCurrentFrame, RETURN } from "./layer-stack.js";
+import { focused } from "./scopes.js";
+import { under } from "../shadow.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
@@ -80,7 +85,9 @@ const STACK = [
   RUNGS,
 ];
 
-// Each rung names what the press takes off, innermost first.
+// Each rung names what the press takes off, innermost first. This is the order among
+// siblings; `rung` reads containment over it, so the surface the reader is standing in
+// comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "tray", // the tray that holds the edge
@@ -169,12 +176,28 @@ export function pageRung(name, reading) {
 // The innermost step the reader can still take. Read fresh by every projection, so the
 // sentence the reference lists, the word the line paints, and the press the dispatcher
 // runs are one answer rather than three readings of the ladder.
+//
+// Containment before kind. Two steps stand at once with the reader inside only one of
+// their surfaces — a selection left out on the page while they read a thread in the panel
+// — and `RUNG_LADDER`'s order alone would take off the one they are not in. So the surface
+// holding the reader answers first, with whatever they put on inside it, and a step rooted
+// outside that surface waits behind it. `RUNG_LADDER` orders siblings: which of the
+// panel's own layers comes off first, and which of two surfaces the reader is in neither
+// of.
 function rung() {
+  const steps = [];
   for (const name of RUNG_LADDER) {
     const step = rungs.get(name)();
-    if (step) return { ...step, name };
+    if (step) steps.push({ ...step, name });
   }
-  return null;
+  const here = focused();
+  let surface = null;
+  for (const { root } of steps) {
+    if (!root || root === document || !under(here, root)) continue;
+    if (!surface || under(root, surface)) surface = root;
+  }
+  const holds = (step) => under(step.root ?? document, surface);
+  return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
 const stepName = () => `navigation.back:${rung()?.name}`;
 

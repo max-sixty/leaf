@@ -168,6 +168,24 @@ const escapeSteps = (scope) =>
   scope.rows
     .filter((row) => bindings(row).includes("Escape") && live(row))
     .map((row) => word(row.escapeStep) ?? row.id);
+// The innermost surface the reader is standing in, among the ones offering a step. A
+// scope rooted at the reader's own focus, or at the document, names no surface: the first
+// is wherever they are and the second is everywhere.
+const holdingSurface = (scopes, active) => {
+  let inner = null;
+  for (const scope of scopes) {
+    const root = scopeRoot(scope);
+    if (!root || root === document || root === active || !under(active, root)) continue;
+    if (!inner || under(root, inner)) inner = root;
+  }
+  return inner;
+};
+// Containment before kind, the same rule the fallback ladder reads over its own steps.
+// The register's order says which of two steps is the inner one; it cannot say which of
+// them the reader is inside, and a composer left open out on the page is older than the
+// panel they are reading a thread in however the register ranks the two. So the surface
+// holding focus answers first, with every step rooted inside it, and the steps rooted
+// outside it keep the register's order behind them.
 const escapeOrder = (scopes, active) => {
   const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
   const end = boundaryAt < 0 ? scopes.length : boundaryAt;
@@ -182,8 +200,11 @@ const escapeOrder = (scopes, active) => {
     scopeRoot(scope) === active ||
     outsideCurrentFrame(scopeRoot(scope), escapeSteps(scope));
   const newer = causal.length && !heldStanding() ? fallback.filter(newerThanFrame) : [];
-  const rest = fallback.filter((scope) => !newer.includes(scope));
-  return [...inner, ...newer, ...causal, ...rest, ...scopes.slice(end)];
+  const outer = fallback.filter((scope) => !newer.includes(scope));
+  const surface = holdingSurface(outer, active);
+  const within = surface ? outer.filter((s) => under(scopeRoot(s), surface)) : [];
+  const rest = outer.filter((scope) => !within.includes(scope));
+  return [...inner, ...newer, ...causal, ...within, ...rest, ...scopes.slice(end)];
 };
 
 // The census the layer stack takes as a framed press is made: every step already

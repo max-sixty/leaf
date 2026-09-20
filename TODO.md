@@ -171,16 +171,29 @@ is now stated under #6.
   per-reader container turn, so merging them is a restructure with no deletion and is
   worth doing only under that same product condition.
 
-- **#7 — Test model rules without rebuilding whole browser journeys.** Keep browser tests
-  for focus, selection, pointer identity, layout, accessibility, and synchronous
-  presentation. Cover pure folds with compact model fixtures. The declarative layer
-  manifest landed in #753. Measured 2026-09-19: `tests/` is 141,297 lines against 104,266
-  of implementation, and 1,418 of the 2,388 tests are browser render tests across 91,159
-  lines. Of those, 325 across 14,750 lines drive no input, read no geometry and assert on
-  no focus — they load a page to read state back, and are what a model fixture would
-  replace. Five test sites call `projection.page_reading` or `asks.answered_ask` directly.
-  This follows #5 rather than leading it, #4 having landed: what makes the folds reachable
-  without a browser is giving them a home off the DOM.
+- **#7 — Test model rules without rebuilding whole browser journeys.** The fixtures landed
+  in #862 and #863: `interact_support.ModelPage` states a page for the append door, and
+  `tests/model_folds.py` folds one through `browser_state`, both from literal markup and a
+  literal log. The thread-settlement rules, the multi-revision folds and the door's
+  refusals on authored markup are all stated through them now. What remains is not a
+  sweep. The premise this item
+  carried — 325 browser tests across 14,750 lines that a model fixture would replace — did
+  not survive measurement. In a seeded random sample of 40 of those, none was a pure Python
+  fold: 17 were JavaScript folds, 22 browser facts, 1 mixed, putting pure folds at no more
+  than about 7.5% of the group. A full sweep of all 25 render files then examined 1,421
+  test functions and found zero convertible; every one depends on painted DOM, geometry,
+  focus, a gesture, a route, or a widget module's own output. Those modules are the
+  interaction corpus, where the page under test is the subject.
+
+  The sweep did find a second group, and that one is now closed: 14 tests were decided by
+  Python alone but filed in browser modules, running nightly only because `pytestmark` is
+  file-level. All 14 have moved to the everyday gate, the seven preview readings into
+  `test_interact_preview.py` of their own.
+
+  So what remains is the JavaScript folds, which `scripts/browser/*.test.mjs` already has
+  a home for and which no Python fixture can reach. That is the group worth measuring
+  next, and it needs a reading of which runtime and widget modules run without a DOM. It
+  does not depend on #5.
 
 - **#28 — Place the reading column with a grid track rather than `left`.** Opening a panel
   now keeps the reader's place through the browser's own scroll anchoring, and that hold

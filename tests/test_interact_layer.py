@@ -11,6 +11,7 @@ import sys
 import threading
 from pathlib import Path
 
+import playwright
 import pytest
 import tinycss2
 from click.testing import CliRunner
@@ -42,6 +43,7 @@ from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
+from leaf.render_gate import browser as browser_model
 from page_fixtures import package_selection_args
 
 EXPECTED_PAGE_STATE_FILES = (
@@ -4126,3 +4128,114 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
 
     assert result.exit_code != 0
     assert "$reactions.tokens must map lowercase token names" in result.output
+
+
+def test_the_register_is_the_only_way_a_key_enters_the_runtime():
+    """Every surface that names a key is a projection of the register, which holds only if
+    nothing binds a key behind its back. That is not a property a rendered page can be
+    asked about — a listener nobody declared looks exactly like no listener at all until
+    the press it eats goes missing — so it is pinned in the source, the way the
+    document-level class surface is.
+
+    Two are allowed and both are named here. The dispatcher is the register's own. The aim
+    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
+    what a click would take, and its keyup half has no place in a table of presses. A third
+    is how every drift this register replaced began — a `keydown` beside a display list,
+    the two of them free to disagree about which keys the widget answers."""
+    layer = ROOT / "skills/leaf"
+    sources = [
+        layer / "assets/leaf.js",
+        *sorted((layer / "assets/runtime").rglob("*.js")),
+        *sorted((layer / "packages").glob("*/widgets/*.js")),
+        *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
+    ]
+    listeners = [
+        f"{src.name}:{n}"
+        for src in sources
+        for n, line in enumerate(src.read_text().splitlines(), 1)
+        if 'addEventListener("keydown"' in line
+    ]
+    assert len(listeners) == 2, (
+        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
+        "register (keys(el, title, rows)), which is what lets a surface promise it."
+    )
+
+
+def test_an_unnamed_driver_node_is_the_installed_wheels_own(monkeypatch):
+    """The other half of that hint, which the subprocess above cannot reach: with the
+    variable unset the driver runs the Node bundled in the installed wheel, and the
+    line has to name that file and then the variable that would replace it. The
+    glibc host is exactly this arm — it named nothing and the bundled binary is the
+    one that would not load."""
+    monkeypatch.delenv(browser_model.DRIVER_VARIABLE, raising=False)
+    node = Path(browser_model.driver_node())
+    assert node == Path(playwright.__file__).parent / "driver" / "node"
+    hint = browser_model.driver_hint()
+    assert str(node) in hint and browser_model.DRIVER_VARIABLE in hint
+
+    monkeypatch.setenv(browser_model.DRIVER_VARIABLE, "/elsewhere/node")
+    assert browser_model.driver_node() == "/elsewhere/node"
+    assert browser_model.driver_hint() == (
+        f"{browser_model.DRIVER_VARIABLE} named /elsewhere/node."
+    )
+
+
+def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
+    monkeypatch, tmp_path
+):
+    """With no variable set, PATH is the host's own statement of where its programs
+    are, and a hardcoded candidate list is not: a list needs an entry per
+    distribution and can never name a `/nix/store/<hash>-chromium-*/bin/chromium`.
+
+    It is asked second, after the Chrome channel rather than before it, and that
+    order is the whole of what keeps this from moving a host that works today: a box
+    with both a Google Chrome and a distro Chromium goes on getting the Chrome the
+    channel finds. So the launch is driven twice over one PATH holding one browser —
+    once where the channel answers, once where it raises what Playwright raises on a
+    host with no Chrome installed — and the assertion is the calls that were made,
+    since a test reading only the browser back cannot see which of the two produced
+    it."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    chromium = tmp_path / "bin" / "chromium"
+    chromium.parent.mkdir()
+    chromium.write_text("#!/bin/sh\nexec true\n")
+    chromium.chmod(0o755)
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("PATH", str(chromium.parent))
+
+    calls = []
+
+    class Chromium:
+        def __init__(self, channel_answers):
+            self.channel_answers = channel_answers
+
+        def launch(self, **kwargs):
+            calls.append(kwargs)
+            if "channel" in kwargs and not self.channel_answers:
+                raise PlaywrightError(
+                    "BrowserType.launch: Chromium distribution 'chrome' is not found "
+                    "at /opt/google/chrome/chrome"
+                )
+            return "a browser"
+
+    class Playwright:
+        def __init__(self, channel_answers):
+            self.chromium = Chromium(channel_answers)
+
+    launched, name = browser_model.launch_browser(Playwright(True))
+    assert (launched, name) == ("a browser", "Chrome")
+    assert calls == [{"channel": "chrome"}], "the channel keeps the hosts it has"
+
+    calls.clear()
+    launched, name = browser_model.launch_browser(Playwright(False))
+    assert (launched, name) == ("a browser", str(chromium))
+    assert calls == [{"channel": "chrome"}, {"executable_path": str(chromium)}]
+
+    # And the same reading is what the failed-launch line says, so a host with
+    # neither is told what was looked for rather than named a variable twice.
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert browser_model.discovered_executable() is None
+    hint = browser_model.browser_hint()
+    assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint

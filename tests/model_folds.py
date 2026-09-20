@@ -11,21 +11,27 @@ what the runtime is handed, not what a widget module draws with it, so a claim
 about a painted word, a node's identity across a poll, or an elapsed line a
 browser clock advances stays in `test_render_*.py`.
 
-What the door refuses is not here either, but it is no longer a page directory's
-to answer: `interact_support.ModelPage` states a page the same way for
+A test of what the door refuses belongs with the door, on
+`interact_support.ModelPage`, which states a page the same way for
 `event_contracts.admitted_event`. The two divide by subject rather than by
-machinery — a rule the door decides goes to `ModelPage`, a reading the fold
-produces comes here — and they compose the same vocabulary through
-`model_layer`. What the door stamps on an event it admits is here, through the
-same `admit_widget_event`.
+machinery — a rule the door decides goes there, a reading the fold produces
+comes here — and they state the page through the same class and compose the
+same vocabulary through `model_layer`.
+
+That is also why every command written here goes through that door on its way
+into the log. A fold is only worth what its premise is worth, and a premise
+assembled beside the door can be one the product would never have accepted: an
+action naming a widget the page has not got, a `holds` on a widget that does
+not take one, a coordinate written by hand rather than derived. Each of those
+now raises `EventRefused` instead of folding.
 
 Every value the server would read from a file is a literal in this module, so a
 reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
-from interact_support import model_layer
-from leaf.event_meaning import admit_widget_event
+from interact_support import ModelPage, model_layer
+from leaf.event_contracts import admitted_event
 from leaf.served_state.browser import browser_state
 from leaf.structure import SourceDocument
 
@@ -82,26 +88,29 @@ def reading(
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
     parent by), `seq`, `ts`, `author` (the reader) and `revision` (1) — are filled
-    where the test leaves them out, and a widget event gets the `meaning` admission
-    would stamp from the revision it names.
+    where the test leaves them out.
+
+    Each one then goes through the same append door the server admits it through,
+    so what this folds is a log the page could really have. A command the door
+    would refuse raises `EventRefused` here rather than folding: the fixture cannot
+    state a premise the product would not have accepted.
     """
     if isinstance(documents, str):
         documents = {1: documents}
     parsed = {rev: SourceDocument(html) for rev, html in documents.items()}
     registry = registry or model_layer()
+    door = ModelPage(documents=parsed, registry=registry)
+    kinds = registry["$events"]["kinds"]
     log = []
     for seq, command in enumerate(events, 1):
-        event = {
-            "id": f"e{seq}",
-            "seq": seq,
-            "ts": NOW,
-            "author": "user",
-            "revision": 1,
-            **command,
-        }
-        if event["kind"] in {"action", "report", "request"} and "meaning" not in event:
-            event = admit_widget_event(parsed[event["revision"]], event, log, registry)
-        log.append(event)
+        # Which envelope fields a kind carries is the kind's own declaration, so
+        # the revision goes on only where the record has somewhere to put it: a
+        # resolve or an undo names no document and is refused if handed one.
+        carries = kinds.get(command.get("kind"), {}).get("record", {})
+        stamped = {"id": f"e{seq}", "seq": seq, "ts": NOW, "author": "user"}
+        if "revision" in carries.get("properties", {}):
+            stamped["revision"] = 1
+        log.append(admitted_event(door, log, {**stamped, **command}))
     active_revision = revision if revision is not None else max(parsed)
     active = {
         "revision": active_revision,

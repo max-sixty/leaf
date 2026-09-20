@@ -743,14 +743,23 @@ export function installInteractionGallery() {
     attributeFilter: ["class", "hidden"],
     subtree: true,
   });
-  const viewObserver = new window.IntersectionObserver(
-    ([entry]) => {
-      onScreen = entry.isIntersecting;
-      if (onScreen) maybePlay();
-      else active?.pause(true);
-    },
-    { threshold: 0.2 },
-  );
+  // Whether any of the gallery is in view, which is the question playback asks, so the
+  // boundary the observer reports is the boundary the answer is read at. A ratio the
+  // observer never notifies about would be a second reading of the same fact, free to
+  // disagree with the deliveries that maintain it.
+  //
+  // A delivery carries every record accumulated since the last one, and only its last
+  // says where the gallery is now. The arrival alone crosses the gallery out of view and
+  // back — the fragment lands it, the page settles, the semantic arrival pass scrolls to
+  // it — so a loaded machine hands both crossings over together. Read at the first, that
+  // left the flag holding a position the gallery had already left, and since the observer
+  // reports crossings rather than a state, nothing came afterwards to correct it: the
+  // demonstration stayed at Ready for the rest of the page's life.
+  const viewObserver = new window.IntersectionObserver((entries) => {
+    onScreen = entries.at(-1).isIntersecting;
+    if (onScreen) maybePlay();
+    else active?.pause(true);
+  });
   viewObserver.observe(gallery);
   const stopMotionPreference = onMotionPreferenceChange((reduced) => {
     if (reduced) active?.pause();

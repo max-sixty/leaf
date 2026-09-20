@@ -936,16 +936,13 @@ export function createResponseSurface({
     if (!fabAnchor) return;
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
-    fabInputTakingFocus = true;
+    const handoff = beginFabFocus();
     if (!composerOpen) {
       openComment(structuredClone(fabAnchor), "");
       return;
     }
     const anchor = structuredClone(fabAnchor);
-    void fabPositioned().then((positioned) => {
-      if (positioned && composerOpen && sameAnchor(anchor, fabAnchor))
-        fabInput.focus({ preventScroll: true });
-    });
+    landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor));
   }
   const fabOptionsAvailable = () =>
     Boolean(fabAnchor && hasOtherResponses(fabAnchor) && responseOptionsAvailable());
@@ -1038,12 +1035,37 @@ export function createResponseSurface({
   let actionPress = false;
   let targetActivation = false;
   let fabInputTakingFocus = false;
+  // Which handoff the mark belongs to. The mark itself is one bit, so a landing that only
+  // read the bit could not tell its own handoff's mark from a later one's, and releasing
+  // on the way out would drop a mark still being held for a focus yet to land.
+  let fabFocusHandoff = 0;
   const beginFabFocus = () => {
     fabInputTakingFocus = true;
+    return ++fabFocusHandoff;
   };
   const endFabFocus = () => {
     fabInputTakingFocus = false;
   };
+  // Every handoff lands here. It is marked at once and lands a frame or more later, and
+  // the reader owns the page for the whole of that gap: a passage standing when it lands
+  // that this composer did not open on is theirs, taken since, and focusing the field
+  // would collapse it before anything could read it. Standing down releases the mark with
+  // it, so the collapse the mark holds out cannot outlive the focus it was holding it for.
+  function landFabFocus(handoff, anchor, stands) {
+    void fabPositioned().then((positioned) => {
+      if (handoff !== fabFocusHandoff) return;
+      const taken = pageSelection();
+      const words = taken ? selectionAnchor(taken) : null;
+      if (
+        positioned &&
+        composerOpen &&
+        stands() &&
+        (!hasQuote(words) || sameAnchor(words, anchor))
+      )
+        fabInput.focus({ preventScroll: true });
+      else endFabFocus();
+    });
+  }
   function openComment(anchor, text, options = {}) {
     return openComposer(anchor, text, options);
   }
@@ -1234,12 +1256,14 @@ export function createResponseSurface({
         }
         return;
       }
-      if (
-        actionPress ||
-        targetActivation ||
-        fabHoldsCapturedPassage() ||
-        takesLetters(document.activeElement)
-      )
+      // The captured passage is not asked about here. What the handoff has to survive is
+      // the collapse focusing the field causes, and `updateFab` holds that out at the one
+      // branch that acts on an empty selection. Restated here it also swallowed the
+      // opposite event: a passage the reader went on to select, arriving while the bar
+      // still held focus or while its focus was in flight, read as the collapse and was
+      // dropped — and the handoff then landed on the field and collapsed the selection,
+      // so nothing was left to re-read and the target never moved.
+      if (actionPress || targetActivation || takesLetters(document.activeElement))
         return;
       scheduleSelectionUpdate();
     });
@@ -1535,6 +1559,7 @@ export function createResponseSurface({
     fabPositioned,
     beginFabFocus,
     endFabFocus,
+    landFabFocus,
     anchorStands,
     showFab,
     dismissFab,

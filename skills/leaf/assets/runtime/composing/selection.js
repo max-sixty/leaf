@@ -138,6 +138,7 @@ export function createSelectionComposer({
   fabPositioned,
   beginFabFocus,
   endFabFocus,
+  landFabFocus,
   refreshFab,
   showFab,
   formatGoToAddress,
@@ -451,17 +452,17 @@ export function createSelectionComposer({
     // Chromium may collapse the native page Selection before dispatching the textarea's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
-    if (focus) beginFabFocus();
+    let handoff = 0;
+    if (focus) handoff = beginFabFocus();
     else endFabFocus();
     showComposer(true);
     showFab(anchor);
     syncComposer();
+    // The landing waits on the placement this open is about to ask for, so it is set up
+    // after the surface is shown rather than against the previous anchor's placement.
     if (focus) {
       const focusEpoch = composerEpoch;
-      void fabPositioned().then((positioned) => {
-        if (positioned && composerOpen && focusEpoch === composerEpoch)
-          composerInput.focus();
-      });
+      landFabFocus(handoff, pendingAnchor, () => focusEpoch === composerEpoch);
     }
     watchComposer();
     // Programmatic carrying fires no input event, so persist that one move explicitly.

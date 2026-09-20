@@ -51,6 +51,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.render_gate import scheme as render_gate_model
+from model_folds import leaf_page
 from page_fixtures import package_selection_args, prepare_page, read_fixture
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -89,22 +90,6 @@ ANCHOR_SOURCES = (
     ROOT / "examples" / "ship-review.html",
     ROOT / "examples" / "developer" / "swipe-gallery.html",
 )
-
-
-def leaf_page(title: str, body: str, *, head: str = "") -> str:
-    """A complete page carrying the presentation boundary every fixture shares."""
-    extra_head = f"{head}\n" if head else ""
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<title>{title}</title>
-{extra_head}
-</head>
-<body>
-<main>{body}</main>
-</body>
-</html>
-"""
 
 
 def stamp_page(

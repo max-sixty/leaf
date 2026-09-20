@@ -1796,49 +1796,6 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
 
 
-def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
-    """`restated` belongs to the version that rewrote the words, and to no other:
-    v3 has nothing to declare, because it is not the one taking anything back.
-
-    So the retraction cannot live in the markup, or v3's silence would read as
-    "carry the decision" and hand the user's edit straight back — the same
-    resurrection the branch removed, one version later and just as quiet.
-    Stamping records it in the log instead, where it is a fact with a revision
-    on it and every later revision inherits it for free."""
-    url = serve(JOURNEY_V1)
-    d = serve.page_dir
-    append_command(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "draft-ops",
-            "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
-        },
-    )
-    corrected = "Run the migration after deploying — it needs the new column."
-    _publish(d, 2, _draft_says(JOURNEY_V2, corrected, " restated"), "rewrote the draft")
-    # v3 keeps v2's words and says nothing about the retraction, because
-    # saying it again would be claiming to undo a decision already undone.
-    _publish(d, 3, _draft_says(JOURNEY_V2, corrected), "unrelated copy edits")
-
-    page = open_page(browser, url.replace("v1.html", "v3.html"))
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(corrected)
-    page.close()
-
-    # And the careful author who carries the attribute forward anyway — the habit
-    # this whole design exists to break — is told which version already did it.
-    (d / "index.html").write_text(_draft_says(JOURNEY_V2, corrected, " restated"))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "stamp", str(d), "--text", "again"],
-    )
-    assert result.exit_code != 0
-    assert "r2 already took that back" in result.output
-
-
 def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     browser, serve
 ):

@@ -78,6 +78,7 @@ from render_harness import (
     RENDERED,
     REPLY_HOST_PAGE,
     CutOff,
+    ask_actions_hint,
     compare_with,
     consume_browser_errors,
     holding,
@@ -4754,7 +4755,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
         ["1", "2"]
     )
-    assert "1–2\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–2") in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
     expect(page.locator(".lf-swipe-pass")).to_have_attribute(
@@ -6889,7 +6890,7 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert "1–3\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
@@ -6903,7 +6904,7 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_be_focused()
-    assert "1–2\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–2") in shortcut_bar_text(page)
     expect(
         page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept")
     ).to_have_attribute("aria-keyshortcuts", "1")
@@ -6961,7 +6962,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     inspect = page.get_by_role("button", name="Inspect")
     page.keyboard.press("a")
     expect(page.locator("#sug")).to_be_focused()
-    assert "1–3\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
         ["1", "2", "3"]
@@ -7433,7 +7434,7 @@ def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#copy-ask")).to_be_focused()
-    assert "1\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1") in shortcut_bar_text(page)
     page.keyboard.press("1")
     expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
 
@@ -8552,7 +8553,7 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
 
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
-    assert "1–3\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
@@ -8625,7 +8626,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
         '[data-lf-margin-entry-key="undo"]'
     )
     expect(undo).to_be_focused()
-    assert "1\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1") in shortcut_bar_text(page)
 
     page.keyboard.press("1")
     round_trip(page)

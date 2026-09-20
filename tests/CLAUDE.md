@@ -615,6 +615,13 @@ The causal helpers:
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
+- `ask_actions_hint(digits)` is what that bar's Ask row says for an Ask holding
+  `digits` numbered routes. The live range is the fact a test asserts; the word
+  beside it is the runtime's own, so it is stated here rather than quoted at each
+  assertion, and changing what the runtime says is one edit rather than a sweep.
+  The same holds for any runtime wording several tests read: give it a helper
+  beside the read, because a sweep driven by grepping the reader's name misses
+  the call site that stored its answer in a local first.
 
 A surface that reads the same before and after the press cannot be its own
 wait. `expect(...).to_have_text(...)` is satisfied by the frame the press has

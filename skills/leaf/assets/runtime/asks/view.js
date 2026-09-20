@@ -612,10 +612,7 @@ export function createAskView({
       `Activate an action in this Ask: ${actionRoutes()
         .map(({ binding, line }) => `${spell(binding)} ${line}`)
         .join("; ")}`,
-    line: () =>
-      actionRoutes()
-        .map(({ line }) => line)
-        .join(" / "),
+    line: "Ask actions",
     when: () => actionRoutes().length > 0,
   };
   const reachableActionRoutes = (available = availableCommandRoutes()) => {

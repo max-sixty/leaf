@@ -34,7 +34,6 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
@@ -130,13 +129,23 @@ class ModelPage:
     either belongs on `page_dir`.
     """
 
-    def __init__(self, *revisions: str, packages: tuple[str, ...] = ()):
-        self.documents = {
+    def __init__(
+        self,
+        *revisions: str,
+        packages: tuple[str, ...] = (),
+        documents: dict | None = None,
+        registry: dict | None = None,
+    ):
+        """`documents` and `registry` are for a caller that has already parsed and
+        composed them — `model_folds.reading` has, and states the same page to the
+        door through this class rather than answering the door's readings itself."""
+        self.documents = documents or {
             number: structure_model.SourceDocument(html)
             for number, html in enumerate(revisions, 1)
         }
         self.data = data_model.empty_data()
         self._packages = packages
+        self._registry = registry
 
     @property
     def revisions(self) -> list[int]:
@@ -148,7 +157,7 @@ class ModelPage:
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
         revision of it captured a vocabulary different from the rest."""
-        return model_layer(*self._packages)
+        return self._registry or model_layer(*self._packages)
 
     @property
     def within(self) -> dict:
@@ -622,10 +631,12 @@ def state_json(d):
     return json.loads(result.output)
 
 
-# One comment and two decisions on one suggestion — the whole vocabulary these
-# threads are read out of. `REJECT` is spelt off `ACCEPT` because the two answering
-# the same widget is the entire premise: a decision supersedes the one before it on
-# the widget that sent it, the way a second `move` supersedes the first on one card.
+# A question and the accept that answers it, written as a stored log holds them:
+# ids of their own and the `meaning` admission stamped on the action. For a test
+# that needs an answered thread in a page directory and is about something else —
+# what a floored widget retracts, what a second facet joins — so the pair is
+# premise rather than subject. A test whose subject is the settlement states its
+# page and its log instead, and lets the door derive the meaning.
 COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
 ACCEPT = {
     "kind": "action",
@@ -641,34 +652,6 @@ ACCEPT = {
         "answer": "c1",
     },
 }
-REJECT = {
-    **ACCEPT,
-    "action": "reject",
-    "detail": {},
-    "meaning": {**ACCEPT["meaning"], "answer": None},
-}
-RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
-
-
-def logged(page_dir, *events):
-    """Append these events, then read the threads back the way the CLI does — off
-    the whole log and the page the decisions were folded over. Copied in, because
-    `append_event` stamps an id onto what it is handed and these are constants."""
-    activated = revisioning_model.activate_source(page_dir, [])
-    assert activated.error is None and activated.revision == 1
-    for event in events:
-        event = dict(event)
-        if event["kind"] == "action":
-            event["meaning"] = {
-                **event["meaning"],
-                "coordinate": [event["widget"], event["widget"], "settlement"],
-                "depends": [event["widget"]],
-            }
-        events_model.append_event(page_dir, event)
-    return event_folds_model.build_threads(
-        events_model.read_events(page_dir),
-        passages_model.enclosing_ids(structure_model.parse_revision(page_dir, 1)),
-    )
 
 
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):

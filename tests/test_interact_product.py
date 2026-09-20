@@ -32,6 +32,7 @@ from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
@@ -41,6 +42,7 @@ from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
+from playwright.sync_api import Error as PlaywrightError
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -2056,3 +2058,22 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert result.exit_code == 0, result.output
     assert "- **User** reacted: ✂️ shorten\n" in result.output
     assert "- **User** reacted: ❌ change\n" in result.output
+
+
+def test_export_state_route_refuses_a_missing_canonical_without_waiting():
+    """An absent root is known from the locator count, without an attribute wait."""
+
+    class MissingCanonical:
+        def count(self):
+            return 0
+
+        def get_attribute(self, _name):
+            pytest.fail("the absent canonical must not start an attribute wait")
+
+    class Page:
+        def locator(self, selector):
+            assert selector == 'link[rel="canonical"][data-lf-runtime]'
+            return MissingCanonical()
+
+    with pytest.raises(PlaywrightError, match="document has no canonical page root"):
+        exporting_model._state_url(Page(), "https://leaf.invalid/versions/v1.html")

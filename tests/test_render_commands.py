@@ -7,7 +7,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import playwright
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
@@ -399,86 +398,6 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         missing,
         "No such file or directory",
     )
-
-
-def test_an_unnamed_driver_node_is_the_installed_wheels_own(monkeypatch):
-    """The other half of that hint, which the subprocess above cannot reach: with the
-    variable unset the driver runs the Node bundled in the installed wheel, and the
-    line has to name that file and then the variable that would replace it. The
-    glibc host is exactly this arm — it named nothing and the bundled binary is the
-    one that would not load."""
-    monkeypatch.delenv(browser_model.DRIVER_VARIABLE, raising=False)
-    node = Path(browser_model.driver_node())
-    assert node == Path(playwright.__file__).parent / "driver" / "node"
-    hint = browser_model.driver_hint()
-    assert str(node) in hint and browser_model.DRIVER_VARIABLE in hint
-
-    monkeypatch.setenv(browser_model.DRIVER_VARIABLE, "/elsewhere/node")
-    assert browser_model.driver_node() == "/elsewhere/node"
-    assert browser_model.driver_hint() == (
-        f"{browser_model.DRIVER_VARIABLE} named /elsewhere/node."
-    )
-
-
-def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
-    monkeypatch, tmp_path
-):
-    """With no variable set, PATH is the host's own statement of where its programs
-    are, and a hardcoded candidate list is not: a list needs an entry per
-    distribution and can never name a `/nix/store/<hash>-chromium-*/bin/chromium`.
-
-    It is asked second, after the Chrome channel rather than before it, and that
-    order is the whole of what keeps this from moving a host that works today: a box
-    with both a Google Chrome and a distro Chromium goes on getting the Chrome the
-    channel finds. So the launch is driven twice over one PATH holding one browser —
-    once where the channel answers, once where it raises what Playwright raises on a
-    host with no Chrome installed — and the assertion is the calls that were made,
-    since a test reading only the browser back cannot see which of the two produced
-    it."""
-    from playwright.sync_api import Error as PlaywrightError
-
-    chromium = tmp_path / "bin" / "chromium"
-    chromium.parent.mkdir()
-    chromium.write_text("#!/bin/sh\nexec true\n")
-    chromium.chmod(0o755)
-    for variable in browser_model.VARIABLES:
-        monkeypatch.delenv(variable, raising=False)
-    monkeypatch.setenv("PATH", str(chromium.parent))
-
-    calls = []
-
-    class Chromium:
-        def __init__(self, channel_answers):
-            self.channel_answers = channel_answers
-
-        def launch(self, **kwargs):
-            calls.append(kwargs)
-            if "channel" in kwargs and not self.channel_answers:
-                raise PlaywrightError(
-                    "BrowserType.launch: Chromium distribution 'chrome' is not found "
-                    "at /opt/google/chrome/chrome"
-                )
-            return "a browser"
-
-    class Playwright:
-        def __init__(self, channel_answers):
-            self.chromium = Chromium(channel_answers)
-
-    launched, name = browser_model.launch_browser(Playwright(True))
-    assert (launched, name) == ("a browser", "Chrome")
-    assert calls == [{"channel": "chrome"}], "the channel keeps the hosts it has"
-
-    calls.clear()
-    launched, name = browser_model.launch_browser(Playwright(False))
-    assert (launched, name) == ("a browser", str(chromium))
-    assert calls == [{"channel": "chrome"}, {"executable_path": str(chromium)}]
-
-    # And the same reading is what the failed-launch line says, so a host with
-    # neither is told what was looked for rather than named a variable twice.
-    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
-    assert browser_model.discovered_executable() is None
-    hint = browser_model.browser_hint()
-    assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
 
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):

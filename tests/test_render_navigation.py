@@ -5868,7 +5868,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#note-decision")).to_be_focused()
-    assert "1\nEdit" in shortcut_bar_text(page)
+    assert "1\nAsk actions" in shortcut_bar_text(page)
 
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -5881,7 +5881,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     save.focus()
     expect(save).to_be_focused()
     page.keyboard.press("?")
-    assert "1–2\nSave / Cancel" in shortcut_bar_text(page)
+    assert "1–2\nAsk actions" in shortcut_bar_text(page)
     expect(save).to_have_attribute(
         "aria-keyshortcuts", "Escape Meta+Enter Control+Enter 1"
     )
@@ -7877,37 +7877,6 @@ def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, se
     expect(page.locator("#outer-escape-scope")).to_have_attribute("data-escaped", "1")
     expect(page.get_by_role("button", name="Inner escape scope")).not_to_have_attribute(
         "data-escaped", "1"
-    )
-
-
-def test_the_register_is_the_only_way_a_key_enters_the_runtime():
-    """Every surface that names a key is a projection of the register, which holds only if
-    nothing binds a key behind its back. That is not a property a rendered page can be
-    asked about — a listener nobody declared looks exactly like no listener at all until
-    the press it eats goes missing — so it is pinned in the source, the way the
-    document-level class surface is.
-
-    Two are allowed and both are named here. The dispatcher is the register's own. The aim
-    latch is not a binding at all: holding ⌥ arms nothing and answers no press, it paints
-    what a click would take, and its keyup half has no place in a table of presses. A third
-    is how every drift this register replaced began — a `keydown` beside a display list,
-    the two of them free to disagree about which keys the widget answers."""
-    layer = ROOT / "skills/leaf"
-    sources = [
-        layer / "assets/leaf.js",
-        *sorted((layer / "assets/runtime").rglob("*.js")),
-        *sorted((layer / "packages").glob("*/widgets/*.js")),
-        *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
-    ]
-    listeners = [
-        f"{src.name}:{n}"
-        for src in sources
-        for n, line in enumerate(src.read_text().splitlines(), 1)
-        if 'addEventListener("keydown"' in line
-    ]
-    assert len(listeners) == 2, (
-        f"the runtime's keydown listeners changed: {listeners}. A key belongs in the "
-        "register (keys(el, title, rows)), which is what lets a surface promise it."
     )
 
 

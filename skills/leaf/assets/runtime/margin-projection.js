@@ -101,7 +101,7 @@ import {
 } from "./reading-regions.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
-import { pageScope } from "./keyboard/register.js";
+import { pageRung, pageScope } from "./keyboard/register.js";
 import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
@@ -2655,58 +2655,63 @@ export function createMarginProjection({
     dismiss: () => closePreview(),
   };
 
-  // The card and its owning margin entry cluster are one page-map stack even though the card
-  // is hoisted into the chrome. Expose the current rung to the one keyboard register so
-  // it can stand ahead of reaction and navigation modes, preserving the local surface's
-  // old order without another keydown listener. One press closes only the deepest rung.
+  // The card, which is a native layer the reader is either inside or standing at the
+  // entry of. It is hoisted into the chrome while anchored to a passage, so it counts as
+  // chrome for which surface holds focus and as page-anchored for where the reader
+  // lands, and one press closes it.
   function keyboardRung({ atFocus = true } = {}) {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     if (
-      preview.matches(":popover-open") &&
-      (!atFocus ||
-        preview.contains(active) ||
-        (previewMarginEntry && host?.contains(previewMarginEntry)))
+      !preview.matches(":popover-open") ||
+      (atFocus &&
+        !preview.contains(active) &&
+        !(previewMarginEntry && host?.contains(previewMarginEntry)))
     )
-      return {
-        root: preview,
-        does: "Dismiss the conversation view",
-        says: "dismiss conversation",
-        // The card is hoisted into the chrome and anchored to a passage, and the margin
-        // entry it hangs from is a control the reader may never have stood on — a `t`
-        // from the page put the card up without going near the margin. So it lands them
-        // on the page it is about. The × pressed by pointer is the other case, and keeps
-        // the entry (`closePreview`'s own `returnFocus`).
-        out: () => {
-          closePreview();
-          letGo();
-        },
-      };
-    const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
-    // Once a contribution is engaged, its complete/escape controls are open because
-    // of semantic state rather than because the reader disclosed the secondary tray.
-    // That state consumes the earlier disclosure rung: Escape leaves the action the
-    // reader is standing on instead of first pretending to close controls that remain
-    // open by contract.
-    if (
-      optionsHost?.lfEntry?.key === expandedOptionsKey &&
-      !entryEngaged(optionsHost.lfEntry)
-    )
-      return {
-        root: optionsHost,
-        does: "Fold the secondary page actions",
-        says: "close options",
-        out: () => setOptionsOpen(optionsHost.lfEntry, false, { returnFocus: true }),
-      };
-    return null;
+      return null;
+    return {
+      root: preview,
+      does: "Dismiss the conversation view",
+      says: "dismiss conversation",
+      // The margin entry the card hangs from is a control the reader may never have
+      // stood on — a `t` from the page put the card up without going near the margin —
+      // so it lands them on the page it is about. The × pressed by pointer is the other
+      // case, and keeps the entry (`closePreview`'s own `returnFocus`).
+      out: () => {
+        closePreview();
+        letGo();
+      },
+    };
   }
 
-  // A thread card and the unfolded margin entry cluster that owns it are one page-map
-  // stack, though the card itself is hoisted into the chrome. This is a scene-derived
-  // fallback: a later keyboard entry returns through its captured frame before this rung.
-  // Without one, the registered rung precedes the reaction and navigation fallbacks just as
-  // the surface's old local listener did: Escape closes the card first, then folds the
-  // cluster on a second press.
+  // The cluster the reader unfolded is page-side state rather than a layer of the card,
+  // so it answers from the ladder wherever they are standing — the card they opened from
+  // it lands them out on the page, and the fold would otherwise be reachable only by
+  // Tabbing back into the margin. It comes off after anything standing over the page and
+  // before the page itself, beside the selection, and lands on the entry it hangs from,
+  // which is the container it is part of.
+  //
+  // Once a contribution is engaged, its complete and escape controls are open because of
+  // semantic state rather than because the reader disclosed the secondary tray. That
+  // state consumes the earlier disclosure step: Escape leaves the action the reader is
+  // standing on instead of first pretending to close controls that remain open by
+  // contract.
+  function optionsRung() {
+    const host = hosts.get(expandedOptionsKey);
+    if (!host?.lfEntry || host.lfEntry.key !== expandedOptionsKey) return null;
+    if (entryEngaged(host.lfEntry)) return null;
+    return {
+      root: host,
+      does: "Fold the secondary page actions",
+      says: "close options",
+      out: () => setOptionsOpen(host.lfEntry, false, { returnFocus: true }),
+    };
+  }
+  pageRung("margin options", optionsRung);
+
+  // The card is a native layer over the page, so this scope stands ahead of the reaction
+  // and navigation modes, as the surface's old local listener did, without another
+  // keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
     title: "In the Page Map",
@@ -3066,6 +3071,7 @@ export function createMarginProjection({
     closePreview,
     inlineThreadView,
     keyboardRung,
+    optionsRung,
     openInlineThread,
     openPageThread,
     paintSelectedMarginEntries,

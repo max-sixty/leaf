@@ -46,8 +46,8 @@
      active sequence shows every live row regardless of it.
    - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
      by default; a local action that happens to clear state can leave the slot to the
-     next action on that state. A return frame may set the same field for the shared
-     Escape row it contributes while its surface stands.
+     next action on that state. A step of the ladder sets the same field for the shared
+     Escape row it answers through while it is the innermost one.
    - `when` says whether the capability exists. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.

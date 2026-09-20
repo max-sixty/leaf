@@ -26,19 +26,19 @@
    promotion when two local actions on the current state belong together; the binding
    remains live and stays in the reference.
 
-   `RUNG_LADDER` is Escape's ladder out of the state standing over the page: a captured
-   target, a tray, a narrowing, the panel, and the chrome itself. It is the order among
-   siblings rather than the whole order: `rung` reads containment over it, so a surface
-   the reader is standing in comes off before one they are not, and a selection left out
-   on the page waits behind the panel they are reading a thread in. Standing on something
-   is not a rung but the "standing" scope ahead of it, since letting go is the newest
-   thing the reader can undo. Its rungs are contributed like everything else, each by the
-   owner of the state it takes off, and `rung` resolves them into the one
-   `navigation.back` row every surface reads. One row rather than one per step, because
-   the ladder is one capability whose sentence changes: a reference listing each step
-   whose own condition happens to hold would promise presses the innermost step has
-   already taken, and a guard on each step against the steps behind it would be this list
-   written out once per step.
+   `RUNG_LADDER` is Escape's ladder out of the state standing over the page: what the
+   reader put on out on the page, then the surfaces over it, then the chrome itself. It
+   is the order among siblings rather than the whole order: `rung` reads containment over
+   it, so a surface the reader is standing in comes off before one they are not, and a
+   selection left out on the page waits behind the panel they are reading a thread in.
+   Standing on something is not a rung but the "standing" scope ahead of it, since
+   letting go is the newest thing the reader can undo. Its rungs are contributed like
+   everything else, each by the owner of the state it takes off, and `rung` resolves them
+   into the one `navigation.back` row every surface reads. One row rather than one per
+   step, because the ladder is one capability whose sentence changes: a reference listing
+   each step whose own condition happens to hold would promise presses the innermost step
+   has already taken, and a guard on each step against the steps behind it would be this
+   list written out once per step.
 
    Nothing here records how the reader arrived. Every step is read off what stands in
    front of them, so one state has one way out however they reached it, and the canonical
@@ -79,13 +79,12 @@ const STACK = [
   COVERING,
   "link",
   "disclosure",
+  // The modes keep their own letters here and declare their Escape on the ladder,
+  // because a mode is page-side state the reader put on and a surface opened over it is
+  // newer: a send made in Design mode opens Threads, and the panel comes off first.
   "draw mode",
   "design mode",
   PAGE,
-  // The modes declare their Escape on the ladder rather than here, because a mode is
-  // page-side state the reader put on and a surface opened over it is newer: a send
-  // made in Design mode opens Threads, and the panel comes off before the mode does.
-  // Their own letters stay in these scopes.
   // Outermost, so a page command still ranks ahead of the way out on the line.
   RUNGS,
 ];
@@ -95,6 +94,7 @@ const STACK = [
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
+  "margin options", // the margin entry cluster the reader unfolded
   "tray", // the tray that holds the edge
   "narrowing", // the narrowing the reader put on the thread list
   "panel", // the thread panel

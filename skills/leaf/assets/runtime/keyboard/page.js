@@ -109,16 +109,13 @@ pageCommand({
 // is answered by the ladder below once the layers are down. Letting go puts the reader
 // on the floor of the layer they are in: the page's body, or the panel's list.
 //
-// It is an inner step, ahead of every frame, because standing is the newest thing the
-// reader did: a Tab, a hint, a pointer press. What stands nearer still answers first: a
-// widget's own Escape declared over the control, a mode the reader is in, the Page Map's
-// own rung over an unfolded margin cluster or its conversation view — a layer the reader
-// is inside, asked as the panel and the native layers are — a text box with a place to
-// go back to, whose own scope hands them there, and the frame of a press that stood them
-// there — the `t` and `a` walks, `g T` carrying an inline thread — which holds the
-// standing and answers in its turn, so `t` then `w` unwinds the narrowing before the
-// walk. A native layer standing over the page is the browser's mode, and its own Escape
-// is not ours to pre-empt with a let-go beneath it.
+// It is the innermost step, because standing is the newest thing the reader did: a Tab,
+// a hint, a pointer press. Everything the ladder takes off — a selection, an unfolded
+// margin cluster, a mode, a tray, the panel — is state they put on before they came to
+// rest here, so it waits behind this press. What stands nearer still answers first: a
+// widget's own Escape declared over the control, and a text box with a place to go back
+// to, whose own scope hands them there. A native layer standing over the page is the
+// browser's mode, and its own Escape is not ours to pre-empt with a let-go beneath it.
 //
 // Out on the page — the chrome container's banner, trays and panel head hold nothing to
 // let go of, and the panel's list was answered above — what is held is a destination
@@ -135,26 +132,23 @@ pageCommand({
 // heading is the page's own or a copy standing in the panel's frozen markup.
 //
 // The scope's `at` is the cheap half, whether anything is held at all; the row's `when`
-// is the dear one, asked only of a reader who is holding something. The modes, the
-// captured target and the Page Map's rung are other owners' readings, handed in by the
-// boot entry once those owners stand.
+// is the dear one, asked only of a reader who is holding something. The panel, the Ask
+// and the page's own state are other owners' readings, handed in by the boot entry once
+// those owners stand.
 const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({
-  panelIsOpen,
-  fabAnchorAt,
-  designModeActive,
-  drawModeActive,
-  pageMapRung,
-  askHeld,
-}) {
+export function declareStanding({ panelIsOpen, askHeld, pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
-    if (pageSelection() || fabAnchorAt()) return null;
-    if (designModeActive() || drawModeActive() || pageMapRung()) return null;
+    // State the reader put on out on the page — a selection, a captured target, an
+    // unfolded margin cluster, a page mode — is inside the page they are standing in,
+    // so it comes off before they let go of anything: the drag that takes words out of
+    // a label is answered on its first glyph, while the control it started from is
+    // still theirs. Letting go is the last step before the surfaces around the page.
+    if (pageSelection() || pageState()) return null;
     if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;

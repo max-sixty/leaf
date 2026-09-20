@@ -363,17 +363,16 @@ export function createVersionController({
   // below closes the menu first and then leaves the browser to complete that same Tab.
   const atVersionBoundary = (end) => versionChooser.atBoundary(end);
 
-  // The browser owns top-layer state, light dismissal, Escape, and the handback. What it
-  // restores focus to on a hide is the element that had it when the popover showed — not
-  // the `source`, which buys the anchor and the invoker relationship and nothing about
-  // focus — so every door into this menu shows it from the button and the way back out is
-  // the platform's for pointer entry, because that press focuses the button first. Keyboard
-  // `g V` clicks the same invoker without moving focus and its return frame restores the real
-  // origin; the reference stands a layer back up from that invoker before restoring its own
-  // origin. Scoping the platform handback to its door rather than to the state is what keeps
-  // it off a light dismissal, which restores nothing on purpose: a reader who pressed away
-  // into the page is left where they pressed rather than moved to the chooser they pressed
-  // away from. Leaf is left with the close, which is the only end state it asks for.
+  // The browser owns top-layer state, light dismissal and the handback. What it restores
+  // focus to on a hide is the element that had it when the popover showed — not the
+  // `source`, which buys the anchor and the invoker relationship and nothing about focus
+  // — so every door into this menu shows it from the button, and a pointer press that
+  // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
+  // the whole of it: the close, and then the page the menu stood over, which is where a
+  // layer's one step lands the reader rather than on the chooser in the banner. Scoping
+  // the platform handback to its door rather than to the state is what keeps it off a
+  // light dismissal, which restores nothing on purpose: a reader who pressed away into
+  // the page is left where they pressed.
   function closeVersionMenu() {
     versionChooser.close();
   }
@@ -466,9 +465,8 @@ export function createVersionController({
 
   // The chooser represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
-  // handoff that a popover does not provide. A keyboard-opened menu has CHOOSER's exact
-  // return frame; light dismissal stays native for pointer-opened menus, and their Escape
-  // is named by the menu's own row (`version.close`), which runs the same close.
+  // handoff that a popover does not provide. Light dismissal stays native; Escape is the
+  // menu's own row (`version.close`), which closes it and lands the reader on the page.
   const VERSIONS = {
     title: "In the versions menu",
     root: () => versionMenu,

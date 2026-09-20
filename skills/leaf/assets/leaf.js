@@ -169,7 +169,7 @@ import {
   glideTo,
   stopGlide,
 } from "./runtime/navigation.js";
-import { declareReading, focusDestination, letGo } from "./runtime/focus.js";
+import { declareReading, focusDestination, releaseFocus } from "./runtime/focus.js";
 import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
@@ -435,15 +435,18 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // stands by now and nothing has read the register yet.
 declareReading(version.readingBlock);
 
-// The let-go reads state four owners hold; all four stand by now, and the first input is
+// The let-go reads what five owners hold; all five stand by now, and the first input is
 // wired further down, so the scope is declared before anything reads the register.
 declareStanding({
   panelIsOpen,
-  fabAnchorAt: () => responseSurface.fabAnchorAt(),
-  designModeActive: designMode.active,
-  drawModeActive: () => drawing.drawModeActive(),
-  pageMapRung: () => Boolean(app.margin.keyboardRung()),
   askHeld: () => Boolean(asks?.heldAsk()),
+  pageState: () =>
+    Boolean(
+      responseSurface.fabAnchorAt() ||
+      designMode.active() ||
+      drawing.drawModeActive() ||
+      app.margin.optionsRung(),
+    ),
 });
 
 pageMapDialog = createPageMapDialog({
@@ -843,7 +846,10 @@ if (!containedPage && !offlineInteractive) {
     restoreTrays: trays.restoreTrays,
     setDesignMode: designMode.setActive,
   });
-  letGo();
+  // The page has just arrived, so nothing holds focus and the first Tab starts at the
+  // skip link. Not the reading landing: a reader who has read nothing has no position
+  // for the browser to carry on from.
+  releaseFocus();
 }
 const { landArrival, savedView } = offlineInteractive
   ? { landArrival: () => {}, savedView: null }

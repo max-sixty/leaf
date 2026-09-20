@@ -92,20 +92,27 @@ export function takesLetters(node) {
 // browser's sequential focus navigation starting point to the block, so the reader's next
 // Tab carries on from what they are reading rather than from the top of the document,
 // which is where `document.body.focus()` puts it. The blur hands Space, PageDown, arrows,
-// Home and End back to the page's own scroll box, which a focused block would keep. The
-// body is the fallback for a page with nothing on screen to land on, and the one this
-// runs on before the reading is declared: `letGo` runs synchronously during module
-// evaluation so a fresh page accepts native scrolling before asynchronous upgrade.
+// Home and End back to the page's own scroll box, which a focused block would keep.
+//
+// `releaseFocus` is the other half of the pair and the top of the document is the point of
+// it: a page that has just arrived is not a page anybody has read yet, so its first Tab
+// belongs at the skip link rather than part-way through the prose that happens to be on
+// screen. It is also the fallback here, for a viewport holding nothing to land on — a
+// tall bounded region, a run of figures — where the honest answer is that the reader has
+// no reading position for the browser to continue from.
 let readingBlock = () => null;
 export function declareReading(read) {
   readingBlock = read;
 }
+export function releaseFocus() {
+  document.body.focus({ preventScroll: true });
+}
 export function letGo() {
   const block = readingBlock();
-  if (block?.isConnected) {
-    focusDestination(block);
-    block.blur();
+  if (!block?.isConnected) {
+    releaseFocus();
     return;
   }
-  document.body.focus({ preventScroll: true });
+  focusDestination(block);
+  block.blur();
 }

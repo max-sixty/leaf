@@ -1199,9 +1199,7 @@ export function createAskView({
       );
     // The walk reads the standing destination, so begin it after asynchronous reveal
     // has moved focus. A failed reveal has not arrived and must not register the prior
-    // focused Ask as this walk's destination. The arrival is returned so the keyboard's
-    // layer stack judges the press's return frame once the panel it may have opened is
-    // standing.
+    // focused Ask as this walk's destination.
     const ready = goToAsk(next, asks).then((arrived) => {
       if (arrived) begin();
     });

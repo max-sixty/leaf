@@ -498,8 +498,10 @@ customElements.define(
             does: "Reply in this thread",
             line: "reply",
             when: () => Boolean(this.#reply()),
-            // The box hands the reader back to this option, which is the route
-            // `landInConversation` records for it and the one Escape reads.
+            // The box hands the reader back to the conversation it belongs to, and to
+            // this option where that conversation is nowhere to stand — the route
+            // `landInConversation` records for exactly that case, and the one Escape
+            // out of a text box reads.
             run: () =>
               landInConversation(this.#reply(), {
                 target: mark,

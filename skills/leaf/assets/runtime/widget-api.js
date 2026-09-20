@@ -16,6 +16,9 @@ export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
+// Putting the reader on an element that may be no tab stop of its own, which is what a
+// widget landing them anywhere but a control needs: the lend leaves with the first blur.
+export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox, registerThreadSurface } from "./application.js";

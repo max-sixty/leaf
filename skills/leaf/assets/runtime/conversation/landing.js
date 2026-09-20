@@ -17,7 +17,6 @@
    returns to the card. An accepted anchored comment continues in the open Threads panel,
    widening a filter that would hide it.
 
-   A keyboard-entered box hands the reader back through its captured return frame.
    `backFromBox` and `standingConversation` climb the same conversation relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way

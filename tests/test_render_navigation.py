@@ -10227,6 +10227,48 @@ STANDING = """() => {
 }"""
 
 
+def test_closing_a_surface_leaves_the_next_tab_where_the_reader_is_reading(
+    browser, serve
+):
+    """A step that lands the reader in the document moves the Tab starting point there.
+
+    The landing is blurred, so `activeElement` reads `body` whether or not it moved, and
+    every journey that asserts only that would pass over a landing that had quietly reset
+    the reader to the top of the page. The press that tells them apart is the Tab after
+    it: from a panel opened four screens down, it belongs on from the words in front of
+    the reader rather than at the document's first stop.
+
+    A fresh page is the other half of the same fact and the opposite answer: nobody has
+    read it yet, so its first Tab is the skip link, which is what
+    test_a_reader_at_the_top_of_the_document_is_one_press_from_the_chrome pins.
+    """
+    page = open_page(browser, serve(LONG_PAGE))
+    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+    page_at_rest(page)
+    reading = page.evaluate(
+        "() => document.getElementById('p40').getBoundingClientRect().top"
+    )
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    page.keyboard.press("Tab")
+    standing = page.evaluate(STANDING)
+    assert not standing["isFirstStop"], (
+        f"after Threads closed, the reader's next Tab went to the first stop in the "
+        f"document ({standing}) rather than on from the words they were reading at "
+        f"{reading:.0f}px"
+    )
+    # And nothing of the borrow is left on the author's paragraph.
+    assert (
+        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
+    )
+
+
 def test_the_reference_hands_the_reader_back_to_the_page_they_were_reading(
     browser, serve
 ):

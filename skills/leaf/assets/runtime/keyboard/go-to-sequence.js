@@ -18,9 +18,9 @@
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
    panel destination toggles that panel, matching its visible control. Completing one that
-   opens a surface exchanges the transient sequence for a return frame which restores the
-   standing and auxiliary chrome state captured before `g` armed; completing it again closes the
-   surface without adding a frame. These destinations remain available when an auxiliary surface
+   opens a surface leaves the reader in that surface, whose own Escape step is the way out
+   of it — the same step for a surface the reader already had, and none of this sequence's
+   to declare; completing the mnemonic again closes it. These destinations remain available when an auxiliary surface
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
 
@@ -49,13 +49,11 @@
    and keeps both the panel and its narrowing. A panel covering the document cannot make
    that promise, so its ordinary Escape rung remains the route back.
 
-   Keyboard destinations also capture the auxiliary chrome state they replace. `g T`, `g A`, and
-   `g L` may exchange a standing panel or tray for another; their return frame restores
-   that prior auxiliary surface and re-resolves its semantic row when reconciliation rebuilt it.
-   `g M` uses the same frame for the Page Map dialog. `g V` contributes the
-   version menu's own return frame to that destination vocabulary. Direct destinations
-   therefore restore the standing their owner displaced rather than merely focusing the
-   destination's banner control after closing it.
+   A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
+   panel or tray for another, and the surface the reader ends in owns the one step that
+   takes it off again — the same step whichever door opened it, and the same for a
+   surface they already had. Exchanging one for another is lateral, so the one replaced
+   is not put back; the reader reaches it the way they reached it the first time.
 
    The Go-to sequence has no timeout. The reader is not charged a time limit for reading
    the hints just painted. */
@@ -259,7 +257,6 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "asks",
       close: () => setOpenTray(null),
-      surface: () => asksPanel,
       toggle: true,
     },
     {
@@ -276,7 +273,6 @@ export function createGoToSequence({
       },
       active: () => currentTray() === "leaves",
       close: () => setOpenTray(null),
-      surface: () => othersPanel,
       toggle: true,
     },
     {

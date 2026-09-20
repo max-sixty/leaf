@@ -207,8 +207,8 @@ export function createPanelComposer({
         },
       },
       // Last, because `w` and `/` are the list's own operations while this is a contextual
-      // route through it. The latest return frame already owns the first key-line slot; the
-      // remaining one should say what the list can do. The page-comment box advertises `c`
+      // route through it. The way out already owns the first key-line slot; the remaining
+      // one should say what the list can do. The page-comment box advertises `c`
       // in its own placeholder, and the complete reference retains this row.
       PANEL_SAY,
     ],

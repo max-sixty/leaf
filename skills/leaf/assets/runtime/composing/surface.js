@@ -120,8 +120,6 @@ export function createResponseSurface({
   panelCovers,
   landIn,
   setPanel,
-  captureAuxiliaryChromeState,
-  restoreAuxiliaryChromeState,
   activeInlineThread,
   standingElement,
   composerHolds,
@@ -1428,7 +1426,7 @@ export function createResponseSurface({
   // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
   // names and focuses the box directly; g T independently names the list. Never the panel's
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
-  // promised “comment” answered “close”. Backing out is the entry's return frame.
+  // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
   // Standing outranks the page and not the pointer: a reader who has just selected words or
   // raised the 💬 on something has said what they mean more recently than the focus they

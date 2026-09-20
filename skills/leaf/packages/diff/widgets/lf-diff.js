@@ -7,6 +7,7 @@ import {
   beginWalk,
   dataBody,
   failSoft,
+  focusDestination,
   focused,
   inChrome,
   commands,
@@ -539,7 +540,10 @@ customElements.define(
                   search.focus({ preventScroll: true });
                   return;
                 }
-                search?.blur();
+                // The box's container is the patch it filters, so that is where it hands
+                // the reader back: a blur alone would drop them out of this widget's
+                // scope with no ring anywhere, and the file walk would stop answering.
+                focusDestination(this);
               },
             },
             {

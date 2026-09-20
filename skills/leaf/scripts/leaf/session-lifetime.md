@@ -9,7 +9,7 @@ and requests another reading at its next deadline; it does not run a second fold
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
@@ -65,8 +65,8 @@ claim also records the current unanswered message,
 so one check-in keeps **Working** beside the words that prompted the work even when the
 reader adds another comment. Widget work appears on the Target margin entry. These
 readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`
-while its turn is over, so work handed to a delegate is renewed from the
-delegate's own hands or not at all.
+while its turn is over, and its workers leave the page to it, so a declaration over
+work that outlasts the turn stands unrenewed until a later turn writes it again.
 
 Canonical activity stops believing a work declaration older than the
 `turn_closed` stamp after a short grace. Both turn id and closing stamp are the

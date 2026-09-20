@@ -110,24 +110,28 @@ you wait on, leaves the reader's comment unanswered for its whole length.
 For work that will run longer than a few minutes, coordinate it rather than perform
 it. Hand the reading, editing, and testing to background subagents or background
 commands, and end your turn as the host contract says, so the watcher's next delivery
-reaches you while the work runs instead of waiting behind it. Keep the replies and
-`index.html` yourself, so one writer revises the page. When a reader move started the
-work, reply before you end the turn with what you started and where its result will
-appear: that is the answer the move is owed until the result exists. When a worker
-reports back, settle its result with a reply, a revision, or a receipt.
+reaches you while the work runs instead of waiting behind it. When a reader move
+started the work, reply before you end the turn with what you started and where its
+result will appear: that is the answer the move is owed until the result exists. When
+a worker reports back, settle its result with a reply, a revision, or a receipt.
+
+You drive the page and your workers do not. The server, the watcher and its
+acknowledgements, replies, receipts, status, edits to `index.html`, and stamps stay
+with you, and a worker returns its result to you. A worker touches the page only in a
+role Leaf's guidance gives it, and only as that guidance directs: a command hub worker
+(`leaf page guidance <page> worker`), or a Codex watcher task
+(`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
+inherits your conversation inherits the page with it and may otherwise treat the page
+as its own. Work that needs its own conversation with the reader belongs to a session
+of its own, with its own page.
 
 A `working` claim is believed while the turn that wrote it is open. The page is
 told when that turn ends, so a claim nothing has renewed within a couple of
-minutes of the ending stops being believed, and the banner reports the silence
-instead of the work; a claim nobody renews at all ages out after about a quarter
-of an hour.
-
-One writer owns the reader's reading of the work, and it is whoever is running. While
-you are still in the turn, keep it yourself and tell each worker you are doing so: a
-worker's report is yours to turn into one sentence, and one sentence covering three
-workers reads better than three claims competing for one row. When you end the turn
-while work continues, nobody in this session can write, so hand each worker the launcher
-path, the page path, its subject id if it has one, and the status command to run as it
-starts — soon enough to land inside that couple of minutes — and again whenever its step
-changes. A thread claim written after your reply stands until your next reply there, and
-claims on different subjects stand side by side at the page edge.
+minutes of the ending stops being believed: the banner reports that your turn ended,
+and its explanation keeps the claim's words. A claim nobody renews at all ages out
+after about a quarter of an hour. Before you end a turn while workers run, make your
+last status say what is still running, and write it again in the turn that a worker's
+result or the reader's next comment wakes. Within a turn, fold your workers' progress
+into your own status: one sentence covering three workers reads better than three
+claims competing for one row. A thread claim written after your reply stands until your
+next reply there, and claims on different subjects stand side by side at the page edge.

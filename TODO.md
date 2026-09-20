@@ -129,10 +129,14 @@ ordering contract these items extend.
   answered and resolved, and `resolved` clears only on an explicit `unresolve`, so it is
   not a shortcut to one.
 
-- **Decide whether delegated work may hold a reader move open across turns.** The Stop
-  hook refuses to end a turn over an acknowledged move with no answer, so a coordinator
-  replies with what it started before its worker runs. A live worker claim on the move's
-  subject could count as handling instead, leaving one reply when the work finishes.
+- **Keep delegated work reading as running once the coordinator's turn ends.** Workers
+  leave the page to the session driving it (`conversation-loop.md`, "Long-running
+  work"), so when a coordinator ends its turn with workers running, its `working`
+  declaration reads as the turn's end two minutes later, though its watcher is live and
+  the work is moving. A declaration the coordinator marks as delegated could stand while
+  its watcher lease holds. The same fact could keep the reader move that started the
+  work handled across turns, where today the Stop hook makes the coordinator reply with
+  what it started before its turn can end.
 
 ## Architecture simplification
 
@@ -286,6 +290,25 @@ and `ship-review` found missing in an emulated iPhone. Emulation does not show i
 selection callout, the software keyboard, Safari's collapsing toolbars, or a real
 long-press or pinch, so settle anything that depends on those on a device first. The
 thread panel's touch grip has its own item under Later.
+
+- **Keep the comment field out from under iOS's selection menu.** On a real iPhone, the
+  Copy / Look Up menu still covers the field that opens on a selection. A page cannot
+  remove that menu without also dropping the selection (`-webkit-touch-callout` reaches
+  only links and images), and readers need Copy and Look Up, so the field has to stay out
+  of the menu's way. Since 9adc3e16 a touch screen puts the field below the selected
+  block, as the Hypothesis annotation client's adder does for the same reason
+  (`src/annotator/adder.tsx`). In emulated iPhone WebKit, across 83 selections in
+  `how-it-works` and `review-a-plan`, the field stayed out of the band just above the
+  selection, where iOS usually draws the menu, in all but 3. The collision on the device
+  therefore comes from something emulation does not show; take a screenshot there before
+  choosing a fix. Two weaknesses already show in emulation. The field keeps clear of the
+  whole block rather than the selected words (`keepClear` in `placeFab`,
+  `runtime/composing/surface.js`), so when a tall paragraph runs past the bottom of the
+  screen, the field is held at the screen's edge over the paragraph's lower lines, where
+  it can cover the selected words. And 6px under the block, the field can cover the end
+  handle when the selection ends on the block's last line. If no place beside the
+  selection holds on the device, dock the field at an edge of the screen on a touch
+  screen.
 
 - **Let a touch reader comment on an element, not only on selected text.** The routes to
   an element target are Alt-click, the `s` key, and a "Respond to…" button that appears

@@ -24,6 +24,8 @@ The main owners are:
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;
+- `page_view`: the page as the door may read it, so admission is a fold over that
+  reading, the standing log, and one event;
 - `event_endpoint`: the browser's transport onto that door — postable kinds,
   sendable fields, retries, and HTTP answers;
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
@@ -137,9 +139,10 @@ user-path gates share — `exporting` is its other caller — and `command` owns
 CLI boundary. Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
-owns registry-declared instance rules, `admission` owns incoming message markup,
-`compatibility` owns layer changes against the standing log, `source_history`
-owns predecessor readings and continuity, `transitions` compares authored
-revisions with standing actions and reports, `source` composes those gates into
-one reading, and `command` owns its CLI and render handoff. Import the owner
-directly; the package initializer is only a marker, not a second API to maintain.
+owns registry-declared instance rules, `admission` owns what an agent's writer
+hands in (message markup, bodies, and the ids it names), `compatibility` owns
+layer changes against the standing log, `source_history` owns predecessor
+readings and continuity, `transitions` compares authored revisions with standing
+actions and reports, `source` composes those gates into one reading, and
+`command` owns its CLI and render handoff. Import the owner directly; the package
+initializer is only a marker, not a second API to maintain.

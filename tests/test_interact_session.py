@@ -65,6 +65,7 @@ from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
+from leaf import page_view as page_view_model
 from leaf import presence as presence_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -780,10 +781,8 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
 ):
     """`leaf status --on` writes one claim at two seats: the page's banner, which
     reads it, and a receipt on the thread the work is about, which the reader sees
-    under their own words. One command writes both because they are one sentence — a
-    delegate that reports its thread is the agent checking in, and the shared timestamp
-    is what keeps a `working` claim believed across a turn boundary the session that
-    made the claim can no longer write across.
+    under their own words. One command writes both because they are one sentence, and
+    their shared timestamp means a write after a turn has ended renews both together.
 
     The claim carries across every later status write but its own settlement. Pickup
     is recorded separately in the event log, so transport acceptance neither replaces
@@ -820,7 +819,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert work["after"] == comment_seq
     assert work["agent"] == "Trace reader" and work["id"] and work["session"]
     # The store stays private. At the state boundary it becomes the same typed update
-    # envelope a widget report uses, including the posting delegate's own voice rather
+    # envelope a widget report uses, including the posting session's own voice rather
     # than the page owner's.
     live = page_state(page_dir)
     assert "work" not in live["status"]
@@ -3752,7 +3751,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
         ],
     )
     assert stale.exit_code != 0
-    assert "no longer requires a reply" in stale.output
+    assert "event 'first' takes no reply" in stale.output
 
     current = CliRunner().invoke(
         cli_model.cli,
@@ -4327,7 +4326,10 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
     events = events_model.read_events(page_dir)
     assert (
         event_contracts_model.action_contract_error(
-            page_dir, events[-1], events, registry_storage.require_registry(page_dir)
+            page_view_model.PageView(page_dir),
+            events[-1],
+            events,
+            registry_storage.require_registry(page_dir),
         )
         is None
     )

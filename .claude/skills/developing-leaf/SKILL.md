@@ -105,7 +105,9 @@ click as an unanswered reader move, and the Stop hook holds the turn open for it
 `--reader` also fixes the address: the durable service records it, so the URL
 survives a stop, while an unclaimed preview's server is its watcher's and a new
 watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
-rebuilds it in the other one.
+rebuilds it in the other one. A subagent's previews stay claimless, and the session the
+user talks to starts any `--reader` preview: a subagent's claim is that session's
+claim, so that session's Stop hook would answer for the preview's moves either way.
 
 When finished with a preview, run the matching preview command with `--stop` (and
 `--reader` for a reader slot); it waits for the watcher and server to stop. Ctrl-C

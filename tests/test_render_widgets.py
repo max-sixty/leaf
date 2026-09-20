@@ -5229,46 +5229,6 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     expect(second).to_be_focused()
 
 
-def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card(browser, serve):
-    """The answer verb carries the final position itself. Its references are
-    validated before the verb can settle the Ask, so a crafted but schema-valid
-    finish cannot leave an answered deck whose final classification never existed."""
-    url = serve(SWIPE_PAGE)
-    page = open_page(browser, url)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-
-    early = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": 1,
-            "widget": "session-triage",
-            "action": "finish",
-            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
-        },
-    )
-    assert early.status == 400
-    assert "does not satisfy its completion condition" in early.json()["error"]
-
-    refused = post_event(
-        page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={
-            "kind": "action",
-            "revision": 1,
-            "widget": "session-triage",
-            "action": "finish",
-            "detail": {"card": "not-a-card", "to": "session-keep", "index": 2},
-        },
-    )
-
-    assert refused.status == 400
-    assert "unknown card 'not-a-card'" in refused.json()["error"]
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    assert actions(serve.page_dir) == []
-
-
 def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
     """Optimistic cards are an outbox overlay, not snapshots of one another. If an
     older swipe is refused, its card returns while a later queued verdict still lands."""

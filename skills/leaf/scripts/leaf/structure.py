@@ -900,10 +900,13 @@ def parse_revision(page_dir: Path, revision: int) -> SourceDocument:
     return parser
 
 
-def revision_review_mode(page_dir: Path, revision: int):
-    """The review decision declared by an exact working revision, or None."""
-    parser = parse_revision(page_dir, revision)
+def review_mode(document: SourceDocument):
+    """The review decision one document declares, or None."""
     return next(
-        (meta["content"] for meta in parser.named_metas if meta["name"] == "lf-review"),
+        (
+            meta["content"]
+            for meta in document.named_metas
+            if meta["name"] == "lf-review"
+        ),
         None,
     )

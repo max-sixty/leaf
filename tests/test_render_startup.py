@@ -1796,49 +1796,6 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
 
 
-def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
-    """`restated` belongs to the version that rewrote the words, and to no other:
-    v3 has nothing to declare, because it is not the one taking anything back.
-
-    So the retraction cannot live in the markup, or v3's silence would read as
-    "carry the decision" and hand the user's edit straight back — the same
-    resurrection the branch removed, one version later and just as quiet.
-    Stamping records it in the log instead, where it is a fact with a revision
-    on it and every later revision inherits it for free."""
-    url = serve(JOURNEY_V1)
-    d = serve.page_dir
-    append_command(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "draft-ops",
-            "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
-        },
-    )
-    corrected = "Run the migration after deploying — it needs the new column."
-    _publish(d, 2, _draft_says(JOURNEY_V2, corrected, " restated"), "rewrote the draft")
-    # v3 keeps v2's words and says nothing about the retraction, because
-    # saying it again would be claiming to undo a decision already undone.
-    _publish(d, 3, _draft_says(JOURNEY_V2, corrected), "unrelated copy edits")
-
-    page = open_page(browser, url.replace("v1.html", "v3.html"))
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(corrected)
-    page.close()
-
-    # And the careful author who carries the attribute forward anyway — the habit
-    # this whole design exists to break — is told which version already did it.
-    (d / "index.html").write_text(_draft_says(JOURNEY_V2, corrected, " restated"))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "stamp", str(d), "--text", "again"],
-    )
-    assert result.exit_code != 0
-    assert "r2 already took that back" in result.output
-
-
 def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     browser, serve
 ):
@@ -3071,7 +3028,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
         # comment" once, which invited the reader to start something on a page already
-        # mid-answer and dropped the only news it had: a delegate had been holding the
+        # mid-answer and dropped the only news it had: the agent had been holding the
         # question for twenty minutes and nothing on the page said so. The words are
         # the ones the branch with no watcher uses for the same silence, minus its
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
@@ -3092,8 +3049,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # written by a model's turn, and a turn ends without running anything — so
         # nothing writes its close, and the page could only ever find an abandoned
         # claim by outwaiting the rope above. The Stop hook watches that ending, and a
-        # claim written before it is one no next turn and no delegate renewed across
-        # it. Dated by the ending and not by the claim's own last word: "last checked
+        # claim written before it is one no later turn renewed across it. Dated by the
+        # ending and not by the claim's own last word: "last checked
         # in just now" under an amber dot is the line arguing with the dot.
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
@@ -3114,18 +3071,18 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             " 1 update is saved."
         )
 
-        # A turn that has only just ended still holds it. The agent claims the work,
-        # hands it to a delegate and ends the turn in the same second, and the
-        # delegate's first note is a minute or so behind that — with no margin the
-        # page would report every handoff as an abandonment and take it back again.
+        # A turn that has only just ended still holds it. An agent that ends its turn
+        # with work running can be back a minute later, woken by that work's result
+        # or the reader, and with no margin the page would report every such gap as
+        # an abandonment and take it back again.
         declare("working", "revising the plan", quiet_for=60, turn_ended=30)
         expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-        # And a delegate that does check in carries the claim past the ending on its
-        # own: its note is written after the turn closed, by the one command that
-        # writes both. The claim stops being the closed turn's to answer for, and the
-        # rope above is what judges it from there.
+        # And a status written after the turn closed carries the claim past the ending
+        # on its own, through the one command that writes both. The claim stops being
+        # the closed turn's to answer for, and the rope above is what judges it from
+        # there.
         declare("working", "revising the plan", quiet_for=60, turn_ended=5 * 60)
         expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
 
@@ -3235,8 +3192,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 ):
     """The banner says what the agent is doing; a receipt says which of the reader's
     questions it is doing it about. Both are one claim written by one command
-    (`leaf status … --on`), which is what makes a delegate's check-in keep the page's
-    line true as well as its own thread's.
+    (`leaf status … --on`), so one check-in keeps the page's line true as well as the
+    thread's.
 
     A reader with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3602,10 +3559,9 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim of work.
 
     The banner cannot answer for this seat. Every `leaf status … --on` write refreshes
-    the page's own line as well as the thread's, so one delegate still checking in keeps
-    the banner green while another's claim ages beside the reader's question — the
-    roster's dead-row failure one level down, reached by exactly the command that makes
-    two delegates possible.
+    the page's own line as well as the thread's, so a fresh claim on one subject keeps
+    the banner green while an older claim on another ages beside the reader's question
+    — the roster's dead-row failure one level down.
 
     The roster's answer is a point in time on the shared rope, and this says it as the
     past tense of the same state: a tint alone is silence to whoever is listening rather
@@ -3665,8 +3621,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         timespec="seconds"
     )
     claim(quiet_ts)
-    # The page's own line is as fresh as it was, which is the whole case: this is two
-    # delegates diverging, not a page that has gone quiet all over.
+    # The page's own line is as fresh as it was, which is the whole case: this is one
+    # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Agent is working — rerunning the failing shard")
     )
@@ -3691,7 +3647,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # The other question the banner asks, asked here too: a claim left behind by a turn
     # that ended is quiet without waiting out the rope. Six minutes is nothing on that
     # rope — what dates this one is the ending, and the page's own line stays green
-    # beside it because a second delegate is still renewing the claim.
+    # beside it because it was written after that ending.
     record_claim(
         d,
         id="s",
@@ -3719,11 +3675,12 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         "data-lf-agent-workflow", re.compile(".+")
     )
 
-    # Turn closure belongs to one exact session. An orchestrator ending its turn is
-    # no evidence that a delegate abandoned a different update.
+    # Turn closure belongs to one exact session. When a Codex watcher task holds the
+    # page, its turn ending is no evidence that the page task, which wrote this claim,
+    # has abandoned it.
     record_claim(
         d,
-        id="orchestrator",
+        id="watcher",
         turn_closed=(datetime.now().astimezone() - timedelta(minutes=5)).isoformat(
             timespec="seconds"
         ),
@@ -3732,7 +3689,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         (datetime.now().astimezone() - timedelta(minutes=6)).isoformat(
             timespec="seconds"
         ),
-        session="delegate",
+        session="page-task",
     )
     expect(visible_work_line).not_to_contain_text("Was working")
     expect(work_line.locator("time")).to_have_count(0)

@@ -668,12 +668,12 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     and the reader sees it beside that subject as well as in the banner. Conversation
     work stays beside the message that awaited your reply when the claim began. Thread
     work stands until your next reply there. Widget work stands until a later
-    version stamp explicitly names it with --completes. Work in flight — a
-    delegate, a long tool run — therefore reads as picked up rather than as
-    silence. A `working` claim is believed while the turn that wrote it is open;
-    the page is told when that turn ends, so something has to renew the claim
-    within a couple of minutes of the ending, and one nobody renews at all goes
-    quiet after about a quarter of an hour — on the banner and each local line.
+    version stamp explicitly names it with --completes. Work in flight, such as a
+    long tool run, therefore reads as picked up rather than as silence. A
+    `working` claim is believed while the turn that wrote it is open; a couple of
+    minutes after that turn ends the page reports the ending instead, until a later
+    turn writes the status again, and one nobody renews at all goes quiet after
+    about a quarter of an hour — on the banner and each local line.
     """
     from leaf.session import cmd_idle, cmd_status
 

@@ -24,6 +24,7 @@ from interact_support import (
     SHELVED,
     TRIAL_CACHE,
     TRIAL_LOG,
+    ModelPage,
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
@@ -74,6 +75,146 @@ from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
 from page_fixtures import package_selection_args
+
+# One question quoted back and the same question live. The pair is what makes the
+# exhibit refusal below the exhibit's doing: the two groups are the same markup
+# under different holders.
+STATED_KIT = """<!doctype html>
+<html lang="en">
+<head>
+<title>Kit</title>
+</head>
+<body>
+<main>
+<lf-specimen id="last-year" label="the kit we took last year">
+  <lf-options id="quoted-pick" choose>
+    <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
+    <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+  </lf-options>
+</lf-specimen>
+<lf-ask id="kit-decision">
+  <h2>Which navigation kit this year?</h2>
+  <lf-options id="live-pick" choose>
+    <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
+    <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+  </lf-options>
+</lf-ask>
+</main>
+</body>
+</html>
+"""
+STATED_LOG = [
+    {
+        "kind": "comment",
+        "id": "c1",
+        "seq": 1,
+        "ts": "2026-09-19T12:00:00+00:00",
+        "author": "user",
+        "revision": 1,
+        "text": "Which one did we take?",
+    }
+]
+STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+
+# A deck with two cards still queued. Two is the load-bearing number: `finish`
+# carries the final position itself, so against a one-card deck the crafted
+# finish below would genuinely complete the deck and the door would be right to
+# admit it.
+STATED_DECK = """<!doctype html>
+<html lang="en">
+<head>
+<title>Triage</title>
+</head>
+<body>
+<main>
+<lf-ask id="triage-decision">
+  <h2>Which follow-ups should we keep?</h2>
+  <lf-swipe-deck id="triage">
+    <lf-swipe-pile id="queue" verdict="unseen">
+      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
+      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-ask>
+</main>
+</body>
+</html>
+"""
+STATED_FINISH = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "triage",
+    "action": "finish",
+}
+
+
+def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card():
+    """A verb that carries its own result is checked against the deck it claims.
+
+    `finish` names the card's final pile itself rather than reporting where the
+    reader dropped it, so nothing but admission stands between a crafted POST and
+    an answered Ask. Two different gates answer: the completion condition, which
+    a finish leaving a card queued does not meet, and the position record, whose
+    unit must be an element the deck actually holds. A door that took the verb's
+    word for either would leave a deck answered on a classification that never
+    existed.
+    """
+    page = ModelPage(STATED_DECK, packages=("swipe",))
+
+    def refusal(event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            event_contracts_model.admitted_event(page, [], dict(event))
+        return str(refused.value)
+
+    assert "does not satisfy its completion condition" in refusal(
+        {**STATED_FINISH, "detail": {"card": "card-a", "to": "keep", "index": 1}}
+    )
+    assert "unknown card 'not-a-card'" in refusal(
+        {**STATED_FINISH, "detail": {"card": "not-a-card", "to": "keep", "index": 2}}
+    )
+
+
+def test_admission_decides_from_the_markup_and_the_standing_log_alone():
+    """The door reads a page through `PageView` and reaches past it for nothing.
+
+    What makes an event admissible is the authored document it names, the
+    vocabulary that document captured, and the log standing in front of it. So a
+    page whose revisions are stated rather than stored reaches the same verdicts,
+    and a test of one rule can be the markup that rule is about — which is what
+    `ModelPage` is. Each verdict below comes from a different gate, so a gate
+    that went back to opening a file of its own fails here.
+    """
+    page = ModelPage(STATED_KIT)
+
+    def admit(event):
+        return event_contracts_model.admitted_event(page, STATED_LOG, dict(event))
+
+    def refusal(event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            admit(event)
+        return str(refused.value)
+
+    choose_live = {
+        **STATED_PICK,
+        "widget": "live-pick",
+        "detail": {"options": ["live-gps"]},
+    }
+    assert admit(choose_live)["meaning"]["coordinate"] == [
+        "live-pick",
+        "live-pick",
+        "selection",
+    ]
+    assert (
+        refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
+    )
+    assert "stands inside an exhibit" in refusal(
+        {**STATED_PICK, "widget": "quoted-pick", "detail": {"options": ["quoted-gps"]}}
+    )
+    answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
+    assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
+    assert admit({**answer, "parent": "c1"})["parent"] == "c1"
 
 
 def test_only_declared_generated_children_add_mapping_keys_to_liveness():
@@ -5113,27 +5254,16 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     from copy import deepcopy
 
     from leaf.asks import answered_ask
-    from leaf.files import latest_revision
     from leaf.projection import page_reading
     from leaf.validation.compatibility import candidate_vocabulary_gaps
 
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry.update(
-        json.loads(
-            (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
-        )
-    )
-    shutil.copyfile(
-        schema_model.BUNDLED_PACKAGES / "swipe" / "widgets" / "lf-swipe-deck.js",
-        page_dir / "widgets" / "lf-swipe-deck.js",
-    )
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    registry = registry_storage.require_registry(page_dir)
     source = PAGE.replace(
         "</section>", registry["lf-swipe-deck"]["x-example"] + "</section>"
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
-    revision = latest_revision(page_dir)
+    revision = files_model.latest_revision(page_dir)
     append_command(
         page_dir,
         {

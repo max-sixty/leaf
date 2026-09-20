@@ -23,6 +23,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 
 import anyio
@@ -30,6 +31,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -46,6 +48,7 @@ from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.served_state import page as served_page
+from leaf.validation import compatibility as compatibility_model
 from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
@@ -99,6 +102,63 @@ def append_command(page_dir, command):
     """
     with service_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)
+
+
+@cache
+def model_layer(*packages: str) -> dict:
+    """The vocabulary `page init` vendors for one package selection.
+
+    Composed from the bundled packages rather than read back out of a page, and
+    cached per selection, because every stated page asking for the same packages
+    is asking for the same registry. Nothing may mutate what this returns.
+    """
+    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+
+
+class ModelPage:
+    """A page stated rather than stored, for a rule its markup decides.
+
+    `event_contracts.admitted_event` reads a page through the answers below and
+    nothing else, so a refusal that follows from authored markup and the standing
+    log can be put to the real door with no page directory, server or browser
+    underneath it. Each revision here is its markup, in the order given.
+    `packages` names the optional vocabularies the markup speaks, as `page init`
+    would be told them; the default layer alone is the default.
+
+    What a page holds in files it has none of: no typed external data, and
+    nothing owed to anyone, neither of which markup can state. A rule about
+    either belongs on `page_dir`.
+    """
+
+    def __init__(self, *revisions: str, packages: tuple[str, ...] = ()):
+        self.documents = {
+            number: structure_model.SourceDocument(html)
+            for number, html in enumerate(revisions, 1)
+        }
+        self.data = data_model.empty_data()
+        self._packages = packages
+
+    @property
+    def revisions(self) -> list[int]:
+        return sorted(self.documents)
+
+    def document(self, revision: int):
+        return self.documents[revision]
+
+    def registry(self, revision: int | None) -> dict:
+        """One layer for every revision: a stated page never re-vendors, so no
+        revision of it captured a vocabulary different from the rest."""
+        return model_layer(*self._packages)
+
+    @property
+    def within(self) -> dict:
+        return passages_model.enclosing_ids(self.documents[max(self.documents)])
+
+    def responses(self, events: list) -> dict:
+        raise NotImplementedError(
+            "what a page still owes is read from its claims and its deliveries, "
+            "which a stated page has none of: put that refusal on `page_dir`"
+        )
 
 
 def run_async(entry):
@@ -257,12 +317,12 @@ graph LR
 # lf-diagram and lf-diff declarations out of the vendored registry, so the selection
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = ("command-hub", "diagram", "diff")
+PAGE_PACKAGES = ("command-hub", "diagram", "diff", "swipe")
 
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
-    """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
+    """A mutable page with the default, Command Hub, diagram, diff and swipe vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 

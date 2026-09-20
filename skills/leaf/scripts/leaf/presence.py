@@ -223,16 +223,17 @@ def presence_with_activity(
         # None when nothing claimed the page — leaf run outside an agent host.
         "session_alive": active is not None if claim else None,
         # Which session the turn-closed evidence belongs to. Thread updates carry
-        # their posting session too, so a delegate is not declared abandoned merely
-        # because the orchestrator's turn ended under it.
+        # their posting session too, so a claim another session wrote — the page
+        # task's, while a Codex watcher task holds the page — is not declared
+        # abandoned because the claimant's turn ended under it.
         "claim_session": claim.get("id") if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
         # is what says that exact reader move is in the turn running now.
         "claim_turn": claim.get("turn") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
-        # A `working` claim older than this is one that no turn and no delegate
-        # renewed across the boundary — the same judgment the runtime's grace
+        # A `working` claim older than this is one that no later turn renewed
+        # across the boundary — the same judgment the runtime's grace
         # makes, available at the moment it becomes true instead of a quarter of
         # an hour after it. Read with .get like the rest of the claim's fields,
         # since a record written before this existed is still a valid claim.

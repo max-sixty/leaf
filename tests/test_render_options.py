@@ -49,6 +49,7 @@ from render_harness import (
     SPECIMEN_TEXT,
     _traffic,
     _until,
+    ask_actions_hint,
     compare_with,
     hold_selection,
     holding,
@@ -477,7 +478,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # The Ask's own numbered actions are what the line offers, under the one context the
     # question owns, with the way out of the standing ahead of them as it is anywhere
     # the reader is holding something.
-    assert "1–3" in line and "Ask actions" in line, line
+    assert ask_actions_hint("1–3") in line, line
     assert "let go" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])

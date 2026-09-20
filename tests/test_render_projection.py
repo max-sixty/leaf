@@ -95,6 +95,7 @@ from render_harness import (
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
     TOKEN,
+    ask_actions_hint,
     author_test_widget,
     compare_with,
     consume_browser_errors,
@@ -3466,7 +3467,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert "1–3\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     # A stamped version this time, which is the other way a page moves under a reader;
     # the notice names it in the bottom status and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -3477,7 +3478,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     # The same mark, still holding the focus the reader put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert "1–3\nAsk actions" in shortcut_bar_text(page), (
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page), (
         "the revision took the reader's keys down"
     )
     page.keyboard.press("2")
@@ -3518,7 +3519,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_reader_standing_in_it(
     expect(decision).to_be_focused()
     # Standing, not a bare tab stop: the Ask's own action routes are live over the reader
     # again, and the third option the revision brought is among them.
-    assert "1–4\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
     page.keyboard.press("3")
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
@@ -3843,7 +3844,7 @@ customElements.define('page-counter', class extends HTMLElement {
         "the revision was patched in, so this proves nothing about the other install"
     )
     expect(page.locator("#lk-decision")).to_be_focused()
-    assert "1–4\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -8079,7 +8080,7 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
 
     page.keyboard.press("a")
     expect(page.locator("#command-decision")).to_be_focused()
-    assert "1\nAsk actions" in shortcut_bar_text(page)
+    assert ask_actions_hint("1") in shortcut_bar_text(page)
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")

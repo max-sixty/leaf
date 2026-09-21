@@ -30,6 +30,11 @@ The thread panel is a narrow column beside the page, so a paragraph that reads f
 in chat is a wall there. A reply says what changed or where to look: a sentence or
 two, or one short paragraph or list item per point when there are several. The page
 carries the evidence, and a stamp's changelog carries the full list of changes.
+When a discussion produces a decision or defers work, revise the relevant page
+section first, then link the outcome from the reply with a fragment link such as
+`[the decision](#decision)`. When the rationale matters to a reader using the
+result, keep the thread anchored to that page section. Keep the discussion active
+if the outcome is not yet incorporated or the reader still owes an explicit review.
 
 A browser comment may carry a drawing that continues across the page. A mark begun over
 or in the margin beside an addressable element anchors there; one begun where no addressable element shares its
@@ -101,8 +106,8 @@ reader can reopen a resolved thread, and it comes back pointing at a coordinate 
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-Fragment links such as `[the decision](#decision)` take the reader to page
-content. `--markup` adds a validated widget after reply text; its ids must be new.
+Fragment links take the reader to page content. `--markup` adds a validated widget
+after reply text; its ids must be new.
 An ordinary reply answers the thread without adding it to the outstanding Ask
 list. Add `--awaits` when the reply's prose asks the reader to answer:
 

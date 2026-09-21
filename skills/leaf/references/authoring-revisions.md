@@ -77,6 +77,12 @@ or holds a standing Ask survives with its id and words whatever else goes;
 `version check` refuses a version that drops one. Mark a concluded `lf-options`
 group `settled` when it retires inside a section that remains live.
 
+As discussion and work change the result, update the relevant section with the
+current decision or finding and show what is complete. Put deferred work in the
+page's backlog or remaining-work section with enough context to resume it. Before
+handing the page back, check that its status and outstanding work agree with what
+you report to the reader.
+
 Relocation is not revision: moving unchanged content needs neither a suggestion
 nor `restated`. Keep an Ask live while it is being applied, and settle it
 only after the work no longer revisits it. Keep a section live while the reader

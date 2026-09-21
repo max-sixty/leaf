@@ -13,9 +13,10 @@ Completed work and rejected ideas live in git history or the relevant research n
   board or table, and populated conversation in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
-- **Give conversations a stable hierarchy.** Keep thread context visible while
-  scrolling; make search, filters, agent activity, selection, and reply editing clear
-  in short and long threads.
+- **Give conversations a stable hierarchy.** Follow the separate
+  [thread plans](notes/threads.md): make reader attention explicit, prototype compact
+  navigation, then fold long histories. Keep thread context, search, filters, agent
+  activity, selection, and reply editing clear.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment

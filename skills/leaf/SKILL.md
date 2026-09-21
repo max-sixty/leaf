@@ -39,6 +39,12 @@ and its observed mode instead. If you open its browser page, the URL rule begins
 
 ## Keep the reader current
 
+By default, the document is the shared canvas and current record for the subject.
+Keep its findings, decisions, completed work, and remaining work current as the
+work and discussion proceed. A reader should find the outcome in the relevant
+page section without reconstructing a thread or chat. The banner says what you
+are doing now; threads carry discussion and rationale.
+
 While a page is live, telling its reader what you are doing takes priority over doing
 it, as a UI thread handles input before background work. Put each step on the page
 before starting it, and acknowledge reader input on the page before acting on it. Keep

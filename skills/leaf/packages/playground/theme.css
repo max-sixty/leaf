@@ -212,21 +212,11 @@ lf-playground-value {
   text-align: end;
 }
 
-/* The component owns clipboard status and its lifetime; Leaf supplies its face.
- * Its icon-swap animation is unnecessary for these text labels. */
-.lf-playground-copy::part(copy-icon),
-.lf-playground-copy::part(success-icon),
-.lf-playground-copy::part(error-icon) {
-  animation: none;
-}
-
-.lf-playground-copy::part(button) {
-  transition: none;
+.lf-playground-copy-trigger {
   box-sizing: border-box;
   min-height: var(--aim-floor);
   width: 8.5rem;
   height: auto;
-  aspect-ratio: auto;
   white-space: nowrap;
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-2);
@@ -236,10 +226,35 @@ lf-playground-value {
   font: 600 var(--t-6)/1.2 var(--sans);
 }
 
+.lf-playground-copy-label.success,
+.lf-playground-copy-label.error {
+  display: none;
+}
+
+.lf-playground-copy:state(success) .lf-playground-copy-label.rest,
+.lf-playground-copy:state(error) .lf-playground-copy-label.rest {
+  display: none;
+}
+
+.lf-playground-copy:state(success) .lf-playground-copy-label.success,
+.lf-playground-copy:state(error) .lf-playground-copy-label.error {
+  display: inline;
+}
+
 .lf-playground-copy:state(success)::part(button) {
   border-color: var(--ok);
   background: var(--ok-tint);
   color: var(--ok-ink);
+}
+
+.lf-playground-copy:state(success) .lf-playground-copy-trigger {
+  border-color: var(--ok);
+  background: var(--ok-tint);
+  color: var(--ok-ink);
+}
+
+.lf-playground-copy:state(error) .lf-playground-copy-trigger {
+  color: var(--danger-ink);
 }
 
 .lf-playground-copy:state(error)::part(button) {

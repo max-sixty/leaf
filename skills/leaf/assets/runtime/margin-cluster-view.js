@@ -9,6 +9,7 @@
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import {
   clearMarginEntryControls,
+  marginContributionSource,
   createMarginEntryControl,
   marginEntry,
   marginEntryControlMatches,
@@ -116,8 +117,6 @@ class MarginClusterView extends HTMLElement {
 if (!customElements.get(TAG)) customElements.define(TAG, MarginClusterView);
 
 export function createMarginClusterViews({
-  resolveOffer,
-  resolveRecord,
   activateContribution,
   materializeReading,
   openSpill,
@@ -128,7 +127,7 @@ export function createMarginClusterViews({
   let relationOrdinal = 0;
 
   function controlsOf(offered, surface) {
-    const source = resolveOffer(offered);
+    const source = marginContributionSource(offered);
     let controls = contributionControls.get(source);
     if (!controls) {
       controls = new Map();
@@ -141,11 +140,10 @@ export function createMarginClusterViews({
     for (const entry of entries) {
       let control = controls.get(entry.key);
       if (!control || !marginEntryControlMatches(control, entry)) {
-        control = createMarginEntryControl(resolveRecord(entry));
+        control = createMarginEntryControl(entry);
         controls.set(entry.key, control);
         changed.add(control);
-      } else if (marginEntryRecord(control) !== resolveRecord(entry))
-        changed.add(control);
+      } else if (marginEntryRecord(control) !== entry) changed.add(control);
       control.onclick = (event) =>
         activateContribution({ offered, entry, control, surface, event });
       trackMarginEntryControl(source, surface, entry.key, control);
@@ -161,7 +159,7 @@ export function createMarginClusterViews({
         if (!node.id) node.id = `lf-margin-related-${++relationOrdinal}-${index + 1}`;
       });
       if (changed.has(control))
-        presentMarginEntry(control, resolveRecord(entry), {
+        presentMarginEntry(control, entry, {
           relatedControlIds: related.map((node) => node.id),
         });
     }
@@ -176,10 +174,10 @@ export function createMarginClusterViews({
     }
     if (item.kind === "reading") return materializeReading(item);
     if (item.kind === "notice") {
-      let node = contributionNotices.get(resolveOffer(item.offered));
+      let node = contributionNotices.get(marginContributionSource(item.offered));
       if (!node) {
         node = el("span", "lf-margin-receipt");
-        contributionNotices.set(resolveOffer(item.offered), node);
+        contributionNotices.set(marginContributionSource(item.offered), node);
       }
       keeps(node, "data-lf-margin-receipt", item.notice.tone);
       render(html`${item.notice.text}`, node);
@@ -201,7 +199,7 @@ export function createMarginClusterViews({
   const clearOffers = (offers, surface) => {
     if (!surface) return;
     for (const offered of offers)
-      clearMarginEntryControls(resolveOffer(offered), surface, new Set());
+      clearMarginEntryControls(marginContributionSource(offered), surface, new Set());
   };
 
   function materializeOptions(model) {

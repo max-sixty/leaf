@@ -36,21 +36,42 @@ export {
 } from "./margin-entry-model.js";
 
 const text = (value) => String(value ?? "").trim();
-const validateScope = (entry) => {
-  if (entry.scope != null && !isCommandScope(entry.scope))
-    throw new TypeError("A margin entry scope needs a commandScope capability");
-};
+// Scopes belong to the browser declaration, not the immutable model record.
+const commandScopes = new WeakMap();
+function bindScope(record, declared) {
+  const scope = commandScopes.get(declared) ?? declared.scope;
+  if (scope != null) {
+    if (!isCommandScope(scope))
+      throw new TypeError("A margin entry scope needs a commandScope capability");
+    commandScopes.set(record, scope);
+  }
+  return record;
+}
 
 export function marginEntry(offered) {
-  const entry = normalizeMarginEntry(offered);
-  validateScope(entry);
-  return entry;
+  return bindScope(normalizeMarginEntry(offered), offered);
 }
 
 function normalizeReading(reading, owner) {
   const normalized = normalizeMarginReading(reading, owner);
-  for (const entry of normalized.entries) validateScope(entry);
+  normalized.entries.forEach((entry, index) =>
+    bindScope(entry, reading.entries[index]),
+  );
   return normalized;
+}
+
+// A registration publishes its data once per update. Both projections use those
+// same records; only this registry resolves their live activation capability.
+const contributionSources = new WeakMap();
+export const marginContributionSource = (model) => contributionSources.get(model);
+function publishReading(offered) {
+  offered.reading = normalizeReading(offered.read(), offered.key);
+  const { readings, ...reading } = offered.reading;
+  offered.model = Object.freeze({
+    key: offered.key,
+    reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
+  });
+  contributionSources.set(offered.model, offered);
 }
 
 const contributions = new Set();
@@ -231,8 +252,7 @@ export function presentMarginEntryHost(
 ) {
   if (!(control instanceof Element))
     throw new TypeError("A margin presentation needs an Element control");
-  const record = isMarginEntry(offered) ? offered : normalizeMarginEntry(offered);
-  validateScope(record);
+  const record = isMarginEntry(offered) ? offered : marginEntry(offered);
   if (control instanceof HTMLButtonElement && record.behavior === "status")
     throw new TypeError("A status margin entry needs a stable span host");
   records.set(control, record);
@@ -286,7 +306,7 @@ export function presentMarginEntryHost(
   if (record.staticLabel) keeps(control, "data-lf-static-label", record.staticLabel);
   else control.removeAttribute("data-lf-static-label");
   syncAgentDescriptionBase(control, record.description || null, record.title || null);
-  projectCommandScope(control, record.scope);
+  projectCommandScope(control, commandScopes.get(record));
   return record;
 }
 
@@ -369,7 +389,7 @@ export function registerMarginContribution({
   if (typeof activate !== "function")
     throw new TypeError("A margin contribution needs an activate function");
   const offered = { key: owner, target, source, read, activate, reading: null };
-  offered.reading = normalizeReading(read(), owner);
+  publishReading(offered);
   contributions.add(offered);
   changed();
 
@@ -431,7 +451,7 @@ export function registerMarginContribution({
       return true;
     },
     update({ immediate = false, focus = null } = {}) {
-      offered.reading = normalizeReading(read(), owner);
+      publishReading(offered);
       changed();
       if (immediate) layoutMarginRows();
       if (focus != null) registration.focus(focus);

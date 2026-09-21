@@ -7,6 +7,8 @@ import {
   visibleMarginEntryLabel,
 } from "./margin-entry-model.js";
 
+import { marginItemKey } from "./margin-entry-model.js";
+
 function dialogControls(entry) {
   const records = entry.offers
     .flatMap((offered) =>
@@ -18,7 +20,8 @@ function dialogControls(entry) {
   return records;
 }
 
-const dialogItemKey = (entry, item) => JSON.stringify(["item", entry.key, item.id]);
+const dialogItemKey = (entry, item) =>
+  JSON.stringify(["item", entry.key, marginItemKey(item)]);
 
 function dialogControlKey(entry, offered, record) {
   return JSON.stringify(["control", entry.key, offered.key, record.key]);

@@ -11,16 +11,21 @@ import {
   clusterProjection,
   marginInventory,
   readingChoices,
+  secondaryCount,
+  choosePrimary,
+  entryHasMarginHost,
 } from "../../skills/leaf/assets/runtime/margin-model.js";
 import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
 
 const control = (key, options = {}) =>
   marginEntry({ key, glyph: "+", label: key, ...options });
-const offer = (key, entries, options = {}) =>
-  Object.freeze({
+const offer = (key, entries, options = {}) => {
+  const { readings, ...reading } = normalizeMarginReading({ entries, ...options }, key);
+  return Object.freeze({
     key,
-    reading: normalizeMarginReading({ entries, ...options }, key),
+    reading: Object.freeze({ ...reading, hasReadings: readings.length > 0 }),
   });
+};
 const group = (options = {}) => ({
   key: "target",
   targetId: "target",
@@ -44,7 +49,12 @@ const map = (entries) =>
     (item) => KINDS[item.kind],
     new Map(entries.map((entry) => [entry.key, entry.searchText])),
   );
-const choiceNames = (items) => items.map((item) => item.record?.key ?? item.choice.key);
+const choiceNames = (items) =>
+  items.map(
+    (item) =>
+      item.record?.key ??
+      (item.choice.kind === "comment" ? "threadList" : item.choice.items[0].id),
+  );
 
 test("one peer stays directly usable; two peers earn More", () => {
   const entryFor = (entries) => inventory({ offers: [offer("widget", entries)] });
@@ -197,4 +207,88 @@ test("Page Map uses opaque coordinates without delimiter collisions", () => {
   assert.ok(Object.isFrozen(entries));
   assert.ok(Object.isFrozen(groups[0].actions));
   assert.ok(Object.isFrozen(actions[0]));
+});
+
+test("placement counts claimed after controls while an unclaimed cluster keeps only readings", () => {
+  for (const claimed of [false, true]) {
+    const entry = inventory({
+      offers: [
+        offer("direct", [control("primary"), control("peer")], { claim: claimed }),
+        offer("after", [control("after-peer")], { side: "after", claim: false }),
+      ],
+      items: [marker("question", "ask")],
+    });
+    assert.equal(secondaryCount(entry, choosePrimary(entry)), 3);
+    assert.equal(
+      secondaryCount(entry, choosePrimary(entry), { claimedOnly: true }),
+      claimed ? 2 : 1,
+    );
+    assert.equal(entryHasMarginHost(entry), true);
+  }
+  const entry = inventory({
+    offers: [offer("after", [control("peer")], { side: "after" })],
+  });
+  assert.equal(choosePrimary(entry), null);
+  assert.equal(secondaryCount(entry, null, { claimedOnly: true }), 1);
+});
+
+test("focused owner exposes only its controls and retains the six-seat budget", () => {
+  const entry = inventory({
+    offers: [
+      offer("standing", [control("primary")]),
+      offer(
+        "reaction",
+        Array.from({ length: 6 }, (_, index) => control(String(index))),
+        { side: "after" },
+      ),
+    ],
+    items: [marker("conversation", "comment")],
+  });
+  const focused = clusterProjection(entry, {
+    expandedKey: entry.key,
+    expandedOwner: "reaction",
+  });
+  assert.equal(focused.primary, null);
+  assert.deepEqual(choiceNames(focused.options.visible), [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+  ]);
+  assert.equal(focused.options.spill, null);
+  assert.equal(focused.options.hidden, false);
+});
+
+test("reading IDs belong to their contribution in both margin and Page Map", () => {
+  const entry = inventory({
+    items: [null, "first", "second"].map((owner) => marker("same", "ask", { owner })),
+  });
+  const choices = readingChoices(entry);
+  assert.equal(new Set(choices.map((choice) => choice.key)).size, 3);
+  const cluster = clusterProjection(entry, { expandedKey: entry.key });
+  assert.deepEqual(
+    new Set(
+      [choices[0], ...cluster.options.items.map((item) => item.choice)].map(
+        (choice) => choice.items[0].owner,
+      ),
+    ),
+    new Set([null, "first", "second"]),
+  );
+  const actions = map([entry])[0].actions;
+  assert.equal(new Set(actions.map((action) => action.key)).size, 3);
+  assert.deepEqual(
+    actions.map((action) => action.item.owner),
+    [null, "first", "second"],
+  );
+});
+
+test("contribution admission rejects missing and duplicate reading identities", () => {
+  for (const readings of [[{}], [{ id: "" }], [{ id: "same" }, { id: "same" }]]) {
+    assert.throws(
+      () => normalizeMarginReading({ readings }, "owner"),
+      /Margin reading IDs must be nonempty and unique/,
+    );
+  }
 });

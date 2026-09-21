@@ -1,5 +1,6 @@
 /* Immutable margin inventory and cluster selection.
  * The browser captures target coordinates, contribution readings, and generated facts.
+ * The inventory derives control order, reading choices, and placement counts once.
  * This fold owns representation, primary selection, thread aggregation, engagement,
  * ordering, and the compact/expanded budgets. Layout and retained controls consume
  * these values; neither DOM state nor registration capabilities enter this module.
@@ -13,6 +14,7 @@
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
  */
 import {
+  marginItemKey,
   compareMarginContributions,
   compareMarginEntryRecords,
   marginContributionState,
@@ -76,7 +78,6 @@ export const trimmed = (value, limit = 110) => {
   return text.length > limit ? text.slice(0, limit - 1) + "…" : text;
 };
 
-const offerReadings = (offered) => offered.reading.readings;
 const noticeItems = (entry) =>
   entry.offers.flatMap((offered) => {
     const notice = offered.reading.notice;
@@ -87,7 +88,7 @@ const noticeItems = (entry) =>
 // outranks an open interaction; the ordinary idle state never forces peers open.
 // Generated acknowledgment readings are settled server facts, so only a face that
 // explicitly declares an interaction state joins this axis.
-export const entryState = (entry) => {
+const deriveEntryState = (entry) => {
   const states = [
     ...entry.offers.map(marginContributionState),
     ...entry.items.map((item) => item.state ?? item.workflowFace?.state ?? "idle"),
@@ -100,21 +101,9 @@ export const entryState = (entry) => {
 };
 // Every state but idle keeps the cluster open, so the reading is the absence of idle
 // rather than a second list of states beside the grammar's.
-export const entryEngaged = (entry) => entryState(entry) !== "idle";
+export const entryState = (entry) => entry.state;
+export const entryEngaged = (entry) => entry.state !== "idle";
 
-const standingAfterOffers = (entry) =>
-  entry.offers
-    .filter(
-      (offered) =>
-        offered.reading.side === "after" && offerReadings(offered).length > 0,
-    )
-    .sort(compareMarginContributions);
-const directOffers = (entry) => [
-  ...entry.offers
-    .filter((offered) => offered.reading.side === "before")
-    .sort(compareMarginContributions),
-  ...standingAfterOffers(entry),
-];
 export const contributionItem = (offered, record, surface = "margin", cluster = null) =>
   Object.freeze({
     cluster,
@@ -123,48 +112,23 @@ export const contributionItem = (offered, record, surface = "margin", cluster = 
     record,
     surface,
   });
-const samePresentationItem = (left, right) => {
-  if (left === right) return true;
-  if (!left || !right || left.kind !== right.kind) return false;
-  if (left.kind === "contribution")
-    return (
-      left.offered === right.offered &&
-      left.record.key === right.record.key &&
-      left.surface === right.surface
-    );
-  if (left.kind === "reading")
-    return left.entry.key === right.entry.key && left.choice.key === right.choice.key;
-  return left.offered === right.offered;
-};
-const directControlRecords = (entry) =>
-  directOffers(entry)
-    .flatMap((offered) =>
-      offered.reading.entries
-        .filter((record) => record.visible)
-        .map((record) => ({
-          offered,
-          record,
-          item: contributionItem(offered, record),
-        })),
-    )
-    .sort(compareMarginEntryRecords);
-const directControlItems = (entry) =>
-  directControlRecords(entry).map(({ item }) => item);
-export const choosePrimary = (entry) => directControlRecords(entry)[0]?.item ?? null;
-const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
-export const entryHasMarginHost = (entry) =>
-  entry.offers.some((offered) =>
-    offered.reading.entries.some((candidate) => candidate.visible),
-  ) || markerItems(entry).length > 0;
+const controlItems = (offers) =>
+  offers.flatMap((offered) =>
+    offered.reading.entries
+      .filter((record) => record.visible)
+      .map((record) => contributionItem(offered, record)),
+  );
+export const choosePrimary = (entry) => entry.controls[0] ?? null;
+export const entryHasMarginHost = (entry) => entry.hasMarginHost;
 export const readingKey = (entry, choice) => JSON.stringify([entry.key, choice.key]);
-export const readingChoices = (entry) => {
+const deriveReadingChoices = (items) => {
   const threadList = [];
   const choices = [];
-  for (const item of markerItems(entry)) {
+  for (const item of items.filter((item) => item.marker !== false)) {
     if (item.kind === "comment") threadList.push(item);
     else
       choices.push({
-        key: item.id,
+        key: marginItemKey(item),
         kind: item.kind,
         items: [item],
         text: item.text,
@@ -185,40 +149,25 @@ export const readingChoices = (entry) => {
       .sort(
         (left, right) =>
           KINDS[left.kind].priority - KINDS[right.kind].priority ||
+          left.items[0].id.localeCompare(right.items[0].id) ||
           left.key.localeCompare(right.key),
       ),
   );
 };
+export const readingChoices = (entry) => entry.choices;
 export const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
 export const threadReading = (entry) =>
   readingChoices(entry).find((choice) => choice.kind === "comment") ?? null;
 const secondaryReadings = (entry, primaryControl) =>
   readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-const secondaryControls = (entry, primary) =>
-  directControlItems(entry).filter((item) => !samePresentationItem(item, primary));
-const afterOffers = (entry, { claimedOnly = false } = {}) =>
-  entry.offers
-    .filter(
-      (offered) =>
-        offered.reading.side === "after" &&
-        offerReadings(offered).length === 0 &&
-        offered.reading.entries.some((entry) => entry.visible) &&
-        (!claimedOnly || offered.reading.claim),
-    )
-    .sort(compareMarginContributions);
-export const secondaryCount = (entry, primary, { claimedOnly = false } = {}) => {
-  const generated = secondaryReadings(entry, primary).length;
-  const contributed = secondaryControls(entry, primary).length;
-  const after = afterOffers(entry, { claimedOnly }).reduce(
-    (count, offered) =>
-      count + offered.reading.entries.filter((record) => record.visible).length,
-    0,
-  );
-  if (claimedOnly && !entry.offers.some((offered) => offered.reading.claim))
-    return generated;
-  return generated + contributed + after;
-};
+export const secondaryCount = (entry, primary, { claimedOnly = false } = {}) =>
+  secondaryReadings(entry, primary).length +
+  (claimedOnly && !entry.claimed
+    ? 0
+    : entry.controls.length -
+      Number(Boolean(primary)) +
+      (claimedOnly ? entry.claimedAfterCount : entry.afterControls.length));
 // One peer is not overflow. It costs the same second circle as `…`, but the peer says
 // what it does and is immediately usable. Ellipsis earns its place only from the third
 // margin entry onward.
@@ -298,20 +247,11 @@ function optionItems(entry, primary, focusedOffer = null) {
       .map((record) => contributionItem(focusedOffer, record, "margin", entry));
   }
   return [
-    ...secondaryControls(entry, primary).map((item) =>
-      Object.freeze({ ...item, cluster: entry }),
-    ),
+    ...entry.controls
+      .slice(primary ? 1 : 0)
+      .map((item) => Object.freeze({ ...item, cluster: entry })),
     ...secondaryReadings(entry, primary).map((choice) => readingItem(entry, choice)),
-    ...afterOffers(entry).flatMap((offered) =>
-      offered.reading.entries
-        .filter((record) => record.visible)
-        .map((record) => ({
-          offered,
-          record,
-        }))
-        .sort(compareMarginEntryRecords)
-        .map(({ record }) => contributionItem(offered, record, "margin", entry)),
-    ),
+    ...entry.afterControls.map((item) => Object.freeze({ ...item, cluster: entry })),
   ];
 }
 
@@ -323,10 +263,6 @@ function optionGroupProjection(
   forcedInlineKey = null,
 ) {
   const items = optionItems(entry, primary, focusedOffer);
-  const unique = items.filter(
-    (item, index) =>
-      items.findIndex((candidate) => samePresentationItem(candidate, item)) === index,
-  );
   // Peers may use the whole cluster budget only when no margin entry stands outside this
   // group. Reaction mode is the common case: it has neither a primary nor a reading
   // marker, so its six declared choices fit exactly. A reading-only target keeps its
@@ -334,31 +270,31 @@ function optionGroupProjection(
   const peerCapacity = Math.max(
     0,
     EXPANDED_MARGIN_ENTRY_BUDGET -
-      (!focusedOffer && (primary || markerFace(entry).kinds.length) ? 1 : 0),
+      (!focusedOffer && (primary || entry.choices.length) ? 1 : 0),
   );
-  const needsSpill = unique.length > peerCapacity;
+  const needsSpill = items.length > peerCapacity;
   // The spill route consumes the last visible margin entry; it does not increase the
   // cluster beyond its budget. A fully expanded cluster is therefore either one
   // primary plus five peers, or one primary plus four peers plus the Page Map route.
   const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
-  const hidden = Math.max(0, unique.length - visibleCapacity);
-  const direct = unique.slice(0, visibleCapacity);
+  const hidden = Math.max(0, items.length - visibleCapacity);
+  const direct = items.slice(0, visibleCapacity);
   const forcedThread =
     forcedInlineKey === entry.key
-      ? unique.find((item) => item.choice?.kind === "comment")
+      ? items.find((item) => item.choice?.kind === "comment")
       : null;
   // An open thread card keeps its owning Thread control on the page edge. When the
   // ordinary order would put it beyond the six-control budget, spill the last unrelated
   // peer in its place; the Page Map still retains every action in canonical order.
   if (forcedThread && direct.length && !direct.includes(forcedThread))
     direct[direct.length - 1] = forcedThread;
-  const firstSpilled = unique.find((item) => !direct.includes(item));
+  const firstSpilled = items.find((item) => !direct.includes(item));
   return Object.freeze({
     entry,
     entryKey: entry.key,
     label: `${entryEngaged(entry) ? "Actions" : "More options"} for ${entry.title}`,
     hidden: !optionsOpen || direct.length === 0,
-    items: Object.freeze(unique),
+    items: Object.freeze(items),
     spill: needsSpill
       ? Object.freeze({
           count: hidden,
@@ -382,7 +318,7 @@ export function clusterProjection(
   const secondaries = focusedOffer
     ? focusedOffer.reading.entries.filter((record) => record.visible).length
     : secondaryCount(entry, primary);
-  const hasOptions = focusedOffer ? secondaries > 0 : optionsOffered(entry, primary);
+  const hasOptions = secondaries > (focusedOffer ? 0 : RESTING_MARGIN_ENTRY_BUDGET - 1);
   const optionsOpen =
     secondaries > 0 &&
     (!hasOptions || expandedKey === entry.key || entryEngaged(entry));
@@ -419,7 +355,7 @@ export function marginInventory(groups) {
           .filter((item) => item.marker === false && item.represents)
           .map((item) => item.kind),
       );
-      const items = group.items
+      let items = group.items
         .filter(
           (item) =>
             item.marker === false || item.workflowFace || !represented.has(item.kind),
@@ -429,8 +365,23 @@ export function marginInventory(groups) {
             KINDS[left.kind].priority - KINDS[right.kind].priority ||
             (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
         );
-      const entry = { ...group, items: Object.freeze(items) };
-      const primary = choosePrimary(entry);
+      const direct = group.offers.filter(
+        (offered) => offered.reading.side === "before" || offered.reading.hasReadings,
+      );
+      const after = group.offers
+        .filter(
+          (offered) => offered.reading.side === "after" && !offered.reading.hasReadings,
+        )
+        .sort(compareMarginContributions);
+      const controls = Object.freeze(
+        controlItems(direct).sort(compareMarginEntryRecords),
+      );
+      const afterControls = Object.freeze(
+        after.flatMap((offered) =>
+          controlItems([offered]).sort(compareMarginEntryRecords),
+        ),
+      );
+      const primary = controls[0];
       const receipt = group.workflowReceipt;
       const workflowCarrier =
         primary && receipt
@@ -440,14 +391,23 @@ export function marginInventory(groups) {
               receipt,
             })
           : null;
+      if (workflowCarrier)
+        items = items.filter((item) => !(item.workflowFace && item.carriesWorkflow));
       return Object.freeze({
-        ...entry,
+        ...group,
+        items: Object.freeze(items),
+        controls,
+        afterControls,
+        choices: deriveReadingChoices(items),
+        state: deriveEntryState({ offers: group.offers, items }),
+        hasMarginHost:
+          controls.length > 0 ||
+          afterControls.length > 0 ||
+          items.some((item) => item.marker !== false),
+        claimed: group.offers.some((offered) => offered.reading.claim),
+        claimedAfterCount: afterControls.filter((item) => item.offered.reading.claim)
+          .length,
         workflowCarrier,
-        items: Object.freeze(
-          workflowCarrier
-            ? items.filter((item) => !(item.workflowFace && item.carriesWorkflow))
-            : items,
-        ),
       });
     }),
   );

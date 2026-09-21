@@ -1,6 +1,6 @@
 /* Immutable margin-entry grammar. This module normalizes contributor data and owns
-   ordering and labels without browser dependencies. Command scopes are opaque
-   capabilities here; the browser contribution boundary validates their ownership. */
+   ordering and labels without browser dependencies. The browser registry keeps
+   command-scope capabilities outside the normalized records. */
 
 const entryRecords = new WeakSet();
 export const isMarginEntry = (entry) => entryRecords.has(entry);
@@ -171,7 +171,6 @@ export function marginEntry(offered) {
     activation: behavior === "status" ? null : text(activation),
     title: text(title) || null,
     className: text(className) || null,
-    scope,
   });
   entryRecords.add(record);
   return record;
@@ -213,6 +212,14 @@ export function normalizeMarginReading(reading, owner) {
     entryRecords.add(owned);
     return owned;
   });
+  const ids = new Set();
+  for (const item of readings) {
+    if (typeof item.id !== "string" || !item.id.trim() || ids.has(item.id))
+      throw new TypeError(
+        `Margin reading IDs must be nonempty and unique in contribution "${owner}"`,
+      );
+    ids.add(item.id);
+  }
   const normalizedNotice =
     notice == null
       ? null
@@ -255,3 +262,6 @@ export function compareMarginEntryRecords(left, right) {
 
 export const visibleMarginEntryLabel = ({ behavior, label }) =>
   behavior !== "disclosure" || label.endsWith("…") ? label : `${label}…`;
+
+// A contribution owns its reading IDs; generated readings have no owner.
+export const marginItemKey = (item) => JSON.stringify([item.owner ?? null, item.id]);

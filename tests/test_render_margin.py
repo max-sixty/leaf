@@ -2456,8 +2456,8 @@ def test_page_map_keyed_reconciliation_preserves_reader_standing(browser, serve)
           const reordered = registerMarginContribution({
             key: 'keyed-12', target: document.querySelector('#keyed-12'),
             read: () => ({entries: [
-              marginEntry({key: 'keep', icon: 'dot', label: 'Action 12',
-                rank: swapped ? 'secondary' : 'primary', scope}),
+              {key: 'keep', icon: 'dot', label: 'Action 12',
+                rank: swapped ? 'secondary' : 'primary', scope},
               marginEntry({key: 'peer', icon: 'dot', label: 'Action 12 peer',
                 rank: swapped ? 'primary' : 'secondary'}),
             ]}), activate: () => {},

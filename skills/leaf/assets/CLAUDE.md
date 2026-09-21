@@ -142,17 +142,18 @@ shared tray furniture;
 tray list under one application-presentation ticket;
 `runtime/margin-entry-model.js` owns the immutable public margin-entry grammar,
 normalization, ranking, and labels without browser dependencies;
-`runtime/margin-entries.js` owns the contribution registry and native control adapter; content modules contribute immutable readings and activation capabilities,
-while Leaf creates the controls for each projection;
+`runtime/margin-entries.js` owns the contribution registry, publishes its immutable
+model reading once per update, and keeps command scopes and activation capabilities
+outside that reading; its native control adapter creates each projection;
 `runtime/page-map-dialog.js` owns the complete searchable Page Map dialog, its retained
 projected actions, filtering, modal lifecycle, and focus return;
 `runtime/margin-model.js` derives the immutable page inventory and cluster selection
-from captured contributions and generated facts, including representation, ordering,
-thread aggregation, workflow carriers, and overflow; `runtime/margin-map-model.js`
+from those contributions and captured page facts. The inventory derives control order,
+thread aggregation, interaction state, and placement counts once; cluster selection
+consumes that reading for expansion and overflow; `runtime/margin-map-model.js`
 derives the complete searchable Page Map from that same inventory; neither reaches DOM
 or application services. `runtime/margin-projection.js` captures their inputs and keeps
-target nodes, registration and activation capabilities, focus, and placement outside
-the model. It projects that reading into the page margin and Page Map, and owns anchored margin threads, the design-mode
+target nodes, generated-reading callbacks, focus, and placement outside the model. It projects that reading into the page margin and Page Map, and owns anchored margin threads, the design-mode
 exclusion of its top-layer preview, and one aggregated cluster for each page target;
 `runtime/margin-cluster-view.js` consumes each frozen page or conversation margin model,
 materializes its retained native controls, and exclusively Lit-renders their direct,

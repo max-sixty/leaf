@@ -10,7 +10,8 @@
 
    `margin-model.js` derives the immutable inventory and cluster selection; its public
    records carry target coordinates, captured contribution readings, and generated facts.
-   Target nodes, registrations, command scopes, and reading callbacks stay in this adapter.
+   This adapter keeps target nodes and generated-reading callbacks. The contribution
+   registry keeps registrations and command scopes.
    `margin-map-model.js` derives the complete searchable Page Map from the same inventory.
    A model never reads back identity from a control or carries a native control.
 
@@ -57,6 +58,7 @@ import {
 } from "./margin-layout.js";
 import {
   marginContributionEntries,
+  marginContributionSource,
   marginEntry,
   marginEntryRecord,
   marginEntrySource,
@@ -243,16 +245,11 @@ export function createMarginProjection({
       : 1;
   }
 
-  // Capabilities and live nodes belong to this adapter. The fold receives only the
-  // captured values; retained controls resolve their registration at materialization.
+  // Targets and generated-reading callbacks stay outside the model. Registered
+  // contributions already publish their own immutable model readings.
   const targets = new Map();
-  const offerSources = new WeakMap();
-  const recordSources = new WeakMap();
   const itemSources = new WeakMap();
-  const offerSnapshots = new WeakMap();
   const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
-  const resolveOffer = (offered) => offerSources.get(offered);
-  const resolveRecord = (record) => recordSources.get(record) ?? record;
   const sourceItem = (item) => itemSources.get(item);
   function captureItem(item) {
     const { activate, discloses, thread, ...data } = item;
@@ -261,27 +258,6 @@ export function createMarginProjection({
       carriesWorkflow: Boolean(workflowReceipt([item])),
     });
     itemSources.set(snapshot, { activate, discloses, thread });
-    return snapshot;
-  }
-  function captureOffer(offered) {
-    const previous = offerSnapshots.get(offered);
-    if (previous?.reading === offered.reading) return previous.snapshot;
-    const entries = offered.reading.entries.map((record) => {
-      const { scope, ...data } = record;
-      const snapshot = Object.freeze(data);
-      recordSources.set(snapshot, record);
-      return snapshot;
-    });
-    const snapshot = Object.freeze({
-      key: offered.key,
-      reading: Object.freeze({
-        ...offered.reading,
-        entries: Object.freeze(entries),
-        readings: Object.freeze(offered.reading.readings.map(captureItem)),
-      }),
-    });
-    offerSources.set(snapshot, offered);
-    offerSnapshots.set(offered, { reading: offered.reading, snapshot });
     return snapshot;
   }
 
@@ -1092,7 +1068,7 @@ export function createMarginProjection({
                 .join(" · "),
               72,
             ),
-            offers: Object.freeze(group.offers.map(captureOffer)),
+            offers: Object.freeze(group.offers.map((offered) => offered.model)),
             items: Object.freeze(group.items.map(captureItem)),
             workflowReceipt: workflowReceipt(group.items),
           });
@@ -1640,24 +1616,27 @@ export function createMarginProjection({
   function activateContributionControl({ offered, entry, control, surface, event }) {
     const consumesFocusedOwner =
       expandedOptionsKey && expandedOptionsOwner === offered.key;
-    const activated = resolveOffer(offered).registration.activate(entry.key, {
-      origin: control,
-      surface,
-      input: event.detail === 0 ? "keyboard" : "pointer",
-      // A contributor can replace the activated entry and ask to retain focus. That is
-      // one semantic destination, not a fresh keyboard arrival that should disclose the
-      // whole cluster again.
-      focus: (key) => {
-        const destination = resolveOffer(offered).registration.control(
-          key,
-          surface,
-          true,
-        );
-        if (!destination) return false;
-        focusForNavigation(destination);
-        return true;
+    const activated = marginContributionSource(offered).registration.activate(
+      entry.key,
+      {
+        origin: control,
+        surface,
+        input: event.detail === 0 ? "keyboard" : "pointer",
+        // A contributor can replace the activated entry and ask to retain focus. That is
+        // one semantic destination, not a fresh keyboard arrival that should disclose the
+        // whole cluster again.
+        focus: (key) => {
+          const destination = marginContributionSource(offered).registration.control(
+            key,
+            surface,
+            true,
+          );
+          if (!destination) return false;
+          focusForNavigation(destination);
+          return true;
+        },
       },
-    });
+    );
     // A disclosed contributor is a route to an action, not a mode that survives that
     // action. Its next immutable reading decides whether the resulting controls remain
     // open.
@@ -1669,8 +1648,6 @@ export function createMarginProjection({
   }
 
   const clusterViews = createMarginClusterViews({
-    resolveOffer,
-    resolveRecord,
     activateContribution: activateContributionControl,
     materializeReading: materializeReadingItem,
     openSpill: (entry, spill) =>
@@ -1741,7 +1718,7 @@ export function createMarginProjection({
       )
         continue;
       const offers = grouped.get(target) ?? [];
-      offers.push(captureOffer(offered));
+      offers.push(offered.model);
       grouped.set(target, offers);
     }
 
@@ -2753,8 +2730,6 @@ export function createMarginProjection({
     activateMapItem: activate,
     faceForMap: (item) => KINDS[item.kind],
     targetFor,
-    resolveOffer,
-    resolveRecord,
     focusMapControl,
     renderMargin,
     threadTransitionOrigin,

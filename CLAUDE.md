@@ -123,8 +123,9 @@ Read the scoped instructions for the area being changed:
 - `tests/CLAUDE.md`: test setup and evidence rules;
 - `scripts/CLAUDE.md`: repository tooling and generated outputs.
 
-For any change to Leaf itself, load `/developing-leaf`. The shipped `/leaf`
-skill is for agents that use Leaf or extend its public package interface.
+For any work whose subject is Leaf itself, load `/developing-leaf`, including
+interface research and prototypes that will not change tracked code. The shipped
+`/leaf` skill is for agents that use Leaf or extend its public package interface.
 
 ### The install runs this tree
 

@@ -28,10 +28,19 @@ Some hosts deliver it inline; others deliver a pointer that `leaf delivery read 
 resolves to the same object. Your host contract names which. These differ only in
 transport. Process every batch and every event.
 
-Each event retains its stored identity and order, then adds three delivery
+Each event retains its stored identity and order, then adds four delivery
 readings:
 
 - `subject` is the stable page, conversation, or widget the event changes.
+- `says`, when present, maps each element a widget gesture names to its words: the
+  ids in an action's or report's `meaning.depends`, or the widget a request was made
+  on. The words come from the document the reader pressed on, which is the revision
+  the event names or the frozen message that sent the widget, so they are what the
+  reader saw even after a later version rewords them. An element that only encloses
+  another named one is left out, so a pick says its options and a gesture naming
+  only its widget says the whole widget. An undo carries the words of the gesture it
+  takes back. Words a gesture itself supplies, such as an option the reader added,
+  are in its `detail`.
 - `conversations` lists every conversation the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
 - `obligation`, when present, freezes what response was required at capture. Its

@@ -16,11 +16,13 @@ from pathlib import Path
 from .events import build_threads
 from .files import read_json, write_json
 from .machine import state_home
-from .passages import active_enclosing
+from .passages import active_enclosing, spoken
+from .projection import frozen_thread_reading
 from .registry.contract import RegistryError, handling
 from .registry.reactions import described
 from .registry.storage import active_registry
 from .served_state.page import full_state
+from .structure import parse_revision
 from .thread_context import (
     batch_threads,
     thread_memberships,
@@ -68,6 +70,37 @@ def _subject(event: dict, conversations: list[str], by_id: dict[str, dict]) -> d
     if conversations:
         return {"kind": "conversation", "id": conversations[0]}
     return {"kind": "page"}
+
+
+def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
+    """The words of the elements one widget gesture names, id → what it says.
+
+    A gesture is recorded as ids: the widget, the unit it folds on, the options
+    it picked. They are words only to whoever still holds the document, and an
+    agent meeting the batch after a compaction, or from another session, holds
+    none of it. The reading is the gesture's own document, the revision it
+    names or the frozen message that sent the widget, so a later version that
+    reworded an option does not change what the reader chose. An element that
+    only encloses another named one is left out: its words repeat theirs, and a
+    list would otherwise travel whole with every row pressed in it.
+    """
+    if event["kind"] == "undo":
+        event = by_id.get(event["undoes"], event)
+    meaning = event.get("meaning")
+    if meaning is None:
+        return {}
+    said = reading(meaning["document"])
+    named = {
+        identity: said[identity]
+        for identity in meaning.get("depends", [event["widget"]])
+        if identity in said
+    }
+    return {
+        identity: element.words
+        for identity, element in named.items()
+        if element.words
+        and not any(identity in other.within[:-1] for other in named.values())
+    }
 
 
 def _response(
@@ -164,6 +197,19 @@ def batch_data(
     by_id = {event["id"]: event for event in events}
     through_seq = max(event["seq"] for event in batch)
     evidence_seq = through_seq if as_of_seq is None else as_of_seq
+    readings: dict[int | None, dict] = {}
+
+    def reading(document: dict) -> dict:
+        """What one gesture's document says, read once for the whole batch."""
+        revision = document.get("revision")
+        if revision not in readings:
+            readings[revision] = (
+                frozen_thread_reading(events, registry).spoken
+                if document["kind"] == "thread"
+                else spoken(parse_revision(page_dir, revision), registry)
+            )
+        return readings[revision]
+
     captured = []
     for event in batch:
         conversations = memberships.get(event["id"], [])
@@ -172,6 +218,9 @@ def batch_data(
             "subject": _subject(event, conversations, by_id),
             "conversations": conversations,
         }
+        # No vocabulary, no reading: what an element says is the registry's word.
+        if registry is not None and (says := _says(event, by_id, reading)):
+            entry["says"] = says
         response = responses.get(event["id"])
         if response is not None:
             entry["obligation"] = {

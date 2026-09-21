@@ -1675,18 +1675,10 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(panel_reply).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     # Escape takes off one level a press, from where the send left the reader: the
-    # reply box hands them to its thread, collapse returns to the title, letting go
-    # reaches the list, the panel hands them to the page, and the mode they
-    # put on before any of it comes off last.
+    # reply box hands them to its thread, the panel hands them to the page, and the
+    # mode they put on before any of it comes off last.
     page.keyboard.press("Escape")
     expect(panel.locator(".lf-thread")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(panel.locator(".lf-thread-summary")).to_be_focused()
-    expect(panel.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_be_focused()
@@ -1863,17 +1855,10 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator(".lf-thread textarea")).to_be_focused()
     # The send opened Threads on the new thread, the card being withheld in the mode,
-    # and left the reader in its reply box: the box hands them to the thread, collapse
-    # returns to its title, letting go reaches the list, then the panel returns to the page.
+    # and left the reader in its reply box: the box hands them to the thread, then the
+    # panel returns to the page.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread").first).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-summary").first).to_be_focused()
-    expect(page.locator(".lf-thread-summary").first).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator("body")).to_be_focused()

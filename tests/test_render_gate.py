@@ -1,6 +1,5 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
-import html
 import itertools
 import json
 import re
@@ -1304,9 +1303,9 @@ MISDRAWN_DIAGRAMS = {
     "sequence-title": "sequenceDiagram\n  title Hello\n  A-&gt;&gt;B: hi",
     # The renderer drops a state statement that ends in a semicolon.
     "state-semicolon": "stateDiagram-v2\n  [*] --&gt; A;",
-    # A transition naming a state before `state "…" as S0` declares it keeps the bare
-    # id as its label.
-    "late-state-label": 'stateDiagram-v2\n  [*] --&gt; S0\n  state "S0 · Gate passed" as S0\n  S0 --&gt; [*]',
+    # A state used before `state "…" as S0` labels it is drawn labelled `S0`;
+    # `declared-label` below is the control.
+    "late-label": 'stateDiagram-v2\n  [*] --&gt; S0\n  state "Gate passed" as S0',
     # The renderer reads a line opening with `accTitle` or `accDescr` as that statement,
     # where Mermaid reads a node of that name; `click-node` below is the control.
     "keyword-id": "flowchart LR\n  accTitle --&gt; done\n  accDescr --&gt; done",
@@ -1347,6 +1346,7 @@ FAITHFUL_DIAGRAMS = {
     "composite-state": "stateDiagram-v2\n  [*] --&gt; Working\n  state Working {\n    [*] --&gt; Build\n    Build --&gt; Test\n  }\n  Working --&gt; [*]",
     "concurrency": "stateDiagram-v2\n  state Active {\n    [*] --&gt; A\n    --\n    [*] --&gt; B\n  }",
     "state-choice": "stateDiagram-v2\n  state pick &lt;&lt;choice&gt;&gt;\n  [*] --&gt; pick\n  pick --&gt; Done",
+    "declared-label": 'stateDiagram-v2\n  state "Gate passed" as S0\n  [*] --&gt; S0',
     "state-note": "stateDiagram-v2\n  [*] --&gt; A\n  note right of A : careful",
     "class-note": 'classDiagram\n  Order --&gt; Item\n  note for Order "hello"',
     "namespace": "classDiagram\n  namespace Shapes {\n    class Circle\n    class Square\n  }\n  Circle --&gt; Square",
@@ -1387,8 +1387,7 @@ def test_the_gate_refuses_a_diagram_that_does_not_draw_its_source(browser, serve
         name
         for name in diagrams
         for failure in failures
-        if "a widget failed soft: <lf-diagram> failed" in failure
-        and html.unescape(diagrams[name]) in failure
+        if f"<lf-diagram id={name!r}> failed soft: <lf-diagram> failed" in failure
     }
 
     assert refused == set(MISDRAWN_DIAGRAMS), failures

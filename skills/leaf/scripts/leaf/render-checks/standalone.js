@@ -143,6 +143,10 @@ export function exportPrepared() {
 // is named here: this marks the medium, and the widgets answer for themselves.
 export function bake() {
   document.documentElement.classList.add("lf-copy");
+  // A widget may replace a browser-owned fallback with live-only structure after the
+  // page presents. Give it one lifecycle edge to restore that fallback before the live
+  // runtime and its scripts leave; the copy then serializes the same DOM it can operate.
+  document.dispatchEvent(new Event("lf-bake"));
   // The chrome's sheet and the marks' are adopted, so they stand in no element's
   // markup and a serialized copy would open without them — and the copy reads the
   // chrome's: its `html.lf-copy` rules are what dress a copy's marks. Each becomes a

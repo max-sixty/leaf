@@ -2,12 +2,12 @@
  *
  * The target's shared margin entry shows a split circle: left filled for before, right for after.
  * Enter, Space, and clicks flip that projection between the endpoints without moving it.
- * Each rail label chooses its endpoint; the Web Awesome comparison between them owns
- * pointer dragging and Arrow, Home, and End adjustment. A click on either image keeps
- * the old quick endpoint toggle, while a click on the handle only puts the reader on it.
- * Export makes the rail labels static, removes the live comparison and margin control,
- * and reveals the transparent native checkbox over the image, so a standalone copy
- * still flips with a click or Space.
+ * Each rail label chooses its endpoint. Once the page has presented the static flip,
+ * Web Awesome progressively upgrades it with pointer dragging and Arrow, Home, and End
+ * adjustment; its bundle is not on the presentation path. A click on either image keeps
+ * the quick endpoint toggle, while a click on the handle only puts the reader on it.
+ * Export unwinds that live comparison and reveals the transparent native checkbox over
+ * the image, so a standalone copy still flips with a click or Space.
  * Print stacks both frames.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
@@ -17,8 +17,6 @@
  * `data-lf-shot-controls="off"`; lf-shot then withdraws its commands and margin action
  * without disabling the native checkbox a standalone copy needs.
  * Commentary about the change belongs in authored prose around the widget. */
-import "../vendor/webawesome.esm.js";
-
 import {
   PRESS,
   commandScope,
@@ -33,8 +31,13 @@ import {
   registerMarginContribution,
   scopedMediaUrl,
   selectableOffer,
+  whenPagePresented,
   widgetController,
 } from "/runtime/widget-api.js";
+
+let comparisonReady;
+const loadComparison = () =>
+  (comparisonReady ??= import("../vendor/webawesome.esm.js"));
 
 customElements.define(
   "lf-shot",
@@ -44,12 +47,15 @@ customElements.define(
     #margin;
     #flip;
     #comparison;
+    #chromeState;
     #frames = [];
     #captions = new Map();
+    #bake = () => this.#syncComparison();
 
     static observedAttributes = ["data-lf-shot-controls"];
 
     connectedCallback() {
+      document.addEventListener("lf-bake", this.#bake);
       if (!once(this)) {
         this.#offer();
         return;
@@ -126,7 +132,6 @@ customElements.define(
       ]);
       commands(box, this.#flip);
       this.append(box);
-      this.#syncComparison();
       this.#paint();
       this.#offer();
       // A visual-review run creates shots after authored descriptor capture. Its
@@ -135,10 +140,13 @@ customElements.define(
       const present =
         this._lfPresentGenerated ??
         ((promise) => widgetController(this).present(promise));
-      present(this.register(shots));
+      const registered = this.register(shots);
+      present(registered);
+      void registered.then(() => this.#requestComparison());
     }
 
     disconnectedCallback() {
+      document.removeEventListener("lf-bake", this.#bake);
       this.#margin?.unregister();
       this.#margin = null;
     }
@@ -146,12 +154,17 @@ customElements.define(
     attributeChangedCallback() {
       if (!this.isConnected) return;
       this.#syncComparison();
+      this.#requestComparison();
       this.#offer();
       paintKeys();
     }
 
     #syncComparison() {
-      const enabled = this.dataset.lfShotControls !== "off";
+      const enabled =
+        this.dataset.lfShotControls !== "off" &&
+        !document.documentElement.classList.contains("lf-copy") &&
+        this.#box.parentNode === this &&
+        customElements.get("wa-comparison");
       if (enabled && !this.#comparison) {
         const comparison = document.createElement("wa-comparison");
         comparison.className = "lf-shotcomparison";
@@ -209,7 +222,7 @@ customElements.define(
         ]);
         this.insertBefore(comparison, this.#box);
         this.#comparison = comparison;
-        void comparison.updateComplete.then(() => this.#paint());
+        void comparison.updateComplete?.then(() => this.#paint());
       } else if (!enabled && this.#comparison) {
         for (const frame of this.#frames) {
           frame.removeAttribute("slot");
@@ -217,7 +230,31 @@ customElements.define(
         }
         this.#comparison.remove();
         this.#comparison = null;
+        this.#chromeState = null;
+        this.#paint();
       }
+    }
+
+    async #upgradeComparison() {
+      await whenPagePresented();
+      if (
+        !this.isConnected ||
+        this.#box.parentNode !== this ||
+        this.dataset.lfShotControls === "off" ||
+        document.documentElement.classList.contains("lf-copy")
+      )
+        return;
+      await loadComparison();
+      if (this.isConnected) this.#syncComparison();
+    }
+
+    #requestComparison() {
+      if (
+        this.dataset.lfShotControls === "off" ||
+        document.documentElement.classList.contains("lf-copy")
+      )
+        return;
+      void this.#upgradeComparison().catch((reason) => failSoft(this, reason));
     }
 
     #show(state) {
@@ -245,17 +282,27 @@ customElements.define(
 
     #paint() {
       const position = this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
-      this.#box.checked = position > 50;
-      for (const [state, caption] of this.#captions) {
-        const endpoint = state === "after" ? 100 : 0;
-        caption.setAttribute("aria-pressed", String(position === endpoint));
-      }
       const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
       if (handle) {
         const before = Number((100 - position).toFixed(2));
         handle.setAttribute("aria-label", `Before and after — ${this.#alt}`);
         handle.setAttribute("aria-valuetext", `Before ${before}%, after ${position}%`);
         handle.style.setProperty("--lf-here-ring", "shot");
+      }
+      const chromeState =
+        position === 0
+          ? "before"
+          : position === 100
+            ? "after"
+            : position > 50
+              ? "after-side"
+              : "before-side";
+      if (chromeState === this.#chromeState) return;
+      this.#chromeState = chromeState;
+      this.#box.checked = position > 50;
+      for (const [state, caption] of this.#captions) {
+        const endpoint = state === "after" ? 100 : 0;
+        caption.setAttribute("aria-pressed", String(position === endpoint));
       }
       this.#margin?.update();
       paintKeys();
@@ -322,7 +369,6 @@ customElements.define(
       const height = Math.max(...shots.map((img) => img.naturalHeight));
       if (before && height)
         this.style.setProperty("--lf-shot-ratio", `${before} / ${height}`);
-      await this.#comparison?.updateComplete;
     }
   },
 );

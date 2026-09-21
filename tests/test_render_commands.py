@@ -491,7 +491,27 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     assert render_gate_model.render_version(browser, url) == []
 
-    page = open_page(browser, url)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """new MutationObserver(() => {
+          if (document.body?.hasAttribute('data-lf-presented') &&
+              window.__lfPresentedAt === undefined)
+            window.__lfPresentedAt = performance.now();
+        }).observe(document, {attributes: true, subtree: true});"""
+    )
+    page.goto(url)
+    page.wait_for_function(
+        "document.body.hasAttribute('data-lf-presented') && "
+        "document.querySelector('lf-shot wa-comparison')"
+    )
+    timing = page.evaluate(
+        """() => ({
+          presented: window.__lfPresentedAt,
+          loaded: performance.getEntriesByType('resource')
+            .find(entry => entry.name.endsWith('/vendor/webawesome.esm.js'))?.startTime,
+        })"""
+    )
+    assert timing["loaded"] >= timing["presented"]
     rail = page.locator("lf-shot .lf-shotrail")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
@@ -794,11 +814,21 @@ def test_a_shot_still_flips_with_every_script_removed(
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
+    assert loose.locator("wa-comparison, [slot=handle]").count() == 0
+    assert loose.locator("lf-shot > .lf-shotframe").count() == 2
+    expect(loose.locator("lf-shot [aria-keyshortcuts]")).to_have_attribute(
+        "aria-keyshortcuts", "Space"
+    )
     assert shown_frames(loose) == ["before"]
     loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
     loose.keyboard.press("Space")
     assert shown_frames(loose) == ["before"]
+    loose.emulate_media(media="print")
+    printed_tops = loose.locator("lf-shot .lf-shotframe").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
+    )
+    assert printed_tops[0] != printed_tops[1]
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):

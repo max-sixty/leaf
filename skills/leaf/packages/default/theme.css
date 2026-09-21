@@ -1708,37 +1708,31 @@ lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink);
 lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
 
-/* The fallback image is itself the native target, so a click never forwards focus to a
-   distant label or control and scrolls a tall comparison out from under the reader. */
+/* Before the progressive comparison arrives — and after export unwinds it — the image
+   is itself the native target. The one fallback covers loading, controls-off, and copy. */
 lf-shot > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-html.lf-copy lf-shot .lf-shotcomparison,
-html:not(.lf-copy) lf-shot[data-lf-shot-controls="off"] { display: grid; }
-html.lf-copy lf-shot .lf-shotcomparison { aspect-ratio: auto; border: 0; border-radius: 0; }
-html.lf-copy lf-shot .lf-shotcomparison > .lf-shotframe,
-html.lf-copy lf-shot > .lf-shotframe,
-html:not(.lf-copy) lf-shot[data-lf-shot-controls="off"] > .lf-shotframe {
+lf-shot:not(:has(> .lf-shotcomparison)) > .lf-shotframe {
     grid-area: 2 / 1; border: 1px solid var(--rule);
     border-radius: 0 0 var(--r) var(--r); }
-html.lf-copy lf-shot .lf-shotframe[data-lf-state="after"],
-html:not(.lf-copy) lf-shot[data-lf-shot-controls="off"]
+lf-shot:not(:has(> .lf-shotcomparison))
   > .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
-html.lf-copy lf-shot:has(input:checked) .lf-shotframe[data-lf-state="before"],
-html:not(.lf-copy) lf-shot[data-lf-shot-controls="off"]:has(input:checked)
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   > .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
-html.lf-copy lf-shot:has(input:checked) .lf-shotframe[data-lf-state="after"],
-html:not(.lf-copy) lf-shot[data-lf-shot-controls="off"]:has(input:checked)
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   > .lf-shotframe[data-lf-state="after"] { visibility: visible; }
-html.lf-copy lf-shot > input.lf-shotflip,
-html:not(.lf-copy) lf-shot[data-lf-shot-controls="off"] > input.lf-shotflip {
+lf-shot:not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
     display: block; }
-html.lf-copy lf-shot .lf-shotcap[data-lf-state="before"] { color: var(--ink);
+lf-shot:not(:has(> .lf-shotcomparison)) .lf-shotcap[data-lf-state="before"] {
+    color: var(--ink);
     box-shadow: inset 0 -2px var(--accent); }
-html.lf-copy lf-shot:has(input:checked) .lf-shotcap[data-lf-state="before"] {
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  .lf-shotcap[data-lf-state="before"] {
     color: var(--muted); box-shadow: none; }
-html.lf-copy lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] {
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  .lf-shotcap[data-lf-state="after"] {
     color: var(--ink); box-shadow: inset 0 -2px var(--accent); }
 
 lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {

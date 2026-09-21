@@ -9,7 +9,7 @@ from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .delivery import current_responses
 from .document_reading import DocumentReading, read_document
-from .events import bare_reaction, build_threads, is_reaction
+from .events import active_summaries, bare_reaction, build_threads, is_reaction
 from .files import (
     active_descriptor,
     revision_path,
@@ -427,6 +427,9 @@ def _write_page_state(
         )
         if selected is None:
             raise SystemExit(f"unknown conversation {conversation_id!r}")
+        selected["summaries"] = active_summaries(
+            events, conversation_id, threads[conversation_id]
+        )
         elements = [
             element
             for element in state["elements"]

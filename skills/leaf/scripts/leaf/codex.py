@@ -931,10 +931,26 @@ def _collecting_queue(
     return current[0] if current else None
 
 
-def delivery_pointer_prompt(delivery_id: str) -> str:
+def delivery_pointer_prompt(delivery_id: str, payload: dict | None = None) -> str:
     delivery = ElementTree.Element(
         "leaf-delivery", {"id": delivery_id, "operation": "delivery claim"}
     )
+    if payload is not None:
+        for batch in payload["batches"]:
+            for conversation in batch["conversations"]:
+                if hint := conversation.get("summary_hint"):
+                    guidance = ElementTree.SubElement(
+                        delivery,
+                        "summarize",
+                        {
+                            "page": batch["page"],
+                            "conversation": conversation["id"],
+                            "from": hint["from"],
+                            "through": hint["through"],
+                            "operation": hint["operation"],
+                        },
+                    )
+                    guidance.text = hint["instruction"]
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
 
@@ -954,7 +970,7 @@ def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
         payload = read_json(payload_path)
         if payload is None:
             raise RuntimeError("the Codex delivery payload is missing")
-        return PreparedDelivery(delivery_pointer_prompt(path.stem), payload)
+        return PreparedDelivery(delivery_pointer_prompt(path.stem, payload), payload)
 
     payload = freeze_delivery(
         queue["batches"],
@@ -974,7 +990,7 @@ def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
     ]
     queue["state"] = "offering"
     write_queue(path, queue)
-    return PreparedDelivery(delivery_pointer_prompt(path.stem), payload)
+    return PreparedDelivery(delivery_pointer_prompt(path.stem, payload), payload)
 
 
 def append_batch(

@@ -30,7 +30,7 @@ import { takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { panel, threadsBox } from "./panel-elements.js";
-import { reachedForWords } from "../widget-elements.js";
+import { reachedForWords, reveal } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
 import { retainReaderIntent } from "../reader-intent.js";
@@ -387,6 +387,10 @@ async function showThreadNow(id, focus, revealThread) {
   threadsBox.revealNavigation(id);
   node = listNode(id);
   if (!node || !mayArrive()) return false;
+  if (node.closest(".lf-summary-originals[hidden]")) {
+    await reveal(node);
+    if (!mayArrive()) return false;
+  }
   const thread = node.closest(".lf-thread");
   if (focus) {
     const destination =

@@ -1025,6 +1025,12 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     expect(pending).to_have_count(1)
     expect(pending.locator(".lf-msg")).to_contain_text(words)
     expect(pending.locator(".lf-msg")).to_have_attribute("aria-busy", "true")
+    pending_status = pending.locator(".lf-thread-root-meta .lf-msg-sending")
+    expect(pending_status).to_have_text("Sending")
+    assert pending_status.evaluate(
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
+    )
     expect(box).to_have_value("")
     assert not [
         event for event in sent_events(serve.page_dir) if event.get("text") == words
@@ -1145,6 +1151,12 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     expect(thread.locator(".lf-msg")).to_have_count(before + 1)
     expect(thread.locator(".lf-msg").last).to_contain_text(words)
     expect(thread.locator(".lf-msg").last).to_have_attribute("aria-busy", "true")
+    pending_status = thread.locator(".lf-msg").last.locator(".lf-msg-sending")
+    expect(pending_status).to_have_text("Sending")
+    assert pending_status.evaluate(
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
+    )
     expect(thread.locator("textarea")).to_have_value("")
 
     held.pop(0).continue_()

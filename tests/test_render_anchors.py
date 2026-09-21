@@ -4912,12 +4912,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator("textarea")).to_be_visible()
     inline_receipt = thread.locator(
-        f'.lf-conversation-msg.user[data-event="{root["id"]}"] '
-        f'> .lf-conversation-head .lf-receipt[data-receipt-id="{root["id"]}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     panel_receipt = panel_thread.locator(
-        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-delivery '
-        f'.lf-receipt[data-receipt-id="{root["id"]}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     expect(inline_receipt).to_contain_text("✓ Sent")
     expect(panel_receipt).to_contain_text("✓ Sent")
@@ -5109,12 +5107,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
         expect(active).to_contain_text("● Working — checking the inline placement")
         expect(sent).to_contain_text("✓ Sent")
         expect(view.locator(":scope > .lf-receipt")).to_have_count(0)

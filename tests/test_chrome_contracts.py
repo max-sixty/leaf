@@ -251,6 +251,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(thread.get_by_role("button", name="Close thread", exact=True)).to_have_count(
+        0
+    )
     expect(send).to_have_text("")
     expect(resolve).to_have_text("")
     expect(close).to_have_text("")
@@ -277,7 +280,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                           metadata: rect('.lf-thread-root-meta'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
-                          closeThread: rect('.lf-thread-close'),
                           closeBorder: getComputedStyle(document.querySelector(
                             '.lf-thread-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
@@ -311,10 +313,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert short["metadataActions"]["right"] == pytest.approx(
         short["compose"]["right"], abs=1
     )
-    assert short["closeThread"]["right"] == pytest.approx(
+    assert short["resolve"]["right"] == pytest.approx(
         short["metadataActions"]["right"], abs=1
     )
-    assert short["resolve"]["right"] < short["closeThread"]["x"]
     assert short["metadata"]["x"] == pytest.approx(short["messageStart"], abs=1)
     assert short["resolve"]["bottom"] <= short["metadata"]["bottom"] + 1
     assert float(short["closeBorder"][:-2]) == 0
@@ -337,7 +338,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert grown["send"]["y"] > short["send"]["y"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
-    assert grown["closeThread"] == short["closeThread"]
     assert grown["overflow"] == 0
 
 

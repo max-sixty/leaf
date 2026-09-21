@@ -2517,7 +2517,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
     receipt = message.locator(
-        f':scope > .lf-msg-delivery .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+        f':scope > .lf-msg-head .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
     )
     expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
     expect(receipt).to_contain_text("✓ Sent")
@@ -2625,6 +2625,6 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     message = question.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-msg ')][1]"
     )
-    receipts = message.locator(":scope > .lf-msg-delivery .lf-receipt")
+    receipts = message.locator(":scope > .lf-msg-head .lf-receipt")
     expect(receipts).to_have_count(1)
     expect(receipts).to_contain_text("Sent")

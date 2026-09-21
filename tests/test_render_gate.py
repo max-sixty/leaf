@@ -1,5 +1,6 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
+import html
 import itertools
 import json
 import re
@@ -1273,6 +1274,78 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     every kind of source id accepted by `parts`.
     """
     assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
+
+
+MISDRAWN_DIAGRAMS = {
+    # A label split across two lines draws a box `A` beside a node named `second`.
+    "split-label": 'flowchart LR\n  A["first line\n  second line"] --&gt; B[plain]',
+    # A quoted label holding its own closer is cut there, and the rest of the line goes.
+    "cut-label": 'flowchart LR\n  A["names: list[str]"] --&gt; B[plain]',
+    # An arrowhead the renderer has no pattern for leaves a lone `A`.
+    "arrowhead": "flowchart LR\n  A --o B",
+    # No space before the arrow draws one node labelled `A--`.
+    "spaceless-arrow": "flowchart LR\n  A--&gt;B",
+    # A slanted label runs to the next matching closer and swallows `B` and the edge.
+    "over-read": "flowchart LR\n  A[/a/] --&gt; B[\\b\\]",
+    # Directives the renderer reads as nodes named for their keywords.
+    "click-directive": 'flowchart LR\n  A[Alpha] --&gt; B[Beta]\n  click A href "https://example.com" "Open"',
+    "acc-title": "flowchart LR\n  accTitle: Checkout flow\n  Cart[Cart] --&gt; Pay[Pay]",
+    # The other grammars drop what they cannot read and draw the rest.
+    "er-statement": "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ~~bogus~~ SHIPMENT : ships",
+    "sequence-arrow": "sequenceDiagram\n  Alice-&gt;&gt;Bob: hello\n  Bob ~&gt; Dave: what",
+    "class-note": 'classDiagram\n  Order --&gt; Item\n  note for Order "hello"',
+    "state-choice": "stateDiagram-v2\n  state pick &lt;&lt;choice&gt;&gt;\n  [*] --&gt; pick\n  pick --&gt; Done",
+    # Mermaid refuses unquoted parentheses in a label, though this renderer draws them.
+    "unparsed": "flowchart LR\n  A[call foo(bar)] --&gt; B",
+}
+
+FAITHFUL_DIAGRAMS = {
+    "line-break": 'flowchart LR\n  A["first line&lt;br/&gt;second line"] --&gt; B[plain]',
+    "doubled-closer": 'flowchart LR\n  A[["names: list[str]"]] --&gt; B[plain]',
+    "edge-label": 'flowchart LR\n  A --&gt;|"list[str]"| B',
+    "subgraph-title": 'flowchart LR\n  subgraph S["Stage [1]"]\n    A[x] --&gt; B[y]\n  end',
+    "commented-out": 'flowchart LR\n  %% A["names: list[str]"] --&gt; B[plain]\n  A[x] --&gt; B[y]',
+    "fan-out": "flowchart LR\n  A &amp; B --&gt; C &amp; D",
+    "statement-end": "flowchart LR\n  A[Start] --&gt; B[End];",
+    "leaf-tokens": "flowchart LR\n  A[Start] --&gt; B[End]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class B done\n  linkStyle 0 stroke:var(--ok)",
+    "composite-state": "stateDiagram-v2\n  [*] --&gt; Working\n  state Working {\n    [*] --&gt; Build\n    Build --&gt; Test\n  }\n  Working --&gt; [*]",
+}
+
+
+def test_the_gate_refuses_a_diagram_that_does_not_draw_its_source(browser, serve):
+    """A wrong diagram renders as confidently as a right one, so the gate compares.
+
+    Beautiful Mermaid gives every statement it cannot read a silent reading, so none of
+    these sources raises and each draws something plausible. `lf-diagram` registers a
+    render check that reads the same source with official Mermaid and compares that
+    reading with the drawing. The faithful diagrams are the control: each is a source an
+    earlier hand-written guard either refused wrongly or had to carve an exception for,
+    and the last of the misdrawn ones is the reverse case, a source Mermaid itself
+    refuses that this renderer happens to draw.
+    """
+    diagrams = MISDRAWN_DIAGRAMS | FAITHFUL_DIAGRAMS
+    url = serve(
+        leaf_page(
+            "diagram fidelity",
+            '<h1 id="title">Diagram fidelity</h1>\n'
+            + "\n".join(
+                f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
+                for name, source in diagrams.items()
+            ),
+        )
+    )
+
+    failures = render_gate_model.render_version(browser.unwatched, url)
+    refused = {
+        name
+        for name in diagrams
+        for failure in failures
+        if "a widget failed soft: <lf-diagram> failed" in failure
+        and html.unescape(diagrams[name]) in failure
+    }
+
+    assert refused == set(MISDRAWN_DIAGRAMS), failures
+    assert not [f for f in failures if "could not run its render check" in f], failures
 
 
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):

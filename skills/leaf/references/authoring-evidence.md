@@ -39,19 +39,24 @@ Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf
 accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
-honors `stroke-width`; other properties are ignored. The widget refuses the
-`click`, `accTitle`, and `accDescr` directives, which the renderer would draw as
-nodes, and a node label holding the delimiter that closes its own shape, such as
-`A["names: list[str]"]`, which the renderer cuts at that character, quoted or not,
-and then drops the rest of the line; a shape whose closer is doubled carries the
-character whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both
-render, as does a subgraph title, which the renderer reads whole —
-`subgraph S["Stage [1]"]`. A malformed statement the renderer does not recognise can
-still render as a node or only in part, and `version check --render` reports renderer
-failures, not that partial output, so look at each flowchart once. Use `lf-chart` for
+honors `stroke-width`; other properties are ignored. The renderer draws something for
+every source, including statements it cannot read, so `version check --render` reads
+each source a second time with Mermaid's own parser and refuses a drawing that differs
+from that reading: a statement Mermaid rejects, or a node, edge, label, or shape the
+source has and the drawing lacks. Write standard Mermaid and quote a label that holds
+punctuation: `A["call foo(bar)"]`, not `A[call foo(bar)]`. The renderer's subset has
+no `click`, `accTitle`, or `accDescr`, no `--o` or `--x` arrowheads, no slanted
+`[/…/]` shapes, and no state `<<choice>>` or `<<fork>>`; it needs spaces around an
+arrow (`A --> B`), and a label stays on one line, with `<br/>` for a break. A label
+holding the delimiter that closes its own shape, such as `A["names: list[str]"]`, is
+cut there, quoted or not; a doubled closer carries it whole, so
+`A[["names: list[str]"]]` and `A(["names: list[str]"])` both render. The comparison
+runs only in that check, so a page never put through it shows whatever the renderer
+made of its source. Use `lf-chart` for
 quantities that need Leaf's data-first chart vocabulary: a comparison across a few
 categories, a run over time, a ranking, a composition, or two numbers against each
-other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`
+other. The diagram renderer is 1.5MB, and the Mermaid reader that check imports is
+another 2.9MB a reader's browser never fetches, so `lf-diagram` travels in the `diagram`
 package rather than in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`. `lf-chart` needs no selection. A handful of
 numbers the sentence beside them can carry is prose; a chart is for when the

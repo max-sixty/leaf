@@ -126,6 +126,12 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     errors = context.errors
     resize_notices = context.resize_notices
     unsettled = context.unsettled
+    # A widget's render check runs here and nowhere else (runtime/render-check.js). It
+    # goes first because what it finds arrives as that widget failing soft, and every
+    # reading below is then of the page the failure leaves.
+    if evaluate_probe(page, "startRenderChecks"):
+        wait_for_probe(page, "renderChecksSettled")
+    check_failures = evaluate_probe(page, "renderCheckFailures")
     failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
@@ -292,6 +298,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     wait_for_probe(page, "framePresented", requested_frame)
     found = [f"[{scheme}] console: {e}" for e in errors]
     found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
+    found += [
+        f"[{scheme}] <{c['tag']} id={c['id']!r}> could not run its render check: "
+        f"{c['error']}"
+        for c in check_failures
+    ]
     for paint in invalid_paints:
         owner = f"<{paint['tag']}" + (f" id={paint['id']!r}>" if paint["id"] else ">")
         part = f" for data-id={paint['part']!r}" if paint["part"] else ""

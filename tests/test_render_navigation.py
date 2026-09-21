@@ -6621,10 +6621,8 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_reference_keeps_its_popover_only_inside_the_current_modal_boundary(
-    browser, serve
-):
-    """Native ancestry retains a popover until a new covering boundary excludes it."""
+def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, serve):
+    """The global modal dismisses contextual auto popovers rather than rebuilding them."""
     url = serve(LONG_PAGE, comments=2)
     _publish(serve.page_dir, 2, LONG_PAGE, "two")
     page = open_page(browser, url)
@@ -6640,16 +6638,25 @@ def test_reference_keeps_its_popover_only_inside_the_current_modal_boundary(
     versions = page.locator(".lf-version-menu")
     expect(versions).to_be_visible()
     page.keyboard.press("?")
+    expect(versions).to_be_visible()
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
-    expect(versions).to_be_visible()
-    assert versions.evaluate(
-        "menu => menu.contains(document.querySelector('.lf-command-reference'))"
+    expect(versions).to_be_hidden()
+    contextual_versions = reference.locator(
+        '.lf-command-reference-command[data-lf-command^="version.open-v"]'
+    )
+    assert contextual_versions.count() > 0
+    contextual_availability = contextual_versions.evaluate_all(
+        "buttons => buttons.map(button => [button.dataset.lfCommand, button.dataset.lfAvailable])"
+    )
+    assert {available for _, available in contextual_availability} == {"false"}, (
+        contextual_availability
     )
 
     resized(page, 500, 800)
     panel_settled(page)
+    expect(reference).to_be_visible()
     # Every Escape from here lands the reader while the panel covers the page, which is
     # inert under it, so the panel is what can take them. The platform also hands a
     # popover's focus back to whoever held it when the popover showed; that arrives at the
@@ -6680,24 +6687,16 @@ def test_reference_keeps_its_popover_only_inside_the_current_modal_boundary(
     assert hints & {"navigation.back", "thread.collapse"}, hints
     assert not any(command.startswith("version.") for command in hints), hints
 
-    # A layer explicitly opened over the established modal boundary still makes the
-    # reference round trip. Only the layer captured before that boundary was stale.
+    # The same platform rule applies to a popover opened over the established boundary.
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
     expect(versions).to_be_visible()
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(reference).to_be_visible()
-    expect(versions).to_be_visible()
-    assert versions.evaluate(
-        "menu => menu.contains(document.querySelector('.lf-command-reference'))"
-    )
+    expect(versions).to_be_hidden()
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
-    expect(versions).to_be_visible()
-    page.keyboard.press("ArrowUp")
-    expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
-    page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
     assert panel.evaluate("panel => panel.contains(document.activeElement)")
 
@@ -6784,23 +6783,21 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     expect(line).to_contain_text("dismiss conversation")
-    # The reference names the same press the line does: the Page Map's own step over the
-    # card standing in front of the reader, with no ladder step listed beneath it.
+    # The global reference enters a modal and the native transition dismisses the
+    # contextual card. Its way out no longer belongs to the remaining scene.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     way_out = help_el.locator('tr[data-lf-command="margin.back"]')
-    expect(way_out).to_have_count(1)
-    expect(way_out).to_contain_text("Dismiss the conversation view")
-    expect(help_el.locator('tr[data-lf-command="navigation.back"]')).to_have_count(0)
-    # Out of the reference, then the shelf it was opened from, and the card is back under
-    # the reader with its own dismissal the next press.
+    expect(way_out).to_have_count(0)
+    backing_out = help_el.locator('tr[data-lf-command="navigation.back"]')
+    expect(backing_out).to_have_count(1)
+    expect(backing_out).to_contain_text("Back out onto the page")
+    # Closing the reference and its shelf does not reconstruct the dismissed card.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
-    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
-    expect(line).to_contain_text("dismiss conversation")
-    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -7097,10 +7094,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           const popover = document.createElement('div');
           popover.id = 'shadow-popover';
           popover.popover = 'auto';
-          const origin = document.createElement('button');
-          origin.id = 'shadow-popover-origin';
-          origin.textContent = 'Nested popover';
-          popover.append(origin);
+          popover.textContent = 'Nested popover';
           trigger.popoverTargetElement = popover;
           shadowStage(shadowHost, [trigger, popover]);
           dialog.append(shadowHost);
@@ -7113,7 +7107,6 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           dialog.showModal();
           trigger.focus();
           trigger.click();
-          origin.focus();
         }"""
     )
     modal = page.locator("#nested-modal")
@@ -7121,26 +7114,21 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(modal).to_be_visible()
     expect(popover).to_be_visible()
 
-    # The document-owned reference cannot move into a declared shadow tree without
-    # losing its chrome styles. That popover takes the fallback path and returns as the
-    # same visible context when the reference closes.
+    # The global reference applies the same native modal rule across a shadow boundary:
+    # the contextual auto popover closes and is not reconstructed afterwards.
     page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(popover).to_be_hidden()
     page.keyboard.press("Escape")
-    expect(popover).to_be_visible()
-    expect(page.locator("#shadow-popover-origin")).to_be_focused()
+    expect(reference).to_be_hidden()
+    expect(popover).to_be_hidden()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
     page.keyboard.press("l")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
-    page.keyboard.press("Escape")
-    expect(popover).to_be_hidden()
-    expect(modal).to_be_visible()
-    assert page.locator("#around-native-layer").get_attribute("data-fired") is None
     page.keyboard.press("Escape")
     expect(modal).to_be_hidden()
     assert page.locator("#around-native-layer").get_attribute("data-fired") is None
@@ -7169,22 +7157,21 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
         }"""
     )
 
-    # The shared modal becomes a descendant of a light-DOM popover. The browser keeps
-    # that ancestor standing, and closing the modal reveals the same layer beneath it.
+    # Modal entry dismisses a light-DOM auto popover and pruning retires its stack entry.
     open_versions(page)
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
-    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(page.locator(".lf-version-menu")).to_be_hidden()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-version-menu")).to_be_visible()
+    expect(page.locator(".lf-version-menu")).to_be_hidden()
     assert page.evaluate(
         """async () => {
           const { nativeLayers } = await window.__lfRuntimeImport('/runtime/keyboard/layer-stack.js');
-          return nativeLayers().at(-1)?.root === document.querySelector('.lf-version-menu');
+          const versions = document.querySelector('.lf-version-menu');
+          return nativeLayers().every((layer) => layer.root !== versions);
         }"""
     )
-    page.locator(".lf-version").click()
 
     # A closed inner layer is retired rather than mistaken for one covered by the older
     # modal now visible beneath it, so the outer layer is the top of the stack again.

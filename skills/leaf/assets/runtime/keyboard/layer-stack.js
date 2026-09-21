@@ -21,9 +21,8 @@
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
-   a false floor. The command reference is nested under a light-DOM popover, which keeps
-   that ancestor standing. A popover in another tree is restored by the reference owner
-   and joins again through its ordinary opening.
+   a false floor. Modal entry dismisses auto and hint popovers through the platform
+   contract; a later opening joins as a new layer rather than preserving a hidden entry.
 
    A covering auxiliary surface is not an entry. It takes modal semantics without entering
    the browser's top layer, and the dispatcher reads that surface as the floor when no

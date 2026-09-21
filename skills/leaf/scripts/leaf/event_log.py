@@ -136,12 +136,16 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bo
         if _event_id_exists(events, event["id"]):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
-        # Event ids escape the page with host requests as durable idempotency and
-        # recovery keys. Keep them globally collision-resistant, and still prove
-        # uniqueness against this log under the append lease rather than treating
-        # probability as an invariant.
+        # An id is unique within this page and nowhere else. Eight hex
+        # characters, re-rolled while this log already holds the candidate,
+        # under the lease that serializes appends — so uniqueness is proven by
+        # the write rather than assumed from width, and the id stays short
+        # enough for an agent to read off a projection and retype into `leaf
+        # reply --for`. Nothing may treat one as a global identifier: a host
+        # keying an external operation on a `request` pairs the id with the page
+        # (`references/packages.md`).
         while True:
-            candidate = secrets.token_hex(16)
+            candidate = secrets.token_hex(4)
             if not _event_id_exists(events, candidate):
                 event["id"] = candidate
                 break

@@ -100,6 +100,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
   `@layer`; the earlier trial changed chrome styling. See the
   [dependency survey](notes/dependency-survey.md).
+- **Invoker commands:** revisit when the browser support Leaf needs can replace
+  the current dialog and popover handlers. See the
+  [dependency survey](notes/dependency-survey.md).
 - **MCP page ports:** test wildcard-port `frame_domains` in a host before replacing
   `/p/<capability>` multiplexing. See the
   [dependency survey](notes/dependency-survey.md).

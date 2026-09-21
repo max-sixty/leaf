@@ -7138,10 +7138,24 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(reference).to_be_hidden()
     expect(popover).to_be_hidden()
 
+    # Reopened over the same modal, so the stack order below is read on the scene that
+    # rule describes rather than on what the reference left standing.
+    page.evaluate(
+        """() => document
+          .querySelector('#nested-modal div')
+          .shadowRoot.querySelector('button')
+          .click()"""
+    )
+    expect(popover).to_be_visible()
+
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
     page.keyboard.press("l")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    page.keyboard.press("Escape")
+    expect(popover).to_be_hidden()
+    expect(modal).to_be_visible()
+    assert page.locator("#around-native-layer").get_attribute("data-fired") is None
     page.keyboard.press("Escape")
     expect(modal).to_be_hidden()
     assert page.locator("#around-native-layer").get_attribute("data-fired") is None

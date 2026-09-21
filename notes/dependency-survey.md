@@ -34,11 +34,14 @@ The standing architectural choices are:
 
 ## Platform cutovers
 
-Two candidates remain conditional:
+Three candidates remain conditional:
 
 - **CSS cascade layers:** an earlier trial put Leaf's sheets in layers while page styles
   remained unlayered. Unlayered rules then outranked every Leaf layer and moved 53 chrome
   boxes. Establish an isolation boundary between page styles and chrome before trying
   layers again.
+- **Invoker commands:** `command` and `commandfor` can replace imperative dialog and
+  popover invocation once Leaf's Chromium floor is at least 135. They do not replace
+  Leaf's layer stack, semantic state, or focus-restoration rules.
 - **MCP page ports:** replace `/p/<capability>` multiplexing only after a host proves that
   wildcard-port `frame_domains` admit the per-page server model.

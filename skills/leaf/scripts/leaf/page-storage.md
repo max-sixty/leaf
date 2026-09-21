@@ -69,7 +69,7 @@ A page directory holds:
     runtime/             private browser owners plus the public widget-api.js module
     widgets/             one ES module per upgraded widget (lf-tabs.js, lf-board.js)
     vendor/              vendored third-party assets (sortable.esm.js, plot.esm.js),
-                         and whatever a selected package brings (beautiful-mermaid.esm.js)
+                         and whatever a selected package brings (agentic-mermaid.esm.js)
     page/                mutable page-specific browser-ready modules, styles, assets,
                          page/registry.json declarations, and page/widgets/ modules.
                          These are candidate inputs only; delivery reads their captured

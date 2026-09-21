@@ -2113,7 +2113,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == ["/widgets/lf-board.js"], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
-    assert not [p for p in asked if "beautiful-mermaid" in p], asked
+    assert not [p for p in asked if "agentic-mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
@@ -2130,8 +2130,8 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
-    assert [p for p in asked if "beautiful-mermaid" in p] == [
-        "/vendor/beautiful-mermaid.esm.js"
+    assert [p for p in asked if "agentic-mermaid" in p] == [
+        "/vendor/agentic-mermaid.esm.js"
     ]
 
 

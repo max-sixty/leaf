@@ -62,7 +62,7 @@ directory to replace one. A page records the bare name, so re-vendoring it on an
 machine needs the same package installed there.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
-and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
+and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` coordinates declarative controls and page-owned
 structured contributors through one reset, restore, preview, output, and typed

@@ -4239,7 +4239,14 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     browser, serve
 ):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
+    # Present a wider rendered face before the control reserves its words, so a stated
+    # width cannot pass merely because it happens to fit this machine's font.
+    source = PLAYGROUND_PAGE.replace(
+        "</style>",
+        ".lf-playground-copy-trigger { letter-spacing: 0.125rem; }</style>",
+        1,
+    )
+    page = open_page(browser, serve(source), context=context)
     playground = page.locator("#card-playground")
     expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
     expect(playground.get_by_role("group", name="Controls")).to_be_visible()
@@ -4258,11 +4265,6 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     playground.get_by_role("slider", name="Corner radius").press("ArrowRight")
     expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
         "aria-pressed", "false"
-    )
-    # Use a wider rendered face than the default fixture so a stated width cannot pass
-    # merely because it happens to fit this machine's font.
-    playground.locator(".lf-playground-copy-trigger").evaluate(
-        "button => button.style.letterSpacing = '0.125rem'"
     )
     playground.get_by_role("button", name="Dense").click()
     copy = playground.locator(".lf-playground-copy").get_by_role("button")
@@ -4322,7 +4324,42 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
     page.evaluate(
         """() => {
-          navigator.clipboard.writeText = () => Promise.reject(new Error('refused'));
+          window.clipboardWrites = [];
+          window.clipboardReleases = [];
+          window.clipboardWrite = navigator.clipboard.writeText.bind(navigator.clipboard);
+          navigator.clipboard.writeText = value => {
+            window.clipboardWrites.push(value);
+            return new Promise(resolve => window.clipboardReleases.push(resolve));
+          };
+        }"""
+    )
+    copy.click()
+    radius = playground.get_by_role("slider", name="Corner radius")
+    radius.press("Home")
+    for _ in range(5):
+        radius.press("ArrowRight")
+    copy.click()
+    assert page.evaluate("window.clipboardWrites") == [
+        (
+            "Use a 12px radius, compact spacing set to false, a quiet tone, "
+            "#4f766f accents, and the title Field note."
+        ),
+        (
+            "Use a 5px radius, compact spacing set to false, a quiet tone, "
+            "#4f766f accents, and the title Field note."
+        ),
+    ]
+    page.evaluate(
+        """() => {
+          navigator.clipboard.writeText = window.clipboardWrite;
+          for (const release of window.clipboardReleases) release();
+        }"""
+    )
+    assert copy_width("Copied") == reserved_width
+    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    page.evaluate(
+        """() => {
+          navigator.clipboard.writeText = () => { throw new Error('refused'); };
         }"""
     )
     copy.click()

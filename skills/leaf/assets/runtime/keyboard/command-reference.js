@@ -712,20 +712,18 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
   const restore = handBack ? commandReferenceOrigin : null;
   if (fresh) {
-    // A control, or nothing: a reader working from the page stands on `body`, which is
-    // not a place to be given back — focusing it resets the browser's sequential focus
-    // navigation starting point to the top of the document, and the reader who opened
-    // the reference four screens down would Tab from there.
-    const at = focused();
-    commandReferenceOrigin = at === document.body ? null : at;
     commandReferenceInvoke = invokeCommand;
-    const popovers = new Set([
-      ...openPopovers(),
-      ...document.querySelectorAll(":popover-open"),
-    ]);
-    for (const popover of popovers)
+    for (const popover of openPopovers())
       if (popover.popover !== "manual" && popover.matches(":popover-open"))
         popover.hidePopover();
+    // The origin is read off the scene the reference leaves standing: hiding a popover
+    // hands focus back to where the reader stood when it opened, and that is the place
+    // the reference owes them. A control, or nothing: a reader working from the page
+    // stands on `body`, which is not a place to be given back — focusing it resets the
+    // browser's sequential focus navigation starting point to the top of the document,
+    // and the reader who opened the reference four screens down would Tab from there.
+    const at = focused();
+    commandReferenceOrigin = at === document.body ? null : at;
     commandRoutesAtOpen = availableCommandRoutes();
   }
   commandReferenceIsOpen = open;

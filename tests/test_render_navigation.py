@@ -6632,7 +6632,8 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     page.keyboard.press("Shift+t")
     panel_settled(page)
 
-    page.locator(".lf-thread").first.focus()
+    thread = page.locator(".lf-thread").first
+    thread.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+v")
     versions = page.locator(".lf-version-menu")
@@ -6653,6 +6654,18 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     assert {available for _, available in contextual_availability} == {"false"}, (
         contextual_availability
     )
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(versions).to_be_hidden()
+    expect(thread).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    expect(versions).to_be_visible()
+    page.keyboard.press("?")
+    expect(versions).to_be_visible()
+    page.keyboard.press("?")
+    expect(reference).to_be_visible()
 
     resized(page, 500, 800)
     panel_settled(page)

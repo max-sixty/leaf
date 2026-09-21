@@ -2,68 +2,51 @@ bot_name: leaf-agent
 
 # Everything in this repo runs through `uv` (CLAUDE.md): the suite is
 # `uv run pytest tests`, and `leaf` itself is a uv project that syncs its own
-# environment. `setup-uv` is still where the agent gets uv even though it runs
-# as the runner: it installs into the hosted toolcache, which carries into the
-# sandbox ahead of tend's pinned fallback, so the agent and `ci.yaml` take the
-# same unpinned action and both get a uv new enough to read `uv.lock`'s
-# revision. What does not carry is anything `setup:` writes into the runner
-# checkout — the agent works in an independent disposable clone — so the sync
-# that populates `.venv` belongs in `sandbox_setup:` below.
+# environment. The agent works in this job's own checkout and home, with its
+# PATH, so what these steps install is there for it. The agent and `ci.yaml`
+# take the same unpinned `setup-uv`, and both get a uv new enough to read
+# `uv.lock`'s revision. `--frozen` installs the lock as written, so the tree a
+# session commits from starts on the resolution the suite was last green on
+# rather than on a fresh resolve.
 #
-# WebKit's system libraries are not on the runner image the way Chromium's are, and
-# installing them needs sudo, which only this runner-side step has. The packages land
-# system-wide, so the sandbox's own WebKit below finds them.
+# Nearly every test here drives a real browser (`tests/CLAUDE.md`). Without
+# the browsers, the agent meets `BrowserType.launch: Executable doesn't exist`
+# partway through the suite, so installing them here is what makes the repo's
+# gate runnable from a session rather than only in `ci`. The install is
+# `ci.yaml`'s. The launches afterwards are the assertion it worked, so a broken
+# one stops the job instead of reaching the agent as a suite that cannot start.
 setup:
   - uses: astral-sh/setup-uv@v7
-  - name: Install WebKit's system libraries
-    run: uv run --frozen --no-dev playwright install-deps webkit
-
-# `setup:` runs as the runner, and Playwright downloads browsers under the
-# home of whoever runs it — a home the sandbox does not inherit. So the agent
-# meets `BrowserType.launch: Executable doesn't exist` partway through the
-# suite, which is most of it: nearly every test here drives a real browser
-# (`tests/CLAUDE.md`). Seeding it under the sandbox's own home is what makes
-# the repo's gate runnable from a session rather than only in `ci`.
-#
-# Same browsers `ci.yaml` installs, and no `--with-deps`: the sandbox user has
-# no sudo, so that flag fails on `sudo: a password is required`. The runner image
-# carries Chromium's system libraries, and the runner-side step above installs
-# WebKit's. The launches afterwards are the assertion the install worked, so a
-# broken one stops the job instead of reaching the agent as a suite that cannot
-# start.
-#
-# `uv sync --frozen` leads because the clone arrives with no `.venv`: the
-# environment installs here, once, before the session, rather than partway
-# through the first `uv run` below. `--frozen` installs the lock as written, so
-# the tree a session commits from starts on the resolution the suite was last
-# green on rather than on a fresh resolve.
-sandbox_setup:
-  - uv sync --frozen
-  - uv run playwright install chromium webkit --only-shell
-  - 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"'
-
-# The `tend` environment's Cloudflare token reads every Worker's logs and
-# Analytics Engine events on the account and cannot change a Worker or a zone
-# (`worker/README.md`). Tend's proxy injects only GitHub and Anthropic
-# credentials, so this token reaches the agent through its launch environment,
-# where `sandbox_setup` and anything the agent runs can read it.
-#
-# The expression hands it only to agents answering an issue or a red run on
-# `main` — `issues`, `issue_comment` on an issue rather than a pull request, and
-# `ci-fix`'s `workflow_run` — which is when `running-tend` sends an agent to the
-# logs. Every other agent may run a pull request's code: a review and a mention
-# on a pull request start with it in the workspace, where `sandbox_setup` builds
-# it before the agent starts, and the notifications poll reviews fork pull
-# requests.
-#
-# `ci-fix`'s own `branches: ["main"]` filter is not enough to mean main: it
-# matches the triggering run's head branch, which for a pull request is the head
-# ref, so a fork whose default branch is also `main` arrives as a red run on
-# `main` and would be reproduced from the fork's code. `head_repository` is what
-# says whose code that is. The empty value has to be the `||` arm, because
-# `cond && '' || secret` yields the secret either way.
-sandbox_env:
-  CLOUDFLARE_API_TOKEN: "${{ ((github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository) || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
+  - run: uv sync --frozen
+  - name: Install Chromium headless shell and WebKit
+    run: uv run playwright install --with-deps chromium webkit --only-shell
+  - name: Launch both browsers
+    run: 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"'
+  # The `tend` environment's Cloudflare token reads every Worker's logs and
+  # Analytics Engine events on the account and cannot change a Worker or a
+  # zone (`worker/README.md`). Tend's proxy injects only GitHub and Anthropic
+  # credentials, so this token reaches the agent through the job's
+  # environment. Every step after this export can read it, and so can
+  # anything the agent runs, which is why it comes last.
+  #
+  # The expression hands it only to agents answering an issue or a red run on
+  # `main` — `issues`, `issue_comment` on an issue rather than a pull request,
+  # and `ci-fix`'s `workflow_run` — which is when `running-tend` sends an agent
+  # to the logs. Every other agent may run a pull request's code: a review and
+  # a mention on a pull request start with it in the workspace, and the
+  # notifications poll reviews fork pull requests.
+  #
+  # `ci-fix`'s own `branches: ["main"]` filter is not enough to mean main: it
+  # matches the triggering run's head branch, which for a pull request is the
+  # head ref, so a fork whose default branch is also `main` arrives as a red
+  # run on `main` and would be reproduced from the fork's code.
+  # `head_repository` is what says whose code that is. The empty value has to
+  # be the `||` arm, because `cond && '' || secret` yields the secret either
+  # way.
+  - name: Export the Cloudflare log token for agents that read the logs
+    run: echo "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_ENV"
+    env:
+      CLOUDFLARE_API_TOKEN: "${{ ((github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository) || (github.event.issue && !github.event.issue.pull_request)) && secrets.CLOUDFLARE_API_TOKEN || '' }}"
 
 workflows:
   ci-fix:

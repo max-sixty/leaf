@@ -177,6 +177,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
              return {
                dx: (press.left + press.right) / 2 - (mark.left + mark.right) / 2,
                dy: (press.top + press.bottom) / 2 - (mark.top + mark.bottom) / 2,
+               badgeWidth: mark.width,
                centerX: (press.left + press.right) / 2,
                bottomInset: form.bottom - press.bottom,
              };
@@ -211,14 +212,22 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
                  const inner = el.getBoundingClientRect().right
                    - parseFloat(style.borderRightWidth);
                  const press = el.querySelector('.lf-compose-submit');
+                 const field = el.querySelector('textarea');
                  return {
                    end: inner - press.getBoundingClientRect().right,
+                   paddingEnd: parseFloat(getComputedStyle(field).paddingInlineEnd),
                    right: press.getBoundingClientRect().right,
                  };
                }"""
         )
     assert abs(gaps["#jobs"]["end"] - gaps["#bracket"]["end"]) < 0.5, gaps
     assert 0 <= gaps["#bracket"]["end"] < 8, gaps
+    spacing = page.locator("html").evaluate(
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--sp-2'))"
+    )
+    assert gaps["#bracket"]["paddingEnd"] - gaps["#jobs"]["paddingEnd"] == (
+        pytest.approx(shown["badgeWidth"] + spacing, abs=0.5)
+    )
     # Writing in the row and putting the bindings away reveals the press in the exact
     # seat the badge vacated: the room is held whether either face is painted or not.
     assert abs(gaps["#bracket"]["right"] - expected_right) < 0.5

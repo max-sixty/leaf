@@ -724,13 +724,18 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    /* An empty draft offers only the route into its field, so that binding badge occupies
     * the Add seat while the press is hidden. Content reveals Add; once focus leaves the
     * field, the Ask's write route is available beside it again and takes the inner seat.
-    * The form names both seats below and reserves both before either face appears. */
+    * The form names both seats below; this card presentation reserves them both before
+    * either face appears. */
    & > .lf-another > .lf-key-badge {
                      inset-inline-start: auto;
                      inset-inline-end: var(--lf-option-add-badge-inset);
                      top: auto;
                      bottom: var(--lf-option-add-badge-inset);
                      margin: 0; }
+   & > .lf-another {
+                     --lf-option-action-room:
+                       calc(var(--lf-option-write-badge-inset)
+                         + var(--lf-key-badge-size) + var(--sp-2)); }
    & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
                      inset-inline-end: var(--lf-option-write-badge-inset); }
    & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
@@ -1023,7 +1028,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
                   calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size)
                     + var(--sp-2));
                 --lf-option-action-room:
-                  calc(var(--lf-option-write-badge-inset) + var(--lf-key-badge-size)
+                  calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size)
                     + var(--sp-2));
                 position: relative; display: flex; align-items: center; gap: var(--sp-2); }
   .lf-another:not([hidden]) { min-height: var(--aim-floor); }

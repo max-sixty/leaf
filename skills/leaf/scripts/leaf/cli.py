@@ -923,11 +923,16 @@ def report(
     metavar="succeeded|failed",
 )
 @click.option("--text", help="host outcome (default: stdin)")
-def receipt(dir: str, request: str, status: str, text: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the receipt event instead")
+def receipt(dir: str, request: str, status: str, text: str, as_json: bool) -> None:
     """Record exactly one terminal host outcome for REQUEST."""
     from leaf.requests import cmd_receipt
 
-    cmd_receipt(resolve_dir(dir), request, status, text)
+    accepted = cmd_receipt(resolve_dir(dir), request, status, text)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"settled request {request} as {status}")
 
 
 @cli.command(short_help="Print the event log as JSON lines.")

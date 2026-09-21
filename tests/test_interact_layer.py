@@ -332,8 +332,10 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     event leaves it to find the one field it needs next.
 
     Every write command answers with one sentence carrying that field — the
-    thread a message landed in, the version stamped, the widget a report moved —
-    and `--json` keeps the event for a caller that wants to read the rest of it.
+    thread a message landed in, the version stamped, the widget a report moved,
+    the request a receipt settled — and `--json` keeps the event for a caller that
+    wants to read the rest of it. `test_receipt_settles_one_known_request_once`
+    holds the receipt's, since it needs a page with a request seat.
 
     The default layer declares no guidance audiences, which is why the page is
     built here rather than taken from the packaged fixture.

@@ -302,10 +302,7 @@ export class ThreadView {
       const actions = [settlement];
       if (navigation) {
         if (!this.#collapse) {
-          this.#collapse = offer(
-            "button",
-            "lf-btn lf-icon-action lf-thread-close",
-          );
+          this.#collapse = offer("button", "lf-btn lf-icon-action lf-thread-close");
           this.#collapse.type = "button";
           this.#collapse.setAttribute("aria-label", "Close thread");
           this.#collapse.title = "Close thread";
@@ -316,7 +313,9 @@ export class ThreadView {
       }
       if (
         actions.length !== this.#metadataActions.children.length ||
-        actions.some((action, index) => this.#metadataActions.children[index] !== action)
+        actions.some(
+          (action, index) => this.#metadataActions.children[index] !== action,
+        )
       )
         this.#metadataActions.replaceChildren(...actions);
       headerActions = this.#metadataActions;

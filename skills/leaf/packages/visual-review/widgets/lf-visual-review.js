@@ -3,6 +3,7 @@
  * choices local, projects each case with source provenance, and reshapes the existing
  * aligned lf-shot comparison without introducing another evidence model. */
 import "/widgets/lf-shot.js";
+import "../vendor/webawesome.esm.js";
 
 import {
   arrangeReadingElement,
@@ -175,8 +176,10 @@ customElements.define(
       const previous = offer("button", "lf-btn lf-vr-previous", "Previous");
       previous.type = "button";
       previous.addEventListener("click", () => this.#step(-1));
-      this.#queue = offer("select", "lf-vr-case-select");
+      this.#queue = offer("wa-select", "lf-vr-case-select");
       this.#queue.name = "visual-case";
+      this.#queue.size = "s";
+      this.#queue.label = "Selected visual case";
       this.#queue.setAttribute("aria-label", "Selected visual case");
       this.#queue.addEventListener("change", () => this.#select(this.#queue.value));
       const next = offer("button", "lf-btn lf-vr-next", "Next");
@@ -307,42 +310,55 @@ customElements.define(
         ["mode", INSPECTION],
         ["scale", SCALE],
       ]) {
-        const group = offer("div", `lf-vr-inspector-group lf-vr-${kind}-group`);
-        group.setAttribute("role", "group");
-        group.setAttribute(
-          "aria-label",
-          { scope: "Scope", mode: "View", scale: "Size" }[kind],
+        const group = offer(
+          "wa-radio-group",
+          `lf-vr-inspector-group lf-vr-${kind}-group`,
         );
+        group.label = { scope: "Scope", mode: "View", scale: "Size" }[kind];
+        group.name = `${this.id}-${kind}`;
+        group.size = "s";
+        group.orientation = "horizontal";
+        group.addEventListener("change", () => {
+          if (kind === "scope") this.#setScope(group.value);
+          else if (kind === "mode") this.#setMode(group.value);
+          else this.#setScale(group.value);
+        });
         for (const [value, text] of Object.entries(values)) {
-          const button = offer("button", "lf-vr-inspector-button", text);
-          button.dataset[kind] = value;
-          button.addEventListener("click", () => {
-            if (kind === "scope") this.#setScope(value);
-            else if (kind === "mode") this.#setMode(value);
-            else this.#setScale(value);
-          });
-          commands(button, "On visual evidence", [
+          const radio = offer(
+            "wa-radio",
+            "lf-vr-inspector-choice",
+            text,
+            undefined,
+            true,
+          );
+          radio.value = value;
+          radio.appearance = "button";
+          radio.dataset[kind] = value;
+          commands(radio, "On visual evidence", [
             {
               id: `visual.${kind}.${value}`,
               keys: PRESS,
               does: `${text} visual evidence`,
               line: text.toLowerCase(),
-              run: () => button.click(),
+              run: () => radio.click(),
             },
           ]);
-          group.append(button);
+          group.append(radio);
         }
         inspector.append(group);
       }
 
-      const opacity = offer("label", "lf-vr-opacity-control");
+      const opacity = offer("div", "lf-vr-opacity-control");
       const opacityLabel = offer("span", "lf-vr-inspector-label", "Candidate opacity");
-      const slider = offer("input", "lf-vr-opacity", undefined, "range");
-      slider.min = "0";
-      slider.max = "100";
+      const slider = offer("wa-slider", "lf-vr-opacity");
+      slider.size = "s";
+      slider.label = "Candidate opacity";
+      slider.valueFormatter = (value) => `${value}%`;
+      slider.min = 0;
+      slider.max = 100;
       slider.name = "candidate-opacity";
-      slider.step = "5";
-      slider.value = String(this.#opacity);
+      slider.step = 5;
+      slider.value = this.#opacity;
       slider.setAttribute("aria-label", "Candidate opacity");
       slider.addEventListener("input", () => this.#setOpacity(Number(slider.value)));
       const output = offer("output", "lf-vr-opacity-value", `${this.#opacity}%`);
@@ -394,21 +410,15 @@ customElements.define(
       this.style.setProperty("--lf-vr-opacity", String(this.#opacity / 100));
       const scopeGroup = this.#inspector.querySelector(".lf-vr-scope-group");
       scopeGroup.hidden = !focusAvailable;
-      for (const button of scopeGroup.querySelectorAll("[data-scope]"))
-        button.setAttribute("aria-pressed", String(button.dataset.scope === scope));
-      for (const button of this.#inspector.querySelectorAll("[data-mode]"))
-        button.setAttribute("aria-pressed", String(button.dataset.mode === this.#mode));
-      for (const button of this.#inspector.querySelectorAll("[data-scale]"))
-        button.setAttribute(
-          "aria-pressed",
-          String(button.dataset.scale === this.#scale),
-        );
+      scopeGroup.value = scope;
+      this.#inspector.querySelector(".lf-vr-mode-group").value = this.#mode;
+      this.#inspector.querySelector(".lf-vr-scale-group").value = this.#scale;
       const opacity = this.#inspector.querySelector(".lf-vr-opacity-control");
       const slider = opacity.querySelector(".lf-vr-opacity");
       const active = this.#mode === "overlay";
       opacity.dataset.active = String(active);
       slider.disabled = !active;
-      slider.value = String(this.#opacity);
+      slider.value = this.#opacity;
       const readout = opacity.querySelector(".lf-vr-opacity-value");
       const percent = `${this.#opacity}%`;
       if (readout.textContent !== percent) relabel(readout, percent, { says: false });
@@ -711,7 +721,7 @@ customElements.define(
     }
 
     #createCase(id) {
-      const option = document.createElement("option");
+      const option = document.createElement("wa-option");
       option.value = id;
 
       const article = make("article", "lf-vr-case");
@@ -932,10 +942,10 @@ customElements.define(
         : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
+      this.#queue.value = id;
       for (const [caseId, entry] of this.#caseEntries) {
         const selected = caseId === id;
         entry.article.hidden = !selected;
-        entry.option.selected = selected;
       }
       const selected = this.#caseEntries.get(id);
       const toolbar = selected.article.querySelector(".lf-vr-toolbar-slot");

@@ -21,10 +21,10 @@
    Alt character composition, and Mod editing commands remain native. It does not blanket
    checkbox, Escape, or unrelated function keys merely because they are form-related.
    Radio and slider navigation has its own narrow claim at the focused control, so
-   an arrow changes that control without also moving its containing widget. An exact element scope is nearer than that claim, so a wired textarea
-   keeps its own Escape or submit binding; the typing claim then stands before any scope on an
-   ancestor widget. This ordering lets a widget contain an editor without taking letters,
-   newlines, or caret keys from it.
+   an arrow changes that control without also moving its containing widget. Open select
+   options retain typeahead when focus moves into their list. An exact element scope
+   stands before these native claims, so a wired textarea keeps its own Escape or submit
+   binding; the claims then stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
    registers its Escape and Enter on the exact input element, so those rows stand before

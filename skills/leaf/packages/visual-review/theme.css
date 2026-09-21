@@ -101,10 +101,6 @@ lf-visual-review > .lf-reading-after {
 .lf-vr-case-select {
   min-width: 0;
   width: 100%;
-  border-color: var(--border-2);
-  background: var(--card);
-  color: var(--ink);
-  font: 600 var(--t-5) / 1.3 var(--sans);
 }
 
 .lf-vr-previous,
@@ -132,12 +128,18 @@ lf-visual-review > .lf-reading-after {
   display: none;
 }
 
-.lf-vr-inspector-group,
-.lf-vr-opacity-control {
-  display: flex;
-  align-items: center;
-  gap: 0;
+.lf-vr-inspector-group {
   min-width: 0;
+}
+
+.lf-vr-case-select::part(form-control-label),
+.lf-vr-inspector-group::part(form-control-label),
+.lf-vr-opacity::part(label) {
+  display: none;
+}
+
+.lf-vr-inspector-group::part(form-control-input) {
+  gap: 0;
 }
 
 .lf-vr-inspector-label {
@@ -149,43 +151,10 @@ lf-visual-review > .lf-reading-after {
   white-space: nowrap;
 }
 
-.lf-vr-inspector-button {
-  min-height: 30px;
-  padding: 4px 9px;
-  border: 1px solid var(--border-2);
-  border-radius: 0;
-  background: var(--card);
-  color: var(--muted);
-  font: 600 var(--t-6) / 1.25 var(--sans);
-}
-
-.lf-vr-inspector-button:first-of-type {
-  border-radius: var(--r) 0 0 var(--r);
-}
-
-.lf-vr-inspector-button:last-of-type {
-  border-radius: 0 var(--r) var(--r) 0;
-}
-
-.lf-vr-inspector-button + .lf-vr-inspector-button {
-  margin-left: -1px;
-}
-
-.lf-vr-inspector-button:is(:hover, :focus-visible) {
-  position: relative;
-  color: var(--ink);
-}
-
-.lf-vr-inspector-button[aria-pressed="true"] {
-  position: relative;
-  z-index: 1;
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--card));
-  color: var(--accent);
-}
-
 .lf-vr-opacity-control {
   display: none;
+  align-items: center;
+  min-width: 0;
   flex: 1 1 11rem;
 }
 
@@ -197,7 +166,6 @@ lf-visual-review > .lf-reading-after {
   width: 100%;
   min-width: 5.5rem;
   margin: 0;
-  accent-color: var(--accent);
 }
 
 .lf-vr-opacity-value {

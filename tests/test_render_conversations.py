@@ -424,6 +424,51 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
 
 
+def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
+    """A checkpoint may cover the root turn without hiding thread actions."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Start with the measured constraint.")
+    reply = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
+    append_agent_reply(serve.page_dir, root, "The later result remains visible.")
+    summary = summarize_conversation(
+        serve.page_dir, root, root, reply["id"], "The constraint was confirmed."
+    )
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    events_model.append_event(
+        serve.page_dir, {"kind": "unresolve", "author": "user", "parent": root}
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
+    expect(card.get_by_role("button", name="Close thread")).to_be_visible()
+    root_meta = card.locator(":scope > .lf-thread-root-meta")
+    expect(root_meta).to_contain_text("You")
+    assert root_meta.evaluate("node => !node.closest('.lf-summary-originals')"), (
+        "root metadata and thread actions entered the collapsible originals"
+    )
+    resolve = card.get_by_role("button", name="Resolve thread")
+    resolve.focus()
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": root,
+            "text": "Start with the corrected measured constraint.",
+        },
+    )
+    told(page)
+    expect(checkpoint).to_have_count(0)
+    expect(resolve).to_be_focused()
+
+
 def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     browser, serve
 ):
@@ -1756,7 +1801,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             ':scope > .lf-compose textarea'
           );
           window.committedResolve = committedThread.querySelector(
-            ':scope > .lf-thread-head > .lf-resolve'
+            ':scope .lf-thread-meta-actions > .lf-resolve'
           );
         }""",
         root,
@@ -1781,16 +1826,21 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(recovered).to_have_attribute("data-resolved", "false")
     expect(recovered.locator("textarea")).to_have_count(1)
     expect(recovered.locator(".lf-reopen")).to_have_count(0)
-    assert page.evaluate(
+    retained = page.evaluate(
         """id => {
           const thread = document.querySelector(`.lf-thread[data-id="${id}"]`);
-          return thread === window.committedThread
-            && thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage
-            && thread.querySelector(':scope > .lf-compose textarea') === window.committedEditor
-            && thread.querySelector(':scope > .lf-thread-head > .lf-resolve') === window.committedResolve;
+          return {
+            thread: thread === window.committedThread,
+            message: thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage,
+            editor: thread.querySelector(':scope > .lf-compose textarea') === window.committedEditor,
+            resolve: thread.querySelector(':scope .lf-thread-meta-actions > .lf-resolve') === window.committedResolve,
+          };
         }""",
         root,
-    ), "rollback replaced a retained card, message, editor, or control"
+    )
+    assert all(retained[key] for key in ("thread", "message", "editor", "resolve")), (
+        f"rollback replaced a retained card, message, editor, or control: {retained}"
+    )
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
@@ -3886,7 +3936,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # A conversation keeps the authored theme's shared card and message
         # structure when the margin projects it into the chrome.
         "lf-conversation-body",
-        "lf-conversation-head",
+        "lf-thread-root-meta",
         "lf-msg-meta",
         # The message's own box. The theme gives the authored and margin-projected copies
         # their spacing while the chrome's scoped rules dress the panel's. The runtime
@@ -3923,9 +3973,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-response-more",
         "lf-response-open",
         "lf-response-options",
-        # The same thread header owns settlement in the panel and in inline seats;
-        # the authored theme gives both views the same label/control alignment.
-        "lf-thread-head",
+        # The same metadata action slot carries settlement in panel and inline seats;
+        # the authored theme gives both views the same alignment.
+        "lf-thread-meta-actions",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
         # Primary buttons keep the authored theme's accent action face when they

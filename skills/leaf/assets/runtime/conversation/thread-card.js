@@ -198,6 +198,8 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
+  #metadataActions = document.createElement("span");
+  #collapse = null;
   #expandedSummaries = new Set();
   #growing = false;
   #navigation = null;
@@ -293,18 +295,44 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const messages = model.messages.map((message) => {
+    const settlement = this.#settlement(model);
+    let headerActions = null;
+    if (!model.resolved || model.folding) {
+      this.#metadataActions.className = "lf-thread-meta-actions";
+      const actions = [settlement];
+      if (navigation) {
+        if (!this.#collapse) {
+          this.#collapse = offer("button", "lf-btn lf-icon-action lf-thread-close");
+          this.#collapse.type = "button";
+          this.#collapse.setAttribute("aria-label", "Close thread");
+          this.#collapse.title = "Close thread";
+          render(iconTemplate("cross", "lf-action-icon"), this.#collapse);
+        }
+        this.#collapse.onclick = navigation.collapse;
+        actions.push(this.#collapse);
+      }
+      if (
+        actions.length !== this.#metadataActions.children.length ||
+        actions.some(
+          (action, index) => this.#metadataActions.children[index] !== action,
+        )
+      )
+        this.#metadataActions.replaceChildren(...actions);
+      headerActions = this.#metadataActions;
+    }
+    const describedRanges = summaryRanges(model.messages, model.summaries);
+    const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message);
-      return { key: message.key, node: view.node };
+      view.present(message, index === 0 && Boolean(headerActions));
+      return { key: message.key, node: view.node, header: view.header };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
       if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    const ranges = summaryRanges(model.messages, model.summaries).map((range) => {
+    const ranges = describedRanges.map((range) => {
       if (range.kind === "message") {
         const node = messageNodes.get(range.message.key);
         delete node.dataset.lfSummary;
@@ -332,7 +360,6 @@ export class ThreadView {
       };
     });
     if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
-    const settlement = this.#settlement(model);
     render(
       html`
         ${navigationSummary(navigation, model)}
@@ -350,7 +377,7 @@ export class ThreadView {
             : nothing
         }
         ${
-          model.quote || !model.resolved
+          model.quote
             ? html`<header class="lf-thread-head">
                 ${
                   model.quote
@@ -373,8 +400,14 @@ export class ThreadView {
                       </blockquote>`
                     : nothing
                 }
-                ${!model.resolved ? settlement : nothing}
               </header>`
+            : nothing
+        }
+        ${
+          headerActions && messages[0]
+            ? html`<div class="lf-thread-root-meta">
+                ${messages[0].header}${headerActions}
+              </div>`
             : nothing
         }
         ${repeat(
@@ -385,7 +418,7 @@ export class ThreadView {
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved
+          model.resolved && !model.folding
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
               >
@@ -400,17 +433,6 @@ export class ThreadView {
                 >
                 ${settlement}
               </div>`
-            : nothing
-        }
-        ${
-          navigation
-            ? html`<button
-                type="button"
-                class="lf-thread-collapse"
-                @click=${navigation.collapse}
-              >
-                Collapse ↑
-              </button>`
             : nothing
         }
       `,
@@ -560,7 +582,7 @@ export class ThreadView {
       ]);
     }
     const button = this.node.querySelector(
-      ":scope > .lf-thread-head > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+      ":scope .lf-thread-meta-actions > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
     );
     if (button && !this.#keys.has(button)) {
       this.#keys.add(button);

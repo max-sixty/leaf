@@ -1146,6 +1146,7 @@ def test_report_cli_carries_the_declared_reference_role_map(page_dir):
         cli_model.cli,
         [
             "report",
+            "--json",
             str(page_dir),
             "t-parser",
             "status",
@@ -4262,7 +4263,8 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     assert activate(css).check.errors == []
 
     overwide = activate(css.replace("700px", "900px"))
-    assert "inline style width: 900px (column is 720px)" in overwide.error
+    assert "style> (line " in overwide.error
+    assert "sets width: 900px (column is 720px)" in overwide.error
     assert overwide.revision == initial.revision
 
     wider_column = css.replace("700px", "900px").replace("720px", "960px")
@@ -4370,7 +4372,8 @@ def test_check_measures_a_width_named_from_the_layer_s_own_tokens(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "inline style width: 1080px (column is 720px)" in result.output
+    assert "<p style> (line " in result.output
+    assert "sets width: 1080px (column is 720px)" in result.output
 
 
 def test_the_strip_floor_is_one_number():
@@ -4570,7 +4573,7 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_d
 
     assert result.exit_code == 1
     assert "page <style> syntax error" in result.output
-    assert "inline style #1 syntax error" in result.output
+    assert re.search(r"<p style> \(line \d+\) syntax error", result.output)
     assert "theme.css syntax error" in result.output
     assert "shadow.css syntax error" in result.output
     assert result.output.count("syntax error") == 4
@@ -4592,7 +4595,9 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert '<svg width="900"> exceeds column (760px)' in result.output
+    assert re.search(
+        r'<svg width="900"> \(line \d+\) exceeds column \(760px\)', result.output
+    )
 
     # And nesting is not a condition: a column stated on a rule that also wraps one stands.
     (page_dir / "index.html").write_text(
@@ -4645,7 +4650,12 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "inline style width: 900px (column is 720px)" in result.output
+    # The finding names the element and its line, so an author with forty
+    # style attributes knows which one it means.
+    assert re.search(
+        r"<div style> \(line \d+\) sets width: 900px \(column is 720px\)",
+        result.output,
+    )
 
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -4846,9 +4856,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
 
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    opened = CliRunner().invoke(
-        cli_model.cli, ["comment", str(page_dir), "--text", "show me?"]
-    )
+    opened = comment(page_dir, "--text", "show me?")
     assert opened.exit_code == 0, opened.output
     posted = CliRunner().invoke(
         cli_model.cli,

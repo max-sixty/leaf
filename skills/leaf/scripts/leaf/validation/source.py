@@ -15,6 +15,7 @@ from leaf.styles import (
     _overwide_elements,
     css_syntax_errors,
     inline_presentation_override_errors,
+    inline_style_at,
     root_tokens,
 )
 from leaf.thread_context import thread_structure
@@ -223,8 +224,10 @@ def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
     }
     theme_css = vendored["theme.css"]
     errors = list(css_syntax_errors(parser.css, "page <style>"))
-    for number, style in enumerate(parser.inline_styles, 1):
-        errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
+    for inline in parser.inline_styles:
+        errors.extend(
+            css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
+        )
     for name, css in vendored.items():
         errors.extend(css_syntax_errors(css, name))
     errors.extend(inline_presentation_override_errors(parser))

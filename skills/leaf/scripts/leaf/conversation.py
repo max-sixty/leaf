@@ -371,7 +371,7 @@ def _capture_anchor(
 @contract_writer
 def cmd_comment(
     page_dir: Path, quote: str, section: str, part: str, text, markup: str
-) -> None:
+) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
     anchorless shape the browser's general box posts, which is where a question about
@@ -397,8 +397,7 @@ def cmd_comment(
             event["anchor"] = anchor
         if markup:
             event["markup"] = markup
-        accepted = append_admitted(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
+        return append_admitted(page, event)
 
 
 @contract_writer
@@ -745,7 +744,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
 
 @contract_writer
-def cmd_resolve(page_dir: Path, to: str) -> None:
+def cmd_resolve(page_dir: Path, to: str) -> dict:
     """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
@@ -768,8 +767,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
             **message_identity(),
             "parent": to,
         }
-        accepted = append_admitted(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
+        return append_admitted(page, event)
 
 
 @contract_writer
@@ -780,7 +778,7 @@ def cmd_report(
     fields: tuple,
     *,
     references: str | None = None,
-) -> None:
+) -> dict:
     """A worker's provisional news: a declared state change folded onto a page
     widget, admitted the way the append door admits a reader's action,
     stamped with the posting session's voice, and made against the active revision —
@@ -816,5 +814,4 @@ def cmd_report(
             "revision": require_revision(page_dir),
             **({"references": parsed_references} if references is not None else {}),
         }
-        accepted = append_admitted(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
+        return append_admitted(page, event)

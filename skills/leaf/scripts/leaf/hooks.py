@@ -2,6 +2,7 @@
 
 import json
 
+from .activity import unanswered
 from .event_log import read_events
 from .files import read_json
 from .host import claim_harness
@@ -92,19 +93,9 @@ def unattended_pages(
             and not _stream_answers(reply, obligation, state)
         ]
         if stale:
-            ids = ", ".join(
-                obligation["target"]["id"]
-                if obligation["target"]["kind"] == "thread"
-                else obligation["event"]
-                for obligation in stale
-            )
             page_reasons.append(
                 (
-                    (
-                        f"{page_dir}: {len(stale)} acknowledged "
-                        f"reader move{'s' if len(stale) != 1 else ''} with no answer "
-                        f"({ids})."
-                    ),
+                    f"{page_dir}: {unanswered(stale, 'acknowledged')}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )

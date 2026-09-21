@@ -16,7 +16,9 @@ leaf comment <page> --text "…"
 `leaf comment` anchors in the active revision and reads it as the user sees it,
 including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
-cross-boundary text instead of creating a detached comment.
+cross-boundary text instead of creating a detached comment. It prints the id of
+the thread it opened, which `leaf status --on`, `leaf edit --to`, and
+`leaf resolve --to` take.
 
 Use `--markup` for a small question: an `lf-ask` containing one heading and
 its `lf-options` group. Thread markup is frozen in the log and has no revision
@@ -68,8 +70,10 @@ With one reply obligation in the current turn's opened delivery, Leaf infers its
 and address. When that delivery contains several, select one with `--for <event-id>`;
 Leaf derives its response address and rechecks both against current state, so a response
 captured before a newer reader correction cannot settle the correction. `leaf
-conversation read` exposes the same response under its current `activity.obligations`
-when the delivery is no longer the freshest reading. When the source changed, the reply
+conversation read` exposes the same response on the interaction that its current
+`activity.obligations` names, when the delivery is no longer the freshest reading.
+`activity.obligations` is a list of ids into `activity.interactions`, where each move's
+phase, target and response address are stated once. When the source changed, the reply
 validates and activates it before posting, so an edit and its answer cross one command
 boundary.
 
@@ -133,8 +137,9 @@ leaf edit <page> --to <comment-or-reply-id> --text "Corrected wording."
 
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
-`leaf reply --json` prints the event it posted, whose `id` is what `--to` takes
-here; so does the refusal, which lists the ids it knows.
+`leaf comment`, `leaf reply`, `leaf edit` and `leaf resolve` each print one
+sentence naming what they wrote. `--json` prints the posted event instead, whose
+`id` is what `--to` takes here. A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open so the reader can inspect the answer or
 revised page. The reader closes it by default. Resolve it yourself only when the

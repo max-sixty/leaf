@@ -5,6 +5,7 @@ import {
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "/runtime/widget-api.js";
+import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const compositionalWords = (owner, declarations) => {
@@ -63,12 +64,6 @@ export const shownVerbatim = (declarations) =>
 // page's.
 export function paperWords() {
   const out = [];
-  const at = (el) => {
-    const named = el.closest("[id]");
-    return named
-      ? `<${named.tagName.toLowerCase()} id=${named.id}>`
-      : `<${el.tagName.toLowerCase()}>`;
-  };
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n = walk.nextNode(); n; n = walk.nextNode()) {
     const el = n.parentElement;
@@ -180,12 +175,8 @@ export function paperVoids() {
     if (box.height < 1 || box.width < 1) continue;
     const words = el.textContent.replace(/\s+/g, " ").trim();
     if (!words) continue;
-    const named = el.closest("[id]");
-    const at = named
-      ? `<${named.tagName.toLowerCase()} id=${named.id}>`
-      : `<${el.tagName.toLowerCase()}>`;
     out.push(
-      `${at} keeps ${Math.round(box.height)}px of the sheet and prints nothing of ` +
+      `${at(el)} keeps ${Math.round(box.height)}px of the sheet and prints nothing of ` +
         JSON.stringify(words.slice(0, 40)),
     );
   }
@@ -330,7 +321,6 @@ export function unreadSyntax() {
 export function silentWords(declarations) {
   const found = [];
   const all = openRoots(document);
-  const at = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
   const every = (tag) => all.flatMap((r) => [...r.querySelectorAll(tag)]);
   for (const [tag, entry] of Object.entries(declarations)) {
     for (const attr of Object.keys(entry["x-says"] ?? {}))

@@ -1,4 +1,5 @@
 import { shownBox, shownParts } from "/runtime/widget-api.js";
+import { at } from "./locate.js";
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
 // which of them a widget is held to is the widget's to declare (x-inline), because
@@ -208,7 +209,6 @@ export function unmarkableElements() {
 // mistake the marker cannot fix, so it is reported separately and says why.
 export function unreachableWords() {
   const found = [];
-  const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
   for (const el of document.querySelectorAll("*")) {
     if (!el.tagName.startsWith("LF-")) continue;
     const shown = ["::before", "::after"]

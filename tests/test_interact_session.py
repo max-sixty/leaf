@@ -40,6 +40,7 @@ from interact_support import (
     fetch,
     fifo_writer,
     let_a_pick_settle_a_thread,
+    owed,
     page_state,
     publish,
     record_claim,
@@ -1070,10 +1071,10 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     assert [item["phase"] for item in activity["obligations"]] == ["picked_up"]
     agent_activity = state_json(claimed)["activity"]
     assert agent_activity["kind"] == activity["kind"]
-    assert agent_activity["obligations"][0]["target"] == {
-        "kind": "conversation",
-        "id": comment["id"],
-    }
+    # The agent reading names each obligation by id; the move itself is listed once.
+    [move] = owed(agent_activity)
+    assert agent_activity["obligations"] == [move["id"]]
+    assert move["target"] == {"kind": "conversation", "id": comment["id"]}
     assert "acknowledgments" not in page_state(claimed)["browser"]
     pickup = events_model.read_events(claimed)[-1]
     claim = service_model.page_claim(claimed)
@@ -3692,7 +3693,8 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     ]
     assert [item["author"] for item in reading["content"]] == ["user", "agent"]
     assert reading["content"][1]["parent"] == messages[0]["id"]
-    assert reading["activity"]["obligations"][0]["response"] == {
+    [move] = owed(reading["activity"])
+    assert move["response"] == {
         "kind": "reply",
         "to": messages[2]["id"],
         "for": messages[2]["id"],
@@ -3807,7 +3809,7 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         },
     )
     before = state_json(page_dir)["activity"]["obligations"]
-    assert [item["event"] for item in before] == [chose["id"], newer["id"]]
+    assert before == [chose["id"], newer["id"]]
 
     replied = conversation_model.cmd_reply(
         page_dir,
@@ -3817,9 +3819,9 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         for_event=chose["id"],
     )
     assert replied["responds"] == chose["id"]
-    after = state_json(page_dir)["activity"]["obligations"]
-    assert [item["event"] for item in after] == [newer["id"]]
-    assert after[0]["response"] == {
+    after = state_json(page_dir)["activity"]
+    assert after["obligations"] == [newer["id"]]
+    assert owed(after)[0]["response"] == {
         "kind": "reply",
         "to": newer["id"],
         "for": newer["id"],
@@ -3865,7 +3867,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
         },
     )
     before = state_json(page_dir)["activity"]["obligations"]
-    assert [item["event"] for item in before] == [answered["id"]]
+    assert before == [answered["id"]]
 
     conversation_model.cmd_reply(
         page_dir,
@@ -4642,6 +4644,9 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
 
 
 def test_ack_checks_its_target_and_advances_monotonically(page_dir):
+    """Exit 1 is the acknowledgement refused and the cursor unmoved. Past that the
+    command is the wait it re-armed, and this page is claimed by nobody, so every
+    acknowledgement that lands ends on the same 2 a bare `leaf wait` would."""
     events_model.append_event(
         page_dir,
         {
@@ -4673,7 +4678,8 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     first = runner.invoke(cli_model.cli, ["ack", str(page_dir), "3"])
     retry = runner.invoke(cli_model.cli, ["ack", str(page_dir), "3"])
     older = runner.invoke(cli_model.cli, ["ack", str(page_dir), "2"])
-    assert first.exit_code == retry.exit_code == older.exit_code == 0
+    assert first.exit_code == retry.exit_code == older.exit_code == 2
+    assert "nothing to watch" in first.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 3}
 
     # A worker's report is part of the watcher's batch, so it is a valid ack
@@ -4694,7 +4700,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
             "revision": 1,
         },
     )
-    assert runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"]).exit_code == 0
+    assert runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"]).exit_code == 2
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 4}
 
 
@@ -4757,6 +4763,8 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
     )
     out, err = acknowledging.communicate(timeout=10)
 
+    # 0 is the re-armed wait's own code for a batch on stdout, so one exit tells
+    # an agent which of the two happened rather than sending it to the streams.
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = delivered(out)
     assert (header["page"], header["conversations"]) == (str(page_dir), [])
@@ -4766,6 +4774,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
 
 
 def test_ack_success_outlives_a_refused_rearm(page_dir):
+    """A standing watcher ends the re-arm the way it ends a bare `leaf wait`, on
+    2. The acknowledgement still landed: 1 is the code that says it did not, and
+    the cursor names the event the batch reached."""
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -4777,7 +4788,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
     with lease:
         result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
     assert "another `leaf wait` is already active" in result.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
 
@@ -4790,7 +4801,7 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
 
     result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
     assert (
         f"nothing to watch: {page_dir} is not claimed by this session" in result.output
     )
@@ -4899,7 +4910,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     os.close(writer)
 
     out, err = acknowledging.communicate(timeout=10)
-    assert (acknowledging.returncode, out) == (0, ""), err
+    assert (acknowledging.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
     assert "the leaf ended" not in err
     assert service_model.page_claim(page_dir)["id"] == "successor"
@@ -8393,6 +8404,37 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
+def test_waiting_written_over_an_unanswered_move_names_it(claimed):
+    """`leaf status` reads its transition back so a silent success cannot pass for a
+    no-op. Canonical activity keeps showing an unanswered reader move over a `waiting`
+    written ahead of it, so the banner the agent believes it set is not the one the
+    reader sees. The readback names the move; once it has an answer the line stands
+    alone."""
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    comment = events_model.read_events(claimed)[0]["id"]
+    waiting = ["status", str(claimed), "waiting", "pick one"]
+
+    early = CliRunner().invoke(cli_model.cli, waiting)
+    assert early.exit_code == 0, early.output
+    assert early.output.splitlines() == [
+        "waiting — pick one",
+        (
+            f"1 reader move with no answer ({comment}); "
+            "the page reads waiting once each has one"
+        ),
+    ]
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(claimed), "--to", comment, "--for", comment, "--text", "ok"],
+    )
+    assert replied.exit_code == 0, replied.output
+    settled = CliRunner().invoke(cli_model.cli, waiting)
+    assert settled.output.splitlines() == ["waiting — pick one"]
+
+
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     """`leaf status PAGE idle` is the way out of the guard's other case, so it
     reads as the way out of this one too. The events are the user's: a page
@@ -8413,7 +8455,8 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # user is still waiting, and now nothing will raise the comment again, so
     # idle holds until the thread has something under it.
     assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
-    assert CliRunner().invoke(cli_model.cli, ["ack", str(claimed), "1"]).exit_code == 0
+    # 2 is the re-armed wait's own ending; a refused acknowledgement would be 1.
+    assert CliRunner().invoke(cli_model.cli, ["ack", str(claimed), "1"]).exit_code == 2
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged reader move with no answer" in refused.output
@@ -8468,7 +8511,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 update nobody has picked up" in refused.output
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
-        CliRunner().invoke(cli_model.cli, ["ack", str(claimed), report]).exit_code == 0
+        CliRunner().invoke(cli_model.cli, ["ack", str(claimed), report]).exit_code == 2
     )
     # A report is the agent's own news, so acknowledging it is the whole of what
     # it asks for; only a reader's comment owes an answer as well.

@@ -2521,6 +2521,13 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert event["widget"] == "t-parser" and event["action"] == "status"
     assert event["detail"] == {"status": "review"} and event["revision"] == 1
 
+    # A bare call names the coordinate it moved; `_report` above asks for the event.
+    named = CliRunner().invoke(
+        cli_model.cli, ["report", str(page_dir), "t-parser", "status", "status=done"]
+    )
+    assert named.exit_code == 0, named.output
+    assert named.output == "reported status on t-parser\n"
+
 
 def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     """The host's result names the exact request it executed. A second terminal
@@ -2616,6 +2623,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         ],
     )
     assert accepted.exit_code == 0, accepted.output
+    assert accepted.output == f"settled request {request['id']} as succeeded\n"
     receipt = events_model.read_events(page_dir)[-1]
     assert (receipt["kind"], receipt["request"], receipt["status"]) == (
         "receipt",
@@ -2687,16 +2695,22 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     assert "commands-decision" not in {
         ask["id"] for ask in state_json(page_dir)["asks"]
     }
-    failure = events_model.append_event(
-        page_dir,
-        {
-            "kind": "receipt",
-            "author": "agent",
-            "request": first["id"],
-            "status": "failed",
-            "text": "Worker lease disappeared",
-        },
+    # `--json` keeps the receipt event for a caller that reads past the sentence.
+    failed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            "--json",
+            str(page_dir),
+            first["id"],
+            "failed",
+            "--text",
+            "Worker lease disappeared",
+        ],
     )
+    assert failed.exit_code == 0, failed.output
+    failure = json.loads(failed.output)
+    assert (failure["kind"], failure["request"]) == ("receipt", first["id"])
     assert "commands-decision" in {ask["id"] for ask in state_json(page_dir)["asks"]}
     retry = append_command(
         page_dir,

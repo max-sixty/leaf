@@ -675,14 +675,18 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     turn writes the status again, and one nobody renews at all goes quiet after
     about a quarter of an hour — on the banner and each local line.
     """
+    from leaf.activity import unanswered
     from leaf.session import cmd_idle, cmd_status
 
     page_dir = resolve_dir(dir)
+    owed = []
     if state == "idle":
         cmd_idle(page_dir, detail, on)
     else:
-        cmd_status(page_dir, state, detail, on=on)
+        owed = cmd_status(page_dir, state, detail, on=on)
     click.echo(_status_line(state, detail, on))
+    if state == "waiting" and owed:
+        click.echo(f"{unanswered(owed)}; the page reads waiting once each has one")
 
 
 @cli.command(
@@ -711,11 +715,13 @@ def ack(dir: str, seq: int) -> None:
     from leaf.session import cmd_ack, cmd_wait
 
     page_dir = resolve_dir(dir)
+    # A refused acknowledgement exits 1 here, with the cursor where it was. Past
+    # that the command is the wait it re-armed and answers as one does: 0 carries
+    # the next batch on stdout, 2 names an ending on stderr. The delivering wait
+    # established ownership, so the re-arm observes a successor rather than
+    # reclaiming the page.
     cmd_ack(page_dir, seq)
-    # Ack already succeeded, so ignore the following wait's delivery/end code.
-    # The delivering wait established ownership; re-arm observes a successor
-    # instead of reclaiming the page.
-    cmd_wait(page_dir, claim_named=False)
+    sys.exit(cmd_wait(page_dir, claim_named=False))
 
 
 @cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")
@@ -725,8 +731,15 @@ def ack(dir: str, seq: int) -> None:
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
+@click.option("--json", "as_json", is_flag=True, help="print the comment event instead")
 def comment(
-    dir: str, quote: str, section: str, part: str, text: str, markup: str
+    dir: str,
+    quote: str,
+    section: str,
+    part: str,
+    text: str,
+    markup: str,
+    as_json: bool,
 ) -> None:
     """Open a thread as the agent (--text or stdin): anchored where --quote or
     --section points at a passage, general where neither does — a question about
@@ -737,7 +750,11 @@ def comment(
     """
     from leaf.conversation import cmd_comment
 
-    cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
+    accepted = cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"opened thread {accepted['id']}")
 
 
 @cli.command(short_help="Reply to a thread as the agent.")
@@ -842,7 +859,8 @@ def edit(dir: str, to: str, text: str, as_json: bool) -> None:
 @click.option(
     "--to", required=True, metavar="ID", help="a message in the thread to close"
 )
-def resolve(dir: str, to: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the resolve event instead")
+def resolve(dir: str, to: str, as_json: bool) -> None:
     """Close a thread as the agent.
 
     The reader's own ✓ Resolve is the ordinary way a thread closes, so this is for
@@ -851,9 +869,14 @@ def resolve(dir: str, to: str) -> None:
     since answered the question it put. Reply first where the thread asked something —
     closing is not an answer, and the panel names the agent that did it.
     """
-    from leaf.conversation import cmd_resolve
+    from leaf.conversation import cmd_resolve, thread_of
 
-    cmd_resolve(resolve_dir(dir), to)
+    page_dir = resolve_dir(dir)
+    accepted = cmd_resolve(page_dir, to)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"resolved {thread_of(page_dir, to)}")
 
 
 @cli.command(short_help="Report a state change onto a page widget, as a worker.")
@@ -866,8 +889,14 @@ def resolve(dir: str, to: str) -> None:
     metavar="JSON",
     help="role-to-stable-target-reference object declared by the report verb",
 )
+@click.option("--json", "as_json", is_flag=True, help="print the report event instead")
 def report(
-    dir: str, widget: str, verb: str, fields: tuple, references: str | None
+    dir: str,
+    widget: str,
+    verb: str,
+    fields: tuple,
+    references: str | None,
+    as_json: bool,
 ) -> None:
     """Report a state change onto a page widget, as a worker.
 
@@ -878,7 +907,11 @@ def report(
     """
     from leaf.conversation import cmd_report
 
-    cmd_report(resolve_dir(dir), widget, verb, fields, references=references)
+    accepted = cmd_report(resolve_dir(dir), widget, verb, fields, references=references)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"reported {verb} on {widget}")
 
 
 @cli.command(short_help="Record the terminal outcome of a reader request.")
@@ -890,11 +923,16 @@ def report(
     metavar="succeeded|failed",
 )
 @click.option("--text", help="host outcome (default: stdin)")
-def receipt(dir: str, request: str, status: str, text: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the receipt event instead")
+def receipt(dir: str, request: str, status: str, text: str, as_json: bool) -> None:
     """Record exactly one terminal host outcome for REQUEST."""
     from leaf.requests import cmd_receipt
 
-    cmd_receipt(resolve_dir(dir), request, status, text)
+    accepted = cmd_receipt(resolve_dir(dir), request, status, text)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"settled request {request} as {status}")
 
 
 @cli.command(short_help="Print the event log as JSON lines.")

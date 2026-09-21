@@ -1,5 +1,6 @@
 import { inChrome, shallowSigs } from "/runtime/widget-api.js";
 import { validationWidgetStates } from "/runtime/validation.js";
+import { at } from "./locate.js";
 
 // Measure the state painted by surviving decisions made before this revision.
 // A decision made on this markup cannot contradict its authoring, even when the
@@ -73,7 +74,6 @@ export function replayOverrides({ curHtml, prevHtml, carriedActions }) {
 // reconciler, whose committed-state checkpoint would skip an unchanged value.
 // Compare both id-bearing structure and body facets: text is absent from shallowSigs.
 export function relativeReplays() {
-  const at = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
   const standing = validationWidgetStates().filter((s) => s.widget?.renderState);
   if (!standing.length) return [];
   const found = [];

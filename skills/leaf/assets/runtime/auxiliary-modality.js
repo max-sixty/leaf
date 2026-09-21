@@ -26,10 +26,6 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
   let active = null;
   let placingFocus = false;
   let mounted = false;
-  const layerAllowedBy = (controller, node, establishedOver = null) =>
-    !controller ||
-    controller.surface === establishedOver ||
-    under(node, controller.surface);
 
   const deepestFocus = () => {
     let node = document.activeElement;
@@ -97,7 +93,7 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
     if (active === controller) return;
 
     for (const popover of openPopovers())
-      if (!layerAllowedBy(controller, popover)) popover.hidePopover();
+      if (!under(popover, controller.surface)) popover.hidePopover();
     active = controller;
     syncBackground(controller);
     controller.role = controller.surface.getAttribute("role");
@@ -203,12 +199,10 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;
   const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
-  const allowsNativeLayer = (node, establishedOver = null) =>
-    layerAllowedBy(active, node, establishedOver);
-  // The keyboard register carries these three readings to the dispatcher, whose own
-  // closure stops there: a direct edge to this owner would give a key press this owner's
-  // whole initialization graph.
-  registerAuxiliaryModality({ coveringSurface, coveringFocus, allowsNativeLayer });
+  // The keyboard register carries this reading to the dispatcher, whose own closure stops
+  // there: a direct edge to this owner would give a key press this owner's whole
+  // initialization graph.
+  registerAuxiliaryModality({ coveringSurface });
   return {
     scrim,
     registerAuxiliarySurface,
@@ -217,6 +211,5 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
     coveringSurface,
     coveringScroller,
     coveringFocus,
-    allowsNativeLayer,
   };
 }

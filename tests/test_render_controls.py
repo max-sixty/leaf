@@ -911,7 +911,24 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         "an unchanged status poll disturbed the native disclosure or rebuilt its "
         f"unchanged detail: {survived}"
     )
+
+    # The global command reference follows native modal entry: the contextual auto
+    # popover closes, while later status presentation leaves the modal itself alone.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(explanation).to_be_hidden()
+    session_model.cmd_status(serve.page_dir, "working", detail)
+    told(page)
+    expect(reference).to_be_visible()
+    expect(explanation).to_be_hidden()
     page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-shelf-open", "false"
+    )
     for width in (1280, 841, 390):
         resized(page, width, 900)
         read = page.evaluate(STATUS_FIT)

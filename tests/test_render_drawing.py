@@ -1,4 +1,4 @@
-"""One-stroke drawing-comment browser journeys."""
+"""Drawing-comment browser journeys."""
 
 import base64
 import re
@@ -30,27 +30,38 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
-def draw_over(
-    page,
-    locator,
-    *,
-    steps=8,
-    points=((0.22, 0.62), (0.5, 0.25), (0.78, 0.62)),
-):
+STROKE = ((0.22, 0.62), (0.5, 0.25), (0.78, 0.62))
+
+
+def stroke_over(page, locator, *, steps=8, points=STROKE):
+    """Drag one stroke through `points`, fractions of the locator's box, in Draw mode.
+
+    Returns the stroke's starting point in the viewport.
+    """
     locator.scroll_into_view_if_needed()
     box = locator.bounding_box()
     start, middle, end = [
         (box["x"] + box["width"] * x, box["y"] + box["height"] * y) for x, y in points
     ]
     page.mouse.move(*start)
-    page.keyboard.press("w")
-    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
-    assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
-    expect(page.locator(".lf-aim")).to_be_hidden()
     page.mouse.down()
     page.mouse.move(*middle, steps=steps)
     page.mouse.move(*end, steps=steps)
     page.mouse.up()
+    return start
+
+
+def draw_over(page, locator, *, steps=8, points=STROKE):
+    """Enter Draw mode with the pointer at the stroke's start, then draw it."""
+    locator.scroll_into_view_if_needed()
+    box = locator.bounding_box()
+    x, y = points[0]
+    page.mouse.move(box["x"] + box["width"] * x, box["y"] + box["height"] * y)
+    page.keyboard.press("w")
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    expect(page.locator(".lf-aim")).to_be_hidden()
+    return stroke_over(page, locator, steps=steps, points=points)
 
 
 READ_BOX = """selector => {
@@ -125,7 +136,6 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         points=((0.22, 0.62), (0.75, -1), (1.7, 1.8)),
     )
 
-    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b|\blf-pending\b"))
     assert target.get_attribute("chosen") is None
@@ -140,25 +150,20 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert event["anchor"] == {"section": "bg-choice-trail"}
     assert event["text"] == "This bend is the part I mean."
     drawing = event["drawing"]
-    assert drawing["format"] == "leaf-drawing/1"
-    assert 2 <= len(drawing["points"]) <= 256
+    assert drawing["format"] == "leaf-drawing/2"
+    (stroke,) = drawing["strokes"]
+    assert 2 <= len(stroke) <= 256
     target_box = target.bounding_box()
-    xs, ys = zip(*drawing["points"], strict=True)
+    xs, ys = zip(*stroke, strict=True)
     assert min(xs) / target_box["width"] == pytest.approx(0.22, abs=0.02)
     assert min(ys) / target_box["height"] == pytest.approx(-1, abs=0.02)
     assert max(xs) - min(xs) > target_box["width"]
     assert max(ys) - min(ys) > target_box["height"]
     assert all(
-        -100000 <= coordinate <= 100000
-        for point in drawing["points"]
-        for coordinate in point
+        -100000 <= coordinate <= 100000 for point in stroke for coordinate in point
     )
-    assert drawing["points"][-1][0] / target_box["width"] == pytest.approx(
-        1.7, abs=0.02
-    )
-    assert drawing["points"][-1][1] / target_box["height"] == pytest.approx(
-        1.8, abs=0.02
-    )
+    assert stroke[-1][0] / target_box["width"] == pytest.approx(1.7, abs=0.02)
+    assert stroke[-1][1] / target_box["height"] == pytest.approx(1.8, abs=0.02)
 
     posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
     mark = page.locator(posted)
@@ -255,6 +260,18 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     page.evaluate("document.body.style.minHeight = '180000px'")
     page.evaluate("y => scrollTo(0, y)", point["scrollY"])
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    # The reloaded page is a new Draw mode session; its stroke joins the kept drawing.
+    # Threads comes back open over the right edge, so this one starts in the left gutter.
+    again = {"x": 40, "y": point["y"] - 120}
+    page.mouse.move(again["x"], again["y"])
+    page.keyboard.press("w")
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    page.mouse.down()
+    page.mouse.move(again["x"] + 60, again["y"] - 80, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", re.compile(r"^M[^M]*M[^M]*$")
+    )
     field = page.locator(".lf-general textarea")
     expect(field).to_have_value("")
     field.focus()
@@ -264,8 +281,12 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "anchor" not in event and "text" not in event
-    assert event["drawing"]["points"][0] == pytest.approx(
+    first, second = event["drawing"]["strokes"]
+    assert first[0] == pytest.approx(
         [point["x"], point["y"] + point["scrollY"]], abs=0.1
+    )
+    assert second[0] == pytest.approx(
+        [again["x"], again["y"] + point["scrollY"]], abs=0.1
     )
     posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
     mark = page.locator(posted)
@@ -334,7 +355,7 @@ def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser,
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["text"] == "![Pasted image](/media/051bee487bfb5d13.png)"
-    assert event["drawing"]["format"] == "leaf-drawing/1"
+    assert event["drawing"]["format"] == "leaf-drawing/2"
 
 
 def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
@@ -408,6 +429,10 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     page.mouse.up()
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     page.get_by_role("button", name="Close threads").click()
+    # A stroke in the same Draw mode session would join the page drawing, so the
+    # anchored one is drawn in a session of its own.
+    page.keyboard.press("w")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
 
     draw_over(page, page.locator("#prose"))
 
@@ -419,6 +444,70 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     assert event["anchor"] == {"section": "prose"}
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+
+
+def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
+    """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
+    in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
+    box away or the reader leaves and re-enters the mode; once the draft is sent the next
+    stroke starts another, and only Escape leaves the mode."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    prose = page.locator("#prose")
+    draw_over(page, prose)
+    pending = page.locator(".lf-drawing-pending path")
+    expect(pending).to_have_count(1)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+
+    # Begun over another element, the stroke still belongs to the prose drawing.
+    start = stroke_over(page, page.locator("#fig"))
+    origin = prose.bounding_box()
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    expect(field).to_be_focused()
+    field.fill("All of these.")
+
+    # Escape puts the box away and keeps its draft; the next stroke joins that draft.
+    page.keyboard.press("Escape")
+    expect(pending).to_have_count(0)
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
+    expect(field).to_be_focused()
+    expect(field).to_have_value("All of these.")
+    with sending(page, "the three-stroke drawing"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "prose"}
+    assert event["text"] == "All of these."
+    first, second, third = event["drawing"]["strokes"]
+    assert min(len(first), len(second), len(third)) >= 2
+    assert second[0] == pytest.approx(
+        [start[0] - origin["x"], start[1] - origin["y"]], abs=0.5
+    )
+    expect(
+        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
+
+    # The sent draft holds no drawing any more, so the next stroke starts one.
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    stroke_over(page, page.locator("#fig"))
+    expect(pending).to_have_count(1)
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
+    expect(field).to_be_focused()
+
+    # The composer the stroke opened stands inside the mode, so it comes off first.
+    page.keyboard.press("Escape")
+    expect(pending).to_have_count(0)
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
+
+    # A new Draw mode session draws into the draft it finds rather than over it.
+    draw_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
 
 
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
@@ -638,11 +727,9 @@ def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
     page.locator(".lf-fab-input").fill("The replaced target still owns this.")
     with sending(page, "the replacement drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
-    drawing = events_model.read_events(serve.page_dir)[-1]["drawing"]
-    assert all(
-        coordinate is not None for point in drawing["points"] for coordinate in point
-    )
-    assert len(drawing["points"]) >= 2
+    (stroke,) = events_model.read_events(serve.page_dir)[-1]["drawing"]["strokes"]
+    assert all(coordinate is not None for point in stroke for coordinate in point)
+    assert len(stroke) >= 2
 
 
 def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
@@ -676,7 +763,7 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
             "attempt": "a" * 32,
             "base": None,
             "payload": {
-                "drawing": {"format": "leaf-drawing/1", "points": "not-points"}
+                "drawing": {"format": "leaf-drawing/2", "strokes": "not-strokes"}
             },
         },
     )
@@ -712,7 +799,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
               anchor,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/1', points: [[0, 0]]},
+              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,
@@ -755,7 +842,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "text" not in event
-    assert event["drawing"]["format"] == "leaf-drawing/1"
+    assert event["drawing"]["format"] == "leaf-drawing/2"
     thread = page.get_by_role("dialog", name=re.compile("Conversation for"))
     expect(thread).to_be_visible()
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
@@ -768,8 +855,8 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
     showing the detached stroke again inside the conversation."""
     url = serve(CONVERSATION_DIFF_PAGE)
     drawing = {
-        "format": "leaf-drawing/1",
-        "points": [[-20, 74], [50, 10], [120, 74]],
+        "format": "leaf-drawing/2",
+        "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     }
     events_model.append_event(
         serve.page_dir,

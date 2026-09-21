@@ -821,8 +821,8 @@ def test_server_round_trip(server, page_dir):
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "> § lf-banner · Threads  — about the design" in transcript.output
     drawing = {
-        "format": "leaf-drawing/1",
-        "points": [[-20, 74], [50, 10], [120, 74]],
+        "format": "leaf-drawing/2",
+        "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -921,8 +921,8 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/1",
-                "points": [[10, 60]],
+                "format": "leaf-drawing/2",
+                "strokes": [[[10, 60]]],
             },
         },
         {
@@ -931,8 +931,8 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/1",
-                "points": [[10], [50, 20]],
+                "format": "leaf-drawing/2",
+                "strokes": [[[10], [50, 20]]],
             },
         },
         {
@@ -941,8 +941,8 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/1",
-                "points": [[10, 60], [33554433, 20]],
+                "format": "leaf-drawing/2",
+                "strokes": [[[10, 60], [33554433, 20]]],
             },
         },
         {
@@ -964,14 +964,28 @@ def test_server_round_trip(server, page_dir):
             "revision": 2,
             "text": "x",
             "anchor": {"section": "feeder-board"},
-            "drawing": {**drawing, "points": [[0.1, 0.2]] * 257},
+            "drawing": {**drawing, "strokes": [[[0.1, 0.2]] * 257]},
         },
         {
             "kind": "comment",
             "revision": 2,
             "text": "x",
             "anchor": {"section": "feeder-board"},
-            "drawing": {**drawing, "points": [[float("nan"), 0.2], [0.5, 0.2]]},
+            "drawing": {**drawing, "strokes": []},
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "strokes": drawing["strokes"] * 33},
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.

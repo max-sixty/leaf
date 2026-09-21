@@ -4289,8 +4289,8 @@ SETTLING_DECISION = {
     "revision": 1,
     "anchor": {"section": "plan-choice-decision"},
     "drawing": {
-        "format": "leaf-drawing/1",
-        "points": [[-20, 74], [50, 10], [120, 74]],
+        "format": "leaf-drawing/2",
+        "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     },
 }
 SETTLING_ACCEPT = {

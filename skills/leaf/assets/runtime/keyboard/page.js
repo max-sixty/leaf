@@ -17,7 +17,6 @@ import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { standingThreadOf } from "../conversation/focus.js";
 import { boxHandsBack } from "../conversation/landing.js";
-import { inPanel as panelFocusIsInside } from "../conversation/panel-elements.js";
 import { claimsEsc, documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
@@ -128,23 +127,20 @@ pageCommand({
 // heading is the page's own or a copy standing in the panel's frozen markup.
 //
 // The scope's `at` is the cheap half, whether anything is held at all; the row's `when`
-// is the dear one, asked only of a reader who is holding something. The panel, the Ask
-// and the page's own state are other owners' readings, handed in by the boot entry once
-// those owners stand.
+// is the dear one, asked only of a reader who is holding something. The Ask and the
+// page's own state are other owners' readings, handed in by the boot entry once those
+// owners stand.
 const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
 let standingOnPage = () => false;
-export function declareStanding({ panelIsOpen, askHeld, pageState }) {
+export function declareStanding({ askHeld, pageState }) {
   standingOnPage = () => {
     if (!holding()) return false;
     if (nativeLayers().length) return false;
     if (takesLetters(focused()) && boxHandsBack()) return false;
     if (claimsEsc(focused())) return false;
-    // Titles and open conversations are content of the thread panel, not levels inside
-    // it. After any inner box or narrowing is gone, the panel is their one way out.
-    if (panelFocusIsInside(panelIsOpen)) return false;
     if (inChrome(documentFocused())) return false;
     // Out on the page, where state the reader put on here is inside the page they are
     // standing in and comes off before they let go of anything: the drag that takes

@@ -51,10 +51,6 @@ class ThreadListView extends LitElement {
       .map((row) => row.node);
   }
 
-  get selectedThreadId() {
-    return this.#selected;
-  }
-
   revealNavigation(id) {
     const node = this.querySelector(
       `[data-id="${CSS.escape(id)}"], [data-mid="${CSS.escape(id)}"]`,

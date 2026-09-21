@@ -68,7 +68,6 @@ class VersionChooserView {
       const open = event.newState === "open";
       if (this.#model.chooser.offered)
         this.button.setAttribute("aria-expanded", String(open));
-      if (open && !this.menu.contains(document.activeElement)) this.focusSelectedRow();
       if (!open) {
         this.#displayedRows = this.#model.rows;
         this.#renderMenu();
@@ -133,17 +132,6 @@ class VersionChooserView {
       }));
   }
 
-  focusSelectedRow() {
-    const { base, currentRevision } = this.#model.selection;
-    (
-      this.rows().find(
-        (row) =>
-          (base !== null && row.dataset.lfVersion === String(base)) ||
-          (base === null && row.dataset.lfRevision === String(currentRevision)),
-      ) ?? this.rows()[0]
-    )?.focus();
-  }
-
   reserve() {
     // Hidden pinned slots need representative words as well as a measured width: an
     // empty button is shorter, so its first real label would still move vertically.
@@ -182,6 +170,14 @@ class VersionChooserView {
 
   #renderMenu() {
     const { selection } = this.#model;
+    // The platform focuses this row while opening the popover. A toggle event is
+    // delivered later, after the reader's next key may already have arrived.
+    const arrival =
+      this.#displayedRows.find((entry) =>
+        selection.base !== null
+          ? entry.version === selection.base
+          : entry.revision === selection.currentRevision,
+      ) ?? this.#displayedRows[0];
     render(
       html`${repeat(
         this.#displayedRows,
@@ -198,6 +194,7 @@ class VersionChooserView {
             <button
               class=${`lf-version-row${compared ? " lf-compared" : ""}`}
               role="menuitem"
+              ?autofocus=${entry === arrival}
               data-lf-revision=${entry.revision}
               data-lf-version=${entry.version ?? nothing}
               aria-current=${entry.current ? "true" : nothing}

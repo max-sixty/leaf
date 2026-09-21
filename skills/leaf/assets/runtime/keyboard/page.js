@@ -148,9 +148,9 @@ export function declareStanding({ panelIsOpen, askHeld, pageState }) {
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
     if (panelFocusIsInside(panelIsOpen)) {
-      // An expanded conversation owns the next unwind. Its list collapses it and
-      // returns focus to the title before the reader lets go of that title.
-      if (threadsBox.selectedThreadId) return null;
+      // Only the conversation the reader stands in owns this unwind. A neighboring
+      // title releases to the list; panel controls keep the panel's own ladder.
+      if (focusedThreadOf()?.dataset.id === threadsBox.selectedThreadId) return null;
       return focusedThreadOf() ? threadsBox : null;
     }
     if (inChrome(documentFocused())) return null;
@@ -178,7 +178,7 @@ export function declareStanding({ panelIsOpen, askHeld, pageState }) {
         lineWhen: () => !threadSearchActive(),
         when: () =>
           panelFocusIsInside(panelIsOpen) &&
-          Boolean(threadsBox.selectedThreadId) &&
+          focusedThreadOf()?.dataset.id === threadsBox.selectedThreadId &&
           !takesLetters(focused()) &&
           !claimsEsc(focused()),
         run: () => threadsBox.collapseNavigation(),

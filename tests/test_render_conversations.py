@@ -5576,6 +5576,21 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     expect(header).to_be_focused()
     page.keyboard.press("Enter")
     expect(header).to_have_attribute("aria-expanded", "true")
+    # Moving to another title leaves the first conversation open; Escape releases
+    # this title to the list rather than collapsing a conversation elsewhere.
+    page.keyboard.press("ArrowDown")
+    expect(other_header).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(header).to_have_attribute("aria-expanded", "true")
+    # Panel controls similarly unwind the panel, not the unrelated disclosure.
+    page.get_by_role("button", name="Filters", exact=True).focus()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
+    expect(header).to_have_attribute("aria-expanded", "true")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    header.focus()
     page.keyboard.press("Space")
     expect(header).to_have_attribute("aria-expanded", "false")
     page.keyboard.press("c")

@@ -160,15 +160,8 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert coarse["discWidth"] == face["discWidth"]
 
 
-def test_the_draft_send_press_holds_the_row_s_inline_end(browser, serve):
-    """Both presentations of the group end the draft row where every text box ends.
-
-    A binding badge is off screen until a reader asks for bindings, so a layout that
-    gives it the row's edge and seats the press inside it reads, for almost the whole of
-    a page's life, as a send button that missed the corner. The badge waits inside the
-    press instead, in room the draft's own trailing padding already holds, so asking for
-    bindings still moves nothing.
-    """
+def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve):
+    """The empty-state route and content-state action occupy one stable seat."""
     page = open_page(browser, serve(ASK_PAGE))
     # The second Ask carries the card presentation, which is where the row's trailing
     # room is contested: its options wear their binding badges at the corner, so the
@@ -178,14 +171,35 @@ def test_the_draft_send_press_holds_the_row_s_inline_end(browser, serve):
     expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_visible()
     shown = page.locator("#bracket > .lf-another").evaluate(
         """el => {
+             const form = el.getBoundingClientRect();
              const press = el.querySelector('.lf-compose-submit').getBoundingClientRect();
              const mark = el.querySelector('.lf-key-badge').getBoundingClientRect();
-             return {inside: press.left - mark.right, right: press.right};
+             return {
+               dx: (press.left + press.right) / 2 - (mark.left + mark.right) / 2,
+               dy: (press.top + press.bottom) / 2 - (mark.top + mark.bottom) / 2,
+               centerX: (press.left + press.right) / 2,
+               bottomInset: form.bottom - press.bottom,
+             };
            }"""
     )
-    assert shown["inside"] > 0, shown
+    assert abs(shown["dx"]) < 0.5, shown
+    assert abs(shown["dy"]) < 0.5, shown
 
-    page.keyboard.press("Escape")
+    field = page.locator("#bracket > .lf-another textarea")
+    add = page.locator("#bracket > .lf-another .lf-compose-submit")
+    field.click()
+    expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_hidden()
+    field.fill("Something the author missed")
+    expect(add).to_be_visible()
+    add_box = add.bounding_box()
+    assert abs(add_box["x"] + add_box["width"] / 2 - shown["centerX"]) < 0.5
+    form_box = page.locator("#bracket > .lf-another").bounding_box()
+    bottom_inset = form_box["y"] + form_box["height"] - add_box["y"] - add_box["height"]
+    assert abs(bottom_inset - shown["bottomInset"]) < 0.5
+    expected_right = shown["centerX"] + add_box["width"] / 2
+
+    page.close()
+    page = open_page(browser, serve(ASK_PAGE))
     gaps = {}
     for group in ("#jobs", "#bracket"):
         row = page.locator(f"{group} > .lf-another")
@@ -205,9 +219,9 @@ def test_the_draft_send_press_holds_the_row_s_inline_end(browser, serve):
         )
     assert abs(gaps["#jobs"]["end"] - gaps["#bracket"]["end"]) < 0.5, gaps
     assert 0 <= gaps["#bracket"]["end"] < 8, gaps
-    # Writing in the row and putting the bindings away leave the press where the badge
-    # found it: the room is held whether or not anything is standing in it.
-    assert abs(gaps["#bracket"]["right"] - shown["right"]) < 0.5, (gaps, shown)
+    # Writing in the row and putting the bindings away reveals the press in the exact
+    # seat the badge vacated: the room is held whether either face is painted or not.
+    assert abs(gaps["#bracket"]["right"] - expected_right) < 0.5
 
 
 def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(

@@ -721,17 +721,16 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
-   /* The draft's send press keeps the inline end it holds in every other Leaf text box,
-    * and the badge takes the room just inside it, which is the same room the draft's own
-    * trailing padding below reserves, so asking for bindings still moves nothing. The
-    * badge cannot have the edge instead: it is off screen until a reader asks for it,
-    * and the press would stand 35px short of the corner explaining nothing. */
+   /* The draft has one trailing action seat. While it is empty the Add press is hidden,
+    * so its binding badge occupies that same seat; once the reader enters the field, the
+    * text scope removes the Ask bindings before content reveals the press. Keeping one
+    * seat avoids reserving an empty second action between the words and the row edge. */
    & > .lf-another > .lf-key-badge {
                      inset-inline-start: auto;
-                     inset-inline-end: calc(var(--aim-floor) + var(--sp-4)); }
-   & > .lf-another textarea {
-                     padding-inline-end:
-                       calc(var(--aim-floor) + var(--sp-4) + var(--lf-key-badge-size) + var(--sp-2)); }
+                     inset-inline-end: var(--lf-option-action-badge-inset);
+                     top: auto;
+                     bottom: var(--lf-option-action-badge-inset);
+                     margin: 0; }
    & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
                      opacity: 0; }
  }
@@ -1013,7 +1012,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
   }
-  .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
+  .lf-another { --lf-icon-action-hit: max(28px, var(--aim-floor));
+                --lf-option-action-badge-inset:
+                  calc(var(--sp-1) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2);
+                position: relative; display: flex; align-items: center; gap: var(--sp-2); }
   .lf-another:not([hidden]) { min-height: var(--aim-floor); }
   .lf-another > .lf-key-badge { position: absolute;
                               inset-inline-start: var(--lf-key-badge-start);

@@ -24,6 +24,9 @@
   --wa-color-neutral-fill-normal: var(--card);
   --wa-color-neutral-border-normal: var(--border-2);
   --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-brand-fill-quiet: var(--accent-tint);
+  --wa-color-brand-on-quiet: var(--accent);
+  --wa-color-brand-border-quiet: var(--accent);
   --wa-color-focus: var(--accent);
   --wa-form-control-activated-color: var(--accent);
   --wa-form-control-background-color: var(--field);

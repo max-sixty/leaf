@@ -3279,9 +3279,11 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
         "tone": "quiet",
     }
 
-    page.locator('lf-playground-control[name="radius"] input').fill("17")
+    radius = playground.get_by_role("slider", name="Corner radius")
+    for _ in range(5):
+        radius.press("ArrowRight")
     playground.get_by_role("switch", name="Compact spacing").press("Space")
-    page.locator('lf-playground-choice[value="bold"]').click()
+    playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
     picker = playground.locator("wa-color-picker")
     picker.get_by_role("button", name="Accent", exact=True).click()
     picker.get_by_role("textbox").fill("#8b4a5f")
@@ -3420,18 +3422,18 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         control_box["y"] + control_box["height"]
         <= controls_box["y"] + controls_box["height"]
     ), f"the fixed presets left no complete control row: {bounded['controlsSize']}"
-    assert bounded["presetsSize"][0] == bounded["presetsSize"][1], (
-        f"the fixed presets acquired another scrollbar: {bounded['presetsSize']}"
-    )
+    assert (
+        bounded["presetsSize"][0] == bounded["presetsSize"][1]
+    ), f"the fixed presets acquired another scrollbar: {bounded['presetsSize']}"
     # A short allocation scrolls the preview and instruction as successive blocks;
     # shrinking the preview's grid track would paint it underneath the instruction.
     content_boxes = preview.evaluate(
         """body => [...body.children].map(node => node.getBoundingClientRect().toJSON())"""
     )
     assert content_boxes[0]["bottom"] <= content_boxes[1]["top"], content_boxes
-    assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
-        "native control margins must fit inside the allocated pane width"
-    )
+    assert controls.evaluate(
+        "body => body.scrollWidth === body.clientWidth"
+    ), "native control margins must fit inside the allocated pane width"
     presets_top = presets.bounding_box()["y"]
     controls.evaluate("body => body.scrollTop = body.scrollHeight")
     assert controls.evaluate("body => body.scrollTop") > 0
@@ -3439,15 +3441,16 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert presets.bounding_box()["y"] == pytest.approx(presets_top, abs=1)
     expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
     expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
-    pressure = playground.locator('lf-playground-control[name="events"] input')
-    expect(pressure).to_have_value("2")
+    pressure = playground.get_by_role("slider", name="Concurrent release events")
+    expect(pressure).to_have_attribute("aria-valuenow", "2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
     expect(page.locator(".notification-demo-strip-owner")).to_have_count(2)
     regular_strip_padding = page.locator(
         ".notification-demo-card-status-strip"
     ).first.evaluate("card => getComputedStyle(card).paddingTop")
-    pressure.fill("4")
+    pressure.press("ArrowRight")
+    pressure.press("ArrowRight")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(4)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
     expect(page.locator(".notification-demo-candidate").first).to_contain_text(
@@ -3457,7 +3460,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "4 rows · compact summary"
     )
     playground.get_by_role("button", name="Needs attention").click()
-    expect(pressure).to_have_value("4")
+    expect(pressure).to_have_attribute("aria-valuenow", "4")
     expect(page.locator("#notification-simulator")).to_have_attribute(
         "data-compact", "true"
     )
@@ -3468,7 +3471,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         regular_strip_padding.removesuffix("px")
     )
     playground.get_by_role("button", name="Routine release").click()
-    expect(pressure).to_have_value("2")
+    expect(pressure).to_have_attribute("aria-valuenow", "2")
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
@@ -3546,12 +3549,13 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
 def test_composed_corpus_runs_authored_page_modules(browser, serve):
     corpus = Path(__file__).parent.parent / "examples" / "corpus.html"
     page = open_page(browser, serve(corpus))
+    page.get_by_role("tab", name="Notification", exact=True).click()
 
     expect(
-        page.locator(
-            '#notification-playground lf-playground-control[name="events"] input'
+        page.locator("#notification-playground").get_by_role(
+            "slider", name="Concurrent release events"
         )
-    ).to_have_value("2")
+    ).to_have_attribute("aria-valuenow", "2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
 
@@ -3696,12 +3700,12 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
 
     playground.get_by_role("button", name="Broad query").click()
     expect(
-        playground.locator('lf-playground-control[name="limit"] input')
-    ).to_have_value("6")
+        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
+    ).to_have_attribute("aria-valuenow", "6")
     playground.get_by_role("button", name="Focused query").click()
     expect(
-        playground.locator('lf-playground-control[name="limit"] input')
-    ).to_have_value("4")
+        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
+    ).to_have_attribute("aria-valuenow", "4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80, then region is europe")
     playground.get_by_role("button", name="Copy instruction").click()
@@ -3782,7 +3786,11 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     before_b = candidate_b.locator(".code-measurement").inner_text()
     assert before_a != before_b
 
-    playground.locator('lf-playground-control[name="width"] input').fill("320")
+    width = playground.locator('lf-playground-control[name="width"]').get_by_role(
+        "slider"
+    )
+    for _ in range(5):
+        width.press("ArrowLeft")
     expect(candidate_a).to_have_attribute("style", re.compile(r"width: 320px"))
     expect(candidate_b).to_have_attribute("style", re.compile(r"width: 320px"))
     assert playground.evaluate("root => root.values.width") == 320
@@ -3820,20 +3828,22 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
 
     playground.get_by_role("button", name="Wrapped reader").click()
     expect(
-        playground.locator('lf-playground-control[name="width"] input')
-    ).to_have_value("320")
-    expect(playground.locator('lf-playground-choice[value="B"] input')).to_be_checked()
+        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
+    ).to_have_attribute("aria-valuenow", "320")
+    expect(
+        playground.locator('lf-playground-choice[value="B"] wa-radio')
+    ).to_be_checked()
     playground.get_by_role("button", name="Compact reader").click()
     expect(
-        playground.locator('lf-playground-control[name="width"] input')
-    ).to_have_value("420")
+        playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
+    ).to_have_attribute("aria-valuenow", "420")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "compact", "wrap": False},
         "candidateB": {"density": "comfortable", "wrap": True},
     }
 
-    page.locator('lf-playground-choice[value="B"]').click()
+    playground.locator('lf-playground-choice[value="B"] wa-radio').click()
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
@@ -4216,7 +4226,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "title": "Field note",
         "tone": "bold",
     }
-    page.locator('lf-playground-control[name="radius"] input').fill("5")
+    playground.get_by_role("slider", name="Corner radius").press("ArrowRight")
     expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
         "aria-pressed", "false"
     )

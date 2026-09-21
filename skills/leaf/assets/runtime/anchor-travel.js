@@ -12,7 +12,7 @@ import {
   sectionOf,
   suppliedDatum,
 } from "./anchor-resolution.js";
-import { clippedRect, shownBand, shownBox, shownRect } from "./geometry.js";
+import { clippedContents, shownBand, shownBox, shownRect } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
@@ -150,7 +150,7 @@ export function createAnchorTravel({
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
     const seen =
       where instanceof Range
-        ? clippedRect(destination, holder, new Map())
+        ? clippedContents(destination, holder, new Map())
         : shownRect(where, new Map());
     if (!seen) return false;
     const box = scrollingBoxFor(holder);

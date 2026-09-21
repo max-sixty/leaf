@@ -21,6 +21,7 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
+export { registerRenderCheck } from "./render-check.js";
 export { conversationBox, registerThreadSurface } from "./application.js";
 export { conversationInput } from "./conversation/landing.js";
 export { landInConversation } from "./application.js";

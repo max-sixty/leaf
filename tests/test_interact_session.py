@@ -4250,6 +4250,9 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     assert thread["id"] == asked["id"]
     # The markup, because `m-cap` is a word only the question spells out.
     assert 'id="m-cap"' in thread["messages"][0]["markup"]
+    # And the pick in words, read from that frozen message: the group is left
+    # out because it only encloses the option chosen in it.
+    assert shown[0]["says"] == {"m-cap": "Cap retries"}
 
     # Standing, so a later delivery in this thread carries what the reader
     # settled. Without it the agent meets the question with no answer under it
@@ -4283,6 +4286,68 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     [withdrawn] = withdrawn_batch["conversations"]
     assert withdrawn["id"] == asked["id"]
     assert withdrawn["actions"] == []
+
+
+def test_a_delivered_gesture_says_what_the_reader_chose_on_their_version(
+    page_dir, capsys
+):
+    """A page gesture is recorded as ids, and the agent reading the batch may
+    hold none of the page: it compacted, or another session wrote it. The
+    envelope spells out the elements the gesture names, from the revision the
+    reader pressed on, so a later version that rewords an option does not
+    change what they chose. A gesture naming only its widget says the whole
+    widget, and an undo says what it takes back."""
+    asked = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+    )
+    (page_dir / "index.html").write_text(asked)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        asked.replace("Ship dark.", "Ship behind the flag, reworded.")
+    )
+    advanced = stamp(page_dir, "Reworded the first plan")
+    assert advanced.exit_code == 0, advanced.output
+    serving(page_dir, 1)
+
+    chose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
+    )
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 2,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    _, _, shown = delivered(capsys.readouterr().out)
+    assert [e["id"] for e in shown] == [chose["id"], answered["id"]]
+    assert shown[0]["says"] == {
+        "flag-first": "effort: low risk: med Flag first Ship dark."
+    }
+    [(widget, whole)] = shown[1]["says"].items()
+    assert widget == "plan-choice"
+    assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
+
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    _, _, [undone] = delivered(capsys.readouterr().out)
+    assert undone["says"] == shown[0]["says"]
 
 
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(

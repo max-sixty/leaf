@@ -4970,12 +4970,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(panel_thread).to_be_focused()
-    # Standing on the card is one step and the panel around it is the next; the seat on
-    # the page is not put back, the reader having left it to come here.
-    page.keyboard.press("Escape")
-    expect(panel_thread.locator(".lf-thread-summary")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    # The card is content of the panel. The seat on the page is not put back, the reader
+    # having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 

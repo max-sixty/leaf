@@ -125,9 +125,10 @@ search: the scene, chip, and activation it declares over the shared hint session
 `runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
 geometry of the search marks that share its layer;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
-`runtime/composing/drawing.js` owns Draw mode's stroke capture and drawing commands;
-`composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
-projection into the page;
+`runtime/composing/drawing.js` owns Draw mode's stroke capture, the reading of the page's
+words a drawing stands over, and drawing commands;
+`composing/drawing-record.js` owns drawing payload shape and validation;
+`composing/drawing-paint.js` owns their projection into the page;
 `runtime/composing/input.js` owns shared text input and pasted-media draft state, while
 its retained Lit shelf owns the thumbnail projection; `runtime/composing/selection.js`
 owns selection-composer state;
@@ -278,6 +279,7 @@ into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
 `runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
 visual;
+`runtime/render-check.js` owns the checks a widget registers for the render gate alone;
 `runtime/chrome-layout.js` owns chrome geometry, the document room left after the panel
 and trays, and page repaint caused by shell motion or reflow. It does not own the reader's
 place across that reflow: the shell yields its strip as a transparent border rather than a

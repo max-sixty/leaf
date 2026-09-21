@@ -131,7 +131,7 @@ import {
 import { captureCarry, restoreCarry } from "./carry.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
-import { clippedRect, shownBox } from "./geometry.js";
+import { clippedContents, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -1614,7 +1614,7 @@ export function createVersionController({
       const range = document.createRange();
       range.selectNodeContents(block);
       const rect = range.getBoundingClientRect();
-      const seen = clippedRect(rect, block, new Map());
+      const seen = clippedContents(rect, block, new Map());
       if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom)
         yield [block, rect];
     }

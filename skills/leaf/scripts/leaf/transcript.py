@@ -164,8 +164,9 @@ def _print_message(message: dict, registry: dict) -> None:
         return
     edited = " *(edited)*" if message.get("edited") else ""
     body = message.get("text", "")
-    if message.get("drawing"):
-        body += "\n_(drawing attached; inspect it on the live page)_"
+    if drawing := message.get("drawing"):
+        over = f" over “{drawing['says']}”" if drawing.get("says") else ""
+        body += f"\n_(drawing attached{over})_"
     if message.get("markup"):
         body += f"\n{message['markup']}"
     print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))

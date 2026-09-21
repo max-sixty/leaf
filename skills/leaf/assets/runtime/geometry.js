@@ -8,13 +8,15 @@ import { uiInside } from "./shadow.js";
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn. `shownRect` clips the result through scrolling
    ancestors and the viewport, stopping ancestor clipping at a fixed-position box.
-   `clippedRect` applies that same clipping walk to a box already measured from a Range,
-   using the element that owns the Range as the start of the walk. Use:
+   `clippedRect` applies that same clipping walk to a box measured some other way for an
+   element, and `clippedContents` to a box measured from a Range, starting at the element
+   that holds the Range and counting that element's own clip. Use:
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
    - `shownParts` for Ask rings and element-anchor outlines;
    - `shownRect` for visible placement of floating chrome and key badges;
-   - `clippedRect` only when the subject has no element box of its own.
+   - `clippedRect` for an element's box the caller has adjusted;
+   - `clippedContents` when the subject has no element box of its own.
 
    Do not read `getBoundingClientRect()` directly when the target may generate no box.
    A `display: contents` element reports an origin-like zero rectangle that does not
@@ -197,7 +199,13 @@ export const startsAt = (item, clips) => {
 };
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
-export function clippedRect(box, item, clips) {
+export const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+// The same walk for a box measured from what an element holds: a Range inside it. The
+// holder's own band stands over its contents, where it says nothing about the holder's
+// own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.
+export const clippedContents = (box, holder, clips) =>
+  clipped(box, holder, clips, true);
+function clipped(box, item, clips, held) {
   let left = Math.max(box.left, 0),
     top = Math.max(box.top, 0),
     right = Math.min(box.right, innerWidth),
@@ -226,7 +234,7 @@ export function clippedRect(box, item, clips) {
           fixed: getComputedStyle(a).position === "fixed",
         }),
       );
-    if (a !== item && c.band) {
+    if ((held || a !== item) && c.band) {
       left = Math.max(left, c.band.left);
       top = Math.max(top, c.band.top);
       right = Math.min(right, c.band.right);

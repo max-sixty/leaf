@@ -13,7 +13,10 @@ to the agent. Cmd/Ctrl+Enter adds a simulated reply. Refresh resets the simulati
 The real Leaf Threads panel implements the compact accordion and remains available
 for feedback independently of the sketch. Counts use a shared column across all rows.
 Use Enter/Space on a title, arrows or Home/End between titles, t/Shift+t to walk
-threads, c to reply, and Escape to unwind one level.
+threads, and c to reply. In the real Threads panel, Escape leaves an inner reply
+or narrowing interaction first, then closes the whole surface from either a title
+or conversation. The page-local sketch still uses Escape to collapse its selected
+mock conversation.
 
 ```sh
 scripts/preview.py --source notes/thread-navigation/playground.html --slot thread-navigation --reader --background

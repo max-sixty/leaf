@@ -3550,20 +3550,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
-    # Standing on a card the keyboard entry never put them on is its own rung: the first
-    # Escape collapses it onto its title, then releases the list before closing.
-    page.keyboard.press("Escape")
-    expect(thread.locator(".lf-thread-summary")).to_be_focused()
-    expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.keyboard.press("Escape")
-    expect(threads).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
-    # it was and the reading place needs no carry across the close.
+    # The card is content of Threads, so Escape closes the panel directly.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
+    # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
+    # it was and the reading place needs no carry across the close.
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")

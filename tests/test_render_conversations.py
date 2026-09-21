@@ -5118,8 +5118,7 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
 
 def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     """A covering panel locks the page scroller, so focus cannot honestly return to
-    that page while keeping the panel open. Escape remains the one route back: it lets
-    collapses the conversation, lets go of its title onto the list, then closes the panel."""
+    that page while keeping the panel open. Escape closes Threads from its conversation."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
@@ -5134,14 +5133,6 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("p")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(thread.locator(".lf-thread-summary")).to_be_focused()
-    expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -5924,13 +5915,16 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     expect(header).to_be_focused()
     page.keyboard.press("Enter")
     expect(header).to_have_attribute("aria-expanded", "true")
-    # Moving to another title leaves the first conversation open; Escape releases
-    # this title to the list rather than collapsing a conversation elsewhere.
+    # Moving to another title leaves the first conversation open. That title is already
+    # navigation at the list floor, so Escape closes the panel rather than collapsing a
+    # conversation elsewhere or adding another focus rung.
     page.keyboard.press("ArrowDown")
     expect(other_header).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(header).to_have_attribute("aria-expanded", "true")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
     # Panel controls similarly unwind the panel, not the unrelated disclosure.
     page.get_by_role("button", name="Filters", exact=True).focus()
     page.keyboard.press("Escape")
@@ -5969,9 +5963,10 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     header.click()
     expect(editor).to_have_value("Keep this unfinished answer.")
     page.keyboard.press("Escape")
-    expect(header).to_have_attribute("aria-expanded", "false")
-    expect(header).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    header.focus()
     page.keyboard.press("c")
     expect(editor).to_be_focused()
     with sending(page, "send the retained accordion draft"):

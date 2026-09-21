@@ -224,8 +224,8 @@ class SourceDocument:
         # a <style> block holds, and a fixed width is what a rule, style="", or width=""
         # states. The column check reads these three and nothing else.
         self.css = ""
-        self.inline_styles = []  # each style="" declaration list
-        self.attr_widths = []  # (tag, value) per width="" that counts as pixels
+        self.inline_styles = []  # {tag, line, style} per style="" declaration list
+        self.attr_widths = []  # {tag, line, value} per width="" counted as pixels
         # {tag, line, value} per authored responsive allocation request.
         self.authored_widths = []
         self.title = ""  # what <title> says, for the transcript's heading
@@ -474,9 +474,11 @@ class SourceDocument:
         if tag == "meta" and attrs.get("charset"):
             self.encoding_metas.append({"charset": attrs["charset"], "line": line})
         if attrs.get("style"):
-            self.inline_styles.append(attrs["style"])
+            self.inline_styles.append(
+                {"tag": tag, "line": line, "style": attrs["style"]}
+            )
         if tag in PIXEL_WIDTH_TAGS and attrs.get("width"):
-            self.attr_widths.append((tag, attrs["width"]))
+            self.attr_widths.append({"tag": tag, "line": line, "value": attrs["width"]})
         if "data-width" in attrs:
             self.authored_widths.append(
                 {"tag": tag, "line": line, "value": attrs["data-width"]}

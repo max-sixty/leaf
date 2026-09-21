@@ -5446,7 +5446,8 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", "visual-target"),),
             "pr-walkthrough": (
                 ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
-                (".lf-diff-search", "diff-tools"),
+                (".lf-diff-search input", "text-entry"),
+                (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
                 ("lf-code pre", "code-pre-light"),

@@ -140,6 +140,8 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
             else page.locator(".lf-threads > .lf-thread").first
         )
 
+    if box == "reply":
+        surface.locator(".lf-thread-summary").click()
     field = surface.locator("textarea")
     send = surface.locator(".lf-compose-submit")
     field.fill(" ")
@@ -922,6 +924,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     typed = "Late: " + typed
 
     reply = "Typed into the reply box of the other tab."
+    second.locator(".lf-thread-summary").first.click()
     second.locator(".lf-thread textarea").first.fill(reply)
     expect(first.locator(".lf-thread textarea").first).to_have_value(reply)
     second.locator(".lf-thread").first.get_by_role(
@@ -1132,6 +1135,7 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     thread_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
     thread = page.locator(f'.lf-thread[data-id="{thread_id}"]')
     words = "The reply the reader can already see."
+    thread.locator(".lf-thread-summary").click()
     thread.locator("textarea").fill(words)
     before = thread.locator(".lf-msg").count()
 
@@ -1259,6 +1263,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread")
+    thread.locator(".lf-thread-summary").click()
     reply = thread.locator("textarea")
     send = thread.get_by_role("button", name="Send", exact=True)
 
@@ -1322,6 +1327,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     later_id = first_id if same_thread else threads.last.get_attribute("data-id")
     first = page.locator(f'.lf-thread[data-id="{first_id}"] textarea')
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
+    page.locator(f'.lf-thread[data-id="{first_id}"] .lf-thread-summary').click()
     first.fill("\n\n".join(["The first reply is in flight."] * 15))
 
     page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
@@ -1329,6 +1335,8 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     ).click()
     holding(page, held, 1, "the first reply send")
 
+    if not same_thread:
+        page.locator(f'.lf-thread[data-id="{later_id}"] .lf-thread-summary').click()
     later.click()
     newer = "The later reply keeps the reader here.\n" * (14 if same_thread else 1)
     later.fill(newer)
@@ -1367,6 +1375,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     toggle.click()
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread")
+    thread.locator(".lf-thread-summary").click()
     reply = thread.locator("textarea")
     reply.fill("Send this while I return to reading.")
     thread.get_by_role("button", name="Send", exact=True).click()
@@ -1402,13 +1411,14 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
 def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     """A wheel can move the reading place while leaving the old reply focused."""
     browser, held = held_events
-    page = open_page(browser, serve(LONG_PAGE, comments=12))
+    page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads > .lf-thread")
     first = threads.first
     later = threads.last
+    first.locator(".lf-thread-summary").click()
     reply = first.locator("textarea")
     reply.fill("A reply whose delivery is slow.")
     page.keyboard.press("ControlOrMeta+Enter")
@@ -1418,6 +1428,7 @@ def test_a_held_reply_send_preserves_a_later_scroll(held_events, serve):
     page.mouse.move(
         bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2
     )
+    expect(later).not_to_be_in_viewport()
     page.mouse.wheel(0, 3500)
     expect(later).to_be_in_viewport()
     expect(reply).to_be_focused()
@@ -1459,6 +1470,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
         '.lf-threads > .lf-thread:not([data-id^="pending:"])'
     ).first.get_attribute("data-id")
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
+    page.locator(f'.lf-thread[data-id="{later_id}"] .lf-thread-summary').click()
     later.fill("The later reply keeps the reader here.")
     later.evaluate("ta => ta.setSelectionRange(9, 9)")
     expect(later).to_be_focused()
@@ -1895,6 +1907,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
+    panel.locator(".lf-thread-summary").click()
     panel.get_by_role("button", name="Send", exact=True).click()
     holding(first, held, 1, "the older reply")
     second_inline.fill(newer_raw)
@@ -3369,7 +3382,7 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
     A key is no different from a wheel there: a page scrolling behind the sheet shows
     the user nothing, so the key reads as dead, and the document is somewhere else
     when the sheet closes."""
-    page = open_page(browser, serve(LONG_PAGE, comments=12))
+    page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Put the reader on the page before asking which reading region the page gesture chooses.
@@ -3432,7 +3445,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     The Go-to sequence then supplies the neighboring
     contrast: focus changes which region d/u page through, but `g g` still names the
     document's edge while both regions have somewhere observable to move."""
-    page = open_page(browser, serve(LONG_PAGE, comments=12))
+    page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator("body").focus()

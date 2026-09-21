@@ -141,7 +141,9 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     told(page)
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
 
-    page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
+    thread = page.locator(f'.lf-thread[data-id="{comment}"]')
+    thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-resolve").click()
     round_trip(page)
 
     undo(page)
@@ -175,6 +177,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     ]
     first = page.locator(f'.lf-threads > .lf-thread[data-id="{comment_ids[0]}"]')
     second = page.locator(f'.lf-threads > .lf-thread[data-id="{comment_ids[1]}"]')
+    first.locator(".lf-thread-summary").click()
     first.locator(".lf-resolve").click()
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
@@ -182,6 +185,9 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
+    expect(second.locator(".lf-thread-summary")).to_have_attribute(
+        "aria-expanded", "true"
+    )
     second.locator(".lf-resolve").click()
     holding(page, held, 1, "the second resolution")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")

@@ -1049,7 +1049,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact { --lf-thread-pad: 0px; margin-bottom: 0; padding: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
   .lf-thread-summary { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 3ch 80px;
-    align-items: center; gap: 8px; width: 100%; min-height: 32px; border: 0;
+    align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
@@ -1082,6 +1082,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--muted); font-size: 10px; }
   .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
   .lf-thread-collapse { display: block; margin: 4px 10px 8px auto;
+    min-width: var(--aim-floor); min-height: var(--aim-floor);
     border: 0; padding: 2px 0; background: transparent; color: var(--muted);
     font: inherit; font-size: var(--t-6); cursor: pointer; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
@@ -1141,6 +1142,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-thread, .lf-going) > .lf-thread-head:not(:has(> .lf-quote)) {
     float: inline-end; display: block;
     margin: 0; margin-block-start: 2px; margin-inline-start: 8px; }
+  /* In the accordion, the floated action shares the first message's inset below
+     the title, including room for its outward keyboard ring. */
+  .lf-thread-compact > .lf-thread-head:not(:has(> .lf-quote)) {
+    margin: 16px 8px 0; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }

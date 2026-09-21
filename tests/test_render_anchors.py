@@ -509,6 +509,8 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     )
     comment = page.locator(".lf-thread .lf-quote", has_text="1,998 / 1,999 rows")
     expect(comment).to_contain_text(quote)
+    thread_id = comment.evaluate("quote => quote.closest('.lf-thread').dataset.id")
+    page.locator(f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary').click()
     comment.click()
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
 
@@ -768,6 +770,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # each face is read from the one moment its own layer renders it rather than from a
     # single frame that cannot hold both.
     page.keyboard.press("c")
+    page.locator(".lf-thread-summary").first.click()
     page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-key-badge").first
     expect(picked).to_be_visible()
@@ -987,6 +990,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     resized(page, 1400, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-summary").click()
     card = page.locator(".lf-thread-panel .lf-quote").first
     expect(card).to_be_visible()
     into = card.bounding_box()
@@ -4750,6 +4754,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").first.click()
     whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
     search = page.locator("#patch .lf-diff-search")
@@ -5257,6 +5262,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
@@ -5377,6 +5383,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
         resized(page, 600, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
     if activation == "keyboard":
@@ -5600,6 +5607,7 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
     page.route("**/api/data*", refuse)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "data fragment response does not match its request"

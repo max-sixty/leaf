@@ -163,7 +163,11 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-thread-panel .lf-quote", has_text="arrives logged out").click()
+    thread = page.locator(
+        ".lf-thread", has=page.locator(".lf-quote", has_text="arrives logged out")
+    )
+    thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-quote").click()
     assert page.locator("#opt-strict").is_visible(), (
         "clicking a thread's quote must open the group holding it"
     )
@@ -252,6 +256,9 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
     page = open_page(browser, live_url(url))
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.locator(".lf-thread", has=page.locator("#th-done")).locator(
+        ".lf-thread-summary"
+    ).click()
 
     top = "el => el.getBoundingClientRect().top"
     for ask, group in (("done-decision", "done"), ("th-done-decision", "th-done")):

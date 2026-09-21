@@ -113,7 +113,9 @@ export const invalidVisualProviders = (declarations) =>
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot && !registry[el.localName]?.["x-shadow"])
+      .filter(
+        (el) => el.shadowRoot && !inUi(el) && !registry[el.localName]?.["x-shadow"],
+      )
       .map((el) => `<${el.localName}>`),
   ),
 ];

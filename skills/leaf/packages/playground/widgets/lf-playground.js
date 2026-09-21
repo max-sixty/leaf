@@ -402,6 +402,7 @@ customElements.define(
 
       if (kind === "color") {
         const input = offer("wa-color-picker", "lf-playground-input");
+        input.name = `${this.id}-${name}`;
         input.label = label;
         input.format = "hex";
         input.withoutFormatToggle = true;

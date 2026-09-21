@@ -1,5 +1,5 @@
 import { READER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
-import { validationPresentationReady } from "/runtime/validation.js";
+import { upFrom, validationPresentationReady } from "/runtime/validation.js";
 import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
@@ -42,9 +42,19 @@ export const pageSettled = () => moving().length === 0;
 export const readerViewRestoreCases = () => READER_VIEW_RESTORE_CASES;
 
 export function unnamedFormFields() {
+  const formControl = (node) => node.constructor.formAssociated === true;
+  // A form-associated custom element owns the field's identity, including its
+  // shadow implementation and light-DOM choices in a grouped control.
+  const insideControl = (field) => {
+    for (let parent = upFrom(field); parent; parent = upFrom(parent))
+      if (formControl(parent)) return true;
+    return false;
+  };
   return openRoots(document).flatMap((root) =>
-    [...root.querySelectorAll("input,select,textarea")]
-      .filter((field) => !field.id && !field.name)
+    [...root.querySelectorAll("*")]
+      .filter((field) => field.matches("input,select,textarea") || formControl(field))
+      .filter((field) => !insideControl(field))
+      .filter((field) => !field.id && !field.getAttribute("name"))
       .map((field) => ({
         tag: field.localName,
         className: field.className,

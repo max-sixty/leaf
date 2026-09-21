@@ -769,9 +769,9 @@ def test_a_panel_takes_the_markers_and_hands_the_reader_the_map(browser, serve):
     resized(page, 1100, 900)
     margins_laid_out(page)
     expect(marker).to_be_visible()
-    assert not page.evaluate(
-        offered
-    ), "a page with a rail offers the map in the margin, not in the banner"
+    assert not page.evaluate(offered), (
+        "a page with a rail offers the map in the margin, not in the banner"
+    )
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -826,9 +826,9 @@ def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
             f"{reading['column']}px column: the floor granted room the page lacks"
         )
     assert stood, "no width in this sweep claimed the rail, so nothing here was tested"
-    assert (
-        min(r["shell"] for r in stood) <= 850
-    ), "the sweep stopped above the flip, so the narrowest claim went untested"
+    assert min(r["shell"] for r in stood) <= 850, (
+        "the sweep stopped above the flip, so the narrowest claim went untested"
+    )
 
 
 def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
@@ -957,18 +957,18 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
             and left["y"] + left["height"] > right["y"]
         )
 
-    assert overlaps(
-        default_label_box, second_box
-    ), "the fixture no longer exercises overlapping margin rows"
+    assert overlaps(default_label_box, second_box), (
+        "the fixture no longer exercises overlapping margin rows"
+    )
     assert not overlaps(label_box, second_box)
     page.mouse.move(0, 0)
     button.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(button).to_be_focused()
-    assert (
-        label.evaluate("node => node.getAnimations().length") == 0
-    ), "a keyboard destination delayed its label behind paint-only motion"
+    assert label.evaluate("node => node.getAnimations().length") == 0, (
+        "a keyboard destination delayed its label behind paint-only motion"
+    )
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -2634,9 +2634,9 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     page.evaluate("() => scrollBy({top: -150, behavior: 'instant'})")
     margins_laid_out(page)
     parked = host.bounding_box()
-    assert (
-        not parked["y"] < pointer["y"] < parked["y"] + parked["height"]
-    ), "the pointer starts inside the Ask margin host"
+    assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
+        "the pointer starts inside the Ask margin host"
+    )
     page.mouse.move(pointer["x"], pointer["y"])
 
     page.evaluate("top => scrollTo({top, behavior: 'instant'})", scroll)
@@ -3004,9 +3004,9 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     resized(page, 1440, 900)
     margins_laid_out(page)
     standing = page.evaluate(CLUSTER_SHAPE)
-    assert [
-        host for host in standing if host[1] > 1
-    ], f"no cluster here holds the margin entries a paper reading would fold away: {standing}"
+    assert [host for host in standing if host[1] > 1], (
+        f"no cluster here holds the margin entries a paper reading would fold away: {standing}"
+    )
 
     page.emulate_media(media="print")
     events_model.append_event(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
@@ -3269,9 +3269,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         control.evaluate("el => getComputedStyle(el).backgroundColor")
         for control in (accept, edit, more)
     ]
-    assert (
-        len(set(offer_backgrounds)) == 1
-    ), "interactive offers should share one unfilled resting surface"
+    assert len(set(offer_backgrounds)) == 1, (
+        "interactive offers should share one unfilled resting surface"
+    )
     borders = [
         control.evaluate(
             "el => { const s = getComputedStyle(el); "
@@ -3289,9 +3289,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         control.evaluate("el => getComputedStyle(el).borderTopColor")
         for control in (accept, edit, more)
     ]
-    assert (
-        border_colors[1] == border_colors[2] != border_colors[0]
-    ), "disclosures should share their firmer line while Action uses elevation"
+    assert border_colors[1] == border_colors[2] != border_colors[0], (
+        "disclosures should share their firmer line while Action uses elevation"
+    )
     shadows = [
         control.evaluate("el => getComputedStyle(el).boxShadow")
         for control in (accept, edit, more)
@@ -3304,9 +3304,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     before_hover = edit.bounding_box()
     edit.hover()
     expect(edit.locator(".lf-margin-entry-label")).to_be_visible()
-    assert (
-        edit.bounding_box() == before_hover
-    ), "the transient label moved its margin entry"
+    assert edit.bounding_box() == before_hover, (
+        "the transient label moved its margin entry"
+    )
     page.mouse.move(0, 0)
     expect(edit.locator(".lf-margin-entry-label")).to_be_hidden()
 
@@ -3318,16 +3318,16 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         "const style = getComputedStyle(el); "
         "return [Math.round(box.width), Math.round(box.height), style.borderRadius]; })"
     )
-    assert (
-        len({tuple(shape) for shape in shapes}) == 1
-    ), "actions, disclosures, and overflow no longer share one margin entry shape"
+    assert len({tuple(shape) for shape in shapes}) == 1, (
+        "actions, disclosures, and overflow no longer share one margin entry shape"
+    )
 
     rail_left = accept.evaluate(
         "el => el.closest('.lf-margin-cluster').getBoundingClientRect().left"
     )
-    assert (
-        abs(edit.bounding_box()["x"] - rail_left) <= 1
-    ), "the draft's resting Edit margin entry no longer shares the action rail's left edge"
+    assert abs(edit.bounding_box()["x"] - rail_left) <= 1, (
+        "the draft's resting Edit margin entry no longer shares the action rail's left edge"
+    )
     edit.click()
     save = draft_item.get_by_role("button", name="Save", exact=True)
     expect(save).to_be_visible()
@@ -3340,9 +3340,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(cancel.locator("xpath=..")).to_have_attribute(
         "aria-label", re.compile(r"^Actions for ")
     )
-    assert (
-        abs(save.bounding_box()["x"] - rail_left) <= 1
-    ), "the draft's Save margin entry no longer shares the action rail's left edge"
+    assert abs(save.bounding_box()["x"] - rail_left) <= 1, (
+        "the draft's Save margin entry no longer shares the action rail's left edge"
+    )
     page.mouse.move(0, 0)
     assert save.evaluate(
         "el => { const s = getComputedStyle(el); "
@@ -3395,9 +3395,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         )
         == column
     ), "opening reaction choices moved the readable column"
-    assert reactions.evaluate(
-        "surface => surface.matches('.lf-margin-options')"
-    ), "e did not expand the target's canonical margin entry options"
+    assert reactions.evaluate("surface => surface.matches('.lf-margin-options')"), (
+        "e did not expand the target's canonical margin entry options"
+    )
 
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
@@ -3737,9 +3737,9 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(carrier).to_have_css("background-color", colors["--ok-wash"])
     expect(carrier).to_have_css("box-shadow", "none")
     expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
-    assert (
-        page.evaluate("window.agentArrivals.length") == expected_arrivals
-    ), "moving the same work claim to another semantic carrier replayed its arrival"
+    assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
+        "moving the same work claim to another semantic carrier replayed its arrival"
+    )
     # A secondary entry can publish the same canonical workflow receipt.
     page.evaluate("""async () => {
       const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
@@ -4198,9 +4198,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         "rows => rows.map(row => [row.dataset.lfBehavior, row.tabIndex])"
     )
     assert ["status", -1] in stops, stops
-    assert [behavior for behavior, index in stops if index == 0] == [
-        "disclosure"
-    ], stops
+    assert [behavior for behavior, index in stops if index == 0] == ["disclosure"], (
+        stops
+    )
 
     # Waiting is a server-folded phase now. Advance the threaded test server's clock,
     # then let the ordinary state read advance the retained margin entry in place.
@@ -4815,12 +4815,12 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
     assert geometry["cardLeft"] == pytest.approx(
         geometry["controlsRight"] + 8, abs=0.5
     ), geometry
-    assert geometry["cardRight"] == pytest.approx(
-        geometry["viewport"] - 8, abs=0.5
-    ), geometry
-    assert (
-        geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"]
-    ), geometry
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["minimum"] <= geometry["cardWidth"] < geometry["preferred"], (
+        geometry
+    )
     assert geometry["clipped"] <= 0, geometry
 
 
@@ -4861,9 +4861,9 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
         }"""
     )
-    assert (
-        geometry["viewport"] - 8 - geometry["controlsRight"] < geometry["minimum"]
-    ), geometry
+    assert geometry["viewport"] - 8 - geometry["controlsRight"] < geometry["minimum"], (
+        geometry
+    )
     assert geometry["placement"] in ("below", "above"), geometry
     # This conversation is taller than the room under or over its cluster. It keeps its
     # whole height and holds at the foot, across the controls, rather than shrinking
@@ -4872,15 +4872,15 @@ def test_a_thread_in_a_short_rail_crosses_the_column_by_only_what_the_rail_lacks
         geometry["controlsTop"] - 50, geometry["foot"] - geometry["controlsBottom"]
     ), geometry
     assert geometry["clipped"] <= 0, geometry
-    assert geometry["cardBottom"] == pytest.approx(
-        geometry["foot"] - 8, abs=0.5
-    ), geometry
-    assert geometry["cardWidth"] == pytest.approx(
-        geometry["minimum"], abs=0.5
-    ), geometry
-    assert geometry["cardRight"] == pytest.approx(
-        geometry["viewport"] - 8, abs=0.5
-    ), geometry
+    assert geometry["cardBottom"] == pytest.approx(geometry["foot"] - 8, abs=0.5), (
+        geometry
+    )
+    assert geometry["cardWidth"] == pytest.approx(geometry["minimum"], abs=0.5), (
+        geometry
+    )
+    assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
+        geometry
+    )
     assert geometry["cardLeft"] < geometry["mainRight"], geometry
 
 
@@ -5326,9 +5326,9 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     pinned = """([row, list]) =>
       Math.abs(row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom)
         < 0.5 && list.scrollTop < list.scrollHeight - list.clientHeight - 20"""
-    assert page.evaluate(
-        pinned, [row.element_handle(), transcript.element_handle()]
-    ), "the reply row is not pinned over the transcript"
+    assert page.evaluate(pinned, [row.element_handle(), transcript.element_handle()]), (
+        "the reply row is not pinned over the transcript"
+    )
 
     disclosure = preview.get_by_role("button", name="Reply", exact=True)
     page.keyboard.press("Tab")
@@ -6185,14 +6185,14 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     send_anchored_comment(page, "Check the January failure mode.")
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert (
-        narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"]
-    ), narrow
+    assert narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"], (
+        narrow
+    )
     assert narrow["cardWidth"] == pytest.approx(narrow["minimum"], abs=0.5), narrow
     assert narrow["replyWidth"] >= 160, narrow
-    assert narrow["cardRight"] == pytest.approx(
-        narrow["innerWidth"] - 8, abs=0.5
-    ), narrow
+    assert narrow["cardRight"] == pytest.approx(narrow["innerWidth"] - 8, abs=0.5), (
+        narrow
+    )
     assert narrow["cardLeft"] < narrow["mainRight"], narrow
     assert (
         narrow["cardBottom"] <= narrow["controlsTop"] - 7
@@ -6394,9 +6394,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     scrolled_resolve = resolve.bounding_box()
     assert scrolled_metadata["y"] >= capped["top"], scrolled_metadata
     assert scrolled_resolve["y"] >= capped["top"], scrolled_resolve
-    assert (
-        scrolled_resolve["y"] + scrolled_resolve["height"] <= capped["bottom"]
-    ), scrolled_resolve
+    assert scrolled_resolve["y"] + scrolled_resolve["height"] <= capped["bottom"], (
+        scrolled_resolve
+    )
     assert scrolled_resolve["y"] - scrolled_metadata["y"] == pytest.approx(
         resolve_box["y"] - metadata_box["y"], abs=0.5
     )
@@ -6767,9 +6767,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     )
     assert text_insets
     for inset in text_insets:
-        assert inset["above"] == pytest.approx(
-            inset["below"], abs=1.5
-        ), f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
+            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
+        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":

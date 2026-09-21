@@ -450,10 +450,9 @@ declareCovering({
   landing: auxiliaryModality.coveringFocus,
 });
 
-// The let-go reads what five owners hold; all five stand by now, and the first input is
-// wired further down, so the scope is declared before anything reads the register.
+// The let-go's external readings stand by now, so the scope is declared before anything
+// reads the register.
 declareStanding({
-  panelIsOpen,
   askHeld: () => Boolean(asks?.heldAsk()),
   pageState: () =>
     Boolean(

@@ -1070,8 +1070,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* One inset serves the quote, messages and composer. Author/time form a quiet
      header; delivery belongs after the message whose transport it describes. */
   .lf-thread-compact > .lf-thread-head { margin: 12px 8px; }
+  .lf-thread-compact > .lf-thread-root-meta { margin: 12px 8px 0; }
   .lf-thread-compact > .lf-msg { margin: 16px 8px; }
   .lf-thread-compact .lf-msg-head { display: flex; align-items: baseline; gap: 8px; }
+  .lf-thread-root-meta { display: flex; align-items: baseline; gap: 8px; }
+  .lf-thread-root-meta > .lf-msg-head { display: contents; }
+  .lf-thread-root-meta > b { color: var(--ink); font-size: 11px; font-weight: 600; }
+  .lf-thread-root-meta + .lf-msg { margin-top: 4px; }
   .lf-thread-compact .lf-msg-head > b { color: var(--ink); font-size: 11px;
     font-weight: 600; overflow-wrap: anywhere; }
   /* The panel's own header may wrap its labels over the accordion's narrow column.
@@ -1513,13 +1518,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       .lf-margin-preview-nav:not([hidden])) {
     position: static; justify-content: flex-end; margin-bottom: 8px; }
   .lf-page-map-head > strong { flex: 1; }
-  .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
-    line-height: 1.35; }
-  .lf-margin-preview[data-lf-thread] .lf-margin-preview-title {
-    padding-inline-start: 4px; padding-inline-end: 0; }
-  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(.lf-margin-preview-nav[hidden])
-      .lf-margin-preview-title {
-    padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 4px; color: var(--muted-2); font-size: var(--t-6); }
@@ -1537,9 +1535,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     scroll-padding-block: var(--here-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
-  /* The conversation's first message opens directly under the subject it belongs to.
-     A thread carrying its settlement action puts a `.lf-thread-head` in the first
-     child slot, so the opening message is addressed by type rather than position. */
+  /* The conversation's first message opens directly at the card edge. */
   .lf-margin-thread .lf-conversation-msg:first-of-type { margin-top: 0; }
   /* The reply surround shares the conversation's opaque surface, including its focus
      tint, so pinning the reply cannot introduce a separate background band. */
@@ -1552,8 +1548,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
-  .lf-margin-preview[data-lf-thread] .lf-conversation-msg:first-of-type >
-      .lf-conversation-head { padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
+  .lf-margin-preview[data-lf-thread] .lf-thread-root-meta { position: sticky; z-index: 2;
+    top: 0; padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
+    background: var(--paper); }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

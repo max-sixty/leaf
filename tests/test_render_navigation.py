@@ -3101,12 +3101,12 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope .lf-thread-meta-actions > .lf-resolve'
           ).getBoundingClientRect();
           const headNode = el.querySelector(
-            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
+            ':scope .lf-thread-root-meta'
           );
           const head = headNode.getBoundingClientRect();
           const author = headNode.querySelector('b').getBoundingClientRect();
           const bodyNode = el.querySelector(
-            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-body'
+            ':scope .lf-conversation-msg > .lf-conversation-body'
           );
           const body = bodyNode.getBoundingClientRect();
           return {actionsTop: actions.top, actionsBottom: actions.bottom,

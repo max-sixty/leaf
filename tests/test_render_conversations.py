@@ -448,8 +448,9 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
     expect(card.get_by_role("button", name="Close thread")).to_be_visible()
-    expect(checkpoint.locator(".lf-summary-root-meta")).to_contain_text("You")
-    assert checkpoint.locator(".lf-summary-root-meta").evaluate(
+    root_meta = card.locator(":scope > .lf-thread-root-meta")
+    expect(root_meta).to_contain_text("You")
+    assert root_meta.evaluate(
         "node => !node.closest('.lf-summary-originals')"
     ), "root metadata and thread actions entered the collapsible originals"
     resolve = card.get_by_role("button", name="Resolve thread")
@@ -3935,7 +3936,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # A conversation keeps the authored theme's shared card and message
         # structure when the margin projects it into the chrome.
         "lf-conversation-body",
-        "lf-conversation-head",
+        "lf-thread-root-meta",
         "lf-msg-meta",
         # The message's own box. The theme gives the authored and margin-projected copies
         # their spacing while the chrome's scoped rules dress the panel's. The runtime

@@ -237,7 +237,6 @@ export class ThreadView {
     const prior = this.#model;
     const standing = focused();
     const heldFocus = this.node.contains(standing);
-    const heldThreadAction = this.#metadataActions.contains(standing);
     let summaryReplacedFocusedMessage = false;
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     // Only a summary that was not standing before can swallow what the reader
@@ -298,7 +297,7 @@ export class ThreadView {
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
     let headerActions = null;
-    if (!model.resolved) {
+    if (!model.resolved || model.folding) {
       this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = [settlement];
       if (navigation) {
@@ -322,17 +321,12 @@ export class ThreadView {
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
-    const rootSummary = describedRanges.find(
-      (range) =>
-        range.kind === "summary" &&
-        range.messages.some((message) => message.key === model.messages[0]?.key),
-    );
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message, index === 0 && !rootSummary ? headerActions : null);
-      return { key: message.key, node: view.node };
+      view.present(message, index === 0 && Boolean(headerActions));
+      return { key: message.key, node: view.node, header: view.header };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const summaries = new Set(model.summaries.map(({ id }) => id));
@@ -357,7 +351,6 @@ export class ThreadView {
       });
       return {
         ...range,
-        headerActions: range === rootSummary ? headerActions : null,
         expanded,
         forced: forced || searchMatch,
         requiredText: searchMatch
@@ -410,6 +403,13 @@ export class ThreadView {
               </header>`
             : nothing
         }
+        ${
+          headerActions && messages[0]
+            ? html`<div class="lf-thread-root-meta">
+                ${messages[0].header}${headerActions}
+              </div>`
+            : nothing
+        }
         ${repeat(
           ranges,
           (range) => range.key,
@@ -418,7 +418,7 @@ export class ThreadView {
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved
+          model.resolved && !model.folding
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
               >
@@ -440,7 +440,7 @@ export class ThreadView {
     );
     this.#wireKeys();
     if (
-      (summaryReplacedFocusedMessage || heldThreadAction) &&
+      summaryReplacedFocusedMessage &&
       focused() !== standing &&
       standing?.isConnected
     ) {
@@ -461,18 +461,6 @@ export class ThreadView {
       data-expanded=${String(range.expanded)}
     >
       <div class="lf-summary-checkpoint">
-        ${
-          range.headerActions
-            ? html`<div class="lf-msg-head lf-summary-root-meta">
-                <b>${range.messages[0].by}</b
-                ><span class="lf-msg-meta"
-                  ><time datetime=${range.messages[0].timestamp}
-                    >${range.messages[0].age}</time
-                  ></span
-                >${range.headerActions}
-              </div>`
-            : nothing
-        }
         <div class="lf-summary-label">Summary</div>
         <div
           class="lf-summary-text"

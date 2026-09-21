@@ -173,8 +173,7 @@ leaf-anchor-note { display: contents; }
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { --lf-thread-action-hit: max(28px, var(--aim-floor));
-          box-sizing: border-box; min-width: 0; position: relative;
+.lf-conversation-thread { box-sizing: border-box; min-width: 0; position: relative;
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
@@ -218,6 +217,11 @@ leaf-anchor-note { display: contents; }
 .lf-conversation-msg.agent { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
+.lf-thread-root-meta { display: flex; align-items: baseline; gap: var(--sp-2);
+          font-size: var(--t-6); }
+.lf-thread-root-meta > .lf-conversation-head { display: contents; }
+.lf-thread-root-meta + .lf-conversation-msg { margin-top: 0; }
+.lf-thread-root-meta b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-conversation-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }

@@ -1142,10 +1142,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-thread, .lf-going) > .lf-thread-head:not(:has(> .lf-quote)) {
     float: inline-end; display: block;
     margin: 0; margin-block-start: 2px; margin-inline-start: 8px; }
-  /* In the accordion, the floated action shares the first message's inset below
-     the title, including room for its outward keyboard ring. */
+  /* In the accordion, the floated action keeps the message's side inset. The live
+     card puts it below the title with room for its outward keyboard ring; the folding
+     outcome keeps the base 2px top inset so it remains inside the shrinking clip. */
   .lf-thread-compact > .lf-thread-head:not(:has(> .lf-quote)) {
-    margin: 16px 8px 0; }
+    margin-inline-end: 8px; }
+  .lf-thread.lf-thread-compact > .lf-thread-head:not(:has(> .lf-quote)) {
+    margin-block-start: 16px; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }

@@ -1078,6 +1078,32 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact .lf-msg-meta {
     font-size: 10px; color: var(--muted); }
   .lf-thread-compact .lf-msg-body { min-width: 0; margin-top: 4px; font-size: 13px; }
+  /* A checkpoint is agent-written reading context, followed by the retained originals
+     it covers. The rail is one full-height native control, so pointer and keyboard use
+     the same refold action without turning each message into another disclosure. */
+  .lf-thread-checkpoint { margin: 14px 8px; }
+  .lf-summary-checkpoint { padding-block: 4px; }
+  .lf-summary-label { margin-bottom: 4px; color: var(--muted); font: 500 11px/1.3 var(--sans); }
+  .lf-summary-text { font-size: 13px; font-style: italic; line-height: 1.5;
+    overflow-wrap: anywhere; user-select: text; }
+  .lf-summary-text :is(code, pre) { font-style: normal; }
+  .lf-summary-text > :first-child { margin-top: 0; }
+  .lf-summary-text > :last-child { margin-bottom: 0; }
+  .lf-summary-expand { min-height: var(--aim-floor); margin: 6px 0 -6px; border: 0;
+    padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
+    cursor: pointer; }
+  .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
+  .lf-summary-originals { display: grid; grid-template-columns: minmax(0, 1fr) var(--aim-floor);
+    align-items: stretch; }
+  .lf-summary-originals[hidden] { display: none; }
+  .lf-summary-messages { min-width: 0; }
+  .lf-summary-messages > .lf-msg { margin: 16px 8px 16px 0; }
+  .lf-summary-refold { min-width: var(--aim-floor); border: 0; border-inline-start: 1px solid var(--rule);
+    padding: 0; background: transparent; color: var(--muted); font: 20px/1 var(--sans); cursor: pointer; }
+  .lf-summary-refold > span { position: sticky; top: 8px; display: block; padding-block: 10px; }
+  .lf-summary-refold:hover { color: var(--accent); background: var(--chip); }
+  :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
+    outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
   .lf-msg-delivery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
     color: var(--muted); font-size: 10px; }
   .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }

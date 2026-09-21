@@ -359,6 +359,37 @@ def conversation_read(
     )
 
 
+@conversation.command("summarize", short_help="Summarize a contiguous message range.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("conversation_id", metavar="CONVERSATION_ID")
+@click.option("--from", "from_message", required=True, metavar="ID")
+@click.option("--through", "through_message", required=True, metavar="ID")
+@click.option("--text", help="summary Markdown (default: stdin)")
+@click.option("--json", "as_json", is_flag=True, help="print the summary event")
+def conversation_summarize(
+    dir: str,
+    conversation_id: str,
+    from_message: str,
+    through_message: str,
+    text: str | None,
+    as_json: bool,
+) -> None:
+    """Replace FROM through THROUGH in the panel with a Markdown summary.
+
+    The original messages remain in the append-only transcript and can always be
+    revealed. A later overlapping summary replaces this one.
+    """
+    from leaf.conversation import cmd_summarize
+
+    accepted = cmd_summarize(
+        resolve_dir(dir), conversation_id, from_message, through_message, text
+    )
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"summarized {from_message} through {through_message}")
+
+
 @cli.group(short_help="Set, capture, or clear page-bound external data.")
 def data() -> None:
     """Manage current values and immutable file captures."""

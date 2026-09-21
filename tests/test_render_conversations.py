@@ -91,6 +91,55 @@ def hold_visible_thread_presentation(page, thread_id):
     )
 
 
+def summarize_conversation(page_dir, conversation, first, last, text):
+    """Admit one agent summary through the public command door."""
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "conversation",
+            "summarize",
+            str(page_dir),
+            conversation,
+            "--from",
+            first,
+            "--through",
+            last,
+            "--text",
+            text,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    return events_model.read_events(page_dir)[-1]
+
+
+def append_reader_reply(page_dir, parent, text):
+    return events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": parent,
+            "revision": 1,
+            "text": text,
+        },
+    )
+
+
+def append_agent_reply(page_dir, parent, text, markup=None):
+    event = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Codex",
+        "session": "pytest-summary",
+        "parent": parent,
+        "revision": 1,
+        "text": text,
+    }
+    if markup is not None:
+        event["markup"] = markup
+    return events_model.append_event(page_dir, event)
+
+
 def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, request):
     """One retained message gains its durable prose and validated authored island.
 
@@ -266,6 +315,222 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
     assert sizes["destination"] < sizes["list"], sizes
     page.keyboard.press("Tab")
     expect(page.locator("#mounts [role=checkbox]")).to_be_focused()
+
+
+def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser, serve):
+    """A checkpoint shortens only its admitted range and remains a route to originals.
+
+    The messages before and after the range are controls: hiding either would mean the
+    presentation collapsed by position rather than by the summary's declared ids.
+    """
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
+    )
+    first = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "The first job establishes the dependency.",
+        None,
+        for_event=root,
+    )
+    middle = append_reader_reply(
+        serve.page_dir, root, "Does that still hold for the camera?"
+    )
+    last = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Yes. The measured result supports it.",
+        "<p>The measured result is 18 minutes.</p>",
+    )
+    latest = append_reader_reply(
+        serve.page_dir, root, "Then keep the latest exception visible."
+    )
+    summary = summarize_conversation(
+        serve.page_dir,
+        root,
+        first["id"],
+        last["id"],
+        "Checkpoint digest: the **dependency** remains and the measurement took "
+        "`18 minutes`.",
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(
+        f'.lf-thread-checkpoint[data-summary-id="{summary["id"]}"]'
+    )
+    expand = checkpoint.locator(".lf-summary-expand")
+    expect(expand).to_have_attribute("aria-expanded", "false")
+    expect(expand).to_have_accessible_name("Show 3 messages")
+    expect(checkpoint.locator(".lf-summary-text")).to_have_text(
+        "Checkpoint digest: the dependency remains and the measurement took 18 minutes."
+    )
+    expect(checkpoint.locator(".lf-summary-text strong")).to_have_text("dependency")
+    expect(checkpoint.locator(".lf-summary-text code")).to_have_text("18 minutes")
+    assert (
+        checkpoint.locator(".lf-summary-text").evaluate(
+            "node => getComputedStyle(node).fontStyle"
+        )
+        == "italic"
+    )
+    assert (
+        checkpoint.locator(".lf-summary-text code").evaluate(
+            "node => getComputedStyle(node).fontStyle"
+        )
+        == "normal"
+    )
+    expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{latest["id"]}"]')).to_be_visible()
+    for message in (first, middle, last):
+        expect(card.locator(f'.lf-msg[data-mid="{message["id"]}"]')).to_be_hidden()
+
+    expand.focus()
+    page.keyboard.press("Enter")
+    expect(expand).to_have_attribute("aria-expanded", "true")
+    for message in (first, middle, last):
+        expect(card.locator(f'.lf-msg[data-mid="{message["id"]}"]')).to_be_visible()
+    refold = checkpoint.get_by_role(
+        "button", name="Collapse summarized messages", exact=True
+    )
+    refold.focus()
+    page.keyboard.press("Enter")
+    expect(expand).to_have_attribute("aria-expanded", "false")
+    expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_hidden()
+
+    page.locator(".lf-thread-filter-toggle").click()
+    find = page.get_by_role("searchbox", name="Find in threads")
+    find.fill("checkpoint digest")
+    expect(card).to_be_visible()
+    expect(expand).to_have_attribute("aria-expanded", "false")
+    find.fill("18 minutes")
+    expect(card).to_be_visible()
+    expect(checkpoint.locator(".lf-summary-expand")).to_have_count(0)
+    expect(checkpoint.locator(".lf-summary-required")).to_have_text(
+        "Matching messages kept open"
+    )
+    expect(card.locator(f'.lf-msg[data-mid="{last["id"]}"]')).to_be_visible()
+    find.fill("")
+    expand = checkpoint.locator(".lf-summary-expand")
+    expect(expand).to_have_attribute("aria-expanded", "false")
+
+    page.locator(".lf-conversation-open").click()
+    destination = card.locator(f'.lf-msg[data-mid="{last["id"]}"]')
+    expect(destination).to_be_visible()
+    expect(destination).to_be_focused()
+    expect(expand).to_have_attribute("aria-expanded", "true")
+
+
+def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
+    browser, serve
+):
+    """The browser follows the canonical summary fold as the transcript changes."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Start with the measured constraint.")
+    first = conversation_model.cmd_reply(
+        serve.page_dir, root, "The first constraint.", None, for_event=root
+    )
+    second = append_agent_reply(serve.page_dir, root, "The second constraint.")
+    third = append_agent_reply(serve.page_dir, root, "The third constraint.")
+    old = summarize_conversation(
+        serve.page_dir,
+        root,
+        first["id"],
+        second["id"],
+        "Two constraints were established.",
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    old_checkpoint = card.locator(f'[data-summary-id="{old["id"]}"]')
+    expect(old_checkpoint).to_be_visible()
+    old_checkpoint.locator(".lf-summary-expand").click()
+    standing = card.locator(f'.lf-msg[data-mid="{second["id"]}"]')
+    standing.focus()
+    expect(standing).to_be_focused()
+
+    replacement = summarize_conversation(
+        serve.page_dir,
+        root,
+        first["id"],
+        third["id"],
+        "All three constraints now form one decision.",
+    )
+    told(page)
+    expect(card.locator(f'[data-summary-id="{old["id"]}"]')).to_have_count(0)
+    checkpoint = card.locator(f'[data-summary-id="{replacement["id"]}"]')
+    expect(checkpoint.locator(".lf-summary-expand")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    expect(standing).to_be_visible()
+    expect(standing).to_be_focused()
+    expect(checkpoint.locator(".lf-summary-text")).to_have_text(
+        "All three constraints now form one decision."
+    )
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "pytest-summary",
+            "message": second["id"],
+            "text": "The corrected second constraint.",
+        },
+    )
+    told(page)
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{second["id"]}"]')).to_contain_text(
+        "The corrected second constraint."
+    )
+    expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
+
+
+def test_a_summary_cannot_hide_an_active_question(browser, serve):
+    """A checkpoint with a reader obligation is context, never a closed cover."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    question = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-ask id="summary-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="summary-job" choose>'
+        '<lf-option id="summary-mounts">Put the mounts back</lf-option>'
+        '<lf-option id="summary-camera">Install the camera</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=root,
+    )
+    summary = summarize_conversation(
+        serve.page_dir,
+        root,
+        root,
+        question["id"],
+        "The discussion narrowed the work to two jobs.",
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    expect(checkpoint).to_have_attribute("data-expanded", "true")
+    expect(checkpoint.locator(".lf-summary-required")).to_have_text(
+        "Messages kept open · current work"
+    )
+    expect(card.locator("#summary-job")).to_be_visible()
+    expect(checkpoint.locator(".lf-summary-expand")).to_have_count(0)
+    expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
 
 
 def test_a_held_inline_reply_reveal_yields_to_new_reader_focus(browser, serve):

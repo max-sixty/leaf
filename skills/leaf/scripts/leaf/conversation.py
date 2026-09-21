@@ -745,6 +745,34 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
 
 @contract_writer
+def cmd_summarize(
+    page_dir: Path,
+    conversation: str,
+    from_message: str,
+    through_message: str,
+    text,
+) -> dict:
+    """Append a presentation summary over one contiguous message range."""
+    from leaf.registry.storage import require_registry
+
+    body = read_text_arg(page_dir, text)
+    with PageTransaction(page_dir) as page:
+        require_registry(page_dir)
+        return append_admitted(
+            page,
+            {
+                "kind": "summary",
+                "author": "agent",
+                **message_identity(),
+                "conversation": conversation,
+                "from": from_message,
+                "through": through_message,
+                "text": body,
+            },
+        )
+
+
+@contract_writer
 def cmd_resolve(page_dir: Path, to: str) -> None:
     """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole

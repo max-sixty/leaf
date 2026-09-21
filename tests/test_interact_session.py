@@ -1451,6 +1451,46 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
     )
 
 
+def test_delivery_pointer_guides_a_long_thread_summary_without_the_newest_exchange():
+    payload = {
+        "format": delivery_model.DELIVERY_FORMAT,
+        "id": "delivery-43",
+        "batches": [
+            {
+                "page": "/tmp/page",
+                "conversations": [
+                    {
+                        "id": "thread-1",
+                        "summary_hint": {
+                            "from": "message-1",
+                            "through": "message-8",
+                            "operation": "conversation summarize",
+                            "instruction": (
+                                "This thread has become long. Read the original "
+                                "messages, then summarize this exact range; keep the "
+                                "newer exchange outside the summary."
+                            ),
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    prompt = codex_model.delivery_pointer_prompt("delivery-43", payload)
+    root = ElementTree.fromstring(prompt.splitlines()[1])
+    [guidance] = root.findall("summarize")
+    assert guidance.attrib == {
+        "page": "/tmp/page",
+        "conversation": "thread-1",
+        "from": "message-1",
+        "through": "message-8",
+        "operation": "conversation summarize",
+    }
+    assert "Read the original messages" in guidance.text
+    assert "newer exchange" in guidance.text
+
+
 def test_app_server_events_report_semantic_codex_progress():
     events = codex_model.AppServerEvents("codex-thread")
 
@@ -3719,6 +3759,102 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     assert continued["content"][0]["author"] == "user"
     assert continued["content"][0]["parent"] == messages[1]["id"]
     assert continued["history"]["next_after"] is None
+
+
+def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
+    root = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "one"},
+    )
+    second = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root["id"], "text": "two"},
+    )
+    third = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": second["id"], "text": "three"},
+    )
+    neighbor = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "elsewhere"},
+    )
+
+    def summarize(start: str, end: str, text: str = "The first exchange."):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "conversation",
+                "summarize",
+                str(page_dir),
+                root["id"],
+                "--from",
+                start,
+                "--through",
+                end,
+                "--text",
+                text,
+                "--json",
+            ],
+        )
+
+    reversed_range = summarize(second["id"], root["id"])
+    assert reversed_range.exit_code != 0
+    assert "at least two messages in conversation order" in reversed_range.output
+
+    cross_thread = summarize(root["id"], neighbor["id"])
+    assert cross_thread.exit_code != 0
+    assert (
+        "endpoints must name messages in the named conversation" in cross_thread.output
+    )
+
+    withdrawn = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": third["id"],
+            "token": "mark",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
+    )
+    withdrawn_range = summarize(third["id"], withdrawn["id"])
+    assert withdrawn_range.exit_code != 0
+    assert (
+        "endpoints must name messages in the named conversation"
+        in withdrawn_range.output
+    )
+
+    accepted = summarize(root["id"], second["id"])
+    assert accepted.exit_code == 0, accepted.output
+    summary = json.loads(accepted.output)
+    assert {
+        key: summary[key] for key in ("kind", "conversation", "from", "through", "text")
+    } == {
+        "kind": "summary",
+        "conversation": root["id"],
+        "from": root["id"],
+        "through": second["id"],
+        "text": "The first exchange.",
+    }
+
+    read = CliRunner().invoke(
+        cli_model.cli,
+        ["conversation", "read", str(page_dir), root["id"]],
+    )
+    assert read.exit_code == 0, read.output
+    [projected] = json.loads(read.output)["conversation"]["summaries"]
+    assert projected["id"] == summary["id"]
+    assert projected["covers"] == [root["id"], second["id"]]
+    browser_thread = page_state(page_dir)["browser"]["conversation"]["threads"][0]
+    assert [message["id"] for message in browser_thread["msgs"]] == [
+        root["id"],
+        second["id"],
+        third["id"],
+    ]
+    assert browser_thread["summaries"][0]["id"] == summary["id"]
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):

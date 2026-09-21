@@ -2,12 +2,14 @@
 
 from ..asks import local_ask_entry, thread_ask_readings
 from ..events import (
+    active_summaries,
     awaits_agent,
     bare_reaction,
     is_reaction,
     seat_root,
     spoken_turns,
     taken_back,
+    unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..requests import request_lifecycles_for, request_phases
@@ -75,23 +77,46 @@ def browser_conversation(
     )
     awaiting = asks["awaiting"]
     open_ask_threads = {ask["thread"] for ask in asks["reader"]}
-    rendered_threads = [
-        {
-            **thread,
-            "awaits_agent": awaits_agent(thread),
-            "awaits_reader": _thread_awaits_reader(
-                thread_id,
-                thread,
-                registry,
-                awaiting,
-                reading.structure,
-                open_ask_threads,
-            ),
-            "bare_reaction": bare_reaction(thread),
-            "seat": seat_root(thread),
+    rendered_threads = []
+    for thread_id, thread in threads.items():
+        awaits_reader = _thread_awaits_reader(
+            thread_id,
+            thread,
+            registry,
+            awaiting,
+            reading.structure,
+            open_ask_threads,
+        )
+        awaits_agent_now = awaits_agent(thread)
+        protected = set()
+        turns = spoken_turns(thread)
+        if awaits_agent_now:
+            unanswered = unanswered_agent_turn(thread)
+            if unanswered is not None:
+                protected.add(unanswered["id"])
+        if awaits_reader and turns:
+            protected.add(turns[-1]["id"])
+        ask_sources = {
+            ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
         }
-        for thread_id, thread in threads.items()
-    ]
+        for message_id, fragment in reading.structure.fragments.items():
+            if ask_sources.intersection(fragment.by_id):
+                protected.add(message_id)
+        summaries = active_summaries(events, thread_id, thread)
+        for summary in summaries:
+            summary["protected"] = [
+                identity for identity in summary["covers"] if identity in protected
+            ]
+        rendered_threads.append(
+            {
+                **thread,
+                "awaits_agent": awaits_agent_now,
+                "awaits_reader": awaits_reader,
+                "bare_reaction": bare_reaction(thread),
+                "seat": seat_root(thread),
+                "summaries": summaries,
+            }
+        )
     if live_reply is not None and not any(
         event.get("responds") == live_reply.get("responds") for event in events
     ):

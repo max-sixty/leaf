@@ -2,7 +2,7 @@
 
 from typing import NamedTuple
 
-from leaf.events import action_rests_on, build_threads, taken_back
+from leaf.events import action_rests_on, active_summaries, build_threads, taken_back
 from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
@@ -87,6 +87,8 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
         named = [roots.get(event["id"])]
     elif kind == "edit":
         named = [roots.get(event["message"])]
+    elif kind == "summary":
+        named = [event["conversation"]]
     elif kind in {"resolve", "unresolve"}:
         parent = event["parent"]
         named = [roots.get(parent) or (parent if parent in roots.values() else None)]
@@ -307,6 +309,37 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             if fragment.by_id.keys() & spoken_for
         )
         digest = thread_digest(threads[t], delivered, pin)
+        summaries = active_summaries(events, t, threads[t])
+        digest["summaries"] = summaries
+        covered = {identity for summary in summaries for identity in summary["covers"]}
+        # Keep the newest exchange verbatim. The suggested range is one exact,
+        # contiguous uncovered run before it, so following the hint can never hide
+        # a new message or create a summary on top of one already standing.
+        prefix = threads[t]["msgs"][:-2]
+        runs = []
+        run = []
+        for message in prefix:
+            if message["id"] in covered:
+                if run:
+                    runs.append(run)
+                    run = []
+            else:
+                run.append(message)
+        if run:
+            runs.append(run)
+        candidate = max(runs, key=len, default=[])
+        characters = sum(len(message.get("text", "")) for message in candidate)
+        if len(candidate) >= 2 and (len(candidate) >= 8 or characters >= 4000):
+            digest["summary_hint"] = {
+                "from": candidate[0]["id"],
+                "through": candidate[-1]["id"],
+                "operation": "conversation summarize",
+                "instruction": (
+                    "This thread has become long and could benefit from a summary. "
+                    "Read the original messages and consider summarizing this range; "
+                    "keep the newer exchange outside the summary."
+                ),
+            }
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
         if digest["messages"] or digest["actions"]:

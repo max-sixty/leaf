@@ -248,6 +248,46 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     return threads
 
 
+def active_summaries(events: list, thread_id: str, thread: dict) -> list[dict]:
+    """Current presentation summaries for one conversation.
+
+    Summaries replace overlapping summaries whole. An edit after a summary invalidates
+    it when it changes any covered message, because the stored prose no longer
+    summarizes the current transcript. The original messages remain the authority.
+    """
+    message_ids = [message["id"] for message in thread["msgs"]]
+    positions = {identity: index for index, identity in enumerate(message_ids)}
+    edits = {
+        event["message"]: event["seq"] for event in events if event["kind"] == "edit"
+    }
+    active = []
+    for event in events:
+        if event["kind"] != "summary" or event["conversation"] != thread_id:
+            continue
+        start = positions.get(event["from"])
+        end = positions.get(event["through"])
+        if start is None or end is None or start > end:
+            continue
+        covers = message_ids[start : end + 1]
+        covered = set(covers)
+        active = [
+            summary for summary in active if covered.isdisjoint(summary["covers"])
+        ]
+        if any(edits.get(identity, 0) > event["seq"] for identity in covers):
+            continue
+        active.append(
+            {
+                "id": event["id"],
+                "seq": event["seq"],
+                "from": event["from"],
+                "through": event["through"],
+                "covers": covers,
+                "text": event["text"],
+            }
+        )
+    return sorted(active, key=lambda summary: positions[summary["from"]])
+
+
 def current_anchors(events: list, within: dict) -> list:
     """The anchors live conversations still bind the page with.
 
@@ -291,6 +331,20 @@ def anchored_parts(events: list, within: dict) -> set:
     }
 
 
+def unanswered_agent_turn(thread: dict) -> dict | None:
+    """Newest spoken non-agent turn with no explicitly scoped agent response."""
+    said = spoken_turns(thread)
+    newest = next(
+        (message for message in reversed(said) if message["author"] != "agent"), None
+    )
+    if newest is None or any(
+        reply["author"] == "agent" and reply.get("responds") == newest["id"]
+        for reply in said
+    ):
+        return None
+    return newest
+
+
 def awaits_agent(thread: dict) -> bool:
     """Whether a thread's next word is the agent's.
 
@@ -313,19 +367,7 @@ def awaits_agent(thread: dict) -> bool:
     conversation, so an `ok` the reader puts on the agent's answer does not hand the
     thread back, and a reaction nobody has replied to is no conversation at all. The
     runtime's `awaitsAgent` reads the same list for the same reason."""
-    said = spoken_turns(thread)
-    unanswered = next(
-        (message for message in reversed(said) if message["author"] != "agent"),
-        None,
-    )
-    return bool(
-        not thread["resolved"]
-        and unanswered
-        and not any(
-            message["author"] == "agent" and message.get("responds") == unanswered["id"]
-            for message in said
-        )
-    )
+    return bool(not thread["resolved"] and unanswered_agent_turn(thread))
 
 
 def seat_root(thread: dict) -> str | None:

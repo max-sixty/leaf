@@ -1,7 +1,10 @@
 # Events and conversation
 
 Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
-`events.jsonl`), and `revision` (the document it was made against). The kinds:
+`events.jsonl`), and `revision` (the document it was made against). An `id` is
+an opaque string matched whole. The append door mints eight hex characters,
+re-rolling any candidate this log already holds, so an id is unique within its
+page and is not a global identifier. The kinds:
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |

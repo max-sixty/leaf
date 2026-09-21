@@ -6,6 +6,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import re
 import select
 import socket
 import subprocess
@@ -3010,11 +3011,65 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
 
 
-def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monkeypatch):
-    """A request id is also an external recovery key. Mint enough entropy for
-    that job, retry an extraordinary local collision, and refuse a caller-supplied
-    duplicate rather than letting one receipt settle two events."""
-    minted = iter(["a" * 32, "a" * 32, "b" * 32])
+def test_every_kind_of_reader_move_is_named_in_eight_characters(server, page_dir):
+    """An id is something the agent reads back and retypes. One reader comment
+    shows the agent its id five times over and is answered with `leaf reply --for
+    <id>`, so an id is eight hex characters. No kind is carved out of that: a
+    `request` id reaches a host, but its uniqueness is within this page either
+    way, so the host pairs it with the page rather than being handed a wider id
+    and left to assume it is distinctive on its own."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-ask></lf-task></lf-command>"
+    )
+    version = page_dir / "index.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "comment", "revision": 1, "text": "Which worker restarts?"}
+        ).encode(),
+    )
+    assert status == 200, body
+    comment = event_model.read_events(page_dir)[-1]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    request = event_model.read_events(page_dir)[-1]
+
+    assert comment["kind"] == "comment" and request["kind"] == "request"
+    assert re.fullmatch(r"[0-9a-f]{8}", comment["id"]), comment["id"]
+    assert re.fullmatch(r"[0-9a-f]{8}", request["id"]), request["id"]
+
+
+def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
+    page_dir, monkeypatch
+):
+    """Width is not what makes an id unique here — the append lease is. The mint
+    re-rolls a candidate this log already holds instead of raising or writing a
+    second event under one identity, and a caller who supplies a used id is
+    refused rather than letting one receipt settle two events."""
+    minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
     widths = []
 
     def token_hex(width):
@@ -3029,8 +3084,8 @@ def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monke
         page_dir, {"kind": "comment", "author": "user", "text": "second"}
     )
 
-    assert widths == [16, 16, 16]
-    assert (first["id"], second["id"]) == ("a" * 32, "b" * 32)
+    assert widths == [4, 4, 4]
+    assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
     with pytest.raises(ValueError, match="event id .* already exists"):
         event_model.append_event(
             page_dir,

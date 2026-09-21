@@ -2521,6 +2521,13 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert event["widget"] == "t-parser" and event["action"] == "status"
     assert event["detail"] == {"status": "review"} and event["revision"] == 1
 
+    # A bare call names the coordinate it moved; `_report` above asks for the event.
+    named = CliRunner().invoke(
+        cli_model.cli, ["report", str(page_dir), "t-parser", "status", "status=done"]
+    )
+    assert named.exit_code == 0, named.output
+    assert named.output == "reported status on t-parser\n"
+
 
 def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     """The host's result names the exact request it executed. A second terminal

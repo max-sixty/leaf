@@ -1432,7 +1432,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     )
 
     result = CliRunner().invoke(
-        cli_model.cli, ["resolve", str(page_dir), "--to", answer["id"]]
+        cli_model.cli, ["resolve", "--json", str(page_dir), "--to", answer["id"]]
     )
     assert result.exit_code == 0, result.output
     event = json.loads(result.output)

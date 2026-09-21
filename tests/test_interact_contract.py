@@ -1146,6 +1146,7 @@ def test_report_cli_carries_the_declared_reference_role_map(page_dir):
         cli_model.cli,
         [
             "report",
+            "--json",
             str(page_dir),
             "t-parser",
             "status",
@@ -4855,9 +4856,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
 
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
-    opened = CliRunner().invoke(
-        cli_model.cli, ["comment", str(page_dir), "--text", "show me?"]
-    )
+    opened = comment(page_dir, "--text", "show me?")
     assert opened.exit_code == 0, opened.output
     posted = CliRunner().invoke(
         cli_model.cli,

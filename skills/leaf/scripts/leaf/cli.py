@@ -729,8 +729,15 @@ def ack(dir: str, seq: int) -> None:
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
+@click.option("--json", "as_json", is_flag=True, help="print the comment event instead")
 def comment(
-    dir: str, quote: str, section: str, part: str, text: str, markup: str
+    dir: str,
+    quote: str,
+    section: str,
+    part: str,
+    text: str,
+    markup: str,
+    as_json: bool,
 ) -> None:
     """Open a thread as the agent (--text or stdin): anchored where --quote or
     --section points at a passage, general where neither does — a question about
@@ -741,7 +748,11 @@ def comment(
     """
     from leaf.conversation import cmd_comment
 
-    cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
+    accepted = cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"opened thread {accepted['id']}")
 
 
 @cli.command(short_help="Reply to a thread as the agent.")
@@ -846,7 +857,8 @@ def edit(dir: str, to: str, text: str, as_json: bool) -> None:
 @click.option(
     "--to", required=True, metavar="ID", help="a message in the thread to close"
 )
-def resolve(dir: str, to: str) -> None:
+@click.option("--json", "as_json", is_flag=True, help="print the resolve event instead")
+def resolve(dir: str, to: str, as_json: bool) -> None:
     """Close a thread as the agent.
 
     The reader's own ✓ Resolve is the ordinary way a thread closes, so this is for
@@ -855,9 +867,14 @@ def resolve(dir: str, to: str) -> None:
     since answered the question it put. Reply first where the thread asked something —
     closing is not an answer, and the panel names the agent that did it.
     """
-    from leaf.conversation import cmd_resolve
+    from leaf.conversation import cmd_resolve, thread_of
 
-    cmd_resolve(resolve_dir(dir), to)
+    page_dir = resolve_dir(dir)
+    accepted = cmd_resolve(page_dir, to)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"resolved {thread_of(page_dir, to)}")
 
 
 @cli.command(short_help="Report a state change onto a page widget, as a worker.")
@@ -870,8 +887,14 @@ def resolve(dir: str, to: str) -> None:
     metavar="JSON",
     help="role-to-stable-target-reference object declared by the report verb",
 )
+@click.option("--json", "as_json", is_flag=True, help="print the report event instead")
 def report(
-    dir: str, widget: str, verb: str, fields: tuple, references: str | None
+    dir: str,
+    widget: str,
+    verb: str,
+    fields: tuple,
+    references: str | None,
+    as_json: bool,
 ) -> None:
     """Report a state change onto a page widget, as a worker.
 
@@ -882,7 +905,11 @@ def report(
     """
     from leaf.conversation import cmd_report
 
-    cmd_report(resolve_dir(dir), widget, verb, fields, references=references)
+    accepted = cmd_report(resolve_dir(dir), widget, verb, fields, references=references)
+    if as_json:
+        print(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"reported {verb} on {widget}")
 
 
 @cli.command(short_help="Record the terminal outcome of a reader request.")

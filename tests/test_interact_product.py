@@ -1259,9 +1259,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
     assert empty.exit_code != 0
     assert empty.output == "empty text (pass --text or pipe via stdin)\n"
 
-    opened = CliRunner().invoke(
-        cli_model.cli, ["comment", str(page_dir), "--text", " "]
-    )
+    opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)
 
@@ -1513,10 +1511,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
 
-    opened = CliRunner().invoke(
-        cli_model.cli,
-        ["comment", str(page_dir), "--text", "The index is still pending."],
-    )
+    opened = comment(page_dir, "--text", "The index is still pending.")
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)
     reader = events_model.append_event(
@@ -1971,9 +1966,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             ],
         )
         assert published.exit_code == 0, f"{example.name}: {published.output}"
-        opened = CliRunner().invoke(
-            cli_model.cli, ["comment", str(d), "--text", "what a reader would ask"]
-        )
+        opened = comment(d, "--text", "what a reader would ask")
         assert opened.exit_code == 0, opened.output
         root = json.loads(opened.output)["id"]
         # The writer's own separator, never splitlines(): its wider class reads a

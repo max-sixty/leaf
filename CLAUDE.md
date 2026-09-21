@@ -32,6 +32,17 @@ reader depends on. Changing or deleting a test is an ordinary part of a code
 change. Read what the assertion was holding, rewrite it where that leaves a
 better app, and say in the commit which behavior moved.
 
+The written contracts do not constrain new code either. No package, host, or
+integration exists outside this repository, so every reader of
+`skills/leaf/references/`, a package's guidance, or a protocol sidecar is in
+this tree. What those files state is what the code does now, and a promise to
+nobody. When a change is simpler under a different contract, whether that is
+an id's form, an event's shape, a command's output, or what a host is told
+to key on, change the contract and its consumers in the same change. A
+sentence in a reference saying that something relies on the current shape is
+a consumer to update, never a reason to keep the shape or to carve an
+exception around it.
+
 The code is post-vibe-coded: written fast, with weak abstractions, and it
 produces a steady supply of small bugs. Most of them are one missing primitive,
 one boundary drawn in the wrong place, or one rule nothing states, surfacing

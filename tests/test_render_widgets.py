@@ -4474,7 +4474,9 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     first.locator("wa-input").click()
     first.locator("wa-input").press("ControlOrMeta+A")
     first.locator("wa-input").press_sequentially("Hero cards")
-    expect(workbench.locator("wa-select").first).to_contain_text("Hero cards")
+    expect(
+        workbench.get_by_role("combobox", name="Style target", exact=True)
+    ).to_have_value("Hero cards")
     first.locator("wa-input input").press("Tab")
     first.locator("wa-select").first.click()
     first.get_by_role("option", name="Shared class").click()

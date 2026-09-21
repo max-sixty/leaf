@@ -101,7 +101,7 @@ lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(form-c
 }
 
 lf-targeting .lf-targeting-property { width: 10rem; }
-lf-targeting .lf-targeting-value { width: 8rem; }
+lf-targeting .lf-targeting-value { width: 10rem; }
 
 lf-targeting wa-textarea {
   width: 100%;

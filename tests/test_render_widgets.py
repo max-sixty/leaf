@@ -4259,13 +4259,41 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
         "aria-pressed", "false"
     )
+    # Use a wider rendered face than the default fixture so a stated width cannot pass
+    # merely because it happens to fit this machine's font.
+    playground.locator(".lf-playground-copy-trigger").evaluate(
+        "button => button.style.letterSpacing = '0.125rem'"
+    )
     playground.get_by_role("button", name="Dense").click()
     copy = playground.locator(".lf-playground-copy").get_by_role("button")
-    expect(copy).to_have_accessible_name("Copy instruction")
     copy.scroll_into_view_if_needed()
-    before = copy.bounding_box()
+
+    def copy_width(label):
+        expect(copy).to_have_accessible_name(label)
+        reading = copy.evaluate(
+            """button => {
+              const visible = [...button.querySelectorAll('.lf-playground-copy-label')]
+                .find(label => getComputedStyle(label).display !== 'none');
+              const buttonBox = button.getBoundingClientRect();
+              const labelBox = visible.getBoundingClientRect();
+              const style = getComputedStyle(button);
+              return {
+                label: visible.textContent,
+                width: buttonBox.width,
+                labelLeft: labelBox.left,
+                labelRight: labelBox.right,
+                contentLeft: buttonBox.left + parseFloat(style.paddingLeft),
+                contentRight: buttonBox.right - parseFloat(style.paddingRight),
+              };
+            }"""
+        )
+        assert reading["labelLeft"] >= reading["contentLeft"], reading
+        assert reading["labelRight"] <= reading["contentRight"], reading
+        return reading["width"]
+
+    reserved_width = copy_width("Copy instruction")
     copy.click()
-    expect(copy).to_have_accessible_name("Copied")
+    assert copy_width("Copied") == reserved_width
     expect(copy).to_have_css(
         "color",
         page.evaluate(
@@ -4280,7 +4308,6 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         ),
     )
     expect(playground.locator("wa-copy-button:state(success)")).to_have_count(1)
-    assert copy.bounding_box() == before
     assert page.evaluate("navigator.clipboard.readText()") == (
         "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
         "and the title Field note."
@@ -4290,8 +4317,16 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     expect(copy).to_have_accessible_name("Copy instruction")
     assert playground.evaluate("root => root.values")["radius"] == 12
     copy.press("Enter")
-    expect(copy).to_have_accessible_name("Copied")
+    assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
+    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    page.evaluate(
+        """() => {
+          navigator.clipboard.writeText = () => Promise.reject(new Error('refused'));
+        }"""
+    )
+    copy.click()
+    assert copy_width("Copy failed") == reserved_width
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(

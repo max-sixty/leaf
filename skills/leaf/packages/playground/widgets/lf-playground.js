@@ -23,11 +23,13 @@ import {
   failSoft,
   keeps,
   layoutChanged,
+  measure,
   notice,
   offer,
   once,
   paintKeys,
   quoted,
+  reserve,
   registerReadingElement,
   says,
   tabStore,
@@ -40,6 +42,12 @@ const NAME = /^[a-z][a-z0-9-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
+const COPY_LABELS = Object.freeze([
+  ["rest", "Copy instruction"],
+  ["success", "Copied"],
+  ["error", "Copy failed"],
+]);
+const COPY_WORDS = Object.freeze(COPY_LABELS.map(([, label]) => label));
 const OFFLINE = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]',
 );
@@ -499,11 +507,7 @@ customElements.define(
       this.#copy = offer("wa-copy-button", "lf-playground-copy");
       const copyTrigger = offer("button", "lf-playground-copy-trigger");
       if (this.id) copyTrigger.id = `${this.id}-copy`;
-      for (const [className, text] of [
-        ["rest", "Copy instruction"],
-        ["success", "Copied"],
-        ["error", "Copy failed"],
-      ]) {
+      for (const [className, text] of COPY_LABELS) {
         const label = document.createElement("span");
         label.className = `lf-playground-copy-label ${className}`;
         label.textContent = text;
@@ -779,12 +783,12 @@ customElements.define(
       this.#copy = previous.cloneNode(true);
       this.#copy.value = instruction;
       previous.replaceWith(this.#copy);
-      if (focused) {
-        const copy = this.#copy;
-        copy.updateComplete.then(() =>
-          copy.querySelector(".lf-playground-copy-trigger").focus(),
-        );
-      }
+      const copy = this.#copy;
+      copy.updateComplete.then(() => {
+        const trigger = copy.querySelector(".lf-playground-copy-trigger");
+        measure(trigger, () => reserve(trigger, COPY_WORDS));
+        if (focused) trigger.focus();
+      });
     }
 
     async #choose() {

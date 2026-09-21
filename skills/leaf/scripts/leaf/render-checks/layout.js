@@ -1,11 +1,9 @@
 import { pageScroller, shownBand, uiInside } from "/runtime/widget-api.js";
+import { at as element } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
-const at = (el) =>
-  el === pageScroller
-    ? "<root scrollport>"
-    : `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;
+const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 
 // Every box is drawn somewhere, and something has to answer for where. Three
 // readings ask it — of the column, of the room the page keeps for a wide widget,

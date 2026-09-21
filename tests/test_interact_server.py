@@ -6,6 +6,7 @@ import http.client
 import http.cookiejar
 import json
 import os
+import re
 import select
 import socket
 import subprocess
@@ -820,8 +821,8 @@ def test_server_round_trip(server, page_dir):
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "> § lf-banner · Threads  — about the design" in transcript.output
     drawing = {
-        "format": "leaf-drawing/1",
-        "points": [[-20, 74], [50, 10], [120, 74]],
+        "format": "leaf-drawing/2",
+        "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -920,8 +921,8 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/1",
-                "points": [[10, 60]],
+                "format": "leaf-drawing/2",
+                "strokes": [[[10, 60]]],
             },
         },
         {
@@ -930,8 +931,8 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/1",
-                "points": [[10], [50, 20]],
+                "format": "leaf-drawing/2",
+                "strokes": [[[10], [50, 20]]],
             },
         },
         {
@@ -940,8 +941,8 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/1",
-                "points": [[10, 60], [33554433, 20]],
+                "format": "leaf-drawing/2",
+                "strokes": [[[10, 60], [33554433, 20]]],
             },
         },
         {
@@ -963,14 +964,28 @@ def test_server_round_trip(server, page_dir):
             "revision": 2,
             "text": "x",
             "anchor": {"section": "feeder-board"},
-            "drawing": {**drawing, "points": [[0.1, 0.2]] * 257},
+            "drawing": {**drawing, "strokes": [[[0.1, 0.2]] * 257]},
         },
         {
             "kind": "comment",
             "revision": 2,
             "text": "x",
             "anchor": {"section": "feeder-board"},
-            "drawing": {**drawing, "points": [[float("nan"), 0.2], [0.5, 0.2]]},
+            "drawing": {**drawing, "strokes": []},
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "strokes": drawing["strokes"] * 33},
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "text": "x",
+            "anchor": {"section": "feeder-board"},
+            "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.
@@ -3010,11 +3025,65 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
 
 
-def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monkeypatch):
-    """A request id is also an external recovery key. Mint enough entropy for
-    that job, retry an extraordinary local collision, and refuse a caller-supplied
-    duplicate rather than letting one receipt settle two events."""
-    minted = iter(["a" * 32, "a" * 32, "b" * 32])
+def test_every_kind_of_reader_move_is_named_in_eight_characters(server, page_dir):
+    """An id is something the agent reads back and retypes. One reader comment
+    shows the agent its id five times over and is answered with `leaf reply --for
+    <id>`, so an id is eight hex characters. No kind is carved out of that: a
+    `request` id reaches a host, but its uniqueness is within this page either
+    way, so the host pairs it with the page rather than being handed a wider id
+    and left to assume it is distinctive on its own."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-ask id="commands-decision"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-ask></lf-task></lf-command>"
+    )
+    version = page_dir / "index.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "comment", "revision": 1, "text": "Which worker restarts?"}
+        ).encode(),
+    )
+    assert status == 200, body
+    comment = event_model.read_events(page_dir)[-1]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    request = event_model.read_events(page_dir)[-1]
+
+    assert comment["kind"] == "comment" and request["kind"] == "request"
+    assert re.fullmatch(r"[0-9a-f]{8}", comment["id"]), comment["id"]
+    assert re.fullmatch(r"[0-9a-f]{8}", request["id"]), request["id"]
+
+
+def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
+    page_dir, monkeypatch
+):
+    """Width is not what makes an id unique here — the append lease is. The mint
+    re-rolls a candidate this log already holds instead of raising or writing a
+    second event under one identity, and a caller who supplies a used id is
+    refused rather than letting one receipt settle two events."""
+    minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
     widths = []
 
     def token_hex(width):
@@ -3029,8 +3098,8 @@ def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monke
         page_dir, {"kind": "comment", "author": "user", "text": "second"}
     )
 
-    assert widths == [16, 16, 16]
-    assert (first["id"], second["id"]) == ("a" * 32, "b" * 32)
+    assert widths == [4, 4, 4]
+    assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
     with pytest.raises(ValueError, match="event id .* already exists"):
         event_model.append_event(
             page_dir,
@@ -3093,7 +3162,10 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     result = CliRunner().invoke(
         cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
     )
-    assert result.exit_code == 0, result.output
+    # The page error was an acknowledgeable target, so the cursor moved and the
+    # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
+    assert result.exit_code == 2, result.output
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": error["seq"]}
 
 
 def _news(server):

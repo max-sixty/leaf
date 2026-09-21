@@ -36,7 +36,7 @@ from leaf.asks import (
 from leaf.document_reading import read_document
 from leaf.event_log import EventRefused
 from leaf.event_meaning import admit_widget_event, direct_dependencies
-from leaf.events import build_threads, undo_error
+from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.page_view import PageView
 from leaf.passages import enclosing_ids
@@ -792,6 +792,24 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
+def _summary_error(view, event: dict, events: list) -> str | None:
+    if event["kind"] != "summary":
+        return None
+    threads = build_threads(events, view.within, withdrawn=taken_back(events))
+    thread = threads.get(event["conversation"])
+    if thread is None:
+        return f"unknown conversation {event['conversation']!r}"
+    messages = [message["id"] for message in spoken_turns(thread)]
+    try:
+        start = messages.index(event["from"])
+        end = messages.index(event["through"])
+    except ValueError:
+        return "summary endpoints must name spoken turns in the named conversation"
+    if start >= end:
+        return "summary must cover at least two messages in conversation order"
+    return None
+
+
 def _withdrawal_error(view, event: dict, events: list) -> str | None:
     if event["kind"] != "undo":
         return None
@@ -819,6 +837,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
+        or _summary_error(view, event, events)
         or _withdrawal_error(view, event, events)
     )
 

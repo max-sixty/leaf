@@ -69,12 +69,15 @@ incomplete. A checkout keeps the launcher at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
    `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
-   pass-or-keep triage, `playground` for declarative interactive explorers,
+   pass-or-keep triage, `playground` whenever the reader compares or tunes several
+   values or behaviors,
    `visual-review` for an ordered website run with aligned before-and-after evidence,
    and `targeting` for selecting and proposing changes to preview elements, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
-   with the selection adds it to a page already written. Bespoke explorer or simulator
-   behavior stays in that page's module and does not require a task-specific package.
+   with the selection adds it to a page already written. After selecting `playground`,
+   run `leaf page guidance <page> author` and follow its authoring contract. Bespoke
+   state and gestures stay in that page's module; the package still coordinates their
+   preview, reset, restoration, output, and submitted choice.
 2. Read `references/page-authoring.md`, then the authoring reference each part of
    the page needs (listed under "Author a version" below). Write
    `<page>/index.html` using only the registry's vocabulary. A valid save becomes
@@ -179,8 +182,8 @@ so a phase does not depend on discovering a chain of references.
 ### Continue after input
 
 - `references/event-batches.md`: after delivery and before processing its events.
-- `references/conversation-threads.md`: before opening, replying to, editing, or
-  resolving a thread.
+- `references/conversation-threads.md`: before opening, replying to, editing,
+  summarizing, or resolving a thread.
 - `references/page-checkpoints.md`: before stamping or ending a page.
 
 ### Serve or extend a page

@@ -415,6 +415,54 @@
           The sketch below records the chosen design and spacing alternatives.
         </p>
       </header>
+      <section id="summary-checkpoints">
+        <h2>Expandable thread summaries</h2>
+        <p>
+          Summaries now read as part of the conversation: no filled background or accent
+          stripe, a quiet sentence-case label, and italic prose aligned with the
+          messages. The italics distinguish the agent's retrospective account from the
+          original exchange. The summary stays visible; Show messages reveals its
+          sources. This applies the less prominent disclosure treatment described by
+          <a href="https://design-system.service.gov.uk/components/details/">GOV.UK</a>
+          and the supporting-detail pattern in
+          <a href="https://carbondesignsystem.com/components/accordion/usage/">Carbon</a
+          >.
+        </p>
+        <p>
+          When a conversation grows long, Leaf suggests summarization in the context
+          delivered to its agent. The agent chooses a contiguous range and writes a
+          short summary; the original messages remain available underneath it.
+        </p>
+        <p>
+          Open the summary to inspect the originals, then use the control along their
+          right edge to fold them again. Later replies stay outside the covered range. A
+          new summary can extend that range as the discussion continues. Summaries
+          preserve discussion history; decisions and current status still belong in the
+          document.
+        </p>
+        <p>
+          <a href="http://127.0.0.1:43410/#bg-thread-checkpoint"
+            >Try the working summary example</a
+          >: open Threads and select “Workshop planning”. Show messages expands the
+          original exchange; its right-edge arrow collapses it. Search still finds the
+          original wording. Covered questions that need an answer stay visible, and
+          editing a covered message removes the outdated summary.
+        </p>
+      </section>
+      <section id="summary-comparison">
+        <h2>Keep the current exchange in view</h2>
+        <p>
+          The same conversation before and after summarization: seven older messages
+          become one checkpoint, leaving the latest question and reply field visible.
+          The originals remain available through Show messages.
+        </p>
+        <lf-shot
+          id="summary-before-after"
+          after="/media/8e155cf39131009f.png"
+          before="/media/2f7bd2b87fd09521.png"
+          alt="A long thread before and after an expandable summary"
+        ></lf-shot>
+      </section>
       <section id="implementation-status">
         <h2>Try the real Threads panel</h2>
         <p>

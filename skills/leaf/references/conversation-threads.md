@@ -16,7 +16,9 @@ leaf comment <page> --text "…"
 `leaf comment` anchors in the active revision and reads it as the user sees it,
 including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
-cross-boundary text instead of creating a detached comment.
+cross-boundary text instead of creating a detached comment. It prints the id of
+the thread it opened, which `leaf status --on`, `leaf edit --to`, and
+`leaf resolve --to` take.
 
 Use `--markup` for a small question: an `lf-ask` containing one heading and
 its `lf-options` group. Thread markup is frozen in the log and has no revision
@@ -36,11 +38,12 @@ section first, then link the outcome from the reply with a fragment link such as
 result, keep the thread anchored to that page section. Keep the discussion active
 if the outcome is not yet incorporated or the reader still owes an explicit review.
 
-A browser comment may carry a drawing that continues across the page. A mark begun over
-or in the margin beside an addressable element anchors there; one begun where no addressable element shares its
-line belongs to the page whole. Treat it as visual evidence for that ordinary thread:
-inspect the stroke on the live page, use any accompanying text, and reply or revise through
-the same path as any other comment.
+A browser comment may carry a drawing of one or more strokes that continue across the
+page. A drawing whose first stroke began over or in the margin beside an addressable
+element anchors there; one begun where no addressable element shares its line belongs to
+the page whole. Treat it as visual evidence for that ordinary thread: inspect the strokes
+on the live page, use any accompanying text, and reply or revise through the same path as
+any other comment.
 
 A reader may paste an image into any thread text box. The composer shows a thumbnail,
 while its message carries an ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
@@ -67,8 +70,10 @@ With one reply obligation in the current turn's opened delivery, Leaf infers its
 and address. When that delivery contains several, select one with `--for <event-id>`;
 Leaf derives its response address and rechecks both against current state, so a response
 captured before a newer reader correction cannot settle the correction. `leaf
-conversation read` exposes the same response under its current `activity.obligations`
-when the delivery is no longer the freshest reading. When the source changed, the reply
+conversation read` exposes the same response on the interaction that its current
+`activity.obligations` names, when the delivery is no longer the freshest reading.
+`activity.obligations` is a list of ids into `activity.interactions`, where each move's
+phase, target and response address are stated once. When the source changed, the reply
 validates and activates it before posting, so an edit and its answer cross one command
 boundary.
 
@@ -132,8 +137,9 @@ leaf edit <page> --to <comment-or-reply-id> --text "Corrected wording."
 
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
-`leaf reply --json` prints the event it posted, whose `id` is what `--to` takes
-here; so does the refusal, which lists the ids it knows.
+`leaf comment`, `leaf reply`, `leaf edit` and `leaf resolve` each print one
+sentence naming what they wrote. `--json` prints the posted event instead, whose
+`id` is what `--to` takes here. A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open so the reader can inspect the answer or
 revised page. The reader closes it by default. Resolve it yourself only when the
@@ -144,6 +150,29 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 ```bash
 leaf resolve <page> --to <thread-id>
 ```
+
+## Summarize a long discussion
+
+When delivered context suggests summarization, read the original messages with
+`leaf conversation read` and select a contiguous range whose endpoints are spoken
+messages rather than reactions. Summarize its decisions,
+reasoning, and remaining questions. Keep the current exchange outside the range
+when it is still useful to read directly. A summary helps readers navigate the
+discussion; incorporate its outcomes into the document too.
+
+```bash
+leaf conversation summarize <page> <conversation-id> --from <first-message-id> --through <last-message-id> < summary.md
+```
+
+The summary replaces that range in the presentation, while the original messages
+remain available to unfold. It answers no question and resolves no thread.
+Use Markdown prose rather than interactive markup. Read the originals before
+resummarizing; do not build a new account solely from an older summary.
+
+As the discussion grows, write another summary with the desired endpoints.
+An overlapping summary replaces the earlier summary; disjoint ranges can retain
+separate summaries. New messages outside the endpoints remain visible. Editing a
+covered message invalidates its summary so stale prose cannot hide the correction.
 
 An acknowledged reader message still requires a reply: acknowledgement only removes it
 from future deliveries. When the active host binds the delivery's reply to its turn,

@@ -1,13 +1,17 @@
 # Events and conversation
 
 Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
-`events.jsonl`), and `revision` (the document it was made against). The kinds:
+`events.jsonl`), and `revision` (the document it was made against). An `id` is
+an opaque string matched whole. The append door mints eight hex characters,
+re-rolling any candidate this log already holds, so an id is unique within its
+page and is not a global identifier. The kinds:
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
@@ -28,13 +32,14 @@ a declared part of a picture and `part` the control a design comment landed on.
 `response: {kind: version, verb}` on a comment says the originating widget
 requires the agent to revise its declared answer state rather than reply.
 
-A `drawing` is one bounded freehand stroke attached to an ordinary comment and may be
-that comment's only content. When the drag starts over an addressable element or in the margin
-alongside it, its element anchor remains the thread coordinate and points are CSS-pixel
-offsets from that target's top-left origin. A drag starting where no addressable element shares its line
-has no anchor and its points are offsets from the document origin. Either stroke may
-continue anywhere across the page. Leaf derives the stroke's frame and owns ink, weight,
-SVG construction, and replay. A drawing is immutable once sent, follows the thread's
+A `drawing` is up to 32 bounded freehand strokes (`strokes`, each a list of points)
+attached to an ordinary comment, and may be that comment's only content. The first stroke
+places it: when that drag starts over an addressable element or in the margin alongside
+it, its element anchor remains the thread coordinate and every point is a CSS-pixel
+offset from that target's top-left origin. A first drag starting where no addressable
+element shares its line has no anchor and its points are offsets from the document
+origin. Every stroke keeps that one frame and may run anywhere across the page. Leaf
+derives the drawing's frame and owns ink, weight, SVG construction, and replay. A drawing is immutable once sent, follows the thread's
 resolution state, and is omitted from the default standalone export with the rest of
 discussion chrome.
 
@@ -137,6 +142,16 @@ transcript fold the latest text onto the original message and label it edited.
 The original id, timestamp, author, thread position, anchor, and markup remain
 its own. Markup is not editable because a reader action may already rest on a
 widget frozen into it.
+
+`leaf conversation summarize` records presentation, not speech. Its inclusive
+`from` and `through` endpoints name at least two spoken turns in one conversation;
+reactions between those endpoints remain part of the summarized range, but a reaction
+cannot be an endpoint.
+The panel retains those originals under the summary, while other conversation
+surfaces retain the full transcript. A later overlapping summary replaces the
+earlier summary whole; disjoint summaries coexist. Editing a covered message
+invalidates its summary, and messages appended after the range remain outside it.
+Summaries do not answer, resolve, or otherwise settle anything.
 
 An agent reply may carry an `anchor` captured against its `revision`, or a null anchor
 when its subject has left that revision. The fold uses the latest such value as the

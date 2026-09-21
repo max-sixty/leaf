@@ -7,11 +7,15 @@ export function coveredWords({
   holdLabelLines = true,
 } = {}) {
   const runs = [];
+  // locate.js's `at`, restated because this module is served import-free.
+  const tag = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
   const at = (el) => {
-    const named = el.closest("[id]");
-    return named
-      ? `<${named.tagName.toLowerCase()} id=${named.id}>`
-      : `<${el.tagName.toLowerCase()}>`;
+    if (el.id) return tag(el);
+    for (let node = el; node; node = node.getRootNode?.()?.host) {
+      const named = node.closest?.("[id]");
+      if (named) return `${tag(el)} in ${tag(named)}`;
+    }
+    return tag(el);
   };
   const outOfFlow = (style) =>
     style.position === "absolute" || style.position === "fixed";

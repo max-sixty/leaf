@@ -23,6 +23,8 @@ import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
+import { renderMarkdown } from "../markdown.js";
+import { summaryRanges } from "./summary-ranges.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -64,7 +66,14 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { interactions, revision, visible = true, grow = false, outline = null },
+  {
+    interactions,
+    revision,
+    visible = true,
+    grow = false,
+    outline = null,
+    search = null,
+  },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -85,6 +94,7 @@ export function threadReading(
     visible,
     grow,
     folding: false,
+    search,
     quote: panel
       ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
       : null,
@@ -98,6 +108,7 @@ export function threadReading(
           : "✓ Resolved",
     settlement: Object.freeze({ kind, word, label, pending: settling }),
     reply: !resolved && (panel || thread.root.response?.kind !== "version"),
+    summaries: panel ? Object.freeze(thread.summaries ?? []) : Object.freeze([]),
     messages: Object.freeze(
       turns(thread).map((message) =>
         messageReading(message, {
@@ -129,6 +140,9 @@ function navigationSummary(navigation, model) {
     .map((stage) => receipts.findLast((receipt) => receipt.workflowStage === stage))
     .find(Boolean);
   const receipt = liveReceipt ?? receipts.at(-1);
+  // TODO(2026-09-21): Replace this compact presentation policy when the shared
+  // workflow and attention ontology defines reader-facing thread groups. Until then,
+  // abbreviate the canonical receipt stages also used by message and margin status.
   const receiptLabel = receipt
     ? {
         sent: "",
@@ -184,6 +198,7 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
+  #expandedSummaries = new Set();
   #growing = false;
   #navigation = null;
 
@@ -194,6 +209,13 @@ export class ThreadView {
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
       this.node.classList.remove("grow");
+    });
+    this.node.addEventListener("lf-reveal", (event) => {
+      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
+      const id = message?.dataset.lfSummary;
+      if (!id || this.#expandedSummaries.has(id)) return;
+      this.#expandedSummaries.add(id);
+      this.present(this.#model);
     });
   }
 
@@ -213,6 +235,33 @@ export class ThreadView {
     const prior = this.#model;
     const standing = focused();
     const heldFocus = this.node.contains(standing);
+    let summaryReplacedFocusedMessage = false;
+    const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
+    // Only a summary that was not standing before can swallow what the reader
+    // holds or is reading, and reading geometry here forces layout.
+    if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
+      const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
+      const scrollport = this.node.closest("leaf-thread-list");
+      const boundary = scrollport?.getBoundingClientRect();
+      const beingRead = new Set(
+        [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
+          .filter((message) => {
+            if (!message.getClientRects().length || !boundary) return false;
+            const box = message.getBoundingClientRect();
+            return box.bottom > boundary.top && box.top < boundary.bottom;
+          })
+          .map((message) => message.dataset.mid),
+      );
+      for (const summary of model.summaries) {
+        if (priorSummaries.has(summary.id)) continue;
+        if (summary.covers.includes(heldMessage)) summaryReplacedFocusedMessage = true;
+        if (
+          summary.covers.includes(heldMessage) ||
+          summary.covers.some((id) => beingRead.has(id))
+        )
+          this.#expandedSummaries.add(summary.id);
+      }
+    }
     this.#model = model;
     const panel = model.surface === "panel";
     const navigation = panel ? this.#navigation : null;
@@ -250,6 +299,37 @@ export class ThreadView {
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
       view.present(message);
       return { key: message.key, node: view.node };
+    });
+    const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
+    const summaries = new Set(model.summaries.map(({ id }) => id));
+    for (const id of this.#expandedSummaries)
+      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
+    const ranges = summaryRanges(model.messages, model.summaries).map((range) => {
+      if (range.kind === "message") {
+        const node = messageNodes.get(range.message.key);
+        delete node.dataset.lfSummary;
+        return { ...range, node };
+      }
+      const forced = Boolean(range.summary.protected?.length);
+      const searchMatch = range.messages.some((message) =>
+        model.search?.messages.includes(message.id),
+      );
+      const expanded =
+        forced || searchMatch || this.#expandedSummaries.has(range.summary.id);
+      const nodes = range.messages.map((message) => {
+        const node = messageNodes.get(message.key);
+        node.dataset.lfSummary = range.summary.id;
+        return node;
+      });
+      return {
+        ...range,
+        expanded,
+        forced: forced || searchMatch,
+        requiredText: searchMatch
+          ? "Matching messages kept open"
+          : "Messages kept open · current work",
+        nodes,
+      };
     });
     if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
     const settlement = this.#settlement(model);
@@ -298,9 +378,10 @@ export class ThreadView {
             : nothing
         }
         ${repeat(
-          messages,
-          (message) => message.key,
-          (message) => message.node,
+          ranges,
+          (range) => range.key,
+          (range) =>
+            range.kind === "message" ? range.node : this.#summaryRange(range),
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
@@ -336,13 +417,82 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (heldFocus && !this.node.contains(standing)) {
-      if (!panel)
-        this.#commands.landInConversation(
-          this.node.querySelector(SAY_BOX) ?? this.node,
-        );
+    if (
+      summaryReplacedFocusedMessage &&
+      focused() !== standing &&
+      standing?.isConnected
+    ) {
+      standing.focus({ preventScroll: true });
+    } else if (heldFocus && !this.node.contains(standing) && !panel) {
+      this.#commands.landInConversation(this.node.querySelector(SAY_BOX) ?? this.node);
     }
     return this.node;
+  }
+
+  #summaryRange(range) {
+    const count = range.messages.length;
+    const id = range.summary.id;
+    const originalsId = `lf-summary-originals-${id}`;
+    return html`<section
+      class="lf-thread-checkpoint"
+      data-summary-id=${id}
+      data-expanded=${String(range.expanded)}
+    >
+      <div class="lf-summary-checkpoint">
+        <div class="lf-summary-label">Summary</div>
+        <div
+          class="lf-summary-text"
+          .innerHTML=${renderMarkdown(range.summary.text)}
+        ></div>
+        ${
+          range.forced
+            ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+            : html`<button
+                type="button"
+                class="lf-summary-expand"
+                aria-expanded=${String(range.expanded)}
+                aria-controls=${originalsId}
+                @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
+              >
+                ${range.expanded ? "Hide" : "Show"} ${count}
+                message${count === 1 ? "" : "s"}
+              </button>`
+        }
+      </div>
+      <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
+        <div class="lf-summary-messages">
+          ${repeat(
+            range.messages,
+            (message) => message.key,
+            (message) => range.nodes[range.messages.indexOf(message)],
+          )}
+        </div>
+        ${
+          range.forced
+            ? nothing
+            : html`<button
+                type="button"
+                class="lf-summary-refold"
+                aria-label="Collapse summarized messages"
+                title="Collapse summarized messages"
+                @click=${() => this.#setSummaryExpanded(id, false)}
+              >
+                <span aria-hidden="true">↑</span>
+              </button>`
+        }
+      </div>
+    </section>`;
+  }
+
+  #setSummaryExpanded(id, expanded) {
+    if (expanded) this.#expandedSummaries.add(id);
+    else this.#expandedSummaries.delete(id);
+    this.present(this.#model);
+    this.node
+      .querySelector(
+        `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"] .lf-summary-expand`,
+      )
+      ?.focus({ preventScroll: true });
   }
 
   #settlement(model) {

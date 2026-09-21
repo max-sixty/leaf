@@ -72,6 +72,20 @@ def _reply_evidence(reply: dict) -> dict:
     } | {"has_text": bool(reply.get("text"))}
 
 
+def unanswered(obligations: list[dict], of: str = "") -> str:
+    """Say how many reader moves have no answer and name each by the id it is
+    answered through: a thread's own, and the event of any other move. `of`
+    narrows which moves these are, such as the acknowledged ones."""
+    ids = ", ".join(
+        obligation["target"]["id"]
+        if obligation["target"]["kind"] == "thread"
+        else obligation["event"]
+        for obligation in obligations
+    )
+    moves = f"reader move{'s' if len(obligations) != 1 else ''}"
+    return f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer ({ids})"
+
+
 def transition_due(activity: dict, now_iso: str) -> bool:
     """Whether a projected activity reading has reached its refresh boundary."""
     due = _moment(activity.get("next_transition_at"))

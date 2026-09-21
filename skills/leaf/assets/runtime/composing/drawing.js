@@ -4,11 +4,11 @@
  * The first stroke of a Draw mode session starts a drawing: a semantic target under or
  * horizontally alongside its first point remains the conversation coordinate; otherwise
  * the stroke becomes a page comment. Each later stroke joins that drawing, in its frame,
- * while the draft it opened still holds it; once that draft is sent or put away, the next
- * stroke starts another. The controller owns pointer capture, stroke sampling, and mode
- * state. SVG replay, anchor placement, composers, reactions, and page geometry enter
- * through explicit capabilities, and the composer's draft is the one record of the
- * strokes already drawn.
+ * while the draft it opened still holds it, box on screen or not; once that draft is sent
+ * or discarded, the next stroke starts another. The controller owns pointer capture,
+ * stroke sampling, and mode state. SVG replay, anchor placement, composers, reactions,
+ * and page geometry enter through explicit capabilities, and the composer's draft is the
+ * one record of the strokes already drawn.
  */
 
 import { documentPoint, shownBox } from "../geometry.js";
@@ -35,6 +35,7 @@ export function createDrawingController({
   pointer,
   visibleTargets,
   pageDrawing,
+  anchoredDrawing,
   composerDraft,
   openAnchoredDrawing,
   openPageDrawing,
@@ -121,14 +122,13 @@ export function createDrawingController({
     );
   }
 
-  // The drawing the session's draft holds: the open composer on the session's anchor, or
-  // the page composer. Asked of the composers rather than remembered here, because a send,
-  // a discard or another tab can settle that draft between strokes.
+  // The drawing the session's draft holds: the draft on the session's anchor, or the page
+  // draft. Read off the durable drafts rather than remembered here or read off a box on
+  // screen, because a send, a discard or another tab can settle a draft between strokes,
+  // and putting its box away does not.
   function heldDrawing() {
     if (!session) return null;
-    if (!session.anchor) return pageDrawing();
-    const draft = composerDraft();
-    return draft.open && draft.anchor === session.anchor ? draft.drawing : null;
+    return session.anchor ? anchoredDrawing(session.anchor) : pageDrawing();
   }
 
   // A joining stroke keeps the drawing's frame wherever it starts: the session's anchor, or

@@ -432,8 +432,9 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
 
 def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
     """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
-    in that drawing's frame wherever it starts; once the draft is sent the next stroke
-    starts another, and only Escape leaves the mode."""
+    in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
+    box away; once the draft is sent the next stroke starts another, and only Escape
+    leaves the mode."""
     page = open_page(browser, serve(TARGETS_PAGE))
     prose = page.locator("#prose")
     draw_over(page, prose)
@@ -448,21 +449,30 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     origin = prose.bounding_box()
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
     expect(field).to_be_focused()
-    field.fill("Both of these.")
-    with sending(page, "the two-stroke drawing"):
+    field.fill("All of these.")
+
+    # Escape puts the box away and keeps its draft; the next stroke joins that draft.
+    page.keyboard.press("Escape")
+    expect(pending).to_have_count(0)
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    stroke_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
+    expect(field).to_be_focused()
+    expect(field).to_have_value("All of these.")
+    with sending(page, "the three-stroke drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "prose"}
-    assert event["text"] == "Both of these."
-    first, second = event["drawing"]["strokes"]
-    assert len(first) >= 2 and len(second) >= 2
+    assert event["text"] == "All of these."
+    first, second, third = event["drawing"]["strokes"]
+    assert min(len(first), len(second), len(third)) >= 2
     assert second[0] == pytest.approx(
         [start[0] - origin["x"], start[1] - origin["y"]], abs=0.5
     )
     expect(
         page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
-    ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
+    ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
 
     # The sent draft holds no drawing any more, so the next stroke starts one.
     expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")

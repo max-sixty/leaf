@@ -2127,6 +2127,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     expect(strip.locator(".lf-react-trigger")).to_have_count(1)
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
@@ -2139,7 +2140,6 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-thread")).to_have_count(1)
 
-    page.locator(".lf-thread-summary").click()
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
     with sending(page, "the reply the no carries"):

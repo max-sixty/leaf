@@ -1,14 +1,16 @@
 /* Drawing gesture controller.
  *
  * Draw mode claims primary-pointer drags anywhere on the page until the reader leaves it.
- * The first stroke of a Draw mode session starts a drawing: a semantic target under or
- * horizontally alongside its first point remains the conversation coordinate; otherwise
- * the stroke becomes a page comment. Each later stroke joins that drawing, in its frame,
- * while the draft it opened still holds it, box on screen or not; once that draft is sent
- * or discarded, the next stroke starts another. The controller owns pointer capture,
- * stroke sampling, and mode state. SVG replay, anchor placement, composers, reactions,
- * and page geometry enter through explicit capabilities, and the composer's draft is the
- * one record of the strokes already drawn.
+ * Every drawing belongs to a comment draft. A semantic target under or horizontally
+ * alongside a stroke's first point names its anchored draft and remains the conversation
+ * coordinate; a stroke with none belongs to the page draft. A stroke joins the drawing its
+ * draft already holds, in that drawing's frame, so neither putting the box away nor
+ * leaving Draw mode loses ink; once the draft is sent or discarded, the next stroke starts
+ * another. Within one Draw mode session, each stroke after the first goes to the first
+ * stroke's draft wherever it starts, while that draft holds a drawing. The controller owns
+ * pointer capture, stroke sampling, and mode state. SVG replay, anchor placement,
+ * composers, reactions, and page geometry enter through explicit capabilities, and the
+ * drafts are the one record of the strokes already drawn.
  */
 
 import { documentPoint, shownBox } from "../geometry.js";
@@ -50,7 +52,7 @@ export function createDrawingController({
 }) {
   let drawModeOn = false;
   let stroke = null;
-  // The draft this session's first stroke opened: its anchor, or null for a page drawing.
+  // The draft this session's first stroke went to: its anchor, or null for the page draft.
   let session = null;
   let claimThroughClick = false;
   let claimedPointer = null;
@@ -122,19 +124,18 @@ export function createDrawingController({
     );
   }
 
-  // The drawing the session's draft holds: the draft on the session's anchor, or the page
-  // draft. Read off the durable drafts rather than remembered here or read off a box on
-  // screen, because a send, a discard or another tab can settle a draft between strokes,
-  // and putting its box away does not.
-  function heldDrawing() {
-    if (!session) return null;
-    return session.anchor ? anchoredDrawing(session.anchor) : pageDrawing();
-  }
+  // The drawing a draft already holds: the anchored draft's, or the page draft's. Read off
+  // the durable drafts rather than remembered here or read off a box on screen, because a
+  // send, a discard or another tab can settle a draft between strokes, and putting its box
+  // away or leaving Draw mode does not.
+  const heldDrawing = (anchor) => (anchor ? anchoredDrawing(anchor) : pageDrawing());
 
-  // A joining stroke keeps the drawing's frame wherever it starts: the session's anchor, or
-  // the document for a page drawing. When that anchor's element has gone the drawing
-  // cannot be extended, so there is no frame and the stroke starts a drawing of its own.
+  // A later stroke of the session goes to the first stroke's draft wherever it starts, in
+  // that drawing's frame, while the draft holds it. Null leaves the stroke to the draft
+  // under the pointer: before the session's first stroke, once its draft has settled, or
+  // when its anchor's element has gone and the frame with it.
   function sessionTarget() {
+    if (!session || !heldDrawing(session.anchor)) return null;
     if (!session.anchor) return { anchor: null, element: null };
     const found = resolveAnchor(session.anchor, "");
     return found?.status !== "outdated" && found?.element
@@ -210,18 +211,16 @@ export function createDrawingController({
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);
-    const held = heldDrawing();
-    if (held && held.strokes.length >= MAX_DRAWING_STROKES) {
-      announce(
-        `A drawing holds ${MAX_DRAWING_STROKES} strokes. Send this one to start another.`,
-      );
-      return;
-    }
-    const joined = held ? sessionTarget() : null;
-    const target = joined ?? targetAtPointer();
+    const target = sessionTarget() ?? targetAtPointer();
     const box = target?.element ? shownBox(target.element) : null;
     if (!target || (target.element && (!box?.width || !box?.height))) {
       announce("Draw on the page.");
+      return;
+    }
+    if (heldDrawing(target.anchor)?.strokes.length >= MAX_DRAWING_STROKES) {
+      announce(
+        `A drawing holds ${MAX_DRAWING_STROKES} strokes. Send this one to start another.`,
+      );
       return;
     }
     event.target.setPointerCapture(event.pointerId);
@@ -229,7 +228,6 @@ export function createDrawingController({
       anchor: target.anchor,
       box,
       distance: 0,
-      joins: Boolean(joined),
       lastScreen: null,
       points: [],
       pointerId: event.pointerId,
@@ -272,9 +270,9 @@ export function createDrawingController({
       announce("Drag to draw; a click leaves no mark.");
       return;
     }
-    // Read again at the release: a draft settled mid-stroke leaves this stroke to start
-    // a drawing of its own, in the frame it was already drawn in.
-    const held = completed.joins ? heldDrawing() : null;
+    // Read at the release: a draft settled mid-stroke leaves this stroke to start a
+    // drawing of its own, in the frame it was already drawn in.
+    const held = heldDrawing(completed.anchor);
     const drawing = drawingOf(held, completed);
     session = { anchor: completed.anchor };
     if (completed.anchor) openAnchoredDrawing(completed.anchor, drawing);
@@ -312,7 +310,7 @@ export function createDrawingController({
   function activeDrawing() {
     if (!stroke || stroke.points.length < 2) return null;
     return {
-      drawing: drawingOf(stroke.joins ? heldDrawing() : null, stroke),
+      drawing: drawingOf(heldDrawing(stroke.anchor), stroke),
       target: stroke.target,
     };
   }

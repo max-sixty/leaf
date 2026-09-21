@@ -260,6 +260,18 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     page.evaluate("document.body.style.minHeight = '180000px'")
     page.evaluate("y => scrollTo(0, y)", point["scrollY"])
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
+    # The reloaded page is a new Draw mode session; its stroke joins the kept drawing.
+    # Threads comes back open over the right edge, so this one starts in the left gutter.
+    again = {"x": 40, "y": point["y"] - 120}
+    page.mouse.move(again["x"], again["y"])
+    page.keyboard.press("w")
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    page.mouse.down()
+    page.mouse.move(again["x"] + 60, again["y"] - 80, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", re.compile(r"^M[^M]*M[^M]*$")
+    )
     field = page.locator(".lf-general textarea")
     expect(field).to_have_value("")
     field.focus()
@@ -269,8 +281,12 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "anchor" not in event and "text" not in event
-    assert event["drawing"]["strokes"][0][0] == pytest.approx(
+    first, second = event["drawing"]["strokes"]
+    assert first[0] == pytest.approx(
         [point["x"], point["y"] + point["scrollY"]], abs=0.1
+    )
+    assert second[0] == pytest.approx(
+        [again["x"], again["y"] + point["scrollY"]], abs=0.1
     )
     posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
     mark = page.locator(posted)
@@ -433,8 +449,8 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
 def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
     """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
     in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
-    box away; once the draft is sent the next stroke starts another, and only Escape
-    leaves the mode."""
+    box away or the reader leaves and re-enters the mode; once the draft is sent the next
+    stroke starts another, and only Escape leaves the mode."""
     page = open_page(browser, serve(TARGETS_PAGE))
     prose = page.locator("#prose")
     draw_over(page, prose)
@@ -488,6 +504,10 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
+
+    # A new Draw mode session draws into the draft it finds rather than over it.
+    draw_over(page, page.locator("#fig"), points=((0.3, 0.3), (0.5, 0.7), (0.7, 0.3)))
+    expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
 
 
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(

@@ -129,6 +129,9 @@ function navigationSummary(navigation, model) {
     .map((stage) => receipts.findLast((receipt) => receipt.workflowStage === stage))
     .find(Boolean);
   const receipt = liveReceipt ?? receipts.at(-1);
+  // TODO(2026-09-21): Replace this compact presentation policy when the shared
+  // workflow and attention ontology defines reader-facing thread groups. Until then,
+  // abbreviate the canonical receipt stages also used by message and margin status.
   const receiptLabel = receipt
     ? {
         sent: "",

@@ -35,13 +35,16 @@ probe control expose remaining layout questions.
 
 This was also viewed in Codex's browser pane, but not in Codex's built-in inline
 MCP renderer. The earlier blocked HTTP iframe was a limitation of our wrapper,
-not evidence that direct Leaf resources cannot work. Experiment 35 remains the
-separate browser-pane/detached-adapter route; its automated actions happened while
-the task was active, so its later delivered turns did not isolate idle wake-up.
+not evidence that direct Leaf resources cannot work. The separate browser-pane
+route rendered the canonical page in Codex and returned a keyboard choice and
+anchored comment through the detached adapter. Those deliveries reached later turns
+of the originating task; a reply, revisions, reload, and version travel preserved
+the standing state. Its actions began while the task was active, so the run did not
+isolate idle wake-up.
 
-### Current Experiment: 56
+### Latest experiment: 56
 
-**Status**: Complete; the passing reference-host preview remains running. Direct
+**Status**: Complete. Direct
 rendering, durable gestures, visible comment UI, accepted ui/message, no-network,
 and HTTP boundary checks pass. Source hashes identify the reviewed code.
 
@@ -61,11 +64,4 @@ and HTTP boundary checks pass. Source hashes identify the reviewed code.
 
 - Read the direct-resource result: `cat notes/mcp-apps/experiments/56/README.md`
 - Read its machine result: `jq . notes/mcp-apps/experiments/56/results/reference-host.json`
-- Live reference host: http://localhost:8080/?tool=leaf_direct_present&server=leaf-direct-probe&call=true
-- Read the full Codex browser-pane result: `cat notes/mcp-apps/experiments/35/README.md`
-- Read the fresh-process Codex result: `cat notes/mcp-apps/experiments/34/README.md`
-- Read the invalid reused-process attempt: `cat notes/mcp-apps/experiments/33/README.md`
-- Read the unified candidate result: `cat notes/mcp-apps/experiments/32/README.md`
-- Read the installed-main baseline: `cat notes/mcp-apps/experiments/31/README.md`
-- Reproduce the last reference-host run: `bash notes/mcp-apps/experiments/30/commands.sh`
-- Inspect the current project: `sed -n '1,240p' notes/mcp-apps/PROJECT.md`
+- Run the current reference-host probe: `bash scripts/mcp-app/run-direct-probe.sh 57`

@@ -361,14 +361,15 @@ def build_floating_ui(work: Path) -> list[Path]:
 
 
 def build_webawesome(work: Path) -> list[Path]:
-    """Ship the playground's color picker, copy button, and switches with a scoped theme.
+    """Ship shared controls and their theme in the always-available default payload.
 
     Every runtime package consumed by this entry is pinned, including Lit and
     Floating UI. Leaf's browser module intentionally exports only its own Lit
     subset; Web Awesome needs additional directives and decorators, so this
-    optional package carries its own copy instead of widening the core API.
+    shared bundle carries its own copy instead of widening the core API. Widget
+    imports load the JavaScript only when the page uses one of these controls.
     """
-    directory = package_vendor("playground")
+    directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / "webawesome.esm.js"
     notices = directory / "webawesome.LICENSES.txt"
@@ -397,7 +398,7 @@ def build_webawesome(work: Path) -> list[Path]:
         cwd=work,
     )
     source = ROOT / "scripts/vendor-src/webawesome"
-    for name in ("entry.mjs", "build.mjs"):
+    for name in ("entry.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",

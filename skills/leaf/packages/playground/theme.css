@@ -75,12 +75,21 @@ lf-playground-control {
   font-weight: 600;
 }
 
-lf-playground-control > input[type="range"] {
-  box-sizing: border-box;
+lf-playground-control > :is(wa-slider, wa-input, wa-radio-group) {
   grid-column: 1 / -1;
   width: 100%;
-  margin: 0;
-  accent-color: var(--accent);
+}
+
+lf-playground-control > wa-slider {
+  --track-size: 0.35rem;
+  --thumb-width: 1rem;
+  --thumb-height: 1rem;
+}
+
+lf-playground-control > wa-slider::part(label),
+lf-playground-control > wa-input::part(label),
+lf-playground-control > wa-radio-group::part(form-control-label) {
+  display: none;
 }
 
 .lf-playground-toggle > wa-switch {
@@ -110,19 +119,6 @@ lf-playground-control > wa-switch::part(thumb) {
   transition: none;
 }
 
-lf-playground-control > input[type="text"] {
-  grid-column: 1 / -1;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: var(--aim-floor);
-  padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
-  color: var(--ink);
-  font: var(--t-5)/1.35 var(--sans);
-}
-
 .lf-playground-reading {
   grid-column: 2;
   grid-row: 1;
@@ -130,34 +126,20 @@ lf-playground-control > input[type="text"] {
   font: var(--t-6)/1.3 var(--mono);
 }
 
-.lf-playground-choices {
+lf-playground-control > wa-radio-group::part(form-control-input) {
   display: grid;
-  grid-column: 1 / -1;
   grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
   gap: var(--sp-1);
 }
 
 lf-playground-choice {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--aim-floor);
-  padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
-  cursor: pointer;
+  display: contents;
 }
 
-lf-playground-choice:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--accent-faint);
-}
-
-lf-playground-choice input {
-  flex: 0 0 auto;
-  margin: 0;
-  accent-color: var(--accent);
+lf-playground-choice > wa-radio {
+  min-height: max(var(--aim-floor), 2rem);
+  justify-content: center;
+  text-align: center;
 }
 
 .lf-playground-presets {
@@ -290,24 +272,4 @@ html.lf-copy lf-playground > .lf-playground-actions {
 
 lf-playground-control > wa-color-picker::part(form-control-label) {
   display: none;
-}
-
-lf-playground :is(wa-color-picker, wa-copy-button, wa-switch) {
-  color-scheme: inherit;
-  --wa-font-family-body: var(--sans);
-  --wa-color-surface-raised: var(--card);
-  --wa-color-surface-default: var(--field);
-  --wa-color-surface-lowered: var(--card);
-  --wa-color-surface-border: var(--border-2);
-  --wa-color-text-normal: var(--ink);
-  --wa-color-text-quiet: var(--muted);
-  --wa-color-neutral-fill-quiet: var(--field);
-  --wa-color-neutral-fill-normal: var(--card);
-  --wa-color-neutral-border-normal: var(--border-2);
-  --wa-color-neutral-on-quiet: var(--ink-2);
-  --wa-color-focus: var(--accent);
-  --wa-form-control-activated-color: var(--accent);
-  --wa-form-control-background-color: var(--field);
-  --wa-form-control-border-color: var(--border-2);
-  --wa-form-control-value-color: var(--ink);
 }

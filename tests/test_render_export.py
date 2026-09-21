@@ -1647,13 +1647,18 @@ def test_playground_examples_keep_their_record_and_offline_interaction_modes(
         "Submission unavailable: no agent or server is available."
     )
     if stem == "notification-playground":
-        offline.locator('lf-playground-control[name="events"] input').fill("2")
+        pressure = offline.get_by_role("slider", name="Concurrent release events")
+        pressure.press("Home")
+        pressure.press("ArrowRight")
         expect(offline.locator(".notification-demo-card-banner")).to_have_count(2)
     elif stem == "data-explorer":
         offline.get_by_role("button", name="Add filter").click()
         expect(offline.locator(".query-row")).to_have_count(3)
     else:
-        offline.locator('lf-playground-control[name="width"] input').fill("420")
+        width = offline.get_by_role("slider", name="Comparison viewport")
+        width.press("Home")
+        for _ in range(7):
+            width.press("ArrowRight")
         expect(offline.locator('[data-candidate="A"]')).to_have_attribute(
             "style", re.compile(r"width: 420px")
         )

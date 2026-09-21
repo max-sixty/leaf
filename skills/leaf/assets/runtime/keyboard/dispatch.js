@@ -19,11 +19,12 @@
    edit that specific control: Enter, deletion, caret movement, Home/End, and page
    movement. The claim follows the base key through modifiers, so Shift+Arrow selection,
    Alt character composition, and Mod editing commands remain native. It does not blanket
-   radio, checkbox, slider, Escape, or unrelated function keys merely because they are
-   form-related. An exact element scope is nearer than that claim, so a wired textarea
-   keeps its own Escape or submit binding; the typing claim then stands before any scope on an
-   ancestor widget. This ordering lets a widget contain an editor without taking letters,
-   newlines, or caret keys from it.
+   checkbox, Escape, or unrelated function keys merely because they are form-related.
+   Radio and slider navigation has its own narrow claim at the focused control, so
+   an arrow changes that control without also moving its containing widget. Open select
+   options retain typeahead when focus moves into their list. An exact element scope
+   stands before these native claims, so a wired textarea keeps its own Escape or submit
+   binding; the claims then stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
    registers its Escape and Enter on the exact input element, so those rows stand before
@@ -86,6 +87,7 @@ import {
   commandEntries,
   commandRoutes,
   live,
+  parsed,
   routedCommand,
   spell,
   word,
@@ -98,7 +100,7 @@ import {
   universalCommandReference,
 } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
-import { takesLetters } from "../focus.js";
+import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
 import { under } from "../shadow.js";
@@ -193,15 +195,23 @@ export function stack(binding = null) {
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
   const TYPING = textEntryScope();
+  const navigationKeys = controlNavigationKeys(active);
+  const controlScope = navigationKeys.length
+    ? {
+        root: active,
+        rows: [],
+        claims: (binding) => navigationKeys.includes(parsed(binding).key),
+      }
+    : null;
   const expanded = pageScopes().flatMap((scope) => {
     if (scope === ELEMENTS) {
-      if (!typing) return elementStack;
+      if (!typing && !controlScope) return elementStack;
       const own = elementStack.filter(({ el }) => el === active);
       const ancestors = elementStack.filter(({ el }) => el !== active);
       // A control's own state is the innermost layer, before the generic text-box escape
       // and any containing widget: the find box clears its own query before handing the
       // reader back to the list the box belongs to.
-      return [...own, TYPING, ...ancestors];
+      return [...own, ...(typing ? [TYPING] : [controlScope]), ...ancestors];
     }
     if (scope === TYPING && typing) return [];
     return scope;

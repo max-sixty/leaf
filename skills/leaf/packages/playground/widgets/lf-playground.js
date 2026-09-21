@@ -367,24 +367,26 @@ customElements.define(
       const heading = offer("span", "lf-playground-control-label", label);
       control.prepend(heading);
       if (kind === "choice") {
-        const group = offer("div", "lf-playground-choices");
-        group.setAttribute("role", "radiogroup");
-        group.setAttribute("aria-label", label);
+        const group = offer(
+          "wa-radio-group",
+          "lf-playground-input lf-playground-choices",
+        );
+        group.label = label;
+        group.name = `${this.id}-${name}`;
+        group.size = "s";
+        group.orientation = "horizontal";
+        group.addEventListener("change", () => this.#takeInputs());
         for (const choice of own(control, "lf-playground-choice")) {
-          const input = offer("input", "lf-playground-input", undefined, "radio");
-          input.name = `${this.id}-${name}`;
-          input.value = choice.getAttribute("value");
-          input.setAttribute("aria-label", choice.getAttribute("label"));
-          input.addEventListener("change", () => this.#takeInputs());
-          const words = offer(
-            "span",
-            "lf-playground-choice-label",
+          const input = offer(
+            "wa-radio",
+            "",
             choice.getAttribute("label"),
+            undefined,
+            true,
           );
-          choice.append(input, words);
-          choice.addEventListener("click", (event) => {
-            if (event.target !== input) input.click();
-          });
+          input.value = choice.getAttribute("value");
+          input.appearance = "button";
+          choice.append(input);
           group.append(choice);
         }
         control.append(group);
@@ -433,7 +435,12 @@ customElements.define(
         return;
       }
 
-      const input = offer("input", "lf-playground-input", undefined, kind);
+      const input = offer(
+        kind === "range" ? "wa-slider" : "wa-input",
+        "lf-playground-input",
+      );
+      input.label = label;
+      input.size = "s";
       input.name = `${this.id}-${name}`;
       input.setAttribute("aria-label", label);
       for (const attr of ["min", "max", "step", "placeholder"])
@@ -657,10 +664,6 @@ customElements.define(
 
     #readInput(control) {
       const kind = control.getAttribute("kind");
-      if (kind === "choice") {
-        const selected = control.querySelector(':scope input[type="radio"]:checked');
-        return selected?.value;
-      }
       const input = control.querySelector(":scope > .lf-playground-input");
       return kind === "toggle" ? input.checked : input.value;
     }
@@ -680,15 +683,10 @@ customElements.define(
 
     #setInput(control, value) {
       const kind = control.getAttribute("kind");
-      if (kind === "choice") {
-        for (const input of control.querySelectorAll(':scope input[type="radio"]'))
-          input.checked = input.value === value;
-        return;
-      }
       const input = control.querySelector(":scope > .lf-playground-input");
       if (!input) return;
       if (kind === "toggle") input.checked = value;
-      else input.value = String(value);
+      else input.value = kind === "range" ? value : String(value);
       input.setAttribute("value", String(value));
       if (kind === "toggle") input.toggleAttribute("checked", value);
       if (kind === "range") {

@@ -268,12 +268,12 @@ CONTROL_ARCHETYPES = (
     },
     {
         # The case queue's Previous, case selector, and Next controls share the
-        # row above the evidence. Selecting another title changes the native select's
+        # row above the evidence. Selecting another title changes the select's
         # contents without moving the buttons around it.
         "name": "visual-review-navigation",
         "source": VISUAL_REVIEW_GALLERY,
         "target": ".lf-vr-case-select",
-        "select": "keep-mobile-destinations",
+        "option": "All mobile destinations remain reachable",
     },
     {
         # The visual inspector's view and size presses are joined groups whose selected
@@ -2187,8 +2187,9 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
-    if option := archetype.get("select"):
-        control.select_option(option)
+    if option := archetype.get("option"):
+        control.click()
+        page.get_by_role("option", name=option, exact=False).click()
     else:
         control.click()
     round_trip(page)

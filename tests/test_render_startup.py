@@ -2298,6 +2298,8 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     options = page.locator(".lf-thread-panel lf-options#store-pick")
+    expect(options).to_be_hidden()
+    page.locator('.lf-thread[data-id="c-store"] .lf-thread-summary').click()
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)

@@ -98,6 +98,16 @@ lf-visual-review > .lf-reading-after {
   padding: var(--sp-2) var(--sp-3);
 }
 
+/* The workspace gives the evidence a laptop's height, so the two rows of chrome above it
+   are as tall as the Leaf buttons standing in them and no taller. A vendored control
+   sizes itself from the vendor's own form-control height, which is eight pixels more
+   than `.lf-btn`'s box, and both rows take that height from the tallest control in them. */
+.lf-vr-case-select,
+.lf-vr-inspector-group,
+.lf-vr-inspector-choice {
+  --wa-form-control-height: 30px;
+}
+
 .lf-vr-case-select {
   min-width: 0;
   width: 100%;

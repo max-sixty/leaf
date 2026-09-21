@@ -612,15 +612,22 @@ The causal helpers:
   fault draws before consuming it. A fault is named by every boundary that
   carried it, and the later words can trail the first by whatever the page does
   between them, so an equality assertion taken on the first word is a race.
-- `scroll_settled(page)` waits for a scroller to have arrived rather than for it to
-  pause on the way. A gesture's travel is two moves — the runtime places the
-  element's nested scrollports at once and then glides the scroller that owns it
-  to the centring position — so the page holds still for a frame or more between
-  them. The hold is counted in animation frames, not milliseconds, because the
-  compositor advances a glide on every frame it runs: a still frame can only be
-  one the glide has not started on, and a slower machine takes fewer frames
-  through the pause rather than more. `scroller=` and `axis=` name a nested
-  scrollport; the helper clears its own record, so no caller resets it.
+- `scroll_settled(page)` waits for a scroller to have stopped, and is asked
+  behind the fact that it started. Stillness answers the same for a travel that
+  is over and for one an asynchronous gesture has not issued yet, so the press
+  before it consumes a fact the page states — the arrival the walk paints, the
+  focus it moves, the attribute it writes — and this helper reads the stillness
+  behind that. Every travel here is issued in the same task as the fact that
+  announces it, so the fact is enough; no count of frames substitutes for it.
+  What the count is for is the glide: a gesture's travel is two moves — the
+  runtime places the element's nested scrollports at once and then glides the
+  scroller that owns it to the centring position — so the page holds still for a
+  frame or more between them. The hold is counted in animation frames, not
+  milliseconds, because the compositor advances a glide on every frame it runs:
+  a still frame can only be one the glide has not started on, and a slower
+  machine takes fewer frames through the pause rather than more. `scroller=` and
+  `axis=` name a nested scrollport; the helper clears its own record, so no
+  caller resets it.
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.

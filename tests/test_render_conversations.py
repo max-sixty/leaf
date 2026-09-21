@@ -424,6 +424,50 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     expect(expand).to_have_attribute("aria-expanded", "true")
 
 
+def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
+    """A checkpoint may cover the root turn without hiding thread actions."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Start with the measured constraint.")
+    reply = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
+    append_agent_reply(serve.page_dir, root, "The later result remains visible.")
+    summary = summarize_conversation(
+        serve.page_dir, root, root, reply["id"], "The constraint was confirmed."
+    )
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    events_model.append_event(
+        serve.page_dir, {"kind": "unresolve", "author": "user", "parent": root}
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
+    expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
+    expect(card.get_by_role("button", name="Close thread")).to_be_visible()
+    expect(checkpoint.locator(".lf-summary-root-meta")).to_contain_text("You")
+    assert checkpoint.locator(".lf-summary-root-meta").evaluate(
+        "node => !node.closest('.lf-summary-originals')"
+    ), "root metadata and thread actions entered the collapsible originals"
+    resolve = card.get_by_role("button", name="Resolve thread")
+    resolve.focus()
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": root,
+            "text": "Start with the corrected measured constraint.",
+        },
+    )
+    told(page)
+    expect(checkpoint).to_have_count(0)
+    expect(resolve).to_be_focused()
+
+
 def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     browser, serve
 ):

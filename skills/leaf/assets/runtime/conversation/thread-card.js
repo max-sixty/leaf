@@ -237,6 +237,7 @@ export class ThreadView {
     const prior = this.#model;
     const standing = focused();
     const heldFocus = this.node.contains(standing);
+    const heldThreadAction = this.#metadataActions.contains(standing);
     let summaryReplacedFocusedMessage = false;
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
     // Only a summary that was not standing before can swallow what the reader
@@ -320,18 +321,24 @@ export class ThreadView {
         this.#metadataActions.replaceChildren(...actions);
       headerActions = this.#metadataActions;
     }
+    const describedRanges = summaryRanges(model.messages, model.summaries);
+    const rootSummary = describedRanges.find(
+      (range) =>
+        range.kind === "summary" &&
+        range.messages.some((message) => message.key === model.messages[0]?.key),
+    );
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message, index === 0 ? headerActions : null);
+      view.present(message, index === 0 && !rootSummary ? headerActions : null);
       return { key: message.key, node: view.node };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
       if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    const ranges = summaryRanges(model.messages, model.summaries).map((range) => {
+    const ranges = describedRanges.map((range) => {
       if (range.kind === "message") {
         const node = messageNodes.get(range.message.key);
         delete node.dataset.lfSummary;
@@ -350,6 +357,7 @@ export class ThreadView {
       });
       return {
         ...range,
+        headerActions: range === rootSummary ? headerActions : null,
         expanded,
         forced: forced || searchMatch,
         requiredText: searchMatch
@@ -432,7 +440,7 @@ export class ThreadView {
     );
     this.#wireKeys();
     if (
-      summaryReplacedFocusedMessage &&
+      (summaryReplacedFocusedMessage || heldThreadAction) &&
       focused() !== standing &&
       standing?.isConnected
     ) {
@@ -453,6 +461,18 @@ export class ThreadView {
       data-expanded=${String(range.expanded)}
     >
       <div class="lf-summary-checkpoint">
+        ${
+          range.headerActions
+            ? html`<div class="lf-msg-head lf-summary-root-meta">
+                <b>${range.messages[0].by}</b
+                ><span class="lf-msg-meta"
+                  ><time datetime=${range.messages[0].timestamp}
+                    >${range.messages[0].age}</time
+                  ></span
+                >${range.headerActions}
+              </div>`
+            : nothing
+        }
         <div class="lf-summary-label">Summary</div>
         <div
           class="lf-summary-text"

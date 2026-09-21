@@ -6621,8 +6621,10 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve):
-    """A layer stashed beside Threads cannot return behind its new modal boundary."""
+def test_reference_keeps_its_popover_only_inside_the_current_modal_boundary(
+    browser, serve
+):
+    """Native ancestry retains a popover until a new covering boundary excludes it."""
     url = serve(LONG_PAGE, comments=2)
     _publish(serve.page_dir, 2, LONG_PAGE, "two")
     page = open_page(browser, url)
@@ -6641,6 +6643,10 @@ def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve)
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
+    expect(versions).to_be_visible()
+    assert versions.evaluate(
+        "menu => menu.contains(document.querySelector('.lf-command-reference'))"
+    )
 
     resized(page, 500, 800)
     panel_settled(page)
@@ -6682,6 +6688,10 @@ def test_reference_does_not_restore_a_popover_across_modal_entry(browser, serve)
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(reference).to_be_visible()
+    expect(versions).to_be_visible()
+    assert versions.evaluate(
+        "menu => menu.contains(document.querySelector('.lf-command-reference'))"
+    )
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(versions).to_be_visible()
@@ -7087,7 +7097,10 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           const popover = document.createElement('div');
           popover.id = 'shadow-popover';
           popover.popover = 'auto';
-          popover.textContent = 'Nested popover';
+          const origin = document.createElement('button');
+          origin.id = 'shadow-popover-origin';
+          origin.textContent = 'Nested popover';
+          popover.append(origin);
           trigger.popoverTargetElement = popover;
           shadowStage(shadowHost, [trigger, popover]);
           dialog.append(shadowHost);
@@ -7100,12 +7113,25 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
           dialog.showModal();
           trigger.focus();
           trigger.click();
+          origin.focus();
         }"""
     )
     modal = page.locator("#nested-modal")
     popover = page.locator("#shadow-popover")
     expect(modal).to_be_visible()
     expect(popover).to_be_visible()
+
+    # The document-owned reference cannot move into a declared shadow tree without
+    # losing its chrome styles. That popover takes the fallback path and returns as the
+    # same visible context when the reference closes.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(popover).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(popover).to_be_visible()
+    expect(page.locator("#shadow-popover-origin")).to_be_focused()
 
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
@@ -7143,13 +7169,13 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
         }"""
     )
 
-    # A newer modal temporarily removes an auto popover from the native top layer. The
-    # popover's entry waits suspended under it and is the same entry when it comes back,
-    # rather than a fresh layer stacked over the one the reader was already in.
+    # The shared modal becomes a descendant of a light-DOM popover. The browser keeps
+    # that ancestor standing, and closing the modal reveals the same layer beneath it.
     open_versions(page)
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-version-menu")).to_be_visible()
     assert page.evaluate(

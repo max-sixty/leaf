@@ -911,6 +911,29 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         "an unchanged status poll disturbed the native disclosure or rebuilt its "
         f"unchanged detail: {survived}"
     )
+
+    # The command reference is a descendant of the disclosure while it stands. Native
+    # modal entry therefore keeps the status open, and a status repaint must retain the
+    # dialog rather than taking its top-layer node away from the reader.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(explanation).to_be_visible()
+    assert explanation.evaluate(
+        "detail => detail.contains(document.querySelector('.lf-command-reference'))"
+    )
+    session_model.cmd_status(serve.page_dir, "working", detail)
+    told(page)
+    expect(reference).to_be_visible()
+    expect(explanation).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(explanation).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-shelf-open", "false"
+    )
     page.keyboard.press("Escape")
     for width in (1280, 841, 390):
         resized(page, width, 900)

@@ -7,11 +7,13 @@
    reader-session state projected through one Lit template. The dispatcher still resolves
    an activated id afresh after the dialog closes, so a stale row cannot run.
 
-   The native dialog, retained Close button, top-layer restoration, return place, focus,
-   selection, and scrolling stay with this controller. A modal dialog clears auto popovers
-   on entry; the reference captures the platform layers that stood beneath it and restores
-   eligible ones before returning focus. A covering auxiliary surface established while
-   the reference stands supplies its own return place instead.
+   The native dialog, retained Close button, return place, focus, selection, and scrolling
+   stay with this controller. When the reader opens it from a light-DOM popover, the dialog
+   moves under that popover before entering the top layer. The browser then keeps the
+   ancestor popover open and returns focus inside it without Leaf suspending and rebuilding
+   the layer. A popover in another tree stays with its package's styles and takes the
+   capture-and-restore fallback. A covering auxiliary surface established while the
+   reference stands supplies its own return place instead.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -167,6 +169,7 @@ function declaredStack(origin) {
 let commandRoutesAtOpen = new Map();
 let commandReferenceIsOpen = false;
 let commandReferenceOrigin = null;
+let commandReferenceHome = null;
 let commandReferenceLayers = [];
 let commandReferenceBoundary = null;
 let commandReferenceInvoke = null;
@@ -718,7 +721,13 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // Focusing a text input replaces the document selection. Keep a passage the reader has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
+  // Closing an ancestor popover while its descendant modal remains up can leave focus on
+  // body. That is the platform taking down the origin, not the reader leaving the modal.
+  const atClose = focused();
+  const handBack =
+    !open &&
+    restoreFocus &&
+    (commandReferenceDialog.contains(atClose) || atClose === document.body);
   let restore = handBack ? commandReferenceOrigin : null;
   const closing = !open && commandReferenceDialog.open;
   if (fresh) {
@@ -728,7 +737,13 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // the reference four screens down would Tab from there.
     const at = focused();
     commandReferenceOrigin = at === document.body ? null : at;
-    commandReferenceLayers = openPopovers();
+    commandReferenceHome = commandReferenceDialog.parentNode;
+    const popovers = openPopovers();
+    const popover = commandReferenceOrigin?.closest?.("[popover]:popover-open");
+    if (popover?.getRootNode() === document) popover.append(commandReferenceDialog);
+    commandReferenceLayers = popovers.filter(
+      (layer) => !layer.contains(commandReferenceDialog),
+    );
     commandReferenceBoundary = coveringAuxiliarySurface();
     // The displaced page decides what can run. Capture before the reference's own scope
     // becomes active, then gather its instructional rows after it does.
@@ -755,21 +770,21 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   }
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
-  else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
+  else if (!open && commandReferenceDialog.open) {
+    commandReferenceHome?.append(commandReferenceDialog);
+    commandReferenceDialog.close();
+  }
 
-  // Restore native layers in their prior order before focus returns to a control inside
-  // one of them.
   if (closing) {
     for (const layer of commandReferenceLayers) {
       if (!layer.isConnected || layer.matches(":popover-open")) continue;
       if (!auxiliaryAllowsNativeLayer(layer, commandReferenceBoundary)) continue;
-      if (restore && layer.contains(restore))
-        layer.lfInvoker?.focus({ preventScroll: true });
       layer.showPopover();
     }
     if (restore && !auxiliaryAllowsNativeLayer(restore, commandReferenceBoundary))
       restore = coveringAuxiliaryFocus();
     commandReferenceLayers = [];
+    commandReferenceHome = null;
     commandReferenceBoundary = null;
   }
 

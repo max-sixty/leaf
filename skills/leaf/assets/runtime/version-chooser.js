@@ -64,6 +64,13 @@ class VersionChooserView {
     // exposes the same relationship from the popover end to owners restoring a layer.
     this.button.popoverTargetElement = this.menu;
     this.menu.lfInvoker = this.button;
+    this.menu.addEventListener("beforetoggle", (event) => {
+      // The native popover opening focuses its declared arrival synchronously.
+      // Declare it only for this opening: autofocus on inserted rows also runs
+      // during document load, when an embedded page cannot claim focus.
+      const arrival = event.newState === "open" ? this.#selectedRow() : null;
+      for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
+    });
     this.menu.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
       if (this.#model.chooser.offered)
@@ -118,6 +125,17 @@ class VersionChooserView {
     return listWalkPosition(this.rows(), document.activeElement);
   }
 
+  #selectedRow() {
+    const { base, currentRevision } = this.#model.selection;
+    return (
+      this.rows().find((row) =>
+        base !== null
+          ? row.dataset.lfVersion === String(base)
+          : row.dataset.lfRevision === String(currentRevision),
+      ) ?? this.rows()[0]
+    );
+  }
+
   numberedRoutes() {
     return this.rows()
       .map((control) => ({ control, version: +control.dataset.lfVersion }))
@@ -170,14 +188,6 @@ class VersionChooserView {
 
   #renderMenu() {
     const { selection } = this.#model;
-    // The platform focuses this row while opening the popover. A toggle event is
-    // delivered later, after the reader's next key may already have arrived.
-    const arrival =
-      this.#displayedRows.find((entry) =>
-        selection.base !== null
-          ? entry.version === selection.base
-          : entry.revision === selection.currentRevision,
-      ) ?? this.#displayedRows[0];
     render(
       html`${repeat(
         this.#displayedRows,
@@ -194,7 +204,6 @@ class VersionChooserView {
             <button
               class=${`lf-version-row${compared ? " lf-compared" : ""}`}
               role="menuitem"
-              ?autofocus=${entry === arrival}
               data-lf-revision=${entry.revision}
               data-lf-version=${entry.version ?? nothing}
               aria-current=${entry.current ? "true" : nothing}

@@ -5,11 +5,41 @@ import {
   quoted,
   textNodesUnder,
 } from "/runtime/widget-api.js";
+import { renderCheckOf } from "/runtime/render-check.js";
 import { visualPartProblems } from "/runtime/visual-parts.js";
 import { openRoots } from "./open-roots.js";
 
 export const failSoftErrors = () =>
   [...document.querySelectorAll(".lf-error")].map((el) => el.textContent.trim());
+
+// The checks widgets registered for the gate alone (runtime/render-check.js). A check is
+// asynchronous — it imports a library and reads a source with it — and a probe is not, so
+// starting them and reading that they settled are two probes. What a check finds reaches
+// the gate through the widget's own `failSoft`, which `failSoftErrors` reads afterwards;
+// what is reported here is the other failure, a check that could not run at all.
+let renderChecks = null;
+export function startRenderChecks() {
+  const run = { settled: false, failures: [] };
+  renderChecks = run;
+  const started = openRoots(document)
+    .flatMap((root) => [...root.querySelectorAll("*")])
+    .filter(renderCheckOf)
+    .map((source) =>
+      Promise.resolve()
+        .then(renderCheckOf(source))
+        .catch((error) =>
+          run.failures.push({
+            tag: source.localName,
+            id: source.id,
+            error: String(error?.message ?? error),
+          }),
+        ),
+    );
+  Promise.all(started).then(() => (run.settled = true));
+  return started.length;
+}
+export const renderChecksSettled = () => renderChecks?.settled === true;
+export const renderCheckFailures = () => renderChecks.failures;
 
 const PAINT_PROBE = "--_leaf-render-paint-value";
 const validPaint = (element, property, value) => {

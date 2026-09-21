@@ -1083,10 +1083,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-delivery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
     color: var(--muted); font-size: 10px; }
   .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
-  .lf-thread-collapse { display: block; margin: 4px 10px 8px auto;
-    min-width: var(--aim-floor); min-height: var(--aim-floor);
-    border: 0; padding: 2px 0; background: transparent; color: var(--muted);
-    font: inherit; font-size: var(--t-6); cursor: pointer; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1100,6 +1096,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--warn-tint); font: 600 var(--t-6)/1.25 var(--sans);
     vertical-align: baseline; }
   .lf-going { overflow: hidden; box-sizing: border-box; }
+  .lf-going .lf-thread-meta-actions { position: absolute; z-index: 2;
+    inset-block-start: 8px; inset-inline-end: 8px; }
   .lf-going .lf-thread-send { visibility: hidden; }
   .lf-going .lf-resolve { color: var(--ok-ink); }
   .lf-going .lf-resolve::before { background: var(--ok-tint); }
@@ -1130,27 +1128,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-quote { margin: 0 0 12px; padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2); color: var(--muted);
     font-size: 13px; font-style: normal; cursor: pointer; overflow-wrap: anywhere; }
-  /* The thread header owns its quoted target and settlement action. Its columns keep their
-     complete hit boxes disjoint. */
-  .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 12px; align-items: stretch; margin-bottom: 12px; }
+  /* The quoted target remains a compact navigation row above the transcript. */
+  .lf-thread-head { margin-bottom: 12px; }
   .lf-thread-head > .lf-quote { margin: 0; }
-  .lf-thread-head > .lf-resolve { grid-column: 2; }
-  /* The run heading already names a comment made on the heading itself, so that card
-     has no quote of its own. Its settlement action still belongs before the message
-     controls, but it does not earn an empty header row: float it into the opening
-     message, where the words wrap clear of the complete hit target at either pointer
-     floor. A quoted target keeps the two-column header above. */
-  :is(.lf-thread, .lf-going) > .lf-thread-head:not(:has(> .lf-quote)) {
-    float: inline-end; display: block;
-    margin: 0; margin-block-start: 2px; margin-inline-start: 8px; }
-  /* In the accordion, the floated action keeps the message's side inset. The live
-     card puts it below the title with room for its outward keyboard ring; the folding
-     outcome keeps the base 2px top inset so it remains inside the shrinking clip. */
-  .lf-thread-compact > .lf-thread-head:not(:has(> .lf-quote)) {
-    margin-inline-end: 8px; }
-  .lf-thread.lf-thread-compact > .lf-thread-head:not(:has(> .lf-quote)) {
-    margin-block-start: 16px; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }
@@ -1499,7 +1479,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
+    position: absolute; z-index: 3; inset-block-start: 12px; inset-inline-end: 12px;
     align-items: flex-start; flex: none; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
+      .lf-margin-preview-nav:not([hidden])) {
+    position: static; justify-content: flex-end; margin-bottom: 8px; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
@@ -1510,15 +1494,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
-    gap: 4px; margin-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
-    color: var(--muted-2); font-size: var(--t-6); }
+    gap: 4px; color: var(--muted-2); font-size: var(--t-6); }
   .lf-margin-preview-nav[hidden] { display: none; }
   .lf-margin-preview-position { margin-inline-end: 2px; }
   .lf-margin-preview-step { border: 0;
     background: transparent; color: var(--muted); }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
-  .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 16px; }
+  .lf-margin-preview-list { display: grid; gap: 4px; }
   /* The subject and its actions stay outside the conversation's scrollport. The
      retained settlement action is positioned against the card, alongside Dismiss. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-list {
@@ -1541,12 +1524,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
-  .lf-margin-preview[data-lf-thread] .lf-conversation-thread > .lf-thread-head {
-    inset-block-start: 12px;
-    inset-inline-end: calc(12px + max(28px, var(--aim-floor)) + 4px); }
-  .lf-margin-preview[data-lf-thread] .lf-conversation-thread:has(> .lf-thread-head) >
-      .lf-conversation-msg:first-of-type > .lf-conversation-head {
-    min-height: 0; padding-inline-end: 0; align-items: baseline; }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-msg:first-of-type >
+      .lf-conversation-head { padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

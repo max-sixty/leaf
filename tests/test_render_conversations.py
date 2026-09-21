@@ -1461,7 +1461,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             ':scope > .lf-compose textarea'
           );
           window.committedResolve = committedThread.querySelector(
-            ':scope > .lf-thread-head > .lf-resolve'
+            ':scope .lf-thread-meta-actions > .lf-resolve'
           );
         }""",
         root,
@@ -1486,16 +1486,21 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(recovered).to_have_attribute("data-resolved", "false")
     expect(recovered.locator("textarea")).to_have_count(1)
     expect(recovered.locator(".lf-reopen")).to_have_count(0)
-    assert page.evaluate(
+    retained = page.evaluate(
         """id => {
           const thread = document.querySelector(`.lf-thread[data-id="${id}"]`);
-          return thread === window.committedThread
-            && thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage
-            && thread.querySelector(':scope > .lf-compose textarea') === window.committedEditor
-            && thread.querySelector(':scope > .lf-thread-head > .lf-resolve') === window.committedResolve;
+          return {
+            thread: thread === window.committedThread,
+            message: thread.querySelector(`:scope > .lf-msg[data-mid="${id}"]`) === window.committedMessage,
+            editor: thread.querySelector(':scope > .lf-compose textarea') === window.committedEditor,
+            resolve: thread.querySelector(':scope .lf-thread-meta-actions > .lf-resolve') === window.committedResolve,
+          };
         }""",
         root,
-    ), "rollback replaced a retained card, message, editor, or control"
+    )
+    assert all(retained[key] for key in ("thread", "message", "editor", "resolve")), (
+        f"rollback replaced a retained card, message, editor, or control: {retained}"
+    )
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
@@ -3628,9 +3633,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-response-more",
         "lf-response-open",
         "lf-response-options",
-        # The same thread header owns settlement in the panel and in inline seats;
-        # the authored theme gives both views the same label/control alignment.
-        "lf-thread-head",
+        # The same metadata action slot carries settlement in panel and inline seats;
+        # the authored theme gives both views the same alignment.
+        "lf-thread-meta-actions",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
         # Primary buttons keep the authored theme's accent action face when they

@@ -219,13 +219,8 @@ leaf-anchor-note { display: contents; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
 .lf-conversation-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
-.lf-conversation-thread > .lf-thread-head { position: absolute; z-index: 2;
-          inset-block-start: calc(var(--sp-1) + var(--sp-3)); inset-inline-end: var(--sp-1); }
-.lf-conversation-thread:has(> .lf-thread-head) >
-          .lf-conversation-msg:first-of-type > .lf-conversation-head {
-          box-sizing: border-box; min-height: var(--lf-thread-action-hit);
-          padding-inline-end: calc(var(--lf-thread-action-hit) + var(--sp-1));
-          align-items: center; }
+.lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
+          gap: 4px; margin-inline-start: auto; }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
 /* The document face of the panel's receipt mark, dressed here for the same reason the

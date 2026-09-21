@@ -189,7 +189,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model) {
+  present(model, headerActions = null) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -265,6 +265,7 @@ export class MessageView {
             }
             ${panel ? nothing : receiptTemplate}</span
           >
+          ${headerActions ?? nothing}
         </div>
         ${
           panel

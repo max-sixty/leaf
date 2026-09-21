@@ -332,7 +332,6 @@ export function createMarginProjection({
   preview.setAttribute("popover", "auto");
   preview.setAttribute("role", "dialog");
   const previewHead = el("div", "lf-margin-preview-head");
-  const previewTitle = el("strong", "lf-margin-preview-title");
   const previewClose = el(
     "button",
     "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
@@ -355,7 +354,7 @@ export function createMarginProjection({
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
   previewNav.append(previewPosition, previewPrevious, previewNext);
-  previewHead.append(previewTitle, previewNav, previewClose);
+  previewHead.append(previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
   let threadTransitionEpoch = 0;
@@ -2100,7 +2099,6 @@ export function createMarginProjection({
     const title = trimmed(targetHeading || quoted || entry.title, 72);
     keeps(preview, "data-lf-thread", "");
     keeps(preview, "aria-label", `Conversation for ${title}`);
-    previewTitle.textContent = title;
     previewNav.hidden = threadItems.length < 2;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
     previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;

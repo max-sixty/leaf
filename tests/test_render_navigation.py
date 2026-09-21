@@ -3088,17 +3088,17 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         "borderTop": "1px",
     }, f"the gap between inline threads lost its separator: {separator}"
 
-    resolve = thread.locator(":scope > .lf-thread-head > .lf-resolve")
+    resolve = thread.locator(":scope .lf-thread-meta-actions > .lf-resolve")
     expect(resolve).to_have_css("position", "relative")
     placement = thread.evaluate(
         """el => {
           const own = el.getBoundingClientRect();
           const inset = parseFloat(getComputedStyle(el).paddingTop);
           const actions = el.querySelector(
-            ':scope > .lf-thread-head'
+            ':scope .lf-thread-meta-actions'
           ).getBoundingClientRect();
           const control = el.querySelector(
-            ':scope > .lf-thread-head > .lf-resolve'
+            ':scope .lf-thread-meta-actions > .lf-resolve'
           ).getBoundingClientRect();
           const headNode = el.querySelector(
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'

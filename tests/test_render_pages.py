@@ -1118,7 +1118,9 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
         return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
     quiet = screenshot()
-    shot.locator(".lf-shotflip").click(modifiers=["Alt"])
+    comparison = shot.locator("wa-comparison")
+    comparison.click(modifiers=["Alt"], position={"x": box["width"] / 4, "y": 80})
+    expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
     overlay = page.locator(".lf-visual-mark-pending")

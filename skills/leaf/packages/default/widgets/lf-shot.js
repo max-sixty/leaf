@@ -1,12 +1,13 @@
-/* lf-shot: registered before/after screenshots in one fixed frame.
+/* lf-shot: registered before/after screenshots under one draggable divider.
  *
  * The target's shared margin entry shows a split circle: left filled for before, right for after.
- * Enter, Space, and clicks flip the comparison without moving the margin entry.
- * Each rail label chooses its own frame. Clicking the image works a transparent native
- * checkbox directly, keeping focus at the clicked frame even when a tall comparison
- * extends beyond the viewport. Every door changes that checkbox; CSS alone chooses the
- * visible image. Export makes the rail labels static, removes the margin control, and
- * keeps the native image control, so a standalone copy still flips with a click or Space.
+ * Enter, Space, and clicks flip that projection between the endpoints without moving it.
+ * Each rail label chooses its endpoint; the Web Awesome comparison between them owns
+ * pointer dragging and Arrow, Home, and End adjustment. A click on either image keeps
+ * the old quick endpoint toggle, while a click on the handle only puts the reader on it.
+ * Export makes the rail labels static, removes the live comparison and margin control,
+ * and reveals the transparent native checkbox over the image, so a standalone copy
+ * still flips with a click or Space.
  * Print stacks both frames.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
@@ -16,6 +17,8 @@
  * `data-lf-shot-controls="off"`; lf-shot then withdraws its commands and margin action
  * without disabling the native checkbox a standalone copy needs.
  * Commentary about the change belongs in authored prose around the widget. */
+import "../vendor/webawesome.esm.js";
+
 import {
   PRESS,
   commandScope,
@@ -40,6 +43,9 @@ customElements.define(
     #alt;
     #margin;
     #flip;
+    #comparison;
+    #frames = [];
+    #captions = new Map();
 
     static observedAttributes = ["data-lf-shot-controls"];
 
@@ -51,7 +57,6 @@ customElements.define(
       const alt = this.getAttribute("alt");
       this.#alt = alt;
       const shots = [];
-      const captions = new Map();
 
       const rail = document.createElement("div");
       rail.className = "lf-shotrail";
@@ -61,7 +66,7 @@ customElements.define(
         caption.dataset.lfState = state;
         caption.ariaLabel = `${state} — ${alt}`;
         relabel(caption, state, { says: true });
-        captions.set(state, caption);
+        this.#captions.set(state, caption);
         rail.append(caption);
       }
       this.append(rail);
@@ -78,6 +83,7 @@ customElements.define(
         img.alt = `${state}: ${alt}`;
         shots.push(img);
         frame.append(img);
+        this.#frames.push(frame);
         this.append(frame);
       }
 
@@ -85,14 +91,8 @@ customElements.define(
       this.#box = box;
       box.name = "comparison";
       box.ariaLabel = `Compare before and after — ${alt}`;
-      const show = (state) => {
-        const checked = state === "after";
-        if (box.checked === checked) return;
-        box.checked = checked;
-        box.dispatchEvent(new Event("change", { bubbles: true }));
-      };
-      for (const [state, caption] of captions) {
-        caption.addEventListener("click", () => show(state));
+      for (const [state, caption] of this.#captions) {
+        caption.addEventListener("click", () => this.#show(state));
         commands(caption, "On a screenshot", [
           {
             id: `screenshot.${state}`,
@@ -103,19 +103,12 @@ customElements.define(
             // does not name it there.
             when: () =>
               this.dataset.lfShotControls !== "off" &&
-              box.checked !== (state === "after"),
+              this.#comparison?.position !== (state === "after" ? 100 : 0),
             run: () => caption.click(),
           },
         ]);
       }
-      const paint = () => {
-        const visible = box.checked ? "after" : "before";
-        for (const [state, caption] of captions)
-          caption.setAttribute("aria-pressed", String(state === visible));
-        this.#margin?.update();
-        paintKeys();
-      };
-      box.addEventListener("change", paint);
+      box.addEventListener("change", () => this.#paint());
       // One declaration, two controls: the native checkbox the reader stands on inside
       // the widget, and the margin entry the same flip is projected onto. A margin entry
       // is generated elsewhere, so ancestry cannot find this row for it — the capability
@@ -125,15 +118,16 @@ customElements.define(
         {
           id: "screenshot.toggle",
           keys: [" "],
-          does: () => `Show the ${box.checked ? "before" : "after"} frame`,
-          line: () => `show ${box.checked ? "before" : "after"}`,
+          does: () => `Show the ${this.#nextState()} frame`,
+          line: () => `show ${this.#nextState()}`,
           when: () => this.dataset.lfShotControls !== "off",
           run: () => this.#margin?.activate("toggle"),
         },
       ]);
       commands(box, this.#flip);
-      paint();
       this.append(box);
+      this.#syncComparison();
+      this.#paint();
       this.#offer();
       // A visual-review run creates shots after authored descriptor capture. Its
       // authored controller explicitly owns that generated child's preparation;
@@ -151,7 +145,119 @@ customElements.define(
 
     attributeChangedCallback() {
       if (!this.isConnected) return;
+      this.#syncComparison();
       this.#offer();
+      paintKeys();
+    }
+
+    #syncComparison() {
+      const enabled = this.dataset.lfShotControls !== "off";
+      if (enabled && !this.#comparison) {
+        const comparison = document.createElement("wa-comparison");
+        comparison.className = "lf-shotcomparison";
+        comparison.dataset.lfGen = "1";
+        comparison.position = 50;
+        const handle = document.createElement("span");
+        handle.className = "lf-shot-handle";
+        handle.slot = "handle";
+        handle.ariaHidden = "true";
+        comparison.append(handle);
+        for (const frame of this.#frames) {
+          frame.slot = frame.dataset.lfState;
+          comparison.append(frame);
+        }
+        let dragged = false;
+        comparison.addEventListener("change", () => {
+          dragged = true;
+          this.#paint();
+        });
+        comparison.addEventListener("pointerdown", (event) => {
+          if (event.button === 0) dragged = false;
+        });
+        comparison.addEventListener("click", (event) => {
+          const onHandle = event
+            .composedPath()
+            .some(
+              (node) =>
+                node instanceof Element &&
+                node.getAttribute("part")?.split(/\s+/).includes("handle"),
+            );
+          if (
+            !dragged &&
+            !onHandle &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.shiftKey
+          )
+            this.#show(this.#nextState());
+        });
+        commands(comparison, "On a screenshot divider", [
+          {
+            id: "screenshot.adjust",
+            keys: ["ArrowLeft", "ArrowRight"],
+            does: "Adjust the before and after divider",
+            line: "adjust the comparison",
+            repeat: true,
+          },
+          {
+            id: "screenshot.edge",
+            keys: ["Home", "End"],
+            does: "Show only before or after",
+            line: "jump to an endpoint",
+          },
+        ]);
+        this.insertBefore(comparison, this.#box);
+        this.#comparison = comparison;
+        void comparison.updateComplete.then(() => this.#paint());
+      } else if (!enabled && this.#comparison) {
+        for (const frame of this.#frames) {
+          frame.removeAttribute("slot");
+          this.insertBefore(frame, this.#comparison);
+        }
+        this.#comparison.remove();
+        this.#comparison = null;
+      }
+    }
+
+    #show(state) {
+      if (this.#comparison) {
+        const position = state === "after" ? 100 : 0;
+        if (this.#comparison.position !== position)
+          this.#comparison.position = position;
+        else this.#paint();
+        return;
+      }
+      const checked = state === "after";
+      if (this.#box.checked === checked) {
+        this.#paint();
+        return;
+      }
+      this.#box.checked = checked;
+      this.#box.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    #nextState() {
+      return (this.#comparison?.position ?? (this.#box.checked ? 100 : 0)) > 50
+        ? "before"
+        : "after";
+    }
+
+    #paint() {
+      const position = this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
+      this.#box.checked = position > 50;
+      for (const [state, caption] of this.#captions) {
+        const endpoint = state === "after" ? 100 : 0;
+        caption.setAttribute("aria-pressed", String(position === endpoint));
+      }
+      const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
+      if (handle) {
+        const before = Number((100 - position).toFixed(2));
+        handle.setAttribute("aria-label", `Before and after — ${this.#alt}`);
+        handle.setAttribute("aria-valuetext", `Before ${before}%, after ${position}%`);
+        handle.style.setProperty("--lf-here-ring", "shot");
+      }
+      this.#margin?.update();
       paintKeys();
     }
 
@@ -166,7 +272,9 @@ customElements.define(
         key: `shot:${this.id}`,
         target: () => this,
         read: () => {
-          const label = `Show ${this.#box.checked ? "before" : "after"}`;
+          const next = this.#nextState();
+          const label = `Show ${next}`;
+          const position = this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
           return {
             subject: null,
             state: "idle",
@@ -177,7 +285,7 @@ customElements.define(
             entries: [
               marginEntry({
                 key: "toggle",
-                icon: this.#box.checked ? "compare-after" : "compare-before",
+                icon: position > 50 ? "compare-after" : "compare-before",
                 label,
                 accessibleLabel: `${label} — ${this.#alt}`,
                 activation: "toggle",
@@ -189,7 +297,7 @@ customElements.define(
           };
         },
         activate: (activation) => {
-          if (activation === "toggle") this.#box.click();
+          if (activation === "toggle") this.#show(this.#nextState());
         },
       });
     }
@@ -211,6 +319,10 @@ customElements.define(
               `at one viewport, or the flip moves everything`,
           ),
         );
+      const height = Math.max(...shots.map((img) => img.naturalHeight));
+      if (before && height)
+        this.style.setProperty("--lf-shot-ratio", `${before} / ${height}`);
+      await this.#comparison?.updateComplete;
     }
   },
 );

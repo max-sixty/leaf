@@ -40,14 +40,27 @@
                  border-radius: var(--r); background: var(--code-chrome);
                  color: var(--code-muted); font: var(--t-6) var(--sans); }
 .lf-diff-search-label { flex: 1 1 220px; }
-.lf-diff-search { box-sizing: border-box; width: 100%; min-height: 30px; padding: 5px 8px;
-                  border: 1px solid var(--code-border); border-radius: calc(var(--r) - 2px);
-                  background: var(--pre-bg); color: var(--code-ink); font: inherit; }
-.lf-diff-search::placeholder { color: var(--code-muted); opacity: 1; }
+.lf-diff-search { flex: 1 1 auto; width: 100%; }
+.lf-diff-search::part(label),
+.lf-diff-search::part(form-control-label) { display: none; }
 .lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       white-space: nowrap; cursor: pointer; }
-.lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
+/* A native switch keeps the exported diff interactive without scripts. */
+.lf-diff-wrap { appearance: none; margin: 0; flex: none; cursor: pointer;
+                width: 2rem; height: 1.125rem; border-radius: 999px;
+                border: 1px solid var(--code-border); background: var(--code-muted);
+                position: relative; }
+.lf-diff-wrap::before { content: ""; position: absolute; width: .75rem; height: .75rem;
+                        border-radius: 50%; background: var(--paper);
+                        top: 50%; left: .125rem; transform: translateY(-50%); }
+.lf-diff-wrap:checked { background: var(--accent); border-color: var(--accent); }
+.lf-diff-wrap:checked::before { left: calc(100% - .875rem); }
+.lf-diff-wrap:focus-visible { outline: var(--here-ring); outline-offset: 3px; }
+@media (forced-colors: active) {
+  .lf-diff-wrap { appearance: auto; }
+  .lf-diff-wrap::before { display: none; }
+}
 .lf-diff-next, .lf-diff-review, .lf-diff-comment { font: inherit; }
 /* The toolbar's press. The two on a file's name line are as tall as the bar they
    stand in (--lf-diff-action-h, below), and a taller minimum here would stand them

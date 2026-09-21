@@ -1337,7 +1337,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
     playground.get_by_role("button", name="Needs attention").click()
-    compact = playground.locator("input[aria-label='Compact spacing']")
+    compact = playground.get_by_role("switch", name="Compact spacing")
     expect(compact).to_be_checked()
     expect(playground).to_have_attribute("data-playground-format", "status strip")
 

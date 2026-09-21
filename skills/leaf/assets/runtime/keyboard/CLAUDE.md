@@ -43,7 +43,9 @@ shared behavior and does not shadow an outer handler.
 
 Text entry keeps characters, composition, caret movement, deletion, and other editing
 keys ahead of ancestor widget scopes. An exact control may still declare a sequence such
-as Mod+Enter or its own Escape step.
+as Mod+Enter or its own Escape step. Radio and slider navigation likewise belongs to
+the focused control before ancestor widgets, and a focused select option retains
+typeahead while its list is open.
 
 Escape follows semantic unwind order instead of ordinary reservation. The focused
 control or active mode may consume one inner step; then the surface holding focus, with

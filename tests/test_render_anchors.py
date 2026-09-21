@@ -4757,7 +4757,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     page.locator(".lf-thread-summary").first.click()
     whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
-    search = page.locator("#patch .lf-diff-search")
+    search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
     expect(added).to_be_hidden()
     expect(inline).to_have_count(0)
@@ -5392,7 +5392,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     else:
         quote.click()
     page.wait_for_function("typeof window.__leafReleaseFragment === 'function'")
-    search = page.locator("lf-diff .lf-diff-search")
+    search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
         search.click()
         expect(search).to_be_focused()

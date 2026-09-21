@@ -1095,11 +1095,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
     cursor: pointer; }
   .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
-  .lf-summary-originals { display: grid; grid-template-columns: minmax(0, 1fr) var(--aim-floor);
+  .lf-summary-originals { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch; }
   .lf-summary-originals[hidden] { display: none; }
   .lf-summary-messages { min-width: 0; }
   .lf-summary-messages > .lf-msg { margin: 16px 8px 16px 0; }
+  .lf-summary-originals:not(:has(> .lf-summary-refold)) > .lf-summary-messages
+    > .lf-msg { margin-inline-end: 8px; }
   .lf-summary-refold { min-width: var(--aim-floor); border: 0; border-inline-start: 1px solid var(--rule);
     padding: 0; background: transparent; color: var(--muted); font: 20px/1 var(--sans); cursor: pointer; }
   .lf-summary-refold > span { position: sticky; top: 8px; display: block; padding-block: 10px; }

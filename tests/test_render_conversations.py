@@ -473,6 +473,23 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "All three constraints now form one decision."
     )
 
+    card.locator(".lf-msg[data-mid]").evaluate_all(
+        """messages => {
+          window.__summaryMessageGeometryReads = 0;
+          for (const message of messages) {
+            const clientRects = message.getClientRects.bind(message);
+            const boundingRect = message.getBoundingClientRect.bind(message);
+            message.getClientRects = () => {
+              window.__summaryMessageGeometryReads += 1;
+              return clientRects();
+            };
+            message.getBoundingClientRect = () => {
+              window.__summaryMessageGeometryReads += 1;
+              return boundingRect();
+            };
+          }
+        }"""
+    )
     events_model.append_event(
         serve.page_dir,
         {
@@ -491,6 +508,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         "The corrected second constraint."
     )
     expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
+    assert page.evaluate("() => window.__summaryMessageGeometryReads") == 0
 
 
 def test_a_summary_cannot_hide_an_active_question(browser, serve):
@@ -531,6 +549,18 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     expect(card.locator("#summary-job")).to_be_visible()
     expect(checkpoint.locator(".lf-summary-expand")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-refold")).to_have_count(0)
+    originals = checkpoint.locator(".lf-summary-originals")
+    messages = checkpoint.locator(".lf-summary-messages")
+    widths = originals.evaluate(
+        "(originals, messages) => ({"
+        "originals: originals.getBoundingClientRect().width, "
+        "messages: messages.getBoundingClientRect().width, "
+        "columns: getComputedStyle(originals).gridTemplateColumns"
+        "})",
+        messages.element_handle(),
+    )
+    assert widths["originals"] == pytest.approx(widths["messages"], abs=0.5), widths
+    assert widths["columns"].endswith(" 0px"), widths
 
 
 def test_a_held_inline_reply_reveal_yields_to_new_reader_focus(browser, serve):

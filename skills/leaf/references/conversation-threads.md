@@ -148,7 +148,8 @@ leaf resolve <page> --to <thread-id>
 ## Summarize a long discussion
 
 When delivered context suggests summarization, read the original messages with
-`leaf conversation read` and select a contiguous range. Summarize its decisions,
+`leaf conversation read` and select a contiguous range whose endpoints are spoken
+messages rather than reactions. Summarize its decisions,
 reasoning, and remaining questions. Keep the current exchange outside the range
 when it is still useful to read directly. A summary helps readers navigate the
 discussion; incorporate its outcomes into the document too.

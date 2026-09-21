@@ -2,7 +2,13 @@
 
 from typing import NamedTuple
 
-from leaf.events import action_rests_on, active_summaries, build_threads, taken_back
+from leaf.events import (
+    action_rests_on,
+    active_summaries,
+    build_threads,
+    spoken_turns,
+    taken_back,
+)
 from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
@@ -315,7 +321,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         # Keep the newest exchange verbatim. The suggested range is one exact,
         # contiguous uncovered run before it, so following the hint can never hide
         # a new message or create a summary on top of one already standing.
-        prefix = threads[t]["msgs"][:-2]
+        prefix = spoken_turns(threads[t])[:-2]
         runs = []
         run = []
         for message in prefix:

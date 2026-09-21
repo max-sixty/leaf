@@ -233,8 +233,10 @@ export class ThreadView {
     const standing = focused();
     const heldFocus = this.node.contains(standing);
     let summaryReplacedFocusedMessage = false;
-    if (prior) {
-      const priorSummaries = new Set(prior.summaries.map(({ id }) => id));
+    const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
+    // Only a summary that was not standing before can swallow what the reader
+    // holds or is reading, and reading geometry here forces layout.
+    if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
       const scrollport = this.node.closest("leaf-thread-list");
       const boundary = scrollport?.getBoundingClientRect();

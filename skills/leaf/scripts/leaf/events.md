@@ -140,7 +140,9 @@ its own. Markup is not editable because a reader action may already rest on a
 widget frozen into it.
 
 `leaf conversation summarize` records presentation, not speech. Its inclusive
-`from` and `through` endpoints name at least two messages in one conversation.
+`from` and `through` endpoints name at least two spoken turns in one conversation;
+reactions between those endpoints remain part of the summarized range, but a reaction
+cannot be an endpoint.
 The panel retains those originals under the summary, while other conversation
 surfaces retain the full transcript. A later overlapping summary replaces the
 earlier summary whole; disjoint summaries coexist. Editing a covered message

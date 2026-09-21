@@ -36,7 +36,7 @@ from leaf.asks import (
 from leaf.document_reading import read_document
 from leaf.event_log import EventRefused
 from leaf.event_meaning import admit_widget_event, direct_dependencies
-from leaf.events import build_threads, taken_back, undo_error
+from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.page_view import PageView
 from leaf.passages import enclosing_ids
@@ -63,7 +63,6 @@ from leaf.requests import (
 from leaf.schema import EVENT_REFERENCES_SCHEMA, MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.conversation import browser_conversation
 from leaf.structure import resolve_source_target_reference, review_mode
-from leaf.thread_context import thread_roots
 from leaf.validation.instances import target_reference_contract_error
 
 # The envelope the append lease itself assigns. Admission validates the complete
@@ -793,25 +792,19 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
-def _summary_error(event: dict, events: list) -> str | None:
+def _summary_error(view, event: dict, events: list) -> str | None:
     if event["kind"] != "summary":
         return None
-    roots = thread_roots(events)
-    if event["conversation"] not in set(roots.values()):
+    threads = build_threads(events, view.within, withdrawn=taken_back(events))
+    thread = threads.get(event["conversation"])
+    if thread is None:
         return f"unknown conversation {event['conversation']!r}"
-    withdrawn = taken_back(events)
-    messages = [
-        logged["id"]
-        for logged in events
-        if logged["kind"] in MESSAGE_KINDS
-        and logged["id"] not in withdrawn
-        and roots.get(logged["id"]) == event["conversation"]
-    ]
+    messages = [message["id"] for message in spoken_turns(thread)]
     try:
         start = messages.index(event["from"])
         end = messages.index(event["through"])
     except ValueError:
-        return "summary endpoints must name messages in the named conversation"
+        return "summary endpoints must name spoken turns in the named conversation"
     if start >= end:
         return "summary must cover at least two messages in conversation order"
     return None
@@ -844,7 +837,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
-        or _summary_error(event, events)
+        or _summary_error(view, event, events)
         or _withdrawal_error(view, event, events)
     )
 

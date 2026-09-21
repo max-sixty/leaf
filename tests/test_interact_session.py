@@ -3766,6 +3766,10 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "text": "one"},
     )
+    internal_reaction = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+    )
     second = events_model.append_event(
         page_dir,
         {"kind": "reply", "author": "user", "parent": root["id"], "text": "two"},
@@ -3804,10 +3808,11 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     cross_thread = summarize(root["id"], neighbor["id"])
     assert cross_thread.exit_code != 0
     assert (
-        "endpoints must name messages in the named conversation" in cross_thread.output
+        "endpoints must name spoken turns in the named conversation"
+        in cross_thread.output
     )
 
-    withdrawn = events_model.append_event(
+    reaction = events_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -3816,14 +3821,21 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             "token": "mark",
         },
     )
+    standing_reaction_range = summarize(third["id"], reaction["id"])
+    assert standing_reaction_range.exit_code != 0
+    assert (
+        "endpoints must name spoken turns in the named conversation"
+        in standing_reaction_range.output
+    )
+
     events_model.append_event(
         page_dir,
-        {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
+        {"kind": "undo", "author": "user", "undoes": reaction["id"]},
     )
-    withdrawn_range = summarize(third["id"], withdrawn["id"])
+    withdrawn_range = summarize(third["id"], reaction["id"])
     assert withdrawn_range.exit_code != 0
     assert (
-        "endpoints must name messages in the named conversation"
+        "endpoints must name spoken turns in the named conversation"
         in withdrawn_range.output
     )
 
@@ -3847,14 +3859,82 @@ def test_conversation_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert read.exit_code == 0, read.output
     [projected] = json.loads(read.output)["conversation"]["summaries"]
     assert projected["id"] == summary["id"]
-    assert projected["covers"] == [root["id"], second["id"]]
+    assert projected["covers"] == [
+        root["id"],
+        internal_reaction["id"],
+        second["id"],
+    ]
     browser_thread = page_state(page_dir)["browser"]["conversation"]["threads"][0]
     assert [message["id"] for message in browser_thread["msgs"]] == [
         root["id"],
+        internal_reaction["id"],
         second["id"],
         third["id"],
     ]
     assert browser_thread["summaries"][0]["id"] == summary["id"]
+
+
+def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_dir):
+    root = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "turn 1"},
+    )
+    spoken = [root]
+    for number in range(2, 9):
+        spoken.append(
+            events_model.append_event(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "user" if number % 2 else "agent",
+                    "parent": root["id"],
+                    "text": f"turn {number}",
+                },
+            )
+        )
+    middle_reaction = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+    )
+    for number in range(9, 11):
+        spoken.append(
+            events_model.append_event(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "user" if number % 2 else "agent",
+                    "parent": root["id"],
+                    "text": f"turn {number}",
+                },
+            )
+        )
+    trailing_reaction = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+    )
+    events = events_model.read_events(page_dir)
+    latest = next(event for event in events if event["id"] == spoken[-1]["id"])
+
+    [digest] = thread_context_model.batch_threads(
+        events,
+        [latest],
+        page_view_model.PageView(page_dir).within,
+    )
+
+    assert digest["summary_hint"] == {
+        "from": spoken[0]["id"],
+        "through": spoken[7]["id"],
+        "operation": "conversation summarize",
+        "instruction": (
+            "This thread has become long and could benefit from a summary. "
+            "Read the original messages and consider summarizing this range; "
+            "keep the newer exchange outside the summary."
+        ),
+    }
+    assert digest["summary_hint"]["through"] not in {
+        middle_reaction["id"],
+        trailing_reaction["id"],
+    }
 
 
 def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):

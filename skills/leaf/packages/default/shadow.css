@@ -36,3 +36,7 @@
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
 }
+
+:is(wa-input, wa-textarea, wa-number-input) {
+  --wa-form-control-background-color: var(--card);
+}

@@ -140,13 +140,19 @@ shared tray furniture;
 `runtime/live-leaves.js` derives the machine's Leaves reading and owns its walk;
 `runtime/live-leaves-list.js` presents that reading through one banner face and keyed
 tray list under one application-presentation ticket;
-`runtime/margin-entries.js` owns the public margin-entry grammar and contribution
-registry; content modules contribute immutable readings and activation capabilities,
+`runtime/margin-entry-model.js` owns the immutable public margin-entry grammar,
+normalization, ranking, and labels without browser dependencies;
+`runtime/margin-entries.js` owns the contribution registry and native control adapter; content modules contribute immutable readings and activation capabilities,
 while Leaf creates the controls for each projection;
 `runtime/page-map-dialog.js` owns the complete searchable Page Map dialog, its retained
 projected actions, filtering, modal lifecycle, and focus return;
-`runtime/margin-projection.js` projects those contributions with page readings into the page
-margin, supplies the Page Map entries, and owns anchored margin threads, the design-mode
+`runtime/margin-model.js` derives the immutable page inventory and cluster selection
+from captured contributions and generated facts, including representation, ordering,
+thread aggregation, workflow carriers, and overflow; `runtime/margin-map-model.js`
+derives the complete searchable Page Map from that same inventory; neither reaches DOM
+or application services. `runtime/margin-projection.js` captures their inputs and keeps
+target nodes, registration and activation capabilities, focus, and placement outside
+the model. It projects that reading into the page margin and Page Map, and owns anchored margin threads, the design-mode
 exclusion of its top-layer preview, and one aggregated cluster for each page target;
 `runtime/margin-cluster-view.js` consumes each frozen page or conversation margin model,
 materializes its retained native controls, and exclusively Lit-renders their direct,

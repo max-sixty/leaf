@@ -2500,7 +2500,7 @@ def test_page_map_keyed_reconciliation_preserves_reader_standing(browser, serve)
           window.lfKeyedMap.change();
           const current = window.lfKeyedMap.reordered.control('keep', 'map', true);
           const actions = [...current.parentElement.children]
-            .map(node => node.lfMapRecord?.key);
+            .map(node => node.lfMapAction?.record?.key);
           const words = [...document.querySelectorAll(
             '.lf-page-map-list .lf-page-map-action-label-word')]
             .map(node => node.textContent);
@@ -5078,7 +5078,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
             ({label, shell, target, margin}) => {
             const controls = margin.control(label, 'margin');
             return {
-            ownsTarget: controls.parentElement?.lfEntry?.target === target,
+            ownsTarget: controls.parentElement?.lfTarget === target,
             inDocument: controls.getRootNode() === document,
             itemCount: shell.shadowRoot.querySelectorAll('.lf-margin-cluster').length,
             commonAction: controls.matches('.lf-margin-entry'),
@@ -5089,8 +5089,8 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
           }});
           const testTargets = new Set(records.map(({target}) => target));
           const itemOrder = [...main.querySelectorAll(':scope > .lf-margin-cluster')]
-            .filter(item => testTargets.has(item.lfEntry?.target))
-            .map(item => item.lfEntry.target.textContent);
+            .filter(item => testTargets.has(item.lfTarget))
+            .map(item => item.lfTarget.textContent);
           records.forEach(({margin, shell}) => { margin.unregister(); shell.remove(); });
           return {readings, itemOrder};
         }"""

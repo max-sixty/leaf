@@ -1726,14 +1726,13 @@ lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   > .lf-shotframe[data-lf-state="after"] { visibility: visible; }
 lf-shot:not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
     display: block; }
-lf-shot:not(:has(> .lf-shotcomparison)) .lf-shotcap[data-lf-state="before"] {
+lf-shot:not(:has(> .lf-shotcomparison)):not(:has(input:checked))
+  .lf-shotcap[data-lf-state="before"] {
     color: var(--ink); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   .lf-shotcap[data-lf-state="before"] {
     color: var(--muted); box-shadow: none; }
-lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
-  .lf-shotcap[data-lf-state="before"]:not(:hover) { background: transparent; }
 lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   .lf-shotcap[data-lf-state="after"] {
     color: var(--ink); background: var(--chip);

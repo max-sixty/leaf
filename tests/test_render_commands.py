@@ -856,6 +856,12 @@ def test_a_shot_still_flips_with_every_script_removed(
     assert shown_frames(loose) == ["before"]
     loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
+    before_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="before"]')
+    after_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="after"]')
+    before_caption.hover()
+    assert before_caption.evaluate(
+        "node => getComputedStyle(node).backgroundColor"
+    ) != (after_caption.evaluate("node => getComputedStyle(node).backgroundColor"))
     loose.keyboard.press("Space")
     assert shown_frames(loose) == ["before"]
     loose.emulate_media(media="print")

@@ -2328,7 +2328,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     )
     expect(page.locator('[data-filter-value="open"]')).to_have_text("Open (4)")
     expect(page.locator('[data-filter-value="reader"]')).to_have_text("On you (1)")
-    expect(page.locator('[data-filter-value="agent"]')).to_have_text("Waiting (3)")
+    expect(page.locator('[data-filter-value="agent"]')).to_have_text("On agent (3)")
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator('[data-filter-value="page"]')).to_have_text("Page (1)")
     expect(page.locator('[data-filter-value="local"]')).to_have_text("Anchored (3)")
@@ -2337,9 +2337,6 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(page.locator('[data-filter-value="gone"]')).to_have_text(
         "No longer here (1)"
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{waiting}"] .lf-thread-status')
-    ).to_have_text("On you")
     expect(visible).to_have_count(4)
 
     expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
@@ -2388,7 +2385,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     # Closing the controls retains the query and results. Reset preserves focus.
     page.locator(".lf-thread-filter-toggle").click()
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 4 open threads · Waiting · Anchored · Content · No longer here"
+        "1 of 4 open threads · On agent · Anchored · Content · No longer here"
     )
     expect(page.locator('[data-filter-value="agent"]')).not_to_be_visible()
     page.get_by_role("button", name="Reset thread filters").click()

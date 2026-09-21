@@ -288,22 +288,3 @@ lf-playground-control > wa-color-picker::part(form-control-label) {
   display: none;
 }
 
-lf-playground :is(wa-color-picker, wa-copy-button, wa-switch) {
-  color-scheme: inherit;
-  --wa-font-family-body: var(--sans);
-  --wa-color-surface-raised: var(--card);
-  --wa-color-surface-default: var(--field);
-  --wa-color-surface-lowered: var(--card);
-  --wa-color-surface-border: var(--border-2);
-  --wa-color-text-normal: var(--ink);
-  --wa-color-text-quiet: var(--muted);
-  --wa-color-neutral-fill-quiet: var(--field);
-  --wa-color-neutral-fill-normal: var(--card);
-  --wa-color-neutral-border-normal: var(--border-2);
-  --wa-color-neutral-on-quiet: var(--ink-2);
-  --wa-color-focus: var(--accent);
-  --wa-form-control-activated-color: var(--accent);
-  --wa-form-control-background-color: var(--field);
-  --wa-form-control-border-color: var(--border-2);
-  --wa-form-control-value-color: var(--ink);
-}

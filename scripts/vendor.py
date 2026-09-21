@@ -368,7 +368,7 @@ def build_webawesome(work: Path) -> list[Path]:
     subset; Web Awesome needs additional directives and decorators, so this
     optional package carries its own copy instead of widening the core API.
     """
-    directory = package_vendor("playground")
+    directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / "webawesome.esm.js"
     notices = directory / "webawesome.LICENSES.txt"
@@ -397,7 +397,7 @@ def build_webawesome(work: Path) -> list[Path]:
         cwd=work,
     )
     source = ROOT / "scripts/vendor-src/webawesome"
-    for name in ("entry.mjs", "build.mjs"):
+    for name in ("entry.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",

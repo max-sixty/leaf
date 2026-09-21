@@ -55,6 +55,13 @@ A missing or invalid registry leaves it empty rather than substituting another
 layer's rules. A reaction carries its token, plus `means` when its package defines
 one.
 
+Long-thread context may include `summary_hint`; a pointer-only host can surface the
+same suggestion as XML. It names a contiguous message range to consider summarizing.
+Treat it as navigation maintenance alongside the reader's request, not a request to
+resolve the thread. Follow
+[conversation threads](conversation-threads.md#summarize-a-long-discussion): read
+the covered originals, write the summary, and keep outcomes in the document.
+
 ## Delivery and acknowledgement
 
 Run `leaf delivery claim <delivery-id>` before processing the envelope. It marks the

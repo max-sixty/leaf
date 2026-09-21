@@ -1,6 +1,7 @@
 # Threads: workflow and prototype plans
 
-Status: document-outcome guidance and compact navigation are implemented; the remaining plans are proposed.
+Status: document-outcome guidance, compact navigation, and agent-written summary
+checkpoints are implemented. The remaining plans are proposed.
 They address long conversations taking over the page, an unwieldy Threads panel,
 and uncertainty about who should act next.
 
@@ -211,22 +212,19 @@ or absent continuation mechanism cannot leave a reassuring Waiting label indefin
 Cover delegated work that remains active after its coordinator's turn ends. This builds
 on the workflow model and remains independent of compact navigation.
 
-## Summary checkpoints
+## Summary checkpoints — implemented
 
-Compare folded history with a short checkpoint describing decisions and remaining
-questions. Identify covered messages, link claims to originals, and keep later messages
-visibly outside that coverage. Summaries cannot settle obligations or resolve threads.
-
-Start with clearly labelled seeded summaries to test comprehension; add generation only
-if the comparison establishes value. Test recovering original reasoning, recognizing
-what changed after the checkpoint, and answering the current question correctly.
-This follows long-thread reading and does not block folding without summaries.
+The shipped event contract and agent workflow live in
+[events](../skills/leaf/scripts/leaf/events.md) and
+[conversation threads](../skills/leaf/references/conversation-threads.md#summarize-a-long-discussion).
+The core gallery exercises the real summary UI. Browser coverage includes keyboard
+disclosure, search and direct-message arrivals, outstanding questions, replacement,
+and edits to covered messages. Inline conversations retain the full transcript.
 
 ## Sequence and shared evidence
 
-Compact navigation is implemented. Add long-thread reading to that navigation
-independently of the workflow model; pursue external waits after the workflow model
-and summaries after folding.
+Compact navigation and summary checkpoints are implemented. Long-thread reading remains
+independent of the workflow model; pursue external waits after the workflow model.
 
 Use one shared fixture corpus: a sparse page, many mixed-status threads, a long exchange,
 an oversized message, an unanswered question, queued input during older work, a healthy

@@ -278,6 +278,26 @@
           "additionalProperties": false
         }
       },
+      "summary": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "summary"},
+            "seq": {"type": "integer", "minimum": 1},
+            "conversation": {"type": "string", "minLength": 1},
+            "from": {"type": "string", "minLength": 1},
+            "through": {"type": "string", "minLength": 1},
+            "text": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "conversation", "from", "through", "text", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
       "resolve": {
         "record": {
           "type": "object",

@@ -1009,17 +1009,12 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     The authored document is useful while the first state response is held: its text,
     link, structure, and generated interface in light and shadow DOM all paint after
     upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
-    post, and authored top-layer UI stays withheld. Releasing the response applies the
-    standing decision and opens semantic interaction once."""
+    post. Releasing the response applies the standing decision and opens semantic
+    interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
             "<lf-old>",
-            "<lf-old>"
-            '<a id="startup-link" href="#after">Continue reading</a>'
-            '<dialog id="stale-dialog" style="visibility: visible; opacity: 1; '
-            'interactivity: auto; pointer-events: auto">'
-            '<button style="visibility: visible">'
-            "Top-layer stale control</button></dialog>",
+            '<lf-old><a id="startup-link" href="#after">Continue reading</a>',
         ).replace(
             "</main>",
             """<lf-ask id="startup-decision"><h2>Startup choice</h2>
@@ -1096,37 +1091,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
     assert posts == [], "an anchored comment posted before the first state projection"
-    page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
-    page.evaluate(
-        """() => {
-              const root = document.querySelector('#shadowed').shadowRoot;
-              const dialog = document.createElement('dialog');
-              dialog.id = 'shadow-stale-dialog';
-              dialog.innerHTML = '<button>Shadow top-layer stale control</button>';
-              root.append(dialog);
-              dialog.showModal();
-              const popover = document.createElement('div');
-              popover.id = 'shadow-stale-popover';
-              popover.setAttribute('popover', 'manual');
-              popover.textContent = 'Shadow top-layer stale popover';
-              root.append(popover);
-              popover.showPopover();
-              const cancelled = document.createElement('div');
-              cancelled.id = 'shadow-cancelled-popover';
-              cancelled.setAttribute('popover', 'manual');
-              cancelled.textContent = 'Cancelled before presentation';
-              root.append(cancelled);
-              cancelled.showPopover();
-              if (cancelled.matches(':popover-open')) cancelled.hidePopover();
-              const nonmodal = document.createElement('dialog');
-              nonmodal.id = 'shadow-final-nonmodal';
-              nonmodal.textContent = 'Final state is non-modal';
-              root.append(nonmodal);
-              nonmodal.showModal();
-              nonmodal.close();
-              nonmodal.show();
-            }"""
-    )
     frames = page.evaluate("() => window.__lfPresentation.frames")
     assert frames and all(frame["height"] > 0 for frame in frames), (
         f"the authored state was never laid out: {frames}"
@@ -1151,87 +1115,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               return ui?.checkVisibility({visibilityProperty: true});
             }"""
     ), "generated shadow interface remained withheld after upgrade"
-    assert not page.locator("#stale-dialog").is_visible(), (
-        "authored top-layer content painted before replay"
-    )
-    assert not page.locator("#stale-dialog button").evaluate(
-        "element => { element.focus(); return document.activeElement === element; }"
-    ), "authored top-layer content accepted focus before replay"
-    assert not page.locator("#stale-dialog").evaluate(
-        """dialog => {
-              const box = dialog.getBoundingClientRect();
-              return dialog.contains(document.elementFromPoint(
-                box.left + box.width / 2,
-                box.top + box.height / 2,
-              ));
-            }"""
-    ), "authored top-layer content accepted a pointer before replay"
-    shadow_state = page.evaluate(
-        """() => {
-              const root = document.querySelector('#shadowed').shadowRoot;
-              const dialog = root.querySelector('#shadow-stale-dialog');
-              const control = dialog.querySelector('button');
-              control.focus();
-              const box = dialog.getBoundingClientRect();
-              return {
-                visibility: getComputedStyle(dialog).visibility,
-                opacity: getComputedStyle(dialog).opacity,
-                focused: root.activeElement === control,
-                hit: dialog.contains(root.elementFromPoint(
-                  box.left + box.width / 2,
-                  box.top + box.height / 2,
-                )),
-              };
-            }"""
-    )
-    assert shadow_state == {
-        "visibility": "hidden",
-        "opacity": "0",
-        "focused": False,
-        "hit": False,
-    }, f"authored shadow top-layer content escaped before replay: {shadow_state}"
-    shadow_popover = page.evaluate(
-        """() => {
-              const root = document.querySelector('#shadowed').shadowRoot;
-              const popover = root.querySelector('#shadow-stale-popover');
-              const box = popover.getBoundingClientRect();
-              return {
-                open: popover.matches(':popover-open'),
-                visibility: getComputedStyle(popover).visibility,
-                opacity: getComputedStyle(popover).opacity,
-                hit: popover.contains(root.elementFromPoint(
-                  box.left + box.width / 2,
-                  box.top + box.height / 2,
-                )),
-              };
-            }"""
-    )
-    assert shadow_popover == {
-        "open": True,
-        "visibility": "hidden",
-        "opacity": "0",
-        "hit": False,
-    }, f"authored shadow popover escaped before replay: {shadow_popover}"
-    assert page.locator("#stale-dialog").evaluate(
-        "dialog => dialog.open && !dialog.matches(':modal')"
-    ), "the held light dialog became modal before replay"
-    assert page.evaluate(
-        """() => {
-              const dialog = document.querySelector('#shadowed').shadowRoot
-                .querySelector('#shadow-stale-dialog');
-              return dialog.open && !dialog.matches(':modal');
-            }"""
-    ), "the held shadow dialog became modal before replay"
-    assert page.evaluate(
-        """() => {
-              const dialog = document.querySelector('#shadowed').shadowRoot
-                .querySelector('#shadow-final-nonmodal');
-              return dialog.open && !dialog.matches(':modal');
-            }"""
-    ), "the widget's final non-modal state did not stand before replay"
-    assert page.get_by_role("button", name=re.compile("^Threads")).evaluate(
-        "button => { button.focus(); return document.activeElement === button; }"
-    ), "a held authored modal disabled the usable Threads chrome"
     assert all(frame["startupSheet"] == "none" for frame in frames), frames
 
     held.pop(0).continue_()
@@ -1246,36 +1129,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         """() => document.querySelector('#shadowed').shadowRoot
               .querySelector('.lf-ui').checkVisibility({visibilityProperty: true})"""
     ), "generated shadow interface remained withheld after replay"
-    assert not page.locator("#stale-dialog").evaluate(
-        "dialog => dialog.open || dialog.matches(':modal')"
-    ), "replay retired a dialog but presentation promoted it anyway"
-    assert page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-dialog').matches(':modal')"
-    ), "a still-current deferred dialog was not promoted after replay"
-    assert page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-popover').matches(':popover-open')"
-    ), "a still-current deferred popover was not opened after replay"
-    assert not page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-cancelled-popover').matches(':popover-open')"
-    ), "a popover dismissed by its widget reopened after replay"
-    assert page.evaluate(
-        """() => {
-              const dialog = document.querySelector('#shadowed').shadowRoot
-                .querySelector('#shadow-final-nonmodal');
-              return dialog.open && !dialog.matches(':modal');
-            }"""
-    ), "a dialog whose final state was non-modal was promoted after replay"
-    page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-dialog').close()"
-    )
-    page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-popover').hidePopover()"
-    )
     assert page.evaluate("() => window.__lfPresentation.releases") == 1
 
 

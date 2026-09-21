@@ -85,8 +85,6 @@ and authored-widget markers once; the composition root initializes the existing
 application publisher from that reading before it constructs browser owners, while
 version travel and contained gallery documents consume the executable and widget
 readings;
-`runtime/deferred-modals.js` holds authored modals outside the top layer until the
-first presentation boundary, and declares each opening to the keyboard's layer stack;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event and media
 POSTs, and page-error channel;
 `runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
@@ -475,8 +473,8 @@ first state read is pending.
 Generated interface constructed from authored markup participates in layout while it
 settles, then `data-lf-upgraded` releases it from authored and tab-local state without
 waiting for the first server reading. Durable controls remain unavailable until
-`data-lf-presented`, and authored top-layer UI stays withheld until that same semantic
-interaction boundary. A data-backed widget whose authored element has no content takes its
+`data-lf-presented`. A package opens top-layer UI only after that boundary or in response
+to a reader gesture. A data-backed widget whose authored element has no content takes its
 source-dependent space when that data arrives; stable geometry for that content requires
 an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
 chrome remain usable while a live page waits.

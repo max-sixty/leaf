@@ -6147,14 +6147,14 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
     )
     page = open_page(browser, serve(styled))
     item = page.locator("[data-lf-margin-for='sug']")
-    assert item.evaluate("row => row.lfEntry.target.id") == "sug"
+    assert item.evaluate("row => row.lfTarget.id") == "sug"
 
     item.locator(".lf-sug-accept").click()
     expect(
         item.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_be_visible()
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
-    assert item.evaluate("row => row.lfEntry.target.id") == "sug"
+    assert item.evaluate("row => row.lfTarget.id") == "sug"
 
 
 def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):

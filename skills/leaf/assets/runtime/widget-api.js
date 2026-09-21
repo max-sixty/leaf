@@ -93,7 +93,7 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-export { PRESENTATION, quietWord } from "./presentation.js";
+export { PRESENTATION, quietWord, whenPagePresented } from "./presentation.js";
 export {
   captureTargetReference,
   resolveTargetReference,

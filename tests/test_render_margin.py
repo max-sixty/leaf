@@ -308,6 +308,14 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     comes every two seconds, so at most one of these frames can carry it.
     """
     page = open_page(browser, serve(FEATURE_GALLERY))
+    # The gallery's screenshot upgrades to Web Awesome's draggable comparison after the
+    # page has presented, deliberately off the presentation path (#892), and moving its
+    # two frames into that component lays the margin out twice a few milliseconds apart.
+    # The stamps `open_page` waits on do not cover an upgrade that comes after them, so
+    # until it lands the page is still arriving, and a count started before it read that
+    # pair as the cycle this test denies — on about one run in five here, and once on
+    # CI, with the window landing wherever the module happened to resolve.
+    page.wait_for_function("() => document.querySelector('lf-shot wa-comparison')")
     resized(page, 1280, 900)
     margins_laid_out(page)
     assert page.locator(".lf-react-mark").count() >= 1
@@ -4618,12 +4626,15 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     browser, serve
 ):
     """A walked thread uses the free strip without covering its whole control cluster."""
+    # The gallery's thread on the crowded suggestion, which is where this walk is going.
+    crowded_thread = "a554d5e884abffdb6494a2fb90b0634f"
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1838, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
 
+    walked = page.locator(".lf-margin-preview .lf-conversation-thread")
     page.keyboard.press("t")
     expect(
         page.locator(
@@ -4631,7 +4642,23 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
             '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
         )
     ).to_be_focused()
-    page.keyboard.press("t")
+    # The walk steps one thread at a time in page order, so the presses between the
+    # gallery's first thread and this cluster's are however many threads the gallery
+    # carries between them. #886 added one, and this test — which counted two presses —
+    # arrived at that one instead and measured a card three thousand pixels from the
+    # cluster it names. The walk is taken to the thread it is for instead, and gives up
+    # when it comes back round to one it has already stood on rather than pressing
+    # forever. Each press waits for its own arrival before the next
+    # (`tests/CLAUDE.md`, "A repeated gesture has to let the repaint it causes land").
+    stood_on = []
+    while (standing := walked.get_attribute("data-thread")) != crowded_thread:
+        assert standing not in stood_on, (
+            f"the walk came back to {standing} without reaching the crowded cluster's "
+            f"thread; it stood on {stood_on}"
+        )
+        stood_on.append(standing)
+        page.keyboard.press("t")
+        expect(walked).not_to_have_attribute("data-thread", standing)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(page.locator("#bg-crowded")).to_be_in_viewport()

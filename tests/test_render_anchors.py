@@ -29,6 +29,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     AIM_SEAM,
     AIM_SEAM_PAGE,
+    SHOT_PAGE,
     SHOT_SRC,
     SHOTS,
     button_radius,
@@ -45,7 +46,6 @@ from render_cases_navigation import (
     DRIFT_V2,
     EDGE_PAGE,
     FENCED_CAPTURE_PAGE,
-    NATIVE_CONTROL_PAGE,
     TAIL_PAGE,
     THIN_V1,
     THIN_V2,
@@ -74,6 +74,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
+    primed,
     resized,
     round_trip,
     scroll_settled,
@@ -2156,12 +2157,28 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the reader was standing on."""
-    url = serve(
-        NATIVE_CONTROL_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    widget and never saw the control the reader was standing on.
+
+    The screenshot's checkbox is that light-DOM control, and it stands while the
+    widget's static flip is what the page shows: #892 made Web Awesome's draggable
+    comparison a progressive upgrade over it, so the checkbox is hidden from the
+    moment that bundle lands. The bundle is therefore held from outside the page
+    rather than raced, and the shot gets a page of its own because `lf-diff` imports
+    the same bundle at the top of its module and would never upgrade behind the hold
+    (`tests/CLAUDE.md`, "State races are arrangements, not probabilities")."""
+    held = []
+    page = open_page(
+        primed(
+            browser,
+            lambda opened: opened.route(
+                "**/vendor/webawesome.esm.js", lambda route: held.append(route)
+            ),
+        ),
+        serve(
+            SHOT_PAGE,
+            media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+        ),
     )
-    page = open_page(browser, url)
     line = page.locator(".lf-shortcut-bar")
 
     box = page.locator("lf-shot input[type=checkbox]")
@@ -2177,6 +2194,8 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page.keyboard.press("Enter")
     expect(box).to_be_checked()
 
+    page = open_page(browser, serve(DIFF_PAGE))
+    line = page.locator(".lf-shortcut-bar")
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
     summary.scroll_into_view_if_needed()

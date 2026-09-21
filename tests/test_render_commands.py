@@ -471,7 +471,10 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
             "which it says on screen"
         ),
-        '[print] <lf-option id=c-bearer> drops "Bearer header", which it says on screen',
+        (
+            '[print] <strong> in <lf-option id=c-bearer> drops "Bearer header", '
+            "which it says on screen"
+        ),
         (
             '[print] <lf-option id=c-bearer> drops "Suits the mobile client;\\n  '
             'puts the id w", which it says on screen'

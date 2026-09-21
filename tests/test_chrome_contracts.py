@@ -335,7 +335,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         grown["textarea"]["bottom"] - 6, abs=1
     )
     assert grown["send"]["y"] > short["send"]["y"]
+    assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
+    assert grown["closeThread"] == short["closeThread"]
     assert grown["overflow"] == 0
 
 

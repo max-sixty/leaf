@@ -47,7 +47,9 @@ source has and the drawing lacks. Write standard Mermaid and quote a label that 
 punctuation: `A["call foo(bar)"]`, not `A[call foo(bar)]`. The renderer's subset has
 no `click`, `accTitle`, or `accDescr`, no `--o` or `--x` arrowheads, no slanted
 `[/…/]` shapes, and no state `<<choice>>` or `<<fork>>`; it needs spaces around an
-arrow (`A --> B`), and a label stays on one line, with `<br/>` for a break. A label
+arrow (`A --> B`), and a label stays on one line, with `<br/>` for a break. Mermaid
+reads a line that opens with `click` as its directive even where a node was meant,
+so a node takes another id. A label
 holding the delimiter that closes its own shape, such as `A["names: list[str]"]`, is
 cut there, quoted or not; a doubled closer carries it whole, so
 `A[["names: list[str]"]]` and `A(["names: list[str]"])` both render. The comparison

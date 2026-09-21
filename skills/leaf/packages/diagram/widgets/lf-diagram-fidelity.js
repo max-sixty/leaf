@@ -7,6 +7,11 @@
  * found: Mermaid in its diagram database, Beautiful Mermaid in the `data-*` attributes of
  * the SVG it drew. This module reads both into one shape and lists where they differ.
  *
+ * Mermaid's reading is the authority in both directions. Where Mermaid itself reads less
+ * than the author meant — a line opening with `click` is a click directive to it, never
+ * a node — the drawing is refused for showing what Mermaid proper would not draw: that
+ * source is a diagram only under this renderer.
+ *
  * No Mermaid grammar lives here, and none should be added: a divergence this misses is
  * answered by reading more of what either library already reports. What does live here is
  * the mapping between the two vocabularies — pseudo-state ids, ER ids, label markup,

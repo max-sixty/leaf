@@ -1290,6 +1290,9 @@ MISDRAWN_DIAGRAMS = {
     # Directives the renderer reads as nodes named for their keywords.
     "click-directive": 'flowchart LR\n  A[Alpha] --&gt; B[Beta]\n  click A href "https://example.com" "Open"',
     "acc-title": "flowchart LR\n  accTitle: Checkout flow\n  Cart[Cart] --&gt; Pay[Pay]",
+    # Mermaid reads any line opening with `click` as that directive and finds no node, so
+    # a node of that name is one it would not draw; `keyword-id` below is the control.
+    "click-node": "flowchart LR\n  click --&gt; done",
     # The other grammars drop what they cannot read and draw the rest.
     "er-statement": "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ~~bogus~~ SHIPMENT : ships",
     "sequence-arrow": "sequenceDiagram\n  Alice-&gt;&gt;Bob: hello\n  Bob ~&gt; Dave: what",
@@ -1307,6 +1310,7 @@ FAITHFUL_DIAGRAMS = {
     "commented-out": 'flowchart LR\n  %% A["names: list[str]"] --&gt; B[plain]\n  A[x] --&gt; B[y]',
     "fan-out": "flowchart LR\n  A &amp; B --&gt; C &amp; D",
     "statement-end": "flowchart LR\n  A[Start] --&gt; B[End];",
+    "keyword-id": "flowchart LR\n  accTitle --&gt; done\n  accDescr --&gt; done",
     "leaf-tokens": "flowchart LR\n  A[Start] --&gt; B[End]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class B done\n  linkStyle 0 stroke:var(--ok)",
     "composite-state": "stateDiagram-v2\n  [*] --&gt; Working\n  state Working {\n    [*] --&gt; Build\n    Build --&gt; Test\n  }\n  Working --&gt; [*]",
 }

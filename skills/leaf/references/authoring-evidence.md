@@ -46,7 +46,9 @@ refuses a drawing that differs from that reading: a statement Mermaid rejects, o
 node, edge, label, or shape the source has and the drawing lacks. Write standard
 Mermaid and quote a label that holds punctuation: `A["call foo(bar)"]`, not
 `A[call foo(bar)]`. Where the renderer parts from Mermaid: it draws no `click` or
-`link` target and no sequence `title`, drops a state statement that ends in `;`,
+`link` target, no frontmatter title, and no sequence `title`,
+numbers `autonumber` differently from a start of 0, a step of 0, or a bare `autonumber`
+after the first, drops a state statement that ends in `;`,
 labels a state with its bare id when a transition names it before `state "…" as S0`
 declares it, and reads an ER relationship only in its symbol form (`||--o{`), not in
 words; a label stays on one line, with `<br/>` for a break. A line that opens with

@@ -9,6 +9,10 @@
  * package documents as the contract to read in place of its CSS classes. This module
  * reads both into one shape and lists where they differ.
  *
+ * One thing Mermaid reads never reaches this module: its public API keeps a frontmatter
+ * `title` back from the diagram it returns, so a title the renderer drops goes unseen
+ * here unless the source states it in the body.
+ *
  * Mermaid's reading is the authority in both directions. Where Mermaid itself reads less
  * than the author meant — a line opening with `click` is a click directive to it, never
  * a node — a drawing that shows more is refused for showing what Mermaid proper would not
@@ -264,6 +268,8 @@ const drawnReading = (svg) => {
     // A block's header is drawn again over the lifelines, hidden as decoration.
     blocks: all('g[data-role="block"]:not([aria-hidden="true"])').length,
     titles: all('[data-role="title"]').length,
+    // The renderer marks a link target as `role="link"` and `data-href` on its node, with
+    // nothing that follows it, so only an anchor counts as a link drawn.
     links: all("a[href]").length,
     "accessible titles": all(":scope > title, :scope > desc").length ? 1 : 0,
     members: all('g[data-role="class-box"] text.mono').length,

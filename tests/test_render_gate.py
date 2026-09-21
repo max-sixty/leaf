@@ -1276,6 +1276,27 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
 
 
+def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
+    """A namespace and a class inside it can share a name, and the class is the box.
+
+    The renderer writes the same `data-id` on both groups. Treating the pair as an
+    ambiguous id would leave `node:Job` unregistered, which the gate reports against a
+    declared part; `Runner` is the control that registers either way.
+    """
+    page = leaf_page(
+        "namespaced class",
+        """<h1 id="title">Namespaced class</h1>
+<lf-diagram id="model" parts="node:Job node:Runner"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+  Runner --&gt; Job
+</pre></lf-diagram>""",
+    )
+    assert render_gate_model.render_version(browser, serve(page)) == []
+
+
 MISDRAWN_DIAGRAMS = {
     # A link the source asks for is drawn as a node that goes nowhere.
     "click-directive": 'flowchart LR\n  A[Alpha] --&gt; B[Beta]\n  click A href "https://example.com" "Open"',

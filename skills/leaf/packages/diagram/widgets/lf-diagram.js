@@ -26,9 +26,10 @@ const prepareSvg = (svg) =>
   );
 
 /* The boxes an author can name as parts: the group the renderer writes for each node,
- * composite, participant, class and entity carries its source id in data-id and its kind
- * in data-role, the attributes the renderer documents as its contract. The shapes inside
- * a box repeat the role under ids of their own. */
+ * participant, class and entity, and for each group of them — a subgraph, composite
+ * state, namespace or sequence box — carries its source id in data-id and its kind in
+ * data-role, the attributes the renderer documents as its contract. The shapes inside a
+ * box repeat the role under ids of their own. */
 const BOXES = ["node", "group", "actor", "class-box", "entity"]
   .map((role) => `g[data-role="${role}"]`)
   .join();
@@ -106,13 +107,18 @@ customElements.define(
           drawn.style.maxWidth = "";
         }
 
+        // A class can share its name with the namespace holding it, so a group gives way
+        // to a box under the same id; two of one kind under one id name neither.
         const boxes = new Map();
         for (const element of drawn.querySelectorAll(BOXES)) {
           const id = element.getAttribute("data-id");
-          boxes.set(id, boxes.has(id) ? null : element);
+          const rank = element.getAttribute("data-role") === "group" ? 0 : 1;
+          const held = boxes.get(id);
+          if (!held || rank > held.rank) boxes.set(id, { element, rank });
+          else if (rank === held.rank) held.element = null;
         }
         this.visualParts.clear();
-        for (const [id, element] of boxes) {
+        for (const [id, { element }] of boxes) {
           if (!element || !NAMEABLE.test(id)) continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           const label = element.getAttribute("data-label") || says || id;

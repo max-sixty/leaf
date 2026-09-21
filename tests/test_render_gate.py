@@ -1310,6 +1310,8 @@ MISDRAWN_DIAGRAMS = {
     # The renderer reads a line opening with `accTitle` or `accDescr` as that statement,
     # where Mermaid reads a node of that name; `click-node` below is the control.
     "keyword-id": "flowchart LR\n  accTitle --&gt; done\n  accDescr --&gt; done",
+    # An entity code is drawn as written; Mermaid draws the character it names.
+    "entity-code": 'flowchart LR\n  A["price #36;5"] --&gt; B',
     # Mermaid's word cardinalities draw nothing at all.
     "er-word-cardinality": "erDiagram\n  USER one to many POST : writes",
     # A label split across two lines, which Mermaid reads and the renderer refuses.
@@ -1349,6 +1351,7 @@ FAITHFUL_DIAGRAMS = {
     "class-note": 'classDiagram\n  Order --&gt; Item\n  note for Order "hello"',
     "namespace": "classDiagram\n  namespace Shapes {\n    class Circle\n    class Square\n  }\n  Circle --&gt; Square",
     "autonumber": "sequenceDiagram\n  autonumber 10 5\n  A-&gt;&gt;B: hi\n  B--&gt;&gt;A: ok\n  autonumber off\n  A-&gt;&gt;B: three",
+    "configured-numbering": '%%{init: {"sequence": {"showSequenceNumbers": true}}}%%\nsequenceDiagram\n  A-&gt;&gt;B: hi\n  B--&gt;&gt;A: ok',
     "sequence-box": "sequenceDiagram\n  box Aqua Front\n    participant A\n  end\n  participant B\n  A-&gt;&gt;B: hi",
     "er-alias": "erDiagram\n  p[Person] {\n    string name\n  }\n  p ||--o{ CAR : drives",
     # A name no `parts` token can spell, which the drawing still has to hold.
@@ -1359,7 +1362,7 @@ FAITHFUL_DIAGRAMS = {
 def test_the_gate_refuses_a_diagram_that_does_not_draw_its_source(browser, serve):
     """A wrong diagram renders as confidently as a right one, so the gate compares.
 
-    The renderer draws the first six misdrawn sources without raising, each as a drawing
+    The renderer draws the first seven misdrawn sources without raising, each as a drawing
     that lacks what the source asks for. `lf-diagram` registers a render check that reads
     the same source with official Mermaid and compares that reading with the drawing; the
     split label is the renderer refusing outright, pie is a family Leaf does not document,

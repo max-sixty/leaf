@@ -50,8 +50,9 @@ Mermaid and quote a label that holds punctuation: `A["call foo(bar)"]`, not
 numbers `autonumber` differently from a start of 0, a step of 0, or a bare `autonumber`
 after the first, drops a state statement that ends in `;`,
 labels a state with its bare id when a transition names it before `state "…" as S0`
-declares it, and reads an ER relationship only in its symbol form (`||--o{`), not in
-words; a label stays on one line, with `<br/>` for a break. A line that opens with
+declares it, reads an ER relationship only in its symbol form (`||--o{`), not in
+words, and draws an entity code such as `#36;` as written, so write the character
+itself; a label stays on one line, with `<br/>` for a break. A line that opens with
 `click`, `accTitle`, or `accDescr` is read as that statement even where a node was
 meant, by Mermaid for the first and by the renderer for the other two, so a node takes
 another id. The comparison runs only in

@@ -57,6 +57,14 @@ const words = (value) =>
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&amp;/g, "&")
+    // Mermaid holds an entity code (`#36;`, `#quot;`) as a placeholder until it draws.
+    .replace(/ﬂ°°(\d+)¶ß/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(
+      /ﬂ°(\w+)¶ß/g,
+      (_, name) =>
+        new DOMParser().parseFromString(`&${name};`, "text/html").documentElement
+          .textContent,
+    )
     .replace(/\s+/g, " ")
     .trim();
 
@@ -97,7 +105,7 @@ const DRAWN_SHAPE = {
  * and draws no text; the renderer writes an empty data-label. */
 const UNLABELLED = new Set(["choice", "fork", "join"]);
 
-const sequenceReading = (db, reading) => {
+const sequenceReading = (db, config, reading) => {
   const kind = db.LINETYPE;
   const known = (kinds) => new Set(kinds.filter((value) => value !== undefined));
   const arrows = known([
@@ -130,7 +138,7 @@ const sequenceReading = (db, reading) => {
   // numbers are showing, and the renderer writes a shown number into the label.
   let number = 1;
   let step = 1;
-  let numbered = false;
+  let numbered = Boolean(config.sequence?.showSequenceNumbers);
   for (const message of db.getMessages())
     if (arrows.has(message.type)) {
       const label = numbered ? `${number}. ${words(message.message)}` : message.message;
@@ -146,12 +154,12 @@ const sequenceReading = (db, reading) => {
   return reading;
 };
 
-const sourceReading = ({ db, type }) => {
+const sourceReading = ({ diagram: { db, type }, config }) => {
   const reading = { nodes: [], groups: [], edges: [], counts: {} };
   if (db.getAccTitle?.() || db.getAccDescription?.())
     reading.counts["accessible titles"] = 1;
   if (db.getDiagramTitle?.()) reading.counts.titles = 1;
-  if (type === "sequence") return sequenceReading(db, reading);
+  if (type === "sequence") return sequenceReading(db, config, reading);
   if (type === "xychart") {
     reading.counts.values = db
       .getXYChartData()
@@ -301,16 +309,18 @@ const unmatched = (kind, source, drawn) => {
 /** What is wrong with the drawing under `svg` as a drawing of `source`, in words for the
  * page's author, or null when the two readings agree. */
 export async function drawingFault(source, svg) {
-  const { readMermaid } = await import("/vendor/mermaid-reader.esm.js");
-  let diagram;
+  const { mermaidFamily, readMermaid } = await import("/vendor/mermaid-reader.esm.js");
+  const read = source.replace(TOKEN, "#000");
+  let reading;
   try {
-    diagram = await readMermaid(source.replace(TOKEN, "#000"));
+    const family = mermaidFamily(read);
+    if (!FAMILIES.has(family))
+      return `Leaf diagrams do not draw Mermaid's ${family} diagrams`;
+    reading = await readMermaid(read);
   } catch (error) {
     return `Mermaid does not read this source — ${error?.message || error}`;
   }
-  if (!FAMILIES.has(diagram.type))
-    return `Leaf diagrams do not draw Mermaid's ${diagram.type} diagrams`;
-  const wanted = sourceReading(diagram);
+  const wanted = sourceReading(reading);
   const got = drawnReading(svg);
   const differences = [
     ...unmatched("node", wanted.nodes, got.nodes),

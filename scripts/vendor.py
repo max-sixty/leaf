@@ -340,6 +340,12 @@ def build_mermaid_reader(work: Path) -> list[Path]:
     the page directory beside the renderer it answers for, and no reader's browser
     fetches it.
 
+    The bundle answers two questions: which family a source is, asked before anything
+    reads it, since a family Leaf does not draw can fail its parse on a library this
+    bundle leaves out; and the diagram Mermaid reads, with the configuration its
+    frontmatter and directives set, which is where a setting such as
+    `showSequenceNumbers` lives.
+
     Mermaid is here to read, never to draw, so the libraries only its drawings reach
     are replaced with an empty module: KaTeX, Cytoscape and its two layouts, and ELK
     are 2.4MB of a 5.3MB bundle. Its remaining dependencies resolve through npm's
@@ -361,8 +367,12 @@ def build_mermaid_reader(work: Path) -> list[Path]:
     (work / "entry.mjs").write_text(
         'import mermaid from "mermaid";\n'
         "mermaid.initialize({ startOnLoad: false });\n"
-        "export const readMermaid = (source) =>\n"
-        "  mermaid.mermaidAPI.getDiagramFromText(source);\n",
+        "export const mermaidFamily = (source) => mermaid.detectType(source);\n"
+        "export const readMermaid = async (source) => {\n"
+        "  const { config } = await mermaid.parse(source);\n"
+        "  const diagram = await mermaid.mermaidAPI.getDiagramFromText(source);\n"
+        "  return { diagram, config };\n"
+        "};\n",
         encoding="utf-8",
     )
     (work / "undrawn.mjs").write_text("export default {};\n", encoding="utf-8")

@@ -154,6 +154,29 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 leaf resolve <page> --to <thread-id>
 ```
 
+## Summarize a long discussion
+
+When delivered context suggests summarization, read the original messages with
+`leaf conversation read` and select a contiguous range whose endpoints are spoken
+messages rather than reactions. Summarize its decisions,
+reasoning, and remaining questions. Keep the current exchange outside the range
+when it is still useful to read directly. A summary helps readers navigate the
+discussion; incorporate its outcomes into the document too.
+
+```bash
+leaf conversation summarize <page> <conversation-id> --from <first-message-id> --through <last-message-id> < summary.md
+```
+
+The summary replaces that range in the presentation, while the original messages
+remain available to unfold. It answers no question and resolves no thread.
+Use Markdown prose rather than interactive markup. Read the originals before
+resummarizing; do not build a new account solely from an older summary.
+
+As the discussion grows, write another summary with the desired endpoints.
+An overlapping summary replaces the earlier summary; disjoint ranges can retain
+separate summaries. New messages outside the endpoints remain visible. Editing a
+covered message invalidates its summary so stale prose cannot hide the correction.
+
 An acknowledged reader message still requires a reply: acknowledgement only removes it
 from future deliveries. When the active host binds the delivery's reply to its turn,
 the normal assistant final message is that reply; otherwise write the explicit Leaf

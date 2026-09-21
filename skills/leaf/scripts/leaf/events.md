@@ -11,6 +11,7 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
@@ -148,6 +149,16 @@ transcript fold the latest text onto the original message and label it edited.
 The original id, timestamp, author, thread position, anchor, and markup remain
 its own. Markup is not editable because a reader action may already rest on a
 widget frozen into it.
+
+`leaf conversation summarize` records presentation, not speech. Its inclusive
+`from` and `through` endpoints name at least two spoken turns in one conversation;
+reactions between those endpoints remain part of the summarized range, but a reaction
+cannot be an endpoint.
+The panel retains those originals under the summary, while other conversation
+surfaces retain the full transcript. A later overlapping summary replaces the
+earlier summary whole; disjoint summaries coexist. Editing a covered message
+invalidates its summary, and messages appended after the range remain outside it.
+Summaries do not answer, resolve, or otherwise settle anything.
 
 An agent reply may carry an `anchor` captured against its `revision`, or a null anchor
 when its subject has left that revision. The fold uses the latest such value as the

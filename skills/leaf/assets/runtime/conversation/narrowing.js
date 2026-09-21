@@ -69,14 +69,39 @@ const labelFor = (kind, value) =>
     (candidate) => candidate.value === value,
   )?.label;
 
+const messageWords = (message) => {
+  const template = document.createElement("template");
+  template.innerHTML = message.markup ?? "";
+  return [message.text ?? message.token, template.content.textContent]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+};
+
 const threadWords = (thread, threadGroup) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
     threadGroup.label,
-    ...thread.msgs.map((message) => message.text ?? message.token),
+    ...thread.msgs.map(messageWords),
+    ...(thread.summaries ?? []).map((summary) => summary.text),
   ]
     .join("\n")
     .toLowerCase();
+
+// Exact message matches travel with the same immutable query that admits the card.
+// Presentation can therefore disclose a covered original without reading words back
+// from hidden DOM or turning a temporary search into retained reader disclosure.
+export const threadSearchReading = (thread, finding) =>
+  Object.freeze({
+    finding,
+    messages: Object.freeze(
+      finding
+        ? thread.msgs
+            .filter((message) => messageWords(message).includes(finding))
+            .map((message) => message.id)
+        : [],
+    ),
+  });
 
 const matchesSearch = (reading, thread, threadGroup) =>
   !reading.finding || threadWords(thread, threadGroup).includes(reading.finding);

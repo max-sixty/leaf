@@ -40,6 +40,77 @@ READER_EDIT = "Run the migration before deploying. It takes about a minute."
 CORRECTED = "Run the migration after deploying — it needs the new column."
 
 
+def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+    messages = (
+        {"kind": "comment", "text": "one"},
+        {"kind": "reply", "parent": "e1", "text": "two"},
+        {"kind": "reply", "parent": "e2", "text": "three"},
+        {"kind": "reply", "parent": "e3", "text": "four"},
+    )
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
+    state = model.reading(
+        HUB,
+        (
+            *messages,
+            {
+                "kind": "summary",
+                **identity,
+                "conversation": "e1",
+                "from": "e1",
+                "through": "e2",
+                "text": "First exchange.",
+            },
+            {
+                "kind": "summary",
+                **identity,
+                "conversation": "e1",
+                "from": "e1",
+                "through": "e3",
+                "text": "Extended exchange.",
+            },
+            {
+                "kind": "edit",
+                **identity,
+                "message": "e3",
+                "text": "three, revised",
+            },
+        ),
+    )
+
+    thread = model.threads(state)["e1"]
+    assert thread["summaries"] == []
+    assert [message["text"] for message in thread["msgs"]] == [
+        "one",
+        "two",
+        "three, revised",
+        "four",
+    ]
+
+
+def test_summary_leaves_messages_after_its_range_visible():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
+    state = model.reading(
+        HUB,
+        (
+            {"kind": "comment", "text": "one"},
+            {"kind": "reply", "parent": "e1", "text": "two"},
+            {
+                "kind": "summary",
+                **identity,
+                "conversation": "e1",
+                "from": "e1",
+                "through": "e2",
+                "text": "Earlier exchange.",
+            },
+            {"kind": "reply", "parent": "e2", "text": "new message"},
+        ),
+    )
+
+    thread = model.threads(state)["e1"]
+    assert thread["summaries"][0]["covers"] == ["e1", "e2"]
+    assert thread["msgs"][-1]["text"] == "new message"
+
+
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     """A reader resolves the message in front of them, which is rarely the first.
 

@@ -85,7 +85,7 @@ import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
-import { narrowingModel } from "./narrowing.js";
+import { narrowingModel, threadSearchReading } from "./narrowing.js";
 import { conversationState } from "./state.js";
 import { threadReading } from "./thread-card.js";
 
@@ -382,6 +382,7 @@ const rowModel = (all, commands) => {
           visible: visible.has(t),
           grow,
           outline,
+          search: threadSearchReading(t, narrowing.intent.finding),
         }),
         group: Object.freeze({ ...group.get(t) }),
       }),

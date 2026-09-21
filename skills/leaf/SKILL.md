@@ -182,8 +182,8 @@ so a phase does not depend on discovering a chain of references.
 ### Continue after input
 
 - `references/event-batches.md`: after delivery and before processing its events.
-- `references/conversation-threads.md`: before opening, replying to, editing, or
-  resolving a thread.
+- `references/conversation-threads.md`: before opening, replying to, editing,
+  summarizing, or resolving a thread.
 - `references/page-checkpoints.md`: before stamping or ending a page.
 
 ### Serve or extend a page

@@ -33,6 +33,14 @@ browser gate and the shared chrome contracts whose regressions must block a pull
 uv run pytest tests
 ```
 
+`tests/runtime/` is the same gate's other half, run by Node rather than pytest. It holds
+the shipped runtime's folds, imported into the document object model
+`tests/runtime/dom.mjs` puts up:
+
+```sh
+npm run test:runtime
+```
+
 A test is nightly when a pull request can land without it: the broad browser corpus in
 most `test_render_*.py` modules, and the published site in `test_site.py`. The everyday
 gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`, and
@@ -112,6 +120,24 @@ built site through its served URLs. Product documentation tests compare the docs
 with the shipped vocabulary and command surface: a shown command the click tree
 has not got, an `x-` key the guide omits, a table that has drifted from the
 registry it was generated from.
+
+`tests/runtime/*.test.mjs` holds what a runtime module decides on its own: a value
+folded from values, a tree question answered from the tree. The division from
+`test_render_*.py` is the one `model_folds.py` draws on the Python side — the subject
+decides, not the machinery — with one boundary that is particular to running outside
+Chrome. An engine supplies more than paint, and where a fold rests on a primitive whose
+implementation differs, the fold is a browser fact: `text-alignment.js` reads
+`Intl.Segmenter`, which parts differently on dotted identifiers under Node and Chrome,
+so its test stays in the browser suite however little DOM it touches. Ask both engines
+rather than reading the module. `tests/runtime/dom.mjs` owns that world: the document
+object model these imports land in, and the map from the `/runtime/…` and `/vendor/…`
+specifiers a served page answers to the files under `skills/leaf/assets/`.
+
+`scripts/browser/application.test.mjs` also reaches runtime folds, and the subject is
+what separates them: it tests the publisher, which composes `foldProjection`,
+`foldThreads`, `foldWidgetStates` and the pending model into one reading, so a claim
+about that composition belongs there. A claim about what one of those modules decides
+belongs here, where it is imported the way a page imports it.
 
 The authored-source render gate runs every public example, regression page, and
 developer gallery independently. The broad Axe baseline uses the feature gallery at
@@ -368,7 +394,16 @@ newest. Use `serve(example, seed_log=False)` when only the shipped conversation
 would be noise. Reach the page directory through `serve.page_dir` when a test
 needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
 owns command-level files without starting a browser and takes its ordinary
-initialized layer the same way.
+initialized layer the same way. `ModelPage` owns less again: a rule the append
+door decides from authored markup and the standing log is stated as that markup
+and put to `event_contracts.admitted_event`, with no page directory under it.
+`model_folds.py` states a page the same way for the other question a document
+and a log settle between them — what `browser_state` folds them into, which
+`test_model_folds.py` asks. The two divide by subject rather than by machinery:
+a rule the door decides goes to `ModelPage`, a reading the fold produces to
+`model_folds`, and both compose their vocabulary through `model_layer`. Neither
+answers what a renderer draws, what admission reads out of `data.json`, or what
+the log still owes a reader; those keep `page_dir` or the browser.
 
 `initialized_page` composes one page per shape and lends it. A test gets that
 page moved to the path it asked for, and when the test ends the page goes back
@@ -577,9 +612,25 @@ The causal helpers:
   fault draws before consuming it. A fault is named by every boundary that
   carried it, and the later words can trail the first by whatever the page does
   between them, so an equality assertion taken on the first word is a race.
+- `scroll_settled(page)` waits for a scroller to have arrived rather than for it to
+  pause on the way. A gesture's travel is two moves — the runtime places the
+  element's nested scrollports at once and then glides the scroller that owns it
+  to the centring position — so the page holds still for a frame or more between
+  them. The hold is counted in animation frames, not milliseconds, because the
+  compositor advances a glide on every frame it runs: a still frame can only be
+  one the glide has not started on, and a slower machine takes fewer frames
+  through the pause rather than more. `scroller=` and `axis=` name a nested
+  scrollport; the helper clears its own record, so no caller resets it.
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
+- `ask_actions_hint(digits)` is what that bar's Ask row says for an Ask holding
+  `digits` numbered routes. The live range is the fact a test asserts; the word
+  beside it is the runtime's own, so it is stated here rather than quoted at each
+  assertion, and changing what the runtime says is one edit rather than a sweep.
+  The same holds for any runtime wording several tests read: give it a helper
+  beside the read, because a sweep driven by grepping the reader's name misses
+  the call site that stored its answer in a local first.
 
 A surface that reads the same before and after the press cannot be its own
 wait. `expect(...).to_have_text(...)` is satisfied by the frame the press has
@@ -643,8 +694,13 @@ published in the update after the one the event arrived in. An observer or proto
 record that outlives a motion is read after `moving` says finite motion has ended. An
 element-anchored quote can cause an instant document scroll
 followed by a smooth scroll, so its first `scrollend` is a real edge but not the
-destination; wait for the mark to reach the computed position or for the final
-document scroll to stop.
+destination; wait for the mark to reach the computed position, or use
+`scroll_settled`, which holds for animation frames the glide would have moved on.
+Do not measure that hold in milliseconds. The window then has to be shorter than
+a pause the machine decides the length of, and it answers with the place the
+instant move left as soon as the runner's frames are further apart than the
+window — which is how a 50ms hold read the page before its glide on the nightly
+run and held on every desk.
 
 Absence usually has no completion event of its own. Anchor it after the positive
 edge that would have caused the forbidden behavior, then read once. If the

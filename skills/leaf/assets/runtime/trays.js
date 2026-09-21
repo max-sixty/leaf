@@ -5,6 +5,7 @@ import { el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { motion } from "./motion.js";
 import { readerStore } from "./storage.js";
+import { letGo } from "./focus.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
@@ -331,7 +332,12 @@ export function createTrays({
           root: trays.get(openTrayKey)?.panel ?? document,
           says: `close ${currentTray()}`,
           does: `Close the ${currentTray()} tray`,
-          out: () => setOpenTray(null),
+          // A tray's parent is the document, so its step lands the reader there rather
+          // than on the edge button that reopens it.
+          out: () => {
+            setOpenTray(null, { returnFocus: false });
+            letGo();
+          },
         }
       : null,
   );

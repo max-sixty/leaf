@@ -686,6 +686,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
 
     # The reader's own fold, and a reaction on a reply whose surface is that reply's
     # strip: the disarm has no fold of its own to put back and must leave theirs alone.
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
@@ -1505,6 +1506,58 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
     expect(control).to_be_focused()
 
 
+def landed(page):
+    """What the reader is standing on, named by whatever identifies it: a leaf class, an
+    authored id, or the tag. `body` is the page itself, where a landing lets go."""
+    return page.evaluate(
+        """() => {
+          let node = document.activeElement;
+          while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+          if (!node || node === document.body) return 'body';
+          return (
+            [...node.classList].find(
+              (name) => name.startsWith('lf-') && name !== 'lf-ui',
+            ) ||
+            node.id ||
+            node.tagName.toLowerCase()
+          );
+        }"""
+    )
+
+
+def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser, serve):
+    """Opening the bar's other responses re-places it on the anchor already standing. That
+    is the same gesture continuing, not a fresh one that stood the reader nowhere, so the
+    way out still ends on the proxy the bar was opened from — as it does for a reader who
+    goes straight back out."""
+    page_markup = leaf_page(
+        "picture gallery",
+        """
+<h1 id="top">Picture gallery</h1>
+<section id="gallery">
+  <h2>Gallery</h2>
+  <svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg>
+</section>
+""",
+    )
+    page = open_page(browser, serve(page_markup))
+    control = page.locator(".lf-visual-action").first
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+    page.get_by_role("button", name="Show other responses").click()
+    expect(page.locator(".lf-fab-bar")).to_have_class(
+        re.compile(r"\blf-response-open\b")
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert landed(page) == "lf-visual-action", landed(page)
+
+
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
     """A retained proxy resolves its stable anchor when focused. It does not keep a
     renderer node that has been replaced, and it opens the container before scrolling."""
@@ -1823,13 +1876,41 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
 def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     """Selection changes can come from touch handles and browser commands without a
     mouseup or keyup in the page. The new passage replaces the visual target, and
-    clearing that passage dismisses the shared action surface."""
+    clearing that passage dismisses the shared action surface.
+
+    The reader takes the page back while the composer's focus handoff is still in
+    flight, which is the state the press leaves behind: opening Comment marks the
+    handoff at once and lands the focus on a later frame. Holding the page's frames
+    keeps that gap open for the whole of the selection rather than leaving its width to
+    the machine — measured here, the handoff lands about eight milliseconds after the
+    press returns, which is the same span the driver spends making the next call. The
+    passage is the bar's whether or not the handoff has landed, and it was the ordering
+    below that CI lost on.
+    """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[data-id="S"]')
+    page.evaluate(
+        """() => {
+          const frame = window.requestAnimationFrame.bind(window);
+          const cancel = window.cancelAnimationFrame.bind(window);
+          const held = new Map();
+          let handle = 1e6;
+          window.requestAnimationFrame = (callback) => {
+            held.set((handle += 1), callback);
+            return handle;
+          };
+          window.cancelAnimationFrame = (given) => { held.delete(given); };
+          window.leafReleaseFrames = () => {
+            window.requestAnimationFrame = frame;
+            window.cancelAnimationFrame = cancel;
+            for (const callback of held.values()) frame(callback);
+            held.clear();
+          };
+        }"""
+    )
     control.focus()
     page.keyboard.press("Enter")
-    expect(start).to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         """() => {
@@ -1842,6 +1923,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
           selection.addRange(range);
         }"""
     )
+    page.evaluate("() => window.leafReleaseFrames()")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
     expect(bar).to_be_visible()
@@ -1923,7 +2005,22 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         return page.locator(f'.lf-msg[data-mid="{mid}"]')
 
     # At rest: no empty reply spends height, including the latest reply in each thread.
-    for mid in (latest, quiet_latest, quiet_first):
+    # Open each card before measuring its retained message nodes.
+    card(first).locator(".lf-thread-summary").click()
+    assert strip(latest).evaluate("s => s.getBoundingClientRect().height") == 0
+    assert (
+        strip(latest)
+        .locator(".lf-react-trigger")
+        .evaluate("b => getComputedStyle(b).opacity")
+        == "0"
+    )
+    expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
+    expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
+    expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
+        "data-token", "clarify"
+    )
+    card(quiet_first).locator(".lf-thread-summary").click()
+    for mid in (quiet_latest, quiet_first):
         assert strip(mid).evaluate("s => s.getBoundingClientRect().height") == 0
         assert (
             strip(mid)
@@ -1931,12 +2028,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
             .evaluate("b => getComputedStyle(b).opacity")
             == "0"
         )
-    expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
     expect(strip(quiet_latest).locator(".lf-react:visible")).to_have_count(0)
-    expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
-    expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
-        "data-token", "clarify"
-    )
     # The row is built either way; an older empty one takes no room at rest.
     expect(strip(quiet_first).locator(".lf-react")).to_have_count(6)
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
@@ -2035,6 +2127,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     expect(strip.locator(".lf-react-trigger")).to_have_count(1)
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
@@ -2070,6 +2163,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
     expect(page.locator(".lf-thread")).to_have_count(1)
+    page.locator(".lf-thread-summary").click()
     with sending(page, "the take-back of the ok"):
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
@@ -2094,6 +2188,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
         page.locator(".lf-thread-filter-toggle").click()
         page.locator(".lf-needs").click()
         expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile("lf-react-open"))

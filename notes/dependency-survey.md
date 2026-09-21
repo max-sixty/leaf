@@ -1,7 +1,7 @@
 # Dependency survey, 2026-09-16
 
 What Leaf could hand to a dependency or a browser feature, and why the rest stays. The
-chosen candidates are scored in `TODO.md` under "Platform and dependency cutover"; this
+remaining candidates are listed in `TODO.md` under "Implementation candidates"; this
 note keeps what that section leaves out: the evidence, the rejected candidates, and the
 two Leaf choices still open. A rejected row is one line and its deciding number, so that
 asking again costs a glance rather than a survey.

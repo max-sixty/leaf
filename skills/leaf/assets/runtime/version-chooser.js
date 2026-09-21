@@ -64,11 +64,17 @@ class VersionChooserView {
     // exposes the same relationship from the popover end to owners restoring a layer.
     this.button.popoverTargetElement = this.menu;
     this.menu.lfInvoker = this.button;
+    this.menu.addEventListener("beforetoggle", (event) => {
+      // The native popover opening focuses its declared arrival synchronously.
+      // Declare it only for this opening: autofocus on inserted rows also runs
+      // during document load, when an embedded page cannot claim focus.
+      const arrival = event.newState === "open" ? this.#selectedRow() : null;
+      for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
+    });
     this.menu.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
       if (this.#model.chooser.offered)
         this.button.setAttribute("aria-expanded", String(open));
-      if (open && !this.menu.contains(document.activeElement)) this.focusSelectedRow();
       if (!open) {
         this.#displayedRows = this.#model.rows;
         this.#renderMenu();
@@ -119,6 +125,17 @@ class VersionChooserView {
     return listWalkPosition(this.rows(), document.activeElement);
   }
 
+  #selectedRow() {
+    const { base, currentRevision } = this.#model.selection;
+    return (
+      this.rows().find((row) =>
+        base !== null
+          ? row.dataset.lfVersion === String(base)
+          : row.dataset.lfRevision === String(currentRevision),
+      ) ?? this.rows()[0]
+    );
+  }
+
   numberedRoutes() {
     return this.rows()
       .map((control) => ({ control, version: +control.dataset.lfVersion }))
@@ -131,17 +148,6 @@ class VersionChooserView {
         line: `open v${version}`,
         control,
       }));
-  }
-
-  focusSelectedRow() {
-    const { base, currentRevision } = this.#model.selection;
-    (
-      this.rows().find(
-        (row) =>
-          (base !== null && row.dataset.lfVersion === String(base)) ||
-          (base === null && row.dataset.lfRevision === String(currentRevision)),
-      ) ?? this.rows()[0]
-    )?.focus();
   }
 
   reserve() {

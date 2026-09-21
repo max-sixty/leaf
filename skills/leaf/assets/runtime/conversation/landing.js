@@ -17,20 +17,18 @@
    returns to the card. An accepted anchored comment continues in the open Threads panel,
    widening a filter that would hide it.
 
-   A keyboard-entered box hands the reader back through its captured return frame.
-   `boxReturnFrame` and `standingConversation` climb the same conversation relation, so
-   “comment on the thread” going in and “back to thread” coming out name one element. The
-   panel's general box returns to the Threads list when it was entered there, and to the
-   prior page place and auxiliary chrome state when page `c` entered it directly. `backFromBox` remains
-   the fallback for Tab or pointer arrival, where no keyboard entry exists to restore. A
-   page-owned first-message seat has no standing place of its own; a widget control that
-   explicitly enters its box supplies the caller-owned return target through
-   `landInConversation`. */
+   `backFromBox` and `standingConversation` climb the same conversation relation, so
+   “comment on the thread” going in and “back to thread” coming out name one element. It
+   answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
+   out is the conversation it belongs to whichever of them put the reader in it, and the
+   panel's own general box hands back to the Threads list. A page-owned first-message seat
+   has no standing place of its own; a widget control that explicitly enters its box
+   supplies the caller-owned return target through `landInConversation`. */
 import { shownBand, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
-import { closestAcross, containsAcross } from "../passages.js";
+import { closestAcross } from "../passages.js";
 import { panel, threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
@@ -130,19 +128,7 @@ export const standingConversation = () => {
 };
 export const backFromConversation = (box) => conversationReturns.get(box) ?? null;
 
-// The way back out of a box a command put the reader in. Held here beside the relation
-// `standingConversation` climbs, so "comment on the thread" going in and "back to thread"
-// coming out name one element.
-export const boxReturnFrame = (held, box, does = "Return to the thread") => ({
-  active: () =>
-    held?.isConnected && (containsAcross(held, focused()) || box === focused()),
-  close: () => box.blur(),
-  does,
-  line: "back to thread",
-});
-
-// Where a box reached by Tab or pointer hands the reader back. Keyboard entry carries its
-// own captured return frame before this fallback is reached. This once asked only for
+// Where a box hands the reader back, however they reached it. This once asked only for
 // `.lf-thread` and the panel, so the two boxes outside the chrome — a conversation seated
 // on the page, and each thread on that seat — had no relation to return through. The climb
 // is `heldConversation`'s, the same relation contextual `c` uses when it names a thread.
@@ -381,6 +367,7 @@ async function showThreadNow(id, focus, revealThread) {
       `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
     )
     ?.classList.remove("grow");
+  threadsBox.revealNavigation(id);
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
@@ -397,6 +384,8 @@ async function showThreadNow(id, focus, revealThread) {
     if (!mayArrive()) return false;
     node = listNode(id);
   }
+  threadsBox.revealNavigation(id);
+  node = listNode(id);
   if (!node || !mayArrive()) return false;
   const thread = node.closest(".lf-thread");
   if (focus) {
@@ -481,11 +470,6 @@ export function declareThreadKeys(landIn) {
           resolutionControl(focusedThread())?.matches(
             '.lf-reopen:not(:disabled, [aria-disabled="true"])',
           ),
-        returnFrame: () => {
-          const thread = focusedThread();
-          const box = thread && conversationInput(thread);
-          return box ? boxReturnFrame(thread, box) : null;
-        },
         // Find the thread's own compose row rather than the first textarea: a message may
         // contain a widget with an editor of its own before the reply box in DOM order.
         run: () => {

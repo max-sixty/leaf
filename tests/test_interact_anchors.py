@@ -157,35 +157,114 @@ def test_a_section_the_version_has_no_id_for_is_refused(page_dir):
 
 
 def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page_dir):
-    """The CLI names three kinds of id with bare strings, and only the log says which
+    """The CLI names several kinds of id with bare strings, and only the log says which
     namespace a value came from. An agent holding the id of the comment it is answering
     reaches for `--section`, and `no element id` alone leaves it guessing at the page's
-    markup for an id that was never going to be there. So the refusal names the option
-    the value belongs to."""
-    root = json.loads(
-        comment(
-            published(page_dir), "--quote", "Ship dark", "--text", "how long?"
-        ).output
+    markup for an id that was never going to be there. So the refusal names the writer
+    that settles what the log still owes for the value."""
+    root = events_model.append_event(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "how long?"},
     )
-    mistaken = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "reply",
-            str(page_dir),
-            "--to",
-            root["id"],
-            "--initiates",
-            "--section",
-            root["id"],
-            "--text",
-            "answering the comment I was handed",
-        ],
+    mistaken = comment(
+        page_dir,
+        "--section",
+        root["id"],
+        "--text",
+        "answering the comment I was handed",
     )
     assert mistaken.exit_code != 0
     assert f"no element id {root['id']!r}" in mistaken.output
-    assert f"{root['id']} is a comment in this page's log" in mistaken.output
-    assert "`leaf reply <page> --to <id>` answers a message" in mistaken.output
+    assert (
+        f"{root['id']} is a comment in this page's log — "
+        f"`leaf reply <page> --for {root['id']}` answers it"
+    ) in mistaken.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+
+
+def test_a_section_handed_a_message_owed_nothing_is_sent_to_to(page_dir):
+    """A message the log owes nothing is still one `--to` takes. `--to` is the one
+    writer keyed on the kind rather than the obligation, and `--initiates` is refused
+    only while a response is owed, so the agent's own comment — owed nothing — is
+    replied to there, and a refusal calling it unroutable would be a dead end."""
+    own = json.loads(
+        comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
+    )
+    mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
+    assert mistaken.exit_code != 0
+    route = f"`leaf reply <page> --to {own['id']} --initiates` replies to it"
+    assert (
+        f"{own['id']} is a comment in this page's log, and nothing is owed for it — "
+        f"{route}"
+    ) in mistaken.output
+
+    followed = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+    )
+    assert followed.exit_code == 0, followed.output
+
+
+def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
+    """A thread's response is owed by the thread, not by the message carrying it.
+
+    A message with nothing against its own id can sit in a conversation waiting on
+    one, and `--initiates` is refused for the whole thread. A refusal reading the
+    message's own obligation named `--initiates` there, which the writer it named
+    then refused — so both readings are one, and the route is the `--for` that the
+    guard would have demanded.
+    """
+    own = json.loads(
+        comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
+    )
+    asked = events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": own["id"], "text": "how long?"},
+    )
+
+    mistaken = comment(page_dir, "--section", own["id"], "--text", "more")
+    assert mistaken.exit_code != 0
+    assert (
+        f"{own['id']} is a comment in this page's log, and its conversation is owed "
+        f"a reply — `leaf reply <page> --for {asked['id']}` answers it"
+    ) in mistaken.output
+
+    # The writer the refusal names takes it, and the one it passed over says so too.
+    initiated = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", own["id"], "--initiates", "--text", "more"],
+    )
+    assert initiated.exit_code != 0
+    assert f"use `--for {asked['id']}` instead of --initiates" in initiated.output
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
+    )
+    assert answered.exit_code == 0, answered.output
+
+
+def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
+    """A route is only worth naming where the writer it names takes the value. What a
+    writer takes is what the log still owes, not the event's kind: a resolve is owed
+    nothing, so sending the agent to `--for` with it hands it a second refusal with no
+    route at all."""
+    root = events_model.append_event(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "how long?"},
+    )
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", root["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    settled = events_model.read_events(page_dir)[-1]
+    assert settled["kind"] == "resolve"
+
+    mistaken = comment(page_dir, "--section", settled["id"], "--text", "hi")
+    assert mistaken.exit_code != 0
+    assert (
+        f"{settled['id']} is a resolve in this page's log, and nothing is owed for it"
+    ) in mistaken.output
+    assert "--for" not in mistaken.output
 
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
@@ -237,10 +316,10 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         ],
     )
     assert mistaken.exit_code != 0
-    assert f"{pressed['id']} is an action in this page's log" in mistaken.output
-    assert "`leaf reply <page> --for <event-id>` addresses a delivered move" in (
-        mistaken.output
-    )
+    assert (
+        f"{pressed['id']} is an action in this page's log — "
+        f"`leaf reply <page> --for {pressed['id']}` answers it"
+    ) in mistaken.output
     assert "`leaf reply <page> --to <id>`" not in mistaken.output
 
 
@@ -1002,6 +1081,13 @@ def test_a_quote_of_words_an_edit_replaced_is_refused_naming_the_edit(page_dir):
     assert across.exit_code != 0 and "rewrote § note" in across.output
 
 
+# The draft rewritten under `restated`, taking back whatever the reader wrote over it.
+RESTATED = DRAFTED.replace(
+    '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
+    '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
+)
+
+
 def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     """`restated` retracts the edit, so replay stops painting it and the reading
     returns to the version as authored: the new body quotable, the retracted edit's
@@ -1009,11 +1095,7 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     version's page. A fresh edit on the new version stands again."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
-    revised = DRAFTED.replace(
-        '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
-        '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
-    )
-    (page_dir / "index.html").write_text(revised)
+    (page_dir / "index.html").write_text(RESTATED)
     noted = stamp(page_dir, "took the pen back")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "the rest apply live", "--text", "x")
@@ -1023,6 +1105,26 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     edit(page_dir, "Fine, but default the flag on.", version=2)
     again = comment(page_dir, "--quote", "default the flag on", "--text", "x")
     assert again.exit_code == 0, again.output
+
+
+def test_restating_what_an_earlier_version_took_back_names_that_version(page_dir):
+    """The retraction lives in the log, so a later version has nothing to repeat.
+
+    An author who carries `restated` forward — the habit the design exists to break —
+    is refused, and told which version already did it. The answer is its own rather
+    than the never-decided one, which would read as if the reader had done nothing.
+    """
+    drafted(page_dir)
+    edit(page_dir, "Adds --dry-run to purge and rebuild only.")
+    (page_dir / "index.html").write_text(RESTATED)
+    assert stamp(page_dir, "took the pen back").exit_code == 0
+
+    (page_dir / "index.html").write_text(
+        RESTATED.replace("<title>t</title>", "<title>t · again</title>")
+    )
+    repeated = stamp(page_dir, "again")
+    assert repeated.exit_code != 0
+    assert "r2 already took that back" in repeated.output
 
 
 def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):

@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Threads · accordion playground</title>
+    <style>
+      thread-navigation-study {
+        width: 100%;
+        display: block;
+        min-width: 0;
+      }
+      .sketch-stage {
+        padding: 12px;
+        background: var(--chip);
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+      }
+      .sketch-layout {
+        --row-height: 32px;
+        --message-gap: 10px;
+        --thread-inset: 10px;
+        inline-size: min(440px, 100%);
+        margin: auto;
+      }
+      .sketch-layout[data-density="comfortable"] {
+        --row-height: 40px;
+        --message-gap: 14px;
+        --thread-inset: 14px;
+      }
+      .sketch-layout[data-density="airy"] {
+        --row-height: 48px;
+        --message-gap: 20px;
+        --thread-inset: 18px;
+      }
+      .sketch-layout[data-width="roomy"] {
+        inline-size: min(680px, 100%);
+      }
+      .sketch-shelf {
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .sketch-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        font: 600 13px var(--sans);
+      }
+      .sketch-heading span {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 400;
+      }
+      .sketch-row {
+        margin: 0;
+        border-top: 1px solid var(--border-2);
+      }
+      .sketch-spine {
+        display: grid;
+        grid-template-columns: 12px minmax(0, 1fr) auto 2ch 64px;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: var(--row-height);
+        padding: 4px 10px;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        font: 500 13px/20px var(--sans);
+        text-align: left;
+        cursor: pointer;
+      }
+      .sketch-chevron {
+        width: 12px;
+        height: 12px;
+        flex: none;
+        color: var(--muted);
+        transition: transform 0.12s;
+      }
+      .sketch-spine[aria-expanded="true"] .sketch-chevron {
+        transform: rotate(90deg);
+      }
+      .sketch-spine:hover {
+        background: var(--chip);
+      }
+      .sketch-title {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sketch-count {
+        grid-column: 4;
+        text-align: right;
+        color: var(--muted);
+        font: 11px/20px var(--sans);
+        font-variant-numeric: tabular-nums;
+      }
+      .sketch-state {
+        grid-column: 5;
+        color: var(--muted);
+        font: 11px/20px var(--sans);
+        white-space: nowrap;
+      }
+      .sketch-state[data-attention="true"] {
+        color: var(--accent);
+      }
+      .sketch-row[data-open="true"] > .sketch-spine {
+        background: var(--chip);
+        box-shadow: inset 2px 0 var(--accent);
+      }
+      .sketch-row[data-open="true"] .sketch-title {
+        font-weight: 600;
+      }
+      .sketch-thread {
+        padding: var(--thread-inset) 8px 8px;
+      }
+      .sketch-message {
+        margin: 0 0 var(--message-gap);
+      }
+      .sketch-message b {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ink);
+        font: 600 11px/18px var(--sans);
+      }
+      .sketch-message p {
+        margin: 0;
+        font: 13px/1.5 var(--sans);
+        overflow-wrap: anywhere;
+      }
+      .sketch-compose {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        padding: 4px 5px 4px 8px;
+        border: 1px solid var(--border-2);
+        border-radius: 5px;
+      }
+      .sketch-compose:focus-within {
+        border-color: var(--accent);
+      }
+      .sketch-compose textarea {
+        box-sizing: border-box;
+        resize: vertical;
+        min-height: 26px;
+        max-height: 140px;
+        width: 100%;
+        border: 0;
+        padding: 3px 0;
+        color: var(--ink);
+        background: transparent;
+        font: 13px/20px var(--sans);
+      }
+      .sketch-compose button {
+        flex: none;
+        width: 26px;
+        height: 26px;
+        border: 0;
+        border-radius: 4px;
+        background: var(--ink);
+        color: var(--card);
+        cursor: pointer;
+      }
+      .sketch-compose button:disabled {
+        background: var(--chip);
+        color: var(--muted);
+        cursor: default;
+      }
+      .sketch-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 4px;
+        gap: 8px;
+        color: var(--muted);
+        font: 10px/20px var(--sans);
+      }
+      .sketch-footer button {
+        min-height: 24px;
+        padding: 0 2px;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font: 11px var(--sans);
+        cursor: pointer;
+      }
+      .sketch-footer button:hover {
+        color: var(--ink);
+      }
+      .sketch-stage button:focus-visible,
+      .sketch-stage textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+      }
+      .sketch-draft {
+        font: 10px var(--sans);
+        color: var(--muted);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sketch-chevron {
+          transition: none;
+        }
+      }
+      @media (max-width: 600px) {
+        .sketch-stage {
+          padding: 6px;
+        }
+      }
+    </style>
+    <script type="module">
+      import { layoutChanged } from "/runtime/widget-api.js";
+      const topics = [
+        {
+          title: "Pilot cohort",
+          state: "Needs you",
+          messages: [
+            ["Agent", "Which teams should join the pilot?"],
+            ["You", "Start with teams who work across more than one workspace."],
+            [
+              "Agent",
+              "That gives us Research and Platform. Should Support join now, or after the first observation window?",
+            ],
+          ],
+        },
+        {
+          title: "Rollback threshold",
+          state: "Needs you",
+          messages: [
+            ["You", "What would make us stop the rollout?"],
+            [
+              "Agent",
+              "Pause expansion if reconnect failures exceed 1% for ten minutes. Keep the previous release available.",
+            ],
+            ["You", "Include permission errors in the gate too."],
+            [
+              "Agent",
+              "Agreed. Either threshold pauses expansion. Shall I put both in the release plan?",
+            ],
+          ],
+        },
+        {
+          title: "Workspace performance",
+          state: "Running job",
+          messages: [
+            ["You", "Try a workspace with twelve active conversations."],
+            [
+              "Agent",
+              "The small-workspace run is complete. I have started the crowded-workspace run; it includes long messages and pending replies.",
+            ],
+            [
+              "Agent",
+              "18 of 24 checks have finished. I will compare the traces when the job completes.",
+            ],
+          ],
+        },
+        {
+          title: "Pilot expansion",
+          state: "Needs you",
+          messages: [
+            ["Agent", "The first cohort has finished its observation window."],
+            ["You", "Were there any reconnect failures?"],
+            ["Agent", "Two, both recovered automatically. Neither lost a draft."],
+            ["You", "Does that include a workspace with a long conversation?"],
+            [
+              "Agent",
+              "Yes. The longest had sixteen messages, including an unfinished reply.",
+            ],
+            ["You", "What about permission changes during reconnect?"],
+            [
+              "Agent",
+              "Those checks passed too. The remaining question is whether to add five teams now or wait another day.",
+            ],
+            ["You", "What would another day tell us?"],
+            [
+              "Agent",
+              "It would give us more activity across time zones. The current data supports a small expansion. Which do you prefer?",
+            ],
+          ],
+        },
+        {
+          title: "Release-note opening",
+          state: "Thinking",
+          messages: [
+            ["You", "Lead with the visible improvement."],
+            [
+              "Agent",
+              "I am working on an opening that explains how conversations stay manageable as the document grows.",
+            ],
+          ],
+        },
+      ];
+
+      const escape = (text) =>
+        text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
+      customElements.define(
+        "thread-navigation-study",
+        class extends HTMLElement {
+          #playground;
+          #selected = 0;
+          #drafts = {};
+          #sent = {};
+          #density = "compact";
+          #width = "panel";
+          #change = (event) => {
+            this.#density = event.detail.values.density;
+            this.#width = event.detail.values.width;
+            this.#render();
+          };
+          async connectedCallback() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected) return;
+            this.#playground = this.closest("lf-playground");
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.#density = this.#playground.values.density;
+            this.#width = this.#playground.values.width;
+            this.onclick = (event) => {
+              const button = event.target.closest("button");
+              if (!button) return;
+              if (button.dataset.thread !== undefined) {
+                const index = Number(button.dataset.thread);
+                this.#selected = this.#selected === index ? null : index;
+                this.#render();
+                this.querySelector(`[data-thread="${index}"]`).focus({
+                  preventScroll: true,
+                });
+              }
+              if (button.hasAttribute("data-close")) this.#close();
+              if (button.hasAttribute("data-send")) this.#send();
+            };
+            this.oninput = (event) => {
+              if (event.target.matches("textarea")) {
+                this.#drafts[this.#selected] = event.target.value;
+                this.querySelector("[data-send]").disabled = !event.target.value.trim();
+              }
+            };
+            this.onkeydown = (event) => {
+              if (event.key === "Escape" && this.#selected !== null) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.#close();
+              }
+              if (
+                event.key === "Enter" &&
+                (event.metaKey || event.ctrlKey) &&
+                event.target.matches("textarea")
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.#send();
+              }
+            };
+            this.#render();
+          }
+          disconnectedCallback() {
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+          }
+          #close() {
+            const previous = this.#selected;
+            this.#selected = null;
+            this.#render();
+            this.querySelector(`[data-thread="${previous}"]`)?.focus({
+              preventScroll: true,
+            });
+          }
+          #send() {
+            const draft = this.#drafts[this.#selected]?.trim();
+            if (!draft) return;
+            (this.#sent[this.#selected] ??= []).push(["You", draft]);
+            this.#drafts[this.#selected] = "";
+            this.#render();
+            this.querySelector("textarea").focus({ preventScroll: true });
+          }
+          #messages(index) {
+            return [...topics[index].messages, ...(this.#sent[index] ?? [])];
+          }
+          #conversation(index) {
+            return `<section class="sketch-thread" id="sketch-conversation-${index}" aria-label="${topics[index].title} conversation">${this.#messages(
+              index,
+            )
+              .map(
+                ([who, text]) =>
+                  `<div class="sketch-message"><b>${who}</b><p>${escape(text)}</p></div>`,
+              )
+              .join(
+                "",
+              )}<div class="sketch-compose"><textarea rows="1" name="sketch-reply-${index}" aria-label="Draft reply to ${topics[index].title}" placeholder="Reply…"></textarea><button type="button" data-send title="Add simulated reply (⌘/Ctrl+Enter)" aria-label="Add simulated reply" ${this.#drafts[index]?.trim() ? "" : "disabled"}>↑</button></div><div class="sketch-footer"><span>Simulated reply · ⌘/Ctrl+Enter</span><button type="button" data-close>Collapse ↑</button></div></section>`;
+          }
+          #render() {
+            this.innerHTML = `<div class="sketch-stage"><div class="sketch-layout" data-density="${this.#density}" data-width="${this.#width}"><div class="sketch-shelf"><div class="sketch-heading">Threads <span>3 need you · 2 waiting</span></div>${topics
+              .map((topic, index) => {
+                const open = index === this.#selected;
+                return `<article class="sketch-row" data-open="${open}"><button class="sketch-spine" type="button" data-thread="${index}" aria-expanded="${open}" ${open ? `aria-controls="sketch-conversation-${index}"` : ""} title="${topic.title}"><svg class="sketch-chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="m4.5 2.5 3.5 3.5-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><span class="sketch-title">${topic.title}</span>${!open && this.#drafts[index]?.trim() ? '<span class="sketch-draft">Draft</span>' : ""}<span class="sketch-count" aria-label="${this.#messages(index).length} messages">${this.#messages(index).length}</span><span class="sketch-state" data-attention="${topic.state === "Needs you"}">${topic.state}</span></button>${open ? this.#conversation(index) : ""}</article>`;
+              })
+              .join("")}</div></div></div>`;
+            const textarea = this.querySelector("textarea");
+            if (textarea) textarea.value = this.#drafts[this.#selected] ?? "";
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p>Threads / implementation review</p>
+        <h1>Less space between threads. More room to read.</h1>
+        <p>
+          The real Threads panel now uses the compact accordion. Open Threads in the
+          banner to try it. If all discussions are resolved, choose Filters → Resolved.
+          The sketch below records the chosen design and spacing alternatives.
+        </p>
+      </header>
+      <section id="implementation-status">
+        <h2>Try the real Threads panel</h2>
+        <p>
+          One conversation expands at a time. The reply field spans the conversation’s
+          width. Author and time sit above each message; delivery receipts sit below the
+          message they describe. Unfinished drafts survive switching threads. Search,
+          filters, and links to individual messages reveal their target.
+        </p>
+        <p>
+          Use Enter or Space on a title to expand it; arrow keys and Home/End move
+          between titles. Use t / Shift+t to walk threads, c to reply, and
+          Cmd/Ctrl+Enter to send. Escape leaves the reply box, collapses the
+          conversation, then steps back out of the panel.
+        </p>
+        <p>
+          Sending and Sent share a delivery line so confirmation does not shift the
+          conversation. The local review also checks that collapsed titles retain reader
+          obligations and ongoing agent work. The richer activity ontology remains
+          separate work.
+        </p>
+      </section>
+      <section id="status-comparison">
+        <h2>Keep the next turn visible</h2>
+        <p>
+          Collapsed titles show On you when the reader owes the next turn. Ongoing agent
+          work stays visible even when a newer message is queued. Full delivery details
+          remain with their message.
+        </p>
+        <lf-shot
+          id="status-shot"
+          alt="Collapsed thread status before and after review"
+          before="/media/9fc0aae5709212e9.png"
+          after="/media/8268da6e6ec47f7b.png"
+        ></lf-shot>
+      </section>
+      <section id="runtime-comparison">
+        <h2>The same eleven conversations</h2>
+        <p>
+          Opening Threads previously filled the panel with the first two discussions.
+          The compact accordion fits all eleven titles in the same viewport, then opens
+          the selected discussion in place.
+        </p>
+        <lf-shot
+          id="accordion-comparison"
+          before="/media/8c8c9ad400710e98.png"
+          after="/media/acca077f62616d54.png"
+          alt="Threads panel before and after compact accordion navigation"
+        ></lf-shot>
+      </section>
+      <section id="spacing-comparison">
+        <h2>One conversation, one inset</h2>
+        <p>
+          The full-width composer removes the empty gutter. Author and time move above
+          the message, giving prose the full reading width. Message spacing separates
+          turns while the collapsed rows stay compact.
+        </p>
+        <lf-shot
+          id="spacing-shot"
+          before="/media/ab913e521d3dc38f.png"
+          after="/media/ba614c8a6abf9d8b.png"
+          alt="Expanded thread before and after the full-width composer and message layout"
+        ></lf-shot>
+      </section>
+      <lf-ask id="navigation-choice"
+        ><h2>Spacing alternatives</h2>
+        <lf-playground id="navigation-study" submit-label="Choose layout">
+          <lf-playground-control
+            name="density"
+            label="Spacing"
+            kind="choice"
+            value="compact"
+            ><lf-playground-choice
+              value="compact"
+              label="Compact"
+            ></lf-playground-choice
+            ><lf-playground-choice
+              value="comfortable"
+              label="Comfortable"
+            ></lf-playground-choice
+            ><lf-playground-choice value="airy" label="Airy"></lf-playground-choice
+          ></lf-playground-control>
+          <lf-playground-control
+            name="width"
+            label="Reading width"
+            kind="choice"
+            value="panel"
+            ><lf-playground-choice value="panel" label="Panel"></lf-playground-choice
+            ><lf-playground-choice
+              value="roomy"
+              label="Roomy"
+            ></lf-playground-choice></lf-playground-control
+          ><lf-playground-preset label="Compact"
+            ><lf-playground-setting
+              for="density"
+              value="compact"
+            ></lf-playground-setting></lf-playground-preset
+          ><lf-playground-preset label="Comfortable"
+            ><lf-playground-setting
+              for="density"
+              value="comfortable"
+            ></lf-playground-setting></lf-playground-preset
+          ><lf-playground-preset label="Airy"
+            ><lf-playground-setting for="density" value="airy"></lf-playground-setting
+          ></lf-playground-preset>
+          <lf-playground-preview
+            ><thread-navigation-study id="navigation-preview"
+              ><p>
+                Open a thread to read or reply. Click its heading or press Escape to
+                collapse it.
+              </p></thread-navigation-study
+            >
+            <p>
+              Try the longer <strong>Pilot expansion</strong> thread. Drafts survive
+              collapsing and changing spacing. Replies here are simulated.
+            </p></lf-playground-preview
+          >
+          <lf-playground-output
+            >Refine the accordion thread design using
+            <lf-playground-value for="density"></lf-playground-value> spacing at
+            <lf-playground-value for="width"></lf-playground-value> width. Preserve
+            drafts, keyboard operation, readable messages, and clear disclosure
+            controls. Keep the implementation aligned with this
+            design.</lf-playground-output
+          >
+        </lf-playground></lf-ask
+      >
+      <section id="design-direction">
+        <h2>Keep the structure, remove the repetition</h2>
+        <p>
+          The title and message count remain compact. An open conversation uses one
+          shared inset for its quote, messages, and reply field. Author and time form a
+          small header instead of consuming a separate column. A Draft marker preserves
+          unfinished work, and the bottom control collapses long threads.
+        </p>
+        <p>
+          <a href="https://carbondesignsystem.com/components/accordion/style/"
+            >Carbon’s accordion guidance</a
+          >
+          explicitly allows inputs to fill the panel even when prose has different
+          margins. That supports the full-width composer here; precise spacing remains a
+          Leaf design choice.
+        </p>
+        <p>
+          <a
+            href="https://support.signal.org/hc/en-us/articles/360007320751-How-do-I-know-if-my-message-was-delivered-or-read"
+            >Signal distinguishes Sent, Delivered, and Read for each message.</a
+          >
+          Applying that distinction here, Sent belongs beneath the sent message and no
+          longer appears as a thread title’s status. Current work and failure states can
+          still help identify a thread before opening it.
+        </p>
+        <p>
+          Component reuse is possible:
+          <a href="https://webawesome.com/docs/components/details/"
+            >Web Awesome supplies compatible web components</a
+          >, while
+          <a href="https://www.radix-ui.com/primitives">Radix uses React</a> and would
+          introduce another rendering framework beside Leaf’s Lit components. Neither
+          decides chat spacing or message delivery placement. This pass keeps Leaf’s
+          components; a broader disclosure refactor could use native details/summary,
+          including exclusive groups, without adding a library.
+        </p>
+      </section>
+      <section id="release-document">
+        <h2>The shared document</h2>
+        <p>
+          The release plan below supplies real anchors for the discussion. Settled
+          decisions belong in this document; Threads retains their reasoning.
+        </p>
+      </section>
+      <section id="rollout">
+        <h2>Start with a small cohort</h2>
+        <p id="rollout-proposal">
+          The first release reaches five internal teams before the wider rollout.
+        </p>
+        <p>
+          Decisions belong here as they settle; the discussions retain the questions and
+          reasoning.
+        </p>
+      </section>
+      <section id="recovery">
+        <h2>Keep rollback within reach</h2>
+        <p id="recovery-proposal">
+          A failed health check pauses expansion and leaves the previous release
+          available.
+        </p>
+        <p>
+          Decisions belong here as they settle; the discussions retain the questions and
+          reasoning.
+        </p>
+      </section>
+      <section id="checks">
+        <h2>Check the real release path</h2>
+        <p id="checks-proposal">
+          The release gate covers reconnects, permission changes, and interrupted
+          uploads.
+        </p>
+        <p>
+          Decisions belong here as they settle; the discussions retain the questions and
+          reasoning.
+        </p>
+      </section>
+      <section id="performance">
+        <h2>Measure the crowded workspace</h2>
+        <p id="performance-proposal">
+          Performance checks include a workspace with twelve active conversations.
+        </p>
+        <p>
+          Decisions belong here as they settle; the discussions retain the questions and
+          reasoning.
+        </p>
+      </section>
+      <section id="ownership">
+        <h2>Give each follow-up an owner</h2>
+        <p id="ownership-proposal">
+          The release coordinator owns the go or no-go decision and the next update.
+        </p>
+        <p>
+          Decisions belong here as they settle; the discussions retain the questions and
+          reasoning.
+        </p>
+      </section>
+      <section id="notes">
+        <h2>Put the outcome in the release note</h2>
+        <p id="notes-proposal">
+          The release note records shipped behavior, known limits, and deferred work.
+        </p>
+        <p>
+          Decisions belong here as they settle; the discussions retain the questions and
+          reasoning.
+        </p>
+      </section>
+      <section id="deferred">
+        <h2>Deferred work</h2>
+        <p>
+          Automated cohort selection is a follow-up after the pilot. The initial release
+          uses a named cohort.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

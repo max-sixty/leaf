@@ -60,13 +60,22 @@ PINS = {
     "entities": "7.0.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
-    "@pierre/diffs": "1.4.2",
+    "@pierre/diffs": "1.4.3",
     "@modelcontextprotocol/ext-apps": "2.0.0",
     "@floating-ui/dom": "1.8.0",
     "@floating-ui/core": "1.8.0",
     "@floating-ui/utils": "0.2.12",
     "shiki": "4.4.3",
     "esbuild": "0.28.2",
+    "@awesome.me/webawesome": "3.13.0",
+    "@ctrl/tinycolor": "4.1.0",
+    "@shoelace-style/localize": "3.2.3",
+    "composed-offset-position": "0.0.6",
+    "lit": "3.3.3",
+    "lit-element": "4.2.2",
+    "lit-html": "3.3.3",
+    "@lit/reactive-element": "2.1.2",
+    "nanoid": "5.1.16",
 }
 
 
@@ -376,6 +385,61 @@ def build_floating_ui(work: Path) -> list[Path]:
     return [out, notices]
 
 
+def build_webawesome(work: Path) -> list[Path]:
+    """Ship shared controls and their theme in one on-demand browser bundle.
+
+    Every runtime package consumed by this entry is pinned, including Lit and
+    Floating UI. Leaf's browser module intentionally exports only its own Lit
+    subset; Web Awesome needs additional directives and decorators, so this
+    shared bundle carries its own copy instead of widening the core API. Widget
+    imports load the JavaScript only when the page uses one of these controls.
+    """
+    directory = package_vendor("default")
+    directory.mkdir(parents=True, exist_ok=True)
+    out = directory / "webawesome.esm.js"
+    notices = directory / "webawesome.LICENSES.txt"
+    packages = (
+        "@awesome.me/webawesome",
+        "@ctrl/tinycolor",
+        "@shoelace-style/localize",
+        "composed-offset-position",
+        "lit",
+        "lit-element",
+        "lit-html",
+        "@lit/reactive-element",
+        "nanoid",
+        "@floating-ui/dom",
+        "@floating-ui/core",
+        "@floating-ui/utils",
+    )
+    run(
+        "npm",
+        "install",
+        "--no-save",
+        "--no-package-lock",
+        "--silent",
+        *(spec(package) for package in packages),
+        spec("esbuild"),
+        cwd=work,
+    )
+    source = ROOT / "scripts/vendor-src/webawesome"
+    for name in ("entry.mjs", "build.mjs", "leaf-theme.css"):
+        shutil.copyfile(source / name, work / name)
+    run(
+        "node",
+        "build.mjs",
+        str(out),
+        PINS["@awesome.me/webawesome"],
+        cwd=work,
+    )
+    consumed = tuple(json.loads((work / "packages.json").read_text()))
+    if set(consumed) != set(packages):
+        raise RuntimeError(f"Web Awesome runtime dependencies changed: {consumed}")
+    refuse_if_csp_forbids(out)
+    notices.write_text(package_notices(work, consumed, out.name), encoding="utf-8")
+    return [out, notices]
+
+
 def build_plot(work: Path) -> list[Path]:
     """Observable Plot draws lf-chart. Nothing published is loadable as it
     stands, and there are three things to try: `src/index.js` is browser-native
@@ -547,6 +611,7 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "mcp-app": build_mcp_app,
     "plot": build_plot,
     "pierre": build_pierre,
+    "webawesome": build_webawesome,
 }
 
 
@@ -570,12 +635,26 @@ REBUILDS = {
     "@pierre/diffs": ("pierre",),
     "@modelcontextprotocol/ext-apps": ("mcp-app",),
     "beautiful-mermaid": ("beautiful-mermaid",),
-    "@floating-ui/dom": ("floating-ui",),
-    "@floating-ui/core": ("floating-ui",),
-    "@floating-ui/utils": ("floating-ui",),
+    "@floating-ui/dom": ("floating-ui", "webawesome"),
+    "@floating-ui/core": ("floating-ui", "webawesome"),
+    "@floating-ui/utils": ("floating-ui", "webawesome"),
     "elkjs": ("beautiful-mermaid",),
     "entities": ("beautiful-mermaid",),
     "shiki": ("pierre",),
+    **{
+        package: ("webawesome",)
+        for package in (
+            "@awesome.me/webawesome",
+            "@ctrl/tinycolor",
+            "@shoelace-style/localize",
+            "composed-offset-position",
+            "lit",
+            "lit-element",
+            "lit-html",
+            "@lit/reactive-element",
+            "nanoid",
+        )
+    },
     "esbuild": (
         "beautiful-mermaid",
         "floating-ui",
@@ -583,6 +662,7 @@ REBUILDS = {
         "mcp-app",
         "plot",
         "pierre",
+        "webawesome",
     ),
 }
 

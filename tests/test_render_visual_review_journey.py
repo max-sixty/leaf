@@ -19,6 +19,7 @@ from render_harness import (
     leaf_page,
     open_page,
     resized,
+    scroll_settled,
     sending,
     stamp_page,
     told,
@@ -53,8 +54,8 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     expect(widget.get_by_role("button", name="Expand inspection")).to_have_count(0)
     widget.scroll_into_view_if_needed()
     host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
-    widget.get_by_role("button", name="Full frame").click()
-    widget.get_by_role("button", name="100%").click()
+    widget.get_by_role("radio", name="Full frame").click()
+    widget.get_by_role("radio", name="100%").click()
     page.wait_for_function(
         "node => node.scrollHeight > node.clientHeight", arg=host.element_handle()
     )
@@ -358,23 +359,21 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(details).to_have_attribute("open", "")
     reader.keyboard.press("Enter")
     expect(details).not_to_have_attribute("open", "")
-    overlay = widget.get_by_role("button", name="Overlay")
+    overlay = widget.get_by_role("radio", name="Overlay")
     go_to(reader, overlay)
     assert_keyboard_focus(reader, overlay)
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    compare = widget.get_by_role("button", name="Compare")
+    compare = widget.get_by_role("radio", name="Compare")
     go_to(reader, compare)
     assert_keyboard_focus(reader, compare)
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     reader.keyboard.press("ArrowDown")
-    expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
-        "follow-release-link"
+    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
+        "value", "open-release-list"
     )
-    assert_keyboard_focus(reader, compare)
     reader.keyboard.press("ArrowUp")
-    expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
-        "open-release-list"
-    )
+    expect(widget).to_have_attribute("data-inspection-mode", "compare")
     assert_keyboard_focus(reader, compare)
     first_stage = first.locator(".lf-vr-shot-host")
     assert first_stage.evaluate("node => node.scrollHeight > node.clientHeight")
@@ -382,6 +381,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     reader.wait_for_function(
         "() => document.querySelector('[data-lf-datum=\"open-release-list\"] .lf-vr-shot-host').scrollTop > 0"
     )
+    scroll_settled(reader, first_stage)
     reader.keyboard.press("u")
     reader.wait_for_function(
         "() => document.querySelector('[data-lf-datum=\"open-release-list\"] .lf-vr-shot-host').scrollTop === 0"
@@ -392,8 +392,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         go_to(reader, first_looks_right)
     assert_keyboard_focus(reader, first_looks_right)
     reader.keyboard.press("ArrowDown")
-    expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
-        "follow-release-link"
+    expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
+        "value", "follow-release-link"
     )
     expect(second).to_have_attribute("aria-label", "Visual review case 2 of 2")
     second_looks_right = second.get_by_role("button", name="Looks right")

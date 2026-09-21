@@ -10,7 +10,7 @@
 import { documentPoint, shownBox } from "../geometry.js";
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
-import { pageCommand, pageScope } from "../keyboard/register.js";
+import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
   DRAWING_FORMAT,
@@ -334,13 +334,24 @@ export function createDrawingController({
       },
       {
         id: "draw.mode.exit",
-        keys: ["Escape", "w"],
+        keys: ["w"],
         does: "Exit Draw mode",
         line: "exit Draw mode",
         run: () => setDrawMode(false),
       },
     ],
   });
+  // As Design mode's: the drawing surface is state over the page, so it comes off the
+  // ladder after anything standing over it and before the page itself.
+  pageRung("draw mode", () =>
+    drawModeActive()
+      ? {
+          says: "exit Draw mode",
+          does: "Exit Draw mode",
+          out: () => setDrawMode(false),
+        }
+      : null,
+  );
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],

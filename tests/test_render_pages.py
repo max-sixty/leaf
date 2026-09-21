@@ -352,6 +352,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         page.locator(".lf-threads-toggle").click()
         registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
+        carried_threads = set()
         for carried in [e for e in events if e.get("markup")]:
             for wid, rec in structure_model.SourceDocument(
                 carried["markup"]
@@ -359,6 +360,11 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 drawn.append(wid)
                 carried_ids.add(wid)
                 shown = page.locator(f"#{wid}")
+                card = page.locator(".lf-thread").filter(has=shown)
+                carried_threads.add(card.get_attribute("data-id"))
+                summary = card.locator(".lf-thread-summary")
+                if summary.get_attribute("aria-expanded") == "false":
+                    summary.click()
                 expect(shown).to_be_visible()
                 # Where the registry says the element holds a request for the
                 # reader, whatever answers it has to have been built here too:
@@ -367,31 +373,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 if registry[rec["tag"]].get("x-awaits"):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
-        # The panel is open, which is the only state in which a widget a message
-        # carries has a box at all — so this is where the gate's own geometry readings
-        # can be put to one. They cannot be put there by the gate: `version check
-        # --render` is pointed at a version document and never opens the panel, and a fault
-        # in a frozen fragment is not one the version's author could edit away, so a
-        # finding there would red their handover for good. The readings are the
-        # product's own rather than test-side copies, for the reason tests/CLAUDE.md
-        # gives: a variant here would drift from what the gate actually refuses.
-        # The two gate readings that a widget in a message escapes only because the
-        # panel is shut — both stop at `checkVisibility()`, and a message body in a
-        # shut panel has no boxes at all. Every other geometry reading passes over the
-        # panel structurally, by `.lf-chrome` or by starting at `main`, and stays
-        # passed over. The gate cannot make up the difference: it is pointed at a
-        # version document and never opens the panel, and a fault in markup frozen in the
-        # log is not one that version's author could edit away — a finding there would
-        # red their handover with no edit that clears it. Here the panel is open,
-        # which is the one state in which such a widget has a box to be wrong about.
-        #
-        # The product's own readings, not test-side copies, and the population is
-        # asserted first: a widget with no controls in it would make both come back
-        # clean for having been handed nothing. Which is also why this half is skipped
-        # where the log carries no widget at all: a message widget is a shared runtime
-        # mechanism, held by a causal representative rather than repeated over every
-        # seeded page, and `drawn` and `decided` below the loop are the floor that says
-        # one still stands somewhere.
+        # Each carried thread must be disclosed for the gate's geometry readings:
+        # hidden bodies have no boxes. The public version check never opens Threads,
+        # so exercise its own probes here against every frozen message's widgets.
+        # Assert the control population first so a clean reading cannot be vacuous.
         if carried_ids:
             offers = page.evaluate(
                 """(ids) => ids.flatMap((id) => {
@@ -404,26 +389,32 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 f"{example.stem}: no widget a message carries built a control, so the "
                 "two readings below were handed nothing of the panel's to look at"
             )
-            for finding, probe, arg in (
-                (
-                    "draws a box of no size",
-                    "tinyBoxes",
-                    page_registry(page),
-                ),
-                (
-                    "has a control clipped out of its box",
-                    "clippedControls",
-                    None,
-                ),
-            ):
-                found = (
-                    render_checks_model.evaluate_probe(page, probe, arg)
-                    if arg
-                    else render_checks_model.evaluate_probe(page, probe)
+            for thread_id in sorted(carried_threads):
+                summary = page.locator(
+                    f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary'
                 )
-                assert found == [], (
-                    f"{example.stem}: with the panel open, something {finding}: {found}"
-                )
+                if summary.get_attribute("aria-expanded") == "false":
+                    summary.click()
+                for finding, probe, arg in (
+                    (
+                        "draws a box of no size",
+                        "tinyBoxes",
+                        page_registry(page),
+                    ),
+                    (
+                        "has a control clipped out of its box",
+                        "clippedControls",
+                        None,
+                    ),
+                ):
+                    found = (
+                        render_checks_model.evaluate_probe(page, probe, arg)
+                        if arg
+                        else render_checks_model.evaluate_probe(page, probe)
+                    )
+                    assert found == [], (
+                        f"{example.stem}: with the panel open, something {finding}: {found}"
+                    )
 
         # And the third thing a log carries: what the reader did to one of those
         # widgets. A decision on a widget a message carries is folded from thread
@@ -470,6 +461,13 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
                 shown = undecided.locator(f"#{wid}")
+                summary = (
+                    undecided.locator(".lf-thread")
+                    .filter(has=shown)
+                    .locator(".lf-thread-summary")
+                )
+                if summary.get_attribute("aria-expanded") == "false":
+                    summary.click()
                 expect(shown).to_be_visible()
                 assert shown.inner_text() != read_as[wid], (
                     f"{example.stem}: #{wid} reads the same with the log's decision "
@@ -625,6 +623,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     toggle = page.locator(".lf-threads-toggle")
     expect(toggle).to_have_text("Threads (1)")  # counted as open, like any other thread
     toggle.click()
+    page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
     expect(thread.locator(".lf-msg.agent .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
@@ -670,6 +669,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
 
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     reply_draft = page.locator(".lf-thread textarea")
     reply_draft.fill("keep this unfinished reply")
     page.locator(".lf-threads-toggle").click()
@@ -908,6 +908,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     )
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     draft = page.locator(".lf-thread textarea")
     draft.fill("keep this unfinished reply")
     expect(draft).to_be_focused()
@@ -1157,6 +1158,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     page.locator(".lf-thread .lf-quote").click()
 
@@ -1662,6 +1664,7 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
 
     resized(page, 1200, 900)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     page.locator(".lf-threads > .lf-thread .lf-quote").first.click()
     expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
@@ -2731,6 +2734,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     expect(page.locator("#fallback-flow svg")).to_be_visible()
 
@@ -2788,6 +2792,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     expect(page.locator("#rp-terse")).to_be_visible()
 

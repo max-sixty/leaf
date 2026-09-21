@@ -15,6 +15,7 @@ import { letGo, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
+import { threadSearchActive } from "../conversation/narrowing.js";
 import { focusedThreadOf, standingThreadOf } from "../conversation/focus.js";
 import { boxHandsBack } from "../conversation/landing.js";
 import {
@@ -23,7 +24,7 @@ import {
 } from "../conversation/panel-elements.js";
 import { claimsEsc, documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
-import { heldStanding, nativeLayers } from "./layer-stack.js";
+import { nativeLayers } from "./layer-stack.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
 
 // Where the reader is standing, when what they are standing on is one of the page's own
@@ -109,16 +110,13 @@ pageCommand({
 // is answered by the ladder below once the layers are down. Letting go puts the reader
 // on the floor of the layer they are in: the page's body, or the panel's list.
 //
-// It is an inner step, ahead of every frame, because standing is the newest thing the
-// reader did: a Tab, a hint, a pointer press. What stands nearer still answers first: a
-// widget's own Escape declared over the control, a mode the reader is in, the Page Map's
-// own rung over an unfolded margin cluster or its conversation view — a layer the reader
-// is inside, asked as the panel and the native layers are — a text box with a place to
-// go back to, whose own scope hands them there, and the frame of a press that stood them
-// there — the `t` and `a` walks, `g T` carrying an inline thread — which holds the
-// standing and answers in its turn, so `t` then `w` unwinds the narrowing before the
-// walk. A native layer standing over the page is the browser's mode, and its own Escape
-// is not ours to pre-empt with a let-go beneath it.
+// It is the innermost step, because standing is the newest thing the reader did: a Tab,
+// a hint, a pointer press. Everything the ladder takes off — a selection, an unfolded
+// margin cluster, a mode, a tray, the panel — is state they put on before they came to
+// rest here, so it waits behind this press. What stands nearer still answers first: a
+// widget's own Escape declared over the control, and a text box with a place to go back
+// to, whose own scope hands them there. A native layer standing over the page is the
+// browser's mode, and its own Escape is not ours to pre-empt with a let-go beneath it.
 //
 // Out on the page — the chrome container's banner, trays and panel head hold nothing to
 // let go of, and the panel's list was answered above — what is held is a destination
@@ -135,31 +133,34 @@ pageCommand({
 // heading is the page's own or a copy standing in the panel's frozen markup.
 //
 // The scope's `at` is the cheap half, whether anything is held at all; the row's `when`
-// is the dear one, asked only of a reader who is holding something. The modes, the
-// captured target and the Page Map's rung are other owners' readings, handed in by the
-// boot entry once those owners stand.
+// is the dear one, asked only of a reader who is holding something. The panel, the Ask
+// and the page's own state are other owners' readings, handed in by the boot entry once
+// those owners stand.
 const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
 let standingFloor = () => null;
-export function declareStanding({
-  panelIsOpen,
-  fabAnchorAt,
-  designModeActive,
-  drawModeActive,
-  pageMapRung,
-  askHeld,
-}) {
+export function declareStanding({ panelIsOpen, askHeld, pageState }) {
   standingFloor = () => {
     if (!holding()) return null;
-    if (pageSelection() || fabAnchorAt()) return null;
-    if (designModeActive() || drawModeActive() || pageMapRung()) return null;
-    if (nativeLayers().length || heldStanding()) return null;
+    if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
-    if (panelFocusIsInside(panelIsOpen)) return focusedThreadOf() ? threadsBox : null;
+    if (panelFocusIsInside(panelIsOpen)) {
+      // Only the conversation the reader stands in owns this unwind. A neighboring
+      // title releases to the list; panel controls keep the panel's own ladder.
+      if (focusedThreadOf()?.dataset.id === threadsBox.selectedThreadId) return null;
+      return focusedThreadOf() ? threadsBox : null;
+    }
     if (inChrome(documentFocused())) return null;
+    // Out on the page, where state the reader put on here is inside the page they are
+    // standing in and comes off before they let go of anything: the drag that takes
+    // words out of a label is answered on its first glyph, while the control it started
+    // from is still theirs. A reader inside a surface is past all of it — a mode left
+    // standing out on the page waits behind the panel they are reading a thread in —
+    // which is why this asks after the branches above rather than before them.
+    if (pageSelection() || pageState()) return null;
     if (standingThreadOf() || askHeld()) return document.body;
     return inUi(focused()) ? null : document.body;
   };
@@ -170,10 +171,27 @@ export function declareStanding({
     at: holding,
     rows: [
       {
+        id: "thread.collapse",
+        keys: ["Escape"],
+        does: "Collapse the open thread, keeping its draft",
+        line: "collapse thread",
+        lineWhen: () => !threadSearchActive(),
+        when: () =>
+          panelFocusIsInside(panelIsOpen) &&
+          focusedThreadOf()?.dataset.id === threadsBox.selectedThreadId &&
+          !takesLetters(focused()) &&
+          !claimsEsc(focused()),
+        run: () => threadsBox.collapseNavigation(),
+      },
+      {
         id: "navigation.release",
         keys: ["Escape"],
         does: "Let go of what you are standing on",
         line: () => (standingFloor() === threadsBox ? "back to list" : "let go"),
+        // Search repeat is the useful contextual hint once Enter has accepted the first
+        // result, so this step yields the compact line there as the panel's own steps
+        // do. Escape stays live and keeps its place in the complete reference.
+        lineWhen: () => !threadSearchActive() || standingFloor() !== threadsBox,
         when: () => Boolean(standingFloor()),
         run: () => {
           const floor = standingFloor();
@@ -186,13 +204,16 @@ export function declareStanding({
 }
 
 // The foot of Escape's ladder, the page's own. Above it stand the surfaces a reader can
-// put on — a captured target, a tray, a narrowing, the thread panel — each contributed by
-// its owner, so the ladder is read off `RUNG_LADDER` rather than written out anywhere.
-// This step leaves the chrome, after every surface has had its turn, and stands down
-// while the let-go above answers, so the reference names one press rather than two
-// spellings of it. CLAUDE.md's "The reader has to be standing somewhere" holds the rest.
+// put on — a captured target, a tray, a narrowing, the thread panel, a page mode — each
+// contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
+// out anywhere. This step leaves the chrome, after every surface has had its turn, and
+// stands down while the let-go above answers, so the reference names one press rather
+// than two spellings of it. It stands down under a native layer too: a popover or a
+// modal is the browser's own mode, its own scope is the way out of it, and the page
+// beneath is not somewhere a press can reach from inside it.
+// CLAUDE.md's "The reader has to be standing somewhere" holds the rest.
 pageRung("page", () =>
-  holding() && !standingFloor()
+  holding() && !standingFloor() && !nativeLayers().length
     ? { says: "back to the page", does: "Back out onto the page", out: letGo }
     : null,
 );

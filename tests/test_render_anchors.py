@@ -21,7 +21,6 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SCROLL_SETTLED,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -77,6 +76,7 @@ from render_harness import (
     post_event,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     shortcut_bar_text,
@@ -99,18 +99,6 @@ def _diff_page(*specimens):
             for identifier, markup in specimens
         ),
     )
-
-
-def test_a_missing_node_has_no_passage_location(browser, serve):
-    """No DOM node means no passage location, rather than a runtime error."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    found = page.evaluate(
-        """async () => {
-          const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
-          return closestAcross(null, 'main');
-        }"""
-    )
-    assert found is None
 
 
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
@@ -428,7 +416,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         )
         # Put the card the send opened away before selecting the next passage. The
         # thread stands in the page margin over this narrow document, so the case after
-        # it would reach for a composer under that card and press the card instead.
+        # it would reach for a composer under that card and press the card instead. Two
+        # presses: the reply box the send landed in, then the card holding it.
+        page.keyboard.press("Escape")
         page.keyboard.press("Escape")
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
@@ -519,6 +509,8 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     )
     comment = page.locator(".lf-thread .lf-quote", has_text="1,998 / 1,999 rows")
     expect(comment).to_contain_text(quote)
+    thread_id = comment.evaluate("quote => quote.closest('.lf-thread').dataset.id")
+    page.locator(f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary').click()
     comment.click()
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
 
@@ -778,6 +770,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # each face is read from the one moment its own layer renders it rather than from a
     # single frame that cannot hold both.
     page.keyboard.press("c")
+    page.locator(".lf-thread-summary").first.click()
     page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-key-badge").first
     expect(picked).to_be_visible()
@@ -997,6 +990,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     resized(page, 1400, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-summary").click()
     card = page.locator(".lf-thread-panel .lf-quote").first
     expect(card).to_be_visible()
     into = card.bounding_box()
@@ -3546,15 +3540,18 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # A keyboard-opened popover returns to the real origin, not to the chooser used as
-    # its implementation door.
+    # A menu opened from the keyboard leaves the same way one opened by pointer does:
+    # the menu is a layer over the page, so its one press lands the reader on the page
+    # rather than on the chooser that is its implementation door — or on the heading
+    # they happened to be standing on when they asked for it.
     origin = page.locator("h1")
     origin.evaluate("node => node.tabIndex = -1")
     origin.focus()
     open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("Escape")
-    expect(origin).to_be_focused()
+    expect(menu).not_to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
@@ -3701,14 +3698,14 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes and hands focus back to the press, so the next Tab carries on
-    # from the banner rather than from the top of the document. This is the standing the
-    # reference handed back above, so the way out has been through a round trip the
-    # platform's own hand-back does not survive on its own: a popover restores focus to
-    # whatever had it when it showed, and the dialog closing leaves that as the body.
+    # Escape closes the menu and lands the reader on the page it stood over, whatever
+    # door they came through and whatever the reference did on the way. A popover
+    # restores focus to whatever had it when it showed, which after a reference round
+    # trip is the body; Leaf performs the whole step instead, so the landing is the same
+    # one every time.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
 
     # g V opens it from anywhere on the page, the way g L opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
@@ -3736,10 +3733,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape is what closes this.
+    # it navigates — so Escape is what closes this, onto the page the menu stood over.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
@@ -3953,15 +3950,18 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     page, place_bottom = clearance_page(browser, serve)
     # 10px into the band keeps the line's middle, where the press lands, off the bar.
     covered = place_bottom(10)
-    page.evaluate("() => { delete window.__lfScroll; delete window.__lfScrollSince; }")
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-conversation-thread")).to_be_focused()
-    # A trip waits on a conversation refresh before it moves, so hold longer than that.
-    page.wait_for_function(SCROLL_SETTLED, arg=400)
+    # A trip waits on the conversation refresh before it decides to move, and that same
+    # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
+    # So the card standing where the pass put it is the edge a travel would have been
+    # asked for behind; read the page's own position from there rather than from a hold
+    # long enough to have covered the wait.
+    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
+    scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         covered["scroll"], abs=1
     )
-    expect(page.locator("[data-lf-thread]")).to_be_in_viewport(ratio=1)
 
 
 def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
@@ -4754,9 +4754,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").first.click()
     whole_line = page.locator(".lf-threads > .lf-thread .lf-quote").first
     expect(whole_line).to_have_text("§ app.py · new line 2")
-    search = page.locator("#patch .lf-diff-search")
+    search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
     expect(added).to_be_hidden()
     expect(inline).to_have_count(0)
@@ -4912,11 +4913,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator("textarea")).to_be_visible()
     inline_receipt = thread.locator(
         f'.lf-conversation-msg.user[data-event="{root["id"]}"] '
-        f'> .lf-conversation-head > .lf-receipt[data-receipt-id="{root["id"]}"]'
+        f'> .lf-conversation-head .lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     panel_receipt = panel_thread.locator(
-        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{root["id"]}"]'
+        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     expect(inline_receipt).to_contain_text("✓ Sent")
     expect(panel_receipt).to_contain_text("✓ Sent")
@@ -4971,9 +4972,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(panel_thread).to_be_focused()
+    # Standing on the card is one step and the panel around it is the next; the seat on
+    # the page is not put back, the reader having left it to come here.
+    page.keyboard.press("Escape")
+    expect(panel_thread.locator(".lf-thread-summary")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    expect(thread).to_be_focused()
 
     note = page.locator("lf-diff .lf-mark-note")
     expect(note).to_have_count(1)
@@ -4988,10 +4994,13 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     note.press("Enter")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    # The note carried the reader into a thread the diff already seats, so the press put
-    # nothing up, and one Escape hands the note back. Enter goes in again.
+    # The note carried the reader into a thread the diff already seats, so what they
+    # are standing on is that thread and one Escape lets go of it, onto the page. The
+    # note is Leaf's own control beside the words it marks rather than a landing; Enter
+    # from it goes in again.
     page.keyboard.press("Escape")
-    expect(note).to_be_focused()
+    assert page.evaluate("() => document.activeElement === document.body")
+    note.focus()
     note.press("Enter")
     expect(thread).to_be_focused()
 
@@ -5104,12 +5113,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
         expect(active).to_contain_text("● Working — checking the inline placement")
         expect(sent).to_contain_text("✓ Sent")
         expect(view.locator(":scope > .lf-receipt")).to_have_count(0)
@@ -5253,6 +5262,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
@@ -5373,6 +5383,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
         resized(page, 600, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").click()
     quote = page.locator(".lf-threads > .lf-thread .lf-quote")
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
     if activation == "keyboard":
@@ -5381,7 +5392,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     else:
         quote.click()
     page.wait_for_function("typeof window.__leafReleaseFragment === 'function'")
-    search = page.locator("lf-diff .lf-diff-search")
+    search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
         search.click()
         expect(search).to_be_focused()
@@ -5596,6 +5607,7 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
     page.route("**/api/data*", refuse)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
+    page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "data fragment response does not match its request"

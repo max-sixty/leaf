@@ -8,9 +8,8 @@ from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
 from .service import PageTransaction
-from .structure import parse_revision
 from .thread_context import thread_structure
-from .validation.admission import read_text_arg
+from .validation.admission import logged_id, read_text_arg
 from .validation.instances import reference_contract_error
 
 
@@ -156,10 +155,10 @@ def request_lifecycle_error(event: dict, events: list, scope: str) -> str | None
 
 
 def request_contract_error(
-    page_dir: Path, event: dict, events: list, registry: dict
+    view, event: dict, events: list, registry: dict
 ) -> str | None:
     """Why a fresh external request violates its package-owned declaration."""
-    page = parse_revision(page_dir, event["revision"])
+    page = view.document(event["revision"])
     thread = thread_structure(events)
     _record, _elements, scope = request_document(event, page, thread)
     return declared_request_error(event, page, thread, registry) or (
@@ -167,14 +166,36 @@ def request_contract_error(
     )
 
 
-def receipt_contract_error(event: dict, events: list) -> str | None:
-    """Why a terminal receipt cannot settle the request it names."""
+def receipt_contract_error(view, event: dict, events: list) -> str | None:
+    """Why a terminal receipt cannot settle the request it names.
+
+    A misdirected id is named as what the log holds it as and sent to the writer that
+    takes it, as every writer's refusal does, beside the requests still open to
+    receipt — an agent that was handed no request has nothing else to go looking for.
+    """
     request_id = event["request"]
     request = next(
         (candidate for candidate in events if candidate["id"] == request_id), None
     )
     if request is None or request["kind"] != "request":
-        return f"unknown request {request_id!r}"
+        responses = view.responses(events)
+        open_requests = [
+            response["request"]
+            for response in responses.values()
+            if response["kind"] == "receipt"
+        ]
+        held = logged_id(events, request_id, responses)
+        named = (
+            f"{request_id!r} is not a request; {held}"
+            if held
+            else f"unknown request {request_id!r}"
+        )
+        waiting = (
+            "open requests: " + ", ".join(repr(open_id) for open_id in open_requests)
+            if open_requests
+            else "this page has no open request to receipt"
+        )
+        return f"{named}; {waiting}"
     receipt = next(
         (
             candidate

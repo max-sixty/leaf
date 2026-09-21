@@ -14,12 +14,11 @@ fi
 
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$repo"
-results="$repo/notes/mcp-apps/experiments/$1/results"
-if [[ -e "$results" ]]; then
-  printf 'Results already exist: %s\nUse a new experiment number.\n' "$results" >&2
-  exit 1
-fi
-mkdir -p "$repo/.tmp" "$results"
+# Evidence is generated output no install reads, so it stays out of the payload
+# too. A maintainer copies what a written-up result cites into notes/.
+results="$repo/.tmp/mcp-app/experiments/$1/results"
+rm -rf "$results"
+mkdir -p "$results"
 run_dir="$(mktemp -d "$repo/.tmp/mcp-direct-$1.XXXXXX")"
 dependencies="$repo/.tmp/mcp-direct-deps-1.7.5-0.28.2"
 modules="$dependencies/node_modules"

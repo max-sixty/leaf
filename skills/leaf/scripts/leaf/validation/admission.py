@@ -1,4 +1,4 @@
-"""Message markup and text admission boundaries."""
+"""What an agent's writer hands in: message markup, bodies, and the ids it names."""
 
 import sys
 from pathlib import Path
@@ -8,8 +8,9 @@ from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_registry
+from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument, parse_revision
-from leaf.thread_context import thread_structure
+from leaf.thread_context import thread_roots, thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
@@ -39,6 +40,104 @@ def read_text_arg(page_dir: Path, text) -> str:
             + "\n".join(f"  - {e}" for e in errs)
         )
     return body
+
+
+def thread_obligation(events: list, responses: dict, message: str) -> dict | None:
+    """What the conversation holding one message still owes, if anything.
+
+    A thread's response is owed by the thread rather than by the message inside it
+    that happens to carry it, so a message with nothing against its own id can still
+    sit in a conversation waiting on one. Every writer that asks "does this message
+    take `--initiates`?" asks this, because two readings of the same question drift:
+    the refusal that named `--initiates` for a message owed nothing sent agents to a
+    writer refusing it on the thread's obligation, which is the dead end a refusal is
+    supposed to end.
+    """
+    roots = thread_roots(events)
+    root = roots.get(message, message)
+    standing = next(
+        (
+            response
+            for response in responses.values()
+            if (
+                response["kind"] == "reply"
+                and roots.get(response["to"], response["to"]) == root
+            )
+            or (response["kind"] == "version" and response["conversation"] == root)
+        ),
+        None,
+    )
+    if standing is not None:
+        return standing
+    # A version-response thread takes a version whether or not one is outstanding:
+    # the obligation clears when the thread resolves and the root's own declaration
+    # stays for the page's life, so a reading that stopped at the obligation would
+    # send a resolved thread to `--initiates`, which refuses it on that declaration.
+    opening = next((event for event in events if event.get("id") == root), None)
+    if ((opening or {}).get("response") or {}).get("kind") == "version":
+        return {"kind": "version", "conversation": root}
+    return None
+
+
+# Where a thread that takes a page version sends an answer instead. The version is
+# the answer, and the Ask the thread opened on stays open to a separate question
+# meanwhile. The Ask is named as a recipe rather than by id: its id is markup, which a
+# later revision may retire, and whether `--section` takes it is the anchor rule's to
+# say against the active revision — a reading the log cannot vouch for.
+VERSION_THREAD_RECOURSE = (
+    "incorporate its request in the next version, or open a separate thread on the "
+    "same Ask with `leaf comment <page> --section <ask-id>` if you need an answer first"
+)
+
+
+def logged_id(events: list, value: str, responses: dict) -> str | None:
+    """Say what the page's log holds a bare id as, and which writer takes it now.
+
+    The CLI names several kinds of id with bare strings — an element id anchors a
+    thread, a message id answers one, a request id takes its receipt, and a delivered
+    event id addresses the response it owes — and nothing about a value says which
+    namespace it came from. An agent holding the id of the move it was handed reaches
+    for whichever writer it is using, and a refusal that only repeats the value leaves
+    it nothing to change but the guess. So every writer that refuses an id says what
+    the log holds it as, and where it goes instead.
+
+    Where it goes is what the log still owes, which is `current_responses`: a
+    reader's press is answered through `--for` until it is answered and not after, a
+    request through its receipt, and a resolve or an undo is owed nothing at all. A
+    message is the one id whose writer turns on its conversation rather than on
+    itself — `--initiates` is refused while the thread owes a response, whichever of
+    its messages is owed it — so it is read through `thread_obligation`, the same
+    reading `cmd_reply`'s guard refuses on.
+    """
+    event = next((event for event in events if event.get("id") == value), None)
+    if event is None:
+        return None
+    kind = event["kind"]
+    article = "an" if kind[:1] in "aeiou" else "a"
+    held = f"{value} is {article} {kind} in this page's log"
+    owed = responses.get(value)
+    if owed is None and kind in MESSAGE_KINDS:
+        owed = thread_obligation(events, responses, value)
+        if owed is None:
+            return (
+                f"{held}, and nothing is owed for it — "
+                f"`leaf reply <page> --to {value} --initiates` replies to it"
+            )
+        if owed["kind"] == "reply":
+            return (
+                f"{held}, and its conversation is owed a reply — "
+                f"`leaf reply <page> --for {owed['for']}` answers it"
+            )
+    if owed is None:
+        return f"{held}, and nothing is owed for it"
+    if owed["kind"] == "receipt":
+        return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"
+    if owed["kind"] == "version":
+        return (
+            f"{held} — its thread takes a page version rather than a reply; "
+            f"{VERSION_THREAD_RECOURSE}"
+        )
+    return f"{held} — `leaf reply <page> --for {value}` answers it"
 
 
 def version_ids(page_dir: Path) -> set:

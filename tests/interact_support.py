@@ -23,6 +23,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 
 import anyio
@@ -30,9 +31,9 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
-from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
@@ -46,6 +47,7 @@ from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.served_state import page as served_page
+from leaf.validation import compatibility as compatibility_model
 from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
@@ -99,6 +101,73 @@ def append_command(page_dir, command):
     """
     with service_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)
+
+
+@cache
+def model_layer(*packages: str) -> dict:
+    """The vocabulary `page init` vendors for one package selection.
+
+    Composed from the bundled packages rather than read back out of a page, and
+    cached per selection, because every stated page asking for the same packages
+    is asking for the same registry. Nothing may mutate what this returns.
+    """
+    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+
+
+class ModelPage:
+    """A page stated rather than stored, for a rule its markup decides.
+
+    `event_contracts.admitted_event` reads a page through the answers below and
+    nothing else, so a refusal that follows from authored markup and the standing
+    log can be put to the real door with no page directory, server or browser
+    underneath it. Each revision here is its markup, in the order given.
+    `packages` names the optional vocabularies the markup speaks, as `page init`
+    would be told them; the default layer alone is the default.
+
+    What a page holds in files it has none of: no typed external data, and
+    nothing owed to anyone, neither of which markup can state. A rule about
+    either belongs on `page_dir`.
+    """
+
+    def __init__(
+        self,
+        *revisions: str,
+        packages: tuple[str, ...] = (),
+        documents: dict | None = None,
+        registry: dict | None = None,
+    ):
+        """`documents` and `registry` are for a caller that has already parsed and
+        composed them — `model_folds.reading` has, and states the same page to the
+        door through this class rather than answering the door's readings itself."""
+        self.documents = documents or {
+            number: structure_model.SourceDocument(html)
+            for number, html in enumerate(revisions, 1)
+        }
+        self.data = data_model.empty_data()
+        self._packages = packages
+        self._registry = registry
+
+    @property
+    def revisions(self) -> list[int]:
+        return sorted(self.documents)
+
+    def document(self, revision: int):
+        return self.documents[revision]
+
+    def registry(self, revision: int | None) -> dict:
+        """One layer for every revision: a stated page never re-vendors, so no
+        revision of it captured a vocabulary different from the rest."""
+        return self._registry or model_layer(*self._packages)
+
+    @property
+    def within(self) -> dict:
+        return passages_model.enclosing_ids(self.documents[max(self.documents)])
+
+    def responses(self, events: list) -> dict:
+        raise NotImplementedError(
+            "what a page still owes is read from its claims and its deliveries, "
+            "which a stated page has none of: put that refusal on `page_dir`"
+        )
 
 
 def run_async(entry):
@@ -257,12 +326,12 @@ graph LR
 # lf-diagram and lf-diff declarations out of the vendored registry, so the selection
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = ("command-hub", "diagram", "diff")
+PAGE_PACKAGES = ("command-hub", "diagram", "diff", "swipe")
 
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
-    """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
+    """A mutable page with the default, Command Hub, diagram, diff and swipe vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 
@@ -562,10 +631,12 @@ def state_json(d):
     return json.loads(result.output)
 
 
-# One comment and two decisions on one suggestion — the whole vocabulary these
-# threads are read out of. `REJECT` is spelt off `ACCEPT` because the two answering
-# the same widget is the entire premise: a decision supersedes the one before it on
-# the widget that sent it, the way a second `move` supersedes the first on one card.
+# A question and the accept that answers it, written as a stored log holds them:
+# ids of their own and the `meaning` admission stamped on the action. For a test
+# that needs an answered thread in a page directory and is about something else —
+# what a floored widget retracts, what a second facet joins — so the pair is
+# premise rather than subject. A test whose subject is the settlement states its
+# page and its log instead, and lets the door derive the meaning.
 COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are flaky"}
 ACCEPT = {
     "kind": "action",
@@ -581,34 +652,6 @@ ACCEPT = {
         "answer": "c1",
     },
 }
-REJECT = {
-    **ACCEPT,
-    "action": "reject",
-    "detail": {},
-    "meaning": {**ACCEPT["meaning"], "answer": None},
-}
-RESOLVE = {"kind": "resolve", "author": "user", "parent": "c1"}
-
-
-def logged(page_dir, *events):
-    """Append these events, then read the threads back the way the CLI does — off
-    the whole log and the page the decisions were folded over. Copied in, because
-    `append_event` stamps an id onto what it is handed and these are constants."""
-    activated = revisioning_model.activate_source(page_dir, [])
-    assert activated.error is None and activated.revision == 1
-    for event in events:
-        event = dict(event)
-        if event["kind"] == "action":
-            event["meaning"] = {
-                **event["meaning"],
-                "coordinate": [event["widget"], event["widget"], "settlement"],
-                "depends": [event["widget"]],
-            }
-        events_model.append_event(page_dir, event)
-    return event_folds_model.build_threads(
-        events_model.read_events(page_dir),
-        passages_model.enclosing_ids(structure_model.parse_revision(page_dir, 1)),
-    )
 
 
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):

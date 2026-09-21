@@ -48,6 +48,7 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
+import { letGo } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import { allButCommandReference, pageCommand, pageScope } from "./keyboard/register.js";
@@ -103,7 +104,6 @@ export function createReactionController({
   showFab,
   showFabOptions,
   updateFab,
-  visualActionAnchor,
   standingConversation,
   standingElement,
 }) {
@@ -156,10 +156,14 @@ export function createReactionController({
     standing = chip?.lfReaction,
     anchor = fabAnchorAt(),
   ) {
+    // Read before the bar goes, because the reading is about the bar that is standing.
+    // `showFab(null)` lands the reader on this same answer, but `setReact(false)` runs
+    // after it and the palette makes a return of its own, so the landing is asserted once
+    // more once everything has settled. The bar owns what that answer is.
     const returnTo = fabReturnTo();
     const restoreTargetFocus = () => {
-      const destination = returnTo?.isConnected ? returnTo : visualActionAnchor(anchor);
-      destination?.focus({ preventScroll: true });
+      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
+      else letGo();
     };
     if (!anchor) return;
     if (standing) {

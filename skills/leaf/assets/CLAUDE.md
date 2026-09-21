@@ -140,13 +140,20 @@ shared tray furniture;
 `runtime/live-leaves.js` derives the machine's Leaves reading and owns its walk;
 `runtime/live-leaves-list.js` presents that reading through one banner face and keyed
 tray list under one application-presentation ticket;
-`runtime/margin-entries.js` owns the public margin-entry grammar and contribution
-registry; content modules contribute immutable readings and activation capabilities,
-while Leaf creates the controls for each projection;
+`runtime/margin-entry-model.js` owns the immutable public margin-entry grammar,
+normalization, ranking, and labels without browser dependencies;
+`runtime/margin-entries.js` owns the contribution registry, publishes its immutable
+model reading once per update, and keeps command scopes and activation capabilities
+outside that reading; its native control adapter creates each projection;
 `runtime/page-map-dialog.js` owns the complete searchable Page Map dialog, its retained
 projected actions, filtering, modal lifecycle, and focus return;
-`runtime/margin-projection.js` projects those contributions with page readings into the page
-margin, supplies the Page Map entries, and owns anchored margin threads, the design-mode
+`runtime/margin-model.js` derives the immutable page inventory and cluster selection
+from those contributions and captured page facts. The inventory derives control order,
+thread aggregation, interaction state, and placement counts once; cluster selection
+consumes that reading for expansion and overflow; `runtime/margin-map-model.js`
+derives the complete searchable Page Map from that same inventory; neither reaches DOM
+or application services. `runtime/margin-projection.js` captures their inputs and keeps
+target nodes, generated-reading callbacks, focus, and placement outside the model. It projects that reading into the page margin and Page Map, and owns anchored margin threads, the design-mode
 exclusion of its top-layer preview, and one aggregated cluster for each page target;
 `runtime/margin-cluster-view.js` consumes each frozen page or conversation margin model,
 materializes its retained native controls, and exclusively Lit-renders their direct,
@@ -276,12 +283,9 @@ and trays, and page repaint caused by shell motion or reflow. It does not own th
 place across that reflow: the shell yields its strip as a transparent border rather than a
 margin, which keeps the change off the scroll-anchoring suppression list, so the browser
 holds the place and nothing here may take that back (theme.css, at the body strip);
-`runtime/thread-panel.js` owns panel visibility, workspace transitions, the one return
-frame every press that opens the panel records — the toggle's click, `g T`, and a page
-thread carried in — and the two Escape rungs it offers a reader whose panel no press
-opened, a Tab into the list or a panel open when the page arrived: the narrowing, then the
-panel itself;
-`runtime/auxiliary-chrome.js` captures and restores the reader's workspace for navigation;
+`runtime/thread-panel.js` owns panel visibility, workspace transitions, and the two
+Escape steps the panel offers however the reader reached it: the narrowing, then the
+panel itself, which lands them back on the page;
 `runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
 the words it projects;
 `runtime/reach.js` owns keyboard access to overflow, the containing block a
@@ -290,7 +294,9 @@ than it holds across;
 `runtime/shadow.js` owns declared shadow roots, their `shadow.css` rules, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
-owns the stage an x-shadow widget renders into;
+owns the stage an x-shadow widget renders into and the constructed styles a widget
+bundle registers on demand. One registered sheet is adopted by the document and every
+current or future stage; stages are retained weakly across live-version replacement;
 `runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
 dynamic widget imports, initial settlement, and the settlement of markup a live
 revision patches into the page;
@@ -404,7 +410,7 @@ Each mutable fact has one writer:
 | the margin card's place in its transcript | the card list's own scroll, which the browser holds through reflow | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
 | tray visibility | `trayIsOpenKey` | `setOpenTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers, modal dialogs and return frames pushed; inner Escape steps, then whatever the reader put on since a frame that stood them nowhere, then an eligible causal return frame, then the remaining fallbacks | the dispatcher and each visible key surface read the same binding-specific ownership |
+| keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
 Reader state that a document replacement would otherwise destroy has four routes, and
@@ -896,7 +902,7 @@ and repository lint checks the source.
 | Reading | Contract |
 | --- | --- |
 | window-error init channel | no runtime, module, resource, or ResizeObserver error reached the page |
-| `unnamedFormFields` | every input, select, and textarea has an id or name Chrome can identify |
+| `unnamedFormFields` | every native field or form-associated custom control has an id or name; a custom control owns its implementation fields and grouped choices |
 | `upgraded` and `moving` | upgrade completed and final geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
@@ -968,7 +974,11 @@ through the current DOM's registry. Regenerate this output through its owning sc
 never by editing it.
 
 Run `node --check` on the module, formatting, and a focused real-browser test while
-iterating. A module that reads another owner as it evaluates parses and lints clean and
+iterating. What a module decides on its own — a value folded from values, a tree
+question answered from the tree — is tested in `tests/runtime/*.test.mjs`, which imports
+it into a document object model rather than a browser and answers in under a second
+(`npm run test:runtime`); `tests/CLAUDE.md` owns which readings may go there.
+A module that reads another owner as it evaluates parses and lints clean and
 fails only in the browser, as `Cannot access X before initialization` at boot; the
 rule and its remedies are under Runtime ownership above. Before handing over a runtime or theme
 change, run the relevant full browser file or `leaf version check --render` on

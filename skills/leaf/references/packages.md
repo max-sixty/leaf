@@ -319,6 +319,21 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
 
+A third-party widget bundle whose generated interface is absent from script-free
+exports can carry shared CSS by calling
+`registerWidgetStyles(name, text)` while its module evaluates. Leaf constructs that
+sheet once and adopts it in the document and every declared shadow stage, including
+stages created later. Put vendor defaults in a named cascade layer so package and page
+themes remain authoritative. The adopted sheet is live-browser state rather than
+serialized page markup.
+
+A module that puts the reader somewhere calls `focusDestination(element)` rather than
+`element.focus()`, wherever that place is not already a control. It lends the element the
+tab stop a control has for exactly as long as it holds it, so the browser's own Tab order
+continues from there and no `tabindex` is left on the page behind the reader. What needs
+it is a widget's own Escape step landing them back in the thing it took them out of: the
+patch a file filter belongs to, the exhibit a box was about.
+
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
 transitions, not a Web Animations call a module makes for itself, so `motion` is where a
@@ -360,9 +375,10 @@ command.
 `registerMarginContribution({key, target, source?, read, activate})` is the package boundary for
 page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
-those same records independently in the target's Margin cluster and in Page Map,
-retaining each projected control by the opaque contribution key and entry key while its
-native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
+those same records independently in the target's Margin cluster and in Page Map.
+Reading items in `readings` have nonempty `id` strings, unique within that contribution;
+other contributions may reuse an ID. Leaf retains each projected control by the opaque
+contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
 so crossing that semantic boundary replaces the host instead of emulating a button.
 `target` is an
 element or a function returning the element that currently anchors the action. `source`
@@ -500,8 +516,8 @@ rather than a blank keycap.
 Every ordered Decision receives one of the Ask's contextual `1` through `9` routes while
 capacity remains, independently of any intrinsic widget binding. The Ask digit and the
 widget binding share one command id and source-scoped command reference. Invoking either
-therefore rechecks the original scope and liveness, calls the original `run` (or clicks a
-run-less native control), and preserves its return frame. A focused widget declaration
+therefore rechecks the original scope and liveness and calls the original `run` (or
+clicks a run-less native control). A focused widget declaration
 wins when it collides with an Ask digit; undeclared digits continue to the Ask.
 
 `bindingBadge` may name an empty face a widget already positions. Each supplied face
@@ -535,7 +551,9 @@ Every visible press a widget builds with `offer()` or `selectableOffer()` also j
 generated target map after `g`. Packages do not declare another `g` binding or repeat
 those controls in a destination list. Text and range inputs remain ordinary Tab stops;
 buttons, checkboxes, radios, and selectable controls are addressable because they have a
-discrete activation.
+discrete activation. A custom element with a complete host-level `focus()` and `click()`
+contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then supplies the
+same addressable marker as a native control.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed

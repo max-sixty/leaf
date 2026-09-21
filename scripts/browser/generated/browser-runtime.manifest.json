@@ -19,7 +19,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "492aa972ea068b00c4fc52127a74693febf222e18a124ca5f2f966b48278724c",
+  "lockfileSha256": "4a1cd4b406ac2707078c69d2133c367faba3abc64121352a65a27e4a9c7f21cb",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -27,9 +27,11 @@
     "test": "npm run test:browser"
   },
   "contributorDependencies": {
+    "@happy-dom/global-registrator": "20.14.5",
     "@preact/signals-core": "1.14.4",
     "acorn": "8.18.0",
     "esbuild": "0.28.2",
+    "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "typescript": "7.0.2"
   },

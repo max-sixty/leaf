@@ -12,13 +12,15 @@ import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
-import { focusedThreadOf } from "./conversation/focus.js";
-import { focused } from "./keyboard/scopes.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
+const walkableThreads = (panelIsOpen) =>
+  (panelIsOpen() ? threadsBox.navigationThreads() : null) ??
+  openThreads({ visibleOnly: panelIsOpen() });
+
 const threadPosition = (activeInlineThread, panelIsOpen) => {
-  const threads = openThreads({ visibleOnly: panelIsOpen() });
+  const threads = walkableThreads(panelIsOpen);
   const current = panelIsOpen()
     ? closestAcross(document.activeElement, ".lf-thread[data-id]")
     : threads.find(
@@ -39,7 +41,7 @@ function stepThread(
   { openPageThread, scrollToThread, activeInlineThread },
   panelIsOpen,
 ) {
-  const threads = openThreads({ visibleOnly: panelIsOpen() });
+  const threads = walkableThreads(panelIsOpen);
   const inline = activeInlineThread();
   const current = panelIsOpen()
     ? document.activeElement?.closest?.(".lf-thread")
@@ -59,6 +61,7 @@ function stepThread(
   // the focus it is about to take, so a press at either end of the walk, which names the
   // thread the reader already stands on, moves no focus and gives the list nothing to
   // land: the press lands that thread itself. The page half travels either way.
+  threadsBox.revealNavigation(next.dataset.id);
   const standing = next === document.activeElement;
   next.focus({ preventScroll: true });
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
@@ -192,7 +195,6 @@ export function createNavigation({
   coveringAuxiliaryScroller,
   threadDestinations,
 }) {
-  const { activeInlineThread, inlineThreadView } = threadDestinations;
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const move = (amount, unit) =>
@@ -221,47 +223,12 @@ export function createNavigation({
       (!coveringAuxiliarySurface() || inPanel()) &&
       !(threadSearchActive() && inPanel()),
     repeat: true,
-    // The press that puts the reader on a thread is one rung, however many threads the
-    // walk then visits: the press made off the threads pushes the frame, and a later
-    // one, made standing on a thread, pushes nothing. In the panel the walk moves focus
-    // and opens nothing, so the frame closes nothing and Escape hands back the place the
-    // press displaced — the list after `g T`, or the page place the reader pressed from
-    // with the panel already standing beside them. With the panel shut the walk reaches
-    // a thread on the page where a widget seats one and opens the margin's conversation
-    // view for the rest, so a press that opened that view is an entry even from a
-    // standing on a seated thread, and the frame dismisses the view on the way back;
-    // the rail control the view hangs from is nowhere the reader stood, so it is
-    // nowhere on the way out. The frame is its own entry rather than the view's,
-    // because the walk outlives the view when it steps on to a seated thread.
-    returnFrame: () => {
-      if (panelIsOpen()) {
-        if (focusedThreadOf()) return null;
-        const fromList = threadsBox === focused();
-        return {
-          active: () => panelIsOpen() && Boolean(focusedThreadOf()),
-          close: () => {},
-          does: "Let go of the thread",
-          line: fromList ? "back to list" : "let go",
-        };
-      }
-      const view = inlineThreadView();
-      const standingBefore = Boolean(activeInlineThread());
-      const showingBefore = view.showing();
-      // Whether the press was an entry is read once, on the stack's first look after
-      // the run: it stood the reader on a thread, or it opened the view.
-      let entered = null;
-      return {
-        active: () => {
-          entered ??= !standingBefore || (!showingBefore && view.showing());
-          return entered && Boolean(activeInlineThread());
-        },
-        close: () => view.dismiss(),
-        does: () =>
-          view.showing() ? "Dismiss the conversation view" : "Let go of the thread",
-        line: () => (view.showing() ? "dismiss conversation" : "let go"),
-        ownEntry: true,
-      };
-    },
+    // The walk moves the reader laterally: it is the surface it reaches through, rather
+    // than the walk, that Escape takes off. In the panel it moves focus from card to
+    // card and the standing scope lets go of whichever one they end on, back to the
+    // list. With the panel shut it stands them on a thread a widget seats on the page,
+    // or opens the margin's conversation view for a thread with no seat, and that view
+    // is what the Page Map's own step dismisses.
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),
   });
   pageCommand({

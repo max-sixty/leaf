@@ -19,52 +19,53 @@
    edit that specific control: Enter, deletion, caret movement, Home/End, and page
    movement. The claim follows the base key through modifiers, so Shift+Arrow selection,
    Alt character composition, and Mod editing commands remain native. It does not blanket
-   radio, checkbox, slider, Escape, or unrelated function keys merely because they are
-   form-related. An exact element scope is nearer than that claim, so a wired textarea
-   keeps its own Escape or submit binding; the typing claim then stands before any scope on an
-   ancestor widget. This ordering lets a widget contain an editor without taking letters,
-   newlines, or caret keys from it.
+   checkbox, Escape, or unrelated function keys merely because they are form-related.
+   Radio and slider navigation has its own narrow claim at the focused control, so
+   an arrow changes that control without also moving its containing widget. Open select
+   options retain typeahead when focus moves into their list. An exact element scope
+   stands before these native claims, so a wired textarea keeps its own Escape or submit
+   binding; the claims then stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
    registers its Escape and Enter on the exact input element, so those rows stand before
-   the command return frame; that frame stands before `TYPING`, and the general text-entry
-   claim stands before any ancestor widget. Escape therefore lets a live query go, then
-   leaves the box through the `/` frame, then leaves the panel through its entry frame. A
-   plain composer with no control-specific Escape goes directly through the command frame
-   instead of paying a generic “leave the textarea” step the entry never made.
+   `TYPING`, and the general text-entry claim stands before any ancestor widget. Escape
+   therefore lets a live query go, then leaves the box for the list it belongs to, then
+   leaves the panel. A plain composer with no control-specific Escape has no generic
+   “leave the textarea” step to pay, because it has nowhere of its own to hand the reader
+   back to.
 
    A key may repeat across nesting scopes to mean the same intent in context. `c` reads
    that way: from the page it enters the nearest comment box; from the Threads list it
-   enters the page-comment box one frame below that list. `g T`, not `c`, is what enters
+   enters the page-comment box one layer below that list. `g T`, not `c`, is what enters
    Threads as a navigable surface and leaves `w` and `/` live. `activeCommandLabel`
    projects the dispatcher's live result into the destination composition box's
    placeholder. Each box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
-   An active mode and the focused control's specific inner step stand first, the latest
-   eligible command return frame next, then scene-derived and containing-scope fallbacks.
-   Declaration order cannot move a fallback ahead of that frame. The innermost live row
-   owns exactly one unwind step. A query clear, box return, panel dismissal, decision
-   release, and return to the page cannot cascade from one keypress. A scope does not need
-   a private `keydown` listener or hand-written `preventDefault` to protect that contract.
+   It unwinds the state standing in front of the reader rather than a history of how they
+   reached it, so nothing here records a press. An active mode and the focused control's
+   specific inner step stand first; then the surface holding focus with whatever stands
+   inside it, and last the steps rooted outside that surface, in the register's order.
+   The innermost live row owns exactly one unwind step. A query clear, box return, panel
+   dismissal, decision release, and return to the page cannot cascade from one keypress.
+   A scope does not need a private `keydown` listener or hand-written `preventDefault` to
+   protect that contract.
 
    Auto popovers and modal dialogs are the platform's modes, and the layer stack holds
    them in the order they opened. The dispatcher tiers the scopes over that stack from the
    top down: each layer takes the scopes rooted inside it, the topmost layer also takes
-   the focused element's scopes, explicitly inner modes, and the current return frame, and
-   a boundary follows each layer. A modal is a floor, so every scope below the newest one
-   is dropped and the inert document cannot answer. A popover is nonmodal, so the scopes
-   it did not take stay reachable for keys its boundary does not claim, while its Escape
-   cannot fall through into the covered page. An inner Leaf row can therefore unwind a
-   step in that layer, while an unhandled Escape reaches the browser and cannot fall
-   through. A return frame under a later layer is not the current one, so no tier offers
-   it until that layer closes. The universal reference is the boundary's one route through
-   to another layer.
+   the focused element's scopes and explicitly inner modes, and a boundary follows each
+   layer. A modal is a floor, so every scope below the newest one is dropped and the inert
+   document cannot answer. A popover is nonmodal, so the scopes it did not take stay
+   reachable for keys its boundary does not claim, while its Escape cannot fall through
+   into the covered page. An inner Leaf row can therefore unwind a step in that layer,
+   while an unhandled Escape reaches the browser and cannot fall through. The universal
+   reference is the boundary's one route through to another layer.
 
    A covering auxiliary surface uses the same modal command floor without entering the browser's
    top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
-   scopes rooted in the auxiliary surface plus the return frame that can close it. A native layer
-   opened above the auxiliary surface keeps its own scopes above that floor.
+   scopes rooted in the auxiliary surface. A native layer opened above the auxiliary
+   surface keeps its own scopes above that floor.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
@@ -86,6 +87,7 @@ import {
   commandEntries,
   commandRoutes,
   live,
+  parsed,
   routedCommand,
   spell,
   word,
@@ -98,16 +100,9 @@ import {
   universalCommandReference,
 } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
-import { takesLetters } from "../focus.js";
+import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { focused, recoveredLabelFocus, scopesAt, scopesFor } from "./scopes.js";
-import {
-  RETURN,
-  heldStanding,
-  invoke,
-  mountEscapeCensus,
-  nativeLayers,
-  outsideCurrentFrame,
-} from "./layer-stack.js";
+import { nativeLayers } from "./layer-stack.js";
 import { under } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
@@ -152,73 +147,72 @@ const innerEscape = (scope, active) => {
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
 //
-// Escape takes off the newest thing the reader did, and a frame's place among the steps
-// follows from that. A frame that holds the standing — `c` into its box, `r`, the walks —
-// is the press that put the reader where they are, so it stands right after the inner
-// steps, ahead of the generic box escape, and one Escape undoes the one press. A frame
-// that stood them nowhere — `g T`, the Threads toggle, a tray landing on a floor — is
-// older than what they did next, so two kinds of step answer ahead of it: the scope
-// standing at the focus — the text box's own way back out, for a box they entered by Tab
-// or by pointer — and any step rooted outside the surface the frame entered, which is
-// whatever they have since put on out on the page (`outsideCurrentFrame`).
-// The Escape steps a scope is offering right now, by name. A row names its step where
-// one row stands for several — the fallback ladder's one command — and is otherwise its
-// own id.
-const escapeSteps = (scope) =>
-  scope.rows
-    .filter((row) => bindings(row).includes("Escape") && live(row))
-    .map((row) => word(row.escapeStep) ?? row.id);
+// How far a node sits above the reader, or -1 where it is not above them at all. The
+// document is above every reader, at the top of the walk.
+const above = (node, active) => {
+  let depth = 0;
+  for (let up = active; up; up = up.parentNode ?? up.host ?? null) {
+    if (up === node) return depth;
+    depth += 1;
+  }
+  return -1;
+};
+// Containment before kind, the same rule the ladder reads over its own steps. The
+// register's order says which of two steps is the inner one; it cannot say which of them
+// the reader is inside, and a composer left open out on the page is older than the panel
+// they are reading a thread in however the register ranks the two. So the surface holding
+// focus answers first, with every step rooted inside it, innermost root first — the reply
+// box in a margin card is inside the card, so leaving the box comes before dismissing it
+// — and the steps rooted outside that surface keep the register's order behind them.
+//
+// One reading of each root, because a root may be a thunk over the whole ladder.
 const escapeOrder = (scopes, active) => {
   const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
   const end = boundaryAt < 0 ? scopes.length : boundaryAt;
-  const layer = scopes.slice(0, end).filter((scope) => scope !== RETURN);
+  const layer = scopes.slice(0, end);
   const inner = layer.filter((scope) => innerEscape(scope, active));
-  const fallback = layer.filter((scope) => !inner.includes(scope));
-  const causal = scopes.slice(0, end).includes(RETURN) ? [RETURN] : [];
-  // With no frame standing there is nothing to yield to, and the fallbacks keep the
-  // order the register gives them: the Page Map's rung dismisses a conversation view
-  // ahead of the reply box inside it.
-  const newerThanFrame = (scope) =>
-    scopeRoot(scope) === active ||
-    outsideCurrentFrame(scopeRoot(scope), escapeSteps(scope));
-  const newer = causal.length && !heldStanding() ? fallback.filter(newerThanFrame) : [];
-  const rest = fallback.filter((scope) => !newer.includes(scope));
-  return [...inner, ...newer, ...causal, ...rest, ...scopes.slice(end)];
+  const outer = layer.filter((scope) => !inner.includes(scope));
+  const root = new Map(outer.map((scope) => [scope, scopeRoot(scope)]));
+  const depth = new Map(outer.map((scope) => [scope, above(root.get(scope), active)]));
+  // The innermost surface the reader is standing in, among the ones offering a step. A
+  // scope rooted at the reader's own focus, or at the document, names no surface: the
+  // first is wherever they are and the second is everywhere.
+  let surface = null;
+  for (const scope of outer) {
+    const at = root.get(scope);
+    if (depth.get(scope) < 1 || at === document) continue;
+    if (!surface || under(at, surface)) surface = at;
+  }
+  const within = surface ? outer.filter((s) => under(root.get(s), surface)) : [];
+  // Stable, so two scopes rooted at the same node keep the register's order.
+  within.sort((a, b) => depth.get(a) - depth.get(b));
+  const rest = outer.filter((scope) => !within.includes(scope));
+  return [...inner, ...within, ...rest, ...scopes.slice(end)];
 };
-
-// The census the layer stack takes as a framed press is made: every step already
-// answering Escape, so the frame can tell what the reader put on since from what was
-// standing before.
-mountEscapeCensus(
-  () =>
-    new Set(
-      stack("Escape")
-        .filter((scope) => scope !== RETURN)
-        .flatMap(escapeSteps),
-    ),
-);
 
 export function stack(binding = null) {
   const active = focused();
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
   const TYPING = textEntryScope();
+  const navigationKeys = controlNavigationKeys(active);
+  const controlScope = navigationKeys.length
+    ? {
+        root: active,
+        rows: [],
+        claims: (binding) => navigationKeys.includes(parsed(binding).key),
+      }
+    : null;
   const expanded = pageScopes().flatMap((scope) => {
     if (scope === ELEMENTS) {
-      if (!typing) return [...elementStack, RETURN];
+      if (!typing && !controlScope) return elementStack;
       const own = elementStack.filter(({ el }) => el === active);
       const ancestors = elementStack.filter(({ el }) => el !== active);
-      // A control's own state is the innermost layer. The command frame that entered
-      // it comes next, before the generic text-box escape and any containing widget:
-      // `/` in Threads can clear its query before returning, while `c` into a plain
-      // composer returns in the same one Escape that entered it. For Escape itself
-      // `escapeOrder` reads this order again against what the frame holds.
-      return [...own, RETURN, TYPING, ...ancestors];
+      // A control's own state is the innermost layer, before the generic text-box escape
+      // and any containing widget: the find box clears its own query before handing the
+      // reader back to the list the box belongs to.
+      return [...own, ...(typing ? [TYPING] : [controlScope]), ...ancestors];
     }
-    // RETURN is declared in pageScopes() so every projection sees it. The element placeholder
-    // above has already placed it at the dynamic boundary between the exact control and
-    // the generic/ancestor scopes, so the static slot contributes no second copy.
-    if (scope === RETURN) return [];
     if (scope === TYPING && typing) return [];
     return scope;
   });
@@ -238,15 +232,11 @@ export function stack(binding = null) {
   // are inside the floor too and drops the ones outside it. The layers themselves stand
   // above the floor rather than under it, and each takes its own scopes below.
   const floor = modalAt < 0 ? auxiliarySurface : visible[0].root;
-  const aboveFloor = (scope) =>
-    !floor || scope === RETURN || under(scopeRoot(scope), floor);
+  const aboveFloor = (scope) => !floor || under(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
-  // The topmost layer also holds the focused control, explicitly inner modes, and the
-  // command frame that leads back out: they stand above the browser's light-dismiss
-  // boundary whatever their own root is. The frame is the stack's own top entry, so it is
-  // never below the floor.
+  // The topmost layer also holds the focused control and explicitly inner modes: they
+  // stand above the browser's light-dismiss boundary whatever their own root is.
   const foreground = (scope) =>
-    scope === RETURN ||
     elementStack.includes(scope) ||
     scopeRoot(scope) === active ||
     innerEscape(scope, active);
@@ -345,11 +335,11 @@ function invocationFor(row, binding, command, recovered = null) {
   return run ? { row, binding, run, native: Boolean(row.native) } : null;
 }
 
-function invokeCommand(command, origin, beforeCommand) {
+function invokeCommand(command, beforeCommand) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
   beforeCommand?.(invocation.row);
-  invoke(invocation.row, invocation.binding, invocation.run, origin);
+  invocation.run();
   return true;
 }
 
@@ -401,7 +391,7 @@ function unclaimedScopes(binding) {
 // statement here instead of an ordering between nine listeners. `isComposing` is the one
 // guard that stays an event's rather than a scope's: an IME's own Escape is not the
 // runtime's to take.
-export function dispatchKey(ev, { beforeCommand, captureOrigin }) {
+export function dispatchKey(ev, { beforeCommand }) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
@@ -440,8 +430,7 @@ export function dispatchKey(ev, { beforeCommand, captureOrigin }) {
       if (!matched.native) ev.preventDefault();
       if (ev.repeat && !matched.row.repeat) return true;
       beforeCommand?.(matched.row);
-      const origin = matched.row.returnFrame ? captureOrigin() : null;
-      invoke(matched.row, matched.binding, matched.run, origin);
+      matched.run();
       return true;
     }
     nearer.past(scope);
@@ -515,8 +504,8 @@ function availableRouteSnapshot() {
 // take this snapshot before that point.
 export const availableCommands = () => availableRouteSnapshot().commands;
 export const availableCommandRoutes = () => availableRouteSnapshot().routes;
-export function executeCommand(id, origin, beforeCommand) {
+export function executeCommand(id, beforeCommand) {
   const command = commandFor(id);
   if (!command) return false;
-  return invokeCommand(command, origin, beforeCommand);
+  return invokeCommand(command, beforeCommand);
 }

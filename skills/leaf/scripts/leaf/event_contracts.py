@@ -13,14 +13,16 @@ log under the append lease; server-owned meaning is derived; and the finished
 record is validated against its stored-record contract. Downstream code reads
 those fields directly.
 
+`admitted_event` is all of that but the write. It reads the page through the
+readings `page_view.PageView` answers and nothing else, so an event's admission
+or refusal follows from the markup, the log, and the event alone.
+
 The gates themselves stay with the domains that own them — request lifecycles in
 `requests`, undo in `events`, widget meaning in `event_meaning`. What lives here
 is the one statement of which gates an event of each kind passes, so a new kind
 is an entry in `admission_error` rather than a check in the writer that happens
 to send it.
 """
-
-from pathlib import Path
 
 from leaf.anchor_capture import capture_anchor
 from leaf.asks import (
@@ -31,13 +33,13 @@ from leaf.asks import (
     quoted_in,
     thread_ask_readings,
 )
-from leaf.data import read_data
 from leaf.document_reading import read_document
 from leaf.event_log import EventRefused
 from leaf.event_meaning import admit_widget_event, direct_dependencies
 from leaf.events import build_threads, undo_error
-from leaf.files import latest_revision, list_revisions, version_revisions
-from leaf.passages import active_enclosing, enclosing_ids
+from leaf.files import version_revisions
+from leaf.page_view import PageView
+from leaf.passages import enclosing_ids
 from leaf.projection import (
     frozen_thread_reading,
     generated_children,
@@ -52,21 +54,15 @@ from leaf.registry.contract import (
     visual_parts,
 )
 from leaf.registry.reactions import reaction_tokens
-from leaf.registry.storage import load_registry
 from leaf.requests import (
     receipt_contract_error,
     request_contract_error,
     request_lifecycles_for,
     request_phases,
 )
-from leaf.revision_artifact import read_registry
 from leaf.schema import EVENT_REFERENCES_SCHEMA, MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.conversation import browser_conversation
-from leaf.structure import (
-    parse_revision,
-    resolve_source_target_reference,
-    revision_review_mode,
-)
+from leaf.structure import resolve_source_target_reference, review_mode
 from leaf.validation.instances import target_reference_contract_error
 
 # The envelope the append lease itself assigns. Admission validates the complete
@@ -417,7 +413,7 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     return None
 
 
-def datum_anchor_error(page_dir: Path, event: dict, page_by_id: dict, registry: dict):
+def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     """Why a source-versioned datum was not displayed by its declared seat.
 
     Current source values are replaceable, so an older valid revision may race a
@@ -441,7 +437,7 @@ def datum_anchor_error(page_dir: Path, event: dict, page_by_id: dict, registry: 
     if not bindings:
         return f"datum anchor source {source!r} is not bound by section {section!r}"
 
-    stored = read_data(page_dir)
+    stored = view.data
     revision = anchor["data_revision"]
     if revision > stored["revision"]:
         return (
@@ -467,7 +463,7 @@ def datum_anchor_error(page_dir: Path, event: dict, page_by_id: dict, registry: 
     )
 
 
-def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
+def action_contract_error(view, event: dict, events: list, registry: dict):
     """Why a fresh action violates its declaration or current applicability.
 
     Eligibility is derived inside the append transaction from the action's
@@ -476,7 +472,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     authorizes this boundary.
     """
     revision = event["revision"]
-    page = parse_revision(page_dir, revision)
+    document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection the requirement is judged
     # against are the same frozen fragments, and parsing them twice was two
@@ -485,16 +481,16 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     thread_projection = thread.projection
     thread_by_id = thread.by_id
     if error := declared_action_error(
-        event, page.by_id, thread_by_id, registry, stored=False
+        event, document.by_id, thread_by_id, registry, stored=False
     ):
         return error
-    page_rec = page.by_id.get(event["widget"])
+    page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
     spec = registry[tag]["x-state"][event["action"]]
     if spec.get("references"):
         reference_document = (
-            page
+            document
             if page_rec
             else thread_reference_document(thread.structure, event["widget"])
         )
@@ -514,9 +510,8 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         return None
 
     if page_rec:
-        document = parse_revision(page_dir, revision)
-        page = page_reading(document, events, registry, revision)
-        projection, parser, spk = page.projection, page.document, page.spoken
+        reading = page_reading(document, events, registry, revision)
+        projection, parser, spk = reading.projection, reading.document, reading.spoken
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
         # This door asks whether the request is answered, not whether it is the
@@ -542,9 +537,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         # and its actions read the whole conversation window.
         projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
-        threads = build_threads(
-            events, enclosing_ids(parse_revision(page_dir, revision))
-        )
+        threads = build_threads(events, enclosing_ids(document))
         settled = {root for root, value in threads.items() if value["resolved"]}
         awaiting_values = thread_ask_readings(
             events,
@@ -631,7 +624,7 @@ def report_contract_error(
     return None
 
 
-def admitting_registry(page_dir: Path, event: dict) -> dict:
+def admitting_registry(view, event: dict) -> dict:
     """The vocabulary that admits one event: the one its own document captured.
 
     An event names the revision it was made against, and that revision's artifact
@@ -642,44 +635,41 @@ def admitting_registry(page_dir: Path, event: dict) -> dict:
     takes the newest, which is the document any writer of one is looking at, and a
     page with no revision yet has only the layer it carries.
 
-    Read through `read_registry`, which opens the one captured file rather than
-    materializing the whole bundle: this runs on every append."""
+    Read through `PageView.registry`, which opens the one captured file rather
+    than materializing the whole bundle: this runs on every append."""
+    revisions = view.revisions
     revision = event.get("revision")
-    if type(revision) is not int or revision not in set(list_revisions(page_dir)):
-        revision = latest_revision(page_dir)
-    registry = (
-        read_registry(page_dir, revision)
-        if revision is not None
-        else load_registry(page_dir)
-    )
+    if type(revision) is not int or revision not in set(revisions):
+        revision = revisions[-1] if revisions else None
+    registry = view.registry(revision)
     if registry is None:
         raise EventRefused("the page has no registry.json")
     return registry
 
 
-def _revision_error(page_dir: Path, event: dict) -> str | None:
+def _revision_error(view, event: dict) -> str | None:
     """Why the document an event was made against is not one this page holds."""
     if "revision" not in event:
         return None
-    live = list_revisions(page_dir)
+    live = view.revisions
     if event["revision"] not in live:
         return f"{event['kind']} revision must be one of {live}"
     return None
 
 
-def _approval_error(page_dir: Path, event: dict, events: list, registry: dict):
+def _approval_error(view, event: dict, events: list, registry: dict):
     """Why a sign-off cannot record approval of the version it names."""
     if event["kind"] != "done":
         return None
     if version_revisions(events).get(event["version"]) != event["revision"]:
         return f"v{event['version']} does not stamp revision r{event['revision']}"
-    if revision_review_mode(page_dir, event["revision"]) != "sign-off":
+    document = view.document(event["revision"])
+    if review_mode(document) != "sign-off":
         return (
             f"v{event['version']} does not declare "
             '<meta name="lf-review" content="sign-off">, so it has no '
             "approval to record"
         )
-    document = parse_revision(page_dir, event["revision"])
     page = page_reading(document, events, registry, event["revision"])
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads)
@@ -694,30 +684,28 @@ def _approval_error(page_dir: Path, event: dict, events: list, registry: dict):
     return None
 
 
-def _action_error(page_dir: Path, event: dict, events: list, registry: dict):
+def _action_error(view, event: dict, events: list, registry: dict):
     if event["kind"] != "action":
         return None
-    return action_contract_error(page_dir, event, events, registry)
+    return action_contract_error(view, event, events, registry)
 
 
-def _request_error(page_dir: Path, event: dict, events: list, registry: dict):
+def _request_error(view, event: dict, events: list, registry: dict):
     if event["kind"] != "request":
         return None
-    return request_contract_error(page_dir, event, events, registry)
+    return request_contract_error(view, event, events, registry)
 
 
-def _report_error(page_dir: Path, event: dict, registry: dict) -> str | None:
+def _report_error(view, event: dict, registry: dict) -> str | None:
     if event["kind"] != "report":
         return None
-    return report_contract_error(
-        event, parse_revision(page_dir, event["revision"]), registry
-    )
+    return report_contract_error(event, view.document(event["revision"]), registry)
 
 
-def _receipt_error(event: dict, events: list) -> str | None:
+def _receipt_error(view, event: dict, events: list) -> str | None:
     if event["kind"] != "receipt":
         return None
-    return receipt_contract_error(event, events)
+    return receipt_contract_error(view, event, events)
 
 
 def _reaction_error(event: dict, registry: dict) -> str | None:
@@ -733,7 +721,7 @@ def _reaction_error(event: dict, registry: dict) -> str | None:
 
 
 def _anchored_comment_error(
-    page_dir: Path, event: dict, events: list, registry: dict, capture_anchors: bool
+    view, event: dict, events: list, registry: dict, capture_anchors: bool
 ):
     """Why a comment's declared target is not a place on the page it names.
 
@@ -759,9 +747,10 @@ def _anchored_comment_error(
         or anchor.get("source")
     ):
         return None
-    page_by_id = parse_revision(page_dir, event["revision"]).by_id
+    document = view.document(event["revision"])
+    page_by_id = document.by_id
     for error in (
-        datum_anchor_error(page_dir, event, page_by_id, registry),
+        datum_anchor_error(view, event, page_by_id, registry),
         held_comment_error(event, page_by_id, registry),
         version_response_comment_error(event, page_by_id, registry),
         visual_anchor_error(event, page_by_id, registry),
@@ -770,7 +759,6 @@ def _anchored_comment_error(
             return error
     if not recapture:
         return None
-    document = parse_revision(page_dir, event["revision"])
     page = page_reading(document, events, registry, event["revision"])
     try:
         canonical = capture_anchor(
@@ -804,14 +792,14 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
-def _withdrawal_error(page_dir: Path, event: dict, events: list) -> str | None:
+def _withdrawal_error(view, event: dict, events: list) -> str | None:
     if event["kind"] != "undo":
         return None
-    return undo_error(event, events, active_enclosing(page_dir))
+    return undo_error(event, events, view.within)
 
 
 def admission_error(
-    page, event: dict, registry: dict, *, capture_anchors: bool = False
+    view, events: list, event: dict, registry: dict, *, capture_anchors: bool = False
 ) -> str | None:
     """The first failing gate for one event, in append-door order.
 
@@ -821,19 +809,46 @@ def admission_error(
     comparison, which is what keeps this a list of the contract's rules rather
     than a routing table per transport.
     """
-    page_dir, events = page.page_dir, page.events
     return (
-        _revision_error(page_dir, event)
-        or _approval_error(page_dir, event, events, registry)
-        or _action_error(page_dir, event, events, registry)
-        or _request_error(page_dir, event, events, registry)
-        or _report_error(page_dir, event, registry)
-        or _receipt_error(event, events)
+        _revision_error(view, event)
+        or _approval_error(view, event, events, registry)
+        or _action_error(view, event, events, registry)
+        or _request_error(view, event, events, registry)
+        or _report_error(view, event, registry)
+        or _receipt_error(view, event, events)
         or _reaction_error(event, registry)
-        or _anchored_comment_error(page_dir, event, events, registry, capture_anchors)
+        or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
-        or _withdrawal_error(page_dir, event, events)
+        or _withdrawal_error(view, event, events)
     )
+
+
+def admitted_event(
+    view, events: list, event: dict, *, capture_anchors: bool = False
+) -> dict:
+    """The record one event becomes, or `EventRefused` saying why it does not.
+
+    All of admission but the write. The page as the door may read it, the
+    standing log, and the event decide this between them, so a caller holding a
+    page's markup as literal text can put an event to the same rules the server
+    applies without a page directory, a server, or a browser under it.
+    """
+    registry = admitting_registry(view, event)
+    contracts = registry["$events"]["kinds"]
+    kind = event.get("kind")
+    if kind not in contracts:
+        raise EventRefused(f"kind must be one of {sorted(contracts)}")
+    if error := admission_error(
+        view, events, event, registry, capture_anchors=capture_anchors
+    ):
+        raise EventRefused(error)
+    if kind in WIDGET_KINDS:
+        event = admit_widget_event(
+            view.document(event["revision"]), event, events, registry
+        )
+    if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
+        raise EventRefused(f"{kind} event is invalid: {error}")
+    return event
 
 
 def append_admitted(page, event: dict, *, capture_anchors: bool = False) -> dict:
@@ -850,15 +865,11 @@ def append_admitted(page, event: dict, *, capture_anchors: bool = False) -> dict
     # have moved past admitting it.
     if accepted := page.matching_attempt(event):
         return accepted
-    registry = admitting_registry(page.page_dir, event)
-    contracts = registry["$events"]["kinds"]
-    kind = event.get("kind")
-    if kind not in contracts:
-        raise EventRefused(f"kind must be one of {sorted(contracts)}")
-    if error := admission_error(page, event, registry, capture_anchors=capture_anchors):
-        raise EventRefused(error)
-    if kind in WIDGET_KINDS:
-        event = admit_widget_event(page.page_dir, event, page.events, registry)
-    if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
-        raise EventRefused(f"{kind} event is invalid: {error}")
-    return page._append_record(event)
+    return page._append_record(
+        admitted_event(
+            PageView(page.page_dir),
+            page.events,
+            event,
+            capture_anchors=capture_anchors,
+        )
+    )

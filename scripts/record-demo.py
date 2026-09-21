@@ -494,6 +494,7 @@ def shoot_stills(
             ".textContent.includes('awaits')"
         )
         page.locator(".lf-banner .lf-threads-toggle").click()
+        page.locator(".lf-thread-summary").click()
         page.wait_for_selector(".lf-thread .lf-msg.agent")
         page.locator("#top").scroll_into_view_if_needed()
         # Ask the shared motion lifecycle rather than waiting a duration: a finished move

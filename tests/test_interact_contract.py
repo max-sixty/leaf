@@ -8,6 +8,7 @@ import threading
 import time
 from copy import deepcopy
 
+import model_folds as model
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -19,11 +20,10 @@ from interact_support import (
     PAGE,
     PAGE_PACKAGES,
     PILOT_PURGE,
-    REJECT,
-    RESOLVE,
     SHELVED,
     TRIAL_CACHE,
     TRIAL_LOG,
+    ModelPage,
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
@@ -44,7 +44,6 @@ from interact_support import (
     element_declaration,
     fetch,
     live_versions,
-    logged,
     publish,
     published,
     stamp,
@@ -75,6 +74,146 @@ from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
 from page_fixtures import package_selection_args
 
+# One question quoted back and the same question live. The pair is what makes the
+# exhibit refusal below the exhibit's doing: the two groups are the same markup
+# under different holders.
+STATED_KIT = """<!doctype html>
+<html lang="en">
+<head>
+<title>Kit</title>
+</head>
+<body>
+<main>
+<lf-specimen id="last-year" label="the kit we took last year">
+  <lf-options id="quoted-pick" choose>
+    <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
+    <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+  </lf-options>
+</lf-specimen>
+<lf-ask id="kit-decision">
+  <h2>Which navigation kit this year?</h2>
+  <lf-options id="live-pick" choose>
+    <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
+    <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+  </lf-options>
+</lf-ask>
+</main>
+</body>
+</html>
+"""
+STATED_LOG = [
+    {
+        "kind": "comment",
+        "id": "c1",
+        "seq": 1,
+        "ts": "2026-09-19T12:00:00+00:00",
+        "author": "user",
+        "revision": 1,
+        "text": "Which one did we take?",
+    }
+]
+STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+
+# A deck with two cards still queued. Two is the load-bearing number: `finish`
+# carries the final position itself, so against a one-card deck the crafted
+# finish below would genuinely complete the deck and the door would be right to
+# admit it.
+STATED_DECK = """<!doctype html>
+<html lang="en">
+<head>
+<title>Triage</title>
+</head>
+<body>
+<main>
+<lf-ask id="triage-decision">
+  <h2>Which follow-ups should we keep?</h2>
+  <lf-swipe-deck id="triage">
+    <lf-swipe-pile id="queue" verdict="unseen">
+      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
+      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-ask>
+</main>
+</body>
+</html>
+"""
+STATED_FINISH = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "triage",
+    "action": "finish",
+}
+
+
+def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card():
+    """A verb that carries its own result is checked against the deck it claims.
+
+    `finish` names the card's final pile itself rather than reporting where the
+    reader dropped it, so nothing but admission stands between a crafted POST and
+    an answered Ask. Two different gates answer: the completion condition, which
+    a finish leaving a card queued does not meet, and the position record, whose
+    unit must be an element the deck actually holds. A door that took the verb's
+    word for either would leave a deck answered on a classification that never
+    existed.
+    """
+    page = ModelPage(STATED_DECK, packages=("swipe",))
+
+    def refusal(event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            event_contracts_model.admitted_event(page, [], dict(event))
+        return str(refused.value)
+
+    assert "does not satisfy its completion condition" in refusal(
+        {**STATED_FINISH, "detail": {"card": "card-a", "to": "keep", "index": 1}}
+    )
+    assert "unknown card 'not-a-card'" in refusal(
+        {**STATED_FINISH, "detail": {"card": "not-a-card", "to": "keep", "index": 2}}
+    )
+
+
+def test_admission_decides_from_the_markup_and_the_standing_log_alone():
+    """The door reads a page through `PageView` and reaches past it for nothing.
+
+    What makes an event admissible is the authored document it names, the
+    vocabulary that document captured, and the log standing in front of it. So a
+    page whose revisions are stated rather than stored reaches the same verdicts,
+    and a test of one rule can be the markup that rule is about — which is what
+    `ModelPage` is. Each verdict below comes from a different gate, so a gate
+    that went back to opening a file of its own fails here.
+    """
+    page = ModelPage(STATED_KIT)
+
+    def admit(event):
+        return event_contracts_model.admitted_event(page, STATED_LOG, dict(event))
+
+    def refusal(event):
+        with pytest.raises(events_model.EventRefused) as refused:
+            admit(event)
+        return str(refused.value)
+
+    choose_live = {
+        **STATED_PICK,
+        "widget": "live-pick",
+        "detail": {"options": ["live-gps"]},
+    }
+    assert admit(choose_live)["meaning"]["coordinate"] == [
+        "live-pick",
+        "live-pick",
+        "selection",
+    ]
+    assert (
+        refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
+    )
+    assert "stands inside an exhibit" in refusal(
+        {**STATED_PICK, "widget": "quoted-pick", "detail": {"options": ["quoted-gps"]}}
+    )
+    answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
+    assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
+    assert admit({**answer, "parent": "c1"})["parent"] == "c1"
+
 
 def test_only_declared_generated_children_add_mapping_keys_to_liveness():
     event = {
@@ -99,19 +238,56 @@ def test_only_declared_generated_children_add_mapping_keys_to_liveness():
     ]
 
 
-def test_an_accept_carries_its_thread_resolution(page_dir):
+# Two suggestions on one page, and the decisions a reader takes on them. The
+# widgets are here rather than named only in the events because a settlement
+# rests on its widget: the door derives each action's coordinate and its answer
+# from this markup, so a log that named a widget the page has not got would be
+# refused rather than folded.
+SETTLED = model.leaf_page(
+    "feeders",
+    """<h1 id="feeders">Feeders</h1>
+<lf-suggestion id="sug-a">
+  <lf-old><p id="a-old">Refill every feeder each morning.</p></lf-old>
+  <lf-new><p id="a-new">Refill when the camera shows it half-empty.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="sug-b">
+  <lf-old><p id="b-old">Check the cameras weekly.</p></lf-old>
+  <lf-new><p id="b-new">Check the cameras each morning.</p></lf-new>
+</lf-suggestion>""",
+)
+ASKED = {"kind": "comment", "text": "cameras are flaky"}
+PICKED = {
+    "kind": "action",
+    "widget": "sug-a",
+    "action": "accept",
+    "detail": {"resolves": "e1"},
+}
+TURNED_DOWN = {"kind": "action", "widget": "sug-a", "action": "reject", "detail": {}}
+CLOSED = {"kind": "resolve", "parent": "e1"}
+
+
+def settlement(*events):
+    """What the thread `e1` stands resolved by, after exactly this log."""
+    return model.threads(model.reading(SETTLED, events))["e1"]["resolved"]
+
+
+def test_an_accept_carries_its_thread_resolution():
     """One atomic event: the accept snapshots the thread it answers, because the
     honoring version retires the wrapper that held the `resolves` mapping and a
     second POST could fail alone. A reject answers nothing."""
-    threads = logged(
-        page_dir,
-        COMMENT,
-        {"kind": "comment", "id": "c2", "author": "user", "text": "the other thing"},
-        ACCEPT,
-        {**REJECT, "widget": "sug-b"},
+    threads = model.threads(
+        model.reading(
+            SETTLED,
+            (
+                ASKED,
+                {"kind": "comment", "text": "the other thing"},
+                PICKED,
+                {**TURNED_DOWN, "widget": "sug-b"},
+            ),
+        )
     )
-    assert threads["c1"]["resolved"]["widget"] == "sug-a"
-    assert threads["c2"]["resolved"] is None
+    assert threads["e1"]["resolved"]["widget"] == "sug-a"
+    assert threads["e2"]["resolved"] is None
 
 
 def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
@@ -312,7 +488,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     assert len(undos) == 1
 
 
-def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
+def test_a_reject_after_an_accept_reopens_the_thread():
     """A thread stands settled by its widget's standing answer, not by the fact an
     answer was once given. Turning the fix down and leaving the question filed away
     as answered by it is invisible from both sides — the fold reports the suggestion
@@ -320,53 +496,48 @@ def test_a_reject_after_an_accept_reopens_the_thread(page_dir):
 
     Read across the reject rather than after it: an assertion that the thread is open
     passes just as well on a log where the accept never settled it."""
-    assert logged(page_dir, COMMENT, ACCEPT)["c1"]["resolved"]["action"] == "accept"
-    assert logged(page_dir, REJECT)["c1"]["resolved"] is None
+    assert settlement(ASKED, PICKED)["action"] == "accept"
+    assert settlement(ASKED, PICKED, TURNED_DOWN) is None
 
 
-def test_an_accept_after_a_reject_settles_the_thread(page_dir):
+def test_an_accept_after_a_reject_settles_the_thread():
     """The other order, which the one-way latch already got right — this pins it
     against the fix for the latch, not against the latch. A fold that kept the
     first answer per widget rather than the last reads every case here correctly
     except this one, where nothing would ever settle the thread."""
-    assert logged(page_dir, COMMENT, REJECT)["c1"]["resolved"] is None
-    assert logged(page_dir, ACCEPT)["c1"]["resolved"]["action"] == "accept"
+    assert settlement(ASKED, TURNED_DOWN) is None
+    assert settlement(ASKED, TURNED_DOWN, PICKED)["action"] == "accept"
 
 
-def test_a_resolve_between_two_decisions_outlives_the_second(page_dir):
+def test_a_resolve_between_two_decisions_outlives_the_second():
     """A resolve is a person saying the conversation is done, and the log cannot
     take that back the way it takes back a decision. The one-way latch got this
     right by never clearing anything; what it pins is the obvious wrong fix for the
     latch — a reject that clears whatever its widget resolved — which would wipe a
     press made in between. Settling in place is what makes it hold: the superseded
     accept never stood, so it has nothing to clear."""
-    assert (
-        logged(page_dir, COMMENT, ACCEPT, RESOLVE)["c1"]["resolved"]["kind"]
-        == "resolve"
-    )
-    assert logged(page_dir, REJECT)["c1"]["resolved"]["kind"] == "resolve"
+    assert settlement(ASKED, PICKED, CLOSED)["kind"] == "resolve"
+    assert settlement(ASKED, PICKED, CLOSED, TURNED_DOWN)["kind"] == "resolve"
 
 
-def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again(page_dir):
+def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     """The two ways an answer stops standing compose, and this is where they meet: a
     reject supersedes the accept before it, and taking the reject back leaves the
     accept standing as the widget's answer once more. A withdrawal read only by the
     walk and not by the standing answer would leave the thread open with the log
     holding nothing that says so."""
-    assert (
-        logged(page_dir, COMMENT, ACCEPT, {**REJECT, "id": "r1"})["c1"]["resolved"]
-        is None
-    )
-    undone = {"kind": "undo", "author": "user", "undoes": "r1"}
-    assert logged(page_dir, undone)["c1"]["resolved"]["action"] == "accept"
+    assert settlement(ASKED, PICKED, TURNED_DOWN) is None
+    # The reject is the third event written, so `e3` is what the undo names.
+    taken_back = {"kind": "undo", "undoes": "e3"}
+    assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["action"] == "accept"
 
 
-def test_another_widget_s_answer_holds_a_thread_two_widgets_answered(page_dir):
+def test_another_widget_s_answer_holds_a_thread_two_widgets_answered():
     """Superseding is per widget, because the decision is. Two suggestions can answer one
     question, and deciding against the second says nothing about the first — a fold
     keyed on the thread instead of the widget would have let it."""
-    threads = logged(page_dir, COMMENT, {**ACCEPT, "widget": "sug-b"}, ACCEPT, REJECT)
-    assert threads["c1"]["resolved"]["widget"] == "sug-b"
+    held = settlement(ASKED, {**PICKED, "widget": "sug-b"}, PICKED, TURNED_DOWN)
+    assert held["widget"] == "sug-b"
 
 
 def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
@@ -5113,27 +5284,16 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     from copy import deepcopy
 
     from leaf.asks import answered_ask
-    from leaf.files import latest_revision
     from leaf.projection import page_reading
     from leaf.validation.compatibility import candidate_vocabulary_gaps
 
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry.update(
-        json.loads(
-            (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
-        )
-    )
-    shutil.copyfile(
-        schema_model.BUNDLED_PACKAGES / "swipe" / "widgets" / "lf-swipe-deck.js",
-        page_dir / "widgets" / "lf-swipe-deck.js",
-    )
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    registry = registry_storage.require_registry(page_dir)
     source = PAGE.replace(
         "</section>", registry["lf-swipe-deck"]["x-example"] + "</section>"
     )
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
-    revision = latest_revision(page_dir)
+    revision = files_model.latest_revision(page_dir)
     append_command(
         page_dir,
         {

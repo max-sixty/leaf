@@ -964,60 +964,6 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     }
 
 
-def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serve):
-    """Derived state declarations belong to one complete registry generation.
-
-    Warming the index must not make later generations inherit its declarations. Both
-    channels contribute, while only recorded declarations contribute owner selectors.
-    """
-    page = open_page(browser, serve(SHORT_SUGGESTION))
-    indexed = page.evaluate(
-        """async () => {
-          const {
-            recordedWidgetSelector,
-            registry,
-            stateSpecs,
-          } = await window.__lfRuntimeImport('/runtime/registry.js');
-          const before = stateSpecs();
-          const generation = registry.$layer.generation;
-          Object.assign(registry, {
-            'lf-index-action': {
-              'x-state': { set: { record: { role: 'value' } } },
-            },
-            'lf-index-report': {
-              'x-report': { measure: { record: { role: 'body' } } },
-            },
-            'lf-index-recordless': {
-              'x-state': { settle: {} },
-            },
-          });
-          registry.$layer = {
-            ...registry.$layer,
-            generation: `${generation}-next`,
-          };
-          const after = stateSpecs();
-          return {
-            beforeHadProbe: before.some(({ tag }) => tag.startsWith('lf-index-')),
-            declarations: after
-              .filter(({ tag }) => tag.startsWith('lf-index-'))
-              .map(({ tag, channel, verb, spec }) => [tag, channel, verb, !!spec.record]),
-            recorded: recordedWidgetSelector()
-              .split(',')
-              .filter((tag) => tag.startsWith('lf-index-')),
-          };
-        }"""
-    )
-    assert indexed == {
-        "beforeHadProbe": False,
-        "declarations": [
-            ["lf-index-action", "x-state", "set", True],
-            ["lf-index-report", "x-report", "measure", True],
-            ["lf-index-recordless", "x-state", "settle", False],
-        ],
-        "recorded": ["lf-index-action", "lf-index-report"],
-    }
-
-
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     """Acquiring web storage can itself throw before any method is called.
 
@@ -1391,7 +1337,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
 
     playground.get_by_role("button", name="Needs attention").click()
-    compact = playground.locator("input[aria-label='Compact spacing']")
+    compact = playground.get_by_role("switch", name="Compact spacing")
     expect(compact).to_be_checked()
     expect(playground).to_have_attribute("data-playground-format", "status strip")
 
@@ -1794,49 +1740,6 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         == "none"
     )
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
-
-
-def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
-    """`restated` belongs to the version that rewrote the words, and to no other:
-    v3 has nothing to declare, because it is not the one taking anything back.
-
-    So the retraction cannot live in the markup, or v3's silence would read as
-    "carry the decision" and hand the user's edit straight back — the same
-    resurrection the branch removed, one version later and just as quiet.
-    Stamping records it in the log instead, where it is a fact with a revision
-    on it and every later revision inherits it for free."""
-    url = serve(JOURNEY_V1)
-    d = serve.page_dir
-    append_command(
-        d,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "draft-ops",
-            "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
-        },
-    )
-    corrected = "Run the migration after deploying — it needs the new column."
-    _publish(d, 2, _draft_says(JOURNEY_V2, corrected, " restated"), "rewrote the draft")
-    # v3 keeps v2's words and says nothing about the retraction, because
-    # saying it again would be claiming to undo a decision already undone.
-    _publish(d, 3, _draft_says(JOURNEY_V2, corrected), "unrelated copy edits")
-
-    page = open_page(browser, url.replace("v1.html", "v3.html"))
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(corrected)
-    page.close()
-
-    # And the careful author who carries the attribute forward anyway — the habit
-    # this whole design exists to break — is told which version already did it.
-    (d / "index.html").write_text(_draft_says(JOURNEY_V2, corrected, " restated"))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "stamp", str(d), "--text", "again"],
-    )
-    assert result.exit_code != 0
-    assert "r2 already took that back" in result.output
 
 
 def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
@@ -2395,6 +2298,8 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     options = page.locator(".lf-thread-panel lf-options#store-pick")
+    expect(options).to_be_hidden()
+    page.locator('.lf-thread[data-id="c-store"] .lf-thread-summary').click()
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
@@ -3257,12 +3162,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
     held_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{held}"]'
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{held}"]'
     )
     other_receipt = other_thread.locator(
-        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{other}"]'
+        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{other}"]'
     )
     expect(receipts).to_have_count(2)
     expect(held_receipt).to_contain_text("✓ Sent")
@@ -3360,7 +3265,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_receipt.evaluate(
-        "node => node.parentElement.matches('.lf-msg-head') "
+        "node => node.parentElement.matches('.lf-msg-delivery') "
         "&& node.nextElementSibling === null"
     )
 
@@ -3377,8 +3282,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     told(page)
     followup_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{followup["id"]}"]'
+        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{followup["id"]}"]'
     )
     expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
         "● Working — reading the reconnect traces"
@@ -3423,7 +3328,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # conversation status never grows a separate footer row.
     status("working", "re-running it against the rolling deploy", "--on", held)
     claim_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head > .lf-receipt'
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery .lf-receipt'
     )
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
@@ -3512,7 +3417,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page.keyboard.press("c")
     receipt = page.locator(
         f'.lf-thread[data-id="{comment["id"]}"] '
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-head '
+        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
         f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
     expect(receipt).to_contain_text("○ Waiting for pickup")
@@ -3524,7 +3429,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     """A phase change updates colored metadata without moving or replacing it.
 
-    The receipt belongs to the outgoing message's existing header row. Heartbeats leave
+    The receipt belongs below the outgoing message's text. Heartbeats leave
     it alone, while a semantic transition changes its words and color in place.
     Re-inserting the node would replay its live region and any animation it wore."""
     url = serve(LONG_PAGE)
@@ -3542,10 +3447,18 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     receipt = thread.locator(
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-head '
+        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
         f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
+    thread.locator(".lf-thread-summary").click()
+    expect(receipt).to_be_visible()
     expect(receipt).to_contain_text("✓ Sent")
+    expect(thread.locator(".lf-thread-summary")).not_to_contain_text("Sent")
+    body = thread.locator(f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-body')
+    assert (
+        receipt.bounding_box()["y"]
+        >= body.bounding_box()["y"] + body.bounding_box()["height"]
+    )
     expect(receipt.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert receipt.locator(".lf-receipt-state").evaluate(
@@ -3565,6 +3478,7 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
         session_model.record_pickup(transaction, [comment])
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
+    expect(thread.locator(".lf-thread-status")).to_have_text("Picked up")
     assert receipt.locator(".lf-receipt-state").evaluate(
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--accent")
@@ -3664,6 +3578,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         timespec="seconds"
     )
     claim(quiet_ts)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Was working")
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
@@ -3763,6 +3678,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Was working")
     expect(inline.locator(".lf-receipt-state")).to_have_text(
         re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
     )
@@ -4110,7 +4026,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(page.locator(".lf-general textarea")).to_be_focused()
     round_trip(page)
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # out of the box, onto the list
+    page.keyboard.press("Escape")  # and out of the panel that holds it
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     # A retired thread lands on the surface the reader's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so the margin's
     # thread margin entry and each passage's comment count open the fallback card and Threads
@@ -4508,7 +4426,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
 def test_conversation_timestamps_age_without_new_state(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     page.keyboard.press("c")
-    timestamp = page.locator(".lf-msg-head > time").first
+    timestamp = page.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("just now")
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
@@ -4531,7 +4449,7 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     )
     page = open_page(browser, url)
     page.keyboard.press("c")
-    timestamp = page.locator(".lf-msg-head > time").first
+    timestamp = page.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("1h ago")
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0

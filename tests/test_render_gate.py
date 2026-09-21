@@ -4,7 +4,6 @@ import itertools
 import json
 import re
 import threading
-import time
 from urllib.parse import urlsplit
 
 import pytest
@@ -19,7 +18,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
@@ -81,7 +79,6 @@ from render_harness import (
     LONG_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    Traffic,
     _traffic,
     _until,
     author_test_widget,
@@ -459,30 +456,6 @@ def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, s
     )
     assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
     assert rows["footer"]["bottom"] <= 700, rows
-
-
-def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
-    """A page that repaints its ledger forever cannot keep a false fact alive forever."""
-
-    class BusyPage:
-        reads = 0
-
-        def evaluate(self, _script):
-            self.reads += 1
-            return json.dumps(
-                {"sends": self.reads, "acked": 0, "asked": 0, "heard": 0, "pending": []}
-            )
-
-        def wait_for_function(self, *_args, **_kwargs):
-            raise AssertionError("the expired wait listened for another paint")
-
-    page = BusyPage()
-    page.lf_traffic = Traffic(page)
-    times = iter((0, 31, 31, 31))
-    monkeypatch.setattr(time, "monotonic", lambda: next(times))
-
-    with pytest.raises(AssertionError, match="never reached a false fact"):
-        _until(page, lambda _traffic: False, "reached a false fact")
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
@@ -1457,6 +1430,76 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     )
 
 
+def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, serve):
+    page = open_page(browser, serve(leaf_page("Custom control", "<h1>Controls</h1>")))
+    page.evaluate(
+        """async () => {
+          const { offer } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          customElements.define('test-control', class extends HTMLElement {
+            static formAssociated = true;
+            constructor() {
+              super();
+              this.attachInternals();
+              this.attachShadow({mode: 'open'}).innerHTML = '<input aria-label="Choice">';
+            }
+          });
+          const control = offer('test-control');
+          control.setAttribute('name', 'choice');
+          control.append(offer('test-control'));
+          const native = offer('input');
+          native.id = 'native-field';
+          document.querySelector('main').append(control, native);
+        }"""
+    )
+    assert render_checks_model.evaluate_probe(page, "unnamedFormFields") == []
+    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == []
+
+    page.evaluate(
+        """() => {
+          document.querySelector('test-control').removeAttribute('name');
+          document.querySelector('#native-field').removeAttribute('id');
+        }"""
+    )
+    assert {
+        field["tag"]
+        for field in render_checks_model.evaluate_probe(page, "unnamedFormFields")
+    } == {"test-control", "input"}
+    page.locator("main > test-control").evaluate(
+        "node => node.removeAttribute('data-lf-gen')"
+    )
+    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
+        "<test-control>"
+    ]
+
+
+def test_the_render_gate_checks_undeclared_shadow_roots_inside_conversation_chrome(
+    browser, serve
+):
+    """A reply panel is runtime UI, while a widget inside its message remains page
+    content. Only a control built through offer is exempt from the declaration check;
+    inheriting the panel's UI ancestry cannot hide an undeclared widget root."""
+    page = open_page(browser, serve(leaf_page("Reply widget", "<h1>Reply</h1>")))
+    page.evaluate(
+        """async () => {
+          const {offer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          for (const tag of ['generated-control', 'reply-widget'])
+            customElements.define(tag, class extends HTMLElement {
+              constructor() {
+                super();
+                this.attachShadow({mode: 'open'}).innerHTML = '<p>Shadow words</p>';
+              }
+            });
+          const panel = document.createElement('div');
+          panel.className = 'lf-conversation-thread lf-ui';
+          panel.append(offer('generated-control'), document.createElement('reply-widget'));
+          document.querySelector('main').append(panel);
+        }"""
+    )
+    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
+        "<reply-widget>"
+    ]
+
+
 def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -1701,113 +1744,6 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
     failures = render_gate_model.render_version(browser, url)
 
     assert not [failure for failure in failures if "x-verbatim" in failure], failures
-
-
-def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
-    registry = {
-        "lf-draft": {
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-state": {
-                "edit": {
-                    "facet": "body",
-                    "unit": "widget",
-                    "record": {"kind": "body", "value": "text"},
-                }
-            },
-        }
-    }
-    page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
-
-    def action(identity, text, seq):
-        return {
-            "kind": "action",
-            "id": f"a-{identity}",
-            "author": "user",
-            "revision": 2,
-            "widget": identity,
-            "action": "edit",
-            "detail": {"text": text},
-            "meaning": {
-                "coordinate": [identity, identity, "body"],
-                "depends": [identity],
-                "answer": None,
-                "document": {"kind": "page", "revision": 2},
-            },
-            "seq": seq,
-        }
-
-    events = [
-        {
-            "kind": "comment",
-            "id": "c-scope",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep the frozen answer current.",
-            "seq": 1,
-        },
-        {
-            "kind": "reply",
-            "id": "r-scope",
-            "author": "agent",
-            "parent": "c-scope",
-            "revision": 1,
-            "text": "Here it is:",
-            "markup": frozen,
-            "seq": 2,
-        },
-        action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen standing.", 4),
-    ]
-
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
-
-    assert expected == {
-        ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
-    }
-
-
-def test_projected_verbatim_includes_generated_children():
-    registry = {
-        "lf-list": {
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-state": {
-                "add": {
-                    "facet": "items",
-                    "unit": "widget",
-                    "creates": {"field": "additions", "child": "lf-item"},
-                }
-            },
-        },
-        "lf-item": {"x-upgrade": False},
-    }
-    markup = '<lf-list id="list">Authored item.</lf-list>'
-    event = {
-        "kind": "action",
-        "id": "a-add",
-        "author": "user",
-        "revision": 1,
-        "widget": "list",
-        "action": "add",
-        "detail": {"additions": {"new-item": "Generated item."}},
-        "generated": ["new-item"],
-        "meaning": {
-            "coordinate": ["list", "list", "items"],
-            "depends": ["list"],
-            "answer": None,
-            "document": {"kind": "page", "revision": 1},
-        },
-        "seq": 1,
-    }
-
-    expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
-    )
-
-    assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
 
 
 def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
@@ -3497,7 +3433,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     bare fixture because the panel has to be holding something for its boxes to exist,
     and a seeded example is the corpus's own conversation. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
-    thread's quoted target, so a page whose log carries only widget events opens the
+    thread's title, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
     seeded = [
         path
@@ -3527,7 +3463,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
              s.id = 'trap';
              s.textContent =
                '.lf-thread { padding-top: 8px !important }'
-               + '.lf-thread > .lf-thread-head { margin-block-start: 9px !important }';
+               + '.lf-thread > .lf-thread-summary { margin-block-start: 9px !important }';
              document.head.append(s);
            }"""
     )

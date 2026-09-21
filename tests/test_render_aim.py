@@ -21,7 +21,6 @@ from render_cases_interaction import (
     ASK_PAGE,
     ASKS_PAGE,
     HOLD_MOTION,
-    SCROLL_SETTLED,
     SUGGESTION_PAGE,
     live_url,
 )
@@ -39,7 +38,6 @@ from render_cases_layout import (
     LEGEND_TRUE,
     NAMED,
     PAGE_MARKUP,
-    SCROLL_SETTLE_MS,
     aim_targets,
     draw_edge,
     edge_settled,
@@ -70,6 +68,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     stamp_page,
@@ -453,7 +452,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
         page.mouse.move(8, 450)
         page.mouse.wheel(0, -200)
         page.wait_for_function("before => scrollY < before", arg=revealed_scroll)
-        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
         assert page.evaluate("scrollY") < revealed_scroll
         expect(page.locator(".lf-fab-bar")).to_have_attribute(
             "data-lf-placement", placement
@@ -536,7 +535,7 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
     for _ in range(math.ceil((maximum_scroll - last_scroll) / 150)):
         page.mouse.wheel(0, 150)
         page.wait_for_function("before => scrollY > before", arg=last_scroll)
-        page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+        scroll_settled(page)
         moved = page.evaluate("scrollY")
         assert moved > last_scroll
         assert bar.evaluate(
@@ -602,7 +601,7 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     page.wait_for_function(
         "() => document.getElementById('passage').getBoundingClientRect().bottom < 0"
     )
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     covered = page.evaluate(
         """() => {
@@ -1675,8 +1674,19 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(panel_reply).to_have_count(1)
     expect(panel_reply).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # Escape backs out one rung a press: the send's, which opened Threads on the new
-    # thread and takes it off again, then the mode's.
+    # Escape takes off one level a press, from where the send left the reader: the
+    # reply box hands them to its thread, collapse returns to the title, letting go
+    # reaches the list, the panel hands them to the page, and the mode they
+    # put on before any of it comes off last.
+    page.keyboard.press("Escape")
+    expect(panel.locator(".lf-thread")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(panel.locator(".lf-thread-summary")).to_be_focused()
+    expect(panel.locator(".lf-thread-summary")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_be_focused()
@@ -1805,6 +1815,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator('.lf-thread[data-id="c-inline-margin"] .lf-thread-summary').click()
     page.keyboard.press("l")
     accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
     expect(accept).to_be_visible()
@@ -1852,7 +1863,17 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator(".lf-thread textarea")).to_be_focused()
     # The send opened Threads on the new thread, the card being withheld in the mode,
-    # so its one Escape takes the panel off again and hands back the page.
+    # and left the reader in its reply box: the box hands them to the thread, collapse
+    # returns to its title, letting go reaches the list, then the panel returns to the page.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread").first).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-summary").first).to_be_focused()
+    expect(page.locator(".lf-thread-summary").first).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator("body")).to_be_focused()

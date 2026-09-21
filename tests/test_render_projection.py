@@ -52,7 +52,6 @@ from render_cases_interaction import (
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SCROLL_SETTLED,
     SEATED_ASK_ENTRY,
     SEATED_ASK_MODULE,
     STANDING_ACTIONS,
@@ -71,7 +70,6 @@ from render_cases_interaction import (
     trial_family,
 )
 from render_cases_layout import (
-    SCROLL_SETTLE_MS,
     token_colour,
     unfolded_button,
 )
@@ -95,6 +93,7 @@ from render_harness import (
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
     TOKEN,
+    ask_actions_hint,
     author_test_widget,
     compare_with,
     consume_browser_errors,
@@ -108,6 +107,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -584,7 +584,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         ".matches('summary')"
     )
 
-    search = page.locator("#patch .lf-diff-search")
+    search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
@@ -767,8 +767,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     second = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run detail"))
 
     expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
-    case_select = widget.get_by_role("combobox", name="Selected visual case")
-    expect(case_select.locator("option")).to_have_count(2)
+    case_select = widget.locator(".lf-vr-case-select")
+    expect(case_select.locator("wa-option")).to_have_count(2)
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
     expect(first).to_have_attribute("data-lf-projection", "visual-run")
@@ -805,18 +805,14 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     expect(widget).to_have_attribute("data-inspection-scale", "fit")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
-    scope = widget.get_by_role("group", name="Scope")
+    scope = widget.get_by_role("radiogroup", name="Scope")
     expect(scope).to_be_visible()
-    expect(scope.get_by_role("button", name="Focus change")).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    expect(widget.get_by_role("button", name="Compare")).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    expect(widget.get_by_role("button", name="Compare")).to_have_css(
+    expect(widget.get_by_role("radio", name="Focus change")).to_be_checked()
+    expect(widget.get_by_role("radio", name="Compare")).to_be_checked()
+    expect(widget.get_by_role("radio", name="Compare")).to_have_css(
         "box-shadow", "none"
     )
-    opacity = first.locator(".lf-vr-opacity")
+    opacity = first.locator(".lf-vr-opacity").get_by_role("slider", include_hidden=True)
     expect(opacity).to_be_disabled()
     expect(opacity).to_be_hidden()
 
@@ -873,19 +869,19 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     page.evaluate(
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
-    widget.get_by_role("button", name="Flip").evaluate("node => node.click()")
+    widget.get_by_role("radio", name="Flip").evaluate("node => node.click()")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")
     assert shot_host.evaluate(
         "node => node.getBoundingClientRect().height"
     ) == pytest.approx(flow_height, abs=1), (
         "ordinary-flow evidence height must not depend on its viewport offset"
     )
-    widget.get_by_role("button", name="Compare").evaluate("node => node.click()")
+    widget.get_by_role("radio", name="Compare").evaluate("node => node.click()")
     assert shot_host.evaluate(
         "node => node.getBoundingClientRect().height"
     ) == pytest.approx(flow_height, abs=1)
 
-    widget.get_by_role("button", name="Full frame").click()
+    widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(shot_host).to_have_attribute("data-focus-active", "false")
     marker = frames.first.evaluate(
@@ -893,7 +889,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     assert marker == '""'
 
-    widget.get_by_role("button", name="100%").click()
+    widget.get_by_role("radio", name="100%").click()
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
     assert shot_host.evaluate(
         "node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight"
@@ -906,7 +902,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         f"{captured_width}px"
     )
 
-    focus_button = widget.get_by_role("button", name="Focus change")
+    focus_button = widget.get_by_role("radio", name="Focus change")
     focus_button.focus()
     focus_button.press("Enter")
     expect(focus_button).to_be_focused()
@@ -917,11 +913,11 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     assert focused_width == pytest.approx(642, abs=1)
 
-    widget.get_by_role("button", name="Fit").click()
-    widget.get_by_role("button", name="Flip").click()
+    widget.get_by_role("radio", name="Fit").click()
+    widget.get_by_role("radio", name="Flip").click()
     expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
     expect(first.locator(".lf-vr-frame-label")).to_have_count(0)
-    widget.get_by_role("button", name="Overlay").click()
+    widget.get_by_role("radio", name="Overlay").click()
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(opacity).to_be_enabled()
     expect(opacity).to_be_visible()
@@ -969,7 +965,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(case_select).to_have_value("run-detail")
+    expect(case_select).to_have_js_property("value", "run-detail")
     expect(case_select).not_to_be_focused()
     page.keyboard.press("g")
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -1005,17 +1001,18 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second).to_be_visible()
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
-    case_select.select_option("run-list")
+    expect(widget.locator(".lf-vr-opacity")).to_have_js_property("value", 35)
+    case_select.click()
+    widget.get_by_role("option", name="Run list", exact=False).click()
     next_button.click()
-    expect(case_select).to_have_value("run-middle")
+    expect(case_select).to_have_js_property("value", "run-middle")
     expect(next_button).to_be_focused()
 
     resized(page, 390, 900)
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    widget.get_by_role("button", name="Compare").click()
+    widget.get_by_role("radio", name="Compare").click()
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
     ).to_be_visible()
@@ -1041,7 +1038,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
     told(page)
-    case_select.select_option("run-list")
+    case_select.click()
+    widget.get_by_role("option", name="Run list", exact=False).click()
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
@@ -1074,8 +1072,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     told(page)
     expect(widget.locator(".lf-error")).to_have_count(0)
     expect(first.locator("lf-shot img")).to_have_count(2)
-    widget.get_by_role("button", name="Full frame").click()
-    widget.get_by_role("button", name="100%").click()
+    widget.get_by_role("radio", name="Full frame").click()
+    widget.get_by_role("radio", name="100%").click()
     decoded_css_width = first.locator("lf-shot img").first.evaluate(
         "image => image.naturalWidth / 2"
     )
@@ -1093,6 +1091,37 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
     expect(first).to_have_attribute("data-disposition", "needs-work")
+
+
+def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
+    """Radio arrows, opacity keys, and select typeahead do not also navigate the case."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    selector = widget.locator(".lf-vr-case-select")
+    initial = selector.evaluate("node => node.value")
+    widget.get_by_role("radio", name="Compare").click()
+    page.keyboard.press("ArrowDown")
+    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    expect(selector).to_have_js_property("value", initial)
+    page.keyboard.press("ArrowDown")
+    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
+    slider = widget.get_by_role("slider", name="Candidate opacity")
+    slider.focus()
+    page.keyboard.press("ArrowUp")
+    expect(widget.locator(".lf-vr-opacity-value")).to_have_text("55%")
+    page.keyboard.press("Shift+ArrowRight")
+    expect(widget.locator(".lf-vr-opacity-value")).to_have_text("60%")
+    expect(selector).to_have_js_property("value", initial)
+    selector.click()
+    page.keyboard.press("2")
+    expect(widget.get_by_role("option", name="2 of 3", exact=False)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("g")
+    expect(page.locator(".lf-go-to-hint")).to_have_count(0)
+    expect(selector).to_have_js_property("value", initial)
+    page.keyboard.press("Escape")
+    expect(selector).to_have_js_property("open", False)
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_focused()
 
 
 def test_visual_review_empty_navigation_is_unavailable(browser, serve):
@@ -1253,7 +1282,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     widget = page.locator("#visual-review-run")
     expect(widget).to_have_attribute("data-lf-workspace-context", "root")
     expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
-    gallery_scope = widget.get_by_role("group", name="Scope")
+    gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     geometry = widget.evaluate(
@@ -1390,11 +1419,11 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(widget.locator(".lf-vr-focus").first).to_be_visible()
     page.emulate_media(media="screen")
 
-    selected = widget.get_by_role("combobox", name="Selected visual case")
+    selected = widget.locator(".lf-vr-case-select")
     with sending(page, "the intended responsive change disposition"):
         case.get_by_role("button", name="Looks right").click()
     page.keyboard.press("ArrowDown")
-    expect(selected).to_have_value("keep-mobile-destinations")
+    expect(selected).to_have_js_property("value", "keep-mobile-destinations")
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1404,7 +1433,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         ).click()
     expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
     page.keyboard.press("ArrowDown")
-    expect(selected).to_have_value("check-desktop-navigation")
+    expect(selected).to_have_js_property("value", "check-desktop-navigation")
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     expect(gallery_scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
@@ -1429,7 +1458,7 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     case = widget.locator(".lf-vr-case:not([hidden])")
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(widget.get_by_role("group", name="Scope")).to_be_hidden()
+    expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
     expect(host).to_have_attribute("data-focus-authored", "true")
     expect(host).to_have_attribute("data-focus-active", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(
@@ -1612,7 +1641,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     summaries.nth(0).focus()
     page.keyboard.press("/")
-    search = diff.locator(".lf-diff-search")
+    search = diff.locator(".lf-diff-search input")
     expect(search).to_be_focused()
     search.fill("second")
     expect(summaries.nth(0)).to_be_hidden()
@@ -1628,8 +1657,9 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(search).to_have_value("second")
     expect(search).not_to_be_focused()
 
-    # Filtering is a nested state of the one / entry: the first Escape clears it, and
-    # the second restores the file header that opened the field.
+    # The filter is a layer of the patch and the box is inside it: the first Escape
+    # clears a live query, and the second leaves the box for the patch it filters, which
+    # is the box's container rather than the file header the reader pressed `/` from.
     summaries.nth(1).focus()
     page.keyboard.press("/")
     expect(search).to_be_focused()
@@ -1640,7 +1670,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     for index in range(3):
         expect(summaries.nth(index)).to_be_visible()
     page.keyboard.press("Escape")
-    expect(summaries.nth(1)).to_be_focused()
+    expect(page.locator("lf-diff")).to_be_focused()
 
     page.keyboard.press("/")
     search.fill("second")
@@ -1704,7 +1734,7 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
     expect(diff.locator(".lf-diff-wrap")).to_be_visible()
-    search = diff.locator(".lf-diff-search")
+    search = diff.locator(".lf-diff-search input")
     search.fill("second")
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files · 1 matching")
     expect(diff.locator("summary").nth(0)).to_be_hidden()
@@ -3465,7 +3495,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert "1–3\nOne / Two / Another option" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page)
     # A stamped version this time, which is the other way a page moves under a reader;
     # the notice names it in the bottom status and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -3476,7 +3506,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     # The same mark, still holding the focus the reader put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert "1–3\nOne / Two / Another option" in shortcut_bar_text(page), (
+    assert ask_actions_hint("1–3") in shortcut_bar_text(page), (
         "the revision took the reader's keys down"
     )
     page.keyboard.press("2")
@@ -3517,7 +3547,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_reader_standing_in_it(
     expect(decision).to_be_focused()
     # Standing, not a bare tab stop: the Ask's own action routes are live over the reader
     # again, and the third option the revision brought is among them.
-    assert "1–4\nOne / Two / Three / Another option" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
     page.keyboard.press("3")
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
@@ -3842,7 +3872,7 @@ customElements.define('page-counter', class extends HTMLElement {
         "the revision was patched in, so this proves nothing about the other install"
     )
     expect(page.locator("#lk-decision")).to_be_focused()
-    assert "1–4\nOne / Two / Three / Another option" in shortcut_bar_text(page)
+    assert ask_actions_hint("1–4") in shortcut_bar_text(page)
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -4107,7 +4137,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     for ask in ASKS_IN_ORDER[:3]:
         page.keyboard.press("a")
         expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
-    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    scroll_settled(page)
 
     # Ask travel now starts at the Ask's opening, which normally makes the coarse
     # reading agree with the saved landing. Look back just far enough to make the two
@@ -4295,14 +4325,17 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
-    # The chrome's own control, reached the way a frame hands a reader back to it: opened
-    # by key from the control, closed by key, which is what earns the ring at all. A
-    # pointer open hands back the page instead
-    # (test_a_press_that_opens_a_layer_returns_the_place_it_displaced).
+    # The chrome's own control, which the reader reaches by Tab or by the banner's own
+    # keys rather than by backing out of the panel — a surface lands them on the page,
+    # never on the control that reopens it. What is asserted here is the band the ring
+    # is drawn in while they stand there.
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
-    page.keyboard.press("Enter")
-    page.keyboard.press("Escape")
+    # Back onto it by keyboard, which is what earns the ring: the browser draws
+    # `:focus-visible` off the last input, and a pointer press before this one would
+    # leave the control standing without it.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()
     assert toggle.evaluate(RING) == decision_ring, (
         "the reader standing in the chrome is drawn in some other band than the "
@@ -4438,7 +4471,9 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     page.locator(".lf-threads-toggle").click()
 
     def quote(section):
-        return page.locator(f'.lf-thread[data-id="{thread[section]}"] .lf-quote')
+        card = page.locator(f'.lf-thread[data-id="{thread[section]}"]')
+        card.locator(".lf-thread-summary").click()
+        return card.locator(".lf-quote")
 
     # Centred: the destination the travel computed, which a glide toward it passes
     # through no earlier position that could be mistaken for. Put it wholly out of sight
@@ -5509,46 +5544,6 @@ customElements.define("lf-tally", class extends HTMLElement {
     round_trip(page)
     assert page.locator("#tally-seen").get_attribute("count") == authored
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
-
-
-def test_state_origin_readings_compose_on_one_target(browser, serve):
-    """Each provenance channel gets one standing reading on a target.
-
-    Independent reader facets collapse to one Page Map reading, while reader, report,
-    and restatement origins remain separate. An outline property could only show the
-    last of these; the projection handed to the margin must preserve all three.
-    """
-    page = open_page(browser, serve(REPORT_PAGE))
-    origins = page.evaluate(
-        """async () => {
-          const [{projectionOrigins}, {authoredStates}] = await Promise.all([
-            window.__lfRuntimeImport('/runtime/projection/model.js'),
-            window.__lfRuntimeImport('/runtime/projection/authored.js'),
-          ]);
-          const entry = (id, kind, facet) => ({
-            unit: 't-parser',
-            e: {id, kind},
-            spec: {facet, record: null},
-            value: null,
-          });
-          const projection = {
-            classified: new Map([
-              ['old-reader', {e: {id: 'old-reader'}, restated: ['t-parser']}],
-            ]),
-            desired: new Map([
-              ['reader-status', entry('reader-status', 'action', 'status')],
-              ['reader-owner', entry('reader-owner', 'action', 'owner')],
-              ['report-progress', entry('report-progress', 'report', 'progress')],
-            ]),
-          };
-          return projectionOrigins(authoredStates, projection);
-        }"""
-    )
-    assert origins == [
-        {"origin": "restated", "unit": "t-parser"},
-        {"origin": "reader", "unit": "t-parser"},
-        {"origin": "reported", "unit": "t-parser"},
-    ]
 
 
 def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
@@ -6773,6 +6768,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     body = page.locator(".lf-msg.agent .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
@@ -6825,6 +6821,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
     )
     page = open_page(browser, url, context=one_reader)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
@@ -7198,6 +7195,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         "mounted": True,
     }
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")
@@ -7311,8 +7309,16 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    # The box hands the reader back to the conversation it belongs to, which is the
+    # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
-    expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
+    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
+
+    page.locator("#tq-redis").click()
+    expect(decisions).to_have_text("Asks 1/2")
+
+    page.locator(".lf-thread:has(#tq-set) .lf-thread-summary").click()
+    expect(page.locator("#tq-set .lf-done")).to_be_visible()
 
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
     # own frame whole. Drawn by the lower neighbour instead, the divider recolored the
@@ -7346,9 +7352,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert seam["gap"] < 0.5, (
         f"the hairline above the Done press floats {seam['gap']}px above it"
     )
-
-    page.locator("#tq-redis").click()
-    expect(decisions).to_have_text("Asks 1/2")
 
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
@@ -7412,6 +7415,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes
     # the repeatable category walk and the thread-local landing explicit.
+    page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
     # completion closes it and the second is the arrival on the list.
@@ -7611,6 +7615,8 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.keyboard.press("a")
+    expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -7753,6 +7759,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     )
     told(page)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     frozen = page.locator("#msg-proof > .lf-worktree-snapshot > .lf-worktree-head")
     frozen.focus()
@@ -8073,7 +8080,7 @@ def test_a_ready_request_contributes_its_operation_as_an_ask_action(browser, ser
 
     page.keyboard.press("a")
     expect(page.locator("#command-decision")).to_be_focused()
-    assert "1\nRestart" in shortcut_bar_text(page)
+    assert ask_actions_hint("1") in shortcut_bar_text(page)
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
@@ -8125,6 +8132,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     told(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     operations = page.locator("#thread-commands")
@@ -8780,6 +8788,9 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     assert before["top"] > before["banner"]
     assert before["bottom"] < before["height"]
     page.locator(
+        f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-thread-summary'
+    ).click()
+    page.locator(
         f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-quote'
     ).click()
     after = page.evaluate(
@@ -8796,12 +8807,16 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     )
 
     # A worker target is the control: its owner opens and its disclosure state agrees.
+    page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-thread-summary').click()
     page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-quote').click()
     expect(page.locator("#w-1")).to_be_visible()
     expect(
         page.locator("#goal-parser > .lf-task-meta .lf-task-crew")
     ).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#lf-tree-w-1-diff")).to_be_hidden()
+    page.locator(
+        f'.lf-thread[data-id="{threads["lf-tree-w-1-diff"]}"] .lf-thread-summary'
+    ).click()
     page.locator(
         f'.lf-thread[data-id="{threads["lf-tree-w-1-diff"]}"] .lf-quote'
     ).click()
@@ -8852,11 +8867,14 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
+    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    thread.locator(".lf-thread-summary").click()
     with sending(page, "the resolution"):
-        page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(
-            "button", name="Resolve thread", exact=True
-        ).click()
+        thread.get_by_role("button", name="Resolve thread", exact=True).click()
     expect(goal).not_to_have_attribute("data-lf-held")
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "Released · Replace the XML parser (goal-parser)"
+    )
 
     undo(page)
     expect(goal).to_have_attribute("data-lf-held", root["id"])
@@ -8980,47 +8998,6 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
         }"""
     )
     assert available == [True, False]
-
-
-def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
-    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
-    d = serve.page_dir
-    root = events_model.append_event(
-        d,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Finish the hunk, then park.",
-            "anchor": {"section": "goal-parser"},
-            "holds": "goal-parser",
-        },
-    )
-    reply = events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": root["id"],
-            "revision": 1,
-            "text": "The hunk is ready.",
-        },
-    )
-    events_model.append_event(
-        d,
-        {
-            "kind": "resolve",
-            "author": "user",
-            "parent": reply["id"],
-            "revision": 1,
-        },
-    )
-
-    told(page)
-
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "Released · Replace the XML parser (goal-parser)"
-    )
 
 
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):

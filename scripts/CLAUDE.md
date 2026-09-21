@@ -5,6 +5,13 @@ so a host copies these along with it, but nothing under `skills/leaf` reads them
 runtime. Python tools use the environment pinned by the root `pyproject.toml` and
 `uv.lock`; the browser contributor build uses `package.json` and `package-lock.json`.
 
+Because the payload is the tracked tree, what a script generates lands under `.tmp/`
+unless a committed path is where the output's reader finds it: the vendored bundles
+below, `examples/corpus.html` and its data, the catalog pin the site resolves example
+previews through, and the demo frames the README and the site's cards draw from.
+Evidence, previews, staged sites, and probe results have no such reader, so a run of
+one of them leaves the tracked tree unchanged.
+
 Each script's own docstring and `--help` own its behavior, flags, and lifecycle. This
 file says which script owns what, and the rules that hold across them.
 
@@ -92,6 +99,15 @@ rules a new or changed example has to meet.
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
   Keep the latter while the product can make those frames stale.
 
+## MCP Apps probe
+
+`mcp-app/run-direct-probe.sh` bundles the runtime into a `ui://` resource and runs it
+in a pinned checkout of the official reference host; `mcp-app/README.md` owns its
+inputs, flags, and what each run checks. Its evidence is scratch under
+`.tmp/mcp-app/experiments/<number>/`, replaced whenever that number runs again. No
+install reads it, so what survives a run is the part a maintainer copies into
+`notes/mcp-apps/experiments/<number>/results/` because the written-up result cites it.
+
 ## Vendored bundles
 
 `browser/build.mjs` owns the TypeScript sources under `scripts/browser/` and the
@@ -133,10 +149,15 @@ language before bundling.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
 which holds for `marked`, `sortable`, `beautiful-mermaid`, `floating-ui`, `highlight`,
-and `jsdiff`, so a clean `git status` after a run is the check that the bundle still
-matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
+`jsdiff`, and `webawesome`, so a clean `git status` after a run is the check that the
+bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
 dependencies and inherit its ranges, so a diff from one of those can be an upstream
 patch rather than drift.
+
+`webawesome` bundles its scoped theme defaults and Leaf token mappings with the
+shared JavaScript. Importing that bundle registers one constructed stylesheet in the
+document and declared shadow stages, so pages without those widgets load and parse no
+Web Awesome JavaScript or CSS.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.

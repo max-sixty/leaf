@@ -49,6 +49,7 @@ from render_harness import (
     SPECIMEN_TEXT,
     _traffic,
     _until,
+    ask_actions_hint,
     compare_with,
     hold_selection,
     holding,
@@ -474,7 +475,11 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
     line = shortcut_bar_text(page)
-    assert "Drop the oldest documents / Pause offline editing" in line, line
+    # The Ask's own numbered actions are what the line offers, under the one context the
+    # question owns, with the way out of the standing ahead of them as it is anywhere
+    # the reader is holding something.
+    assert ask_actions_hint("1–3") in line, line
+    assert "let go" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
@@ -2457,6 +2462,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator('.lf-thread[data-id="c-decision"] .lf-thread-summary').click()
     page.wait_for_selector(
         '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
@@ -2509,7 +2515,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
     receipt = message.locator(
-        f':scope > .lf-msg-head > .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+        f':scope > .lf-msg-delivery .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
     )
     expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
     expect(receipt).to_contain_text("✓ Sent")
@@ -2551,6 +2557,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").click()
     page.wait_for_selector(".lf-msg-body table")
 
     # One client rect is one line: the figure is drawn as a single run, the URL
@@ -2593,6 +2600,9 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
         "() => document.querySelector('.lf-thread-panel').classList.contains('open')"
     )
     question = page.locator(".lf-thread-panel lf-options[choose]").first
+    question.locator(
+        "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-thread ')][1]"
+    ).locator(".lf-thread-summary").click()
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
     done = question.locator(".lf-done")
@@ -2613,6 +2623,6 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     message = question.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-msg ')][1]"
     )
-    receipts = message.locator(":scope > .lf-msg-head > .lf-receipt")
+    receipts = message.locator(":scope > .lf-msg-delivery .lf-receipt")
     expect(receipts).to_have_count(1)
     expect(receipts).to_contain_text("Sent")

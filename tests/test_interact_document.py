@@ -53,6 +53,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
+from leaf.render_gate import readings as render_gate_readings
 from leaf.validation import compatibility as validation_model
 
 
@@ -2001,7 +2002,10 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
 
     with pytest.raises(SystemExit) as unknown_request:
         requests_model.cmd_receipt(page_dir, "no-such-request", "succeeded", "done")
-    assert "unknown request 'no-such-request'" in str(unknown_request.value)
+    assert (
+        "unknown request 'no-such-request'; this page has no open request to receipt"
+        in str(unknown_request.value)
+    )
 
     with pytest.raises(SystemExit) as unknown_widget:
         conversation_model.cmd_report(page_dir, "no-such-widget", "status", ())
@@ -2081,7 +2085,10 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     )
 
     assert result.exit_code != 0
-    assert "event 'c1' no longer requires a reply" in result.output
+    assert (
+        "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
+        "owed for it — `leaf reply <page> --to c1 --initiates` replies to it"
+    ) in result.output
 
 
 @pytest.mark.parametrize(
@@ -2558,7 +2565,42 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         ["receipt", str(page_dir), "missing", "failed", "--text", "No request"],
     )
     assert unknown.exit_code == 1
-    assert "unknown request 'missing'" in unknown.output
+    assert f"unknown request 'missing'; open requests: {request['id']!r}" in (
+        unknown.output
+    )
+    # An id the log holds as something else is named as that, with the writer that
+    # takes it, which is what tells an agent it was handed a move and not a request.
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "and restart it"}
+    )
+    misdirected = CliRunner().invoke(
+        cli_model.cli,
+        ["receipt", str(page_dir), comment["id"], "failed", "--text", "No request"],
+    )
+    assert misdirected.exit_code == 1
+    assert (
+        f"{comment['id']!r} is not a request; {comment['id']} is a comment in this "
+        f"page's log — `leaf reply <page> --for {comment['id']}` answers it; "
+        f"open requests: {request['id']!r}"
+    ) in misdirected.output
+    # And the other way round: a request handed to a writer that takes a message is
+    # sent to its receipt, rather than told only that it is not a comment — from
+    # either door, since what settles it is what the log still owes for it.
+    settles = (
+        f"{request['id']} is a request in this page's log — "
+        f"`leaf receipt <page> {request['id']} succeeded|failed` settles it"
+    )
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]
+    )
+    assert resolved.exit_code != 0
+    assert settles in resolved.output
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", request["id"], "--text", "Restarted"],
+    )
+    assert replied.exit_code != 0
+    assert f"event {request['id']!r} takes no reply; {settles}" in replied.output
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
     monkeypatch.setenv("LEAF_AGENT", "Atlas lead")
@@ -5262,3 +5304,110 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
     assert {revision: opens[revision] for revision in history} == {
         revision: 2 for revision in history
     }
+
+
+def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
+    registry = {
+        "lf-draft": {
+            "x-upgrade": True,
+            "x-verbatim": True,
+            "x-state": {
+                "edit": {
+                    "facet": "body",
+                    "unit": "widget",
+                    "record": {"kind": "body", "value": "text"},
+                }
+            },
+        }
+    }
+    page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
+    frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
+
+    def action(identity, text, seq):
+        return {
+            "kind": "action",
+            "id": f"a-{identity}",
+            "author": "user",
+            "revision": 2,
+            "widget": identity,
+            "action": "edit",
+            "detail": {"text": text},
+            "meaning": {
+                "coordinate": [identity, identity, "body"],
+                "depends": [identity],
+                "answer": None,
+                "document": {"kind": "page", "revision": 2},
+            },
+            "seq": seq,
+        }
+
+    events = [
+        {
+            "kind": "comment",
+            "id": "c-scope",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the frozen answer current.",
+            "seq": 1,
+        },
+        {
+            "kind": "reply",
+            "id": "r-scope",
+            "author": "agent",
+            "parent": "c-scope",
+            "revision": 1,
+            "text": "Here it is:",
+            "markup": frozen,
+            "seq": 2,
+        },
+        action("page-draft", "Page future.", 3),
+        action("frozen-draft", "Frozen standing.", 4),
+    ]
+
+    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
+
+    assert expected == {
+        ("page", None, 0): [{"text": "Page authored."}],
+        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
+    }
+
+
+def test_projected_verbatim_includes_generated_children():
+    registry = {
+        "lf-list": {
+            "x-upgrade": True,
+            "x-verbatim": True,
+            "x-state": {
+                "add": {
+                    "facet": "items",
+                    "unit": "widget",
+                    "creates": {"field": "additions", "child": "lf-item"},
+                }
+            },
+        },
+        "lf-item": {"x-upgrade": False},
+    }
+    markup = '<lf-list id="list">Authored item.</lf-list>'
+    event = {
+        "kind": "action",
+        "id": "a-add",
+        "author": "user",
+        "revision": 1,
+        "widget": "list",
+        "action": "add",
+        "detail": {"additions": {"new-item": "Generated item."}},
+        "generated": ["new-item"],
+        "meaning": {
+            "coordinate": ["list", "list", "items"],
+            "depends": ["list"],
+            "answer": None,
+            "document": {"kind": "page", "revision": 1},
+        },
+        "seq": 1,
+    }
+
+    expected = render_gate_readings._expected_verbatim(
+        markup, [event], registry, here=1
+    )
+
+    assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}

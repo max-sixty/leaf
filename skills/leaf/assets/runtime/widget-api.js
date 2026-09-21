@@ -15,7 +15,10 @@ export {
 export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
-export { inUi, uiInside } from "./shadow.js";
+export { inUi, uiInside, upFrom } from "./shadow.js";
+// Putting the reader on an element that may be no tab stop of its own, which is what a
+// widget landing them anywhere but a control needs: the lend leaves with the first blur.
+export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox, registerThreadSurface } from "./application.js";
@@ -73,7 +76,7 @@ export {
 } from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs } from "./application.js";
-export { shadowStage } from "./shadow-stage.js";
+export { registerWidgetStyles, shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
 export { loadDataFragment, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";

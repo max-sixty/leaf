@@ -1,6 +1,6 @@
 # Leaf next-work backlog
 
-Research at merged commit `cb7915bb`, 8 September 2026. Research briefs for the workspace section of [TODO.md](../TODO.md#workspace-follow-ups).
+Research at merged commit `cb7915bb`, 8 September 2026. Research briefs for workspace items in [TODO.md](../TODO.md).
 
 I recommend keeping the current primitives and spending the next cycle on reliable shared contracts, convincing examples and a measured authoring advantage. The larger layout vocabulary should follow evidence from those tasks.
 

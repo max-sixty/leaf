@@ -36,7 +36,7 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { restoreReturnPlace } from "./layer-stack.js";
+import { focusDestination, letGo } from "../focus.js";
 import { el, keeps } from "../widget-elements.js";
 import {
   coveringAuxiliaryFocus,
@@ -60,6 +60,7 @@ import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
+import { retainReaderIntent } from "../reader-intent.js";
 import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
@@ -169,7 +170,6 @@ let commandReferenceOrigin = null;
 let commandReferenceLayers = [];
 let commandReferenceBoundary = null;
 let commandReferenceInvoke = null;
-let commandReferenceCaptureOrigin = null;
 
 const EMPTY_CATALOG = Object.freeze({
   total: 0,
@@ -224,7 +224,7 @@ const spokenReferenceSteps = (row, route, steps, declared) => {
 // Evaluate every dynamic declaration once while opening. Search never calls back into the
 // register, and rendered records retain no executable command or liveness function.
 function captureCommandReferenceCatalog() {
-  const referenceScopes = declaredStack(commandReferenceOrigin?.control)
+  const referenceScopes = declaredStack(commandReferenceOrigin)
     .map((scope) => {
       const inScope = readerIn(scope) || scope.liveInCommandReference;
       const rows = scope.rows
@@ -505,13 +505,11 @@ function activateCommandEntry(entry) {
   }
   // Restore the displaced origin first, then let fresh dispatch choose the command's
   // destination on the next frame.
-  const origin = commandReferenceOrigin;
   const invokeCommand = commandReferenceInvoke;
-  const captureOrigin = commandReferenceCaptureOrigin;
   closeCommandReference();
   requestAnimationFrame(() => {
-    if (invokeCommand?.(entry.id, origin)) return;
-    openCommandReference(invokeCommand, captureOrigin);
+    if (invokeCommand?.(entry.id)) return;
+    openCommandReference(invokeCommand);
     commandReferenceState = {
       ...commandReferenceState,
       metaOverride: "That command is no longer available",
@@ -715,24 +713,27 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
   closeCommandReference();
 });
 
-function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) {
+function showCommandReference(open, restoreFocus, invokeCommand) {
   const fresh = open && !commandReferenceIsOpen;
   // Focusing a text input replaces the document selection. Keep a passage the reader has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
   const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
-  let origin = handBack ? commandReferenceOrigin : null;
-  const restore = origin?.control ?? null;
+  let restore = handBack ? commandReferenceOrigin : null;
   const closing = !open && commandReferenceDialog.open;
   if (fresh) {
-    commandReferenceOrigin = captureOrigin();
+    // A control, or nothing: a reader working from the page stands on `body`, which is
+    // not a place to be given back — focusing it resets the browser's sequential focus
+    // navigation starting point to the top of the document, and the reader who opened
+    // the reference four screens down would Tab from there.
+    const at = focused();
+    commandReferenceOrigin = at === document.body ? null : at;
     commandReferenceLayers = openPopovers();
     commandReferenceBoundary = coveringAuxiliarySurface();
     // The displaced page decides what can run. Capture before the reference's own scope
     // becomes active, then gather its instructional rows after it does.
     commandRoutesAtOpen = availableCommandRoutes();
     commandReferenceInvoke = invokeCommand;
-    commandReferenceCaptureOrigin = captureOrigin;
   }
   commandReferenceIsOpen = open;
   if (fresh) {
@@ -766,14 +767,8 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
         layer.lfInvoker?.focus({ preventScroll: true });
       layer.showPopover();
     }
-    const originNode = origin?.control ?? origin?.reading;
-    if (
-      originNode &&
-      !auxiliaryAllowsNativeLayer(originNode, commandReferenceBoundary)
-    ) {
-      const focus = coveringAuxiliaryFocus();
-      origin = focus ? { control: focus, reading: null } : null;
-    }
+    if (restore && !auxiliaryAllowsNativeLayer(restore, commandReferenceBoundary))
+      restore = coveringAuxiliaryFocus();
     commandReferenceLayers = [];
     commandReferenceBoundary = null;
   }
@@ -789,7 +784,34 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
       )
       .focus({ preventScroll: true });
   repaint();
-  if (!open && origin) restoreReturnPlace(origin);
+  if (handBack) handBackTo(restore);
+}
+
+// The reference is a bounded interaction rather than a level of the page: it claims the
+// whole keyboard while it stands and hands the reader back itself. What it hands back is
+// the control the press displaced, and the page where that control has gone — the layer
+// it stood in may have closed under the reader while the reference was up — which is
+// where a reader who pressed `?` from the page was all along.
+function handBackTo(control) {
+  if (!control) {
+    letGo();
+    return;
+  }
+  const landed = () => {
+    if (control.isConnected) focusDestination(control);
+    return control.matches(":focus");
+  };
+  if (landed()) return;
+  // Reconciliation may replace a control in the same task, and the paint the close asked
+  // for may still hold it hidden, so give that exact node one frame before conceding. A
+  // control then gone or hidden is gone for good — the layer it stood in closed while
+  // the reference was up — and the page is where the reader was. A reader who has moved
+  // on meanwhile keeps their own place: their press is the newer word.
+  const mayLand = retainReaderIntent();
+  requestAnimationFrame(() => {
+    if (!mayLand() || landed()) return;
+    if (!control.isConnected || !control.checkVisibility()) letGo();
+  });
 }
 
 const commandReferenceStops = () =>
@@ -880,10 +902,10 @@ commandReferenceClose.onclick = () => closeCommandReference();
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
-export const openCommandReference = (invokeCommand, captureOrigin) =>
-  showCommandReference(true, true, invokeCommand, captureOrigin);
+export const openCommandReference = (invokeCommand) =>
+  showCommandReference(true, true, invokeCommand);
 export const closeCommandReference = (restoreFocus = true) =>
-  showCommandReference(false, restoreFocus, null, null);
+  showCommandReference(false, restoreFocus, null);
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
 // it stands, so its rows are the only ones the reader can reach; the boundary's one route

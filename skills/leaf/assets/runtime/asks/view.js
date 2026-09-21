@@ -612,10 +612,7 @@ export function createAskView({
       `Activate an action in this Ask: ${actionRoutes()
         .map(({ binding, line }) => `${spell(binding)} ${line}`)
         .join("; ")}`,
-    line: () =>
-      actionRoutes()
-        .map(({ line }) => line)
-        .join(" / "),
+    line: "Ask actions",
     when: () => actionRoutes().length > 0,
   };
   const reachableActionRoutes = (available = availableCommandRoutes()) => {
@@ -626,10 +623,10 @@ export function createAskView({
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
   // listener-facing projection on each exact action control. A widget that already owns
   // a binding-badge face lends that face and its exact placement; other actions get chrome at
-  // the visible margin entry's corner. Off-screen actions keep their working badge and name
-  // on the shortcut bar but wear no chip. A nearer keyboard layer suppresses the row and both
-  // projections through the exact reachable bindings, so a digit never stays
-  // promised after a sequence, text box, or modal has taken it.
+  // the visible margin entry's corner. Off-screen actions keep their digit in the shortcut
+  // bar's range and their name in the command reference, but wear no chip. A nearer
+  // keyboard layer suppresses the row and both projections through the exact reachable
+  // bindings, so a digit never stays promised after a sequence, text box, or modal takes it.
   const wornBindingBadges = new Map();
   const wornShortcuts = new Map();
   function exposedBindingBadge(bindingBadge, control, visible) {
@@ -1199,9 +1196,7 @@ export function createAskView({
       );
     // The walk reads the standing destination, so begin it after asynchronous reveal
     // has moved focus. A failed reveal has not arrived and must not register the prior
-    // focused Ask as this walk's destination. The arrival is returned so the keyboard's
-    // layer stack judges the press's return frame once the panel it may have opened is
-    // standing.
+    // focused Ask as this walk's destination.
     const ready = goToAsk(next, asks).then((arrived) => {
       if (arrived) begin();
     });
@@ -1260,26 +1255,10 @@ export function createAskView({
     line: "asks",
     when: () => openAsks().length > 0,
     repeat: true,
-    // The same shape as the thread walk: the press made off the Asks is the entry and
-    // hands back the place it displaced, a later press made standing on an Ask is a step
-    // within that standing. An Ask seated in a thread is reached through the panel, so a
-    // press made with the panel shut opens it on the way, and that opening is the press's
-    // own to undo in the same one Escape. The arrival is asynchronous, and `run` returns
-    // it, so the stack judges this frame once the reader is standing.
-    returnFrame: () => {
-      if (standingAsk()) return null;
-      const panelWasShut = !panelIsOpen();
-      const opened = () => panelWasShut && panelIsOpen();
-      return {
-        active: () => Boolean(standingAsk()),
-        close: () => {
-          if (opened()) setPanel(false);
-        },
-        does: () =>
-          opened() ? "Close the thread panel" : "Let go of what you are standing on",
-        line: () => (opened() ? "close threads" : "let go"),
-      };
-    },
+    // The same shape as the thread walk: it moves the reader from Ask to Ask rather than
+    // down a level, so the standing scope lets go of whichever one they end on. An Ask
+    // seated in a thread is reached through the panel, and the panel is then a level of
+    // its own on the way out, whether this walk opened it or the reader already had it.
     run: (binding) => stepAsk(binding === "a" ? 1 : -1),
   });
 
@@ -1297,7 +1276,6 @@ export function createAskView({
     markHere,
     goToAsk,
     stepAsk,
-    restoreTrayFocus: (id) => asksList.focusAfterPaint(id),
     landedAt: () => landed,
     setLanded: (value) => (landed = value),
   };

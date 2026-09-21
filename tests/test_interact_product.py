@@ -32,6 +32,7 @@ from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import layer as layer_model
 from leaf import revisioning as revisioning_model
@@ -41,6 +42,7 @@ from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
+from playwright.sync_api import Error as PlaywrightError
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -935,6 +937,84 @@ def test_a_version_response_can_settle_a_standing_decision(page_dir):
         ["resolve", str(page_dir), "--to", proposal["id"]],
     )
     assert resolved.exit_code == 0, resolved.output
+
+
+def test_a_resolved_version_thread_is_still_named_a_version_thread(page_dir):
+    """The thread takes a version whether or not one is outstanding.
+
+    The obligation clears when the thread resolves; the root's own declaration stays
+    for the page's life, and `reply` refuses `--initiates` on it forever. A refusal
+    reading only the obligation called the thread unowed and named `--initiates`,
+    which is the writer that then refused it — so both read the one reading, and it
+    carries the version face.
+    """
+    declare_options_version_response(page_dir)
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "index.html").write_text(asking)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "None of these.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    (page_dir / "index.html").write_text(
+        asking.replace(
+            '<lf-options id="choice" choose>',
+            '<lf-options id="choice" choose settled>',
+        )
+    )
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["resolve", str(page_dir), "--to", proposal["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+    ask_route = (
+        "open a separate thread on the same Ask with `leaf comment <page> "
+        "--section <ask-id>`"
+    )
+    mistaken = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--section", proposal["id"], "--text", "more"],
+    )
+    assert mistaken.exit_code != 0
+    assert (
+        f"{proposal['id']} is a comment in this page's log — its thread takes a page "
+        "version rather than a reply; incorporate its request in the next version, "
+        f"or {ask_route}"
+    ) in mistaken.output
+
+    # The reply door refuses it and names the same route. The Ask is a recipe, not an
+    # id: whether `--section` takes one is the anchor rule's to say against the active
+    # revision, and a later revision may retire the Ask the thread opened on.
+    initiated = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            proposal["id"],
+            "--initiates",
+            "--text",
+            "more",
+        ],
+    )
+    assert initiated.exit_code != 0
+    assert "requires a page version and cannot take a reply" in initiated.output
+    assert ask_route in initiated.output
+
+    # And the route both name is one the writer takes, filled with the Ask's id.
+    asked = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--section", "choice", "--text", "how long?"],
+    )
+    assert asked.exit_code == 0, asked.output
 
 
 def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
@@ -1978,3 +2058,22 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert result.exit_code == 0, result.output
     assert "- **User** reacted: ✂️ shorten\n" in result.output
     assert "- **User** reacted: ❌ change\n" in result.output
+
+
+def test_export_state_route_refuses_a_missing_canonical_without_waiting():
+    """An absent root is known from the locator count, without an attribute wait."""
+
+    class MissingCanonical:
+        def count(self):
+            return 0
+
+        def get_attribute(self, _name):
+            pytest.fail("the absent canonical must not start an attribute wait")
+
+    class Page:
+        def locator(self, selector):
+            assert selector == 'link[rel="canonical"][data-lf-runtime]'
+            return MissingCanonical()
+
+    with pytest.raises(PlaywrightError, match="document has no canonical page root"):
+        exporting_model._state_url(Page(), "https://leaf.invalid/versions/v1.html")

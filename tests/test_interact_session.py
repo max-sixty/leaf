@@ -65,6 +65,7 @@ from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
+from leaf import page_view as page_view_model
 from leaf import presence as presence_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -3750,7 +3751,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
         ],
     )
     assert stale.exit_code != 0
-    assert "no longer requires a reply" in stale.output
+    assert "event 'first' takes no reply" in stale.output
 
     current = CliRunner().invoke(
         cli_model.cli,
@@ -4325,7 +4326,10 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
     events = events_model.read_events(page_dir)
     assert (
         event_contracts_model.action_contract_error(
-            page_dir, events[-1], events, registry_storage.require_registry(page_dir)
+            page_view_model.PageView(page_dir),
+            events[-1],
+            events,
+            registry_storage.require_registry(page_dir),
         )
         is None
     )

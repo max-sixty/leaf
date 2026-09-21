@@ -27,6 +27,9 @@ const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 // the focused scope. If either reached a painter or an application service, every
 // caller would acquire that owner's initialization graph.
 const exactClosures = {
+  "margin-entry-model.js": [],
+  "margin-model.js": ["margin-entry-model.js"],
+  "margin-map-model.js": ["margin-entry-model.js"],
   "projection/model.js": [],
   "projection/state.js": ["semantic-state.js"],
   "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
@@ -59,7 +62,6 @@ const applicationOwners = [
   "projection/commands.js",
   "state-application.js",
   "state-feed.js",
-  "auxiliary-chrome.js",
 ];
 
 // The renderers. Each receives the semantic commands it uses; one that reaches an

@@ -1498,6 +1498,42 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
     expect(accept).to_have_attribute("data-lf-state", "accept")
 
 
+COALESCED_VIEW_RECORDS = """
+// Every record an IntersectionObserver accumulated since its last delivery arrives
+// together, and Chromium produces that shape for a single target whenever the main
+// thread is busy between two rendering updates. This makes it certain: each delivery
+// carries the record before it as well as its own.
+const Real = window.IntersectionObserver;
+window.IntersectionObserver = class extends Real {
+  constructor(callback, options) {
+    let last = null;
+    super((entries, observer) => {
+      const carried = last ? [last, ...entries] : [...entries];
+      last = entries.at(-1);
+      callback(carried, observer);
+    }, options);
+  }
+};
+"""
+
+
+def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
+    """The gallery plays from the last record of a view delivery, not the first.
+
+    The observer reports crossings rather than a state, so a stale record read as the
+    current one is never corrected: the gallery a reader scrolled to stays at Ready for
+    the rest of the page's life. The arrival scroll crosses the gallery out of view and
+    back on its own, which is how a loaded machine hands both crossings over together.
+    """
+    url = serve(FEATURE_GALLERY)
+    page = open_page(browser, url, init_script=COALESCED_VIEW_RECORDS)
+    gallery = page.locator("#bg-interactions")
+    status = gallery.locator("[data-interaction-status]")
+    expect(status).to_have_text("Ready")
+    gallery.evaluate("node => node.scrollIntoView({block: 'start'})")
+    expect(status).to_have_text("Playing")
+
+
 def test_interaction_gallery_contains_page_chrome(serve, browser):
     """A replay changes its zoomed-out Leaf document, not the gallery around it."""
     url = serve(FEATURE_GALLERY)
@@ -1948,6 +1984,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         has_text="One reconnect in forty is worse"
     )
     expect(thread).to_have_count(1)
+    thread.locator(".lf-thread-summary").click()
     expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
     assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"

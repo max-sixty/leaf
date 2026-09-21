@@ -1258,6 +1258,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator('.lf-thread[data-id="standing-thread"] .lf-thread-summary').click()
     reply = page.locator('.lf-thread[data-id="standing-thread"] textarea')
     reply.fill("half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")

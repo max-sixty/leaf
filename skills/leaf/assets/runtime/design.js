@@ -6,7 +6,7 @@ import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.j
 import { closestAcross, containsAcross, cut, inChrome } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { CONTROL_WORD_CAP, designName, DESIGN_MODE_KEY } from "./design-readings.js";
-import { pageCommand, pageScope } from "./keyboard/register.js";
+import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -297,11 +297,9 @@ export function createDesignMode({
     designModeOn = false;
   }
 
-  // A page mode the reader stands in for a batch of design remarks. Its Escape is the
-  // innermost rung while it stands — a composer opened in it closes first, the composer's
-  // scope being nearer — then the mode, then the panels. The press the mode is made of is
-  // not a key at all, so that row binds nothing and says nothing on the line, the way the
-  // ⌥ aim's row does.
+  // A page mode the reader stands in for a batch of design remarks. The press the mode
+  // is made of is not a key at all, so that row binds nothing and says nothing on the
+  // line, the way the ⌥ aim's row does.
   pageScope("design mode", {
     title: "In Design mode",
     at: () => designModeOn,
@@ -313,16 +311,28 @@ export function createDesignMode({
         does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
       },
       {
-        // Both keys, on one row: l is the toggle and Escape the mode's own rung, and two
-        // chips reading "leave design" said one thing twice on the line.
         id: "design.mode.exit",
-        keys: ["Escape", "l"],
+        keys: ["l"],
         does: "Exit Design mode",
         line: "exit Design mode",
         run: () => setDesignMode(false),
       },
     ],
   });
+  // A mode is the stance the whole page is in rather than something standing on part of
+  // it, so everything the reader puts up while it holds is put up inside it and Escape
+  // takes it off from the ladder last, before the page itself: a composer opened in the
+  // mode closes first, its own scope being nearer, then a panel the mode's own send
+  // opened, then the mode.
+  pageRung("design mode", () =>
+    designModeOn
+      ? {
+          says: "exit Design mode",
+          does: "Exit Design mode",
+          out: () => setDesignMode(false),
+        }
+      : null,
+  );
   // The way in; the mode's own scope takes the letter back out, nearer than this row, so
   // while the mode stands this one is shadowed off the line.
   pageCommand({

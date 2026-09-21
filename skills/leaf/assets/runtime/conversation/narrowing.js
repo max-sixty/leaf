@@ -1,6 +1,6 @@
 /* Search and faceted narrowing for the thread panel.
 
-   State is one exclusive question: Open, On you, On agent, or Resolved. Scope and
+   State is one exclusive question: Open, On you, Waiting, or Resolved. Scope and
    subject are optional refinements, so a reader cannot construct the impossible old
    combination "waiting on you and resolved". The conditional placement chip appears
    only when this page has a detached anchored thread to find.
@@ -32,7 +32,7 @@ const FACETS = Object.freeze([
   group("state", "Thread state", [
     choice("state", "open", "Open"),
     choice("state", "reader", "On you", "lf-needs"),
-    choice("state", "agent", "On agent"),
+    choice("state", "agent", "Waiting"),
     choice("state", "resolved", "Resolved"),
   ]),
   group("scope", "Thread scope", [
@@ -219,7 +219,7 @@ function emptyReading(reading) {
       : reading.state === "reader"
         ? "Nothing is waiting on you."
         : reading.state === "agent"
-          ? "Nothing is waiting on the agent."
+          ? "No waiting threads."
           : reading.state === "resolved"
             ? "No resolved threads."
             : "No open threads.";

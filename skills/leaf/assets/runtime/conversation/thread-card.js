@@ -89,6 +89,7 @@ export function threadReading(
       ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
       : null,
     resolved,
+    awaitsAgent: thread.awaits_agent,
     awaitsReader: thread.awaits_reader,
     resolvedBy:
       thread.resolved?.author === "agent"
@@ -150,7 +151,12 @@ function navigationSummary(navigation, model) {
           ? "Sending"
           : liveReceipt
             ? receiptLabel
-            : latest?.streamLabel || (model.awaitsReader ? "On you" : receiptLabel);
+            : latest?.streamLabel ||
+              (model.awaitsReader
+                ? "On you"
+                : model.awaitsAgent
+                  ? "Waiting"
+                  : receiptLabel);
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<button
     type="button"

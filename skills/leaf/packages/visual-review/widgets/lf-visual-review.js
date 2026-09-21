@@ -721,8 +721,8 @@ customElements.define(
     }
 
     #createCase(id) {
-      const option = document.createElement("wa-option");
-      option.value = id;
+      const option = offer("wa-option", "");
+      option.setAttribute("value", id);
 
       const article = make("article", "lf-vr-case");
       const heading = make("header", "lf-vr-case-head");

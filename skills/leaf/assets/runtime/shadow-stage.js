@@ -15,11 +15,44 @@
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it. */
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
-import { marksSheet } from "./stylesheets.js";
+import { constructSheet, marksSheet } from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
 import { watchExternalLinks } from "./presentation.js";
+
+// A package stylesheet that arrives with an on-demand widget module belongs wherever
+// that module can draw: the document and every declared shadow stage. Keep one
+// constructable sheet per package so a page parses it once, existing stages receive a
+// late-loaded module, and stages built after registration inherit the same sheet.
+const widgetSheets = new Map();
+const stageRefs = new Set();
+const stageRefFor = new WeakMap();
+function rememberStage(root) {
+  if (stageRefFor.has(root)) return;
+  const ref = new WeakRef(root);
+  stageRefFor.set(root, ref);
+  stageRefs.add(ref);
+}
+function liveStages() {
+  const roots = [];
+  for (const ref of stageRefs) {
+    const root = ref.deref();
+    if (root) roots.push(root);
+    else stageRefs.delete(ref);
+  }
+  return roots;
+}
+export function registerWidgetStyles(name, text) {
+  const existing = widgetSheets.get(name);
+  if (existing) return existing;
+  const sheet = constructSheet(text, name);
+  widgetSheets.set(name, sheet);
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  for (const root of liveStages())
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+  return sheet;
+}
 
 export function shadowStage(host, nodes) {
   // serializable, because a copy is rendered DOM with the scripts dropped and a shadow
@@ -29,7 +62,8 @@ export function shadowStage(host, nodes) {
   // the browser rebuilds on open, with nothing running.
   const root =
     host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
-  root.adoptedStyleSheets = [marksSheet];
+  rememberStage(root);
+  root.adoptedStyleSheets = [marksSheet, ...widgetSheets.values()];
   // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the
   // boundary either.

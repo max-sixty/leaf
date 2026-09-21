@@ -1465,10 +1465,38 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
         for field in render_checks_model.evaluate_probe(page, "unnamedFormFields")
     } == {"test-control", "input"}
     page.locator("main > test-control").evaluate(
-        "node => node.classList.remove('lf-ui')"
+        "node => node.removeAttribute('data-lf-gen')"
     )
     assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
         "<test-control>"
+    ]
+
+
+def test_the_render_gate_checks_undeclared_shadow_roots_inside_conversation_chrome(
+    browser, serve
+):
+    """A reply panel is runtime UI, while a widget inside its message remains page
+    content. Only a control built through offer is exempt from the declaration check;
+    inheriting the panel's UI ancestry cannot hide an undeclared widget root."""
+    page = open_page(browser, serve(leaf_page("Reply widget", "<h1>Reply</h1>")))
+    page.evaluate(
+        """async () => {
+          const {offer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          for (const tag of ['generated-control', 'reply-widget'])
+            customElements.define(tag, class extends HTMLElement {
+              constructor() {
+                super();
+                this.attachShadow({mode: 'open'}).innerHTML = '<p>Shadow words</p>';
+              }
+            });
+          const panel = document.createElement('div');
+          panel.className = 'lf-conversation-thread lf-ui';
+          panel.append(offer('generated-control'), document.createElement('reply-widget'));
+          document.querySelector('main').append(panel);
+        }"""
+    )
+    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
+        "<reply-widget>"
     ]
 
 

@@ -287,7 +287,9 @@ than it holds across;
 `runtime/shadow.js` owns declared shadow roots, their `shadow.css` rules, shared
 highlight rules, the parent walk that crosses a root, and the chrome question
 (`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
-owns the stage an x-shadow widget renders into;
+owns the stage an x-shadow widget renders into and the constructed styles a widget
+bundle registers on demand. One registered sheet is adopted by the document and every
+current or future stage; stages are retained weakly across live-version replacement;
 `runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
 dynamic widget imports, initial settlement, and the settlement of markup a live
 revision patches into the page;

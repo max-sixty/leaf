@@ -1,5 +1,5 @@
-import { READER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
-import { upFrom, validationPresentationReady } from "/runtime/validation.js";
+import { READER_VIEW_RESTORE_CASES, upFrom } from "/runtime/widget-api.js";
+import { validationPresentationReady } from "/runtime/validation.js";
 import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;

@@ -39,9 +39,8 @@ const copy = (value) => structuredClone(value);
 const normalizedWords = (value) => value.replace(/\s+/g, " ").trim();
 
 function option(value, label) {
-  const node = document.createElement("wa-option");
-  node.value = value;
-  node.textContent = label;
+  const node = offer("wa-option", "", label);
+  node.setAttribute("value", value);
   return node;
 }
 
@@ -573,8 +572,8 @@ customElements.define(
           className.label = `Class for ${target.name}`;
           className.setAttribute("aria-label", className.label);
           for (const select of [this.#styleTarget, this.#instructionTarget]) {
-            const targetOption = [...select.querySelectorAll("wa-option")].find(
-              (candidate) => candidate.value === target.key,
+            const targetOption = select.querySelector(
+              `wa-option[value="${CSS.escape(target.key)}"]`,
             );
             if (targetOption) targetOption.textContent = value;
           }
@@ -603,7 +602,7 @@ customElements.define(
         );
         scope.value = target.scope;
         const classes = this.#classesFor(target);
-        scope.querySelectorAll("wa-option")[1].disabled = !classes.length;
+        scope.querySelector('wa-option[value="class"]').disabled = !classes.length;
         const className = offer("wa-select", "lf-targeting-class");
         className.name = `${this.id}-${target.key}-class`;
         className.label = `Class for ${target.name}`;

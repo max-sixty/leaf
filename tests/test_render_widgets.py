@@ -4581,6 +4581,9 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     expect(first.locator("wa-select").nth(1)).to_have_js_property(
         "value", "landing-card"
     )
+    expect(
+        first.locator("wa-select").nth(1).locator('[part="display-input"]')
+    ).to_have_value(".landing-card · 2 matches")
     expect(first.locator("wa-select").nth(1)).to_be_visible()
     first.locator("wa-select").first.click()
     page.keyboard.press("g")
@@ -9592,6 +9595,50 @@ def _bound_diff(browser, serve):
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
     return page
+
+
+WEB_AWESOME_SHEET = """sheets => sheets.some(
+  sheet => [...sheet.cssRules].some(rule => rule.cssText.includes('wa-color-picker'))
+)"""
+
+
+def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
+    plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
+    assert (
+        plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
+        is False
+    )
+    assert not any(
+        entry.endswith("/vendor/webawesome.esm.js")
+        for entry in plain.evaluate(
+            "() => performance.getEntriesByType('resource').map(entry => entry.name)"
+        )
+    )
+
+    playground = open_page(browser, serve(PLAYGROUND_PAGE))
+    assert (
+        playground.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
+        is True
+    )
+    control = playground.locator("lf-playground wa-switch").first
+    assert (
+        control.evaluate(
+            "el => getComputedStyle(el).getPropertyValue('--wa-form-control-border-color')"
+        ).strip()
+        == control.evaluate(
+            "el => getComputedStyle(el).getPropertyValue('--muted')"
+        ).strip()
+    ), "the package theme must outrank the lazy vendor defaults"
+
+
+def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
+    page = _bound_diff(browser, serve)
+    diff = page.locator("lf-diff")
+    assert diff.evaluate("el => el.shadowRoot !== null")
+    assert (
+        diff.evaluate(f"el => ({WEB_AWESOME_SHEET})(el.shadowRoot.adoptedStyleSheets)")
+        is True
+    )
 
 
 # A phrase late in the diff's longest line: unwrapped it is off the right of the box, and

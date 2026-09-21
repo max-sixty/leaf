@@ -361,7 +361,7 @@ def build_floating_ui(work: Path) -> list[Path]:
 
 
 def build_webawesome(work: Path) -> list[Path]:
-    """Ship shared controls and their theme in the always-available default payload.
+    """Ship shared controls and their theme in one on-demand browser bundle.
 
     Every runtime package consumed by this entry is pinned, including Lit and
     Floating UI. Leaf's browser module intentionally exports only its own Lit
@@ -404,7 +404,6 @@ def build_webawesome(work: Path) -> list[Path]:
         "node",
         "build.mjs",
         str(out),
-        str(directory.parent / "shadow.css"),
         PINS["@awesome.me/webawesome"],
         cwd=work,
     )
@@ -413,7 +412,7 @@ def build_webawesome(work: Path) -> list[Path]:
         raise RuntimeError(f"Web Awesome runtime dependencies changed: {consumed}")
     refuse_if_csp_forbids(out)
     notices.write_text(package_notices(work, consumed, out.name), encoding="utf-8")
-    return [out, directory.parent / "shadow.css", notices]
+    return [out, notices]
 
 
 def build_plot(work: Path) -> list[Path]:

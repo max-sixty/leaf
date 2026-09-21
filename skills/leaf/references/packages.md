@@ -319,6 +319,14 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary, MCP, and
 published pages while the source retains its canonical path.
 
+A third-party widget bundle whose generated interface is absent from script-free
+exports can carry shared CSS by calling
+`registerWidgetStyles(name, text)` while its module evaluates. Leaf constructs that
+sheet once and adopts it in the document and every declared shadow stage, including
+stages created later. Put vendor defaults in a named cascade layer so package and page
+themes remain authoritative. The adopted sheet is live-browser state rather than
+serialized page markup.
+
 A module that puts the reader somewhere calls `focusDestination(element)` rather than
 `element.focus()`, wherever that place is not already a control. It lends the element the
 tab stop a control has for exactly as long as it holds it, so the browser's own Tab order

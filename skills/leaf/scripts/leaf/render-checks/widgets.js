@@ -114,7 +114,10 @@ export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]
       .filter(
-        (el) => el.shadowRoot && !inUi(el) && !registry[el.localName]?.["x-shadow"],
+        (el) =>
+          el.shadowRoot &&
+          el.dataset.lfGen !== "1" &&
+          !registry[el.localName]?.["x-shadow"],
       )
       .map((el) => `<${el.localName}>`),
   ),

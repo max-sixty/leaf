@@ -139,10 +139,10 @@ bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's res
 dependencies and inherit its ranges, so a diff from one of those can be an upstream
 patch rather than drift.
 
-`webawesome` also generates the default package's `shadow.css`: its scoped
-theme defaults and Leaf token mappings apply only to third-party control hosts.
-Widgets import the shared bundle on demand, so pages without those widgets load no
-Web Awesome JavaScript.
+`webawesome` bundles its scoped theme defaults and Leaf token mappings with the
+shared JavaScript. Importing that bundle registers one constructed stylesheet in the
+document and declared shadow stages, so pages without those widgets load and parse no
+Web Awesome JavaScript or CSS.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.

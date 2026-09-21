@@ -9,6 +9,11 @@
  * package documents as the contract to read in place of its CSS classes. This module
  * reads both into one shape and lists where they differ.
  *
+ * Mermaid's reading is the authority in both directions. Where Mermaid itself reads less
+ * than the author meant — a line opening with `click` is a click directive to it, never
+ * a node — a drawing that shows more is refused for showing what Mermaid proper would not
+ * draw: that source is a diagram only under the renderer.
+ *
  * No Mermaid grammar lives here, and none should be added: a divergence this misses is
  * answered by reading more of what either library already reports. What does live here is
  * the mapping between the two vocabularies — pseudo-state ids, ER names and aliases,

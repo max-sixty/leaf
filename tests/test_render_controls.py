@@ -911,7 +911,24 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         "an unchanged status poll disturbed the native disclosure or rebuilt its "
         f"unchanged detail: {survived}"
     )
+
+    # The global command reference follows native modal entry: the contextual auto
+    # popover closes, while later status presentation leaves the modal itself alone.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(explanation).to_be_hidden()
+    session_model.cmd_status(serve.page_dir, "working", detail)
+    told(page)
+    expect(reference).to_be_visible()
+    expect(explanation).to_be_hidden()
     page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-shelf-open", "false"
+    )
     for width in (1280, 841, 390):
         resized(page, width, 900)
         read = page.evaluate(STATUS_FIT)
@@ -3550,20 +3567,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
-    # Standing on a card the keyboard entry never put them on is its own rung: the first
-    # Escape collapses it onto its title, then releases the list before closing.
-    page.keyboard.press("Escape")
-    expect(thread.locator(".lf-thread-summary")).to_be_focused()
-    expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.keyboard.press("Escape")
-    expect(threads).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
-    # it was and the reading place needs no carry across the close.
+    # The card is content of Threads, so Escape closes the panel directly.
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
+    # A covering sheet holds no strip, so the document it uncovers is laid out exactly as
+    # it was and the reading place needs no carry across the close.
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
@@ -5446,14 +5454,15 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", "visual-target"),),
             "pr-walkthrough": (
                 ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
-                (".lf-diff-search", "diff-tools"),
+                (".lf-diff-search input", "text-entry"),
+                (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
                 ("lf-code pre", "code-pre-light"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
-                ("lf-shot > input.lf-shotflip", "shot"),
+                ('lf-shot .lf-shotcomparison [part~="handle"]', "shot"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
         },
@@ -5567,6 +5576,13 @@ RING_CASES = (
         {"ship-review": ((".lf-margin-preview .lf-resolve", "conversation"),)},
     ),
     ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
+    # Both controls of a summarized range wear one band: the checkpoint's own button, and
+    # the rail that folds the originals back once it has opened them.
+    (
+        "a summarized range",
+        (),
+        {"feature-gallery": ((".lf-summary-expand", "summary-fold"),)},
+    ),
     (
         "the Page Map dialog",
         (),

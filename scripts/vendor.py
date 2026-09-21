@@ -369,7 +369,7 @@ def build_mermaid_reader(work: Path) -> list[Path]:
     undrawn = (
         "katex",
         "cytoscape",
-        "cytoscape-case-bilkent",
+        "cytoscape-cose-bilkent",
         "cytoscape-fcose",
         "elkjs/lib/elk.bundled.js",
     )

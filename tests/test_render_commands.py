@@ -617,6 +617,10 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     expect(comparison).to_have_attribute("position", "100")
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(0, 0)
+    assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
+        before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
+    )
     assert "show after" not in shortcut_bar_text(page)
     after_caption.click()
     expect(comparison).to_have_attribute("position", "100")
@@ -852,6 +856,12 @@ def test_a_shot_still_flips_with_every_script_removed(
     assert shown_frames(loose) == ["before"]
     loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
+    before_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="before"]')
+    after_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="after"]')
+    before_caption.hover()
+    assert before_caption.evaluate(
+        "node => getComputedStyle(node).backgroundColor"
+    ) != (after_caption.evaluate("node => getComputedStyle(node).backgroundColor"))
     loose.keyboard.press("Space")
     assert shown_frames(loose) == ["before"]
     loose.emulate_media(media="print")

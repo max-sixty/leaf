@@ -1,17 +1,17 @@
 /* The command reference: the complete command catalog behind `?` and its modal search
    context.
 
-   Opening captures the registered command vocabulary before the native dialog moves
-   focus. The resulting catalog contains evaluated display values and stable command ids,
-   not callbacks or live predicates. Search, ranking, selection, and metadata are local
-   reader-session state projected through one Lit template. The dispatcher still resolves
-   an activated id afresh after the dialog closes, so a stale row cannot run.
+   Opening remembers the reader's origin, dismisses the auto and hint popovers that modal
+   entry will close, then captures the registered command vocabulary and executable routes
+   before the native dialog moves focus. The resulting catalog contains evaluated display
+   values and stable command ids, not callbacks or live predicates. Search, ranking,
+   selection, and metadata are local reader-session state projected through one Lit
+   template. The dispatcher still resolves an activated id afresh after the dialog closes,
+   so a stale row cannot run.
 
-   The native dialog, retained Close button, top-layer restoration, return place, focus,
-   selection, and scrolling stay with this controller. A modal dialog clears auto popovers
-   on entry; the reference captures the platform layers that stood beneath it and restores
-   eligible ones before returning focus. A covering auxiliary surface established while
-   the reference stands supplies its own return place instead.
+   The native dialog, retained Close button, return place, focus, selection, and scrolling
+   stay with this controller. Modal entry follows the platform contract rather than
+   rebuilding the popovers it dismisses.
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
@@ -38,14 +38,7 @@ import {
 } from "./presentation.js";
 import { focusDestination, letGo } from "../focus.js";
 import { el, keeps } from "../widget-elements.js";
-import {
-  coveringAuxiliaryFocus,
-  coveringAuxiliarySurface,
-  ELEMENTS,
-  pageScope,
-  pageScopes,
-  auxiliaryAllowsNativeLayer,
-} from "./register.js";
+import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
   byCommand,
@@ -167,8 +160,6 @@ function declaredStack(origin) {
 let commandRoutesAtOpen = new Map();
 let commandReferenceIsOpen = false;
 let commandReferenceOrigin = null;
-let commandReferenceLayers = [];
-let commandReferenceBoundary = null;
 let commandReferenceInvoke = null;
 
 const EMPTY_CATALOG = Object.freeze({
@@ -503,8 +494,8 @@ function activateCommandEntry(entry) {
     };
     return presentCommandReference();
   }
-  // Restore the displaced origin first, then let fresh dispatch choose the command's
-  // destination on the next frame.
+  // Close the modal, then let fresh dispatch choose the command's destination on the
+  // next frame.
   const invokeCommand = commandReferenceInvoke;
   closeCommandReference();
   requestAnimationFrame(() => {
@@ -719,21 +710,21 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
   const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
-  let restore = handBack ? commandReferenceOrigin : null;
-  const closing = !open && commandReferenceDialog.open;
+  const restore = handBack ? commandReferenceOrigin : null;
   if (fresh) {
-    // A control, or nothing: a reader working from the page stands on `body`, which is
-    // not a place to be given back — focusing it resets the browser's sequential focus
-    // navigation starting point to the top of the document, and the reader who opened
-    // the reference four screens down would Tab from there.
+    commandReferenceInvoke = invokeCommand;
+    for (const popover of openPopovers())
+      if (popover.popover !== "manual" && popover.matches(":popover-open"))
+        popover.hidePopover();
+    // The origin is read off the scene the reference leaves standing: hiding a popover
+    // hands focus back to where the reader stood when it opened, and that is the place
+    // the reference owes them. A control, or nothing: a reader working from the page
+    // stands on `body`, which is not a place to be given back — focusing it resets the
+    // browser's sequential focus navigation starting point to the top of the document,
+    // and the reader who opened the reference four screens down would Tab from there.
     const at = focused();
     commandReferenceOrigin = at === document.body ? null : at;
-    commandReferenceLayers = openPopovers();
-    commandReferenceBoundary = coveringAuxiliarySurface();
-    // The displaced page decides what can run. Capture before the reference's own scope
-    // becomes active, then gather its instructional rows after it does.
     commandRoutesAtOpen = availableCommandRoutes();
-    commandReferenceInvoke = invokeCommand;
   }
   commandReferenceIsOpen = open;
   if (fresh) {
@@ -756,22 +747,6 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
   else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
-
-  // Restore native layers in their prior order before focus returns to a control inside
-  // one of them.
-  if (closing) {
-    for (const layer of commandReferenceLayers) {
-      if (!layer.isConnected || layer.matches(":popover-open")) continue;
-      if (!auxiliaryAllowsNativeLayer(layer, commandReferenceBoundary)) continue;
-      if (restore && layer.contains(restore))
-        layer.lfInvoker?.focus({ preventScroll: true });
-      layer.showPopover();
-    }
-    if (restore && !auxiliaryAllowsNativeLayer(restore, commandReferenceBoundary))
-      restore = coveringAuxiliaryFocus();
-    commandReferenceLayers = [];
-    commandReferenceBoundary = null;
-  }
 
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);

@@ -1286,6 +1286,9 @@ MISDRAWN_DIAGRAMS = {
     # A transition naming a state before `state "…" as S0` declares it keeps the bare
     # id as its label.
     "late-state-label": 'stateDiagram-v2\n  [*] --&gt; S0\n  state "S0 · Gate passed" as S0\n  S0 --&gt; [*]',
+    # The renderer reads a line opening with `accTitle` or `accDescr` as that statement,
+    # where Mermaid reads a node of that name; `click-node` below is the control.
+    "keyword-id": "flowchart LR\n  accTitle --&gt; done\n  accDescr --&gt; done",
     # Mermaid's word cardinalities draw nothing at all.
     "er-word-cardinality": "erDiagram\n  USER one to many POST : writes",
     # A label split across two lines, which Mermaid reads and the renderer refuses.
@@ -1311,6 +1314,9 @@ FAITHFUL_DIAGRAMS = {
     "circle-arrowhead": "flowchart LR\n  A --o B",
     "slanted-shapes": "flowchart LR\n  A[/a/] --&gt; B[\\b\\]",
     "invisible-link": "flowchart LR\n  A --&gt; B\n  A ~~~ E",
+    # Mermaid and the renderer both read a line opening with `click` as that directive,
+    # so neither draws a node.
+    "click-node": "flowchart LR\n  click --&gt; done",
     # An authored class named for one of the renderer's own classes.
     "class-named-edge": "flowchart LR\n  a --&gt; b\n  classDef edge fill:#f00\n  class a edge",
     "acc-title": "flowchart LR\n  accTitle: Checkout flow\n  Cart[Cart] --&gt; Pay[Pay]",
@@ -1332,7 +1338,7 @@ FAITHFUL_DIAGRAMS = {
 def test_the_gate_refuses_a_diagram_that_does_not_draw_its_source(browser, serve):
     """A wrong diagram renders as confidently as a right one, so the gate compares.
 
-    The renderer draws the first five misdrawn sources without raising, each as a drawing
+    The renderer draws the first six misdrawn sources without raising, each as a drawing
     that lacks what the source asks for. `lf-diagram` registers a render check that reads
     the same source with official Mermaid and compares that reading with the drawing; the
     split label is the renderer refusing outright, pie is a family Leaf does not document,

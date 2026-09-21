@@ -1112,7 +1112,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-refold > span { position: sticky; top: 8px; display: block; padding-block: 10px; }
   .lf-summary-refold:hover { color: var(--accent); background: var(--chip); }
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
-    outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
+    outline: var(--here-ring); --lf-here-ring: summary-fold;
+    outline-offset: calc(-1 * var(--here-ring-w)); }
   .lf-msg-delivery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
     color: var(--muted); font-size: 10px; }
   .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }

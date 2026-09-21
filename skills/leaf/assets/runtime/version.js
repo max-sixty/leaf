@@ -131,7 +131,7 @@ import {
 import { captureCarry, restoreCarry } from "./carry.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
-import { clippedRect, shownBox } from "./geometry.js";
+import { clippedContents, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -473,7 +473,7 @@ export function createVersionController({
     when: versionsOffered,
     at: versionMenuIsOpen,
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
-    // reading so the reference filters member-dependent rows by their actual liveness.
+    // reading so the reference documents its rows as unavailable in the remaining scene.
     liveInCommandReference: true,
     // A chooser over the page suspends the page, which the two transient contexts above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
@@ -1614,7 +1614,7 @@ export function createVersionController({
       const range = document.createRange();
       range.selectNodeContents(block);
       const rect = range.getBoundingClientRect();
-      const seen = clippedRect(rect, block, new Map());
+      const seen = clippedContents(rect, block, new Map());
       if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom)
         yield [block, rect];
     }

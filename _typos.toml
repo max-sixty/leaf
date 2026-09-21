@@ -6,6 +6,9 @@ recor = "recor"
 # id the fixture holds, because a near-miss is the typo the gate exists to refuse —
 # "corrected", the id exists and the refusal under test never fires.
 backfil = "backfil"
+# scripts/vendor.py aliases `cytoscape-cose-bilkent` away by name; "corrected", the alias
+# matches no package and the layout library is bundled into the Mermaid reader.
+cose = "cose"
 
 [default.extend-identifiers]
 # Fixed revision ids are evidence, so preserve the exact commit even when one of its

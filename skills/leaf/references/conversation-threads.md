@@ -41,9 +41,16 @@ if the outcome is not yet incorporated or the reader still owes an explicit revi
 A browser comment may carry a drawing of one or more strokes that continue across the
 page. A drawing whose first stroke began over or in the margin beside an addressable
 element anchors there; one begun where no addressable element shares its line belongs to
-the page whole. Treat it as visual evidence for that ordinary thread: inspect the strokes
-on the live page, use any accompanying text, and reply or revise through the same path as
-any other comment.
+the page whole. Treat it as visual evidence for that ordinary thread. Its `says` is the
+page's words the drawing stood over when it was drawn, from the first word inside the
+ink's extents to the last. That is the neighbourhood of the mark rather than the mark:
+an arrow across a paragraph says the paragraph. It is absent where the extents hold no
+words, as over a picture or in a margin. An anchored
+drawing's `strokes` are offsets from that element's top-left corner, and `box` is the
+element's width and height at the time, so a stroke's share of the box says which part
+of a picture it marks; a page drawing has no `box`, and its strokes are offsets from the
+document's origin. Use any accompanying text, and reply or revise through the same path
+as any other comment.
 
 A reader may paste an image into any thread text box. The composer shows a thumbnail,
 while its message carries an ordinary Markdown image at `/media/<digest>.<ext>`. Resolve

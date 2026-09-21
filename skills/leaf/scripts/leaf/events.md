@@ -38,8 +38,15 @@ places it: when that drag starts over an addressable element or in the margin al
 it, its element anchor remains the thread coordinate and every point is a CSS-pixel
 offset from that target's top-left origin. A first drag starting where no addressable
 element shares its line has no anchor and its points are offsets from the document
-origin. Every stroke keeps that one frame and may run anywhere across the page. Leaf
-derives the drawing's frame and owns ink, weight, SVG construction, and replay. A drawing is immutable once sent, follows the thread's
+origin. Every stroke keeps that one frame and may run anywhere across the page. An
+anchored drawing records `box`, its target's width and height when drawn. `says` is the
+page's words the drawing stands over: from the first shown word inside the ink's extents
+to the last, read as a quote is, so it holds more than the ink marked. It is bounded at
+500 characters and absent where the extents hold no words. The browser reads both fields
+off the rendered page, which holds words no file reading can produce, so the door bounds
+their shape and does not re-read them.
+Leaf derives the drawing's frame and owns ink, weight, SVG construction, and replay. A
+drawing is immutable once sent, follows the thread's
 resolution state, and is omitted from the default standalone export with the rest of
 discussion chrome.
 

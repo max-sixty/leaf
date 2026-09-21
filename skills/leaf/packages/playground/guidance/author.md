@@ -173,12 +173,16 @@ Diff, or Visual Review instead of rebuilding those review loops in a map.
 
 ### Real-artifact A/B comparison
 
-Mount the built variants or captured runtime DOM together, preserve their tokens,
-typography, states, and viewport assumptions, and drive both from one gesture snapshot.
-Candidate-specific values live under explicit keys; a copy-to-other action changes only
-the intended candidate. Measurements are derived from the same snapshot and appear
-beside each variant. When variants differ by compilation, build both source revisions
-and serve both from the captured page graph rather than drawing a visual replica.
+Mount built variants together and preserve their tokens, typography, states, and
+viewport assumptions. A runtime DOM capture is an appearance-only artifact: cloning it
+does not carry the component's listeners, state source, or lifecycle. When behavior is
+part of the comparison, mount a component through its production entry point or serve
+a document as a complete captured revision. Do not add substitute page handlers to
+captured DOM and present it as the current behavior. Drive the live candidates from one
+gesture snapshot. Candidate-specific values live under explicit keys; a copy-to-other
+action changes only the intended candidate. Measurements are derived from the same
+snapshot and appear beside each variant. When variants differ by compilation, build
+and serve both source revisions rather than drawing a visual replica.
 
 ### Multi-change decision sweep
 

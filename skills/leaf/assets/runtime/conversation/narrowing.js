@@ -28,6 +28,10 @@ const group = (kind, label, choices) =>
   Object.freeze({ kind, label, choices: Object.freeze(choices) });
 
 // Labels and choices are declarations, not facts recovered from rendered buttons.
+// TODO(2026-09-21): Replace the broad Waiting group when the shared workflow and
+// attention ontology projects reader-facing thread groups. Until then it is only the
+// existing server-projected agent turn owner; detailed row, message, and margin status
+// continues to use the canonical receipt stage from `agentWorkflowStage`.
 const FACETS = Object.freeze([
   group("state", "Thread state", [
     choice("state", "open", "Open"),

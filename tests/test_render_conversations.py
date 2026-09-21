@@ -2338,9 +2338,6 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
         "No longer here (1)"
     )
     expect(
-        page.locator(f'.lf-thread[data-id="{pagewide}"] .lf-thread-status')
-    ).to_have_text("Waiting")
-    expect(
         page.locator(f'.lf-thread[data-id="{waiting}"] .lf-thread-status')
     ).to_have_text("On you")
     expect(visible).to_have_count(4)

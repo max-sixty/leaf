@@ -4644,6 +4644,9 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
 
 
 def test_ack_checks_its_target_and_advances_monotonically(page_dir):
+    """Exit 1 is the acknowledgement refused and the cursor unmoved. Past that the
+    command is the wait it re-armed, and this page is claimed by nobody, so every
+    acknowledgement that lands ends on the same 2 a bare `leaf wait` would."""
     events_model.append_event(
         page_dir,
         {
@@ -4675,7 +4678,8 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     first = runner.invoke(cli_model.cli, ["ack", str(page_dir), "3"])
     retry = runner.invoke(cli_model.cli, ["ack", str(page_dir), "3"])
     older = runner.invoke(cli_model.cli, ["ack", str(page_dir), "2"])
-    assert first.exit_code == retry.exit_code == older.exit_code == 0
+    assert first.exit_code == retry.exit_code == older.exit_code == 2
+    assert "nothing to watch" in first.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 3}
 
     # A worker's report is part of the watcher's batch, so it is a valid ack
@@ -4696,7 +4700,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
             "revision": 1,
         },
     )
-    assert runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"]).exit_code == 0
+    assert runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"]).exit_code == 2
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 4}
 
 
@@ -4759,6 +4763,8 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
     )
     out, err = acknowledging.communicate(timeout=10)
 
+    # 0 is the re-armed wait's own code for a batch on stdout, so one exit tells
+    # an agent which of the two happened rather than sending it to the streams.
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = delivered(out)
     assert (header["page"], header["conversations"]) == (str(page_dir), [])
@@ -4768,6 +4774,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
 
 
 def test_ack_success_outlives_a_refused_rearm(page_dir):
+    """A standing watcher ends the re-arm the way it ends a bare `leaf wait`, on
+    2. The acknowledgement still landed: 1 is the code that says it did not, and
+    the cursor names the event the batch reached."""
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -4779,7 +4788,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
     with lease:
         result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
     assert "another `leaf wait` is already active" in result.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
 
@@ -4792,7 +4801,7 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
 
     result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
     assert (
         f"nothing to watch: {page_dir} is not claimed by this session" in result.output
     )
@@ -4901,7 +4910,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     os.close(writer)
 
     out, err = acknowledging.communicate(timeout=10)
-    assert (acknowledging.returncode, out) == (0, ""), err
+    assert (acknowledging.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
     assert "the leaf ended" not in err
     assert service_model.page_claim(page_dir)["id"] == "successor"
@@ -8446,7 +8455,8 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # user is still waiting, and now nothing will raise the comment again, so
     # idle holds until the thread has something under it.
     assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
-    assert CliRunner().invoke(cli_model.cli, ["ack", str(claimed), "1"]).exit_code == 0
+    # 2 is the re-armed wait's own ending; a refused acknowledgement would be 1.
+    assert CliRunner().invoke(cli_model.cli, ["ack", str(claimed), "1"]).exit_code == 2
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged reader move with no answer" in refused.output
@@ -8501,7 +8511,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 update nobody has picked up" in refused.output
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
-        CliRunner().invoke(cli_model.cli, ["ack", str(claimed), report]).exit_code == 0
+        CliRunner().invoke(cli_model.cli, ["ack", str(claimed), report]).exit_code == 2
     )
     # A report is the agent's own news, so acknowledging it is the whole of what
     # it asks for; only a reader's comment owes an answer as well.

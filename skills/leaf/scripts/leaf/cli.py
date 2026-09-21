@@ -715,11 +715,13 @@ def ack(dir: str, seq: int) -> None:
     from leaf.session import cmd_ack, cmd_wait
 
     page_dir = resolve_dir(dir)
+    # A refused acknowledgement exits 1 here, with the cursor where it was. Past
+    # that the command is the wait it re-armed and answers as one does: 0 carries
+    # the next batch on stdout, 2 names an ending on stderr. The delivering wait
+    # established ownership, so the re-arm observes a successor rather than
+    # reclaiming the page.
     cmd_ack(page_dir, seq)
-    # Ack already succeeded, so ignore the following wait's delivery/end code.
-    # The delivering wait established ownership; re-arm observes a successor
-    # instead of reclaiming the page.
-    cmd_wait(page_dir, claim_named=False)
+    sys.exit(cmd_wait(page_dir, claim_named=False))
 
 
 @cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")

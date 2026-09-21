@@ -3093,7 +3093,10 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     result = CliRunner().invoke(
         cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
     )
-    assert result.exit_code == 0, result.output
+    # The page error was an acknowledgeable target, so the cursor moved and the
+    # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
+    assert result.exit_code == 2, result.output
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": error["seq"]}
 
 
 def _news(server):

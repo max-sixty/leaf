@@ -43,10 +43,10 @@ turn. The page therefore resumes **handling** from that exact prompt delivery;
 the agent does not need a status write to repair the banner.
 
 The initial `leaf wait` revives a dead server under its recorded lifetime and
-reports that on stderr. Its exit 2 means stderr names an ending rather than a
-batch. After `leaf ack` advances the cursor, however, its exit stays 0 whether
-the rearmed wait delivered or ended; read its streams rather than branching on
-that status:
+reports that on stderr. Exit 2 means stderr names an ending rather than a batch.
+`leaf ack` answers the same way once the cursor has advanced; its exit 1 means
+the acknowledgement was refused and the cursor did not move. The streams say
+which ending arrived:
 
 - One JSON delivery envelope on stdout is the next input.
 - `the leaf ended` or `the leaves ended` on stderr means every page left in the

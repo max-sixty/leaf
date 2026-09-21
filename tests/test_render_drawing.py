@@ -210,6 +210,148 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     )
 
 
+WORDS_PAGE = leaf_page(
+    "drawn words",
+    '<h1 id="t">Words</h1>'
+    '<p id="line">Alpha bravo charlie delta echo foxtrot golf.</p>'
+    # Longer than a drawing may say, so the reading's cut is what reaches the door.
+    f'<p id="para">Arrow {"lorem ipsum dolor sit amet " * 20}target.</p>'
+    # Rows the box has cut away still have coordinates, and they are the paragraph's below.
+    # The words sit in the box directly, so the clip over them is their own holder's.
+    f'<div id="pit">{"buried " * 80}</div>'
+    '<p id="under">India juliet kilo.</p>',
+    head="<style>#pit { height: 2em; overflow: hidden }</style>",
+)
+
+WORDS_BOX = """([selector, words]) => {
+  const node = document.querySelector(selector).firstChild;
+  const at = node.data.indexOf(words);
+  const range = document.createRange();
+  range.setStart(node, at);
+  range.setEnd(node, at + words.length);
+  const box = range.getBoundingClientRect();
+  return {x: box.x, y: box.y, width: box.width, height: box.height};
+}"""
+
+
+def trace(page, points):
+    """Drag one stroke through viewport `points`."""
+    first, *rest = points
+    page.mouse.move(*first)
+    page.mouse.down()
+    for point in rest:
+        page.mouse.move(*point, steps=6)
+    page.mouse.up()
+
+
+def strike(page, selector, words, *, below=None):
+    """Drag one level stroke along `words`, from inside its first letter to its last:
+    through their middle, or `below` pixels under their box."""
+    box = page.evaluate(WORDS_BOX, [selector, words])
+    y = box["y"] + (box["height"] / 2 if below is None else box["height"] + below)
+    trace(
+        page,
+        [
+            (box["x"] + 2, y),
+            (box["x"] + box["width"] / 2, y),
+            (box["x"] + box["width"] - 2, y),
+        ],
+    )
+
+
+def around(page, box):
+    """Ring a box: one stroke just inside it that ends where it began."""
+    left, top = box["x"] + 2, box["y"] + 2
+    right, bottom = box["x"] + box["width"] - 2, box["y"] + box["height"] - 2
+    trace(
+        page,
+        [(left, top), (right, top), (right, bottom), (left, bottom), (left, top + 2)],
+    )
+
+
+def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
+    browser, serve
+):
+    """An agent reads a drawing without the page in front of it, so the comment carries
+    the page's words inside the ink's extents, first to last, and the size of the box the
+    offsets were measured in. Words the page has cut away from under the ink are not
+    among them."""
+    page = open_page(browser, serve(WORDS_PAGE))
+    line = page.locator("#line")
+    line.scroll_into_view_if_needed()
+    start = page.evaluate(WORDS_BOX, ["#line", "bravo charlie"])
+    page.mouse.move(start["x"] + 2, start["y"] + start["height"] / 2)
+    page.keyboard.press("w")
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    field = page.locator(".lf-fab-input")
+
+    def sent(what):
+        # Pressed on the field rather than on whatever holds focus: a later stroke reopens
+        # the box, and focus is another test's subject.
+        expect(field).to_be_focused()
+        with sending(page, what):
+            field.press("ControlOrMeta+Enter")
+        return events_model.read_events(serve.page_dir)[-1]
+
+    # Two strokes are one drawing, which says everything between its first word and last.
+    strike(page, "#line", "bravo charlie")
+    expect(field).to_be_focused()
+    strike(page, "#line", "foxtrot")
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", re.compile(r"^M[^M]*M[^M]*$")
+    )
+    event = sent("the drawing over two runs of words")
+    assert event["anchor"] == {"section": "line"}
+    drawing = event["drawing"]
+    assert len(drawing["strokes"]) == 2
+    assert drawing["says"] == "bravo charlie delta echo foxtrot"
+    box = line.bounding_box()
+    assert drawing["box"] == pytest.approx([box["width"], box["height"]], abs=0.01)
+
+    # A line under a word is its underline, though it touches none of the word's box.
+    strike(page, "#line", "delta", below=3)
+    assert sent("the underline")["drawing"]["says"] == "delta"
+
+    # An arrow from a paragraph's first word to its far corner says the paragraph, as
+    # far as a drawing's 500 characters go.
+    para = page.locator("#para")
+    para.scroll_into_view_if_needed()
+    # Read before the send, which adds the block's comment note to what it holds.
+    whole = " ".join(para.inner_text().split())
+    first = page.evaluate(WORDS_BOX, ["#para", "Arrow"])
+    box = para.bounding_box()
+    assert box["height"] > 3 * first["height"], "the paragraph must wrap"
+    trace(
+        page,
+        [
+            (first["x"] + 2, first["y"] + first["height"] / 2),
+            (
+                box["x"] + box["width"] - 2,
+                box["y"] + box["height"] - first["height"] / 2,
+            ),
+        ],
+    )
+    assert len(whole) > 500
+    assert sent("the arrow")["drawing"]["says"] == whole[:499] + "…"
+
+    # The cut-away rows of the box above lie under this ring's coordinates.
+    page.locator("#under").scroll_into_view_if_needed()
+    hidden = page.evaluate(
+        """() => {
+          const under = document.querySelector("#under").getBoundingClientRect();
+          const rows = document.createRange();
+          rows.selectNodeContents(document.querySelector("#pit"));
+          return [...rows.getClientRects()].some(
+            (row) => row.bottom > under.top && row.top < under.bottom);
+        }"""
+    )
+    assert hidden, "the control: a hidden row must share the ring's coordinates"
+    around(page, page.locator("#under").bounding_box())
+    assert (
+        sent("the ring under cut-away rows")["drawing"]["says"] == "India juliet kilo."
+    )
+
+
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     """Whitespace is part of the drawable page plane. With no addressable element under the
     starting point, the stroke opens a page comment and keeps document coordinates."""

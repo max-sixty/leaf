@@ -69,8 +69,10 @@ With one reply obligation in the current turn's opened delivery, Leaf infers its
 and address. When that delivery contains several, select one with `--for <event-id>`;
 Leaf derives its response address and rechecks both against current state, so a response
 captured before a newer reader correction cannot settle the correction. `leaf
-conversation read` exposes the same response under its current `activity.obligations`
-when the delivery is no longer the freshest reading. When the source changed, the reply
+conversation read` exposes the same response on the interaction that its current
+`activity.obligations` names, when the delivery is no longer the freshest reading.
+`activity.obligations` is a list of ids into `activity.interactions`, where each move's
+phase, target and response address are stated once. When the source changed, the reply
 validates and activates it before posting, so an edit and its answer cross one command
 boundary.
 

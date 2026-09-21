@@ -632,6 +632,16 @@ def state_json(d):
     return json.loads(result.output)
 
 
+def owed(activity):
+    """The interactions one agent-facing activity reading still owes an answer.
+
+    `obligations` names them by id, so this is the join an agent makes to reach a
+    move's phase, target, or response address.
+    """
+    standing = set(activity["obligations"])
+    return [item for item in activity["interactions"] if item["id"] in standing]
+
+
 # A question and the accept that answers it, written as a stored log holds them:
 # ids of their own and the `meaning` admission stamped on the action. For a test
 # that needs an answered thread in a page directory and is about something else —

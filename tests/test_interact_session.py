@@ -40,6 +40,7 @@ from interact_support import (
     fetch,
     fifo_writer,
     let_a_pick_settle_a_thread,
+    owed,
     page_state,
     publish,
     record_claim,
@@ -1070,10 +1071,10 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     assert [item["phase"] for item in activity["obligations"]] == ["picked_up"]
     agent_activity = state_json(claimed)["activity"]
     assert agent_activity["kind"] == activity["kind"]
-    assert agent_activity["obligations"][0]["target"] == {
-        "kind": "conversation",
-        "id": comment["id"],
-    }
+    # The agent reading names each obligation by id; the move itself is listed once.
+    [move] = owed(agent_activity)
+    assert agent_activity["obligations"] == [move["id"]]
+    assert move["target"] == {"kind": "conversation", "id": comment["id"]}
     assert "acknowledgments" not in page_state(claimed)["browser"]
     pickup = events_model.read_events(claimed)[-1]
     claim = service_model.page_claim(claimed)
@@ -3692,7 +3693,8 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     ]
     assert [item["author"] for item in reading["content"]] == ["user", "agent"]
     assert reading["content"][1]["parent"] == messages[0]["id"]
-    assert reading["activity"]["obligations"][0]["response"] == {
+    [move] = owed(reading["activity"])
+    assert move["response"] == {
         "kind": "reply",
         "to": messages[2]["id"],
         "for": messages[2]["id"],
@@ -3807,7 +3809,7 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         },
     )
     before = state_json(page_dir)["activity"]["obligations"]
-    assert [item["event"] for item in before] == [chose["id"], newer["id"]]
+    assert before == [chose["id"], newer["id"]]
 
     replied = conversation_model.cmd_reply(
         page_dir,
@@ -3817,9 +3819,9 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         for_event=chose["id"],
     )
     assert replied["responds"] == chose["id"]
-    after = state_json(page_dir)["activity"]["obligations"]
-    assert [item["event"] for item in after] == [newer["id"]]
-    assert after[0]["response"] == {
+    after = state_json(page_dir)["activity"]
+    assert after["obligations"] == [newer["id"]]
+    assert owed(after)[0]["response"] == {
         "kind": "reply",
         "to": newer["id"],
         "for": newer["id"],
@@ -3865,7 +3867,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
         },
     )
     before = state_json(page_dir)["activity"]["obligations"]
-    assert [item["event"] for item in before] == [answered["id"]]
+    assert before == [answered["id"]]
 
     conversation_model.cmd_reply(
         page_dir,

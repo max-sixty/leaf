@@ -626,7 +626,9 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
-    expect(thread.locator(".lf-msg.agent .lf-msg-head b")).to_have_text("Codex")
+    # The card lifts its first message's head beside the thread's actions.
+    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     thread.locator("textarea").fill("three is the retry budget, not a guess")

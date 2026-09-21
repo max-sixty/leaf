@@ -9621,13 +9621,16 @@ def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
         is True
     )
     control = playground.locator("lf-playground wa-switch").first
+    # A page rule with no specificity at all. It can outrank the generated sheet's own
+    # `:is(wa-switch, …)` mapping only because that sheet sits in @layer lf-vendor.
+    playground.add_style_tag(
+        content=":where(wa-switch){--wa-color-text-quiet: rgb(1, 2, 3);}"
+    )
     assert (
         control.evaluate(
-            "el => getComputedStyle(el).getPropertyValue('--wa-form-control-border-color')"
+            "el => getComputedStyle(el).getPropertyValue('--wa-color-text-quiet')"
         ).strip()
-        == control.evaluate(
-            "el => getComputedStyle(el).getPropertyValue('--muted')"
-        ).strip()
+        == "rgb(1, 2, 3)"
     ), "the package theme must outrank the lazy vendor defaults"
 
 

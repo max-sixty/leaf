@@ -25,6 +25,9 @@ import { watchExternalLinks } from "./presentation.js";
 // that module can draw: the document and every declared shadow stage. Keep one
 // constructable sheet per package so a page parses it once, existing stages receive a
 // late-loaded module, and stages built after registration inherit the same sheet.
+// Adopted rather than written in as a <style>, against the rule the header states for a
+// stage's own two sheets: these rules dress an interface that is absent from a
+// script-free copy, so a copy has nothing left to keep them for.
 const widgetSheets = new Map();
 const stageRefs = new Set();
 const stageRefFor = new WeakMap();

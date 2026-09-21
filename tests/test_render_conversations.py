@@ -182,7 +182,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     expect(
         page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     ).to_have_text("Replying")
-    expect(message.locator(".lf-msg-delivery")).to_have_count(0)
+    expect(message.locator(".lf-msg-head .lf-receipt")).to_have_count(0)
     page.evaluate(
         "attempt => { window.__streamMessage = document.querySelector("
         '`.lf-msg[data-attempt="${attempt}"]`); }',
@@ -447,7 +447,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     card.locator(":scope > .lf-thread-summary").click()
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
-    expect(card.get_by_role("button", name="Close thread")).to_be_visible()
+    expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
     root_meta = card.locator(":scope > .lf-thread-root-meta")
     expect(root_meta).to_contain_text("You")
     assert root_meta.evaluate("node => !node.closest('.lf-summary-originals')"), (
@@ -1566,9 +1566,12 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
-    expect(
-        page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-receipt')
-    ).to_contain_text("Sent")
+    receipt = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-receipt')
+    expect(receipt).to_contain_text("Sent")
+    assert receipt.evaluate(
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
+    ), "the message status did not follow its relative timestamp"
     expect(status).to_have_text("Working")
 
 

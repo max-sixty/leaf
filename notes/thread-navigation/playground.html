@@ -179,18 +179,6 @@
         color: var(--muted);
         font: 10px/20px var(--sans);
       }
-      .sketch-footer button {
-        min-height: 24px;
-        padding: 0 2px;
-        border: 0;
-        background: transparent;
-        color: var(--muted);
-        font: 11px var(--sans);
-        cursor: pointer;
-      }
-      .sketch-footer button:hover {
-        color: var(--ink);
-      }
       .sketch-stage button:focus-visible,
       .sketch-stage textarea:focus-visible {
         outline: 2px solid var(--accent);
@@ -328,7 +316,6 @@
                   preventScroll: true,
                 });
               }
-              if (button.hasAttribute("data-close")) this.#close();
               if (button.hasAttribute("data-send")) this.#send();
             };
             this.oninput = (event) => {
@@ -387,7 +374,7 @@
               )
               .join(
                 "",
-              )}<div class="sketch-compose"><textarea rows="1" name="sketch-reply-${index}" aria-label="Draft reply to ${topics[index].title}" placeholder="Reply…"></textarea><button type="button" data-send title="Add simulated reply (⌘/Ctrl+Enter)" aria-label="Add simulated reply" ${this.#drafts[index]?.trim() ? "" : "disabled"}>↑</button></div><div class="sketch-footer"><span>Simulated reply · ⌘/Ctrl+Enter</span><button type="button" data-close>Collapse ↑</button></div></section>`;
+              )}<div class="sketch-compose"><textarea rows="1" name="sketch-reply-${index}" aria-label="Draft reply to ${topics[index].title}" placeholder="Reply…"></textarea><button type="button" data-send title="Add simulated reply (⌘/Ctrl+Enter)" aria-label="Add simulated reply" ${this.#drafts[index]?.trim() ? "" : "disabled"}>↑</button></div><div class="sketch-footer"><span>Simulated reply · ⌘/Ctrl+Enter</span></div></section>`;
           }
           #render() {
             this.innerHTML = `<div class="sketch-stage"><div class="sketch-layout" data-density="${this.#density}" data-width="${this.#width}"><div class="sketch-shelf"><div class="sketch-heading">Threads <span>3 need you · 2 waiting</span></div>${topics
@@ -467,9 +454,9 @@
         <h2>Try the real Threads panel</h2>
         <p>
           One conversation expands at a time. The reply field spans the conversation’s
-          width. Author and time sit above each message; delivery receipts sit below the
-          message they describe. Unfinished drafts survive switching threads. Search,
-          filters, and links to individual messages reveal their target.
+          width. Author, time, and delivery status share the row above each message.
+          Unfinished drafts survive switching threads. Search, filters, and links to
+          individual messages reveal their target.
         </p>
         <p>
           Use Enter or Space on a title to expand it; arrow keys and Home/End move
@@ -478,7 +465,7 @@
           conversation, then steps back out of the panel.
         </p>
         <p>
-          Sending and Sent share a delivery line so confirmation does not shift the
+          Sending and Sent share the metadata row so confirmation does not shift the
           conversation. The local review also checks that collapsed titles retain reader
           obligations and ongoing agent work. The richer activity ontology remains
           separate work.
@@ -595,7 +582,7 @@
           The title and message count remain compact. An open conversation uses one
           shared inset for its quote, messages, and reply field. Author and time form a
           small header instead of consuming a separate column. A Draft marker preserves
-          unfinished work, and the bottom control collapses long threads.
+          unfinished work; the title and Escape collapse an open thread.
         </p>
         <p>
           <a href="https://carbondesignsystem.com/components/accordion/style/"
@@ -610,9 +597,9 @@
             href="https://support.signal.org/hc/en-us/articles/360007320751-How-do-I-know-if-my-message-was-delivered-or-read"
             >Signal distinguishes Sent, Delivered, and Read for each message.</a
           >
-          Applying that distinction here, Sent belongs beneath the sent message and no
-          longer appears as a thread title’s status. Current work and failure states can
-          still help identify a thread before opening it.
+          Applying that distinction here, Sent belongs beside the sent message’s
+          relative time and no longer appears as a thread title’s status. Current work
+          and failure states can still help identify a thread before opening it.
         </p>
         <p>
           Component reuse is possible:

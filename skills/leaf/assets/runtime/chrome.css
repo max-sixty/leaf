@@ -1067,8 +1067,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-count { color: var(--muted); font-size: 11px; text-align: right;
     font-variant-numeric: tabular-nums; }
   .lf-thread-collapsed > :not(.lf-thread-summary) { display: none !important; }
-  /* One inset serves the quote, messages and composer. Author/time form a quiet
-     header; delivery belongs after the message whose transport it describes. */
+  /* One inset serves the quote, messages and composer. Author, time and delivery
+     form one quiet header. */
   .lf-thread-compact > .lf-thread-head { margin: 12px 8px; }
   .lf-thread-compact > .lf-thread-root-meta { margin: 12px 8px 0; }
   .lf-thread-compact > .lf-msg { margin: 16px 8px; }
@@ -1084,6 +1084,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      ellipsizes in place rather than reflowing a transcript the reader is reading. */
   .lf-thread-compact .lf-msg-meta { flex-wrap: wrap; gap: 6px;
     font-size: 10px; color: var(--muted); }
+  .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
+    color: var(--muted-2); }
   .lf-thread-compact .lf-msg-body { min-width: 0; margin-top: 4px; font-size: 13px; }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. The rail is one full-height native control, so pointer and keyboard use
@@ -1113,8 +1116,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-summary-refold:hover { color: var(--accent); background: var(--chip); }
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
-  .lf-msg-delivery { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;
-    color: var(--muted); font-size: 10px; }
   .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long

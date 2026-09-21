@@ -4,9 +4,10 @@ Accordion is the chosen interaction. The current page explores spacing: Compact
 (32px rows), Comfortable (40px), and Airy (48px), plus panel and roomy reading widths.
 Author labels sit above messages; the reply field spans the conversation width. One header carries topic, count, and status;
 there is no repeated status bar inside. Draft markers, a one-line composer, disclosure
-chevrons, and a bottom collapse control keep the dense layout operable.
+chevrons, and title/Escape collapse keep the dense layout operable.
 
-Click a title, type a draft, change spacing, and collapse the thread (or press Escape).
+Click a title, type a draft, change spacing, and collapse the thread from its title (or
+press Escape).
 Simulated replies stay local to the sketch; only Choose layout submits a configuration
 to the agent. Cmd/Ctrl+Enter adds a simulated reply. Refresh resets the simulations.
 The real Leaf Threads panel implements the compact accordion and remains available

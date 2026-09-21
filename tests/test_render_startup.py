@@ -3162,12 +3162,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
     held_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery '
-        f'.lf-receipt[data-receipt-id="{held}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{held}"]'
     )
     other_receipt = other_thread.locator(
-        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-delivery '
-        f'.lf-receipt[data-receipt-id="{other}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{other}"]'
     )
     expect(receipts).to_have_count(2)
     expect(held_receipt).to_contain_text("✓ Sent")
@@ -3265,8 +3263,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_receipt.evaluate(
-        "node => node.parentElement.matches('.lf-msg-delivery') "
-        "&& node.nextElementSibling === null"
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
 
     # New words do not detach the claim from the comment that started the work.
@@ -3282,7 +3280,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     told(page)
     followup_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-delivery '
+        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
         f'.lf-receipt[data-receipt-id="{followup["id"]}"]'
     )
     expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
@@ -3327,9 +3325,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # message to own it, the claim uses the root message that identifies the thread;
     # conversation status never grows a separate footer row.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    claim_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery .lf-receipt'
-    )
+    claim_receipt = held_thread.locator(":scope > .lf-thread-root-meta .lf-receipt")
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
@@ -3417,8 +3413,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page.keyboard.press("c")
     receipt = page.locator(
         f'.lf-thread[data-id="{comment["id"]}"] '
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
-        f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
+        f'> .lf-thread-root-meta .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
     expect(receipt).to_contain_text("○ Waiting for pickup")
     assert receipt.locator(".lf-receipt-state").evaluate(
@@ -3429,7 +3424,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     """A phase change updates colored metadata without moving or replacing it.
 
-    The receipt belongs below the outgoing message's text. Heartbeats leave
+    The receipt belongs beside the outgoing message's relative time. Heartbeats leave
     it alone, while a semantic transition changes its words and color in place.
     Re-inserting the node would replay its live region and any animation it wore."""
     url = serve(LONG_PAGE)
@@ -3447,17 +3442,15 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     receipt = thread.locator(
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
-        f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
     thread.locator(".lf-thread-summary").click()
     expect(receipt).to_be_visible()
     expect(receipt).to_contain_text("✓ Sent")
     expect(thread.locator(".lf-thread-summary")).not_to_contain_text("Sent")
-    body = thread.locator(f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-body')
-    assert (
-        receipt.bounding_box()["y"]
-        >= body.bounding_box()["y"] + body.bounding_box()["height"]
+    assert receipt.evaluate(
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
     expect(receipt.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-receipt")).to_have_count(0)

@@ -199,7 +199,6 @@ export class ThreadView {
   #keys = new WeakSet();
   #settlements = new Map();
   #metadataActions = document.createElement("span");
-  #collapse = null;
   #expandedSummaries = new Set();
   #growing = false;
   #navigation = null;
@@ -300,17 +299,6 @@ export class ThreadView {
     if (!model.resolved || model.folding) {
       this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = [settlement];
-      if (navigation) {
-        if (!this.#collapse) {
-          this.#collapse = offer("button", "lf-btn lf-icon-action lf-thread-close");
-          this.#collapse.type = "button";
-          this.#collapse.setAttribute("aria-label", "Close thread");
-          this.#collapse.title = "Close thread";
-          render(iconTemplate("cross", "lf-action-icon"), this.#collapse);
-        }
-        this.#collapse.onclick = navigation.collapse;
-        actions.push(this.#collapse);
-      }
       if (
         actions.length !== this.#metadataActions.children.length ||
         actions.some(

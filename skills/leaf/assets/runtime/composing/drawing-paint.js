@@ -8,13 +8,13 @@
 import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
 import { el } from "../widget-elements.js";
-import { validDrawing } from "./drawing-record.js";
+import { rounded, scaledStrokes, validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const FRAME_MIN = 1;
 
-function drawingFrame(drawing) {
-  const points = drawing.strokes.flat();
+function drawingFrame(strokes) {
+  const points = strokes.flat();
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
   const left = Math.min(...xs);
@@ -32,8 +32,8 @@ function drawingFrame(drawing) {
 }
 
 // One path, one subpath per stroke: each stroke lifts the pen with its own move.
-const pathData = (drawing) =>
-  drawing.strokes
+const pathData = (strokes) =>
+  strokes
     .flatMap((stroke) =>
       stroke.map(
         ([x, y], index) => `${index ? "L" : "M"} ${x.toFixed(4)} ${y.toFixed(4)}`,
@@ -66,12 +66,22 @@ export function createDrawingPaint({ anchors, activeDrawing, draftDrawings }) {
     if (!validDrawing(drawing)) return null;
     const box = target ? shownBox(target) : { left: -scrollX, top: -scrollY };
     if (target && (!box?.width || !box?.height)) return null;
-    const frame = drawingFrame(drawing);
+    // Ink follows its target's box: a window that narrowed the box since the strokes were
+    // drawn would otherwise leave them at their old offsets, over other words or past the
+    // box's edge.
+    const strokes =
+      target && drawing.box
+        ? scaledStrokes(drawing.strokes, drawing.box, [
+            rounded(box.width),
+            rounded(box.height),
+          ])
+        : drawing.strokes;
+    const frame = drawingFrame(strokes);
     const { width, height } = frame;
     if (!width || !height) return null;
     const left = box.left + frame.x;
     const top = box.top + frame.y;
-    const data = pathData(drawing);
+    const data = pathData(strokes);
     const described = JSON.stringify([
       className,
       id,

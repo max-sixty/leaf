@@ -823,6 +823,8 @@ def test_server_round_trip(server, page_dir):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
+        "says": "to reap every process … before exporting",
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -849,7 +851,10 @@ def test_server_round_trip(server, page_dir):
     page_drawing = event_model.read_events(page_dir)[-1]
     assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
-    assert "_(drawing attached; inspect it on the live page)_" in transcript.output
+    assert (
+        "_(drawing attached over “to reap every process … before exporting”)_"
+        in transcript.output
+    )
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -987,6 +992,25 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
+        # The box is a size and the words are bounded: both come off the rendered page,
+        # so their shape is all the door can hold them to.
+        *(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "x",
+                "anchor": {"section": "feeder-board"},
+                "drawing": {**drawing, **wrong},
+            }
+            for wrong in (
+                {"box": [640.5, 0]},
+                {"box": [640.5]},
+                {"box": [640.5, 96, 1]},
+                {"says": ""},
+                {"says": "x" * 501},
+                {"says": ["to reap"]},
+            )
+        ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.
         {"kind": "comment", "revision": 2, "text": "x", "about": "layer"},

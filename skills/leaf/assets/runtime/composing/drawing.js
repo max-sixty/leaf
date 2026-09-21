@@ -13,8 +13,16 @@
  * drafts are the one record of the strokes already drawn.
  */
 
-import { documentPoint, shownBox } from "../geometry.js";
-import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
+import { documentPoint, overlaps, shownBox } from "../geometry.js";
+import {
+  closestAcross,
+  COLLAPSE,
+  cut,
+  elementFromPointAcross,
+  inChrome,
+  quoteFrom,
+  textNodesUnder,
+} from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
@@ -22,6 +30,9 @@ import {
   DRAWING_FORMAT,
   MAX_DRAWING_POINTS,
   MAX_DRAWING_STROKES,
+  MAX_DRAWING_WORDS,
+  rounded,
+  scaledStrokes,
 } from "./drawing-record.js";
 
 const MIN_DISTANCE = 2;
@@ -29,7 +40,78 @@ const MIN_GESTURE = 4;
 const PRESS_EVENTS = ["mousedown", "mouseup", "click", "dblclick"];
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const rounded = (value) => Number(value.toFixed(4));
+
+// Where each word of a text node starts and ends, split on the class the page's own
+// reading collapses, so a word here is a word in a quote.
+function wordsOf(data) {
+  const words = [];
+  let from = 0;
+  for (const gap of data.matchAll(COLLAPSE)) {
+    if (gap.index > from) words.push([from, gap.index]);
+    from = gap.index + gap[0].length;
+  }
+  if (from < data.length) words.push([from, data.length]);
+  return words;
+}
+
+// The page's words under a drawing, in reading order, for whoever reads the comment
+// without the page in front of them. Each stroke marks the band its extents span, so a
+// ring says what it encloses and a strike what it crosses, and a word is under the
+// drawing when one of its boxes shares a pixel with a band. Words that run on are read
+// as the page reads a quote; a gap between runs is an ellipsis.
+function wordsUnder(strokes, origin) {
+  const bands = strokes.map((stroke) => {
+    const xs = stroke.map(([x]) => x + origin.left - scrollX);
+    const ys = stroke.map(([, y]) => y + origin.top - scrollY);
+    return {
+      left: Math.min(...xs),
+      right: Math.max(...xs),
+      top: Math.min(...ys),
+      bottom: Math.max(...ys),
+    };
+  });
+  const range = document.createRange();
+  const under = () =>
+    [...range.getClientRects()].some((rect) =>
+      bands.some((band) => overlaps(band, rect)),
+    );
+  const segments = textNodesUnder(document.body);
+  const words = []; // every word in reading order; a node clear of the ink counts once
+  segments.forEach(({ node }, at) => {
+    const spans = wordsOf(node.data);
+    range.selectNodeContents(node);
+    if (!under()) {
+      if (spans.length) words.push({ under: false });
+      return;
+    }
+    for (const [start, end] of spans) {
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      words.push({ at, start, end, under: under() });
+    }
+  });
+  const runs = [];
+  let run = null;
+  for (const word of words) {
+    if (!word.under) run = null;
+    else if (run) run.last = word;
+    else runs.push((run = { first: word, last: word }));
+  }
+  const said = runs
+    .map(({ first, last }) =>
+      quoteFrom(
+        segments.slice(first.at, last.at + 1).map(({ node }, index, all) => ({
+          node,
+          start: index ? 0 : first.start,
+          end: index === all.length - 1 ? last.end : node.data.length,
+        })),
+      ),
+    )
+    .join(" … ");
+  return [...said].length > MAX_DRAWING_WORDS
+    ? `${cut(said, 0, MAX_DRAWING_WORDS - 1)}…`
+    : said;
+}
 
 export function createDrawingController({
   anchors: { aimTargetAt, resolveAnchor, pendingAt },
@@ -143,10 +225,12 @@ export function createDrawingController({
       : null;
   }
 
+  // A drawing's frame: its target's top-left corner, or the document's where it has none.
+  const originOf = (targetBox) =>
+    targetBox ? documentPoint(targetBox.left, targetBox.top) : { left: 0, top: 0 };
+
   function strokeFrom(points, targetBox) {
-    const origin = targetBox
-      ? documentPoint(targetBox.left, targetBox.top)
-      : { left: 0, top: 0 };
+    const origin = originOf(targetBox);
     return points.map(({ left, top }) => [
       rounded(
         clamp(left - origin.left, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
@@ -157,10 +241,28 @@ export function createDrawingController({
     ]);
   }
 
-  const drawingOf = (held, { points, box }) => ({
-    format: DRAWING_FORMAT,
-    strokes: [...(held?.strokes ?? []), strokeFrom(points, box)],
-  });
+  // The drawing's geometry: every stroke in the target's box as it stands now, so strokes
+  // drawn before the box changed size stay over the same part of it as the one just drawn.
+  function drawingOf(held, { points, box }) {
+    const size = box ? [rounded(box.width), rounded(box.height)] : null;
+    const earlier = held?.strokes ?? [];
+    return {
+      format: DRAWING_FORMAT,
+      strokes: [
+        ...(size && held?.box ? scaledStrokes(earlier, held.box, size) : earlier),
+        strokeFrom(points, box),
+      ],
+      ...(size && { box: size }),
+    };
+  }
+
+  // What the ink covers is read once, as the stroke lifts: it walks the page's text, and
+  // the geometry above is rebuilt on every frame of a stroke.
+  function captured(held, completed) {
+    const drawing = drawingOf(held, completed);
+    const says = wordsUnder(drawing.strokes, originOf(completed.box));
+    return says ? { ...drawing, says } : drawing;
+  }
 
   function rememberPoint(x, y) {
     if (!stroke || stroke.invalid) return false;
@@ -273,7 +375,7 @@ export function createDrawingController({
     // Read at the release: a draft settled mid-stroke leaves this stroke to start a
     // drawing of its own, in the frame it was already drawn in.
     const held = heldDrawing(completed.anchor);
-    const drawing = drawingOf(held, completed);
+    const drawing = captured(held, completed);
     session = { anchor: completed.anchor };
     if (completed.anchor) openAnchoredDrawing(completed.anchor, drawing);
     else openPageDrawing(drawing);

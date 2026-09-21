@@ -23,6 +23,7 @@ from render_harness import (
     nudge,
     open_page,
     panel_settled,
+    resized,
     sending,
     told,
 )
@@ -208,6 +209,103 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert mark_relation(returned, posted, "#bg-choice-trail") == pytest.approx(
         relation, abs=0.02
     )
+
+
+WORDS_PAGE = leaf_page(
+    "drawn words",
+    '<h1 id="t">Words</h1>'
+    '<p id="line">Alpha bravo charlie delta echo foxtrot golf.</p>'
+    '<p id="long">One sentence long enough to take most of the column at a desk and to '
+    "wrap onto several lines once the window is a phone's, so the box holding it changes "
+    "both of its sizes between the two.</p>",
+)
+
+WORDS_BOX = """([selector, words]) => {
+  const node = document.querySelector(selector).firstChild;
+  const at = node.data.indexOf(words);
+  const range = document.createRange();
+  range.setStart(node, at);
+  range.setEnd(node, at + words.length);
+  const box = range.getBoundingClientRect();
+  return {x: box.x, y: box.y, width: box.width, height: box.height};
+}"""
+
+
+def strike(page, selector, words):
+    """Drag one level stroke through `words`, from inside its first letter to its last."""
+    box = page.evaluate(WORDS_BOX, [selector, words])
+    y = box["y"] + box["height"] / 2
+    page.mouse.move(box["x"] + 2, y)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] / 2, y, steps=6)
+    page.mouse.move(box["x"] + box["width"] - 2, y, steps=6)
+    page.mouse.up()
+
+
+def test_a_drawing_says_the_words_under_its_ink_and_the_box_it_was_drawn_in(
+    browser, serve
+):
+    """An agent reads a drawing without the page in front of it, so the comment carries
+    the words each stroke ran over, a gap between two strokes as an ellipsis, and the
+    size of the box the offsets were measured in."""
+    page = open_page(browser, serve(WORDS_PAGE))
+    line = page.locator("#line")
+    line.scroll_into_view_if_needed()
+    start = page.evaluate(WORDS_BOX, ["#line", "bravo charlie"])
+    page.mouse.move(start["x"] + 2, start["y"] + start["height"] / 2)
+    page.keyboard.press("w")
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    strike(page, "#line", "bravo charlie")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    strike(page, "#line", "foxtrot")
+    expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
+        "d", re.compile(r"^M[^M]*M[^M]*$")
+    )
+    expect(field).to_be_focused()
+    with sending(page, "the drawing over two runs of words"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {"section": "line"}
+    drawing = event["drawing"]
+    assert len(drawing["strokes"]) == 2
+    assert drawing["says"] == "bravo charlie … foxtrot"
+    box = line.bounding_box()
+    assert drawing["box"] == pytest.approx([box["width"], box["height"]], abs=0.01)
+
+
+def test_a_posted_drawing_keeps_its_place_in_a_box_the_window_resized(browser, serve):
+    """The ink is offsets inside its target. A narrower window reflows the target into a
+    narrower, taller box, and ink left at its old offsets would sit over other words and
+    run past the box's edge, so replay keeps each stroke at the same share of the box."""
+    page = open_page(browser, serve(WORDS_PAGE))
+    target = page.locator("#long")
+    draw_over(page, target, points=((0.1, 0.5), (0.5, 0.2), (0.9, 0.8)))
+    with sending(page, "the drawing comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    expect(page.locator(posted)).to_have_count(1)
+
+    def shares():
+        x, y, width, height = mark_relation(page, posted, "#long")
+        box = target.bounding_box()
+        return (
+            [x / box["width"], y / box["height"]],
+            [width / box["width"], height / box["height"]],
+            box,
+        )
+
+    at, size, wide = shares()
+    resized(page, 480, 800)
+    page.evaluate(RENDERED)
+    moved_at, moved_size, narrow = shares()
+    # The control: the box did change both of its sizes, so unscaled ink would not hold.
+    assert narrow["width"] < wide["width"] * 0.8
+    assert narrow["height"] > wide["height"] * 1.2
+    assert moved_at == pytest.approx(at, abs=0.02)
+    assert moved_size == pytest.approx(size, abs=0.02)
 
 
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):

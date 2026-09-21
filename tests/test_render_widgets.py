@@ -4196,6 +4196,31 @@ def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
     expect(playground.get_by_role("switch", name="Compact spacing")).to_be_checked()
 
 
+def test_a_playground_copy_is_reachable_through_go_to(browser, serve):
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
+    playground = page.locator("#card-playground")
+    playground.locator(".lf-playground-copy").scroll_into_view_if_needed()
+
+    page.keyboard.press("g")
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
+    )
+    hint_targets = page.locator(".lf-go-to-hint").evaluate_all(
+        "els => els.map(el => [el.dataset.lfGoToTarget, el.dataset.lfGoToKind])"
+    )
+    assert hint_targets, hint_targets
+    copy_hint = page.locator(
+        '.lf-go-to-hint[data-lf-go-to-target="card-playground-copy"]'
+    )
+    expect(copy_hint).to_have_count(1)
+    copy_code = copy_hint.get_attribute("data-lf-hint-code")
+    assert copy_code
+
+    page.keyboard.type(copy_code)
+    assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
+
+
 def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     browser, serve
 ):
@@ -4226,7 +4251,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     copy.scroll_into_view_if_needed()
     before = copy.bounding_box()
     copy.click()
-    expect(copy).to_have_accessible_name("Instruction copied")
+    expect(copy).to_have_accessible_name("Copied")
     expect(copy).to_have_css(
         "color",
         page.evaluate(
@@ -4251,7 +4276,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     expect(copy).to_have_accessible_name("Copy instruction")
     assert playground.evaluate("root => root.values")["radius"] == 12
     copy.press("Enter")
-    expect(copy).to_have_accessible_name("Instruction copied")
+    expect(copy).to_have_accessible_name("Copied")
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420

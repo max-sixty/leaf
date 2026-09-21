@@ -490,21 +490,23 @@ customElements.define(
       const actions = offer("footer", "lf-playground-actions");
       this.#reset = offer("button", "lf-btn lf-playground-reset", "Reset");
       this.#copy = offer("wa-copy-button", "lf-playground-copy");
+      const copyTrigger = offer("button", "lf-playground-copy-trigger");
+      if (this.id) copyTrigger.id = `${this.id}-copy`;
+      for (const [className, text] of [
+        ["rest", "Copy instruction"],
+        ["success", "Copied"],
+        ["error", "Copy failed"],
+      ]) {
+        const label = document.createElement("span");
+        label.className = `lf-playground-copy-label ${className}`;
+        label.textContent = text;
+        copyTrigger.append(label);
+      }
       this.#copy.setAttribute("copy-label", "Copy instruction");
       this.#copy.setAttribute("success-label", "Instruction copied");
       this.#copy.setAttribute("error-label", "Could not copy instruction");
       this.#copy.setAttribute("tooltip", "none");
       this.#copy.setAttribute("feedback-duration", "2000");
-      for (const [slot, text] of [
-        ["copy-icon", "Copy instruction"],
-        ["success-icon", "Copied"],
-        ["error-icon", "Could not copy"],
-      ]) {
-        const label = document.createElement("span");
-        label.textContent = text;
-        label.slot = slot;
-        this.#copy.append(label);
-      }
       this.#submit = offer(
         "button",
         "lf-btn primary lf-playground-submit",
@@ -512,6 +514,7 @@ customElements.define(
       );
       this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
       this.#submit.addEventListener("click", () => this.#choose());
+      this.#copy.append(copyTrigger);
       actions.append(this.#reset, this.#copy, this.#submit);
       if (OFFLINE) {
         const unavailable = document.createElement("span");
@@ -774,13 +777,15 @@ customElements.define(
       // Copy feedback belongs to the text copied. A different instruction starts
       // a fresh control, including upstream's in-flight/feedback lock.
       const previous = this.#copy;
-      const focused = document.activeElement === previous;
+      const focused = previous.contains(document.activeElement);
       this.#copy = previous.cloneNode(true);
       this.#copy.value = instruction;
       previous.replaceWith(this.#copy);
       if (focused) {
         const copy = this.#copy;
-        copy.updateComplete.then(() => copy.shadowRoot.querySelector("button").focus());
+        copy.updateComplete.then(() =>
+          copy.querySelector(".lf-playground-copy-trigger").focus(),
+        );
       }
     }
 

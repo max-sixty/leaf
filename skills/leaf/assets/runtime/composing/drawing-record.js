@@ -1,15 +1,15 @@
 /* Validation for the drawing payload shared by composers and the drawing controller.
  *
- * `strokes` are offsets from the target's top-left corner. `box` is that target's
- * size when they were drawn, which is what lets a replay in a box of another size
- * keep the ink over the same part of it. `says` is the page's words under the ink at
- * that moment: the reading of the drawing for whoever cannot see the page.
+ * `strokes` are offsets from the target's top-left corner and may run past its edges; a
+ * page drawing has no target, and its strokes are offsets from the document's origin.
+ * `box` is an anchored drawing's target size when drawn, and `says` is the page's words
+ * the drawing stands over: together the reading for whoever cannot see the page.
  */
 export const DRAWING_FORMAT = "leaf-drawing/2";
 export const MAX_DRAWING_STROKES = 32;
 export const MAX_DRAWING_POINTS = 256;
 export const DRAWING_COORDINATE_LIMIT = 33554432;
-export const MAX_DRAWING_WORDS = 500;
+export const MAX_DRAWING_SAYS_LENGTH = 500; // code points
 
 const bounded = (coordinate) =>
   Number.isFinite(coordinate) &&
@@ -30,7 +30,9 @@ const validBox = (box) =>
   box.every((side) => bounded(side) && side > 0);
 
 const validWords = (says) =>
-  typeof says === "string" && says !== "" && [...says].length <= MAX_DRAWING_WORDS;
+  typeof says === "string" &&
+  says !== "" &&
+  [...says].length <= MAX_DRAWING_SAYS_LENGTH;
 
 export function validDrawing(drawing) {
   return Boolean(
@@ -49,20 +51,3 @@ export function validDrawing(drawing) {
     (drawing.says === undefined || validWords(drawing.says)),
   );
 }
-
-export const rounded = (value) => Number(value.toFixed(4));
-const clamped = (value) =>
-  Math.max(-DRAWING_COORDINATE_LIMIT, Math.min(DRAWING_COORDINATE_LIMIT, value));
-
-// Strokes drawn in a box of one size, as offsets in the same box at another. Each axis
-// scales alone: a picture keeps its proportions, and a paragraph that reflowed narrower
-// grew taller, where the same share of its height is the nearest thing to the same line.
-export const scaledStrokes = (strokes, from, to) =>
-  from[0] === to[0] && from[1] === to[1]
-    ? strokes
-    : strokes.map((stroke) =>
-        stroke.map(([x, y]) => [
-          rounded(clamped((x * to[0]) / from[0])),
-          rounded(clamped((y * to[1]) / from[1])),
-        ]),
-      );

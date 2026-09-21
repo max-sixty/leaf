@@ -126,10 +126,9 @@ search: the scene, chip, and activation it declares over the shared hint session
 geometry of the search marks that share its layer;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/drawing.js` owns Draw mode's stroke capture, the reading of the page's
-words under the ink, and drawing commands;
-`composing/drawing-record.js` owns drawing payload shape, validation, and the scaling of
-strokes between two sizes of their target's box; `composing/drawing-paint.js` owns their
-projection into the page;
+words a drawing stands over, and drawing commands;
+`composing/drawing-record.js` owns drawing payload shape and validation;
+`composing/drawing-paint.js` owns their projection into the page;
 `runtime/composing/input.js` owns shared text input and pasted-media draft state, while
 its retained Lit shelf owns the thumbnail projection; `runtime/composing/selection.js`
 owns selection-composer state;

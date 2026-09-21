@@ -23,7 +23,6 @@ from render_harness import (
     nudge,
     open_page,
     panel_settled,
-    resized,
     sending,
     told,
 )
@@ -215,9 +214,13 @@ WORDS_PAGE = leaf_page(
     "drawn words",
     '<h1 id="t">Words</h1>'
     '<p id="line">Alpha bravo charlie delta echo foxtrot golf.</p>'
-    '<p id="long">One sentence long enough to take most of the column at a desk and to '
-    "wrap onto several lines once the window is a phone's, so the box holding it changes "
-    "both of its sizes between the two.</p>",
+    # Longer than a drawing may say, so the reading's cut is what reaches the door.
+    f'<p id="para">Arrow {"lorem ipsum dolor sit amet " * 20}target.</p>'
+    # Rows the box has cut away still have coordinates, and they are the paragraph's below.
+    # The words sit in the box directly, so the clip over them is their own holder's.
+    f'<div id="pit">{"buried " * 80}</div>'
+    '<p id="under">India juliet kilo.</p>',
+    head="<style>#pit { height: 2em; overflow: hidden }</style>",
 )
 
 WORDS_BOX = """([selector, words]) => {
@@ -231,23 +234,48 @@ WORDS_BOX = """([selector, words]) => {
 }"""
 
 
-def strike(page, selector, words):
-    """Drag one level stroke through `words`, from inside its first letter to its last."""
-    box = page.evaluate(WORDS_BOX, [selector, words])
-    y = box["y"] + box["height"] / 2
-    page.mouse.move(box["x"] + 2, y)
+def trace(page, points):
+    """Drag one stroke through viewport `points`."""
+    first, *rest = points
+    page.mouse.move(*first)
     page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] / 2, y, steps=6)
-    page.mouse.move(box["x"] + box["width"] - 2, y, steps=6)
+    for point in rest:
+        page.mouse.move(*point, steps=6)
     page.mouse.up()
 
 
-def test_a_drawing_says_the_words_under_its_ink_and_the_box_it_was_drawn_in(
+def strike(page, selector, words, *, below=None):
+    """Drag one level stroke along `words`, from inside its first letter to its last:
+    through their middle, or `below` pixels under their box."""
+    box = page.evaluate(WORDS_BOX, [selector, words])
+    y = box["y"] + (box["height"] / 2 if below is None else box["height"] + below)
+    trace(
+        page,
+        [
+            (box["x"] + 2, y),
+            (box["x"] + box["width"] / 2, y),
+            (box["x"] + box["width"] - 2, y),
+        ],
+    )
+
+
+def around(page, box):
+    """Ring a box: one stroke just inside it that ends where it began."""
+    left, top = box["x"] + 2, box["y"] + 2
+    right, bottom = box["x"] + box["width"] - 2, box["y"] + box["height"] - 2
+    trace(
+        page,
+        [(left, top), (right, top), (right, bottom), (left, bottom), (left, top + 2)],
+    )
+
+
+def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     browser, serve
 ):
     """An agent reads a drawing without the page in front of it, so the comment carries
-    the words each stroke ran over, a gap between two strokes as an ellipsis, and the
-    size of the box the offsets were measured in."""
+    the page's words inside the ink's extents, first to last, and the size of the box the
+    offsets were measured in. Words the page has cut away from under the ink are not
+    among them."""
     page = open_page(browser, serve(WORDS_PAGE))
     line = page.locator("#line")
     line.scroll_into_view_if_needed()
@@ -255,57 +283,73 @@ def test_a_drawing_says_the_words_under_its_ink_and_the_box_it_was_drawn_in(
     page.mouse.move(start["x"] + 2, start["y"] + start["height"] / 2)
     page.keyboard.press("w")
     expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
-    strike(page, "#line", "bravo charlie")
     field = page.locator(".lf-fab-input")
+
+    def sent(what):
+        # Pressed on the field rather than on whatever holds focus: a later stroke reopens
+        # the box, and focus is another test's subject.
+        expect(field).to_be_focused()
+        with sending(page, what):
+            field.press("ControlOrMeta+Enter")
+        return events_model.read_events(serve.page_dir)[-1]
+
+    # Two strokes are one drawing, which says everything between its first word and last.
+    strike(page, "#line", "bravo charlie")
     expect(field).to_be_focused()
     strike(page, "#line", "foxtrot")
     expect(page.locator(".lf-drawing-pending path")).to_have_attribute(
         "d", re.compile(r"^M[^M]*M[^M]*$")
     )
-    expect(field).to_be_focused()
-    with sending(page, "the drawing over two runs of words"):
-        page.keyboard.press("ControlOrMeta+Enter")
-
-    event = events_model.read_events(serve.page_dir)[-1]
+    event = sent("the drawing over two runs of words")
     assert event["anchor"] == {"section": "line"}
     drawing = event["drawing"]
     assert len(drawing["strokes"]) == 2
-    assert drawing["says"] == "bravo charlie … foxtrot"
+    assert drawing["says"] == "bravo charlie delta echo foxtrot"
     box = line.bounding_box()
     assert drawing["box"] == pytest.approx([box["width"], box["height"]], abs=0.01)
 
+    # A line under a word is its underline, though it touches none of the word's box.
+    strike(page, "#line", "delta", below=3)
+    assert sent("the underline")["drawing"]["says"] == "delta"
 
-def test_a_posted_drawing_keeps_its_place_in_a_box_the_window_resized(browser, serve):
-    """The ink is offsets inside its target. A narrower window reflows the target into a
-    narrower, taller box, and ink left at its old offsets would sit over other words and
-    run past the box's edge, so replay keeps each stroke at the same share of the box."""
-    page = open_page(browser, serve(WORDS_PAGE))
-    target = page.locator("#long")
-    draw_over(page, target, points=((0.1, 0.5), (0.5, 0.2), (0.9, 0.8)))
-    with sending(page, "the drawing comment"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    event = events_model.read_events(serve.page_dir)[-1]
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
-    expect(page.locator(posted)).to_have_count(1)
+    # An arrow from a paragraph's first word to its far corner says the paragraph, as
+    # far as a drawing's 500 characters go.
+    para = page.locator("#para")
+    para.scroll_into_view_if_needed()
+    # Read before the send, which adds the block's comment note to what it holds.
+    whole = " ".join(para.inner_text().split())
+    first = page.evaluate(WORDS_BOX, ["#para", "Arrow"])
+    box = para.bounding_box()
+    assert box["height"] > 3 * first["height"], "the paragraph must wrap"
+    trace(
+        page,
+        [
+            (first["x"] + 2, first["y"] + first["height"] / 2),
+            (
+                box["x"] + box["width"] - 2,
+                box["y"] + box["height"] - first["height"] / 2,
+            ),
+        ],
+    )
+    assert len(whole) > 500
+    assert sent("the arrow")["drawing"]["says"] == whole[:499] + "…"
 
-    def shares():
-        x, y, width, height = mark_relation(page, posted, "#long")
-        box = target.bounding_box()
-        return (
-            [x / box["width"], y / box["height"]],
-            [width / box["width"], height / box["height"]],
-            box,
-        )
-
-    at, size, wide = shares()
-    resized(page, 480, 800)
-    page.evaluate(RENDERED)
-    moved_at, moved_size, narrow = shares()
-    # The control: the box did change both of its sizes, so unscaled ink would not hold.
-    assert narrow["width"] < wide["width"] * 0.8
-    assert narrow["height"] > wide["height"] * 1.2
-    assert moved_at == pytest.approx(at, abs=0.02)
-    assert moved_size == pytest.approx(size, abs=0.02)
+    # The cut-away rows of the box above lie under this ring's coordinates.
+    page.locator("#under").scroll_into_view_if_needed()
+    hidden = page.evaluate(
+        """() => {
+          const under = document.querySelector("#under").getBoundingClientRect();
+          const rows = document.createRange();
+          rows.selectNodeContents(document.querySelector("#pit"));
+          return [...rows.getClientRects()].some(
+            (row) => row.bottom > under.top && row.top < under.bottom);
+        }"""
+    )
+    assert hidden, "the control: a hidden row must share the ring's coordinates"
+    around(page, page.locator("#under").bounding_box())
+    assert (
+        sent("the ring under cut-away rows")["drawing"]["says"] == "India juliet kilo."
+    )
 
 
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):

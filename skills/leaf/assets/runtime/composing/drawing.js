@@ -10,15 +10,18 @@
  * stroke's draft wherever it starts, while that draft holds a drawing. The controller owns
  * pointer capture, stroke sampling, and mode state. SVG replay, anchor placement,
  * composers, reactions, and page geometry enter through explicit capabilities, and the
- * drafts are the one record of the strokes already drawn.
+ * drafts are the one record of the strokes already drawn. As each stroke lifts, the
+ * controller also reads the page's words the drawing stands over into the record, for
+ * whoever reads the comment without the page.
  */
 
-import { documentPoint, overlaps, shownBox } from "../geometry.js";
+import { clippedContents, documentPoint, overlaps, shownBox } from "../geometry.js";
 import {
   closestAcross,
   COLLAPSE,
   cut,
   elementFromPointAcross,
+  elementOver,
   inChrome,
   quoteFrom,
   textNodesUnder,
@@ -30,9 +33,7 @@ import {
   DRAWING_FORMAT,
   MAX_DRAWING_POINTS,
   MAX_DRAWING_STROKES,
-  MAX_DRAWING_WORDS,
-  rounded,
-  scaledStrokes,
+  MAX_DRAWING_SAYS_LENGTH,
 } from "./drawing-record.js";
 
 const MIN_DISTANCE = 2;
@@ -40,6 +41,7 @@ const MIN_GESTURE = 4;
 const PRESS_EVENTS = ["mousedown", "mouseup", "click", "dblclick"];
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const rounded = (value) => Number(value.toFixed(4));
 
 // Where each word of a text node starts and ends, split on the class the page's own
 // reading collapses, so a word here is a word in a quote.
@@ -54,63 +56,53 @@ function wordsOf(data) {
   return words;
 }
 
-// The page's words under a drawing, in reading order, for whoever reads the comment
-// without the page in front of them. Each stroke marks the band its extents span, so a
-// ring says what it encloses and a strike what it crosses, and a word is under the
-// drawing when one of its boxes shares a pixel with a band. Words that run on are read
-// as the page reads a quote; a gap between runs is an ellipsis.
-function wordsUnder(strokes, origin) {
-  const bands = strokes.map((stroke) => {
-    const xs = stroke.map(([x]) => x + origin.left - scrollX);
-    const ys = stroke.map(([, y]) => y + origin.top - scrollY);
-    return {
-      left: Math.min(...xs),
-      right: Math.max(...xs),
-      top: Math.min(...ys),
-      bottom: Math.max(...ys),
-    };
-  });
+// How far above its ink a drawing reaches for words: an underline stands below its word.
+const UNDERLINE_REACH = 8;
+
+// The page's words a drawing stands over, for whoever reads the comment without the page
+// in front of them: from the first shown word inside the ink's extents to the last, as the
+// page reads a quote. That is more than the ink marked, since an arrow says the paragraph
+// it crosses, and the reader's own words say which part they meant. A word counts by the
+// part of it the page shows: a row scrolled out of its container lies under the ink's
+// coordinates and under none of its pixels.
+function wordsUnder(ink) {
+  const xs = ink.map(([x]) => x);
+  const ys = ink.map(([, y]) => y);
+  const extent = {
+    left: Math.min(...xs),
+    right: Math.max(...xs),
+    top: Math.min(...ys) - UNDERLINE_REACH,
+    bottom: Math.max(...ys),
+  };
+  const clips = new Map();
   const range = document.createRange();
-  const under = () =>
-    [...range.getClientRects()].some((rect) =>
-      bands.some((band) => overlaps(band, rect)),
-    );
   const segments = textNodesUnder(document.body);
-  const words = []; // every word in reading order; a node clear of the ink counts once
+  let first = null;
+  let last = null;
   segments.forEach(({ node }, at) => {
-    const spans = wordsOf(node.data);
     range.selectNodeContents(node);
-    if (!under()) {
-      if (spans.length) words.push({ under: false });
-      return;
-    }
-    for (const [start, end] of spans) {
+    if (![...range.getClientRects()].some((rect) => overlaps(extent, rect))) return;
+    const holder = elementOver(node);
+    for (const [start, end] of wordsOf(node.data)) {
       range.setStart(node, start);
       range.setEnd(node, end);
-      words.push({ at, start, end, under: under() });
+      const shown = [...range.getClientRects()].some((rect) => {
+        const box = clippedContents(rect, holder, clips);
+        return box && overlaps(extent, box);
+      });
+      if (!shown) continue;
+      last = { at, start, end };
+      first ??= last;
     }
   });
-  const runs = [];
-  let run = null;
-  for (const word of words) {
-    if (!word.under) run = null;
-    else if (run) run.last = word;
-    else runs.push((run = { first: word, last: word }));
-  }
-  const said = runs
-    .map(({ first, last }) =>
-      quoteFrom(
-        segments.slice(first.at, last.at + 1).map(({ node }, index, all) => ({
-          node,
-          start: index ? 0 : first.start,
-          end: index === all.length - 1 ? last.end : node.data.length,
-        })),
-      ),
-    )
-    .join(" … ");
-  return [...said].length > MAX_DRAWING_WORDS
-    ? `${cut(said, 0, MAX_DRAWING_WORDS - 1)}…`
-    : said;
+  if (!first) return "";
+  return quoteFrom(
+    segments.slice(first.at, last.at + 1).map(({ node }, index, all) => ({
+      node,
+      start: index ? 0 : first.start,
+      end: index === all.length - 1 ? last.end : node.data.length,
+    })),
+  );
 }
 
 export function createDrawingController({
@@ -225,12 +217,10 @@ export function createDrawingController({
       : null;
   }
 
-  // A drawing's frame: its target's top-left corner, or the document's where it has none.
-  const originOf = (targetBox) =>
-    targetBox ? documentPoint(targetBox.left, targetBox.top) : { left: 0, top: 0 };
-
   function strokeFrom(points, targetBox) {
-    const origin = originOf(targetBox);
+    const origin = targetBox
+      ? documentPoint(targetBox.left, targetBox.top)
+      : { left: 0, top: 0 };
     return points.map(({ left, top }) => [
       rounded(
         clamp(left - origin.left, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
@@ -241,27 +231,31 @@ export function createDrawingController({
     ]);
   }
 
-  // The drawing's geometry: every stroke in the target's box as it stands now, so strokes
-  // drawn before the box changed size stay over the same part of it as the one just drawn.
+  // The drawing's geometry, and the size of the box its offsets were drawn in, which is
+  // what places a mark on a picture that has no words.
   function drawingOf(held, { points, box }) {
-    const size = box ? [rounded(box.width), rounded(box.height)] : null;
-    const earlier = held?.strokes ?? [];
     return {
       format: DRAWING_FORMAT,
-      strokes: [
-        ...(size && held?.box ? scaledStrokes(earlier, held.box, size) : earlier),
-        strokeFrom(points, box),
-      ],
-      ...(size && { box: size }),
+      strokes: [...(held?.strokes ?? []), strokeFrom(points, box)],
+      ...(box && { box: [rounded(box.width), rounded(box.height)] }),
     };
   }
 
-  // What the ink covers is read once, as the stroke lifts: it walks the page's text, and
-  // the geometry above is rebuilt on every frame of a stroke.
+  // What the drawing stands over is read as each stroke lifts, over every stroke so far:
+  // the reading walks the page's text, and the geometry above is rebuilt on every frame of
+  // a stroke.
   function captured(held, completed) {
     const drawing = drawingOf(held, completed);
-    const says = wordsUnder(drawing.strokes, originOf(completed.box));
-    return says ? { ...drawing, says } : drawing;
+    const origin = completed.box ?? { left: -scrollX, top: -scrollY };
+    const said = wordsUnder(
+      drawing.strokes.flat().map(([x, y]) => [origin.left + x, origin.top + y]),
+    );
+    if (!said) return drawing;
+    const says =
+      [...said].length > MAX_DRAWING_SAYS_LENGTH
+        ? `${cut(said, 0, MAX_DRAWING_SAYS_LENGTH - 1)}…`
+        : said;
+    return { ...drawing, says };
   }
 
   function rememberPoint(x, y) {

@@ -21,6 +21,7 @@ from .projection import frozen_thread_reading
 from .registry.contract import RegistryError, handling
 from .registry.reactions import described
 from .registry.storage import active_registry
+from .revision_artifact import read_registry
 from .served_state.page import full_state
 from .structure import parse_revision
 from .thread_context import (
@@ -79,10 +80,12 @@ def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
     it picked. They are words only to whoever still holds the document, and an
     agent meeting the batch after a compaction, or from another session, holds
     none of it. The reading is the gesture's own document, the revision it
-    names or the frozen message that sent the widget, so a later version that
-    reworded an option does not change what the reader chose. An element that
-    only encloses another named one is left out: its words repeat theirs, and a
-    list would otherwise travel whole with every row pressed in it.
+    names or the frozen message that sent the widget, under the vocabulary that
+    document was written in, so a later version that reworded an option does
+    not change what the reader chose. A child a reader wrote is in no document;
+    the event's own detail carries its words. An element that only encloses
+    another named one is left out: its words repeat theirs, and a list would
+    otherwise travel whole with every row pressed in it.
     """
     if event["kind"] == "undo":
         event = by_id.get(event["undoes"], event)
@@ -95,11 +98,11 @@ def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
         for identity in meaning.get("depends", [event["widget"]])
         if identity in said
     }
+    enclosing = {outer for element in named.values() for outer in element.within[:-1]}
     return {
         identity: element.words
         for identity, element in named.items()
-        if element.words
-        and not any(identity in other.within[:-1] for other in named.values())
+        if element.words and identity not in enclosing
     }
 
 
@@ -200,13 +203,18 @@ def batch_data(
     readings: dict[int | None, dict] = {}
 
     def reading(document: dict) -> dict:
-        """What one gesture's document says, read once for the whole batch."""
+        """What one gesture's document says, read once for the whole batch. A
+        page revision keeps the registry captured with it; frozen thread markup
+        lives for the page's whole lifetime and reads under the active one."""
         revision = document.get("revision")
         if revision not in readings:
             readings[revision] = (
                 frozen_thread_reading(events, registry).spoken
                 if document["kind"] == "thread"
-                else spoken(parse_revision(page_dir, revision), registry)
+                else spoken(
+                    parse_revision(page_dir, revision),
+                    read_registry(page_dir, revision),
+                )
             )
         return readings[revision]
 
@@ -218,7 +226,8 @@ def batch_data(
             "subject": _subject(event, conversations, by_id),
             "conversations": conversations,
         }
-        # No vocabulary, no reading: what an element says is the registry's word.
+        # What an element says is a registry's word, and a page whose active layer
+        # does not read is not read for its words at all.
         if registry is not None and (says := _says(event, by_id, reading)):
             entry["says"] = says
         response = responses.get(event["id"])

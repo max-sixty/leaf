@@ -297,7 +297,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     requested_frame = evaluate_probe(page, "requestFrame")
     wait_for_probe(page, "framePresented", requested_frame)
     found = [f"[{scheme}] console: {e}" for e in errors]
-    found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
+    for failure in failsoft:
+        owner = f"<{failure['tag']}" + (
+            f" id={failure['id']!r}>" if failure["id"] else ">"
+        )
+        found.append(f"[{scheme}] {owner} failed soft: {failure['message']}")
     found += [
         f"[{scheme}] <{c['tag']} id={c['id']!r}> could not run its render check: "
         f"{c['error']}"

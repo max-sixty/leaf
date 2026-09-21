@@ -1,10 +1,14 @@
-/* One-stroke drawing gesture controller.
+/* Drawing gesture controller.
  *
- * Draw mode claims one primary-pointer drag anywhere on the page. A semantic target
- * under or horizontally alongside its first point remains the conversation coordinate;
- * otherwise the stroke becomes a page comment. The controller owns pointer capture,
- * stroke sampling, and mode state. SVG replay, anchor placement, composers, reactions,
- * and page geometry enter through explicit capabilities.
+ * Draw mode claims primary-pointer drags anywhere on the page until the reader leaves it.
+ * The first stroke of a Draw mode session starts a drawing: a semantic target under or
+ * horizontally alongside its first point remains the conversation coordinate; otherwise
+ * the stroke becomes a page comment. Each later stroke joins that drawing, in its frame,
+ * while the draft it opened still holds it; once that draft is sent or put away, the next
+ * stroke starts another. The controller owns pointer capture, stroke sampling, and mode
+ * state. SVG replay, anchor placement, composers, reactions, and page geometry enter
+ * through explicit capabilities, and the composer's draft is the one record of the
+ * strokes already drawn.
  */
 
 import { documentPoint, shownBox } from "../geometry.js";
@@ -15,6 +19,7 @@ import {
   DRAWING_COORDINATE_LIMIT,
   DRAWING_FORMAT,
   MAX_DRAWING_POINTS,
+  MAX_DRAWING_STROKES,
 } from "./drawing-record.js";
 
 const MIN_DISTANCE = 2;
@@ -44,6 +49,8 @@ export function createDrawingController({
 }) {
   let drawModeOn = false;
   let stroke = null;
+  // The draft this session's first stroke opened: its anchor, or null for a page drawing.
+  let session = null;
   let claimThroughClick = false;
   let claimedPointer = null;
   let releaseTimer = null;
@@ -59,7 +66,7 @@ export function createDrawingController({
     });
   }
 
-  function setDrawMode(on, { spoken = true, keepPress = false } = {}) {
+  function setDrawMode(on, { spoken = true } = {}) {
     on = Boolean(on);
     if (on) {
       setDesignMode(false, { spoken: false });
@@ -67,7 +74,8 @@ export function createDrawingController({
       closeReactionMode();
     }
     drawModeOn = on;
-    if (!on && !keepPress) {
+    session = null;
+    if (!on) {
       stroke = null;
       // Escape can leave while the pointer remains down. Keep claiming that physical
       // press through its compatibility click; only the drawing itself stops.
@@ -79,7 +87,7 @@ export function createDrawingController({
     if (spoken)
       announce(
         on
-          ? "Draw mode: draw anywhere on the page, then send or add words. Escape leaves."
+          ? "Draw mode: draw anywhere on the page; each stroke adds to one drawing. Escape leaves."
           : "Draw mode off",
       );
     paintDrawings();
@@ -113,26 +121,45 @@ export function createDrawingController({
     );
   }
 
-  function drawingFrom(points, targetBox) {
+  // The drawing the session's draft holds: the open composer on the session's anchor, or
+  // the page composer. Asked of the composers rather than remembered here, because a send,
+  // a discard or another tab can settle that draft between strokes.
+  function heldDrawing() {
+    if (!session) return null;
+    if (!session.anchor) return pageDrawing();
+    const draft = composerDraft();
+    return draft.open && draft.anchor === session.anchor ? draft.drawing : null;
+  }
+
+  // A joining stroke keeps the drawing's frame wherever it starts: the session's anchor, or
+  // the document for a page drawing. When that anchor's element has gone the drawing
+  // cannot be extended, so there is no frame and the stroke starts a drawing of its own.
+  function sessionTarget() {
+    if (!session.anchor) return { anchor: null, element: null };
+    const found = resolveAnchor(session.anchor, "");
+    return found?.status !== "outdated" && found?.element
+      ? { anchor: session.anchor, element: found.element }
+      : null;
+  }
+
+  function strokeFrom(points, targetBox) {
     const origin = targetBox
       ? documentPoint(targetBox.left, targetBox.top)
       : { left: 0, top: 0 };
-    return {
-      format: DRAWING_FORMAT,
-      points: points.map(({ left, top }) => [
-        rounded(
-          clamp(
-            left - origin.left,
-            -DRAWING_COORDINATE_LIMIT,
-            DRAWING_COORDINATE_LIMIT,
-          ),
-        ),
-        rounded(
-          clamp(top - origin.top, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
-        ),
-      ]),
-    };
+    return points.map(({ left, top }) => [
+      rounded(
+        clamp(left - origin.left, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
+      ),
+      rounded(
+        clamp(top - origin.top, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
+      ),
+    ]);
   }
+
+  const drawingOf = (held, { points, box }) => ({
+    format: DRAWING_FORMAT,
+    strokes: [...(held?.strokes ?? []), strokeFrom(points, box)],
+  });
 
   function rememberPoint(x, y) {
     if (!stroke || stroke.invalid) return false;
@@ -182,19 +209,27 @@ export function createDrawingController({
     if (inChrome(origin) || closestAcross(origin, ".lf-conversation")) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
-    const target = targetAtPointer();
+    claim(event);
+    const held = heldDrawing();
+    if (held && held.strokes.length >= MAX_DRAWING_STROKES) {
+      announce(
+        `A drawing holds ${MAX_DRAWING_STROKES} strokes. Send this one to start another.`,
+      );
+      return;
+    }
+    const joined = held ? sessionTarget() : null;
+    const target = joined ?? targetAtPointer();
     const box = target?.element ? shownBox(target.element) : null;
     if (!target || (target.element && (!box?.width || !box?.height))) {
       announce("Draw on the page.");
-      claim(event);
       return;
     }
-    claim(event);
     event.target.setPointerCapture(event.pointerId);
     stroke = {
       anchor: target.anchor,
       box,
       distance: 0,
+      joins: Boolean(joined),
       lastScreen: null,
       points: [],
       pointerId: event.pointerId,
@@ -229,7 +264,7 @@ export function createDrawingController({
     releaseCompatibilityClickSoon();
     if (completed.invalid) {
       shiftDrawingPaint();
-      announce("Drawing canceled because its page element changed.");
+      announce("Stroke canceled because its page element changed.");
       return;
     }
     if (completed.distance < MIN_GESTURE || completed.points.length < 2) {
@@ -237,11 +272,18 @@ export function createDrawingController({
       announce("Drag to draw; a click leaves no mark.");
       return;
     }
-    const drawing = drawingFrom(completed.points, completed.box);
-    setDrawMode(false, { spoken: false, keepPress: true });
+    // Read again at the release: a draft settled mid-stroke leaves this stroke to start
+    // a drawing of its own, in the frame it was already drawn in.
+    const held = completed.joins ? heldDrawing() : null;
+    const drawing = drawingOf(held, completed);
+    session = { anchor: completed.anchor };
     if (completed.anchor) openAnchoredDrawing(completed.anchor, drawing);
     else openPageDrawing(drawing);
-    announce("Drawing captured. Send it or add words to the comment.");
+    announce(
+      held
+        ? "Stroke added to the drawing."
+        : "Drawing captured. Draw more strokes, add words, or send it.",
+    );
   }
 
   function cancel(event) {
@@ -258,17 +300,19 @@ export function createDrawingController({
     claimedPointer = null;
     releaseCompatibilityClickSoon();
     shiftDrawingPaint();
-    announce("Drawing canceled. Draw mode is still on.");
+    announce("Stroke canceled. Draw mode is still on.");
   }
 
   const compatibilityPress = (event) => {
     if (claimThroughClick) claim(event);
   };
 
+  // The drawing as it will stand when this stroke lifts, earlier strokes included, so the
+  // strokes already drawn stay on screen while the next one is drawn.
   function activeDrawing() {
     if (!stroke || stroke.points.length < 2) return null;
     return {
-      drawing: drawingFrom(stroke.points, stroke.box),
+      drawing: drawingOf(stroke.joins ? heldDrawing() : null, stroke),
       target: stroke.target,
     };
   }
@@ -313,15 +357,16 @@ export function createDrawingController({
     releaseTimer = null;
     drawModeOn = false;
     stroke = null;
+    session = null;
     claimThroughClick = false;
     claimedPointer = null;
     document.body.removeAttribute("data-lf-draw-mode");
     banner.removeAttribute("data-lf-draw-mode");
   }
 
-  // Draw mode claims one pointer stroke before handing its mark to an ordinary comment.
-  // Its own scope keeps the toggle and Escape as the two ways out while the page
-  // underneath remains the drawing surface rather than receiving the drag.
+  // Draw mode claims pointer strokes and hands their marks to an ordinary comment. Its own
+  // scope keeps the toggle and Escape as the two ways out while the page underneath
+  // remains the drawing surface rather than receiving the drag.
   pageScope("draw mode", {
     title: "In Draw mode",
     at: drawModeActive,
@@ -330,7 +375,7 @@ export function createDrawingController({
         id: "draw.mode.stroke",
         keys: [],
         label: "drag",
-        does: "Draw anywhere on the page, then send or add words",
+        does: "Draw anywhere on the page; each stroke adds to one drawing",
       },
       {
         id: "draw.mode.exit",
@@ -355,7 +400,7 @@ export function createDrawingController({
   pageCommand({
     id: "draw.mode.enter",
     keys: ["w"],
-    does: "Draw on the page and attach the mark to a comment",
+    does: "Draw on the page and attach the drawing to a comment",
     line: "draw",
     when: () => anchoringIsReady(),
     run: () => setDrawMode(true),

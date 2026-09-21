@@ -128,24 +128,29 @@
             "drawing": {
               "type": "object",
               "properties": {
-                "format": {"const": "leaf-drawing/1"},
-                "points": {
+                "format": {"const": "leaf-drawing/2"},
+                "strokes": {
                   "type": "array",
-                  "minItems": 2,
-                  "maxItems": 256,
+                  "minItems": 1,
+                  "maxItems": 32,
                   "items": {
                     "type": "array",
                     "minItems": 2,
-                    "maxItems": 2,
-                    "prefixItems": [
-                      {"type": "number", "minimum": -33554432, "maximum": 33554432},
-                      {"type": "number", "minimum": -33554432, "maximum": 33554432}
-                    ],
-                    "items": false
+                    "maxItems": 256,
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        {"type": "number", "minimum": -33554432, "maximum": 33554432},
+                        {"type": "number", "minimum": -33554432, "maximum": 33554432}
+                      ],
+                      "items": false
+                    }
                   }
                 }
               },
-              "required": ["format", "points"],
+              "required": ["format", "strokes"],
               "additionalProperties": false
             },
             "suggestion": {"type": "boolean"},

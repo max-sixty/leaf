@@ -36,11 +36,12 @@ section first, then link the outcome from the reply with a fragment link such as
 result, keep the thread anchored to that page section. Keep the discussion active
 if the outcome is not yet incorporated or the reader still owes an explicit review.
 
-A browser comment may carry a drawing that continues across the page. A mark begun over
-or in the margin beside an addressable element anchors there; one begun where no addressable element shares its
-line belongs to the page whole. Treat it as visual evidence for that ordinary thread:
-inspect the stroke on the live page, use any accompanying text, and reply or revise through
-the same path as any other comment.
+A browser comment may carry a drawing of one or more strokes that continue across the
+page. A drawing whose first stroke began over or in the margin beside an addressable
+element anchors there; one begun where no addressable element shares its line belongs to
+the page whole. Treat it as visual evidence for that ordinary thread: inspect the strokes
+on the live page, use any accompanying text, and reply or revise through the same path as
+any other comment.
 
 A reader may paste an image into any thread text box. The composer shows a thumbnail,
 while its message carries an ordinary Markdown image at `/media/<digest>.<ext>`. Resolve

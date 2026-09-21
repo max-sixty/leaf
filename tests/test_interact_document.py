@@ -826,8 +826,8 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
     }
     assert message["source"]["event"] == root["id"]
     drawing = {
-        "format": "leaf-drawing/1",
-        "points": [[-20, 74], [50, 10], [120, 74]],
+        "format": "leaf-drawing/2",
+        "strokes": [[[-20, 74], [50, 10], [120, 74]]],
     }
     drawn = events_model.append_event(
         page_dir,

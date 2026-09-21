@@ -75,42 +75,48 @@ lf-playground-control {
   font-weight: 600;
 }
 
-lf-playground-control > input[type="range"] {
-  box-sizing: border-box;
+lf-playground-control > :is(wa-slider, wa-input, wa-radio-group) {
   grid-column: 1 / -1;
   width: 100%;
-  margin: 0;
-  accent-color: var(--accent);
 }
 
-lf-playground-control > input[type="checkbox"] {
-  inline-size: 2.35rem;
-  block-size: 1.35rem;
-  margin: 0;
-  accent-color: var(--accent);
+lf-playground-control > wa-slider {
+  --track-size: 0.35rem;
+  --thumb-width: 1rem;
+  --thumb-height: 1rem;
 }
 
-lf-playground-control > input[type="color"] {
-  box-sizing: border-box;
-  inline-size: 3rem;
-  block-size: 2rem;
-  padding: 2px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
+lf-playground-control > wa-slider::part(label),
+lf-playground-control > wa-input::part(label),
+lf-playground-control > wa-radio-group::part(form-control-label) {
+  display: none;
 }
 
-lf-playground-control > input[type="text"] {
+.lf-playground-toggle > wa-switch {
   grid-column: 1 / -1;
-  box-sizing: border-box;
+  width: 100%;
+  --width: 2.25rem;
+  --height: 1.25rem;
+  --thumb-size: 0.875rem;
+  --wa-form-control-border-color: var(--muted);
+}
+
+lf-playground-control > wa-switch::part(switch) {
   width: 100%;
   min-height: var(--aim-floor);
-  padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
-  color: var(--ink);
-  font: var(--t-5)/1.35 var(--sans);
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+lf-playground-control > wa-switch::part(label) {
+  margin: 0;
+  line-height: 1.35;
+}
+
+lf-playground-control > wa-switch::part(control),
+lf-playground-control > wa-switch::part(thumb) {
+  transition: none;
 }
 
 .lf-playground-reading {
@@ -120,34 +126,20 @@ lf-playground-control > input[type="text"] {
   font: var(--t-6)/1.3 var(--mono);
 }
 
-.lf-playground-choices {
+lf-playground-control > wa-radio-group::part(form-control-input) {
   display: grid;
-  grid-column: 1 / -1;
   grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
   gap: var(--sp-1);
 }
 
 lf-playground-choice {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--aim-floor);
-  padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
-  cursor: pointer;
+  display: contents;
 }
 
-lf-playground-choice:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--accent-faint);
-}
-
-lf-playground-choice input {
-  flex: 0 0 auto;
-  margin: 0;
-  accent-color: var(--accent);
+lf-playground-choice > wa-radio {
+  min-height: max(var(--aim-floor), 2rem);
+  justify-content: center;
+  text-align: center;
 }
 
 .lf-playground-presets {
@@ -220,10 +212,42 @@ lf-playground-value {
   text-align: end;
 }
 
-.lf-playground-copy.is-copied {
+.lf-playground-copy-trigger {
+  box-sizing: border-box;
+  min-height: var(--aim-floor);
+  height: auto;
+  white-space: nowrap;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--field);
+  color: var(--ink-2);
+  font: 600 var(--t-6)/1.2 var(--sans);
+}
+
+.lf-playground-copy-label.success,
+.lf-playground-copy-label.error {
+  display: none;
+}
+
+.lf-playground-copy:state(success) .lf-playground-copy-label.rest,
+.lf-playground-copy:state(error) .lf-playground-copy-label.rest {
+  display: none;
+}
+
+.lf-playground-copy:state(success) .lf-playground-copy-label.success,
+.lf-playground-copy:state(error) .lf-playground-copy-label.error {
+  display: inline;
+}
+
+.lf-playground-copy:state(success) .lf-playground-copy-trigger {
   border-color: var(--ok);
   background: var(--ok-tint);
   color: var(--ok-ink);
+}
+
+.lf-playground-copy:state(error) .lf-playground-copy-trigger {
+  color: var(--danger-ink);
 }
 
 lf-playground.lf-playground-quoted .lf-playground-controls,
@@ -244,4 +268,8 @@ html.lf-copy lf-playground > .lf-playground-actions {
   lf-playground-preview {
     min-height: 14rem;
   }
+}
+
+lf-playground-control > wa-color-picker::part(form-control-label) {
+  display: none;
 }

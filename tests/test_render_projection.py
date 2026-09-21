@@ -584,7 +584,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         ".matches('summary')"
     )
 
-    search = page.locator("#patch .lf-diff-search")
+    search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
@@ -767,8 +767,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     second = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run detail"))
 
     expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
-    case_select = widget.get_by_role("combobox", name="Selected visual case")
-    expect(case_select.locator("option")).to_have_count(2)
+    case_select = widget.locator(".lf-vr-case-select")
+    expect(case_select.locator("wa-option")).to_have_count(2)
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
     expect(first).to_have_attribute("data-lf-projection", "visual-run")
@@ -805,18 +805,14 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     expect(widget).to_have_attribute("data-inspection-scale", "fit")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
-    scope = widget.get_by_role("group", name="Scope")
+    scope = widget.get_by_role("radiogroup", name="Scope")
     expect(scope).to_be_visible()
-    expect(scope.get_by_role("button", name="Focus change")).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    expect(widget.get_by_role("button", name="Compare")).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    expect(widget.get_by_role("button", name="Compare")).to_have_css(
+    expect(widget.get_by_role("radio", name="Focus change")).to_be_checked()
+    expect(widget.get_by_role("radio", name="Compare")).to_be_checked()
+    expect(widget.get_by_role("radio", name="Compare")).to_have_css(
         "box-shadow", "none"
     )
-    opacity = first.locator(".lf-vr-opacity")
+    opacity = first.locator(".lf-vr-opacity").get_by_role("slider", include_hidden=True)
     expect(opacity).to_be_disabled()
     expect(opacity).to_be_hidden()
 
@@ -873,19 +869,19 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     page.evaluate(
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
-    widget.get_by_role("button", name="Flip").evaluate("node => node.click()")
+    widget.get_by_role("radio", name="Flip").evaluate("node => node.click()")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")
     assert shot_host.evaluate(
         "node => node.getBoundingClientRect().height"
     ) == pytest.approx(flow_height, abs=1), (
         "ordinary-flow evidence height must not depend on its viewport offset"
     )
-    widget.get_by_role("button", name="Compare").evaluate("node => node.click()")
+    widget.get_by_role("radio", name="Compare").evaluate("node => node.click()")
     assert shot_host.evaluate(
         "node => node.getBoundingClientRect().height"
     ) == pytest.approx(flow_height, abs=1)
 
-    widget.get_by_role("button", name="Full frame").click()
+    widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(shot_host).to_have_attribute("data-focus-active", "false")
     marker = frames.first.evaluate(
@@ -893,7 +889,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     assert marker == '""'
 
-    widget.get_by_role("button", name="100%").click()
+    widget.get_by_role("radio", name="100%").click()
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
     assert shot_host.evaluate(
         "node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight"
@@ -906,7 +902,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         f"{captured_width}px"
     )
 
-    focus_button = widget.get_by_role("button", name="Focus change")
+    focus_button = widget.get_by_role("radio", name="Focus change")
     focus_button.focus()
     focus_button.press("Enter")
     expect(focus_button).to_be_focused()
@@ -917,11 +913,11 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     assert focused_width == pytest.approx(642, abs=1)
 
-    widget.get_by_role("button", name="Fit").click()
-    widget.get_by_role("button", name="Flip").click()
+    widget.get_by_role("radio", name="Fit").click()
+    widget.get_by_role("radio", name="Flip").click()
     expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
     expect(first.locator(".lf-vr-frame-label")).to_have_count(0)
-    widget.get_by_role("button", name="Overlay").click()
+    widget.get_by_role("radio", name="Overlay").click()
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(opacity).to_be_enabled()
     expect(opacity).to_be_visible()
@@ -969,7 +965,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(case_select).to_have_value("run-detail")
+    expect(case_select).to_have_js_property("value", "run-detail")
     expect(case_select).not_to_be_focused()
     page.keyboard.press("g")
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -1005,17 +1001,18 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second).to_be_visible()
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
-    expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
-    case_select.select_option("run-list")
+    expect(widget.locator(".lf-vr-opacity")).to_have_js_property("value", 35)
+    case_select.click()
+    widget.get_by_role("option", name="Run list", exact=False).click()
     next_button.click()
-    expect(case_select).to_have_value("run-middle")
+    expect(case_select).to_have_js_property("value", "run-middle")
     expect(next_button).to_be_focused()
 
     resized(page, 390, 900)
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    widget.get_by_role("button", name="Compare").click()
+    widget.get_by_role("radio", name="Compare").click()
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
     ).to_be_visible()
@@ -1041,7 +1038,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
     told(page)
-    case_select.select_option("run-list")
+    case_select.click()
+    widget.get_by_role("option", name="Run list", exact=False).click()
     expect(widget.locator(".lf-error")).to_contain_text(
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
@@ -1074,8 +1072,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     told(page)
     expect(widget.locator(".lf-error")).to_have_count(0)
     expect(first.locator("lf-shot img")).to_have_count(2)
-    widget.get_by_role("button", name="Full frame").click()
-    widget.get_by_role("button", name="100%").click()
+    widget.get_by_role("radio", name="Full frame").click()
+    widget.get_by_role("radio", name="100%").click()
     decoded_css_width = first.locator("lf-shot img").first.evaluate(
         "image => image.naturalWidth / 2"
     )
@@ -1093,6 +1091,37 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
     expect(first).to_have_attribute("data-disposition", "needs-work")
+
+
+def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
+    """Radio arrows, opacity keys, and select typeahead do not also navigate the case."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    selector = widget.locator(".lf-vr-case-select")
+    initial = selector.evaluate("node => node.value")
+    widget.get_by_role("radio", name="Compare").click()
+    page.keyboard.press("ArrowDown")
+    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    expect(selector).to_have_js_property("value", initial)
+    page.keyboard.press("ArrowDown")
+    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
+    slider = widget.get_by_role("slider", name="Candidate opacity")
+    slider.focus()
+    page.keyboard.press("ArrowUp")
+    expect(widget.locator(".lf-vr-opacity-value")).to_have_text("55%")
+    page.keyboard.press("Shift+ArrowRight")
+    expect(widget.locator(".lf-vr-opacity-value")).to_have_text("60%")
+    expect(selector).to_have_js_property("value", initial)
+    selector.click()
+    page.keyboard.press("2")
+    expect(widget.get_by_role("option", name="2 of 3", exact=False)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("g")
+    expect(page.locator(".lf-go-to-hint")).to_have_count(0)
+    expect(selector).to_have_js_property("value", initial)
+    page.keyboard.press("Escape")
+    expect(selector).to_have_js_property("open", False)
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_focused()
 
 
 def test_visual_review_empty_navigation_is_unavailable(browser, serve):
@@ -1253,7 +1282,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     widget = page.locator("#visual-review-run")
     expect(widget).to_have_attribute("data-lf-workspace-context", "root")
     expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
-    gallery_scope = widget.get_by_role("group", name="Scope")
+    gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     geometry = widget.evaluate(
@@ -1390,11 +1419,11 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(widget.locator(".lf-vr-focus").first).to_be_visible()
     page.emulate_media(media="screen")
 
-    selected = widget.get_by_role("combobox", name="Selected visual case")
+    selected = widget.locator(".lf-vr-case-select")
     with sending(page, "the intended responsive change disposition"):
         case.get_by_role("button", name="Looks right").click()
     page.keyboard.press("ArrowDown")
-    expect(selected).to_have_value("keep-mobile-destinations")
+    expect(selected).to_have_js_property("value", "keep-mobile-destinations")
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1404,7 +1433,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         ).click()
     expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
     page.keyboard.press("ArrowDown")
-    expect(selected).to_have_value("check-desktop-navigation")
+    expect(selected).to_have_js_property("value", "check-desktop-navigation")
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     expect(gallery_scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
@@ -1429,7 +1458,7 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     case = widget.locator(".lf-vr-case:not([hidden])")
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(widget.get_by_role("group", name="Scope")).to_be_hidden()
+    expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
     expect(host).to_have_attribute("data-focus-authored", "true")
     expect(host).to_have_attribute("data-focus-active", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(
@@ -1612,7 +1641,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     summaries.nth(0).focus()
     page.keyboard.press("/")
-    search = diff.locator(".lf-diff-search")
+    search = diff.locator(".lf-diff-search input")
     expect(search).to_be_focused()
     search.fill("second")
     expect(summaries.nth(0)).to_be_hidden()
@@ -1705,7 +1734,7 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
     expect(diff.locator(".lf-diff-wrap")).to_be_visible()
-    search = diff.locator(".lf-diff-search")
+    search = diff.locator(".lf-diff-search input")
     search.fill("second")
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files · 1 matching")
     expect(diff.locator("summary").nth(0)).to_be_hidden()

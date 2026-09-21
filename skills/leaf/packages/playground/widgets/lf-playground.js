@@ -1,7 +1,7 @@
 /* lf-playground: one declarative control loop with one durable decision.
  *
  * Authors define controls, presets, real preview markup, and an instruction in light
- * DOM. This module owns the common mechanics: typed working state, native controls,
+ * DOM. This module owns the common mechanics: typed working state, controls,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  *
@@ -29,18 +29,25 @@ import {
   once,
   paintKeys,
   quoted,
-  registerReadingElement,
   reserve,
+  registerReadingElement,
   says,
   tabStore,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
+import "../vendor/webawesome.esm.js";
 
 const NAME = /^[a-z][a-z0-9-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
+const COPY_LABELS = Object.freeze([
+  ["rest", "Copy instruction"],
+  ["success", "Copied"],
+  ["error", "Copy failed"],
+]);
+const COPY_WORDS = Object.freeze(COPY_LABELS.map(([, label]) => label));
 const OFFLINE = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]',
 );
@@ -92,7 +99,6 @@ customElements.define(
     #output = null;
     #submit = null;
     #copy = null;
-    #copyTimer = 0;
     #reset = null;
     #choosing = false;
     #projected = undefined;
@@ -174,6 +180,7 @@ customElements.define(
         throw new Error("playground already has an instruction provider");
       this.#instructionProvider = provider;
       this.#renderOutput();
+      this.#syncCopy();
     }
 
     #build() {
@@ -360,46 +367,86 @@ customElements.define(
       const heading = offer("span", "lf-playground-control-label", label);
       control.prepend(heading);
       if (kind === "choice") {
-        const group = offer("div", "lf-playground-choices");
-        group.setAttribute("role", "radiogroup");
-        group.setAttribute("aria-label", label);
+        const group = offer(
+          "wa-radio-group",
+          "lf-playground-input lf-playground-choices",
+        );
+        group.label = label;
+        group.name = `${this.id}-${name}`;
+        group.size = "s";
+        group.orientation = "horizontal";
+        group.addEventListener("change", () => this.#takeInputs());
         for (const choice of own(control, "lf-playground-choice")) {
-          const input = offer("input", "lf-playground-input", undefined, "radio");
-          input.name = `${this.id}-${name}`;
-          input.value = choice.getAttribute("value");
-          input.setAttribute("aria-label", choice.getAttribute("label"));
-          input.addEventListener("change", () => this.#takeInputs());
-          const words = offer(
-            "span",
-            "lf-playground-choice-label",
+          const input = offer(
+            "wa-radio",
+            "",
             choice.getAttribute("label"),
+            undefined,
+            true,
           );
-          choice.append(input, words);
-          choice.addEventListener("click", (event) => {
-            if (event.target !== input) input.click();
-          });
+          input.value = choice.getAttribute("value");
+          input.appearance = "button";
+          choice.append(input);
           group.append(choice);
         }
         control.append(group);
         return;
       }
 
+      if (kind === "toggle") {
+        const input = offer(
+          "wa-switch",
+          "lf-playground-input",
+          undefined,
+          undefined,
+          true,
+        );
+        input.name = `${this.id}-${name}`;
+        input.id = `${this.id}-${name}`;
+        input.size = "s";
+        input.append(heading);
+        input.addEventListener("change", () => this.#takeInputs());
+        control.append(input);
+        return;
+      }
+
+      if (kind === "color") {
+        const input = offer("wa-color-picker", "lf-playground-input");
+        input.name = `${this.id}-${name}`;
+        input.label = label;
+        input.format = "hex";
+        input.withoutFormatToggle = true;
+        input.size = "s";
+        input.swatches = [
+          ...new Set([
+            control.getAttribute("value"),
+            ...[...this.#presetSettings.values()]
+              .map((values) => values[name])
+              .filter(Boolean),
+          ]),
+        ];
+        input.addEventListener("input", () => {
+          if (input.value) this.#takeInputs();
+        });
+        input.addEventListener("change", () => {
+          if (!input.value) input.value = this.#values[name];
+        });
+        control.append(input);
+        return;
+      }
+
       const input = offer(
-        "input",
+        kind === "range" ? "wa-slider" : "wa-input",
         "lf-playground-input",
-        undefined,
-        kind === "toggle" ? "checkbox" : kind,
       );
+      input.label = label;
+      input.size = "s";
       input.name = `${this.id}-${name}`;
       input.setAttribute("aria-label", label);
-      if (kind === "toggle") {
-        input.addEventListener("change", () => this.#takeInputs());
-      } else {
-        for (const attr of ["min", "max", "step", "placeholder"])
-          if (control.hasAttribute(attr))
-            input.setAttribute(attr, control.getAttribute(attr));
-        input.addEventListener("input", () => this.#takeInputs());
-      }
+      for (const attr of ["min", "max", "step", "placeholder"])
+        if (control.hasAttribute(attr))
+          input.setAttribute(attr, control.getAttribute(attr));
+      input.addEventListener("input", () => this.#takeInputs());
       control.append(input);
       if (kind === "range") {
         const reading = offer("output", "lf-playground-reading");
@@ -457,15 +504,28 @@ customElements.define(
     #buildActions() {
       const actions = offer("footer", "lf-playground-actions");
       this.#reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-      this.#copy = offer("button", "lf-btn lf-playground-copy", "Copy instruction");
+      this.#copy = offer("wa-copy-button", "lf-playground-copy");
+      const copyTrigger = offer("button", "lf-playground-copy-trigger");
+      if (this.id) copyTrigger.id = `${this.id}-copy`;
+      for (const [className, text] of COPY_LABELS) {
+        const label = document.createElement("span");
+        label.className = `lf-playground-copy-label ${className}`;
+        label.textContent = text;
+        copyTrigger.append(label);
+      }
+      this.#copy.setAttribute("copy-label", "Copy instruction");
+      this.#copy.setAttribute("success-label", "Instruction copied");
+      this.#copy.setAttribute("error-label", "Could not copy instruction");
+      this.#copy.setAttribute("tooltip", "none");
+      this.#copy.setAttribute("feedback-duration", "2000");
       this.#submit = offer(
         "button",
         "lf-btn primary lf-playground-submit",
         this.getAttribute("submit-label") ?? "Use these settings",
       );
       this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
-      this.#copy.addEventListener("click", () => this.#copyInstruction());
       this.#submit.addEventListener("click", () => this.#choose());
+      this.#copy.append(copyTrigger);
       actions.append(this.#reset, this.#copy, this.#submit);
       if (OFFLINE) {
         const unavailable = document.createElement("span");
@@ -474,7 +534,6 @@ customElements.define(
           "Submission unavailable: no agent or server is available.";
         actions.append(unavailable);
       }
-      measure(this.#copy, () => reserve(this.#copy, ["Copy instruction", "Copied"]));
       return actions;
     }
 
@@ -605,11 +664,7 @@ customElements.define(
 
     #readInput(control) {
       const kind = control.getAttribute("kind");
-      if (kind === "choice") {
-        const selected = control.querySelector(':scope input[type="radio"]:checked');
-        return selected?.value;
-      }
-      const input = control.querySelector(":scope > input");
+      const input = control.querySelector(":scope > .lf-playground-input");
       return kind === "toggle" ? input.checked : input.value;
     }
 
@@ -628,15 +683,10 @@ customElements.define(
 
     #setInput(control, value) {
       const kind = control.getAttribute("kind");
-      if (kind === "choice") {
-        for (const input of control.querySelectorAll(':scope input[type="radio"]'))
-          input.checked = input.value === value;
-        return;
-      }
-      const input = control.querySelector(":scope > input");
+      const input = control.querySelector(":scope > .lf-playground-input");
       if (!input) return;
       if (kind === "toggle") input.checked = value;
-      else input.value = String(value);
+      else input.value = kind === "range" ? value : String(value);
       input.setAttribute("value", String(value));
       if (kind === "toggle") input.toggleAttribute("checked", value);
       if (kind === "range") {
@@ -672,7 +722,7 @@ customElements.define(
         keeps(this, `data-playground-${name}`, value);
       }
       this.#renderOutput();
-      this.#resetCopyFeedback();
+      this.#syncCopy();
       this.#paintPresets();
       if (remember) tabStore.set(this.#storeKey(), JSON.stringify(values));
       this.dispatchEvent(
@@ -722,26 +772,23 @@ customElements.define(
         .trim();
     }
 
-    #resetCopyFeedback() {
-      clearTimeout(this.#copyTimer);
-      this.#copyTimer = 0;
+    #syncCopy() {
       if (!this.#copy) return;
-      this.#copy.textContent = "Copy instruction";
-      this.#copy.classList.remove("is-copied");
-    }
-
-    async #copyInstruction() {
-      try {
-        await navigator.clipboard.writeText(this.#instruction());
-        clearTimeout(this.#copyTimer);
-        this.#copy.textContent = "Copied";
-        this.#copy.classList.add("is-copied");
-        this.#copyTimer = setTimeout(() => this.#resetCopyFeedback(), 2000);
-        notice("Instruction copied");
-      } catch (error) {
-        this.#resetCopyFeedback();
-        notice(`Could not copy: ${error.message}`);
-      }
+      const instruction = this.#instruction();
+      if (this.#copy.value === instruction) return;
+      // Copy feedback belongs to the text copied. A different instruction starts
+      // a fresh control, including upstream's in-flight/feedback lock.
+      const previous = this.#copy;
+      const focused = previous.contains(document.activeElement);
+      this.#copy = previous.cloneNode(true);
+      this.#copy.value = instruction;
+      previous.replaceWith(this.#copy);
+      const copy = this.#copy;
+      copy.updateComplete.then(() => {
+        const trigger = copy.querySelector(".lf-playground-copy-trigger");
+        measure(trigger, () => reserve(trigger, COPY_WORDS));
+        if (focused) trigger.focus();
+      });
     }
 
     async #choose() {

@@ -22,6 +22,7 @@ import {
   targetCandidates,
   widgetController,
 } from "/runtime/widget-api.js";
+import "../vendor/webawesome.esm.js";
 
 const STYLE_PROPERTIES = [
   ["padding", "Padding"],
@@ -38,9 +39,8 @@ const copy = (value) => structuredClone(value);
 const normalizedWords = (value) => value.replace(/\s+/g, " ").trim();
 
 function option(value, label) {
-  const node = document.createElement("option");
-  node.value = value;
-  node.textContent = label;
+  const node = offer("wa-option", "", label);
+  node.setAttribute("value", value);
   return node;
 }
 
@@ -221,19 +221,26 @@ customElements.define(
       form.setAttribute("aria-label", "Add box-model change");
       form.append(offer("p", "lf-targeting-change-summary", "Box model"));
       const fields = offer("div", "lf-targeting-change-fields");
-      this.#styleTarget = offer("select", "lf-targeting-change-target");
+      this.#styleTarget = offer("wa-select", "lf-targeting-change-target");
       this.#styleTarget.name = `${this.id}-style-target`;
+      this.#styleTarget.label = "Style target";
+      this.#styleTarget.size = "s";
       this.#styleTarget.setAttribute("aria-label", "Style target");
-      this.#styleProperty = offer("select", "lf-targeting-property");
+      this.#styleProperty = offer("wa-select", "lf-targeting-property");
       this.#styleProperty.name = `${this.id}-style-property`;
+      this.#styleProperty.label = "Box-model property";
+      this.#styleProperty.size = "s";
       this.#styleProperty.setAttribute("aria-label", "Box-model property");
       this.#styleProperty.append(
         ...STYLE_PROPERTIES.map(([value, label]) => option(value, label)),
       );
-      this.#styleValue = offer("input", "lf-targeting-value", undefined, "number");
+      this.#styleProperty.value = STYLE_PROPERTIES[0][0];
+      this.#styleValue = offer("wa-number-input", "lf-targeting-value");
       this.#styleValue.name = `${this.id}-style-value`;
-      this.#styleValue.min = "0";
-      this.#styleValue.step = "1";
+      this.#styleValue.label = "Pixel value";
+      this.#styleValue.size = "s";
+      this.#styleValue.min = 0;
+      this.#styleValue.step = 1;
       this.#styleValue.value = "24";
       this.#styleValue.setAttribute("aria-label", "Pixel value");
       const add = offer("button", "lf-btn lf-targeting-add-style", "Add style");
@@ -259,11 +266,17 @@ customElements.define(
       form.setAttribute("aria-label", "Add target instruction");
       form.append(offer("p", "lf-targeting-change-summary", "Prose instruction"));
       const fields = offer("div", "lf-targeting-form-row");
-      this.#instructionTarget = offer("select", "lf-targeting-change-target");
+      this.#instructionTarget = offer("wa-select", "lf-targeting-change-target");
       this.#instructionTarget.name = `${this.id}-instruction-target`;
+      this.#instructionTarget.label = "Instruction target";
+      this.#instructionTarget.size = "s";
       this.#instructionTarget.setAttribute("aria-label", "Instruction target");
-      this.#instructionText = offer("textarea", "lf-targeting-instruction");
+      this.#instructionText = offer("wa-textarea", "lf-targeting-instruction");
       this.#instructionText.name = `${this.id}-instruction`;
+      this.#instructionText.label = "Target instruction";
+      this.#instructionText.size = "s";
+      this.#instructionText.resize = "auto";
+      this.#instructionText.rows = 2;
       this.#instructionText.placeholder = "Describe the change for this target";
       this.#instructionText.setAttribute("aria-label", "Target instruction");
       const add = offer(
@@ -542,8 +555,11 @@ customElements.define(
         const resolution = this.#resolution(target);
         row.dataset.lfTargetStatus = resolution.status;
         const fields = offer("div", "lf-targeting-form-row");
-        const name = offer("input", "lf-targeting-name", undefined, "text");
+        const name = offer("wa-input", "lf-targeting-name");
+        name.type = "text";
         name.name = `${this.id}-${target.key}-name`;
+        name.label = `Name for ${target.label}`;
+        name.size = "s";
         name.value = target.name;
         name.setAttribute("aria-label", `Name for ${target.label}`);
         const priorName = target.name;
@@ -551,8 +567,14 @@ customElements.define(
           const value = normalizedWords(name.value);
           if (!value) return;
           target.name = value;
+          scope.label = `Scope for ${target.name}`;
+          scope.setAttribute("aria-label", scope.label);
+          className.label = `Class for ${target.name}`;
+          className.setAttribute("aria-label", className.label);
           for (const select of [this.#styleTarget, this.#instructionTarget]) {
-            const targetOption = select.querySelector(`option[value="${target.key}"]`);
+            const targetOption = select.querySelector(
+              `wa-option[value="${CSS.escape(target.key)}"]`,
+            );
             if (targetOption) targetOption.textContent = value;
           }
           this.#beginDraft();
@@ -569,8 +591,10 @@ customElements.define(
           target.name = value;
           this.#changed();
         });
-        const scope = offer("select", "lf-targeting-scope");
+        const scope = offer("wa-select", "lf-targeting-scope");
         scope.name = `${this.id}-${target.key}-scope`;
+        scope.label = `Scope for ${target.name}`;
+        scope.size = "s";
         scope.setAttribute("aria-label", `Scope for ${target.name}`);
         scope.append(
           option("element", "This element"),
@@ -578,9 +602,11 @@ customElements.define(
         );
         scope.value = target.scope;
         const classes = this.#classesFor(target);
-        scope.querySelector('option[value="class"]').disabled = !classes.length;
-        const className = offer("select", "lf-targeting-class");
+        scope.querySelector('wa-option[value="class"]').disabled = !classes.length;
+        const className = offer("wa-select", "lf-targeting-class");
         className.name = `${this.id}-${target.key}-class`;
+        className.label = `Class for ${target.name}`;
+        className.size = "s";
         className.setAttribute("aria-label", `Class for ${target.name}`);
         className.append(
           ...classes.map((value) =>
@@ -643,6 +669,7 @@ customElements.define(
       select.replaceChildren();
       if (!this.#configuration.targets.length) {
         select.append(option("", "Select a target"));
+        select.value = "";
         select.disabled = true;
         return;
       }
@@ -650,8 +677,11 @@ customElements.define(
       select.append(
         ...this.#configuration.targets.map((target) => option(target.key, target.name)),
       );
-      if (this.#configuration.targets.some((target) => target.key === selected))
-        select.value = selected;
+      select.value = this.#configuration.targets.some(
+        (target) => target.key === selected,
+      )
+        ? selected
+        : this.#configuration.targets[0].key;
     }
 
     #renderChanges() {

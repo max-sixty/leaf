@@ -113,7 +113,12 @@ export const invalidVisualProviders = (declarations) =>
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]
-      .filter((el) => el.shadowRoot && !registry[el.localName]?.["x-shadow"])
+      .filter(
+        (el) =>
+          el.shadowRoot &&
+          el.dataset.lfGen !== "1" &&
+          !registry[el.localName]?.["x-shadow"],
+      )
       .map((el) => `<${el.localName}>`),
   ),
 ];

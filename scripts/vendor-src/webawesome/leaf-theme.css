@@ -1,0 +1,39 @@
+/* Leaf tokens keep every third-party control in the active page theme. */
+:is(
+  wa-color-picker,
+  wa-copy-button,
+  wa-switch,
+  wa-radio-group,
+  wa-radio,
+  wa-slider,
+  wa-select,
+  wa-option,
+  wa-input,
+  wa-textarea,
+  wa-number-input
+) {
+  color-scheme: inherit;
+  --wa-font-family-body: var(--sans);
+  --wa-color-surface-raised: var(--card);
+  --wa-color-surface-default: var(--field);
+  --wa-color-surface-lowered: var(--card);
+  --wa-color-surface-border: var(--border-2);
+  --wa-color-text-normal: var(--ink);
+  --wa-color-text-quiet: var(--muted);
+  --wa-color-neutral-fill-quiet: var(--field);
+  --wa-color-neutral-fill-normal: var(--card);
+  --wa-color-neutral-border-normal: var(--border-2);
+  --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-brand-fill-quiet: var(--accent-tint);
+  --wa-color-brand-on-quiet: var(--accent);
+  --wa-color-brand-border-quiet: var(--accent);
+  --wa-color-focus: var(--accent);
+  --wa-form-control-activated-color: var(--accent);
+  --wa-form-control-background-color: var(--field);
+  --wa-form-control-border-color: var(--border-2);
+  --wa-form-control-value-color: var(--ink);
+}
+
+:is(wa-input, wa-textarea, wa-number-input) {
+  --wa-form-control-background-color: var(--card);
+}

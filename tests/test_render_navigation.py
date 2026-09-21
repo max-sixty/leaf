@@ -7023,6 +7023,51 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     expect(page.locator(".lf-version-menu")).to_be_visible()
 
 
+def test_radio_and_slider_keys_stay_with_the_control_inside_a_modal(browser, serve):
+    """Control navigation cannot also fire a containing widget's command."""
+    page = open_page(browser, serve(NOTED_PAGE))
+    page.evaluate(
+        """async () => {
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const dialog = document.createElement('dialog');
+          dialog.id = 'control-key-owner';
+          dialog.innerHTML = '<label>First<input type="radio" name="choice" value="one" checked></label>' +
+            '<label>Second<input type="radio" name="choice" value="two"></label>' +
+            '<label>Amount<input type="range" min="0" max="100" value="50"></label>';
+          document.querySelector('main').append(dialog);
+          commands(dialog, 'Around native controls', [{id: 'test.ancestor',
+            keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
+            does: 'Work the widget', line: 'work widget',
+            run: (binding) => dialog.dataset.fired = binding}]);
+          dialog.showModal();
+        }"""
+    )
+    host = page.locator("#control-key-owner")
+    first = host.get_by_role("radio", name="First")
+    first.focus()
+    page.keyboard.press("ArrowDown")
+    expect(host.get_by_role("radio", name="Second")).to_be_checked()
+    slider = host.get_by_role("slider", name="Amount")
+    slider.focus()
+    page.keyboard.press("Shift+ArrowRight")
+    expect(slider).to_have_value("51")
+    page.keyboard.press("Home")
+    expect(slider).to_have_value("0")
+    expect(host).not_to_have_attribute("data-fired")
+    page.evaluate(
+        """async () => {
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const slider = document.querySelector('#control-key-owner input[type="range"]');
+          commands(slider, 'Exact control', [{id: 'test.control', keys: ['ArrowDown'],
+            does: 'Work this control', line: 'work control',
+            run: () => slider.value = 75}]);
+        }"""
+    )
+    page.keyboard.press("ArrowDown")
+    expect(slider).to_have_value("75")
+    expect(host).not_to_have_attribute("data-fired")
+
+
 def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     """Native layer ownership blocks ancestors and survives nesting and light dismiss."""
     url = serve(NOTED_PAGE)

@@ -13,7 +13,7 @@ const carrier = document.querySelector(
 if (!carrier) throw new Error("leaf: the document carries no runtime stylesheets");
 const sheets = JSON.parse(carrier.textContent);
 
-function construct(text, name) {
+export function constructSheet(text, name) {
   // An empty sheet is a page with no chrome and no marks, and nothing about it looks
   // wrong, so a block that is not the text it claims fails here rather than painting.
   if (typeof text !== "string")
@@ -23,5 +23,5 @@ function construct(text, name) {
   return sheet;
 }
 
-export const chromeSheet = construct(sheets.chrome, "chrome");
-export const marksSheet = construct(sheets.marks, "marks");
+export const chromeSheet = constructSheet(sheets.chrome, "chrome");
+export const marksSheet = constructSheet(sheets.marks, "marks");

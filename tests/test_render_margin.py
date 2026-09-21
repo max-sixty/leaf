@@ -5845,19 +5845,16 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         )
     # The send left the reader in the new thread's reply box, and the way out is the
     # levels it stands in: the box hands them to the thread, and then the surface
-    # holding that thread. A card goes straight onto the page it is anchored to; a panel
-    # card lets go onto its list first. What neither does is focus the margin entry the
+    # holding that thread. What neither does is focus the margin entry the
     # card hangs from — or, where no rail stands, the Page Map button — which the reader
     # never stood on and which says its transient label as they arrive.
     page.keyboard.press("Escape")  # out of the reply box the send landed in
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
-        summary = thread.locator(".lf-thread-summary")
-        expect(summary).to_be_focused()
-        expect(summary).to_have_attribute("aria-expanded", "false")
-        page.keyboard.press("Escape")  # off the title and onto the list holding it
-        expect(page.locator(".lf-threads")).to_be_focused()
-        expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        assert page.evaluate("() => document.activeElement === document.body")
     else:
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
@@ -5908,10 +5905,10 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     if panel_open:
-        expect(threads).to_have_class(re.compile(r"\bopen\b"))
+        expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
         expect(preview).to_be_hidden()
-        assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def seeded_thread(page, page_dir, passage):
@@ -5954,18 +5951,11 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     page.keyboard.press("t")
     expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
 
-    # The walk moved the reader laterally to a second open conversation. Letting go
-    # first collapses it to its title, then leaves that standing for the list holding it.
-    # The note that took them into the panel is not a landing.
+    # The walk moved the reader laterally to a second conversation in Threads. Escape
+    # closes that surface; the note that took them there is not a landing.
     page.keyboard.press("Escape")
-    summary = threads.locator(
-        f'.lf-thread[data-id="{second["id"]}"] .lf-thread-summary'
-    )
-    expect(summary).to_be_focused()
-    expect(summary).to_have_attribute("aria-expanded", "false")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(threads).to_have_class(re.compile(r"\bopen\b"))
+    expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve):

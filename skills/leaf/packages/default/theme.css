@@ -721,16 +721,18 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
-   /* The draft has one trailing action seat. While it is empty the Add press is hidden,
-    * so its binding badge occupies that same seat; once the reader enters the field, the
-    * text scope removes the Ask bindings before content reveals the press. Keeping one
-    * seat avoids reserving an empty second action between the words and the row edge. */
+   /* An empty draft offers only the route into its field, so that binding badge occupies
+    * the Add seat while the press is hidden. Content reveals Add; once focus leaves the
+    * field, the Ask's write route is available beside it again and takes the inner seat.
+    * The form names both seats below and reserves both before either face appears. */
    & > .lf-another > .lf-key-badge {
                      inset-inline-start: auto;
-                     inset-inline-end: var(--lf-option-action-badge-inset);
+                     inset-inline-end: var(--lf-option-add-badge-inset);
                      top: auto;
-                     bottom: var(--lf-option-action-badge-inset);
+                     bottom: var(--lf-option-add-badge-inset);
                      margin: 0; }
+   & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
+                     inset-inline-end: var(--lf-option-write-badge-inset); }
    & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
                      opacity: 0; }
  }
@@ -1012,9 +1014,17 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
       outline: var(--here-ring); --lf-here-ring: options-row;
       outline-offset: calc(-1 * var(--here-ring-w));
   }
-  .lf-another { --lf-icon-action-hit: max(28px, var(--aim-floor));
-                --lf-option-action-badge-inset:
-                  calc(var(--sp-1) + (var(--lf-icon-action-hit) - var(--lf-key-badge-size)) / 2);
+  .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
+                --lf-option-add-seat-inset: var(--sp-1);
+                --lf-option-add-badge-inset:
+                  calc(var(--lf-option-add-seat-inset)
+                    + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
+                --lf-option-write-badge-inset:
+                  calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size)
+                    + var(--sp-2));
+                --lf-option-action-room:
+                  calc(var(--lf-option-write-badge-inset) + var(--lf-key-badge-size)
+                    + var(--sp-2));
                 position: relative; display: flex; align-items: center; gap: var(--sp-2); }
   .lf-another:not([hidden]) { min-height: var(--aim-floor); }
   .lf-another > .lf-key-badge { position: absolute;
@@ -1024,13 +1034,16 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
    * answer face before and after becoming an lf-option. Its shared
    * submit action carries the full accessible name; hiding the empty state changes
    * paint rather than layout. */
-  .lf-another > .lf-compose-field { position: static; }
+  .lf-another > .lf-compose-field {
+                     --lf-icon-action-hit: var(--lf-option-action-size);
+                     position: static; }
   .lf-another textarea { flex: 1; min-width: 0; min-height: 0; padding: 0;
-                     padding-inline-end: calc(var(--aim-floor) + var(--sp-4));
+                     padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--lf-option-font); resize: none; }
-  .lf-another .lf-compose-submit { inset-inline-end: var(--sp-1);
-                                  inset-block-end: var(--sp-1); }
+  .lf-another .lf-compose-submit { --lf-icon-action-hit: var(--lf-option-action-size);
+                                  inset-inline-end: var(--lf-option-add-seat-inset);
+                                  inset-block-end: var(--lf-option-add-seat-inset); }
   .lf-another .lf-compose-submit[data-lf-empty] { visibility: hidden; }
   /* The leading column holds the key badge and the gap before the option's
    * words. The badge starts at the ordinary 8px inset and takes

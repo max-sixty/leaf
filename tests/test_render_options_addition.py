@@ -161,7 +161,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
 
 
 def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve):
-    """The empty-state route and content-state action occupy one stable seat."""
+    """The empty route borrows Add's seat, then both actions keep stable seats."""
     page = open_page(browser, serve(ASK_PAGE))
     # The second Ask carries the card presentation, which is where the row's trailing
     # room is contested: its options wear their binding badges at the corner, so the

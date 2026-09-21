@@ -196,7 +196,7 @@ const heldThread = () =>
   documentFocused()?.closest(".lf-thread, .lf-conversation-thread") ?? null;
 const resolutionControl = (thread) =>
   thread?.querySelector(
-    ":scope > .lf-thread-head > .lf-resolve, " +
+    ":scope .lf-thread-meta-actions > .lf-resolve, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;

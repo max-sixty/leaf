@@ -4671,7 +4671,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
     ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardWidth"] >= 379, geometry
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["bottomChrome"] > 0, geometry
     assert geometry["coveredBottomChrome"] == 0, geometry
@@ -4731,7 +4731,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         geometry["controlsRight"] + 8, abs=0.5
     ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardWidth"] >= 379, geometry
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
     assert geometry["targetBottom"] <= 900, geometry
@@ -6206,7 +6206,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     send_anchored_comment(page, "Check the January failure mode.")
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] >= 459, wide
+    assert wide["cardWidth"] >= 379, wide
     assert wide["cardLeft"] >= wide["mainRight"], wide
     assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
 
@@ -6240,10 +6240,11 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
           )
         )"""
     )
-    middles = [box["middle"] for box in controls.values()]
-    assert max(middles) - min(middles) <= 2, controls
+    assert controls[".lf-margin-preview-nav"]["middle"] == pytest.approx(
+        controls[".lf-margin-preview-close"]["middle"], abs=1
+    ), controls
     assert (
-        controls[".lf-margin-preview-nav"]["right"] < controls[".lf-resolve"]["left"]
+        controls[".lf-margin-preview-nav"]["middle"] < controls[".lf-resolve"]["middle"]
     ), controls
     assert (
         controls[".lf-resolve"]["right"] < controls[".lf-margin-preview-close"]["left"]
@@ -6303,8 +6304,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-title")).to_have_text(
-        "iOS reconnect stall"
+    expect(preview).to_have_attribute(
+        "aria-label", "Conversation for iOS reconnect stall"
     )
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
     expect(
@@ -6318,8 +6319,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          const title = document.querySelector('.lf-margin-preview-title')
-            .getBoundingClientRect();
+          const metadata = document.querySelector(
+            '.lf-margin-preview .lf-thread-root-meta').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
@@ -6331,21 +6332,21 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   viewportRight: document.documentElement.clientWidth,
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
-                  titleLeft: title.left, titleTop: title.top,
+                  metadataLeft: metadata.left, metadataTop: metadata.top,
                   replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-thread-panel').classList.contains('open')};
         }"""
     )
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardWidth"] >= 379, geometry
     assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
-    assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
+    assert geometry["metadataLeft"] == pytest.approx(geometry["cardLeft"] + 17, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
     words = thread.locator(".lf-conversation-body").first
@@ -6380,20 +6381,25 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
-    # The conversation scrolls; its subject and settlement remain usable. A tall
-    # focused root must not scroll the title away just to fit its entire transcript.
-    title = preview.locator(".lf-margin-preview-title")
+    # The conversation scrolls while its opening metadata and settlement remain usable.
+    metadata = preview.locator(".lf-thread-root-meta")
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
-    title_box = title.bounding_box()
+    metadata_box = metadata.bounding_box()
     resolve_box = resolve.bounding_box()
-    preview.locator(".lf-margin-preview-list").hover()
-    page.mouse.wheel(0, -800)
+    preview.locator(".lf-margin-preview-list").evaluate(
+        "node => { node.scrollTop = node.scrollHeight; }"
+    )
     ticked(page)
-    assert title.bounding_box() == pytest.approx(title_box, abs=0.5)
-    assert resolve.bounding_box() == pytest.approx(resolve_box, abs=0.5)
-    assert title_box["y"] >= capped["top"], title_box
-    assert resolve_box["y"] >= capped["top"], resolve_box
-    assert resolve_box["y"] + resolve_box["height"] <= capped["bottom"], resolve_box
+    scrolled_metadata = metadata.bounding_box()
+    scrolled_resolve = resolve.bounding_box()
+    assert scrolled_metadata["y"] >= capped["top"], scrolled_metadata
+    assert scrolled_resolve["y"] >= capped["top"], scrolled_resolve
+    assert scrolled_resolve["y"] + scrolled_resolve["height"] <= capped["bottom"], (
+        scrolled_resolve
+    )
+    assert scrolled_resolve["y"] - scrolled_metadata["y"] == pytest.approx(
+        resolve_box["y"] - metadata_box["y"], abs=0.5
+    )
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")

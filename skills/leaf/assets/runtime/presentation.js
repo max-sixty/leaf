@@ -113,6 +113,20 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+export function whenPagePresented() {
+  if (pagePresented()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (!pagePresented()) return;
+      observer.disconnect();
+      resolve();
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: [PAGE_PAINT_ATTRIBUTE.presented],
+    });
+  });
+}
 
 // The one initial turn in which box-derived page apparatus can read the complete
 // authoritative layout before semantic interaction opens. Widget upgrade gives

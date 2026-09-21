@@ -439,7 +439,9 @@ hoisted chrome removed in `disconnectedCallback` when the owner disconnects;
 `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
 owning those commands — `quoted()` before wiring input, controller command availability
 for an x-state verb with `requires`, and durable state in attributes because export drops the
-scripts.
+scripts. A widget that must finish asynchronous content or unwind live-only structure
+before those scripts leave implements `lfPrepareExport()`; it may finish synchronously
+or return the promise the exporter must await.
 `renderState` receives every declared facet, including the initial values an undo
 returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
 state; `value` is the typed record value or a recordless outcome verb (null means

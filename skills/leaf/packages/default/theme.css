@@ -1657,22 +1657,43 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
   lf-tabs.lf-rendered > lf-tab { content-visibility: visible !important; }
 }
 
-/* lf-shot: both frames share one grid cell sized by the taller image, so a flip
- * moves nothing below it. The rail keeps before and after at fixed ends while a short
- * accent rule names the visible state. The transparent native checkbox covers only
- * the frame; the shared margin entry supplies the second control. CSS owns image
- * visibility, keeping image clicks and Space live in script-free exports. Print stacks
- * both. */
+/* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
+ * validation supplies an aspect ratio based on its taller image, so unequal heights
+ * still reserve one fixed frame and move nothing below it. The rail's endpoint buttons
+ * stay outside the component. Before the upgrade lands, and again after export unwinds
+ * it, the frames are direct children of the host and the transparent native checkbox
+ * covers them — one fallback for loading, controls-off, and a script-free copy alike.
+ * Print stacks both frames. */
 lf-shot { display: block; margin: 16px 0; }
-lf-shot .lf-shotframe { position: relative; grid-area: 2 / 1;
-    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r); overflow: hidden;
-    background: var(--card); }
 lf-shot:has(.lf-shotframe) { display: grid; }
+lf-shot .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio);
+    border: 1px solid var(--rule); border-radius: 0 0 var(--r) var(--r);
+    background: var(--card); --divider-width: 2px; --handle-size: 38px;
+    --wa-color-surface-default: var(--card); --wa-color-neutral-on-quiet: var(--ink-2);
+    --wa-focus-ring: var(--here-ring); --wa-focus-ring-offset: 1px;
+    --lf-here-ring: shot; }
+lf-shot .lf-shotcomparison::part(divider) {
+    background: color-mix(in srgb, var(--ink-2) 48%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
+    transition: background-color 120ms ease; }
+lf-shot .lf-shotcomparison::part(handle) { border: 1px solid var(--ink-2);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 20%, transparent);
+    opacity: .52; scale: .88;
+    transition: opacity 120ms ease, scale 120ms ease; }
+lf-shot .lf-shot-handle { display: block; box-sizing: border-box;
+    width: 13px; height: 13px; border: 1.5px solid currentColor;
+    border-radius: 50%; pointer-events: none; }
+lf-shot .lf-shotcomparison::part(before),
+lf-shot .lf-shotcomparison::part(after) { cursor: pointer; }
+lf-shot .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(divider) {
+    background: var(--ink-2); }
+lf-shot .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(handle) {
+    opacity: 1; scale: 1; }
+lf-shot .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
+    opacity: .18; scale: .68; }
+lf-shot .lf-shotframe { position: relative; overflow: hidden; background: var(--card); }
 lf-shot .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
-lf-shot .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
-lf-shot:has(input:checked) .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
-lf-shot:has(input:checked) .lf-shotframe[data-lf-state="after"] { visibility: visible; }
 lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
     justify-content: space-between; height: 34px; padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
@@ -1683,28 +1704,44 @@ lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
 lf-shot .lf-shotcap[data-lf-state] { outline-offset: -2px; }
 :where(html:not(.lf-copy)) lf-shot .lf-shotcap:hover { background: var(--chip); }
-lf-shot .lf-shotcap[data-lf-state="after"] { box-shadow: none; }
-lf-shot .lf-shotcap[data-lf-state="before"],
-lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] { color: var(--ink);
+lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink);
     box-shadow: inset 0 -2px var(--accent); }
-lf-shot:has(input:checked) .lf-shotcap[data-lf-state="before"] {
+lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
-/* The image is itself the native target, so a click never forwards focus to a
-   distant label or control and scrolls a tall comparison out from under the reader. */
-lf-shot > input.lf-shotflip { grid-area: 2 / 1; z-index: 2;
+
+/* Before the progressive comparison arrives — and after export unwinds it — the image
+   is itself the native target. The one fallback covers loading, controls-off, and copy. */
+lf-shot > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;
     align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
     min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
     appearance: none; opacity: 0; cursor: pointer; }
-/* The rail and the frame are one card, so the ring goes round the card. Drawn on the
-   frame alone it ran along the rail's foot instead of round anything, and the rail's
-   own surface stands where its top run is. lf-shot paints nothing of its own, so the
-   radius here is the card's outer corners lent to the outline and reaches nothing
-   else. */
-lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline: var(--here-ring);
-    --lf-here-ring: shot; outline-offset: 1px; border-radius: var(--r); }
+lf-shot:not(:has(> .lf-shotcomparison)) > .lf-shotframe {
+    grid-area: 2 / 1; border: 1px solid var(--rule);
+    border-radius: 0 0 var(--r) var(--r); }
+lf-shot:not(:has(> .lf-shotcomparison))
+  > .lf-shotframe[data-lf-state="after"] { visibility: hidden; }
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  > .lf-shotframe[data-lf-state="before"] { visibility: hidden; }
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  > .lf-shotframe[data-lf-state="after"] { visibility: visible; }
+lf-shot:not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
+    display: block; }
+lf-shot:not(:has(> .lf-shotcomparison)) .lf-shotcap[data-lf-state="before"] {
+    color: var(--ink);
+    box-shadow: inset 0 -2px var(--accent); }
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  .lf-shotcap[data-lf-state="before"] {
+    color: var(--muted); box-shadow: none; }
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  .lf-shotcap[data-lf-state="after"] {
+    color: var(--ink); box-shadow: inset 0 -2px var(--accent); }
+
+lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
+    outline: var(--here-ring); --lf-here-ring: shot; outline-offset: 1px;
+    border-radius: var(--r); }
 
 @media print {
-  lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
+  lf-shot, lf-shot:has(.lf-shotframe) { display: block !important; }
   lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
     margin-bottom: var(--sp-2); }
   lf-shot .lf-shotcap { color: var(--ink) !important; background: none !important;
@@ -1712,8 +1749,15 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
   lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   lf-shot > input.lf-shotflip { display: none; }
+  lf-shot > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
+    overflow: visible; }
+  lf-shot > .lf-shotcomparison::part(comparison) { display: block; }
+  lf-shot > .lf-shotcomparison::part(before),
+  lf-shot > .lf-shotcomparison::part(after) { position: relative; width: auto;
+    height: auto; clip-path: none !important; }
+  lf-shot > .lf-shotcomparison::part(divider) { display: none; }
   lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2);
-    border-radius: var(--r); }
+    border: 1px solid var(--rule); border-radius: var(--r); }
 }
 
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
@@ -1909,6 +1953,8 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  lf-shot .lf-shotcomparison::part(divider),
+  lf-shot .lf-shotcomparison::part(handle),
   lf-toc a { transition: none; }
 }
 @media (forced-colors: active) {

@@ -60,12 +60,6 @@ Completed work and rejected ideas live in git history or the relevant research n
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
-### Architecture and verification
-
-- **#5 — Separate the margin model from presentation.** Derive clusters and Page
-  Map entries as immutable data, then let placement and retained controls consume
-  them. This removes semantic identity from DOM attributes and lets model rules be
-  tested without Chrome.
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.

@@ -468,6 +468,7 @@ pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
   activateItem: app.margin.activateMapItem,
   faceFor: app.margin.faceForMap,
+  targetFor: app.margin.targetFor,
   focusFallback: app.margin.focusMapControl,
 });
 

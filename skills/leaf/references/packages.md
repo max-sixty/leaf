@@ -367,9 +367,10 @@ command.
 `registerMarginContribution({key, target, source?, read, activate})` is the package boundary for
 page-edge actions. `read()` returns the contribution's complete current reading,
 including immutable `marginEntry({...})` records; it never returns controls. Leaf renders
-those same records independently in the target's Margin cluster and in Page Map,
-retaining each projected control by the opaque contribution key and entry key while its
-native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
+those same records independently in the target's Margin cluster and in Page Map.
+Reading items in `readings` have nonempty `id` strings, unique within that contribution;
+other contributions may reuse an ID. Leaf retains each projected control by the opaque
+contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
 so crossing that semantic boundary replaces the host instead of emulating a button.
 `target` is an
 element or a function returning the element that currently anchors the action. `source`

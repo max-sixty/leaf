@@ -8,26 +8,12 @@
    order; `margin-layout.js` owns row measurement, rail claims, responsive docking, packing,
    and collision bands.
 
-   A resting cluster has two seats: its primary and one peer, or its primary and More
-   when at least two peers remain. An expanded cluster has six seats, with the final seat
-   opening Page Map at the first omitted action. That limit also applies when the cluster
-   docks. Page Map retains the complete inventory.
-
-   An engaged contribution exposes its completion and escape controls first and never
-   hides them behind More. Engagement is semantic state, not DOM focus, so an editor stays
-   expanded when focus moves within its work. Explicit owner focus temporarily derives
-   the cluster from that contribution alone; closing it restores the ordinary cluster.
-
-   Controls are ordered by interaction state, rank, contribution key, and
-   control key. Generated readings follow contributed controls. One target's Threads
-   share one reading and one card. Page Map also includes readings that deliberately
-   have no target control, such as durable state provenance. One agent workflow carries
-   a reader move from its generated status into pickup and work on the exact thread
-   reading or the target's surviving semantic control; only a target without a carrier
-   gets a separate activity reading. Aggregated thread controls prefer working over
-   picked up, while Page Map keeps each thread's stage. A thread reading also carries
-   whose turn the conversation is, read from the server's `awaitsReader`; an aggregate
-   takes the turn of any member, and agent workflow outranks it on the same carrier.
+   `margin-model.js` derives the immutable inventory and cluster selection; its public
+   records carry target coordinates, captured contribution readings, and generated facts.
+   This adapter keeps target nodes and generated-reading callbacks. The contribution
+   registry keeps registrations and command scopes.
+   `margin-map-model.js` derives the complete searchable Page Map from the same inventory.
+   A model never reads back identity from a control or carries a native control.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
@@ -71,20 +57,41 @@ import {
   updateMarginRow,
 } from "./margin-layout.js";
 import {
-  compareMarginContributions,
-  compareMarginEntryRecords,
   marginContributionEntries,
-  marginContributionState,
+  marginContributionSource,
   marginEntry,
   marginEntryRecord,
   marginEntrySource,
-  marginEntryStateRank,
   presentMarginEntry,
   syncMarginAgentWorkflow,
   syncMarginEntrySelection,
   syncMarginTurn,
   watchMarginContributions,
 } from "./margin-entries.js";
+import {
+  KINDS,
+  trimmed,
+  secondaryCount,
+  entryEngaged,
+  choosePrimary,
+  readingKey,
+  readingChoices,
+  primaryReading,
+  threadReading,
+  entryHasMarginHost,
+  contributionItem,
+  optionsOffered,
+  markerFace,
+  readingFace,
+  readingState,
+  readingBehavior,
+  awaitingReader,
+  TURN_WORD,
+  readingContext,
+  clusterProjection,
+  marginInventory,
+} from "./margin-model.js";
+import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
@@ -172,59 +179,6 @@ export function createMarginProjection({
   scrollToElement,
   scrollToThread,
 }) {
-  const KINDS = {
-    action: { label: "Action", icon: "dot", priority: -1 },
-    change: { label: "Change", icon: "change", priority: 0 },
-    restated: {
-      label: "Rewritten",
-      icon: "change",
-      priority: 0,
-      indication: true,
-    },
-    comment: { label: "Thread", icon: "comment", priority: 1 },
-    ask: { label: "Ask", icon: "question", priority: 2 },
-    sent: {
-      label: "Sent",
-      icon: "sent",
-      priority: 3,
-      indication: true,
-    },
-    pickup: {
-      label: "Picked up",
-      icon: "pickup",
-      priority: 3,
-      indication: true,
-    },
-    waiting: {
-      label: "Waiting for pickup",
-      icon: "waiting",
-      priority: 3,
-      indication: true,
-    },
-    reader: {
-      label: "Your change",
-      icon: "change",
-      priority: 4,
-      indication: true,
-    },
-    reported: {
-      label: "Reported update",
-      icon: "activity",
-      priority: 4,
-      indication: true,
-    },
-    activity: { label: "Working", icon: "activity", priority: 4 },
-  };
-  const RESTING_MARGIN_ENTRY_BUDGET = 2;
-  const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
-
-  const trimmed = (value, limit = 110) => {
-    const text = String(value ?? "")
-      .replace(/\s+/g, " ")
-      .trim();
-    return text.length > limit ? text.slice(0, limit - 1) + "…" : text;
-  };
-
   const humanized = (value) =>
     String(value ?? "")
       .replace(/[-_]+/g, " ")
@@ -289,6 +243,22 @@ export function createMarginProjection({
       Node.DOCUMENT_POSITION_FOLLOWING
       ? -1
       : 1;
+  }
+
+  // Targets and generated-reading callbacks stay outside the model. Registered
+  // contributions already publish their own immutable model readings.
+  const targets = new Map();
+  const itemSources = new WeakMap();
+  const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
+  const sourceItem = (item) => itemSources.get(item);
+  function captureItem(item) {
+    const { activate, discloses, thread, ...data } = item;
+    const snapshot = Object.freeze({
+      ...data,
+      carriesWorkflow: Boolean(workflowReceipt([item])),
+    });
+    itemSources.set(snapshot, { activate, discloses, thread });
+    return snapshot;
   }
 
   const acknowledgments = () => runtime.activity?.interactions ?? [];
@@ -559,31 +529,6 @@ export function createMarginProjection({
   let suppressingOptionsArrival = false;
   let highlighted = null;
   let rovingFrame = 0;
-  const offerReadings = (offered) => offered.reading.readings;
-  const noticeItems = (entry) =>
-    entry.offers.flatMap((offered) => {
-      const notice = offered.reading.notice;
-      if (!notice) return [];
-      return [Object.freeze({ kind: "notice", key: offered, notice, offered })];
-    });
-  // One target has one lifecycle reading. Failure outranks work in flight, which
-  // outranks an open interaction; the ordinary idle state never forces peers open.
-  // Generated acknowledgment readings are settled server facts, so only a face that
-  // explicitly declares an interaction state joins this axis.
-  const entryState = (entry) => {
-    const states = [
-      ...entry.offers.map(marginContributionState),
-      ...entry.items.map((item) => item.state ?? item.workflowFace?.state ?? "idle"),
-    ];
-    return (
-      states.sort(
-        (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
-      )[0] ?? "idle"
-    );
-  };
-  // Every state but idle keeps the cluster open, so the reading is the absence of idle
-  // rather than a second list of states beside the grammar's.
-  const entryEngaged = (entry) => entryState(entry) !== "idle";
   // A modal or contextual thread surface temporarily owns focus without ending the
   // document interaction beneath it. Preserve that context so its commands remain
   // true and its owning margin entry can receive focus when the surface closes.
@@ -592,95 +537,6 @@ export function createMarginProjection({
     (Boolean(node.closest("dialog[open]")) ||
       preview.contains(node) ||
       (panelIsOpen() && panel.contains(node)));
-  const standingAfterOffers = (entry) =>
-    entry.offers
-      .filter(
-        (offered) =>
-          offered.reading.side === "after" && offerReadings(offered).length > 0,
-      )
-      .sort(compareMarginContributions);
-  const directOffers = (entry) => [
-    ...entry.offers
-      .filter((offered) => offered.reading.side === "before")
-      .sort(compareMarginContributions),
-    ...standingAfterOffers(entry),
-  ];
-  const contributionItem = (offered, record, surface = "margin", cluster = null) =>
-    Object.freeze({
-      cluster,
-      kind: "contribution",
-      offered,
-      record,
-      surface,
-    });
-  const samePresentationItem = (left, right) => {
-    if (left === right) return true;
-    if (!left || !right || left.kind !== right.kind) return false;
-    if (left.kind === "contribution")
-      return (
-        left.offered === right.offered &&
-        left.record.key === right.record.key &&
-        left.surface === right.surface
-      );
-    if (left.kind === "reading")
-      return left.entry.key === right.entry.key && left.choice.key === right.choice.key;
-    return left.offered === right.offered;
-  };
-  const directControlRecords = (entry) =>
-    directOffers(entry)
-      .flatMap((offered) =>
-        offered.reading.entries
-          .filter((record) => record.visible)
-          .map((record) => ({
-            offered,
-            record,
-            item: contributionItem(offered, record),
-          })),
-      )
-      .sort(compareMarginEntryRecords);
-  const directControlItems = (entry) =>
-    directControlRecords(entry).map(({ item }) => item);
-  const choosePrimary = (entry) => directControlRecords(entry)[0]?.item ?? null;
-  const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
-  const entryHasMarginHost = (entry) =>
-    entry.offers.some((offered) =>
-      offered.reading.entries.some((candidate) => candidate.visible),
-    ) || markerItems(entry).length > 0;
-  const readingKey = (entry, choice) => `${entry.key}:${choice.key}`;
-  const readingChoices = (entry) => {
-    const threadList = [];
-    const choices = [];
-    for (const item of markerItems(entry)) {
-      if (item.kind === "comment") threadList.push(item);
-      else
-        choices.push({
-          key: item.id,
-          kind: item.kind,
-          items: [item],
-          text: item.text,
-        });
-    }
-    if (threadList.length)
-      choices.push({
-        // One target owns one thread margin entry. Membership changes repaint its badge and
-        // card without replacing the control that owns an open conversation.
-        key: "threadList",
-        kind: "comment",
-        items: threadList,
-        text: threadList[0].text,
-      });
-    return choices.sort(
-      (left, right) =>
-        KINDS[left.kind].priority - KINDS[right.kind].priority ||
-        left.key.localeCompare(right.key),
-    );
-  };
-  const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
-  const threadReading = (entry) =>
-    readingChoices(entry).find((choice) => choice.kind === "comment") ?? null;
-  const secondaryReadings = (entry, primaryControl) =>
-    readingChoices(entry).slice(primaryControl ? 0 : 1);
-
   function readingMarginEntry(entry, kind) {
     const marker = rows.get(entry.key);
     if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
@@ -690,85 +546,6 @@ export function createMarginProjection({
       : null;
   }
   const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
-  const secondaryControls = (entry, primary) =>
-    directControlItems(entry).filter((item) => !samePresentationItem(item, primary));
-  const afterOffers = (entry, { claimedOnly = false } = {}) =>
-    entry.offers
-      .filter(
-        (offered) =>
-          offered.reading.side === "after" &&
-          offerReadings(offered).length === 0 &&
-          offered.reading.entries.some((entry) => entry.visible) &&
-          (!claimedOnly || offered.reading.claim),
-      )
-      .sort(compareMarginContributions);
-  const secondaryCount = (entry, primary, { claimedOnly = false } = {}) => {
-    const generated = secondaryReadings(entry, primary).length;
-    const contributed = secondaryControls(entry, primary).length;
-    const after = afterOffers(entry, { claimedOnly }).reduce(
-      (count, offered) =>
-        count + offered.reading.entries.filter((record) => record.visible).length,
-      0,
-    );
-    if (claimedOnly && !entry.offers.some((offered) => offered.reading.claim))
-      return generated;
-    return generated + contributed + after;
-  };
-  // One peer is not overflow. It costs the same second circle as `…`, but the peer says
-  // what it does and is immediately usable. Ellipsis earns its place only from the third
-  // margin entry onward.
-  const optionsOffered = (entry, primary, options = {}) =>
-    secondaryCount(entry, primary, options) > RESTING_MARGIN_ENTRY_BUDGET - 1;
-
-  function markerFace(entry) {
-    const kinds = kindsIn(entry, { markerOnly: true });
-    const choice = primaryReading(entry);
-    const face = readingFace(choice);
-    const faceCount = choice?.items.length ?? 0;
-    return {
-      kinds,
-      face,
-      label: faceCount > 1 ? `${face.label}s` : face.label,
-      // The badge describes this margin entry's result. Other readings live behind `…`
-      // and must not make a thread margin entry appear to open more threadList than it does.
-      count: faceCount,
-    };
-  }
-
-  function readingFace(choice) {
-    return (
-      (choice?.items.length === 1 && choice.items[0].workflowFace) ||
-      KINDS[choice?.kind] ||
-      KINDS.action
-    );
-  }
-
-  function readingState(choice) {
-    return (
-      (choice?.items ?? [])
-        .map((item) => item.state ?? item.workflowFace?.state ?? "idle")
-        .sort(
-          (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
-        )[0] ?? "idle"
-    );
-  }
-
-  const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
-
-  // An aggregated reading takes its most urgent member's turn, as it already takes the
-  // most urgent member's workflow stage: one seat cannot say two things, and the reading
-  // a cluster is compact enough to hide is the one the reader most needs to see.
-  const awaitingReader = (items) => items.some((item) => item.awaitsReader);
-  // The word beside the colour. Colour alone cannot carry a state, and the panel already
-  // calls this one "On you", so the margin says it the same way.
-  const TURN_WORD = "On you";
-
-  function readingContext(choice) {
-    if (awaitingReader(choice?.items ?? [])) return TURN_WORD;
-    if (choice?.items.length !== 1) return null;
-    return choice.items[0].context ?? null;
-  }
-
   // A core reading can change between a disclosure and a status while retaining the
   // reader's place. Its stable span owns the native-like press it needs while actionable;
   // ordinary contributed commands remain native buttons.
@@ -813,7 +590,8 @@ export function createMarginProjection({
       else control.removeAttribute("aria-expanded");
       return;
     }
-    const disclosed = choice?.items.length === 1 ? choice.items[0].discloses?.() : null;
+    const disclosed =
+      choice?.items.length === 1 ? sourceItem(choice.items[0]).discloses?.() : null;
     if (!disclosed) {
       control.removeAttribute("aria-controls");
       control.removeAttribute("aria-expanded");
@@ -926,9 +704,9 @@ export function createMarginProjection({
     const row =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const cluster = (
-      row.checkVisibility() ? row : (previewEntry?.target ?? row)
+      row.checkVisibility() ? row : (targetFor(previewEntry) ?? row)
     ).getBoundingClientRect();
-    const boundary = threadCardBoundary(previewEntry?.target);
+    const boundary = threadCardBoundary(targetFor(previewEntry));
     if (!boundary.width || !boundary.height) return false;
     const style = getComputedStyle(preview);
     // The boundary alone caps the card's height; the geometry measures it under that
@@ -1270,44 +1048,32 @@ export function createMarginProjection({
     const subjects = collected
       .filter((group) => !group.subject)
       .map((group) => group.target);
-    return collected
-      .map((group) => {
-        const items = group.items;
-        const represented = new Set(
-          items
-            .filter((item) => item.marker === false && item.represents)
-            .map((item) => item.kind),
-        );
-        const subject = outlineSubjectFor(group.target, subjects, outline);
-        return {
-          ...group,
-          title: trimmed(
-            [
-              group.subject ? null : subject.context,
-              group.word,
-              group.subject ?? addressableSays(group.target),
-            ]
-              .filter(Boolean)
-              .join(" · "),
-            72,
-          ),
-          items: items
-            .filter(
-              (item) =>
-                item.marker === false ||
-                item.workflowFace ||
-                !represented.has(item.kind),
-            )
-            .sort(
-              (left, right) =>
-                KINDS[left.kind].priority - KINDS[right.kind].priority ||
-                // Threads at one target keep the conversation's log order, not
-                // the arbitrary spelling of their event identities.
-                (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
+    targets.clear();
+    return marginInventory(
+      collected
+        .sort((left, right) => comesBefore(left.target, right.target))
+        .map((group) => {
+          const subject = outlineSubjectFor(group.target, subjects, outline);
+          targets.set(group.key, group.target);
+          return Object.freeze({
+            key: group.key,
+            targetId: group.target.id,
+            title: trimmed(
+              [
+                group.subject ? null : subject.context,
+                group.word,
+                group.subject ?? addressableSays(group.target),
+              ]
+                .filter(Boolean)
+                .join(" · "),
+              72,
             ),
-        };
-      })
-      .sort((left, right) => comesBefore(left.target, right.target));
+            offers: Object.freeze(group.offers.map((offered) => offered.model)),
+            items: Object.freeze(group.items.map(captureItem)),
+            workflowReceipt: workflowReceipt(group.items),
+          });
+        }),
+    );
   }
 
   function revealTarget(target, account, scrollToElement) {
@@ -1321,15 +1087,15 @@ export function createMarginProjection({
 
   function markerOptions(row) {
     return {
-      anchor: () => row.lfEntry?.target,
-      ...(row.lfEntry?.offers.length || readingRegionFor(row.lfEntry?.target)
+      anchor: () => targetFor(row.lfEntry),
+      ...(row.lfEntry?.offers.length || readingRegionFor(targetFor(row.lfEntry))
         ? {}
         : { fallback: "hide" }),
       priority: 10,
       claim: () => {
         const entry = row.lfEntry;
         if (!entry) return 0;
-        if (readingRegionFor(entry.target)) return 0;
+        if (readingRegionFor(targetFor(entry))) return 0;
         const primaryItem = choosePrimary(entry);
         const primary = hosts.get(entry.key)?.primary ?? null;
         const stable = [];
@@ -1371,20 +1137,20 @@ export function createMarginProjection({
       // The compact margin projection has no page rail. Dock every contributed entry even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
-      hangs: () => !readingRegionFor(row.lfEntry?.target) && railStands(),
+      hangs: () => !readingRegionFor(targetFor(row.lfEntry)) && railStands(),
       // A wide row is hoisted into main's positioning context. If its live width no
       // longer fits the rail, move the same node beside its target before static flow
       // takes over; restore the hoist before measuring whether it fits again.
       float: (item) => {
-        if (item.lfEntry?.offers.length || readingRegionFor(item.lfEntry?.target))
+        if (item.lfEntry?.offers.length || readingRegionFor(targetFor(item.lfEntry)))
           moveExternalHost(item, false);
       },
       dock: (item) => {
-        if (item.lfEntry?.offers.length || readingRegionFor(item.lfEntry?.target))
+        if (item.lfEntry?.offers.length || readingRegionFor(targetFor(item.lfEntry)))
           moveExternalHost(item, true);
       },
       place: (item, column) => {
-        const target = item.lfEntry?.target;
+        const target = targetFor(item.lfEntry);
         if (!target || item.classList.contains("lf-docked")) return;
         const place = nav.contains(item) ? measureMargin(column) : null;
         const top = Math.max(0, shownBox(target).top - column.top);
@@ -1399,15 +1165,6 @@ export function createMarginProjection({
         };
       },
     };
-  }
-
-  function kindsIn(entry, { markerOnly = false } = {}) {
-    const counts = new Map();
-    for (const item of entry.items) {
-      if (!markerOnly || item.marker !== false)
-        counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
-    }
-    return [...counts].map(([kind, count]) => ({ kind, count, ...KINDS[kind] }));
   }
 
   function markerName(entry, index, anchored, position) {
@@ -1524,14 +1281,14 @@ export function createMarginProjection({
   // consulting contributor DOM.
   function presentedControl(control) {
     if (control?.checkVisibility()) return control;
-    const key = control?.dataset?.lfMarginEntryKey;
-    const owner = control?.dataset?.lfMarginEntryOwner;
+    if (!control?.matches(".lf-margin-entry")) return null;
+    const { key, owner } = marginEntryRecord(control);
     if (!key || !owner) return null;
     return (
       visibleMarginEntries().find(
         (candidate) =>
-          candidate.dataset.lfMarginEntryKey === key &&
-          candidate.dataset.lfMarginEntryOwner === owner &&
+          marginEntryRecord(candidate)?.key === key &&
+          marginEntryRecord(candidate)?.owner === owner &&
           candidate.checkVisibility(),
       ) ?? null
     );
@@ -1539,7 +1296,7 @@ export function createMarginProjection({
 
   function openMarginEntryOptions(target, { owner = null } = {}) {
     renderMargin.refresh();
-    const entry = pageInventory.find((candidate) => candidate.target === target);
+    const entry = pageInventory.find((candidate) => targetFor(candidate) === target);
     const more = entry && moreMarginEntries.get(entry.key);
     const focusedOffer =
       owner && entry?.offers.find((offered) => offered.key === owner);
@@ -1579,8 +1336,8 @@ export function createMarginProjection({
   function activateMarginEntry(control) {
     const item = closestAcross(control, "[data-lf-margin-for]");
     const entry = item?.lfEntry;
-    if (!entry?.target || !control) return false;
-    scrollToElement(entry.target, undefined, "nearest");
+    if (!targetFor(entry) || !control) return false;
+    scrollToElement(targetFor(entry), undefined, "nearest");
     // Arrive before activation, then use the exact visible margin entry's own press. A generated
     // route never chooses among the cluster's actions on the reader's behalf.
     focusForNavigation(control);
@@ -1615,7 +1372,7 @@ export function createMarginProjection({
   // still offers a press.
   function holdTabStop(next) {
     const available = availableRows();
-    const acts = (row) => row.dataset.lfBehavior !== "status";
+    const acts = (row) => marginEntryRecord(row)?.behavior !== "status";
     let stop = next;
     if (stop && !acts(stop)) {
       const at = available.indexOf(stop);
@@ -1793,7 +1550,7 @@ export function createMarginProjection({
 
   function moveExternalHost(host, flow) {
     const main = document.querySelector("main");
-    const target = host.lfEntry?.target;
+    const target = targetFor(host.lfEntry);
     if (!main || !target || !railStands()) return;
     const perch = externalPerch(target, main, flow);
     let after = perch;
@@ -1802,21 +1559,13 @@ export function createMarginProjection({
       if (candidate === host) break;
       if (
         candidate?.isConnected &&
-        externalPerch(entry.target, main, flow) === perch &&
+        externalPerch(targetFor(entry), main, flow) === perch &&
         candidate.parentNode === perch.parentNode
       )
         after = candidate;
     }
     if (after.nextSibling !== host) moveHost(host, () => after.after(host));
   }
-
-  const readingItem = (entry, choice) =>
-    Object.freeze({
-      kind: "reading",
-      key: `reading:${readingKey(entry, choice)}`,
-      entry,
-      choice,
-    });
 
   function materializeReadingItem({ entry, choice }) {
     const key = readingKey(entry, choice);
@@ -1867,20 +1616,27 @@ export function createMarginProjection({
   function activateContributionControl({ offered, entry, control, surface, event }) {
     const consumesFocusedOwner =
       expandedOptionsKey && expandedOptionsOwner === offered.key;
-    const activated = offered.registration.activate(entry.key, {
-      origin: control,
-      surface,
-      input: event.detail === 0 ? "keyboard" : "pointer",
-      // A contributor can replace the activated entry and ask to retain focus. That is
-      // one semantic destination, not a fresh keyboard arrival that should disclose the
-      // whole cluster again.
-      focus: (key) => {
-        const destination = offered.registration.control(key, surface, true);
-        if (!destination) return false;
-        focusForNavigation(destination);
-        return true;
+    const activated = marginContributionSource(offered).registration.activate(
+      entry.key,
+      {
+        origin: control,
+        surface,
+        input: event.detail === 0 ? "keyboard" : "pointer",
+        // A contributor can replace the activated entry and ask to retain focus. That is
+        // one semantic destination, not a fresh keyboard arrival that should disclose the
+        // whole cluster again.
+        focus: (key) => {
+          const destination = marginContributionSource(offered).registration.control(
+            key,
+            surface,
+            true,
+          );
+          if (!destination) return false;
+          focusForNavigation(destination);
+          return true;
+        },
       },
-    });
+    );
     // A disclosed contributor is a route to an action, not a mode that survives that
     // action. Its next immutable reading decides whether the resulting controls remain
     // open.
@@ -1903,125 +1659,7 @@ export function createMarginProjection({
     return entry.offers.find((offered) => offered.key === expandedOptionsOwner) ?? null;
   }
 
-  function optionItems(entry, primary, focusedOffer = null) {
-    if (focusedOffer) {
-      return focusedOffer.reading.entries
-        .filter((record) => record.visible)
-        .map((record) => contributionItem(focusedOffer, record, "margin", entry));
-    }
-    return [
-      ...secondaryControls(entry, primary).map((item) =>
-        Object.freeze({ ...item, cluster: entry }),
-      ),
-      ...secondaryReadings(entry, primary).map((choice) => readingItem(entry, choice)),
-      ...afterOffers(entry).flatMap((offered) =>
-        offered.reading.entries
-          .filter((record) => record.visible)
-          .map((record) => ({
-            offered,
-            record,
-          }))
-          .sort(compareMarginEntryRecords)
-          .map(({ record }) => contributionItem(offered, record, "margin", entry)),
-      ),
-    ];
-  }
-
-  function optionGroupProjection(entry, primary, optionsOpen, focusedOffer = null) {
-    const items = optionItems(entry, primary, focusedOffer);
-    const unique = items.filter(
-      (item, index) =>
-        items.findIndex((candidate) => samePresentationItem(candidate, item)) === index,
-    );
-    // Peers may use the whole cluster budget only when no margin entry stands outside this
-    // group. Reaction mode is the common case: it has neither a primary nor a reading
-    // marker, so its six declared choices fit exactly. A reading-only target keeps its
-    // marker visible, and that margin entry counts just as a contributed primary would.
-    const peerCapacity = Math.max(
-      0,
-      EXPANDED_MARGIN_ENTRY_BUDGET -
-        (!focusedOffer && (primary || markerFace(entry).kinds.length) ? 1 : 0),
-    );
-    const needsSpill = unique.length > peerCapacity;
-    // The spill route consumes the last visible margin entry; it does not increase the
-    // cluster beyond its budget. A fully expanded cluster is therefore either one
-    // primary plus five peers, or one primary plus four peers plus the Page Map route.
-    const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
-    const hidden = Math.max(0, unique.length - visibleCapacity);
-    const direct = unique.slice(0, visibleCapacity);
-    const forcedThread =
-      forcedInlineKey === entry.key
-        ? unique.find((item) => item.choice?.kind === "comment")
-        : null;
-    // An open thread card keeps its owning Thread control on the page edge. When the
-    // ordinary order would put it beyond the six-control budget, spill the last unrelated
-    // peer in its place; the Page Map still retains every action in canonical order.
-    if (forcedThread && direct.length && !direct.includes(forcedThread))
-      direct[direct.length - 1] = forcedThread;
-    const firstSpilled = unique.find((item) => !direct.includes(item));
-    return Object.freeze({
-      entry,
-      entryKey: entry.key,
-      label: `${entryEngaged(entry) ? "Actions" : "More options"} for ${entry.title}`,
-      hidden: !optionsOpen || direct.length === 0,
-      items: Object.freeze(unique),
-      spill: needsSpill
-        ? Object.freeze({
-            count: hidden,
-            first: firstSpilled,
-            label: `Show ${hidden} more in Page Map`,
-          })
-        : null,
-      visible: Object.freeze(direct),
-    });
-  }
-
-  function clusterProjection(host, entry) {
-    const options = host.options;
-    const active = document.activeElement;
-    const focusedOption = Boolean(options?.contains(active));
-    const focusedRecord = active?.matches?.(".lf-margin-entry")
-      ? marginEntryRecord(active)
-      : null;
-    const focusedOffer = focusedOwnerOffer(entry);
-    const primary = focusedOffer ? null : choosePrimary(entry);
-    const secondaries = focusedOffer
-      ? focusedOffer.reading.entries.filter((record) => record.visible).length
-      : secondaryCount(entry, primary);
-    const hasOptions = focusedOffer ? secondaries > 0 : optionsOffered(entry, primary);
-    if (!hasOptions && expandedOptionsKey === entry.key) {
-      expandedOptionsKey = null;
-      expandedOptionsOwner = null;
-    }
-    const optionsOpen =
-      secondaries > 0 &&
-      (!hasOptions || expandedOptionsKey === entry.key || entryEngaged(entry));
-    const optionsProjection = optionGroupProjection(
-      entry,
-      primary,
-      optionsOpen,
-      focusedOffer,
-    );
-    return Object.freeze({
-      primary,
-      focusedOption,
-      focusedRecord,
-      hasOptions,
-      optionsOpen,
-      options: optionsProjection,
-      direct: Object.freeze([...(primary ? [primary] : []), ...noticeItems(entry)]),
-      entry,
-      kind: "page",
-      label: `Page actions for ${entry.title}`,
-      moreLabel: `More options for ${entry.title}`,
-      offers: Object.freeze([...entry.offers]),
-      hasPrimary: Boolean(primary),
-      state: entryState(entry),
-      target: entry.target.id || entry.key,
-    });
-  }
-
-  function presentCluster(host, marker, more, entry, projection) {
+  function presentCluster(host, marker, more, entry, projection, focus) {
     let options = host.options;
     // Retiring a focused projection fires focusout synchronously. The render already owns
     // the resulting cluster state and transfers focus below, so do not let that event
@@ -2036,7 +1674,7 @@ export function createMarginProjection({
     }
     options = host.options;
     const lostOptionFocus =
-      projection.focusedOption && !options.contains(document.activeElement);
+      focus.focusedOption && !options.contains(document.activeElement);
     if (
       !projection.hasOptions &&
       (document.activeElement === more || lostOptionFocus)
@@ -2049,11 +1687,11 @@ export function createMarginProjection({
       // focus on that same semantic control instead of jumping to the first status
       // reading merely because the cluster stayed engaged and replaced its peers.
       const next =
-        (projection.focusedRecord
+        (focus.focusedRecord
           ? clusterMarginEntries(host).find(
               (candidate) =>
-                candidate.dataset.lfMarginEntryKey === projection.focusedRecord.key &&
-                candidate.dataset.lfMarginEntryOwner === projection.focusedRecord.owner,
+                marginEntryRecord(candidate)?.key === focus.focusedRecord.key &&
+                marginEntryRecord(candidate)?.owner === focus.focusedRecord.owner,
             )
           : null) ??
         primary ??
@@ -2080,7 +1718,7 @@ export function createMarginProjection({
       )
         continue;
       const offers = grouped.get(target) ?? [];
-      offers.push(offered);
+      offers.push(offered.model);
       grouped.set(target, offers);
     }
 
@@ -2188,17 +1826,7 @@ export function createMarginProjection({
     const flow = !railStands();
     measureMargin(mainRect)?.();
     syncInlineOffers();
-    pageInventory = collectEntries().filter((entry) => entry.target);
-    for (const entry of pageInventory) {
-      const primary = choosePrimary(entry);
-      const receipt = workflowReceipt(entry.items);
-      if (primary && receipt) {
-        entry.workflowReceipt = receipt;
-        entry.items = entry.items.filter(
-          (item) => !(item.workflowFace && workflowReceipt([item])),
-        );
-      }
-    }
+    pageInventory = collectEntries();
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
@@ -2337,13 +1965,27 @@ export function createMarginProjection({
         registerMarginRow(host, markerOptions(host));
       } else updateMarginRow(host, markerOptions(host));
       host.lfEntry = entry;
-      host.lfTarget = entry.target;
+      host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
-      const projection = clusterProjection(host, entry);
-      const primary = presentCluster(host, marker, more, entry, projection);
-      if (entry.offers.length || readingRegionFor(entry.target)) {
+      const focus = {
+        focusedOption: Boolean(host.options?.contains(document.activeElement)),
+        focusedRecord: document.activeElement?.matches(".lf-margin-entry")
+          ? marginEntryRecord(document.activeElement)
+          : null,
+      };
+      const projection = clusterProjection(entry, {
+        expandedKey: expandedOptionsKey,
+        expandedOwner: expandedOptionsOwner,
+        forcedInlineKey,
+      });
+      if (!projection.hasOptions && expandedOptionsKey === entry.key) {
+        expandedOptionsKey = null;
+        expandedOptionsOwner = null;
+      }
+      const primary = presentCluster(host, marker, more, entry, projection, focus);
+      if (entry.offers.length || readingRegionFor(targetFor(entry))) {
         keeps(host, "data-lf-external", "1");
-        const perch = externalPerch(entry.target, main, flow);
+        const perch = externalPerch(targetFor(entry), main, flow);
         const dock = externalDocks.get(perch) ?? perch;
         if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
         externalDocks.set(perch, host);
@@ -2355,13 +1997,7 @@ export function createMarginProjection({
           );
         corePosition += 1;
       }
-      entry.primaryMarginEntry = primary;
-      if (primary && entry.workflowReceipt) {
-        entry.workflowCarrier = {
-          key: primary.dataset.lfMarginEntryKey,
-          owner: primary.dataset.lfMarginEntryOwner || null,
-          receipt: entry.workflowReceipt,
-        };
+      if (primary && entry.workflowCarrier) {
         syncMarginAgentWorkflow(primary, entry.workflowReceipt);
         nextWorkflowCarriers.add(primary);
       }
@@ -2375,9 +2011,10 @@ export function createMarginProjection({
     // already read above and one final scroll height, then write every name together.
     const mainHeight = main?.scrollHeight ?? 0;
     const positions = pageInventory.map((entry) =>
-      entry.target && !readingRegionFor(entry.target) && mainRect && mainHeight
+      targetFor(entry) && !readingRegionFor(targetFor(entry)) && mainRect && mainHeight
         ? Math.round(
-            ((entry.target.getBoundingClientRect().top - mainRect.top) / mainHeight) *
+            ((targetFor(entry).getBoundingClientRect().top - mainRect.top) /
+              mainHeight) *
               100,
           )
         : null,
@@ -2388,7 +2025,7 @@ export function createMarginProjection({
     walked.forEach(({ entry, position }, index) => {
       const marker = rows.get(entry.key);
       const name = markerName(entry, index, walked.length, position);
-      paintMarker(marker, entry, entry.primaryMarginEntry, {
+      paintMarker(marker, entry, hosts.get(entry.key).primary, {
         suppressed: Boolean(focusedOwnerOffer(entry)),
         accessibleLabel: name,
       });
@@ -2442,19 +2079,23 @@ export function createMarginProjection({
     const focusedNode = preview.contains(document.activeElement)
       ? document.activeElement.closest?.("[data-lf-margin-entry]")
       : null;
-    const focusedItem = focusedNode?.dataset.lfMarginEntry ?? null;
+    const focusedItem = focusedNode?.lfMarginItem ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
     if (previewThreadItem !== (selected?.id ?? null)) previewList.scrollTop = 0;
     previewThreadItem = selected?.id ?? null;
-    const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
+    const targetHeading =
+      targetFor(entry)?.querySelector(":scope > strong")?.textContent;
     // A target with a heading is named by it. One without — an aside, a paragraph —
     // is headed by the passage the selected thread quotes, as the panel heads it: a card
     // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
     // last sentence was a third name for one thread, and the least exact.
-    const quoted = selected?.thread?.anchor
-      ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
+    const quoted = sourceItem(selected)?.thread?.anchor
+      ? anchorLabel(
+          sourceItem(selected).thread.anchor,
+          sourceItem(selected).thread.root.about,
+        )
       : null;
     const title = trimmed(targetHeading || quoted || entry.title, 72);
     keeps(preview, "data-lf-thread", "");
@@ -2476,7 +2117,7 @@ export function createMarginProjection({
     if (focusedItem && !focusedNode?.isConnected) {
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-entry]"),
-      ].find((candidate) => candidate.dataset.lfMarginEntry === focusedItem);
+      ].find((candidate) => candidate.lfMarginItem === focusedItem);
       const destination = replacement?.matches("button, textarea:not([disabled])")
         ? replacement
         : (replacement?.querySelector(".lf-conversation-thread") ??
@@ -2503,7 +2144,7 @@ export function createMarginProjection({
 
   function previewItemNode(item) {
     let node = [...previewList.children].find(
-      (candidate) => candidate.dataset.lfMarginEntry === item.id,
+      (candidate) => candidate.lfMarginItem === item.id,
     );
     if (!node?.classList.contains("lf-margin-thread")) {
       node?.remove();
@@ -2513,9 +2154,10 @@ export function createMarginProjection({
     }
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
-      item.thread,
+      sourceItem(item).thread,
     );
     node.dataset.lfMarginEntry = item.id;
+    node.lfMarginItem = item.id;
     return node;
   }
 
@@ -2544,9 +2186,10 @@ export function createMarginProjection({
     const drawingOnly =
       entry?.items.length &&
       entry.items.every(
-        (item) => item.kind === "comment" && Boolean(item.thread?.root.drawing),
+        (item) =>
+          item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing),
       );
-    highlight(drawingOnly ? null : (entry?.target ?? null));
+    highlight(drawingOnly ? null : (targetFor(entry) ?? null));
   }
 
   function showPreview(entry, button, retry = true, threadItem = null) {
@@ -2767,11 +2410,12 @@ export function createMarginProjection({
     leavePageMap();
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
     if (focusMap && !landsOnTarget) focusMapControl(entry);
-    item.activate();
+    sourceItem(item).activate();
     // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
     // focus and the visible arrival name the same place.
-    if (landsOnTarget && entry.target?.isConnected) focusDestination(entry.target);
+    if (landsOnTarget && targetFor(entry)?.isConnected)
+      focusDestination(targetFor(entry));
   }
 
   function openThreadChoice(entry, button) {
@@ -2784,7 +2428,7 @@ export function createMarginProjection({
         setOptionsOpen(entry, false);
       closePreview();
       leavePageMap();
-      openPageThread(choice.items[0].thread.root.id);
+      openPageThread(sourceItem(choice.items[0]).thread.root.id);
       return;
     }
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
@@ -2832,7 +2476,7 @@ export function createMarginProjection({
     pinnedKey = entry.key;
     const initiallyPositioned = showPreview(entry, button, true, itemId);
     const item = [...previewList.children].find(
-      (candidate) => candidate.dataset.lfMarginEntry === itemId,
+      (candidate) => candidate.lfMarginItem === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     const thread = item?.querySelector(".lf-conversation-thread") ?? null;
@@ -2842,7 +2486,7 @@ export function createMarginProjection({
     if (thread && onPositioned)
       deferThreadPreviewFocus(positioned, () => {
         const current = [...previewList.children]
-          .find((candidate) => candidate.dataset.lfMarginEntry === itemId)
+          .find((candidate) => candidate.lfMarginItem === itemId)
           ?.querySelector(".lf-conversation-thread");
         if (current) onPositioned(current);
       });
@@ -2904,7 +2548,7 @@ export function createMarginProjection({
     const selected = new Set();
     for (const selection of selections) {
       const entry = pageInventory.find(
-        (candidate) => candidate.target === selection.target,
+        (candidate) => targetFor(candidate) === selection.target,
       );
       const control = entry && readingMarginEntry(entry, selection.kind);
       if (control?.isConnected) selected.add(control);
@@ -2961,8 +2605,8 @@ export function createMarginProjection({
           : control && host?.contains(control)
             ? {
                 kind: "entry",
-                key: control.dataset.lfMarginEntryKey,
-                owner: control.dataset.lfMarginEntryOwner ?? null,
+                key: marginEntryRecord(control)?.key,
+                owner: marginEntryRecord(control)?.owner ?? null,
               }
             : null,
     };
@@ -2989,8 +2633,8 @@ export function createMarginProjection({
     const host = hosts.get(entry.key);
     const control = clusterMarginEntries(host).find(
       (candidate) =>
-        candidate.dataset.lfMarginEntryKey === standing.focus.key &&
-        (candidate.dataset.lfMarginEntryOwner ?? null) === standing.focus.owner,
+        marginEntryRecord(candidate)?.key === standing.focus.key &&
+        (marginEntryRecord(candidate)?.owner ?? null) === standing.focus.owner,
     );
     if (!control) return false;
     // Roving tabindex is painted in the margin's next layout frame. The semantic
@@ -3085,6 +2729,7 @@ export function createMarginProjection({
     pageMapActive: () => availableRows().includes(focused()),
     activateMapItem: activate,
     faceForMap: (item) => KINDS[item.kind],
+    targetFor,
     focusMapControl,
     renderMargin,
     threadTransitionOrigin,

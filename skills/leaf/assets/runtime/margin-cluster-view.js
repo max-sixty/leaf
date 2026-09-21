@@ -9,6 +9,7 @@
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import {
   clearMarginEntryControls,
+  marginContributionSource,
   createMarginEntryControl,
   marginEntry,
   marginEntryControlMatches,
@@ -126,10 +127,11 @@ export function createMarginClusterViews({
   let relationOrdinal = 0;
 
   function controlsOf(offered, surface) {
-    let controls = contributionControls.get(offered);
+    const source = marginContributionSource(offered);
+    let controls = contributionControls.get(source);
     if (!controls) {
       controls = new Map();
-      contributionControls.set(offered, controls);
+      contributionControls.set(source, controls);
     }
     const entries = offered.reading.entries.filter((entry) => entry.visible);
     const liveKeys = new Set(entries.map((entry) => entry.key));
@@ -144,9 +146,9 @@ export function createMarginClusterViews({
       } else if (marginEntryRecord(control) !== entry) changed.add(control);
       control.onclick = (event) =>
         activateContribution({ offered, entry, control, surface, event });
-      trackMarginEntryControl(offered, surface, entry.key, control);
+      trackMarginEntryControl(source, surface, entry.key, control);
     }
-    clearMarginEntryControls(offered, surface, liveKeys);
+    clearMarginEntryControls(source, surface, liveKeys);
     for (const entry of entries) {
       const control = controls.get(entry.key);
       const related =
@@ -172,10 +174,10 @@ export function createMarginClusterViews({
     }
     if (item.kind === "reading") return materializeReading(item);
     if (item.kind === "notice") {
-      let node = contributionNotices.get(item.offered);
+      let node = contributionNotices.get(marginContributionSource(item.offered));
       if (!node) {
         node = el("span", "lf-margin-receipt");
-        contributionNotices.set(item.offered, node);
+        contributionNotices.set(marginContributionSource(item.offered), node);
       }
       keeps(node, "data-lf-margin-receipt", item.notice.tone);
       render(html`${item.notice.text}`, node);
@@ -196,7 +198,8 @@ export function createMarginClusterViews({
   };
   const clearOffers = (offers, surface) => {
     if (!surface) return;
-    for (const offered of offers) clearMarginEntryControls(offered, surface, new Set());
+    for (const offered of offers)
+      clearMarginEntryControls(marginContributionSource(offered), surface, new Set());
   };
 
   function materializeOptions(model) {
@@ -231,7 +234,7 @@ export function createMarginClusterViews({
     );
     keeps(spill, "data-lf-spill-count", model.spill.count);
     keeps(spill, "aria-label", model.spill.label);
-    spill.lfFirstSpilledOption = byItem.get(model.spill.first);
+    spill.lfFirstSpilledOption = model.spill.first;
     spill.onclick = () => openSpill(model.entry, spill);
     shown.push(spill);
     return shown;

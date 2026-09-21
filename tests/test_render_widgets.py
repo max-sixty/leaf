@@ -3422,18 +3422,18 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         control_box["y"] + control_box["height"]
         <= controls_box["y"] + controls_box["height"]
     ), f"the fixed presets left no complete control row: {bounded['controlsSize']}"
-    assert (
-        bounded["presetsSize"][0] == bounded["presetsSize"][1]
-    ), f"the fixed presets acquired another scrollbar: {bounded['presetsSize']}"
+    assert bounded["presetsSize"][0] == bounded["presetsSize"][1], (
+        f"the fixed presets acquired another scrollbar: {bounded['presetsSize']}"
+    )
     # A short allocation scrolls the preview and instruction as successive blocks;
     # shrinking the preview's grid track would paint it underneath the instruction.
     content_boxes = preview.evaluate(
         """body => [...body.children].map(node => node.getBoundingClientRect().toJSON())"""
     )
     assert content_boxes[0]["bottom"] <= content_boxes[1]["top"], content_boxes
-    assert controls.evaluate(
-        "body => body.scrollWidth === body.clientWidth"
-    ), "native control margins must fit inside the allocated pane width"
+    assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
+        "native control margins must fit inside the allocated pane width"
+    )
     presets_top = presets.bounding_box()["y"]
     controls.evaluate("body => body.scrollTop = body.scrollHeight")
     assert controls.evaluate("body => body.scrollTop") > 0
@@ -3867,8 +3867,10 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     page.keyboard.press("Enter")
     targeting.locator(".lf-targeting-candidate-choice").first.click()
     target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
-    target.locator(".lf-targeting-name").fill("Reader treatment heading")
-    target.locator(".lf-targeting-name").press("Tab")
+    target.locator("wa-input").click()
+    target.locator("wa-input").press("ControlOrMeta+A")
+    target.locator("wa-input").press_sequentially("Reader treatment heading")
+    target.locator("wa-input").press("Tab")
     assert targeting.evaluate("root => root.currentDraft().resolutions") == {
         "target-1": "resolved"
     }
@@ -3895,9 +3897,11 @@ def test_playground_composed_structural_target_resolves_in_the_next_revision(
     page.keyboard.press("Enter")
     targeting.locator(".lf-targeting-candidate-choice").first.click()
     target = targeting.locator('.lf-targeting-target[data-target-key="target-1"]')
-    target.locator(".lf-targeting-name").fill("Reader treatment heading")
-    target.locator(".lf-targeting-name").press("Tab")
-    targeting.locator('[name="code-comparison-targeting-instruction"]').fill(
+    target.locator("wa-input").click()
+    target.locator("wa-input").press("ControlOrMeta+A")
+    target.locator("wa-input").press_sequentially("Reader treatment heading")
+    target.locator("wa-input").press("Tab")
+    targeting.locator('[name="code-comparison-targeting-instruction"] textarea').fill(
         "Keep this heading aligned with the selected reader treatment."
     )
     targeting.get_by_role("button", name="Add instruction").click()
@@ -4467,14 +4471,25 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     candidates.filter(has_text="<section#hero>").click()
 
     first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
-    first.locator(".lf-targeting-name").fill("Hero cards")
+    first.locator("wa-input").click()
+    first.locator("wa-input").press("ControlOrMeta+A")
+    first.locator("wa-input").press_sequentially("Hero cards")
+    expect(workbench.locator("wa-select").first).to_contain_text("Hero cards")
+    first.locator("wa-input input").press("Tab")
+    first.locator("wa-select").first.click()
+    first.get_by_role("option", name="Shared class").click()
+    expect(first.locator("wa-select").first).to_have_js_property("value", "class")
+    expect(first.locator("wa-select").nth(1)).to_have_js_property(
+        "value", "landing-card"
+    )
+    expect(first.locator("wa-select").nth(1)).to_be_visible()
+    first.locator("wa-select").first.click()
+    page.keyboard.press("g")
     expect(
-        workbench.locator('[name="landing-targeting-style-target"]')
-    ).to_contain_text("Hero cards")
-    first.locator(".lf-targeting-name").press("Tab")
-    first.locator(".lf-targeting-scope").select_option("class")
-    expect(first.locator(".lf-targeting-class")).to_have_value("landing-card")
-    expect(first.locator(".lf-targeting-class")).to_contain_text("2 matches")
+        page.locator(".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]")
+    ).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(first.locator("wa-select").first).to_have_js_property("open", False)
     expect(workbench.locator(".lf-targeting-candidates")).to_be_hidden()
 
     workbench.get_by_role("button", name="Select element").click()
@@ -4482,19 +4497,24 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     page.keyboard.press("Enter")
     workbench.locator(".lf-targeting-candidate-choice").first.click()
     second = workbench.locator('.lf-targeting-target[data-target-key="target-2"]')
-    second.locator(".lf-targeting-name").fill("Evidence heading")
-    second.locator(".lf-targeting-name").press("Tab")
-    expect(
-        workbench.locator('[name="landing-targeting-instruction-target"]')
-    ).to_have_value("target-2")
+    second.locator("wa-input").click()
+    second.locator("wa-input").press("ControlOrMeta+A")
+    second.locator("wa-input").press_sequentially("Evidence heading")
+    second.locator("wa-input").press("Tab")
+    assert (
+        workbench.locator('[name="landing-targeting-instruction-target"]').evaluate(
+            "element => element.value"
+        )
+        == "target-2"
+    )
 
-    workbench.locator('[name="landing-targeting-style-target"]').select_option(
-        "target-1"
-    )
-    workbench.locator('[name="landing-targeting-style-property"]').select_option(
-        "padding"
-    )
-    workbench.locator('[name="landing-targeting-style-value"]').fill("24")
+    style_target = workbench.locator('[name="landing-targeting-style-target"]')
+    style_target.click()
+    style_target.get_by_role("option", name="Hero cards", exact=True).click()
+    expect(
+        workbench.locator('[name="landing-targeting-style-property"]')
+    ).to_have_js_property("value", "padding")
+    expect(workbench.locator("wa-number-input")).to_have_js_property("value", "24")
     workbench.get_by_role("button", name="Add style").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
     assert (
@@ -4507,12 +4527,21 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     assert page.locator("#evidence").evaluate("element => element.style.padding") == ""
 
     workbench.get_by_role("button", name="Add style").click()
-    workbench.locator('[name="landing-targeting-instruction-target"]').select_option(
-        "target-2"
+    instruction_target = workbench.locator(
+        '[name="landing-targeting-instruction-target"]'
     )
-    workbench.locator('[name="landing-targeting-instruction"]').fill(
-        "Use the same sentence case as the navigation label."
-    )
+    instruction_target.click()
+    instruction_target.get_by_role(
+        "option", name="Evidence heading", exact=True
+    ).click()
+    instruction = workbench.locator("wa-textarea textarea")
+    before_height = instruction.bounding_box()["height"]
+    instruction.fill("First line\n" * 12)
+    expect(instruction).to_have_value("First line\n" * 12)
+    assert instruction.bounding_box()["height"] > before_height
+    instruction.press("Enter")
+    expect(workbench.locator(".lf-targeting-change")).to_have_count(1)
+    instruction.fill("Use the same sentence case as the navigation label.")
     workbench.get_by_role("button", name="Add instruction").click()
 
     with sending(page, "the structured targeting action"):
@@ -4569,8 +4598,11 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
 
     page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
-    expect(page.locator("#landing-targeting .lf-targeting-name").first).to_have_value(
-        "Hero cards"
+    assert (
+        page.locator("#landing-targeting wa-input").first.evaluate(
+            "element => element.value"
+        )
+        == "Hero cards"
     )
     assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
     assert (
@@ -4578,7 +4610,9 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     )
 
     workbench = page.locator("#landing-targeting")
-    workbench.locator('[name="landing-targeting-style-value"]').fill("40")
+    workbench.locator("wa-number-input").click()
+    workbench.locator("wa-number-input").press("ControlOrMeta+A")
+    workbench.locator("wa-number-input").press_sequentially("40")
     workbench.get_by_role("button", name="Add style").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
     events_model.append_event(
@@ -9978,3 +10012,34 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     assert ring[0] == "solid" and ring[1] == ring[2] and ring[3] != "none", (
         f"nothing draws a named here ring where the keyboard is standing: {ring}"
     )
+
+
+def test_diff_export_keeps_native_soft_wrap_without_scripted_search(
+    browser, serve, tmp_path
+):
+    patch = (
+        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
+    )
+    url = serve(
+        leaf_page(
+            "Diff export",
+            '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+        )
+    )
+    live = open_page(browser, url)
+    expect(live.locator("#patch .lf-diff-search input")).to_be_visible()
+    out = tmp_path / "diff.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page(
+        viewport={"width": 540, "height": 720}, java_script_enabled=False
+    )
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.locator(".lf-diff-search-label")).to_have_count(0)
+    switch = copy.get_by_role("checkbox", name="Soft wrap")
+    line = copy.locator("lf-diff [data-line]").last
+    expect(line).to_have_css("white-space", "pre")
+    switch.check()
+    expect(line).to_have_css("white-space", "pre-wrap")
+    switch.focus()
+    copy.keyboard.press("Space")
+    expect(line).to_have_css("white-space", "pre")

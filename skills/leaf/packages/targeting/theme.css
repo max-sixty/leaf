@@ -91,24 +91,19 @@ lf-targeting .lf-targeting-change-form {
   gap: var(--sp-2);
 }
 
-/* Targeting offers its controls, so each wears `lf-ui` and reads the layer's own box:
- * the face, size and ink from `.lf-ui`, and for the textarea the whole text box —
- * padding, band, and the field-sizing that grows it as the reader types. What is left
- * here is the face for the input and the select, which the layer dresses nowhere.
- *
- * The declarations this rule used to repeat never reached a textarea. `textarea.lf-ui`
- * carries a class where this selector carries a type, so the layer won the padding, and
- * `resize: vertical` lost to the `resize: none` that field-sizing makes correct — the
- * handle it asked for has never been on screen. */
-lf-targeting :is(input, select) {
-  min-height: var(--aim-floor);
-  padding: var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea) {
+  min-width: 0;
 }
 
-lf-targeting textarea {
+lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(label),
+lf-targeting :is(wa-input, wa-number-input, wa-select, wa-textarea)::part(form-control-label) {
+  display: none;
+}
+
+lf-targeting .lf-targeting-property { width: 10rem; }
+lf-targeting .lf-targeting-value { width: 8rem; }
+
+lf-targeting wa-textarea {
   width: 100%;
   min-height: 4.5rem;
 }
@@ -157,7 +152,8 @@ html.lf-copy lf-targeting .lf-targeting-editor {
     flex-direction: column;
   }
 
-  lf-targeting :is(input, select, button) {
+  lf-targeting :is(button, wa-input, wa-number-input, wa-select, wa-textarea,
+                   .lf-targeting-property, .lf-targeting-value) {
     width: 100%;
   }
 }

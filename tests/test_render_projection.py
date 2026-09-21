@@ -584,7 +584,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         ".matches('summary')"
     )
 
-    search = page.locator("#patch .lf-diff-search")
+    search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
     expect(context).to_be_hidden()
     lines.nth(2).locator(".lf-call-location").click()
@@ -1641,7 +1641,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     summaries.nth(0).focus()
     page.keyboard.press("/")
-    search = diff.locator(".lf-diff-search")
+    search = diff.locator(".lf-diff-search input")
     expect(search).to_be_focused()
     search.fill("second")
     expect(summaries.nth(0)).to_be_hidden()
@@ -1734,7 +1734,7 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
     expect(diff.locator(".lf-diff-wrap")).to_be_visible()
-    search = diff.locator(".lf-diff-search")
+    search = diff.locator(".lf-diff-search input")
     search.fill("second")
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files · 1 matching")
     expect(diff.locator("summary").nth(0)).to_be_hidden()

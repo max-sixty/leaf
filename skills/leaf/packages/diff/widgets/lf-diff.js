@@ -8,7 +8,6 @@ import {
   dataBody,
   failSoft,
   focusDestination,
-  focused,
   inChrome,
   commands,
   langForPath,
@@ -26,6 +25,7 @@ import {
   widgetController,
   watchData,
 } from "/runtime/widget-api.js";
+import "../vendor/webawesome.esm.js";
 // Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
 // that is actually rendering has any use for it — an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
@@ -266,11 +266,12 @@ function wrapSwitch() {
 
 function diffTools(host, reviewing) {
   const tools = offer("div", "lf-diff-tools");
-  const label = offer("label", "lf-diff-search-label");
-  const search = document.createElement("input");
+  const label = offer("div", "lf-diff-search-label");
+  const search = offer("wa-input", "lf-diff-search");
   search.type = "search";
+  search.size = "s";
+  search.label = "Filter diff files";
   search.name = "diff-search";
-  search.className = "lf-diff-search";
   search.placeholder = "Filter files";
   search.setAttribute("aria-label", "Filter diff files");
   search.addEventListener("input", () => host.filterFiles(search.value));
@@ -521,11 +522,9 @@ customElements.define(
               when: () => {
                 const search = this.diffTools?.search;
                 if (!search) return false;
-                const held = focused();
-                const inDiff =
-                  this.contains(held) || Boolean(this.shadowRoot?.contains(held));
                 return Boolean(
-                  inDiff && (search.value || this.diffTools.node.contains(held)),
+                  this.matches(":focus-within") &&
+                  (search.value || this.diffTools.node.matches(":focus-within")),
                 );
               },
               does: () =>
@@ -1076,7 +1075,7 @@ customElements.define(
       // to carry it — a copy of a patch is exactly where a reader has no other way to
       // see the end of a long line.
       const tools = this.diffTools;
-      tools?.search.closest("label")?.remove();
+      tools?.search.closest(".lf-diff-search-label")?.remove();
       tools?.progress.remove();
       tools?.next?.remove();
       this.diffTools = null;

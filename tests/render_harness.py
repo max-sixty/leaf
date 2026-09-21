@@ -1699,23 +1699,37 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 
 
 def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
-    """Wait until the scroller has arrived, rather than until it pauses on the way.
+    """Wait until the scroller has stopped, read behind the fact that it started.
 
-    One gesture's travel is two moves. `scrollRevealedElement` (anchor-travel.js) places
-    the element's nested scrollports at once and then glides the scroller that owns it to
-    the centring position, so between the instant move and the glide's first step the page
-    stands still for a rendering frame or more. A wait that asks only "has the number held
-    for N milliseconds" cannot tell that pause from the arrival, and it answers with the
-    place the instant move left — which a test then measures, scrolls from, and loses when
-    the glide lands on top of its own `scrollTo`.
+    Stillness is half a reading. A page that has not begun an effect is indistinguishable
+    from one that finished it when the only evidence is the number holding still, so this
+    helper answers for a travel that is over and for a travel that an asynchronous gesture
+    has not issued yet with the same silence. It cannot tell them apart and no count of
+    frames makes it able to: the caller consumes a fact the page states — the arrival the
+    walk paints, the focus it moves, the attribute it writes — and asks for stillness
+    behind that. Every travel here is issued in the same task as the fact that announces
+    it, so the fact is enough. `test_ask_binding_badges_do_not_cover_their_key_line` is
+    the case that pins it, and the one that lost twice without it.
 
-    Which reading it gives is decided by the machine and not by the page. The window has to
-    be shorter than the pause to be safe, and the pause is a frame gap: on this checkout the
-    instant move reports at 9ms and the glide's first step at 43ms, so a 50ms window already
-    spans it, and every frame the runner drops widens it further. That is why the reading
-    held here and lost on the nightly run, where two browsers share four cores
-    (`tests/test_render_widgets.py::test_ask_binding_badges_do_not_cover_their_key_line`,
-    run 35527368685).
+    What the stillness itself has to outlast is the glide. One gesture's travel is two
+    moves: `scrollRevealedElement` (anchor-travel.js) places the element's nested
+    scrollports at once and then glides the scroller that owns it to the centring
+    position, so between the instant move and the glide's first step the page can stand
+    still for a rendering frame. A wait that asks only "has the number held for N
+    milliseconds" cannot tell that pause from the arrival, and it answers with the place
+    the instant move left — which a test then measures, scrolls from, and loses when the
+    glide lands on top of its own `scrollTo`.
+
+    That pause is small and it shrinks under load: measured on the ask walk here it is
+    nought to one frame, and throttling the processor holds it at nought, because the
+    compositor starts the glide on the frame after the move whatever the main thread is
+    doing. The window that grows is the other one — the asynchronous gesture before the
+    travel is issued at all, which is main-thread work and which no count of frames
+    bounds. `test_ask_binding_badges_do_not_cover_their_key_line` lost the nightly run
+    twice: to the millisecond window (run 35527368685), and then, with the count already
+    in frames and the glide pause measuring nought, to the only window left ungated
+    (run 35616173899). The first is why the unit here is frames; the second is why the
+    fact comes first.
 
     Frames are the unit the browser schedules a glide in. The compositor advances the
     scroller on every frame the animation runs, independently of the main thread, so a

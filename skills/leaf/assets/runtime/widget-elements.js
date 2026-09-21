@@ -25,8 +25,9 @@
    spelled, never on a control class alone. Export takes the role off and leaves the
    class, so a hand hung on the class is a hand a file cannot answer. The layer's own
    spelling is the value `offer` writes into `data-lf-offer`: the tag or input type for
-   a native press, the role for a selectable one, and the empty string for the rest of
-   the chrome a widget makes. The theme's one pressable rule reads that value, and the
+   a native press, the tag for a custom host that opts into its own press contract, the
+   role for a selectable one, and the empty string for the rest of the chrome a widget
+   makes. The theme's one pressable rule reads that value, and the
    marker outlives the role — a
    press carrying page words becomes a span in a copy and keeps its words — so the copy
    clears the value where it strips the role, and the promise leaves with the thing
@@ -344,8 +345,9 @@ export function worksInside(node, container) {
 // focus behavior, and platform accessibility contract without Leaf recreating any of it:
 // ordinary buttons and links need no Leaf activation binding, and a `selectableOffer`
 // registers its widget-specific keys. An input supplies its type here so the type and the
-// pressability marker cannot disagree.
-export function offer(tag, cls, label, inputType) {
+// pressability marker cannot disagree. Custom controls opt in when their host exposes
+// the complete activation method that the go-to sequence can call.
+export function offer(tag, cls, label, inputType, pressable = false) {
   const node = document.createElement(tag);
   if (node instanceof HTMLButtonElement) node.type = "button";
   if (inputType !== undefined) {
@@ -355,9 +357,10 @@ export function offer(tag, cls, label, inputType) {
   }
   node.className = cls ? `${cls} lf-ui` : "lf-ui";
   node.dataset.lfGen = "1";
-  node.dataset.lfOffer =
-    node instanceof HTMLButtonElement ||
-    (tag === "input" && ["checkbox", "radio"].includes(node.type))
+  node.dataset.lfOffer = pressable
+    ? tag
+    : node instanceof HTMLButtonElement ||
+        (tag === "input" && ["checkbox", "radio"].includes(node.type))
       ? node.type
       : "";
   if (label !== undefined) node.textContent = label;

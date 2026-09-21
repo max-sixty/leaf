@@ -83,21 +83,31 @@ lf-playground-control > input[type="range"] {
   accent-color: var(--accent);
 }
 
-lf-playground-control > input[type="checkbox"] {
-  inline-size: 2.35rem;
-  block-size: 1.35rem;
-  margin: 0;
-  accent-color: var(--accent);
+.lf-playground-toggle > wa-switch {
+  grid-column: 1 / -1;
+  width: 100%;
+  --width: 2.25rem;
+  --height: 1.25rem;
+  --thumb-size: 0.875rem;
+  --wa-form-control-border-color: var(--muted);
 }
 
-lf-playground-control > input[type="color"] {
-  box-sizing: border-box;
-  inline-size: 3rem;
-  block-size: 2rem;
-  padding: 2px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--field);
+lf-playground-control > wa-switch::part(switch) {
+  width: 100%;
+  min-height: var(--aim-floor);
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+lf-playground-control > wa-switch::part(label) {
+  margin: 0;
+  line-height: 1.35;
+}
+
+lf-playground-control > wa-switch::part(control),
+lf-playground-control > wa-switch::part(thumb) {
+  transition: none;
 }
 
 lf-playground-control > input[type="text"] {
@@ -220,10 +230,38 @@ lf-playground-value {
   text-align: end;
 }
 
-.lf-playground-copy.is-copied {
+/* The component owns clipboard status and its lifetime; Leaf supplies its face.
+ * Its icon-swap animation is unnecessary for these text labels. */
+.lf-playground-copy::part(copy-icon),
+.lf-playground-copy::part(success-icon),
+.lf-playground-copy::part(error-icon) {
+  animation: none;
+}
+
+.lf-playground-copy::part(button) {
+  transition: none;
+  box-sizing: border-box;
+  min-height: var(--aim-floor);
+  width: 8.5rem;
+  height: auto;
+  aspect-ratio: auto;
+  white-space: nowrap;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--field);
+  color: var(--ink-2);
+  font: 600 var(--t-6)/1.2 var(--sans);
+}
+
+.lf-playground-copy:state(success)::part(button) {
   border-color: var(--ok);
   background: var(--ok-tint);
   color: var(--ok-ink);
+}
+
+.lf-playground-copy:state(error)::part(button) {
+  color: var(--danger-ink);
 }
 
 lf-playground.lf-playground-quoted .lf-playground-controls,
@@ -244,4 +282,28 @@ html.lf-copy lf-playground > .lf-playground-actions {
   lf-playground-preview {
     min-height: 14rem;
   }
+}
+
+lf-playground-control > wa-color-picker::part(form-control-label) {
+  display: none;
+}
+
+lf-playground :is(wa-color-picker, wa-copy-button, wa-switch) {
+  color-scheme: inherit;
+  --wa-font-family-body: var(--sans);
+  --wa-color-surface-raised: var(--card);
+  --wa-color-surface-default: var(--field);
+  --wa-color-surface-lowered: var(--card);
+  --wa-color-surface-border: var(--border-2);
+  --wa-color-text-normal: var(--ink);
+  --wa-color-text-quiet: var(--muted);
+  --wa-color-neutral-fill-quiet: var(--field);
+  --wa-color-neutral-fill-normal: var(--card);
+  --wa-color-neutral-border-normal: var(--border-2);
+  --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-focus: var(--accent);
+  --wa-form-control-activated-color: var(--accent);
+  --wa-form-control-background-color: var(--field);
+  --wa-form-control-border-color: var(--border-2);
+  --wa-form-control-value-color: var(--ink);
 }

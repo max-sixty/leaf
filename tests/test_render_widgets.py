@@ -3280,9 +3280,13 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     }
 
     page.locator('lf-playground-control[name="radius"] input').fill("17")
-    page.locator('lf-playground-control[name="compact"] input').check()
+    playground.get_by_role("switch", name="Compact spacing").press("Space")
     page.locator('lf-playground-choice[value="bold"]').click()
-    page.locator('lf-playground-control[name="accent"] input').fill("#8b4a5f")
+    picker = playground.locator("wa-color-picker")
+    picker.get_by_role("button", name="Accent", exact=True).click()
+    picker.get_by_role("textbox").fill("#8b4a5f")
+    picker.get_by_role("textbox").press("Enter")
+    picker.get_by_role("textbox").press("Escape")
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(sent_events(serve.page_dir)) == before
@@ -4173,6 +4177,25 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     assert len(actions(serve.page_dir)) == 1
 
 
+def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
+    page = open_page(browser, serve(PLAYGROUND_PAGE))
+    playground = page.locator("#card-playground")
+
+    page.keyboard.press("g")
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
+    )
+    switch_hint = page.locator(
+        '.lf-go-to-hint[data-lf-go-to-target="card-playground-compact"]'
+    )
+    expect(switch_hint).to_have_count(1)
+    switch_code = switch_hint.get_attribute("data-lf-hint-code")
+    assert switch_code
+
+    page.keyboard.type(switch_code)
+    expect(playground.get_by_role("switch", name="Compact spacing")).to_be_checked()
+
+
 def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     browser, serve
 ):
@@ -4198,14 +4221,16 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.locator(".lf-playground-copy")
+    copy = playground.locator(".lf-playground-copy").get_by_role("button")
     expect(copy).to_have_accessible_name("Copy instruction")
     copy.scroll_into_view_if_needed()
     before = copy.bounding_box()
     copy.click()
-    expect(copy).to_have_text("Copied")
-    assert copy.evaluate("button => getComputedStyle(button).color") == page.evaluate(
-        """() => {
+    expect(copy).to_have_accessible_name("Instruction copied")
+    expect(copy).to_have_css(
+        "color",
+        page.evaluate(
+            """() => {
           const probe = document.createElement('span');
           probe.style.color = 'var(--ok-ink)';
           document.body.append(probe);
@@ -4213,8 +4238,9 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
           probe.remove();
           return color;
         }"""
+        ),
     )
-    expect(page.locator(".lf-notice")).to_have_text("Instruction copied")
+    expect(playground.locator("wa-copy-button:state(success)")).to_have_count(1)
     assert copy.bounding_box() == before
     assert page.evaluate("navigator.clipboard.readText()") == (
         "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
@@ -4222,8 +4248,11 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
 
     playground.get_by_role("button", name="Reset").click()
-    assert copy.text_content() == "Copy instruction"
+    expect(copy).to_have_accessible_name("Copy instruction")
     assert playground.evaluate("root => root.values")["radius"] == 12
+    copy.press("Enter")
+    expect(copy).to_have_accessible_name("Instruction copied")
+    assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(

@@ -542,7 +542,9 @@ Every visible press a widget builds with `offer()` or `selectableOffer()` also j
 generated target map after `g`. Packages do not declare another `g` binding or repeat
 those controls in a destination list. Text and range inputs remain ordinary Tab stops;
 buttons, checkboxes, radios, and selectable controls are addressable because they have a
-discrete activation.
+discrete activation. A custom element with a complete host-level `focus()` and `click()`
+contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then supplies the
+same addressable marker as a native control.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed

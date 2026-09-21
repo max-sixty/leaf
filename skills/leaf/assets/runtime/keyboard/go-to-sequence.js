@@ -154,9 +154,10 @@ export function createGoToSequence({
   // Narrower than the disclosure scope's own reading: this route can reveal a native
   // disclosure by its summary, while an aria-expanded group has no equivalent arrival.
   // The presses themselves, wherever a widget put them. Each is declared as it is built:
-  // `offer` writes the native press's tag or input type and `selectableOffer` the role it
-  // gave, which is the value the theme's hand already reads. A widget joins by building its
-  // control rather than by an entry here. The register stays about capabilities; a press is
+  // `offer` writes the native press's tag or input type, or the tag of a custom host that
+  // opted into its own press contract; `selectableOffer` writes the role it gave. Those are
+  // the values the theme's hand already reads. A widget joins by building its control rather
+  // than by an entry here. The register stays about capabilities; a press is
   // a route to one, and this is how a route that spends no key of its own is reached. The
   // reading stops where the hand stops, because it is the same reading.
   const pageControls = () => pageParts(PRESSABLE);

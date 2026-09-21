@@ -65,14 +65,35 @@ const TYPED_TYPES = new Set([
   "week",
 ]);
 
+// Select options retain typeahead when an open custom list moves focus into an option.
 export function takesLetters(node) {
   return (
     Boolean(node) &&
     (node.tagName === "TEXTAREA" ||
       node.tagName === "SELECT" ||
+      node.getAttribute("role") === "option" ||
       node.isContentEditable ||
       (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
   );
+}
+
+// Radio and range controls own their arrow navigation before a containing widget.
+// Custom controls expose the same role at their focused element as the native input.
+export function controlNavigationKeys(node) {
+  if (node?.matches('input[type="radio"], [role="radio"]'))
+    return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+  if (node?.matches('input[type="range"], [role="slider"]'))
+    return [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Home",
+      "End",
+      "PageUp",
+      "PageDown",
+    ];
+  return [];
 }
 
 // Landing the reader in the document. One act at both ends of the ladder, and for every

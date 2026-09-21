@@ -42,7 +42,7 @@ export const loadMarked = () =>
 // with admission, edits, stream text, or the lazy Markdown renderer becoming ready;
 // clock and receipt paint reuse the same HTML without retaining generated DOM.
 const renderedProse = new Map();
-function messageHtml(message) {
+function proseReading(message) {
   const key = message.attempt ?? message.id;
   const edited = message.edited?.id ?? null;
   const text = message.text ?? "";
@@ -55,16 +55,20 @@ function messageHtml(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
+    const html = renderMarkdown(text);
+    const template = document.createElement("template");
+    template.innerHTML = html;
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
-      html: renderMarkdown(text),
+      html,
+      plainText: template.content.textContent,
     });
     renderedProse.set(key, reading);
   }
-  return reading.html;
+  return reading;
 }
 
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
@@ -128,6 +132,7 @@ export function messageReading(message, { panel, receipts, reactions }) {
     : message.suggestion
       ? "suggestion"
       : "prose";
+  const prose = kind === "prose" ? proseReading(message) : null;
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
@@ -157,7 +162,8 @@ export function messageReading(message, { panel, receipts, reactions }) {
     body: Object.freeze({
       kind,
       text: message.text ?? "",
-      html: kind === "prose" ? messageHtml(message) : "",
+      html: prose?.html ?? "",
+      plainText: prose?.plainText ?? message.text ?? "",
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
       glyph: token?.glyph ?? "",
@@ -211,6 +217,7 @@ export class MessageView {
         attempt: model.attempt,
         markup: model.body.markup,
       }).nodes;
+    const sending = model.pending && model.author === "user";
     const receipts = model.receipts.map((receipt) => {
       let node = this.#receipts.get(receipt.id);
       if (!node) this.#receipts.set(receipt.id, (node = createReceipt()));
@@ -218,6 +225,11 @@ export class MessageView {
       node.present(receipt);
       return { key: receipt.id, node };
     });
+    const receiptTemplate = repeat(
+      receipts,
+      (receipt) => receipt.key,
+      (receipt) => receipt.node,
+    );
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions
       ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
@@ -227,34 +239,32 @@ export class MessageView {
     render(
       html`
         <div class=${panel ? "lf-msg-head" : "lf-conversation-head"}>
-          <b>${model.by}</b><time datetime=${model.timestamp}>${model.age}</time>
-          ${
-            model.failure
-              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
-              : nothing
-          }
-          ${
-            model.body.kind === "suggestion" && panel
-              ? html`<span class="lf-suggest-label">Suggestion</span>`
-              : nothing
-          }
-          ${
-            model.edited
-              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
-              : nothing
-          }
-          ${
-            model.streamLabel
-              ? html`<span class="lf-stream-state lf-edited"
-                  >${model.streamLabel}</span
-                >`
-              : nothing
-          }
-          ${repeat(
-            receipts,
-            (receipt) => receipt.key,
-            (receipt) => receipt.node,
-          )}
+          <b>${model.by}</b
+          ><span class="lf-msg-meta"
+            ><time datetime=${model.timestamp}>${model.age}</time> ${
+              model.failure
+                ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+                : nothing
+            }
+            ${
+              model.body.kind === "suggestion" && panel
+                ? html`<span class="lf-suggest-label">Suggestion</span>`
+                : nothing
+            }
+            ${
+              model.edited
+                ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+                : nothing
+            }
+            ${
+              model.streamLabel
+                ? html`<span class="lf-stream-state lf-edited"
+                    >${model.streamLabel}</span
+                  >`
+                : nothing
+            }
+            ${panel ? nothing : receiptTemplate}</span
+          >
         </div>
         ${
           panel
@@ -270,6 +280,13 @@ export class MessageView {
                 ${model.body.markup ? this.#authored : nothing}
               </div>`
             : this.#inlineBody(model.body)
+        }
+        ${
+          panel && (sending || receipts.length)
+            ? html`<div class="lf-msg-delivery">
+                ${sending ? html`<span>Sending</span>` : receiptTemplate}
+              </div>`
+            : nothing
         }
         ${
           !panel && model.body.markup

@@ -8,7 +8,9 @@
    together with preparation for frozen widgets newly joined to the panel. A mechanical
    repaint — a draft, a hover, a narrowing — claims the same region through `present`. */
 import { clocked } from "../presence.js";
-import { elementById, inChrome } from "../passages.js";
+import { focused } from "../keyboard/scopes.js";
+import { retainReaderIntent } from "../reader-intent.js";
+import { closestAcross, elementById, inChrome } from "../passages.js";
 import { conversationState } from "./state.js";
 import {
   renderConversations,
@@ -202,8 +204,24 @@ export function createConversationPresentation({
 
   function mount() {
     threadsBox.addEventListener("lf-reveal", (event) => {
-      const hidden = event.detail?.target?.closest?.(".lf-thread[hidden]");
-      if (hidden) event.detail?.present?.(revealThread(hidden.dataset.id, present));
+      const target = event.detail?.target;
+      const thread = target && closestAcross(target, ".lf-thread");
+      if (!thread) return;
+      const id = thread.dataset.id;
+      if (thread.hidden) {
+        const mayReveal = retainReaderIntent({
+          source: focused(),
+          available: () => thread.isConnected,
+          fallback: threadsBox,
+        });
+        const revealed = revealThread(id, present);
+        if (revealed)
+          event.detail.present(
+            revealed.then(() => {
+              if (mayReveal()) threadsBox.revealNavigation(id);
+            }),
+          );
+      } else threadsBox.revealNavigation(id);
     });
   }
 

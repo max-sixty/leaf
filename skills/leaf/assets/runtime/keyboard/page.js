@@ -147,7 +147,12 @@ export function declareStanding({ panelIsOpen, askHeld, pageState }) {
     if (nativeLayers().length) return null;
     if (takesLetters(focused()) && boxHandsBack()) return null;
     if (claimsEsc(focused())) return null;
-    if (panelFocusIsInside(panelIsOpen)) return focusedThreadOf() ? threadsBox : null;
+    if (panelFocusIsInside(panelIsOpen)) {
+      // Only the conversation the reader stands in owns this unwind. A neighboring
+      // title releases to the list; panel controls keep the panel's own ladder.
+      if (focusedThreadOf()?.dataset.id === threadsBox.selectedThreadId) return null;
+      return focusedThreadOf() ? threadsBox : null;
+    }
     if (inChrome(documentFocused())) return null;
     // Out on the page, where state the reader put on here is inside the page they are
     // standing in and comes off before they let go of anything: the drag that takes
@@ -165,6 +170,19 @@ export function declareStanding({ panelIsOpen, askHeld, pageState }) {
     escape: "inner",
     at: holding,
     rows: [
+      {
+        id: "thread.collapse",
+        keys: ["Escape"],
+        does: "Collapse the open thread, keeping its draft",
+        line: "collapse thread",
+        lineWhen: () => !threadSearchActive(),
+        when: () =>
+          panelFocusIsInside(panelIsOpen) &&
+          focusedThreadOf()?.dataset.id === threadsBox.selectedThreadId &&
+          !takesLetters(focused()) &&
+          !claimsEsc(focused()),
+        run: () => threadsBox.collapseNavigation(),
+      },
       {
         id: "navigation.release",
         keys: ["Escape"],

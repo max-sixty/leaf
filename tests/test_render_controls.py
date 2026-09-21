@@ -1367,6 +1367,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     resized(page, 1200, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-summary").click()
     expect(page.locator(".lf-thread")).to_have_count(1)
 
     aim = page.evaluate(
@@ -1936,7 +1937,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     context = browser.new_context(
         viewport={"width": 390, "height": 800}, has_touch=True
     )
-    page = open_page(browser, serve(MANY_ASKS_PAGE, comments=12), context=context)
+    page = open_page(browser, serve(MANY_ASKS_PAGE, comments=30), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     cdp = context.new_cdp_session(page)
 
@@ -3549,7 +3550,12 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
     # Standing on a card the keyboard entry never put them on is its own rung: the first
-    # Escape lets go of it onto the list, and the entry's frame then hands the page back.
+    # Escape collapses it onto its title, then releases the list before closing.
+    page.keyboard.press("Escape")
+    expect(thread.locator(".lf-thread-summary")).to_be_focused()
+    expect(thread.locator(".lf-thread-summary")).to_have_attribute(
+        "aria-expanded", "false"
+    )
     page.keyboard.press("Escape")
     expect(threads).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -4075,6 +4081,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
     events_model.append_event(
         d,
@@ -4220,7 +4227,7 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     That room is body's content box. The strip is a transparent border (theme.css, at the
     body strip, says why it has to be one rather than the margin it was), so the box body
     draws now reaches the window and the border is the strip the panel stands in."""
-    page = open_page(browser, serve(LONG_PAGE, comments=12))
+    page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
@@ -4297,7 +4304,10 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
                 window.lfRestedAt = document.scrollingElement.scrollTop;
         });
     }""")
-    page.locator(".lf-quote", has_text="Paragraph 40").click()
+    quote = page.locator(".lf-quote", has_text="Paragraph 40")
+    thread_id = quote.evaluate("quote => quote.closest('.lf-thread').dataset.id")
+    page.locator(f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary').click()
+    quote.click()
     panel_settled(page, open=False)
     # Arrived where it was aimed, which is the only thing about this the page states. A
     # text-passage destination reveals nested scrollports without writing the document,
@@ -5075,6 +5085,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     url = serve(example, comments=2)
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     page.locator("body").click()
     # A real press, because `.focus()` alone never raises `:focus-visible` and a control
@@ -5222,6 +5233,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     url = serve(example, comments=2)
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     page.locator("body").click()
     page.locator(".lf-threads .lf-btn").first.focus()
@@ -5451,6 +5463,11 @@ RING_CASES = (
         {"pr-walkthrough": (("textarea.lf-fab-input", "inline-response"),)},
     ),
     ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    (
+        "a thread title",
+        (),
+        {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
+    ),
     # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
     # arrival paints only the ground, so the specimen is the walk's own landing.
     (
@@ -5851,6 +5868,21 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     ring with no declaration. A second version and neighbouring leaf provide the two
     runtime states authored examples cannot carry themselves.
     """
+
+    def open_containing_thread(target):
+        # The accordion keeps a message's controls connected while closed. Enter through
+        # its real title before asking a specimen inside it to take keyboard focus.
+        thread_id = target.evaluate(
+            "node => node.matches('.lf-thread-summary') ? null : "
+            "node.closest('.lf-thread')?.dataset.id"
+        )
+        if thread_id:
+            header = target.page.locator(
+                f'.lf-thread[data-id="{thread_id}"] > .lf-thread-summary'
+            )
+            if header.get_attribute("aria-expanded") != "true":
+                header.click()
+
     live_leaf("other", "The other leaf")
     # No ring moves under the default motion setting, so a settled specimen reads the
     # value its rule declares. The reduced-motion case has a focused test above.
@@ -5963,7 +5995,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(".lf-status-button").press("Enter")
                 expect(page.locator(".lf-status-detail")).to_be_focused()
             if opener := RING_SCOPE_OPENER.get(scope):
-                page.locator(opener).first.click()
+                control = page.locator(opener).first
+                open_containing_thread(control)
+                control.click()
             for key in keys:
                 page.keyboard.press(key)
                 page.evaluate(RENDERED)
@@ -5998,6 +6032,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         }"""
                     )
                     page.evaluate(RENDERED)
+                    open_containing_thread(target)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)
                     assert target.evaluate("node => node.tabIndex >= 0"), (
@@ -6314,12 +6349,14 @@ def _each_aim_surface(page, page_dir):
         e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
     )
     # A resolved thread, which is the only state that has a Reopen to aim at.
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    expect(page.locator(".lf-reopen")).to_have_count(1)
+    page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
+    expect(page.locator(".lf-reopen")).to_be_visible()
     yield
 
     page.locator(".lf-version").click()

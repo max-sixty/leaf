@@ -1,6 +1,6 @@
 # Threads: workflow and prototype plans
 
-Status: the document-outcome guidance is complete; the remaining plans are proposed.
+Status: document-outcome guidance and compact navigation are implemented; the remaining plans are proposed.
 They address long conversations taking over the page, an unwieldy Threads panel,
 and uncertainty about who should act next.
 
@@ -166,21 +166,16 @@ this model, not reasons to add independent status rules at each surface.
 
 ## Compact thread navigation
 
-Prototype two operable treatments using the actual thread components:
+The selected compact accordion is implemented in the thread panel. A title row opens
+one conversation in place; the others retain their message and editor nodes while
+collapsed. Message counts share a column, author/time headers precede messages, and
+the reply field spans the conversation width. Delivery receipts follow their message. The [playground](thread-navigation/README.md)
+retains the spacing study and supplies a seeded conversation fixture.
 
-- **Expand in place:** selection expands one row and collapses the previous selection.
-- **Focused conversation:** selection opens the conversation in place of the list;
-  Back restores the list and its position.
-
-Both preserve drafts, selection, focus, and reading positions; expose search and its
-active filters; support keyboard traversal and movement between a thread and its anchor;
-and retain agent activity beside the message it belongs to. Compare page-side behaviour
-for short discussions with opening a long discussion in the panel.
-
-Test finding a thread needing an answer, visiting its anchor, replying, switching to
-another thread, and returning to an unfinished draft. Use both sparse and crowded pages.
-Focused conversation is the starting preference, not a settled choice. This work can
-start with existing status readings and adopt the workflow model when ready.
+The runtime owners document disclosure, keyboard, draft, and arrival behavior beside
+the code. Existing delivery readings supply compact status labels; the richer workflow
+model above remains a separate backend change. Long-history compression below remains
+independent of collapsing whole conversations.
 
 ## Long-thread reading
 
@@ -214,7 +209,7 @@ a functioning resumption mechanism from an agent merely promising to check later
 Prove success resumes work, failure reaches the appropriate owner, and a lost observer
 or absent continuation mechanism cannot leave a reassuring Waiting label indefinitely.
 Cover delegated work that remains active after its coordinator's turn ends. This builds
-on the workflow model and must not delay the navigation prototype.
+on the workflow model and remains independent of compact navigation.
 
 ## Summary checkpoints
 
@@ -229,8 +224,8 @@ This follows long-thread reading and does not block folding without summaries.
 
 ## Sequence and shared evidence
 
-Start the workflow model and compact navigation independently. Add long-thread
-reading to the chosen navigation; pursue external waits after the workflow model
+Compact navigation is implemented. Add long-thread reading to that navigation
+independently of the workflow model; pursue external waits after the workflow model
 and summaries after folding.
 
 Use one shared fixture corpus: a sparse page, many mixed-status threads, a long exchange,

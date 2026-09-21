@@ -4442,7 +4442,9 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     page.locator(".lf-threads-toggle").click()
 
     def quote(section):
-        return page.locator(f'.lf-thread[data-id="{thread[section]}"] .lf-quote')
+        card = page.locator(f'.lf-thread[data-id="{thread[section]}"]')
+        card.locator(".lf-thread-summary").click()
+        return card.locator(".lf-quote")
 
     # Centred: the destination the travel computed, which a glide toward it passes
     # through no earlier position that could be mistaken for. Put it wholly out of sight
@@ -6737,6 +6739,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     body = page.locator(".lf-msg.agent .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
@@ -6789,6 +6792,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
     )
     page = open_page(browser, url, context=one_reader)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
 
     live = page.locator('.lf-msg-body a[href="#p-bath"]')
     expect(live).to_have_attribute("title", "Jump to § p-bath")
@@ -7162,6 +7166,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         "mounted": True,
     }
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")
@@ -7280,6 +7285,12 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
 
+    page.locator("#tq-redis").click()
+    expect(decisions).to_have_text("Asks 1/2")
+
+    page.locator(".lf-thread:has(#tq-set) .lf-thread-summary").click()
+    expect(page.locator("#tq-set .lf-done")).to_be_visible()
+
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
     # own frame whole. Drawn by the lower neighbour instead, the divider recolored the
     # press's top edge and left the seam above it to nothing.
@@ -7312,9 +7323,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert seam["gap"] < 0.5, (
         f"the hairline above the Done press floats {seam['gap']}px above it"
     )
-
-    page.locator("#tq-redis").click()
-    expect(decisions).to_have_text("Asks 1/2")
 
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
@@ -7378,6 +7386,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes
     # the repeatable category walk and the thread-local landing explicit.
+    page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
     # completion closes it and the second is the arrival on the list.
@@ -7577,6 +7586,8 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     page = open_page(browser, url)
     page.keyboard.press("a")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.keyboard.press("a")
+    expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -7719,6 +7730,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     )
     told(page)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     frozen = page.locator("#msg-proof > .lf-worktree-snapshot > .lf-worktree-head")
     frozen.focus()
@@ -8091,6 +8103,7 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     told(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
     expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     operations = page.locator("#thread-commands")
@@ -8746,6 +8759,9 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     assert before["top"] > before["banner"]
     assert before["bottom"] < before["height"]
     page.locator(
+        f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-thread-summary'
+    ).click()
+    page.locator(
         f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-quote'
     ).click()
     after = page.evaluate(
@@ -8762,12 +8778,16 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     )
 
     # A worker target is the control: its owner opens and its disclosure state agrees.
+    page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-thread-summary').click()
     page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-quote').click()
     expect(page.locator("#w-1")).to_be_visible()
     expect(
         page.locator("#goal-parser > .lf-task-meta .lf-task-crew")
     ).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#lf-tree-w-1-diff")).to_be_hidden()
+    page.locator(
+        f'.lf-thread[data-id="{threads["lf-tree-w-1-diff"]}"] .lf-thread-summary'
+    ).click()
     page.locator(
         f'.lf-thread[data-id="{threads["lf-tree-w-1-diff"]}"] .lf-quote'
     ).click()
@@ -8818,10 +8838,10 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(inline_link.locator(":scope > svg.lf-external-mark")).to_be_visible()
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
+    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    thread.locator(".lf-thread-summary").click()
     with sending(page, "the resolution"):
-        page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(
-            "button", name="Resolve thread", exact=True
-        ).click()
+        thread.get_by_role("button", name="Resolve thread", exact=True).click()
     expect(goal).not_to_have_attribute("data-lf-held")
     expect(page.locator("#atlas-record")).to_contain_text(
         "Released · Replace the XML parser (goal-parser)"

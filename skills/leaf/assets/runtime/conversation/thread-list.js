@@ -206,9 +206,9 @@ function takeScrollHold(panelIsOpen) {
   // past the fold, the successor the reader was aiming at among it, goes on moving.
   // A render arriving inside a fold therefore inherits the standing hold's own
   // reference, which has already handed off past the card that is leaving.
-  const inherited = hasFolding()
-    ? priorHold?.references.find(({ card }) => heldBox(card))?.card
-    : null;
+  // Completion removes the fold's record before its final presentation hides the
+  // node. The standing hold still owns that last reflow, even without a live animation.
+  const inherited = priorHold?.references.find(({ card }) => heldBox(card))?.card;
   const lead = inherited || underPointer || standing || visible[0];
   const leadAt = visible.indexOf(lead);
   const fallbacks =

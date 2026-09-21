@@ -367,6 +367,7 @@ async function showThreadNow(id, focus, revealThread) {
       `.lf-thread[data-id="${CSS.escape(id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
     )
     ?.classList.remove("grow");
+  threadsBox.revealNavigation(id);
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
@@ -383,6 +384,8 @@ async function showThreadNow(id, focus, revealThread) {
     if (!mayArrive()) return false;
     node = listNode(id);
   }
+  threadsBox.revealNavigation(id);
+  node = listNode(id);
   if (!node || !mayArrive()) return false;
   const thread = node.closest(".lf-thread");
   if (focus) {

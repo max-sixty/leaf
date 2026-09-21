@@ -686,6 +686,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
 
     # The reader's own fold, and a reaction on a reply whose surface is that reply's
     # strip: the disarm has no fold of its own to put back and must leave theirs alone.
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip.locator(".lf-react:visible")).to_have_count(6)
@@ -2004,7 +2005,22 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         return page.locator(f'.lf-msg[data-mid="{mid}"]')
 
     # At rest: no empty reply spends height, including the latest reply in each thread.
-    for mid in (latest, quiet_latest, quiet_first):
+    # Open each card before measuring its retained message nodes.
+    card(first).locator(".lf-thread-summary").click()
+    assert strip(latest).evaluate("s => s.getBoundingClientRect().height") == 0
+    assert (
+        strip(latest)
+        .locator(".lf-react-trigger")
+        .evaluate("b => getComputedStyle(b).opacity")
+        == "0"
+    )
+    expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
+    expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
+    expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
+        "data-token", "clarify"
+    )
+    card(quiet_first).locator(".lf-thread-summary").click()
+    for mid in (quiet_latest, quiet_first):
         assert strip(mid).evaluate("s => s.getBoundingClientRect().height") == 0
         assert (
             strip(mid)
@@ -2012,12 +2028,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
             .evaluate("b => getComputedStyle(b).opacity")
             == "0"
         )
-    expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
     expect(strip(quiet_latest).locator(".lf-react:visible")).to_have_count(0)
-    expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
-    expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
-        "data-token", "clarify"
-    )
     # The row is built either way; an older empty one takes no room at rest.
     expect(strip(quiet_first).locator(".lf-react")).to_have_count(6)
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
@@ -2116,6 +2127,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     expect(strip.locator(".lf-react-trigger")).to_have_count(1)
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
@@ -2151,6 +2163,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
     expect(page.locator(".lf-thread")).to_have_count(1)
+    page.locator(".lf-thread-summary").click()
     with sending(page, "the take-back of the ok"):
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
@@ -2175,6 +2188,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
         page.locator(".lf-thread-filter-toggle").click()
         page.locator(".lf-needs").click()
         expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     expect(strip).to_have_class(re.compile("lf-react-open"))

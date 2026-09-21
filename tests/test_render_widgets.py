@@ -2948,6 +2948,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
 
     expect(bubble).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").click()
     page.locator(".lf-thread .lf-quote").click()
     expect(bubble).to_be_visible()
 
@@ -7789,6 +7790,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         assert held[suffix] not in ("0px", "", None), (suffix, prop, held)
 
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").click()
     expect(page.locator("#mr-msg-b")).to_be_visible()
     # The re-measure is delivered with the layout that gave these their boxes, so the
     # reading waits for a frame that has been through one.
@@ -7878,6 +7880,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-summary").click()
     assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
     # Both turns the handler could have used: it defers with a bare setTimeout, and the
     # step it queues queues nothing further.
@@ -9365,8 +9368,8 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     right, so the reader would open the panel onto an empty box for the life of the tab.
 
     The reply is in the log before the page loads and the panel is shut, which is the
-    only reading arrangement that reproduces it: a reply arriving into an open panel has boxes
-    already."""
+    initial hidden arrangement. Opening the panel keeps the thread collapsed; opening
+    its title gives the chart the box it needs."""
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -9396,6 +9399,8 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     ), "the panel must be shut, or there was a box all along"
 
     page.locator(".lf-threads-toggle").click()
+    assert page.locator("#msg-chart").evaluate("chart => chart.clientWidth") == 0
+    page.locator(".lf-thread-summary").click()
     expect(page.locator("#msg-chart svg")).to_be_visible()
     page.wait_for_function(
         """() => {

@@ -3759,6 +3759,10 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     resized(page, 390, 760)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    working_thread = page.locator(".lf-thread").filter(
+        has=page.locator(".lf-receipt.is-working")
+    )
+    working_thread.locator(".lf-thread-summary").click()
     receipt = page.locator(".lf-thread-panel .lf-receipt.is-working .lf-receipt-state")
     expect(receipt).to_have_text(f"● Working — {detail}")
     expect(receipt).to_have_attribute("title", f"● Working — {detail}")
@@ -5813,6 +5817,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(preview).to_be_hidden()
         thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
         expect(thread).to_contain_text(sent["text"])
+        expect(thread.locator(".lf-thread-summary")).to_have_attribute(
+            "aria-expanded", "true"
+        )
     else:
         expect(preview).to_be_visible()
         thread = preview.locator(
@@ -5843,8 +5850,12 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     # card hangs from — or, where no rail stands, the Page Map button — which the reader
     # never stood on and which says its transient label as they arrive.
     page.keyboard.press("Escape")  # out of the reply box the send landed in
-    page.keyboard.press("Escape")  # and off the thread it belongs to
+    page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
+        summary = thread.locator(".lf-thread-summary")
+        expect(summary).to_be_focused()
+        expect(summary).to_have_attribute("aria-expanded", "false")
+        page.keyboard.press("Escape")  # off the title and onto the list holding it
         expect(page.locator(".lf-threads")).to_be_focused()
         expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     else:
@@ -5943,8 +5954,15 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     page.keyboard.press("t")
     expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
 
-    # The walk moved the reader laterally to a second card; letting go of it lands on
-    # the list it is in, and the note that took them into the panel is not a landing.
+    # The walk moved the reader laterally to a second open conversation. Letting go
+    # first collapses it to its title, then leaves that standing for the list holding it.
+    # The note that took them into the panel is not a landing.
+    page.keyboard.press("Escape")
+    summary = threads.locator(
+        f'.lf-thread[data-id="{second["id"]}"] .lf-thread-summary'
+    )
+    expect(summary).to_be_focused()
+    expect(summary).to_have_attribute("aria-expanded", "false")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(threads).to_have_class(re.compile(r"\bopen\b"))

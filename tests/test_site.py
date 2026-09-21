@@ -1984,6 +1984,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         has_text="One reconnect in forty is worse"
     )
     expect(thread).to_have_count(1)
+    thread.locator(".lf-thread-summary").click()
     expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
     assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"

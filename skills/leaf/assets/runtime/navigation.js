@@ -15,8 +15,12 @@ import { closestAcross } from "./passages.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
+const walkableThreads = (panelIsOpen) =>
+  (panelIsOpen() ? threadsBox.navigationThreads() : null) ??
+  openThreads({ visibleOnly: panelIsOpen() });
+
 const threadPosition = (activeInlineThread, panelIsOpen) => {
-  const threads = openThreads({ visibleOnly: panelIsOpen() });
+  const threads = walkableThreads(panelIsOpen);
   const current = panelIsOpen()
     ? closestAcross(document.activeElement, ".lf-thread[data-id]")
     : threads.find(
@@ -37,7 +41,7 @@ function stepThread(
   { openPageThread, scrollToThread, activeInlineThread },
   panelIsOpen,
 ) {
-  const threads = openThreads({ visibleOnly: panelIsOpen() });
+  const threads = walkableThreads(panelIsOpen);
   const inline = activeInlineThread();
   const current = panelIsOpen()
     ? document.activeElement?.closest?.(".lf-thread")
@@ -57,6 +61,7 @@ function stepThread(
   // the focus it is about to take, so a press at either end of the walk, which names the
   // thread the reader already stands on, moves no focus and gives the list nothing to
   // land: the press lands that thread itself. The page half travels either way.
+  threadsBox.revealNavigation(next.dataset.id);
   const standing = next === document.activeElement;
   next.focus({ preventScroll: true });
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });

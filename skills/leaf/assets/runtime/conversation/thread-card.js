@@ -89,6 +89,7 @@ export function threadReading(
       ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
       : null,
     resolved,
+    awaitsReader: thread.awaits_reader,
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent || "Agent"}`
@@ -115,6 +116,66 @@ export function threadReading(
   });
 }
 
+function navigationSummary(navigation, model) {
+  if (!navigation) return nothing;
+  const first = model.messages[0]?.body;
+  const title = first?.plainText.trim() || model.quote?.label || "Thread";
+  const count = model.messages.length;
+  const latest = model.messages.at(-1);
+  // Pick the most advanced live work across the thread: a later Sent message
+  // must not hide an earlier message the agent is still working on.
+  const receipts = model.messages.flatMap((message) => message.receipts);
+  const liveReceipt = ["working", "picked_up", "queued"]
+    .map((stage) => receipts.findLast((receipt) => receipt.workflowStage === stage))
+    .find(Boolean);
+  const receipt = liveReceipt ?? receipts.at(-1);
+  const receiptLabel = receipt
+    ? {
+        sent: "",
+        queued: "Queued",
+        picked_up: "Picked up",
+        picked_up_ended: "Turn ended",
+        working: "Working",
+        was_working: "Was working",
+        waiting: "Waiting",
+      }[receipt.workflowStage]
+    : "";
+  const status = model.resolved
+    ? "Resolved"
+    : latest?.failure
+      ? "Not answered"
+      : latest?.stream === "active"
+        ? "Replying"
+        : latest?.pending && latest.author === "user"
+          ? "Sending"
+          : liveReceipt
+            ? receiptLabel
+            : latest?.streamLabel || (model.awaitsReader ? "On you" : receiptLabel);
+  const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
+  return html`<button
+    type="button"
+    class="lf-thread-summary"
+    title=${title}
+    aria-expanded=${String(navigation.selected)}
+    @click=${navigation.activate}
+  >
+    ${iconTemplate("next", "lf-thread-chevron")}
+    <span class="lf-thread-topic">${title}</span>
+    <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
+    <span
+      class="lf-thread-count"
+      aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
+      >${count}</span
+    >
+    <span
+      class="lf-thread-status"
+      data-lf-turn=${status === "On you" ? "reader" : nothing}
+      title=${receipt && status === receiptLabel ? receipt.announced : status}
+      >${status}</span
+    >
+  </button>`;
+}
+
 export class ThreadView {
   #commands;
   #model = null;
@@ -124,6 +185,7 @@ export class ThreadView {
   #keys = new WeakSet();
   #settlements = new Map();
   #growing = false;
+  #navigation = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -133,6 +195,14 @@ export class ThreadView {
       this.#growing = false;
       this.node.classList.remove("grow");
     });
+  }
+
+  setNavigation(navigation) {
+    this.#navigation = navigation;
+  }
+
+  get expanded() {
+    return Boolean(this.#navigation?.selected);
   }
 
   get model() {
@@ -145,6 +215,12 @@ export class ThreadView {
     const heldFocus = this.node.contains(standing);
     this.#model = model;
     const panel = model.surface === "panel";
+    const navigation = panel ? this.#navigation : null;
+    this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
+    this.node.classList.toggle(
+      "lf-thread-collapsed",
+      Boolean(navigation && !navigation.selected),
+    );
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     this.node.hidden = !model.visible && !model.folding;
@@ -179,6 +255,7 @@ export class ThreadView {
     const settlement = this.#settlement(model);
     render(
       html`
+        ${navigationSummary(navigation, model)}
         ${
           model.surface === "outlet"
             ? html`<summary
@@ -242,6 +319,17 @@ export class ThreadView {
                 >
                 ${settlement}
               </div>`
+            : nothing
+        }
+        ${
+          navigation
+            ? html`<button
+                type="button"
+                class="lf-thread-collapse"
+                @click=${navigation.collapse}
+              >
+                Collapse ↑
+              </button>`
             : nothing
         }
       `,
@@ -366,6 +454,9 @@ export class ThreadView {
       disclosure.hidden = false;
       disclosure.setAttribute("aria-expanded", "false");
     };
+    if (panel)
+      input.lfRevealReply = () =>
+        this.#commands.listRoot.revealNavigation(this.#model.id);
     if (disclosure) {
       input.lfRevealReply = reveal;
       input.lfCollapseReply = collapse;
@@ -380,6 +471,9 @@ export class ThreadView {
         ...this.#commands.reply,
         onDraftLoaded: () => {
           if (hasDraft()) reveal();
+          // Initial construction is already painting this reading; mirrored edits
+          // arrive later and must refresh the collapsed row's Draft indication.
+          if (panel && this.#reply) this.#navigation.draftChanged();
         },
       },
     );

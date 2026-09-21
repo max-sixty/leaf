@@ -259,12 +259,6 @@ lf-playground-value {
   display: inline;
 }
 
-.lf-playground-copy:state(success)::part(button) {
-  border-color: var(--ok);
-  background: var(--ok-tint);
-  color: var(--ok-ink);
-}
-
 .lf-playground-copy:state(success) .lf-playground-copy-trigger {
   border-color: var(--ok);
   background: var(--ok-tint);
@@ -272,10 +266,6 @@ lf-playground-value {
 }
 
 .lf-playground-copy:state(error) .lf-playground-copy-trigger {
-  color: var(--danger-ink);
-}
-
-.lf-playground-copy:state(error)::part(button) {
   color: var(--danger-ink);
 }
 

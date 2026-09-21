@@ -233,7 +233,6 @@ lf-playground-value {
 .lf-playground-copy-trigger {
   box-sizing: border-box;
   min-height: var(--aim-floor);
-  width: 8.5rem;
   height: auto;
   white-space: nowrap;
   padding: var(--sp-2) var(--sp-3);

@@ -707,9 +707,10 @@ defineRequestElement("lf-operations", {
 ```
 
 The host uses the durable request id as its idempotency and recovery key, then records
-exactly one outcome with `leaf receipt`. External evidence produced by the operation
-belongs in typed page data; the authored page changes only when the author saves the
-resulting plan revision.
+exactly one outcome with `leaf receipt`. That id is unique within its page rather than
+across pages, so a host keying an external operation on it pairs it with the page.
+External evidence produced by the operation belongs in typed page data; the authored
+page changes only when the author saves the resulting plan revision.
 
 ## External or derived data
 

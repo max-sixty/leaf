@@ -7382,15 +7382,13 @@ def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve)
     )
 
 
-def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
-    browser, serve
-):
-    """Tab leaves every Ask binding badge where the Ask itself put it.
+def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, serve):
+    """The draft route borrows an empty Add seat and moves beside a live Add press.
 
-    The cards share one trailing column. The draft row below them does not: its send
-    press holds that column, as it does in every other Leaf text box, and the row's own
-    badge waits just inside the press. Both seats are held before either mark appears,
-    so entering the group moves neither.
+    The cards share one trailing column. An empty draft has only the route into its
+    field, so that badge sits over the hidden Add press. Once content reveals Add and
+    focus leaves the field, both actions are available and the route takes the inner
+    seat. The field reserves both seats before either face appears.
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
@@ -7408,6 +7406,13 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
                   right: box.right};
         })"""
     ask_centers = ask.evaluate_all(centers)
+    addition = page.locator("#live-question > .lf-another")
+    submit = addition.locator(".lf-compose-submit")
+    empty_submit = submit.evaluate(
+        """el => { const box = el.getBoundingClientRect();
+                    return {x: box.left + box.width / 2}; }"""
+    )
+    assert ask_centers[-1]["x"] == pytest.approx(empty_submit["x"], abs=0.5)
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
@@ -7419,25 +7424,29 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
-    addition = page.locator("#live-question > .lf-another")
     addition.get_by_role("textbox", name="Another option").fill("A fourth option")
     page.keyboard.press("Tab")
     binding_badge = addition.locator("> .lf-key-badge[data-lf-ask-binding-badge]")
-    submit = addition.get_by_role("button", name="Add option")
     expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()
     badge_box = binding_badge.bounding_box()
     submit_box = submit.bounding_box()
     assert badge_box is not None
     assert submit_box is not None
-    # The press reaches the cards' trailing column and a little past it, the way it ends
-    # every other text box; the draft's badge stands inside the press, and neither has
-    # moved since the Ask first showed them.
+    # The press remains in the seat the empty badge borrowed. With both actions now live,
+    # the write badge takes the adjacent seat at the form's declared action gap.
     assert submit_box["x"] + submit_box["width"] > ask_centers[0]["right"]
-    assert badge_box["x"] + badge_box["width"] <= submit_box["x"]
-    assert badge_box["x"] + badge_box["width"] / 2 == pytest.approx(
-        ask_centers[-1]["x"], abs=0.5
+    assert submit_box["x"] + submit_box["width"] / 2 == pytest.approx(
+        empty_submit["x"], abs=0.5
     )
+    gap = submit_box["x"] - badge_box["x"] - badge_box["width"]
+    expected_gap = page.locator("html").evaluate(
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--sp-2'))"
+    )
+    assert gap == pytest.approx(expected_gap, abs=0.5)
+    expect(
+        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    ).to_have_count(0)
 
 
 def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve):

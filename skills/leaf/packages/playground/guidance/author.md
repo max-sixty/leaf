@@ -27,6 +27,11 @@ browser-ready code and fixtures under `vendor/`; page images go through `leaf pa
 Load those assets from the page's same origin, retain its CSP, and keep imports from
 Leaf's runtime to `/runtime/widget-api.js`.
 
+When exploring changes to an existing interface, include its current state as a labeled
+baseline. Derive each candidate from that baseline and change only the behavior or
+presentation under review; preserve its controls, words, tokens, and interaction state
+unless the candidate explicitly proposes changing them.
+
 Controls support `range`, `toggle`, `choice`, `color`, and `text`. Their `name` becomes
 the key in the complete typed value map sent by the final `choose` action. A range's
 `unit` is appended in its CSS custom property and in `lf-playground-value`; its data

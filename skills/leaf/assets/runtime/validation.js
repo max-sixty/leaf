@@ -7,6 +7,7 @@
 import { applicationPresented, selectWidgets } from "./semantic-state.js";
 import { domFacet } from "./projection/authored.js";
 import { elementById } from "./passages.js";
+export { upFrom } from "./shadow.js";
 
 export const validationPresentationReady = applicationPresented;
 

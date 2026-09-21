@@ -142,8 +142,8 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     unread = evaluate_probe(page, "unreadSyntax")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
-    # undeclared root's words silently anchor quotes astray. UA shadow roots
-    # are closed and invisible here; anything open was attached by a module.
+    # undeclared root's words silently anchor quotes astray. Generated controls
+    # are UI rather than page words, so their implementation roots are exempt.
     undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
     unnamed_fields = (
         evaluate_probe(page, "unnamedFormFields") if scheme == "light" else []

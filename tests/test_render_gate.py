@@ -1430,6 +1430,48 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     )
 
 
+def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, serve):
+    page = open_page(browser, serve(leaf_page("Custom control", "<h1>Controls</h1>")))
+    page.evaluate(
+        """async () => {
+          const { offer } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          customElements.define('test-control', class extends HTMLElement {
+            static formAssociated = true;
+            constructor() {
+              super();
+              this.attachInternals();
+              this.attachShadow({mode: 'open'}).innerHTML = '<input aria-label="Choice">';
+            }
+          });
+          const control = offer('test-control');
+          control.setAttribute('name', 'choice');
+          control.append(offer('test-control'));
+          const native = offer('input');
+          native.id = 'native-field';
+          document.querySelector('main').append(control, native);
+        }"""
+    )
+    assert render_checks_model.evaluate_probe(page, "unnamedFormFields") == []
+    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == []
+
+    page.evaluate(
+        """() => {
+          document.querySelector('test-control').removeAttribute('name');
+          document.querySelector('#native-field').removeAttribute('id');
+        }"""
+    )
+    assert {
+        field["tag"]
+        for field in render_checks_model.evaluate_probe(page, "unnamedFormFields")
+    } == {"test-control", "input"}
+    page.locator("main > test-control").evaluate(
+        "node => node.classList.remove('lf-ui')"
+    )
+    assert render_checks_model.evaluate_probe(page, "undeclaredShadowRoots", {}) == [
+        "<test-control>"
+    ]
+
+
 def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
     browser, serve, tmp_path, monkeypatch
 ):

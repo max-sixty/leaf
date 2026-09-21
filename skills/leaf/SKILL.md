@@ -40,10 +40,21 @@ and its observed mode instead. If you open its browser page, the URL rule begins
 ## Keep the reader current
 
 By default, the document is the shared canvas and current record for the subject.
-Keep its findings, decisions, completed work, and remaining work current as the
-work and discussion proceed. A reader should find the outcome in the relevant
-page section without reconstructing a thread or chat. The banner says what you
-are doing now; threads carry discussion and rationale.
+Whenever the reader returns to it, it is the page you would write today from what
+you now know. Its title, lede, and headings state what is true now, and open work
+and open questions stand in the column while finished work sits collapsed after
+them. A reader finds each outcome in the relevant page section without
+reconstructing a thread or chat. The banner says what you are doing now; threads
+carry discussion and rationale.
+
+When work lands, a decision is made, or your understanding moves, reread the whole
+page and rewrite whatever the change reaches, its title, headings, and order
+included. A status note added where the page already mentions the subject leaves
+everything around it as it was written before the change.
+`references/authoring-revisions.md` says what a rewrite carries across. The
+`version stamp` changelog and the event log hold the history, so the page does not
+retell it: correct a wrong figure in place and drop a superseded claim. Save
+freely as the subject changes and stamp meaningful checkpoints.
 
 While a page is live, telling its reader what you are doing takes priority over doing
 it, as a UI thread handles input before background work. Put each step on the page
@@ -138,11 +149,6 @@ The page contract and widget capabilities are choices, not a checklist. Include
 only controls and gestures whose results advance the reader's task. A reader part-way
 through should be able to see what they have settled and what is still theirs. A widget
 move, a resolution and a sign-off can be taken back; words and requests stand.
-
-A page states what is true now, not how it got there. Correct a wrong figure in
-place and drop a superseded claim rather than narrating its withdrawal; the
-`version stamp` changelog and the event log carry the history. Save freely as
-the subject changes and stamp meaningful checkpoints.
 
 ## Improve Leaf through use
 

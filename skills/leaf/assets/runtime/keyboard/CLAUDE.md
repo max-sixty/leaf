@@ -113,6 +113,12 @@ step of its own, whatever put the reader there: letting go lands them on the flo
 layer they are in, the panel's list or the page, and it is an inner step because standing
 is the newest thing they did.
 
+The thread panel's accordion adds a disclosure inside that standing: Escape leaves
+its reply box for the conversation, collapses the conversation to its title, then
+lets go of the title to reach the list. Title arrows and Home/End move focus without
+opening a conversation; Enter/Space toggles it. The semantic thread walk opens its
+destination, and Comment enters its reply box even from a collapsed title.
+
 What this gives up, each a rule the reader can learn: a surface they already had open
 closes on the way out, because no state distinguishes one this press opened from one it
 found; `g A` from Threads leaves Threads shut; a press that opens a container only to

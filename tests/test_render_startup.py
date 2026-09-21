@@ -3160,12 +3160,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
     held_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{held}"]'
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{held}"]'
     )
     other_receipt = other_thread.locator(
-        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{other}"]'
+        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{other}"]'
     )
     expect(receipts).to_have_count(2)
     expect(held_receipt).to_contain_text("✓ Sent")
@@ -3263,7 +3263,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_receipt.evaluate(
-        "node => node.parentElement.matches('.lf-msg-head') "
+        "node => node.parentElement.matches('.lf-msg-delivery') "
         "&& node.nextElementSibling === null"
     )
 
@@ -3280,8 +3280,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     told(page)
     followup_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{followup["id"]}"]'
+        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{followup["id"]}"]'
     )
     expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
         "● Working — reading the reconnect traces"
@@ -3326,7 +3326,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # conversation status never grows a separate footer row.
     status("working", "re-running it against the rolling deploy", "--on", held)
     claim_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head > .lf-receipt'
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery .lf-receipt'
     )
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
@@ -3415,7 +3415,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page.keyboard.press("c")
     receipt = page.locator(
         f'.lf-thread[data-id="{comment["id"]}"] '
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-head '
+        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
         f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
     expect(receipt).to_contain_text("○ Waiting for pickup")
@@ -3427,7 +3427,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     """A phase change updates colored metadata without moving or replacing it.
 
-    The receipt belongs to the outgoing message's existing header row. Heartbeats leave
+    The receipt belongs below the outgoing message's text. Heartbeats leave
     it alone, while a semantic transition changes its words and color in place.
     Re-inserting the node would replay its live region and any animation it wore."""
     url = serve(LONG_PAGE)
@@ -3445,10 +3445,18 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     receipt = thread.locator(
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-head '
+        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
         f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
+    thread.locator(".lf-thread-summary").click()
+    expect(receipt).to_be_visible()
     expect(receipt).to_contain_text("✓ Sent")
+    expect(thread.locator(".lf-thread-summary")).not_to_contain_text("Sent")
+    body = thread.locator(f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-body')
+    assert (
+        receipt.bounding_box()["y"]
+        >= body.bounding_box()["y"] + body.bounding_box()["height"]
+    )
     expect(receipt.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert receipt.locator(".lf-receipt-state").evaluate(
@@ -3468,6 +3476,7 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
         session_model.record_pickup(transaction, [comment])
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
+    expect(thread.locator(".lf-thread-status")).to_have_text("Picked up")
     assert receipt.locator(".lf-receipt-state").evaluate(
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--accent")
@@ -3567,6 +3576,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         timespec="seconds"
     )
     claim(quiet_ts)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Was working")
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
@@ -3666,6 +3676,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Was working")
     expect(inline.locator(".lf-receipt-state")).to_have_text(
         re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
     )
@@ -4413,7 +4424,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
 def test_conversation_timestamps_age_without_new_state(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     page.keyboard.press("c")
-    timestamp = page.locator(".lf-msg-head > time").first
+    timestamp = page.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("just now")
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
@@ -4436,7 +4447,7 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     )
     page = open_page(browser, url)
     page.keyboard.press("c")
-    timestamp = page.locator(".lf-msg-head > time").first
+    timestamp = page.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("1h ago")
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0

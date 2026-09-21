@@ -4908,11 +4908,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator("textarea")).to_be_visible()
     inline_receipt = thread.locator(
         f'.lf-conversation-msg.user[data-event="{root["id"]}"] '
-        f'> .lf-conversation-head > .lf-receipt[data-receipt-id="{root["id"]}"]'
+        f'> .lf-conversation-head .lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     panel_receipt = panel_thread.locator(
-        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-head '
-        f'> .lf-receipt[data-receipt-id="{root["id"]}"]'
+        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-delivery '
+        f'.lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     expect(inline_receipt).to_contain_text("✓ Sent")
     expect(panel_receipt).to_contain_text("✓ Sent")
@@ -4969,6 +4969,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(panel_thread).to_be_focused()
     # Standing on the card is one step and the panel around it is the next; the seat on
     # the page is not put back, the reader having left it to come here.
+    page.keyboard.press("Escape")
+    expect(panel_thread.locator(".lf-thread-summary")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
@@ -5106,12 +5108,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
         expect(active).to_contain_text("● Working — checking the inline placement")
         expect(sent).to_contain_text("✓ Sent")
         expect(view.locator(":scope > .lf-receipt")).to_have_count(0)

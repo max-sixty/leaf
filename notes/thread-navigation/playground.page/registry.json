@@ -1,0 +1,75 @@
+{
+  "lf-playground": {
+    "description": "Accordion spacing visual playground.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "const": "navigation-study"
+      },
+      "submit-label": {
+        "type": "string",
+        "const": "Choose layout"
+      },
+      "restated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "submit-label"
+    ],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-upgrade": true,
+    "x-awaits": {
+      "region": true,
+      "answers": [
+        "choose"
+      ]
+    },
+    "x-state": {
+      "choose": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "values": {
+              "type": "object",
+              "properties": {
+                "density": {
+                  "enum": [
+                    "compact",
+                    "comfortable",
+                    "airy"
+                  ]
+                },
+                "width": {
+                  "enum": [
+                    "panel",
+                    "roomy"
+                  ]
+                }
+              },
+              "required": [
+                "density",
+                "width"
+              ],
+              "additionalProperties": false
+            },
+            "instruction": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "values",
+            "instruction"
+          ],
+          "additionalProperties": false
+        },
+        "facet": "configuration",
+        "unit": "widget"
+      }
+    }
+  }
+}

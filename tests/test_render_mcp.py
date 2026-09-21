@@ -315,6 +315,9 @@ def test_process_page_route_runs_the_complete_leaf_interface(
     expect(original).to_have_text("Open the original")
     expect(original).to_have_attribute("href", f"{root}/media/051bee487bfb5d13.png")
     url_before = page.url
+    pasted.locator("xpath=ancestor::*[contains(@class, 'lf-thread')][1]").locator(
+        ".lf-thread-summary"
+    ).click()
     media_open.click()
     viewer = page.get_by_role("dialog", name="Image preview")
     expect(viewer).to_be_visible()

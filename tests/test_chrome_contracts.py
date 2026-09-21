@@ -240,6 +240,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    thread.locator(".lf-thread-summary").click()
     compose = thread.locator(".lf-compose")
     textarea = compose.locator("textarea")
     send = thread.get_by_role("button", name="Send", exact=True)
@@ -288,6 +289,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                             resolveFill: radius('.lf-resolve', '::before'),
                             close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
+                          messageStart: rect('.lf-msg-body').x,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
@@ -295,17 +297,16 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
 
     short = geometry()
     assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
-    assert short["thread"]["right"] - short["compose"]["right"] == pytest.approx(
-        short["compose"]["x"] - short["thread"]["x"], abs=1
+    assert short["field"]["x"] == pytest.approx(short["messageStart"], abs=1)
+    assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
+        short["thread"]["right"] - short["field"]["right"], abs=1
     )
     assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
     assert short["send"]["right"] < short["textarea"]["right"]
     assert short["send"]["bottom"] < short["textarea"]["bottom"]
     assert short["padding"] >= short["send"]["width"] + 10
     assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
-    assert short["resolve"]["right"] == pytest.approx(
-        short["thread"]["right"] - 9, abs=1
-    )
+    assert short["resolve"]["right"] == pytest.approx(short["compose"]["right"], abs=1)
     assert short["resolve"]["x"] - short["quote"]["right"] >= 8
     assert short["resolve"]["bottom"] <= short["quote"]["bottom"] + 1
     assert float(short["closeBorder"][:-2]) == 0

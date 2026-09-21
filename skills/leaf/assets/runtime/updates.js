@@ -102,8 +102,8 @@ export const updateSequence = (target = null) => {
 
 const publishedAt = () => runtime.view?.published_at ?? null;
 export const saidAt = (el) =>
-  closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
-    ?.dateTime || publishedAt();
+  closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
+  publishedAt();
 
 // Full history is intentionally raw: it is the one public escape hatch whose contract
 // is the append-only log itself rather than a semantic reading of that log.

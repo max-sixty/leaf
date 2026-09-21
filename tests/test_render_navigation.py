@@ -2459,9 +2459,10 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(panel).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
-    # Standing on the card in the panel is one step and the panel is the next, and the
-    # card the margin had up is not put back: the way out is the hierarchy the reader is
-    # in, not the scene the press displaced.
+    # Collapse the open card, let go of its title, then leave the panel. The margin
+    # view stays dismissed: Escape follows the hierarchy, not navigation history.
+    page.keyboard.press("Escape")
+    expect(panel.locator(".lf-thread-summary")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
@@ -2471,8 +2472,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
 
 def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
-    """One press in is one press out, and nothing on the way out is a control the reader
-    never stood on.
+    """Escape removes the reader's current layer of conversation or disclosure.
 
     From the page, `t` opens the margin's conversation view to reach the thread. However
     many threads the walk then visits, one Escape dismisses the view and hands back the
@@ -2480,11 +2480,9 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     the rail control the view hung from, which the pointer's close lands on because the
     pointer pressed it.
 
-    In the panel, `g T` is one press and `t` a second, so it takes two to come back:
-    the first lets go of the card onto the list, the second closes the panel. A `w`
-    narrowing put on after the walk comes off first, in the order the reader put things
-    on. Standing the reader reached by Tab or by pointer has the same let-go, ahead of
-    the frame that opened the panel.
+    In the panel, an expanded conversation collapses to its title before focus
+    leaves the list. The same disclosure and focus rungs apply after keyboard or
+    pointer entry, while the page's margin view remains one dismissible surface.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -2540,9 +2538,8 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # In the panel: g T stands the reader on the list, t on a card, w on the narrowing
-    # control. Each Escape takes off the innermost thing standing: the card they hold,
-    # then the narrowing they put on the list, then the panel around it.
+    # In the panel, disclosure is one additional visible rung: leave the editor,
+    # collapse to its title, let go of the title, then close the panel.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
@@ -2551,38 +2548,32 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     page.keyboard.press("t")
     card = page.locator(".lf-threads > .lf-thread:not([hidden])").first
     expect(card).to_be_focused()
-    expect(line).to_contain_text("back to list")
+    expect(line).to_contain_text("collapse thread")
     page.keyboard.press("t")
     page.keyboard.press("Shift+t")
     expect(card).to_be_focused()
-    page.keyboard.press("w")
-    expect(line).to_contain_text("show all")
+    page.keyboard.press("c")
+    expect(card.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(line).to_contain_text("close threads")
+    expect(card).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    # Standing reached by Tab is let go of before the panel closes.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, True)
-    expect(threads_list).to_be_focused()
-    while not page.evaluate("() => document.activeElement.closest('.lf-thread')"):
-        page.keyboard.press("Tab")
-    expect(line).to_contain_text("back to list")
+    header = card.locator(".lf-thread-summary")
+    expect(header).to_have_attribute("aria-expanded", "false")
+    expect(header).to_be_focused()
     page.keyboard.press("Escape")
     expect(threads_list).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # And by pointer, over a panel the pointer opened: the card first, then the panel.
+    # Native header focus and pointer opening unwind to the same title/list states.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
+    header.click()
     card.locator(".lf-msg").first.click()
-    assert page.evaluate("() => document.activeElement.closest('.lf-thread') !== null")
-    expect(line).to_contain_text("back to list")
+    expect(line).to_contain_text("collapse thread")
+    page.keyboard.press("Escape")
+    expect(header).to_be_focused()
+    expect(header).to_have_attribute("aria-expanded", "false")
     page.keyboard.press("Escape")
     expect(threads_list).to_be_focused()
     page.keyboard.press("Escape")
@@ -9471,6 +9462,7 @@ def test_r_resolves_a_thread_from_wherever_the_reader_stands_in_it(browser, serv
         ]
 
     # The reply box is in the thread too, and its typing claim stands first.
+    card(0).locator(".lf-thread-summary").click()
     box = card(0).locator(":scope > .lf-compose textarea")
     box.click()
     page.keyboard.press("r")
@@ -9850,7 +9842,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(line).to_contain_text("back to thread")
     page.keyboard.press("Escape")
     expect(page.locator(f'.lf-thread[data-id="{live}"]')).to_be_focused()
-    expect(line).to_contain_text("back")
+    expect(line).to_contain_text("collapse thread")
     page.evaluate("() => document.activeElement?.blur()")
 
     # A resolved thread has no box, so the press falls through to the general box rather

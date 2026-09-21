@@ -5451,6 +5451,11 @@ RING_CASES = (
         {"pr-walkthrough": (("textarea.lf-fab-input", "inline-response"),)},
     ),
     ("the thread list", ("g", "Shift+t"), {"corpus": ((None, "thread-list"),)}),
+    (
+        "a thread title",
+        (),
+        {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
+    ),
     # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
     # arrival paints only the ground, so the specimen is the walk's own landing.
     (
@@ -5851,6 +5856,21 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     ring with no declaration. A second version and neighbouring leaf provide the two
     runtime states authored examples cannot carry themselves.
     """
+
+    def open_containing_thread(target):
+        # The accordion keeps a message's controls connected while closed. Enter through
+        # its real title before asking a specimen inside it to take keyboard focus.
+        thread_id = target.evaluate(
+            "node => node.matches('.lf-thread-summary') ? null : "
+            "node.closest('.lf-thread')?.dataset.id"
+        )
+        if thread_id:
+            header = target.page.locator(
+                f'.lf-thread[data-id="{thread_id}"] > .lf-thread-summary'
+            )
+            if header.get_attribute("aria-expanded") != "true":
+                header.click()
+
     live_leaf("other", "The other leaf")
     # No ring moves under the default motion setting, so a settled specimen reads the
     # value its rule declares. The reduced-motion case has a focused test above.
@@ -5963,7 +5983,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(".lf-status-button").press("Enter")
                 expect(page.locator(".lf-status-detail")).to_be_focused()
             if opener := RING_SCOPE_OPENER.get(scope):
-                page.locator(opener).first.click()
+                control = page.locator(opener).first
+                open_containing_thread(control)
+                control.click()
             for key in keys:
                 page.keyboard.press(key)
                 page.evaluate(RENDERED)
@@ -5998,6 +6020,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         }"""
                     )
                     page.evaluate(RENDERED)
+                    open_containing_thread(target)
                     page.keyboard.press("Tab")
                     target.focus(timeout=5_000)
                     assert target.evaluate("node => node.tabIndex >= 0"), (

@@ -1,0 +1,63 @@
+{
+  "cohort": {
+    "id": "b1a8330bcf7dbd592cb65852986d219f",
+    "section": "rollout",
+    "title": "Which teams should join the pilot?"
+  },
+  "rollback": {
+    "id": "4c9c9e64bfd78535907d7afb9d7ead6c",
+    "section": "recovery",
+    "title": "What should trigger rollback?"
+  },
+  "thinking": {
+    "id": "8f87cd6eb508cf1dc636ccc8f39de16e",
+    "section": "ownership",
+    "title": "Who owns the release decision?"
+  },
+  "job": {
+    "id": "5ecf050fba15cfe1869af63d28f2c26f",
+    "section": "checks",
+    "title": "Which checks belong in the release gate?"
+  },
+  "concurrent": {
+    "id": "b78d7aaed2cb741dcb8ad35ca916a144",
+    "section": "performance",
+    "title": "How much does a crowded workspace cost?",
+    "detail": "Thinking while the performance job runs; two concurrent activities."
+  },
+  "queued": {
+    "id": "bcef309ae4abe729c3436185e36e19f6",
+    "section": "notes",
+    "title": "What should the release note say first?"
+  },
+  "stale": {
+    "id": "179065a4414050f26a33b8d6f1fb230f",
+    "section": "recovery",
+    "title": "Can we rehearse restoring the previous release?"
+  },
+  "oversized": {
+    "id": "09226bd681c31d2e7c840774e7acd237",
+    "section": "checks",
+    "title": "What does the reconnect matrix cover?"
+  },
+  "long": {
+    "id": "f04f806207b94b45801e71606dbc44d8",
+    "section": "rollout",
+    "title": "How do we expand the pilot without losing the chance to stop?"
+  },
+  "resolved": {
+    "id": "1a745772b80b269e9e38936eaf791b9e",
+    "section": "notes",
+    "title": "Should we keep the old release-note format?"
+  },
+  "job_complete": {
+    "id": "25a44c93a85428e3e7f9142a03083629",
+    "section": "checks",
+    "title": "What happens after the gate finishes?"
+  },
+  "external": {
+    "id": "c21c5ca2c85fd550fd7d70e0b50bd53e",
+    "section": "ownership",
+    "title": "Who confirms support coverage?"
+  }
+}

@@ -39,7 +39,9 @@ at `<root>/skills/leaf/references/packages.md`.
 ## Explore an open design
 
 When a new interface leaves a material visual or interaction choice unsettled,
-first follow `Author or revise a page` below. Initialize the page with the
+first search the shipped examples and active notes for an exploration of the same
+surface; extend its playground when it owns the same decision. Then follow `Author or
+revise a page` below. Initialize a new page with the
 `playground` package and follow
 `<root>/skills/leaf/packages/playground/guidance/author.md`. Put several coherent
 options in named presets. Build each option far enough that the reader can operate it
@@ -50,8 +52,10 @@ configuration or feedback to choose the one implementation the finished change k
 When the subject already exists, implement each proposed behavior in the code that
 owns that surface and preview its real output and styling. A Leaf interface therefore
 implements candidates in its owning runtime and theme and presents them through a
-shipped example or fixture. Page-local HTML and CSS may frame it; a page-local
-recreation is a sketch.
+shipped example or fixture. When the user asks for sketches without implementation,
+keep the current surface as a baseline and derive each sketch from its actual controls,
+copy, and styling. Page-local HTML and CSS may frame it; a page-local recreation is a
+sketch.
 
 ## Prove and hand off a visible change
 

@@ -1,6 +1,5 @@
 """Durable one-shot requests and their terminal host receipts."""
 
-import json
 from pathlib import Path
 
 from .asks import quoted_in
@@ -225,7 +224,7 @@ def request_lifecycles(events: list) -> list[dict]:
 
 
 @contract_writer
-def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
+def cmd_receipt(page_dir: Path, request: str, status: str, text) -> dict:
     """Append the one terminal host outcome linked to a reader request."""
     # The door reads this module's request and receipt contracts, so the writer
     # beside them reaches it here rather than at import.
@@ -244,4 +243,4 @@ def cmd_receipt(page_dir: Path, request: str, status: str, text) -> None:
                 "text": body,
             },
         )
-    print(json.dumps(accepted, ensure_ascii=False))
+    return accepted

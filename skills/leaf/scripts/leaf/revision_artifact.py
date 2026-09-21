@@ -442,8 +442,8 @@ def _capture_artifact(
     for specifier in _css_dependencies(document.css):
         if not specifier.startswith(("#", "data:")):
             entries.append(resolve_dependency(specifier, "/index.html"))
-    for style in document.inline_styles:
-        for specifier in _css_dependencies(style, declarations=True):
+    for inline in document.inline_styles:
+        for specifier in _css_dependencies(inline["style"], declarations=True):
             if not specifier.startswith(("#", "data:")):
                 entries.append(resolve_dependency(specifier, "/index.html"))
     entries.extend(document.media_refs)

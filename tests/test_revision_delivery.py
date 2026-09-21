@@ -51,7 +51,7 @@ const lazy = () => import('/page/later.js');
     assert parsed.tree.find("image").attrs["href"] == ROOT + "/page/caf%C3%A9.svg#leaf"
     assert parsed.tree.find("feImage").attrs["href"] == ROOT + "/page/poster.png"
     assert f"{ROOT}/page/background.svg#leaf" in parsed.css
-    assert ROOT + "/page/inline.svg" in parsed.inline_styles[0]
+    assert ROOT + "/page/inline.svg" in parsed.inline_styles[0]["style"]
     for unchanged in (
         "<title>🍂 route ./page/app.js</title>",
         "const prose = 'import \"./page/unused.js\"';",

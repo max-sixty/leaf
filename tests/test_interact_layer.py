@@ -328,12 +328,14 @@ def test_hidden_hook_remains_callable():
 
 
 def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
-    """Silence cannot tell an agent a no-op from a call that landed.
+    """Silence cannot tell an agent a no-op from a call that landed, and a raw
+    event leaves it to find the one field it needs next.
 
-    The four here are the ones that used to answer with nothing or with a raw
-    event: an audience list on a layer that declares none, a status transition, a
-    stamp, and a reply. `--json` keeps the event where a caller wants to read a
-    field out of it, so the sentence is what a bare call gets.
+    Every write command answers with one sentence carrying that field — the
+    thread a message landed in, the version stamped, the widget a report moved,
+    the request a receipt settled — and `--json` keeps the event for a caller that
+    wants to read the rest of it. `test_receipt_settles_one_known_request_once`
+    holds the receipt's, since it needs a page with a request seat.
 
     The default layer declares no guidance audiences, which is why the page is
     built here rather than taken from the packaged fixture.
@@ -376,10 +378,18 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     assert bare.output == "waiting\n"
 
     opened = runner.invoke(
-        cli_model.cli, ["comment", str(page_dir), "--text", "which store?"]
+        cli_model.cli, ["comment", "--json", str(page_dir), "--text", "which store?"]
     )
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)["id"]
+
+    # The thread a bare `comment` names is the one every later command addresses.
+    named = runner.invoke(
+        cli_model.cli, ["comment", str(page_dir), "--text", "and the cache?"]
+    )
+    assert named.exit_code == 0, named.output
+    cached = events_model.read_events(page_dir)[-1]["id"]
+    assert named.output == f"opened thread {cached}\n"
 
     replied = runner.invoke(
         cli_model.cli,
@@ -424,6 +434,11 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     )
     assert working.exit_code == 0, working.output
     assert working.output == f"working on {root} — reading the traces\n"
+
+    # Resolve takes any message in the thread and names the thread it closed.
+    closed = runner.invoke(cli_model.cli, ["resolve", str(page_dir), "--to", cached])
+    assert closed.exit_code == 0, closed.output
+    assert closed.output == f"resolved {cached}\n"
 
     # `idle` reaches the status write by its own route, so the subject a claim
     # needs is refused before either route runs. Otherwise the line reports a

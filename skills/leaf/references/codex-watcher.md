@@ -31,8 +31,9 @@ page path, and resolved Leaf launcher. Its job is:
    cursor has not moved.
 4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
    unified exec. Retain and poll that command's session id: after advancing the
-   cursor, ack stays active as the next wait. A successful ack exits 0 whether that
-   wait delivered or ended, so read its streams rather than its status:
+   cursor, ack stays active as the next wait and answers as one: 0 carries a batch,
+   2 names an ending on stderr, and 1 means the acknowledgement was refused and the
+   cursor did not move. The streams say which ending arrived:
 
    - A batch on stdout is the next delivery; return to step 3.
    - Empty stdout with `the leaf ended` or `nothing to watch` on stderr ends the

@@ -125,7 +125,7 @@ search: the scene, chip, and activation it declares over the shared hint session
 `runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
 geometry of the search marks that share its layer;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
-`runtime/composing/drawing.js` owns one-stroke pointer capture and drawing commands;
+`runtime/composing/drawing.js` owns Draw mode's stroke capture and drawing commands;
 `composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
 projection into the page;
 `runtime/composing/input.js` owns shared text input and pasted-media draft state, while

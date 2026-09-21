@@ -299,14 +299,21 @@ def _overwide_elements(
                 hits.append(
                     f"rule `{selector}` sets {prop}: {px:g}px (column is {column}px)"
                 )
-    for style in parser.inline_styles:
-        for prop, px in _px_widths(css_block(style), OVERFLOW_PROPS, tokens):
+    for inline in parser.inline_styles:
+        block = css_block(inline["style"])
+        for prop, px in _px_widths(block, OVERFLOW_PROPS, tokens):
             if px > column:
-                hits.append(f"inline style {prop}: {px:g}px (column is {column}px)")
-    for tag, value in parser.attr_widths:
-        px = _number(value)
+                hits.append(
+                    f"{inline_style_at(inline)} sets {prop}: {px:g}px "
+                    f"(column is {column}px)"
+                )
+    for attr in parser.attr_widths:
+        px = _number(attr["value"])
         if px is not None and px > column:
-            hits.append(f'<{tag} width="{value}"> exceeds column ({column}px)')
+            hits.append(
+                f'<{attr["tag"]} width="{attr["value"]}"> (line {attr["line"]}) '
+                f"exceeds column ({column}px)"
+            )
     return hits
 
 
@@ -320,18 +327,23 @@ PRESENTATION_PROPERTIES = {
 }
 
 
+def inline_style_at(inline: dict) -> str:
+    """Name one style="" by the element and line an author finds it at."""
+    return f"<{inline['tag']} style> (line {inline['line']})"
+
+
 def inline_presentation_override_errors(parser: SourceDocument) -> list:
     """Inline importance outranks even the theme's first important cascade layer."""
     errors = []
-    for number, style in enumerate(parser.inline_styles, 1):
-        for declaration in css_block(style):
+    for inline in parser.inline_styles:
+        for declaration in css_block(inline["style"]):
             if (
                 declaration.type == "declaration"
                 and declaration.important
                 and declaration.lower_name in PRESENTATION_PROPERTIES
             ):
                 errors.append(
-                    f"inline style #{number} makes protected presentation property "
+                    f"{inline_style_at(inline)} makes protected presentation property "
                     f"{declaration.lower_name} important"
                 )
     return errors

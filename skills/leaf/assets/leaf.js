@@ -599,6 +599,7 @@ drawing = createDrawingController({
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
   pageDrawing: panelComposer.pageComposerDrawing,
+  anchoredDrawing: selectionComposer.draftDrawing,
   composerDraft: () => ({
     open: composerOpen,
     anchor: pendingAnchor,

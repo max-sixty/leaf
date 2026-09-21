@@ -14,8 +14,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const FRAME_MIN = 1;
 
 function drawingFrame(drawing) {
-  const xs = drawing.points.map(([x]) => x);
-  const ys = drawing.points.map(([, y]) => y);
+  const points = drawing.strokes.flat();
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
   const left = Math.min(...xs);
   const right = Math.max(...xs);
   const top = Math.min(...ys);
@@ -30,9 +31,14 @@ function drawingFrame(drawing) {
   };
 }
 
+// One path, one subpath per stroke: each stroke lifts the pen with its own move.
 const pathData = (drawing) =>
-  drawing.points
-    .map(([x, y], index) => `${index ? "L" : "M"} ${x.toFixed(4)} ${y.toFixed(4)}`)
+  drawing.strokes
+    .flatMap((stroke) =>
+      stroke.map(
+        ([x, y], index) => `${index ? "L" : "M"} ${x.toFixed(4)} ${y.toFixed(4)}`,
+      ),
+    )
     .join(" ");
 
 function pathFor(data) {

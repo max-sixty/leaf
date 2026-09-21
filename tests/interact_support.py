@@ -597,7 +597,8 @@ def _tasks_version(page_dir, status, extra=""):
 
 
 def _report(page_dir, *args):
-    return CliRunner().invoke(cli_model.cli, ["report", str(page_dir), *args])
+    """Report as a worker, with the posted event on stdout for the caller to read."""
+    return CliRunner().invoke(cli_model.cli, ["report", "--json", str(page_dir), *args])
 
 
 def _board(todo, done):
@@ -629,6 +630,16 @@ def state_json(d):
     result = CliRunner().invoke(cli_model.cli, ["page", "state", str(d)])
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
+
+
+def owed(activity):
+    """The interactions one agent-facing activity reading still owes an answer.
+
+    `obligations` names them by id, so this is the join an agent makes to reach a
+    move's phase, target, or response address.
+    """
+    standing = set(activity["obligations"])
+    return [item for item in activity["interactions"] if item["id"] in standing]
 
 
 # A question and the accept that answers it, written as a stored log holds them:
@@ -1263,7 +1274,10 @@ def published(page_dir):
 
 
 def comment(page_dir, *args):
-    return CliRunner().invoke(cli_model.cli, ["comment", str(page_dir), *args])
+    """Open a thread, with the posted event on stdout for the caller to read."""
+    return CliRunner().invoke(
+        cli_model.cli, ["comment", "--json", str(page_dir), *args]
+    )
 
 
 DRAFTED = PAGE.replace(

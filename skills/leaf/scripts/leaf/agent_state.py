@@ -78,19 +78,23 @@ def _conversation_interaction(item: dict) -> dict:
 
 
 def _conversation_activity(activity: dict, responses: dict[str, dict]) -> dict:
-    """Translate only Leaf-owned protocol fields in the shared browser reading."""
+    """Translate only Leaf-owned protocol fields in the shared browser reading.
+
+    Every obligation is one of the interactions listed beside it, so an agent reads
+    it by id: its phase, target and the `response` address a writer needs are on
+    that interaction and stated once.
+    """
     interactions = [
         _conversation_interaction(item) for item in activity["interactions"]
     ]
     standing = {item["id"] for item in activity["obligations"]}
-    obligations = [item for item in interactions if item["id"] in standing]
-    for item in obligations:
-        if response := responses.get(item.get("event")):
+    for item in interactions:
+        if item["id"] in standing and (response := responses.get(item.get("event"))):
             item["response"] = response
     return {
         **activity,
         "interactions": interactions,
-        "obligations": obligations,
+        "obligations": [item["id"] for item in activity["obligations"]],
     }
 
 
@@ -538,7 +542,7 @@ def _write_page_state(
             for interaction in state["activity"]["interactions"]
             if belongs(interaction)
         ]
-        obligations = {item["id"] for item in state["activity"]["obligations"]}
+        obligations = set(state["activity"]["obligations"])
         state = {
             "page": str(page_dir),
             "conversation": selected,
@@ -554,7 +558,7 @@ def _write_page_state(
             "activity": {
                 "interactions": interactions,
                 "obligations": [
-                    item for item in interactions if item["id"] in obligations
+                    item["id"] for item in interactions if item["id"] in obligations
                 ],
             },
         }

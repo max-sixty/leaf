@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
+from .activity import unanswered
 from .delivery import batch_data, freeze_delivery, read_delivery
 from .event_contracts import append_admitted
 from .files import read_json, write_json
@@ -56,7 +57,9 @@ def cmd_status(
     state: str,
     detail: str,
     on: str | None = None,
-) -> None:
+) -> list[dict]:
+    """Write the declaration and return the reader moves still owed an answer,
+    which the page goes on showing over a `waiting` written ahead of them."""
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, page.events)
         work = None
@@ -74,6 +77,7 @@ def cmd_status(
             if previous and previous.get("event"):
                 work["event"] = previous["event"]
         page.set_status(state, detail, work=work)
+        return full_state(page_dir, page.events)["activity"]["obligations"]
 
 
 def cmd_delivery_claim(
@@ -175,22 +179,15 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
                 "at once when events are already waiting. The wait owner must finish "
                 "the delivery contract before idling. " + ACK_BATCH_INSTRUCTION
             )
-        unanswered = [
+        owed = [
             obligation
             for obligation in full_state(page_dir, events)["activity"]["obligations"]
             if obligation["seq"] <= cursor
         ]
-        if unanswered:
-            ids = ", ".join(
-                obligation["target"]["id"]
-                if obligation["target"]["kind"] == "thread"
-                else obligation["event"]
-                for obligation in unanswered
-            )
+        if owed:
             sys.exit(
-                f"{len(unanswered)} acknowledged "
-                f"reader move{'s' if len(unanswered) != 1 else ''} with no answer "
-                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
+                f"{unanswered(owed, 'acknowledged')}; idling ends the leaf over "
+                "them. " + ANSWER_ASK_INSTRUCTION
             )
         page.set_status("idle", detail)
 

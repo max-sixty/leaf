@@ -185,6 +185,22 @@ export function createSelectionComposer({
         touched: Date.now(),
       }),
     );
+  // One passage's draft record, or null when it holds none. Parsed under its own guard: a
+  // record that no longer parses costs the reader that one draft, where throwing would
+  // cost them the page, at module top level.
+  const composerRecord = (ctx) => {
+    try {
+      return JSON.parse(loadDraft(ctx));
+    } catch {
+      return null;
+    }
+  };
+  // The drawing a passage's draft holds, whether or not its box is up: putting the box
+  // away keeps the draft, strokes included.
+  const draftDrawing = (anchor) => {
+    const drawing = composerRecord(composerCtx(anchor))?.drawing;
+    return validDrawing(drawing) ? drawing : null;
+  };
   // An open box the reader emptied keeps its record, which is what tells another tab's
   // composer on that passage that this one is merely empty rather than settled — and leaves
   // nothing to reopen on. So the draft to come back to is the most recently touched one
@@ -195,14 +211,7 @@ export function createSelectionComposer({
     let best = null;
     for (const ctx of draftContexts()) {
       if (!ctx.startsWith(COMPOSER_KEY)) continue;
-      let record;
-      // Parsed under its own guard: a record that no longer parses costs the reader that
-      // one draft, where throwing would cost them the page, at module top level.
-      try {
-        record = JSON.parse(loadDraft(ctx));
-      } catch {
-        continue;
-      }
+      const record = composerRecord(ctx);
       if (
         (record?.text || validDrawing(record?.drawing)) &&
         (!best || record.touched > best.touched) &&
@@ -422,8 +431,7 @@ export function createSelectionComposer({
       // gesture may instead carry unsent words into an empty passage, which preserves
       // the old Alt-click promise without replacing independent work already held at
       // the destination or making a reader's next selection silently re-anchor a draft.
-      const held = text ? null : loadDraft(ctx);
-      const record = held ? JSON.parse(held) : null;
+      const record = text ? null : composerRecord(ctx);
       const carrying =
         carry &&
         (previousText || previousDrawing) &&
@@ -762,6 +770,7 @@ export function createSelectionComposer({
   return {
     pendingComposer,
     keptDraft,
+    draftDrawing,
     composerHolds,
     setSuggestionMode,
     responseOptionsAreOpen,

@@ -1,5 +1,6 @@
 import { READER_VIEW_RESTORE_CASES, upFrom } from "/runtime/widget-api.js";
 import { validationPresentationReady } from "/runtime/validation.js";
+import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
@@ -17,13 +18,6 @@ export const logApplied = (applied) =>
 // boundary. A component that animates forever must not appear in it; a state transition
 // that can still change boxes must.
 export function moving() {
-  const at = (el) => {
-    for (let node = el; node; node = node.getRootNode?.()?.host) {
-      const named = node.closest?.("[id]");
-      if (named) return `<${named.tagName.toLowerCase()} id=${named.id}>`;
-    }
-    return `<${el?.tagName?.toLowerCase() ?? "?"}>`;
-  };
   return openRoots(document)
     .flatMap((root) => root.getAnimations())
     .filter(

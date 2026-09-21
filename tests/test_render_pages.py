@@ -568,6 +568,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         cli_model.cli,
         [
             "comment",
+            "--json",
             str(d),
             "--quote",
             "The version stamp never lands",

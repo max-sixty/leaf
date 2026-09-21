@@ -5454,14 +5454,15 @@ RING_CASES = (
             "heat-loss": ((".lf-visual-action", "visual-target"),),
             "pr-walkthrough": (
                 ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
-                (".lf-diff-search", "diff-tools"),
+                (".lf-diff-search input", "text-entry"),
+                (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
                 ("lf-code pre", "code-pre-light"),
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
-                ("lf-shot > input.lf-shotflip", "shot"),
+                ('lf-shot .lf-shotcomparison [part~="handle"]', "shot"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
         },
@@ -5575,6 +5576,13 @@ RING_CASES = (
         {"ship-review": ((".lf-margin-preview .lf-resolve", "conversation"),)},
     ),
     ("message media", (), {"feature-gallery": ((".lf-message-media", "media"),)}),
+    # Both controls of a summarized range wear one band: the checkpoint's own button, and
+    # the rail that folds the originals back once it has opened them.
+    (
+        "a summarized range",
+        (),
+        {"feature-gallery": ((".lf-summary-expand", "summary-fold"),)},
+    ),
     (
         "the Page Map dialog",
         (),

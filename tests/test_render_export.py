@@ -2366,10 +2366,14 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     """
     url = serve(REPLAYED_PAGE)
     live = open_page(browser, url)
-    live.get_by_role("button", name="Move: Wire the importer — Doing").focus()
-    live.keyboard.press("Enter")
-    live.keyboard.press("ArrowRight")
-    live.keyboard.press("Enter")
+    # The move is drawn in the turn that sends it, so the attribute below says nothing
+    # about the log. The export opens its own page and has only the log to replay from,
+    # and closing this one aborts a send still in the wire.
+    with sending(live, "the card move"):
+        live.get_by_role("button", name="Move: Wire the importer — Doing").focus()
+        live.keyboard.press("Enter")
+        live.keyboard.press("ArrowRight")
+        live.keyboard.press("Enter")
     expect(live.locator("#card-importer")).to_have_attribute(
         "data-lf-reader-override", "1"
     )

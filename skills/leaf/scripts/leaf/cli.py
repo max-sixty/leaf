@@ -675,14 +675,18 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     turn writes the status again, and one nobody renews at all goes quiet after
     about a quarter of an hour — on the banner and each local line.
     """
+    from leaf.activity import unanswered
     from leaf.session import cmd_idle, cmd_status
 
     page_dir = resolve_dir(dir)
+    owed = []
     if state == "idle":
         cmd_idle(page_dir, detail, on)
     else:
-        cmd_status(page_dir, state, detail, on=on)
+        owed = cmd_status(page_dir, state, detail, on=on)
     click.echo(_status_line(state, detail, on))
+    if state == "waiting" and owed:
+        click.echo(f"{unanswered(owed)}; the page reads waiting once each has one")
 
 
 @cli.command(

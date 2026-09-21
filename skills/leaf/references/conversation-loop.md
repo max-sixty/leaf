@@ -20,6 +20,12 @@ Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**. Your
 contract may add its own current step to the banner. Chat stays in the host and never
 reaches the page.
 
+Whether the reader is there is `viewed` in `leaf page state <page>`: the last time a
+browser tab had the page visible, in epoch seconds, renewed about every half minute
+while it stays visible. `null` means nobody has opened the page. It is the only
+reading of the reader's side between their moves, so a status or reply they have not
+reacted to may not have been seen.
+
 ## When to write
 
 Write a step's status before starting the step, and write it again whenever the reader

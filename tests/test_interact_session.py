@@ -8393,6 +8393,37 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
+def test_waiting_written_over_an_unanswered_move_names_it(claimed):
+    """`leaf status` reads its transition back so a silent success cannot pass for a
+    no-op. Canonical activity keeps showing an unanswered reader move over a `waiting`
+    written ahead of it, so the banner the agent believes it set is not the one the
+    reader sees. The readback names the move; once it has an answer the line stands
+    alone."""
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "hi"}
+    )
+    comment = events_model.read_events(claimed)[0]["id"]
+    waiting = ["status", str(claimed), "waiting", "pick one"]
+
+    early = CliRunner().invoke(cli_model.cli, waiting)
+    assert early.exit_code == 0, early.output
+    assert early.output.splitlines() == [
+        "waiting — pick one",
+        (
+            f"1 reader move with no answer ({comment}); "
+            "the page reads waiting once each has one"
+        ),
+    ]
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(claimed), "--to", comment, "--for", comment, "--text", "ok"],
+    )
+    assert replied.exit_code == 0, replied.output
+    settled = CliRunner().invoke(cli_model.cli, waiting)
+    assert settled.output.splitlines() == ["waiting — pick one"]
+
+
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     """`leaf status PAGE idle` is the way out of the guard's other case, so it
     reads as the way out of this one too. The events are the user's: a page

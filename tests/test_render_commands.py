@@ -617,6 +617,10 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     expect(comparison).to_have_attribute("position", "100")
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(0, 0)
+    assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
+        before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
+    )
     assert "show after" not in shortcut_bar_text(page)
     after_caption.click()
     expect(comparison).to_have_attribute("position", "100")

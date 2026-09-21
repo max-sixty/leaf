@@ -1704,7 +1704,7 @@ lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
 lf-shot .lf-shotcap[data-lf-state] { outline-offset: -2px; }
 :where(html:not(.lf-copy)) lf-shot .lf-shotcap:hover { background: var(--chip); }
-lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink);
+lf-shot .lf-shotcap[aria-pressed="true"] { color: var(--ink); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot .lf-shotcap[aria-pressed="false"] {
     color: var(--muted); box-shadow: none; }
@@ -1727,14 +1727,17 @@ lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
 lf-shot:not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
     display: block; }
 lf-shot:not(:has(> .lf-shotcomparison)) .lf-shotcap[data-lf-state="before"] {
-    color: var(--ink);
+    color: var(--ink); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
 lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   .lf-shotcap[data-lf-state="before"] {
     color: var(--muted); box-shadow: none; }
 lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
+  .lf-shotcap[data-lf-state="before"]:not(:hover) { background: transparent; }
+lf-shot:not(:has(> .lf-shotcomparison)):has(input:checked)
   .lf-shotcap[data-lf-state="after"] {
-    color: var(--ink); box-shadow: inset 0 -2px var(--accent); }
+    color: var(--ink); background: var(--chip);
+    box-shadow: inset 0 -2px var(--accent); }
 
 lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
     outline: var(--here-ring); --lf-here-ring: shot; outline-offset: 1px;

@@ -756,6 +756,36 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
         )
 
 
+def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
+    """A reader's before → after → before choice survives the deferred import."""
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """new MutationObserver(() => {
+          if (!document.body?.hasAttribute('data-lf-presented') || window.__lfFlipped)
+            return;
+          const box = document.querySelector('lf-shot input.lf-shotflip');
+          if (!box) return;
+          window.__lfFlipped = true;
+          window.__lfHadComparison = !!document.querySelector('lf-shot wa-comparison');
+          box.click();
+          box.click();
+          window.__lfFallbackShown = [...document.querySelectorAll('.lf-shotframe')]
+            .filter(frame => getComputedStyle(frame).visibility === 'visible')
+            .map(frame => frame.dataset.lfState);
+        }).observe(document, {attributes: true, subtree: true});"""
+    )
+    page.goto(url)
+    comparison = page.locator("lf-shot wa-comparison")
+    expect(comparison).to_have_attribute("position", "0")
+    assert page.evaluate(
+        "() => [window.__lfHadComparison, window.__lfFallbackShown]"
+    ) == [False, ["before"]]
+
+
 def test_a_shot_still_flips_with_every_script_removed(
     browser, serve, tmp_path, headless_shell
 ):

@@ -48,14 +48,14 @@ customElements.define(
     #flip;
     #comparison;
     #chromeState;
+    #chose = false;
+    #preparingExport = false;
     #frames = [];
     #captions = new Map();
-    #bake = () => this.#syncComparison();
 
     static observedAttributes = ["data-lf-shot-controls"];
 
     connectedCallback() {
-      document.addEventListener("lf-bake", this.#bake);
       if (!once(this)) {
         this.#offer();
         return;
@@ -109,12 +109,15 @@ customElements.define(
             // does not name it there.
             when: () =>
               this.dataset.lfShotControls !== "off" &&
-              this.#comparison?.position !== (state === "after" ? 100 : 0),
+              this.#position() !== (state === "after" ? 100 : 0),
             run: () => caption.click(),
           },
         ]);
       }
-      box.addEventListener("change", () => this.#paint());
+      box.addEventListener("change", () => {
+        this.#chose = true;
+        this.#paint();
+      });
       // One declaration, two controls: the native checkbox the reader stands on inside
       // the widget, and the margin entry the same flip is projected onto. A margin entry
       // is generated elsewhere, so ancestry cannot find this row for it — the capability
@@ -146,7 +149,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      document.removeEventListener("lf-bake", this.#bake);
       this.#margin?.unregister();
       this.#margin = null;
     }
@@ -162,6 +164,7 @@ customElements.define(
     #syncComparison() {
       const enabled =
         this.dataset.lfShotControls !== "off" &&
+        !this.#preparingExport &&
         !document.documentElement.classList.contains("lf-copy") &&
         this.#box.parentNode === this &&
         customElements.get("wa-comparison");
@@ -169,7 +172,7 @@ customElements.define(
         const comparison = document.createElement("wa-comparison");
         comparison.className = "lf-shotcomparison";
         comparison.dataset.lfGen = "1";
-        comparison.position = 50;
+        comparison.position = this.#chose ? this.#position() : 50;
         const handle = document.createElement("span");
         handle.className = "lf-shot-handle";
         handle.slot = "handle";
@@ -182,6 +185,7 @@ customElements.define(
         let dragged = false;
         comparison.addEventListener("change", () => {
           dragged = true;
+          this.#chose = true;
           this.#paint();
         });
         comparison.addEventListener("pointerdown", (event) => {
@@ -241,16 +245,18 @@ customElements.define(
         !this.isConnected ||
         this.#box.parentNode !== this ||
         this.dataset.lfShotControls === "off" ||
+        this.#preparingExport ||
         document.documentElement.classList.contains("lf-copy")
       )
         return;
       await loadComparison();
-      if (this.isConnected) this.#syncComparison();
+      if (this.isConnected && !this.#preparingExport) this.#syncComparison();
     }
 
     #requestComparison() {
       if (
         this.dataset.lfShotControls === "off" ||
+        this.#preparingExport ||
         document.documentElement.classList.contains("lf-copy")
       )
         return;
@@ -258,6 +264,7 @@ customElements.define(
     }
 
     #show(state) {
+      this.#chose = true;
       if (this.#comparison) {
         const position = state === "after" ? 100 : 0;
         if (this.#comparison.position !== position)
@@ -275,13 +282,15 @@ customElements.define(
     }
 
     #nextState() {
-      return (this.#comparison?.position ?? (this.#box.checked ? 100 : 0)) > 50
-        ? "before"
-        : "after";
+      return this.#position() > 50 ? "before" : "after";
+    }
+
+    #position() {
+      return this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
     }
 
     #paint() {
-      const position = this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
+      const position = this.#position();
       const handle = this.#comparison?.shadowRoot?.querySelector('[role="scrollbar"]');
       if (handle) {
         const before = Number((100 - position).toFixed(2));
@@ -321,7 +330,7 @@ customElements.define(
         read: () => {
           const next = this.#nextState();
           const label = `Show ${next}`;
-          const position = this.#comparison?.position ?? (this.#box.checked ? 100 : 0);
+          const position = this.#position();
           return {
             subject: null,
             state: "idle",
@@ -347,6 +356,11 @@ customElements.define(
           if (activation === "toggle") this.#show(this.#nextState());
         },
       });
+    }
+
+    lfPrepareExport() {
+      this.#preparingExport = true;
+      this.#syncComparison();
     }
 
     // Both frames render at the frame's width, so a pair shot at two different

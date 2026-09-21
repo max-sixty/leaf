@@ -1660,9 +1660,10 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 /* lf-shot: Web Awesome owns the live draggable divider. The pair's natural-width
  * validation supplies an aspect ratio based on its taller image, so unequal heights
  * still reserve one fixed frame and move nothing below it. The rail's endpoint buttons
- * stay outside the component. In a script-free copy the comparison host becomes a
- * plain grid and the transparent native checkbox covers it, preserving the old direct
- * flip without shipping a second scripted interaction. Print stacks both frames. */
+ * stay outside the component. Before the upgrade lands, and again after export unwinds
+ * it, the frames are direct children of the host and the transparent native checkbox
+ * covers them — one fallback for loading, controls-off, and a script-free copy alike.
+ * Print stacks both frames. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot:has(.lf-shotframe) { display: grid; }
 lf-shot .lf-shotcomparison { grid-area: 2 / 1; aspect-ratio: var(--lf-shot-ratio);

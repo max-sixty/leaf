@@ -2117,13 +2117,13 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
 def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
     """Inline importance outranks stylesheet layers, so the authoring door owns it."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main style="opacity: 1 !important">')
+        PAGE.replace("<main>", '<main style="visibility: visible !important">')
     )
 
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "protected presentation property opacity important" in result.output
+    assert "protected presentation property visibility important" in result.output
 
 
 @pytest.mark.parametrize(

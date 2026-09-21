@@ -596,7 +596,8 @@ body { position: static !important; box-sizing: border-box !important;
  *
  * The anonymous layer is first in the merged theme, so these important declarations
  * outrank every later layer and unlayered stylesheet declaration without reserving a
- * named layer custom CSS could append to. */
+ * named layer custom CSS could append to. Inline importance ranks higher still, so the
+ * version gate refuses it for the display and visibility properties this boundary owns. */
 @layer {
   @media screen {
     html[data-lf-live] body:not([data-lf-presented]),

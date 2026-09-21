@@ -473,7 +473,7 @@ export function createVersionController({
     when: versionsOffered,
     at: versionMenuIsOpen,
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
-    // reading so the reference filters member-dependent rows by their actual liveness.
+    // reading so the reference documents its rows as unavailable in the remaining scene.
     liveInCommandReference: true,
     // A chooser over the page suspends the page, which the two transient contexts above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`

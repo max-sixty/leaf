@@ -39,12 +39,9 @@ or action; satisfying one may leave another. Activity describes progress toward 
 obligation. The agent may be answering an earlier message while a newer one is queued,
 so one mutable status on the whole thread is insufficient.
 
-For implementation, combine delivery, execution, and progress validity into one
-projected workflow state per obligation, rather than three freely combinable enums.
-Candidate states are sending, sent, queued, picked up, working, replying, waiting on a
-dependency, and interrupted. Carry only relevant payloads: a dependency and continuation
-owner for waiting, or a reason and last established progress for interruption. This is a
-design to test against the current evidence, not a finalized schema.
+The table is a presentation policy, not the stored ontology. Preserve detailed facts
+so the interface can aggregate them differently without reconstructing lost information.
+The proposed data model below replaces the earlier single workflow enum per obligation.
 
 Keep thread resolution and reader read-position separate. Raw delivery and lifetime
 evidence remains underneath the projection; UI consumers do not independently combine
@@ -56,6 +53,88 @@ in thread filters; do not confuse that count with the number of Asks. A reply do
 automatically create another reader obligation or resolve its discussion. An unresolved
 thread awaiting nobody needs an appropriate completion flow, not automatic closure
 based solely on the absence of an obligation.
+
+### Proposed data model
+
+Separate an outstanding obligation from the attempts and activities that serve it.
+These are conceptual records to map onto existing events and claims, not new stores
+beside them. Field names and event types remain provisional.
+
+| Record | Identity and relationships | Facts it carries |
+| --- | --- | --- |
+| Thread | Existing thread identity | Messages, anchor, explicit resolution |
+| Obligation | Source event or Ask identity; thread; responsible actor | Requested answer, decision, review, or action; explicit settlement |
+| Attempt | Attempt identity; exact obligations; session and turn where applicable | Delivery and execution lifecycle; outcome; retry relationship |
+| Activity | Activity identity; attempt; parent activity where applicable | Kind, lifecycle, observation source and time; external identity and continuation when needed |
+
+An obligation can survive a failed attempt. A successful job can leave the obligation
+unsettled until the agent incorporates its result. Several activities can coexist:
+the agent can reason while two jobs run, and a new message can be queued while an
+earlier one is being answered. Bind work to exact obligations; session activity alone
+does not prove that every thread is progressing.
+
+**Attempt lifecycle:** `sent`, `queued`, `picked_up`, `running`, then
+`succeeded`, `failed`, `cancelled`, or `interrupted`. Keep transition evidence rather
+than only overwriting the latest state. Sending and local send failure belong to the
+browser's unresolved gesture until admission succeeds; they are not accepted log events.
+Use only stages the carrier actually observes, without inventing intermediate receipts.
+
+**Activity kind:**
+
+| Kind | Meaning | Required evidence |
+| --- | --- | --- |
+| `thinking` | The model is actively generating reasoning | A typed host signal; never inferred from silence |
+| `replying` | The model is producing a reader reply | A response stream bound to its destination |
+| `tool_call` | A tool invocation is executing | Invocation identity and start/end observations |
+| `job` | Work has an independently observable lifetime | Job identity and a way to observe its lifecycle |
+| `delegation` | Another agent owns an execution step | Worker/task identity and a way to observe it |
+| `working` | Work is established, but its subtype is unavailable | A current work claim or host observation |
+
+Each activity has a small lifecycle: `pending`, `running`, `succeeded`, `failed`,
+or `cancelled`. Losing observation does not manufacture a terminal outcome.
+Long-running is a duration characteristic, not another kind: a synchronous tool can
+take a long time, while a short background job still has its own lifetime. A tool
+that launches a job completes separately from the job it launched.
+
+**Dependencies and continuation:** link an attempt to the activity or external
+condition that must complete before its next step. Record who resumes it and the
+registered mechanism that will notify or wake that owner. Waiting is derived from
+those outstanding dependencies, not stored as another kind of activity. A job may
+still be running after its agent turn ends; its observer and continuation determine
+whether that is healthy waiting or needs inspection.
+
+**Observation:** retain the producer, observed time, and source-specific lease or
+next expected check where one exists. Derive freshness at read time. Distinguish
+"job failed" from "we no longer know whether the job is running." Model activity,
+job observation, and the continuation mechanism have separate lifetimes. An old
+progress timestamp alone does not establish failure or a reader obligation.
+
+### Storage and projection
+
+Use the existing append-only page log for admitted durable transitions and exact
+relationships: delivery/pickup, settlement, and proposed job/dependency registrations
+and terminal outcomes. Retain existing actor and source identities so retries and
+duplicate notifications cannot create duplicate work or settle a newer obligation.
+Admission validates references and allowed transitions once.
+
+Keep current high-frequency activity observations in the existing status/host lifetime
+mechanism: typing deltas and heartbeats need not become durable page events. A restart
+can recover registered work and terminal facts; current liveness must be re-established.
+External systems remain authoritative for their jobs; Leaf records attributed
+observations rather than claiming to own their execution state. Do not introduce a
+persisted thread-status table or a second current-state file.
+
+Extend the canonical server activity projection to join these facts. It returns the
+detailed attempts, concurrent activities, dependencies, and uncertainty as well as the
+small reader-facing grouping and label. All browser surfaces consume that projection.
+Uncertainty qualifies the retained activity rather than multiplying every lifecycle
+state into variants such as `thinking_stale` and `job_running_stale`.
+
+For example, an obligation can have a running job and no active model turn. With a live
+job observer and a registered continuation it presents as **Waiting · Running tests**.
+If that continuation disappears, retain the job's observed state and surface the
+recovery need. When the job succeeds, the obligation remains outstanding while the
+resumed agent thinks, replies, or updates the document. Only its settlement closes it.
 
 ### Existing foundations
 

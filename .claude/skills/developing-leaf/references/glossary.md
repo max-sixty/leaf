@@ -145,8 +145,8 @@ spine instead.
 | **Target chooser** | The `s` interaction that presents addressable elements and ends when the reader chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
-| **Standing** | Holding a destination on the page, or a control inside one: a page conversation, an Ask, or the page's own content, including an authored control; a thread title or conversation in the panel is content of that surface rather than a standing inside it, nor is Leaf's own apparatus — a banner or panel-head control, a margin marker, a mark note, a contents outline's link |
-| **Floor** | The place in a layer where the reader stands on nothing: the page's body, the thread panel's list |
+| **Standing** | Holding a destination or a control inside it: a conversation on the page or in the panel, an Ask, or authored page content. A panel thread's title and conversation are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
+| **Floor** | The place in a layer where the reader stands on nothing: the page's body, the whole thread panel |
 | **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/CLAUDE.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the reader: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
 | **Layer stack** | The one ordered record of the popovers and modal dialogs standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |

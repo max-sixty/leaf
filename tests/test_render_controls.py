@@ -1112,10 +1112,16 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
     door = page.locator(".lf-status-button")
     explanation = page.locator(".lf-status-detail")
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
     door.focus()
     page.keyboard.press("Enter")
     expect(explanation).to_be_visible()
     expect(explanation).to_be_focused()
+    boxes = explanation.evaluate(
+        "detail => ({detail: detail.getBoundingClientRect().top, "
+        "banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom})"
+    )
+    assert boxes["detail"] == pytest.approx(boxes["banner"] + 8, abs=2), boxes
     detail_text = page.evaluate(
         """() => {
           const detail = document.querySelector('.lf-status-detail');
@@ -1660,18 +1666,8 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     expect(menu.locator(".lf-version-note")).to_have_text("t")
 
 
-def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
-    """An open versions menu keeps the two edges its anchor names, and no others.
-
-    The rule states the menu's top under the button's bottom and its right against the
-    button's right. The popover UA rule states the other two, `inset: 0` with
-    `margin: auto`, and unless the rule takes those back the auto margins centre the box
-    in the band between the anchored edges and the viewport's far corner: at 1200x900 a
-    menu whose anchored top reads as satisfied still opened 400px further down the page
-    and 450px in from the control that opened it. Both edges are therefore read against
-    the button's own box rather than against numbers, because what the anchor promises is
-    a relation and not a coordinate.
-    """
+def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, serve):
+    """Versions shares the banner panel's fixed top and its door's horizontal edge."""
     page = open_page(browser, serve(LONG_PAGE))
     chooser = page.locator(".lf-version")
     expect(chooser).to_be_enabled()
@@ -1680,35 +1676,36 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     expect(menu).to_be_visible()
     boxes = menu.evaluate(
         """menu => {
-          const button = document.querySelector('.lf-version').getBoundingClientRect();
-          const box = menu.getBoundingClientRect();
-          return {button: {top: button.top, bottom: button.bottom, right: button.right},
-                  menu: {top: box.top, right: box.right, left: box.left}};
-        }"""
+              const button = document.querySelector('.lf-version').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              const box = menu.getBoundingClientRect();
+              return {banner: {bottom: banner.bottom},
+                      button: {top: button.top, bottom: button.bottom, right: button.right},
+                      menu: {top: box.top, right: box.right, left: box.left}};
+            }"""
     )
     assert boxes["menu"]["top"] == pytest.approx(
-        boxes["button"]["bottom"] + 6, abs=2
-    ), f"the versions menu did not hang under the chooser's bottom edge: {boxes}"
+        boxes["banner"]["bottom"] + 6, abs=2
+    ), boxes
     assert boxes["menu"]["right"] == pytest.approx(boxes["button"]["right"], abs=2), (
         f"the versions menu did not line up with the chooser's right edge: {boxes}"
-    )
-    assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
-        f"the versions menu covered the chooser it hangs from: {boxes}"
     )
 
     resized(page, 320, 844)
     phone = menu.evaluate(
         """menu => {
-          const button = document.querySelector('.lf-version').getBoundingClientRect();
-          const box = menu.getBoundingClientRect();
-          return {button: {bottom: button.bottom, left: button.left},
-                  menu: {top: box.top, right: box.right, left: box.left},
-                  viewport: innerWidth};
-        }"""
+              const button = document.querySelector('.lf-version').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              const box = menu.getBoundingClientRect();
+              return {banner: {bottom: banner.bottom},
+                      button: {bottom: button.bottom, left: button.left},
+                      menu: {top: box.top, right: box.right, left: box.left},
+                      viewport: innerWidth};
+            }"""
     )
     assert phone["menu"]["top"] == pytest.approx(
-        phone["button"]["bottom"] + 6, abs=2
-    ), f"the phone menu left its door vertically: {phone}"
+        phone["banner"]["bottom"] + 6, abs=2
+    ), phone
     assert phone["menu"]["left"] == pytest.approx(phone["button"]["left"], abs=2), (
         f"the phone menu appeared to belong to a control on its right: {phone}"
     )

@@ -537,6 +537,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      its own words, but the shared aim floor states a minimum width in pixels and would
      otherwise let the item shrink past them. */
   .lf-banner-actions > .lf-btn { flex: none; }
+  .lf-banner-actions > :is(.lf-signoff, .lf-threads-toggle) { padding-inline: 6px; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -576,7 +577,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
     min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
     border: 0; border-radius: 4px; background: none; color: var(--ink-2);
-    font: inherit; text-align: left; cursor: pointer; anchor-name: --lf-status; }
+    font: inherit; text-align: left; cursor: pointer; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
     transform: rotate(45deg); margin: -3px 3px 0 0; }
@@ -585,8 +586,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: 2px; --lf-here-ring: status; }
   .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
-  .lf-status-detail { position: fixed; position-anchor: --lf-status;
-    top: calc(anchor(bottom) + 8px); left: calc(14px + var(--lf-safe-left));
+  .lf-status-detail { --lf-banner-panel-gap: 8px;
+    position: fixed;
+    left: calc(14px + var(--lf-safe-left));
     right: auto; bottom: auto; margin: 0; width: min(420px, calc(100vw - 28px));
     max-height: calc(100dvh - var(--lf-banner-h) - 24px); overflow: auto;
     padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
@@ -601,6 +603,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      inward from that door on a desk, where Approval and Threads place it near the
      viewport's right edge; the phone rule below hangs it outward from the left instead. */
   .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
+  /* A top-layer panel owned by the fixed banner keeps its vertical edge in viewport
+     coordinates. WebKit otherwise resolves an anchor inside that fixed banner against
+     the scrolled document and moves the panel offscreen. Each panel can still choose
+     the horizontal edge that identifies its door. */
+  :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
+    top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px)); }
   /* The row's own .lf-btn rule states a display, and an author's display outranks the
      UA's for [hidden], so a door with nothing behind it goes on standing there. Said
      here for the same reason the Page Map says it: hidden is a display of its own. */
@@ -615,13 +623,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-  /* Fixed below the fixed banner and horizontally anchored to its own press. Keeping
-     the vertical edge in viewport coordinates also keeps the menu reachable after the
-     document has scrolled; an anchored vertical edge follows document coordinates in
-     WebKit's top layer. Every side the rule does not use is said out loud because the
-     popover UA rule is inset: 0 with margin: auto, which otherwise centres the menu. */
+  /* Horizontally anchored to its own press. Every side the rule does not use is said
+     out loud because the popover UA rule is inset: 0 with margin: auto, which otherwise
+     centres the menu. */
   .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
-    top: calc(var(--lf-banner-h) + 6px); right: anchor(right);
+    right: anchor(right);
     left: auto; bottom: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; flex-direction: column; align-items: stretch; gap: 1px;
     min-width: max(anchor-size(width), 180px);
@@ -679,7 +685,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
   .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
-    top: calc(var(--lf-banner-h) + 6px); right: anchor(right);
+    right: anchor(right);
     bottom: auto; left: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; grid-template-columns: 1fr auto; align-items: start;
     min-width: anchor-size(width);
@@ -1797,10 +1803,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
-    /* Primary widths are measured once with the desk's horizontal padding. Keep that
-       padding invariant so a page loaded narrow can widen without changing either
-       control's floor when its count or approval label later changes. */
-    .lf-banner-actions > :is(.lf-signoff, .lf-threads-toggle) { padding-inline: 10px; }
     .lf-banner-menu { right: auto;
       left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
     /* The control run starts at the left on this two-row banner. Keep its menu under

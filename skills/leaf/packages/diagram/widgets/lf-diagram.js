@@ -74,6 +74,9 @@ customElements.define(
           // The renderer's arrowhead and gradient ids are fixed, and a repeated id
           // resolves a later diagram's references into an earlier SVG.
           idPrefix: `${renderId}-`,
+          // Otherwise a `click` or `link` target is drawn as a focusable link that
+          // nothing on the page navigates; strict draws that box as a plain one.
+          security: "strict",
         });
         this.innerHTML = prepareSvg(svg);
         const drawn = this.querySelector("svg");

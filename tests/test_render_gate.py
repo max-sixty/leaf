@@ -1330,6 +1330,28 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     assert render_gate_model.render_version(browser, url) == []
 
 
+def test_a_diagram_link_draws_no_tab_stop(browser, serve):
+    """Nothing on the page navigates a Mermaid `click` or `link` target, so its box
+    draws as a plain one rather than as a focusable link that goes nowhere."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "diagram links",
+                '<h1 id="title">Diagram links</h1>\n'
+                '<lf-diagram id="flow"><pre>\nflowchart LR\n  A[Alpha] --&gt; B[Beta]\n'
+                '  click A href "https://example.com" "Open"\n</pre></lf-diagram>\n'
+                '<lf-diagram id="model"><pre>\nclassDiagram\n  class A\n'
+                '  link A "https://example.com"\n</pre></lf-diagram>',
+            )
+        ),
+    )
+    expect(page.locator("lf-diagram svg")).to_have_count(2)
+    expect(
+        page.locator("lf-diagram :is([tabindex], [role='link'], [data-href])")
+    ).to_have_count(0)
+
+
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
     """The browser must resolve generated paint against the page's live cascade.
 

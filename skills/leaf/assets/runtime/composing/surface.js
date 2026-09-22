@@ -1189,10 +1189,10 @@ export function createResponseSurface({
       setTimeout(() => {
         actionPress = false;
       });
-    // Opening or acting in the banner is a route to the already-captured touch
-    // selection, not a new selection gesture. Keep that passage verbatim while the
-    // browser moves focus through More and its controls.
-    if (touchSelectionAnchor && ev.target.closest?.(".lf-banner")) {
+    // Opening or acting in chrome is a route away from the page, not a new selection
+    // gesture. Keep the already-captured touch passage verbatim while focus moves
+    // through the banner, its sibling popovers, and their controls.
+    if (touchSelectionAnchor && ev.target.closest?.(".lf-chrome")) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Threads · accordion playground</title>
+    <title>Threads · activity and attention</title>
     <style>
       thread-navigation-study {
         width: 100%;
@@ -407,301 +407,426 @@
   <body>
     <main>
       <header>
-        <p>Threads / implementation review</p>
-        <h1>Less space between threads. More room to read.</h1>
+        <p>Threads / activity and attention</p>
+        <h1>What is happening, and who needs to act?</h1>
         <p>
-          The real Threads panel now uses the compact accordion. Open Threads in the
-          banner to try it. If all discussions are resolved, choose Filters → Resolved.
-          The sketch below records the chosen design and spacing alternatives.
+          The inventory now supports a concrete proposal: unify message workflow, derive
+          thread attention, and keep overall page activity distinct. The accordion and
+          expandable summaries are implemented; their design history is below.
         </p>
       </header>
-      <section id="summary-checkpoints">
-        <h2>Expandable thread summaries</h2>
-        <p>
-          Summaries now read as part of the conversation: no filled background or accent
-          stripe, a quiet sentence-case label, and italic prose aligned with the
-          messages. The italics distinguish the agent's retrospective account from the
-          original exchange. The summary stays visible; Show messages reveals its
-          sources. This applies the less prominent disclosure treatment described by
-          <a href="https://design-system.service.gov.uk/components/details/">GOV.UK</a>
-          and the supporting-detail pattern in
-          <a href="https://carbondesignsystem.com/components/accordion/usage/">Carbon</a
-          >.
+      <section id="activity-ontology">
+        <h2>Proposal: one message workflow, distinct page state</h2>
+        <p id="current-review">
+          The proposed next implementation combines message delivery and response
+          progress into one reading, derives thread attention from it, and separates the
+          page's overall agent state. Review those boundaries below; the backend has not
+          changed yet.
         </p>
-        <p>
-          When a conversation grows long, Leaf suggests summarization in the context
-          delivered to its agent. The agent chooses a contiguous range and writes a
-          short summary; the original messages remain available underneath it.
-        </p>
-        <p>
-          Open the summary to inspect the originals, then use the control along their
-          right edge to fold them again. Later replies stay outside the covered range. A
-          new summary can extend that range as the discussion continues. Summaries
-          preserve discussion history; decisions and current status still belong in the
-          document.
-        </p>
-        <p>
-          <a href="http://127.0.0.1:43410/#bg-thread-checkpoint"
-            >Try the working summary example</a
-          >: open Threads and select “Workshop planning”. Show messages expands the
-          original exchange; its right-edge arrow collapses it. Search still finds the
-          original wording. Covered questions that need an answer stay visible, and
-          editing a covered message removes the outdated summary.
-        </p>
+        <table id="proposed-status-model">
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Question</th>
+              <th>Proposed reading</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Message workflow</td>
+              <td>What happened to this input and its answer?</td>
+              <td>
+                Sending, Sent, Queued, Picked up, Working, Replying; typed activity and
+                uncertainty qualify the reading
+              </td>
+            </tr>
+            <tr>
+              <td>Thread attention</td>
+              <td>Does this discussion need me?</td>
+              <td>
+                Needs you, Waiting, or no attention mark; explicit resolution remains
+                separate
+              </td>
+            </tr>
+            <tr>
+              <td>Overall page state</td>
+              <td>Is the page's agent available and active?</td>
+              <td>
+                Ownership, carrier availability, current activity, and declared overall
+                work
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <section id="message-workflow-proposal">
+          <h3>Consolidate the message classifications</h3>
+          <p>
+            Interaction receipts, sending failures, and streamed response state become
+            one shared workflow reading. Keep exact input, delivery, turn, claim, and
+            reply bindings underneath it. The displayed stage selects the strongest
+            applicable evidence; proactive work can have no preceding message and
+            appears on its thread or widget instead.
+          </p>
+          <p>
+            Store no new thread-status table. Derive stage, optional typed activity,
+            condition, and next actor from the existing evidence. A condition retains
+            its cause: a failed send, an interrupted turn, or lost observation are
+            different problems. Typed Thinking can refine Working only with host
+            evidence bound to that input or subject; otherwise it stays overall page
+            activity. A completed turn alone never proves an answer.
+          </p>
+          <p>
+            Show one compact mark beside the message timestamp. Derive thread groups and
+            margin treatment from the same reading and outstanding reader Asks. A reader
+            Ask takes placement precedence while older agent work stays visible as
+            secondary detail. No obligation means no attention mark, not automatic
+            resolution. A settled input normally loses its active-work mark rather than
+            gaining a permanent Answered badge.
+          </p>
+        </section>
+        <section id="page-state-proposal">
+          <h3>Overall activity does not confer message progress</h3>
+          <p>
+            The banner and Leaves tray describe the page's agent relationship and
+            overall work. A busy agent does not make every message Working. Thread
+            counts can sit beside overall state as separate information, for example
+            “Agent active · 2 threads need you.” Both readings can use the same evidence
+            while answering different questions.
+          </p>
+        </section>
+        <section id="external-requests-explained">
+          <h3>External requests are operation buttons</h3>
+          <p>
+            These ask a host to do something: for example, a command-hub operation or a
+            release rollback. Leaf records the request, the host executes it, and a
+            receipt records success or failure. Each request seat allows one pending
+            operation; success completes it, while failure reopens it.
+          </p>
+          <p>
+            Keep this command lifecycle because Sent or Picked up cannot prove that a
+            rollback succeeded. Its work and result can feed shared activity and
+            attention, but this proposal does not change the request protocol.
+          </p>
+        </section>
+        <section id="notification-bus-proposal">
+          <h3>Defer a typed notification bus</h3>
+          <p>
+            Later, workflow changes, new reader Asks, page availability changes, and
+            request outcomes can produce typed events. Notices, accessibility
+            announcements, badges, and other consumers can subscribe and decide what to
+            show. First check the existing subscription machinery; the bus should report
+            domain transitions without becoming another state store.
+          </p>
+          <p>
+            This is deferred work, along with durable unread tracking. The current
+            Threads count measures unresolved discussions, not unread messages.
+          </p>
+        </section>
+        <section id="status-implementation-sequence">
+          <h3>Recommended initial implementation</h3>
+          <p>
+            Implement the shared message workflow and derived thread attention, together
+            with the overall page-state separation. Prove newer input during an older
+            reply, a reader Ask concurrent with agent work, an ended turn, stale
+            observation, and exact response settlement.
+          </p>
+          <p>
+            Then retain typed thinking and tool observations. Independently running jobs
+            and delegated work follow with their own observation and continuation
+            contracts. The full design is in
+            <code>notes/thread-status-proposal.md</code>.
+          </p>
+        </section>
+        <details>
+          <summary>Existing implementation inventory</summary>
+          <table id="activity-inventory">
+            <thead>
+              <tr>
+                <th>Existing model</th>
+                <th>What it answers</th>
+                <th>Where it appears</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Page activity</td>
+                <td>Is the agent present and working?</td>
+                <td>Banner, Leaves tray, agent tools, stop guard</td>
+              </tr>
+              <tr>
+                <td>Interaction receipts</td>
+                <td>Was this input sent, queued, picked up, or selected for work?</td>
+                <td>Messages, thread rows, margin</td>
+              </tr>
+              <tr>
+                <td>Conversation attention</td>
+                <td>Who owes an answer? Is the discussion resolved?</td>
+                <td>Thread filters and rows, Asks</td>
+              </tr>
+              <tr>
+                <td>Message delivery and reply stream</td>
+                <td>Is this message sending, replying, interrupted, or unanswered?</td>
+                <td>Messages and compact thread status</td>
+              </tr>
+              <tr>
+                <td>External request seat</td>
+                <td>Is an operation ready, pending, or completed?</td>
+                <td>Request widgets and outcome receipts</td>
+              </tr>
+              <tr>
+                <td>Transient notices</td>
+                <td>What just changed?</td>
+                <td>Bottom status line and assistive announcements</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            The full source and storage map is in
+            <code>notes/activity-ontology.md</code>.
+          </p>
+        </details>
       </section>
-      <section id="summary-comparison">
-        <h2>Keep the current exchange in view</h2>
+      <details id="thread-design-history">
+        <summary>Earlier UI work — accordion and summary design history</summary>
         <p>
-          The same conversation before and after summarization: seven older messages
-          become one checkpoint, leaving the latest question and reply field visible.
-          The originals remain available through Show messages.
+          Historical snapshots and prototype fixtures follow. They describe the earlier
+          UI review, not outstanding decisions for the activity model.
         </p>
-        <lf-shot
-          id="summary-before-after"
-          after="/media/8e155cf39131009f.png"
-          before="/media/2f7bd2b87fd09521.png"
-          alt="A long thread before and after an expandable summary"
-        ></lf-shot>
-      </section>
-      <section id="implementation-status">
-        <h2>Try the real Threads panel</h2>
-        <p>
-          One conversation expands at a time. The reply field spans the conversation’s
-          width. Author and time sit above each message; delivery receipts sit below the
-          message they describe. Unfinished drafts survive switching threads. Search,
-          filters, and links to individual messages reveal their target.
-        </p>
-        <p>
-          Use Enter or Space on a title to expand it; arrow keys and Home/End move
-          between titles. Use t / Shift+t to walk threads, c to reply, and
-          Cmd/Ctrl+Enter to send. Escape leaves the reply box, collapses the
-          conversation, then steps back out of the panel.
-        </p>
-        <p>
-          Sending and Sent share a delivery line so confirmation does not shift the
-          conversation. The local review also checks that collapsed titles retain reader
-          obligations and ongoing agent work. The richer activity ontology remains
-          separate work.
-        </p>
-      </section>
-      <section id="status-comparison">
-        <h2>Keep the next turn visible</h2>
-        <p>
-          Collapsed titles show On you when the reader owes the next turn. Ongoing agent
-          work stays visible even when a newer message is queued. Full delivery details
-          remain with their message.
-        </p>
-        <lf-shot
-          id="status-shot"
-          alt="Collapsed thread status before and after review"
-          before="/media/9fc0aae5709212e9.png"
-          after="/media/8268da6e6ec47f7b.png"
-        ></lf-shot>
-      </section>
-      <section id="runtime-comparison">
-        <h2>The same eleven conversations</h2>
-        <p>
-          Opening Threads previously filled the panel with the first two discussions.
-          The compact accordion fits all eleven titles in the same viewport, then opens
-          the selected discussion in place.
-        </p>
-        <lf-shot
-          id="accordion-comparison"
-          before="/media/8c8c9ad400710e98.png"
-          after="/media/acca077f62616d54.png"
-          alt="Threads panel before and after compact accordion navigation"
-        ></lf-shot>
-      </section>
-      <section id="spacing-comparison">
-        <h2>One conversation, one inset</h2>
-        <p>
-          The full-width composer removes the empty gutter. Author and time move above
-          the message, giving prose the full reading width. Message spacing separates
-          turns while the collapsed rows stay compact.
-        </p>
-        <lf-shot
-          id="spacing-shot"
-          before="/media/ab913e521d3dc38f.png"
-          after="/media/ba614c8a6abf9d8b.png"
-          alt="Expanded thread before and after the full-width composer and message layout"
-        ></lf-shot>
-      </section>
-      <lf-ask id="navigation-choice"
-        ><h2>Spacing alternatives</h2>
-        <lf-playground id="navigation-study" submit-label="Choose layout">
-          <lf-playground-control
-            name="density"
-            label="Spacing"
-            kind="choice"
-            value="compact"
-            ><lf-playground-choice
-              value="compact"
-              label="Compact"
-            ></lf-playground-choice
-            ><lf-playground-choice
-              value="comfortable"
-              label="Comfortable"
-            ></lf-playground-choice
-            ><lf-playground-choice value="airy" label="Airy"></lf-playground-choice
-          ></lf-playground-control>
-          <lf-playground-control
-            name="width"
-            label="Reading width"
-            kind="choice"
-            value="panel"
-            ><lf-playground-choice value="panel" label="Panel"></lf-playground-choice
-            ><lf-playground-choice
-              value="roomy"
-              label="Roomy"
-            ></lf-playground-choice></lf-playground-control
-          ><lf-playground-preset label="Compact"
-            ><lf-playground-setting
-              for="density"
-              value="compact"
-            ></lf-playground-setting></lf-playground-preset
-          ><lf-playground-preset label="Comfortable"
-            ><lf-playground-setting
-              for="density"
-              value="comfortable"
-            ></lf-playground-setting></lf-playground-preset
-          ><lf-playground-preset label="Airy"
-            ><lf-playground-setting for="density" value="airy"></lf-playground-setting
-          ></lf-playground-preset>
-          <lf-playground-preview
-            ><thread-navigation-study id="navigation-preview"
-              ><p>
-                Open a thread to read or reply. Click its heading or press Escape to
-                collapse it.
-              </p></thread-navigation-study
+        <section id="summary-checkpoints">
+          <h2>Expandable thread summaries</h2>
+          <p>
+            Summaries now read as part of the conversation: no filled background or
+            accent stripe, a quiet sentence-case label, and italic prose aligned with
+            the messages. The italics distinguish the agent's retrospective account from
+            the original exchange. The summary stays visible; Show messages reveals its
+            sources. This applies the less prominent disclosure treatment described by
+            <a href="https://design-system.service.gov.uk/components/details/"
+              >GOV.UK</a
             >
-            <p>
-              Try the longer <strong>Pilot expansion</strong> thread. Drafts survive
-              collapsing and changing spacing. Replies here are simulated.
-            </p></lf-playground-preview
-          >
-          <lf-playground-output
-            >Refine the accordion thread design using
-            <lf-playground-value for="density"></lf-playground-value> spacing at
-            <lf-playground-value for="width"></lf-playground-value> width. Preserve
-            drafts, keyboard operation, readable messages, and clear disclosure
-            controls. Keep the implementation aligned with this
-            design.</lf-playground-output
-          >
-        </lf-playground></lf-ask
-      >
-      <section id="design-direction">
-        <h2>Keep the structure, remove the repetition</h2>
-        <p>
-          The title and message count remain compact. An open conversation uses one
-          shared inset for its quote, messages, and reply field. Author and time form a
-          small header instead of consuming a separate column. A Draft marker preserves
-          unfinished work, and the bottom control collapses long threads.
-        </p>
-        <p>
-          <a href="https://carbondesignsystem.com/components/accordion/style/"
-            >Carbon’s accordion guidance</a
-          >
-          explicitly allows inputs to fill the panel even when prose has different
-          margins. That supports the full-width composer here; precise spacing remains a
-          Leaf design choice.
-        </p>
-        <p>
-          <a
-            href="https://support.signal.org/hc/en-us/articles/360007320751-How-do-I-know-if-my-message-was-delivered-or-read"
-            >Signal distinguishes Sent, Delivered, and Read for each message.</a
-          >
-          Applying that distinction here, Sent belongs beneath the sent message and no
-          longer appears as a thread title’s status. Current work and failure states can
-          still help identify a thread before opening it.
-        </p>
-        <p>
-          Component reuse is possible:
-          <a href="https://webawesome.com/docs/components/details/"
-            >Web Awesome supplies compatible web components</a
-          >, while
-          <a href="https://www.radix-ui.com/primitives">Radix uses React</a> and would
-          introduce another rendering framework beside Leaf’s Lit components. Neither
-          decides chat spacing or message delivery placement. This pass keeps Leaf’s
-          components; a broader disclosure refactor could use native details/summary,
-          including exclusive groups, without adding a library.
-        </p>
-      </section>
-      <section id="release-document">
-        <h2>The shared document</h2>
-        <p>
-          The release plan below supplies real anchors for the discussion. Settled
-          decisions belong in this document; Threads retains their reasoning.
-        </p>
-      </section>
-      <section id="rollout">
-        <h2>Start with a small cohort</h2>
-        <p id="rollout-proposal">
-          The first release reaches five internal teams before the wider rollout.
-        </p>
-        <p>
-          Decisions belong here as they settle; the discussions retain the questions and
-          reasoning.
-        </p>
-      </section>
-      <section id="recovery">
-        <h2>Keep rollback within reach</h2>
-        <p id="recovery-proposal">
-          A failed health check pauses expansion and leaves the previous release
-          available.
-        </p>
-        <p>
-          Decisions belong here as they settle; the discussions retain the questions and
-          reasoning.
-        </p>
-      </section>
-      <section id="checks">
-        <h2>Check the real release path</h2>
-        <p id="checks-proposal">
-          The release gate covers reconnects, permission changes, and interrupted
-          uploads.
-        </p>
-        <p>
-          Decisions belong here as they settle; the discussions retain the questions and
-          reasoning.
-        </p>
-      </section>
-      <section id="performance">
-        <h2>Measure the crowded workspace</h2>
-        <p id="performance-proposal">
-          Performance checks include a workspace with twelve active conversations.
-        </p>
-        <p>
-          Decisions belong here as they settle; the discussions retain the questions and
-          reasoning.
-        </p>
-      </section>
-      <section id="ownership">
-        <h2>Give each follow-up an owner</h2>
-        <p id="ownership-proposal">
-          The release coordinator owns the go or no-go decision and the next update.
-        </p>
-        <p>
-          Decisions belong here as they settle; the discussions retain the questions and
-          reasoning.
-        </p>
-      </section>
-      <section id="notes">
-        <h2>Put the outcome in the release note</h2>
-        <p id="notes-proposal">
-          The release note records shipped behavior, known limits, and deferred work.
-        </p>
-        <p>
-          Decisions belong here as they settle; the discussions retain the questions and
-          reasoning.
-        </p>
-      </section>
-      <section id="deferred">
-        <h2>Deferred work</h2>
-        <p>
-          Automated cohort selection is a follow-up after the pilot. The initial release
-          uses a named cohort.
-        </p>
-      </section>
+            and the supporting-detail pattern in
+            <a href="https://carbondesignsystem.com/components/accordion/usage/"
+              >Carbon</a
+            >.
+          </p>
+          <p>
+            When a conversation grows long, Leaf suggests summarization in the context
+            delivered to its agent. The agent chooses a contiguous range and writes a
+            short summary; the original messages remain available underneath it.
+          </p>
+          <p>
+            Open the summary to inspect the originals, then use the control along their
+            right edge to fold them again. Later replies stay outside the covered range.
+            A new summary can extend that range as the discussion continues. Summaries
+            preserve discussion history; decisions and current status still belong in
+            the document.
+          </p>
+          <p>
+            <a href="http://127.0.0.1:43410/#bg-thread-checkpoint"
+              >Try the working summary example</a
+            >: open Threads and select “Workshop planning”. Show messages expands the
+            original exchange; its right-edge arrow collapses it. Search still finds the
+            original wording. Covered questions that need an answer stay visible, and
+            editing a covered message removes the outdated summary.
+          </p>
+        </section>
+        <section id="summary-comparison">
+          <h2>Keep the current exchange in view</h2>
+          <p>
+            The same conversation before and after summarization: seven older messages
+            become one checkpoint, leaving the latest question and reply field visible.
+            The originals remain available through Show messages.
+          </p>
+          <lf-shot
+            id="summary-before-after"
+            after="/media/8e155cf39131009f.png"
+            before="/media/2f7bd2b87fd09521.png"
+            alt="A long thread before and after an expandable summary"
+          ></lf-shot>
+        </section>
+        <section id="implementation-status">
+          <h2>Try the real Threads panel</h2>
+          <p>
+            One conversation expands at a time. The reply field spans the conversation’s
+            width. Author and time sit above each message; delivery receipts sit below
+            the message they describe. Unfinished drafts survive switching threads.
+            Search, filters, and links to individual messages reveal their target.
+          </p>
+          <p>
+            Use Enter or Space on a title to expand it; arrow keys and Home/End move
+            between titles. Use t / Shift+t to walk threads, c to reply, and
+            Cmd/Ctrl+Enter to send. Escape leaves the reply box, collapses the
+            conversation, then steps back out of the panel.
+          </p>
+          <p>
+            Sending and Sent share a delivery line so confirmation does not shift the
+            conversation. The local review also checks that collapsed titles retain
+            reader obligations and ongoing agent work. The richer activity ontology
+            remains separate work.
+          </p>
+        </section>
+        <section id="status-comparison">
+          <h2>Keep the next turn visible</h2>
+          <p>
+            Collapsed titles show On you when the reader owes the next turn. Ongoing
+            agent work stays visible even when a newer message is queued. Full delivery
+            details remain with their message.
+          </p>
+          <lf-shot
+            id="status-shot"
+            alt="Collapsed thread status before and after review"
+            before="/media/9fc0aae5709212e9.png"
+            after="/media/8268da6e6ec47f7b.png"
+          ></lf-shot>
+        </section>
+        <section id="runtime-comparison">
+          <h2>The same eleven conversations</h2>
+          <p>
+            Opening Threads previously filled the panel with the first two discussions.
+            The compact accordion fits all eleven titles in the same viewport, then
+            opens the selected discussion in place.
+          </p>
+          <lf-shot
+            id="accordion-comparison"
+            before="/media/8c8c9ad400710e98.png"
+            after="/media/acca077f62616d54.png"
+            alt="Threads panel before and after compact accordion navigation"
+          ></lf-shot>
+        </section>
+        <section id="spacing-comparison">
+          <h2>One conversation, one inset</h2>
+          <p>
+            The full-width composer removes the empty gutter. Author and time move above
+            the message, giving prose the full reading width. Message spacing separates
+            turns while the collapsed rows stay compact.
+          </p>
+          <lf-shot
+            id="spacing-shot"
+            before="/media/ab913e521d3dc38f.png"
+            after="/media/ba614c8a6abf9d8b.png"
+            alt="Expanded thread before and after the full-width composer and message layout"
+          ></lf-shot>
+        </section>
+        <section id="navigation-choice">
+          <h2>Layout decision — complete</h2>
+          <p>
+            The compact accordion was selected and implemented. The spacing study no
+            longer asks for another layout choice.
+          </p>
+        </section>
+        <section id="design-direction">
+          <h2>Keep the structure, remove the repetition</h2>
+          <p>
+            The title and message count remain compact. An open conversation uses one
+            shared inset for its quote, messages, and reply field. Author and time form
+            a small header instead of consuming a separate column. A Draft marker
+            preserves unfinished work, and the bottom control collapses long threads.
+          </p>
+          <p>
+            <a href="https://carbondesignsystem.com/components/accordion/style/"
+              >Carbon’s accordion guidance</a
+            >
+            explicitly allows inputs to fill the panel even when prose has different
+            margins. That supports the full-width composer here; precise spacing remains
+            a Leaf design choice.
+          </p>
+          <p>
+            <a
+              href="https://support.signal.org/hc/en-us/articles/360007320751-How-do-I-know-if-my-message-was-delivered-or-read"
+              >Signal distinguishes Sent, Delivered, and Read for each message.</a
+            >
+            Applying that distinction here, Sent belongs beneath the sent message and no
+            longer appears as a thread title’s status. Current work and failure states
+            can still help identify a thread before opening it.
+          </p>
+          <p>
+            Component reuse is possible:
+            <a href="https://webawesome.com/docs/components/details/"
+              >Web Awesome supplies compatible web components</a
+            >, while
+            <a href="https://www.radix-ui.com/primitives">Radix uses React</a> and would
+            introduce another rendering framework beside Leaf’s Lit components. Neither
+            decides chat spacing or message delivery placement. This pass keeps Leaf’s
+            components; a broader disclosure refactor could use native details/summary,
+            including exclusive groups, without adding a library.
+          </p>
+        </section>
+        <section id="release-document">
+          <h2>The shared document</h2>
+          <p>
+            The release plan below supplies real anchors for the discussion. Settled
+            decisions belong in this document; Threads retains their reasoning.
+          </p>
+        </section>
+        <section id="rollout">
+          <h2>Start with a small cohort</h2>
+          <p id="rollout-proposal">
+            The first release reaches five internal teams before the wider rollout.
+          </p>
+          <p>
+            Decisions belong here as they settle; the discussions retain the questions
+            and reasoning.
+          </p>
+        </section>
+        <section id="recovery">
+          <h2>Keep rollback within reach</h2>
+          <p id="recovery-proposal">
+            A failed health check pauses expansion and leaves the previous release
+            available.
+          </p>
+          <p>
+            Decisions belong here as they settle; the discussions retain the questions
+            and reasoning.
+          </p>
+        </section>
+        <section id="checks">
+          <h2>Check the real release path</h2>
+          <p id="checks-proposal">
+            The release gate covers reconnects, permission changes, and interrupted
+            uploads.
+          </p>
+          <p>
+            Decisions belong here as they settle; the discussions retain the questions
+            and reasoning.
+          </p>
+        </section>
+        <section id="performance">
+          <h2>Measure the crowded workspace</h2>
+          <p id="performance-proposal">
+            Performance checks include a workspace with twelve active conversations.
+          </p>
+          <p>
+            Decisions belong here as they settle; the discussions retain the questions
+            and reasoning.
+          </p>
+        </section>
+        <section id="ownership">
+          <h2>Give each follow-up an owner</h2>
+          <p id="ownership-proposal">
+            The release coordinator owns the go or no-go decision and the next update.
+          </p>
+          <p>
+            Decisions belong here as they settle; the discussions retain the questions
+            and reasoning.
+          </p>
+        </section>
+        <section id="notes">
+          <h2>Put the outcome in the release note</h2>
+          <p id="notes-proposal">
+            The release note records shipped behavior, known limits, and deferred work.
+          </p>
+          <p>
+            Decisions belong here as they settle; the discussions retain the questions
+            and reasoning.
+          </p>
+        </section>
+        <section id="deferred">
+          <h2>Deferred work</h2>
+          <p>
+            Automated cohort selection is a follow-up after the pilot. The initial
+            release uses a named cohort.
+          </p>
+        </section>
+      </details>
     </main>
   </body>
 </html>

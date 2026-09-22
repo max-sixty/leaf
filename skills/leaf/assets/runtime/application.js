@@ -35,9 +35,10 @@ import { createDataProjection } from "./projection/data.js";
 import { createConversationPresentation } from "./conversation/presentation.js";
 import { renderMarginThread } from "./conversation/inline.js";
 import { conversationBox as buildConversationBox } from "./conversation/box.js";
+import { messageText } from "./conversation/messages.js";
 import {
   focusSurface,
-  registerThreadSurface as registerSurface,
+  consumeThreads as registerConsumer,
   renderSurfaces,
 } from "./conversation/surfaces.js";
 import { createStateApplication } from "./state-application.js";
@@ -53,7 +54,7 @@ const app = () => {
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   setPresentationFailureReporter(dependencies.reportPageError);
-  const ledger = createPendingLedger({ newAttempt, now: saidNow });
+  const ledger = createPendingLedger({ newAttempt, now: saidNow, messageText });
   const hasPending = ledger.hasUnresolved;
   const engagement = dependencies.createEngagement({
     hasPending,
@@ -69,7 +70,8 @@ export function mountApplication(dependencies) {
 
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
-  const acceptedApprovals = () => readApplication().effective.conversation.done;
+  const acceptedApprovals = () =>
+    readApplication().effective.conversation.collection.done;
   const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = readOpenAsks;
   const unansweredAsks = readUnansweredAsks;
@@ -461,10 +463,11 @@ export function mountApplication(dependencies) {
       onDraftChanged: invalidateDom,
       wireInput: dependencies.wireInput,
     });
-  const registerThreadSurface = (owner, adapter) =>
-    registerSurface(owner, adapter, {
+  const consumeThreads = (owner, render) =>
+    registerConsumer(owner, render, {
       invalidate: invalidateDom,
       composition: dependencies.compositionSurface,
+      reveal: dependencies.showThread,
     });
 
   application = {
@@ -495,7 +498,7 @@ export function mountApplication(dependencies) {
     receiveState,
     refreshConversation,
     presentConversation,
-    registerThreadSurface,
+    consumeThreads,
     forgetAuthoredOwners: projection.forgetAuthoredOwners,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     setResolved,
@@ -528,7 +531,7 @@ export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
 export const refreshConversation = (...args) => app().refreshConversation(...args);
-export const registerThreadSurface = (...args) => app().registerThreadSurface(...args);
+export const consumeThreads = (...args) => app().consumeThreads(...args);
 export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);

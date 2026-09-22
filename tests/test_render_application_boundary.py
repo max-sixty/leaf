@@ -15,6 +15,7 @@ from render_cases_interaction import (
 )
 from render_harness import (
     BOTH_STAMPS,
+    consume_browser_errors,
     holding,
     leaf_page,
     open_page,
@@ -22,11 +23,258 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    sending,
     stamp_page,
     take_browser_errors,
     told,
     wait_for_revision,
 )
+
+THREAD_READER = r"""
+import {consumeThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+customElements.define('lf-thread-reader', class extends HTMLElement {
+  connectedCallback() {
+    this.output = document.createElement('pre');
+    this.append(this.output);
+    this.consumer = consumeThreads(this, (collection, {signal}) => {
+      this.signals ??= [];
+      this.signals.push(signal);
+      const paint = () => {
+        if (signal.aborted) return;
+        this.paints = (this.paints ?? 0) + 1;
+        this.reading = collection;
+        this.sameReading = collection === readThreads();
+        this.output.textContent = collection.threads.map(thread =>
+          threadTurns(thread).map(message => message.body.text).join('\n')
+        ).join('\n');
+        this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+      };
+      const held = this.held;
+      this.held = null;
+      if (held) {
+        this.dataset.held = 'true';
+        if (held.cancel) signal.addEventListener('abort', held.cancel, {once: true});
+        return held.then(() => { paint(); this.dataset.finished = 'true'; });
+      }
+      paint();
+    });
+  }
+  hold(rejectOnAbort = false) {
+    let cancel;
+    this.held = new Promise((resolve, reject) => {
+      this.release = resolve;
+      cancel = () => reject(new DOMException('Consumer cancelled', 'AbortError'));
+    });
+    if (rejectOnAbort) this.held.cancel = cancel;
+    delete this.dataset.held;
+    delete this.dataset.finished;
+  }
+  disconnectedCallback() { this.consumer.unregister(); }
+});
+"""
+
+THREAD_READER_DECLARATION = {
+    "description": "A read-only package conversation view.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "empty",
+    "x-upgrade": True,
+    "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
+}
+
+
+def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
+    browser, serve
+):
+    """One public reading carries both optimistic turns and live authored unit state."""
+    url = serve(
+        leaf_page(
+            "Shared Threads",
+            '<h1>Shared Threads</h1><lf-thread-reader id="reader"></lf-thread-reader>',
+        ),
+        layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
+        layer_widgets={"lf-thread-reader.js": THREAD_READER},
+    )
+    for event in [
+        {
+            "id": "question",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "**Decision**",
+        },
+        {
+            "id": "answer",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "question",
+            "text": "Choose a direction.",
+            "markup": '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+        },
+    ]:
+        events_model.append_event(serve.page_dir, event)
+    page = open_page(browser, url)
+    reader = page.locator("#reader")
+    expect(reader).to_contain_text("Decision")
+    record = reader.evaluate("""node => {
+      const reading = node.reading;
+      const cloned = structuredClone(reading);
+      const allFrozen = value => !value || typeof value !== 'object' ||
+        (Object.isFrozen(value) && Object.values(value).every(allFrozen));
+      return {reading: cloned, frozen: allFrozen(reading), same: node.sameReading, topic: node.topic};
+    }""")
+    assert record["frozen"] and record["same"]
+    assert record["topic"] == "Decision"
+    root, reply = record["reading"]["threads"][0]["msgs"]
+    assert root["text"] == "**Decision**" and root["body"]["text"].strip() == "Decision"
+    assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
+    assert reply["body"]["kind"] == "authored"
+    assert "North" in reply["body"]["text"]
+    assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
+    page.locator(".lf-thread-summary").click()
+    expect(page.locator("#direction")).to_have_count(1)
+    with sending(page, "choose North in the authored reply"):
+        page.locator("#north .lf-pick").click()
+    round_trip(page)
+    assert reader.evaluate("""node => node.reading.threads[0].msgs[1].body.units
+      .find(unit => unit.id === 'direction').state.selection.value""") == ["north"]
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    box = page.locator(".lf-general textarea")
+    box.fill("Pending **words**")
+    page.locator(".lf-general button").click()
+    holding(page, held, 1, "the shared collection's pending root")
+    expect(reader).to_contain_text("Pending words")
+    pending = reader.evaluate(
+        "node => node.reading.threads.find(thread => thread.root.pending)"
+    )
+    expect(
+        page.locator(f'.lf-thread[data-id="{pending["root"]["id"]}"]')
+    ).to_have_count(1)
+    held.pop().continue_()
+    round_trip(page)
+    admitted = reader.evaluate(
+        "(node, key) => node.reading.threads.find(thread => thread.key === key)",
+        pending["key"],
+    )
+    assert admitted["root"]["id"] != pending["root"]["id"]
+    assert admitted["root"]["key"] == pending["root"]["key"]
+
+    box.fill("Refused words")
+    page.locator(".lf-general button").click()
+    holding(page, held, 1, "the shared collection's refused root")
+    expect(reader).to_contain_text("Refused words")
+    route = held.pop()
+    route.fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "attempt": route.request.post_data_json["attempt"],
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    round_trip(page)
+    expect(reader).not_to_contain_text("Refused words")
+    expect(box).to_have_value("Refused words")
+    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
+    consume_browser_errors(page, "400")
+    page.unroute("**/api/event")
+
+
+def test_thread_consumers_join_presentation_and_cancel_superseded_work(browser, serve):
+    """A blocked first consumer cancels every old callback before it can repaint."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Thread consumers",
+                '<h1>Thread consumers</h1><lf-thread-reader id="first"></lf-thread-reader><lf-thread-reader id="second"></lf-thread-reader>',
+            ),
+            layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
+            layer_widgets={"lf-thread-reader.js": THREAD_READER},
+        ),
+    )
+    page.evaluate("""async () => {
+      const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      window.threadPresentation = readApplicationPresentation;
+    }""")
+    first = page.locator("#first")
+    second = page.locator("#second")
+    second.evaluate("node => { node.hold(); node.consumer.update(); }")
+    expect(second).to_have_attribute("data-held", "true")
+    assert page.evaluate("threadPresentation().pending.includes('conversation')")
+    prior_paints = second.evaluate("node => node.paints")
+    first.evaluate("node => { node.hold(); node.consumer.update(); }")
+    expect(first).to_have_attribute("data-held", "true")
+    assert second.evaluate("node => node.signals.at(-1).aborted")
+    second.evaluate("node => node.release()")
+    expect(second).to_have_attribute("data-finished", "true")
+    assert second.evaluate("node => node.paints") == prior_paints
+    first.evaluate("node => node.release()")
+    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
+    second.evaluate("node => { node.hold(true); node.consumer.update(); }")
+    expect(second).to_have_attribute("data-held", "true")
+    removed = second.element_handle()
+    second.evaluate("node => node.remove()")
+    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
+    assert removed.evaluate("node => node.signals.at(-1).aborted")
+    removed.evaluate("node => node.release()")
+
+
+def test_failed_panel_presentation_cancels_its_held_package_render(browser, serve):
+    """A sibling failure aborts package work before rollback, without waiting for it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Thread rollback",
+                '<h1>Thread rollback</h1><lf-thread-reader id="reader"></lf-thread-reader>',
+            ),
+            layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
+            layer_widgets={"lf-thread-reader.js": THREAD_READER},
+        ),
+    )
+    reader = page.locator("#reader")
+    page.evaluate("""async () => {
+      const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      window.threadPresentation = readApplicationPresentation;
+      const list = document.querySelector('leaf-thread-list');
+      const present = list.present.bind(list);
+      let failures = 2;
+      list.present = async model => {
+        await present(model);
+        if (failures > 0) {
+          failures -= 1;
+          throw new Error('injected panel failure');
+        }
+      };
+      const reader = document.querySelector('#reader');
+      reader.hold();
+      reader.consumer.update();
+    }""")
+    expect(reader).to_have_attribute("data-held", "true")
+    page.wait_for_function("document.querySelector('#reader').signals.at(-1).aborted")
+    reported_browser_errors(
+        page,
+        "leaf: Presentation failed: Thread list presentation retry failed: "
+        "injected panel failure; injected panel failure",
+    )
+    paints = reader.evaluate("node => node.paints")
+    reader.evaluate("node => node.release()")
+    expect(reader).to_have_attribute("data-finished", "true")
+    assert reader.evaluate("node => node.paints") == paints
+    reader.evaluate("node => node.consumer.update()")
+    page.wait_for_function("!threadPresentation().pending.includes('conversation')")
+    assert reader.evaluate("node => node.paints") > paints
+
 
 PAGE_MODULE = """\
 import { label } from "./helper.js";

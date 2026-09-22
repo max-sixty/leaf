@@ -3709,6 +3709,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
         "moved",
         "detached",
         "hidden",
+        "target-removed",
     ],
 )
 def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
@@ -3732,7 +3733,7 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, registerThreadSurface} from '/runtime/widget-api.js';
+import {projectData, consumeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     projectData(this, ['first', 'second'], key => key, key => {
@@ -3745,13 +3746,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       row.append(words, outlet);
       return row;
     });
-    this.surface = registerThreadSurface(this, {
-      begin: () => this.check('begin'),
-      outletFor: ({anchor, placement}) => {
+    this.surface = consumeThreads(this, async (collection, surfaces) => {
+      this.check('begin');
+      for (const thread of collection.threads) {
+        const target = surfaces.target(thread.key);
+        if (!target) continue;
+        const {anchor, placement} = target;
         if (anchor.datum === 'second') this.check('outletFor');
-        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
-      },
-      end: () => {
+        if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
+      }
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
@@ -3761,7 +3764,13 @@ customElements.define('lf-test-surface', class extends HTMLElement {
           if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
           if (this.failure === 'detached') row.outlet.remove();
         }
-      },
+        if (this.failure === 'target-removed') {
+          await Promise.resolve();
+          for (const row of [...this.children].filter(row => row.outlet)) {
+            this.append(row.outlet);
+            row.remove();
+          }
+        }
     });
   }
   check(phase) {
@@ -3877,7 +3886,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # widget still on the page its passages keep a page-local destination, so the margin's
     # thread margin entry and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such destination and the panel answers.
-    if failure == "disconnect":
+    if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.get_by_role("button", name=re.compile(r"^Threads")).click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
@@ -3896,7 +3905,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
     expect(fallback.locator("textarea")).to_have_value("Keep this unsent reply.")
-    if failure not in {"unregister", "end-unregister", "disconnect"}:
+    if failure not in {"unregister", "end-unregister", "disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
@@ -3919,7 +3928,14 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    if failure not in {"detached", "hidden", "end-unregister"}:
+    if failure not in {
+        "detached",
+        "hidden",
+        "end-unregister",
+        "unregister",
+        "disconnect",
+        "target-removed",
+    }:
         expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
         expected = (
             "returned an outlet outside its widget"

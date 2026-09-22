@@ -599,7 +599,9 @@ test("conversation acceptance is semantic before presentation can retire its loc
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
-  read.browser.conversation.threads = [{ root: accepted, msgs: [], resolved: false }];
+  read.browser.conversation.threads = [
+    { root: accepted, msgs: [accepted], resolved: false },
+  ];
   app.adopt(read);
   app.accept("comment", accepted);
   assert.equal(app.read().effective.conversation.all.length, 1);

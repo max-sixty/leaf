@@ -21,7 +21,11 @@ import { observeServerNow } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { loadMarked, prepareAuthoredMessage } from "./conversation/messages.js";
+import {
+  loadMarked,
+  prepareAuthoredMessage,
+  messageText,
+} from "./conversation/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 
 export function createStateApplication({
@@ -104,6 +108,22 @@ export function createStateApplication({
       );
     }
     const [activation] = await Promise.all(preparations);
+    const bodies = new Map(
+      state.browser.conversation.threads.flatMap((thread) =>
+        thread.msgs.map((message) => {
+          const authored = message.markup
+            ? prepareAuthoredMessage(message, thread.root.id).body
+            : null;
+          return [
+            message.id,
+            {
+              ...(authored ?? {}),
+              text: [messageText(message), authored?.text].filter(Boolean).join("\n"),
+            },
+          ];
+        }),
+      ),
+    );
 
     return runSerialized(async () => {
       if (stale(state)) {
@@ -122,18 +142,21 @@ export function createStateApplication({
       // A reload never returns to install this candidate in the old realm. A patch
       // does, and adoption is where the revision it installed becomes current, so the
       // document and the state that speaks for it reach the page in one reading.
-      let documentCapture = following !== null ? await activation.install() : null;
-      if (frozenDocuments.length) {
-        const prior = documentCapture ?? readApplication().document;
-        const authored = new Map(prior.authored);
-        const descriptors = new Map(prior.descriptors);
-        for (const frozen of frozenDocuments) {
-          for (const [id, baseline] of frozen.authored) authored.set(id, baseline);
-          for (const [id, descriptor] of frozen.descriptors.descriptors)
-            descriptors.set(id, descriptor);
-        }
-        documentCapture = { ...prior, authored, descriptors };
+      const installed = following !== null ? await activation.install() : null;
+      const prior = installed ?? readApplication().document;
+      const authored = new Map(prior.authored);
+      const descriptors = new Map(prior.descriptors);
+      for (const frozen of frozenDocuments) {
+        for (const [id, baseline] of frozen.authored) authored.set(id, baseline);
+        for (const [id, descriptor] of frozen.descriptors.descriptors)
+          descriptors.set(id, descriptor);
       }
+      const documentCapture = {
+        ...prior,
+        authored,
+        descriptors,
+        messageBodies: bodies,
+      };
       for (const frozen of frozenDocuments) commitWidgetDescriptors(frozen.descriptors);
       if (!applicationState.adopt(state, documentCapture)) {
         await notifyChangedData();

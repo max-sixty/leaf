@@ -5482,13 +5482,6 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
     ),
-    # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
-    # arrival paints only the ground, so the specimen is the walk's own landing.
-    (
-        "a walked thread",
-        ("g", "Shift+t", "t"),
-        {"ship-review": ((None, "thread-card"),)},
-    ),
     # The same walk with the panel shut lands in the margin's conversation view, on the
     # thread itself rather than a control inside it.
     ("an inline thread", ("t",), {"ship-review": ((None, "conversation-thread"),)}),
@@ -5634,7 +5627,6 @@ RING_SCOPE_SURFACE = {
         None,
     ),
     "the thread list": (".lf-thread-panel.open", None),
-    "a walked thread": (".lf-thread-panel.open", None),
     "an inline thread": (".lf-margin-preview:popover-open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
@@ -5671,7 +5663,6 @@ RING_VIEWPORT = (1200, 900)
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "an inline response",
     "the thread list",
-    "a walked thread",
     "an inline thread",
     "a contents link",
     "a thread card",

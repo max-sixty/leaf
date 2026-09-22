@@ -8313,6 +8313,8 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
 
     thread = page.locator('.lf-thread[data-id="c-on-sent"]')
     expect(thread).to_be_visible()
+    # The card is a native disclosure; its quote is behind the title until it is opened.
+    thread.locator(":scope > .lf-thread-summary").click()
     label = thread.locator(".lf-quote").inner_text()
     assert "Which store should I write up?" in label, label
     assert "ps-decision-region" not in label, label
@@ -9573,8 +9575,10 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     right, so the reader would open the panel onto an empty box for the life of the tab.
 
     The reply is in the log before the page loads and the panel is shut, which is the
-    initial hidden arrangement. Opening the panel keeps the thread collapsed; opening
-    its title gives the chart the box it needs."""
+    boxless arrangement in full: a shut panel is `display: none`, while the collapsed
+    card under an open one is a native disclosure whose skipped contents still lay out
+    against the panel's width. So the panel is what the chart waits for, and opening the
+    card's title is what puts the drawing on screen."""
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -9604,7 +9608,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     ), "the panel must be shut, or there was a box all along"
 
     page.locator(".lf-threads-toggle").click()
-    assert page.locator("#msg-chart").evaluate("chart => chart.clientWidth") == 0
+    assert page.locator("#msg-chart").evaluate("chart => chart.clientWidth") > 100
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#msg-chart svg")).to_be_visible()
     page.wait_for_function(

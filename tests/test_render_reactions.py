@@ -2056,9 +2056,12 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         == "0"
     )
 
-    # The keyboard's route in is the focus the walk puts on the card; e opens the latest
-    # agent reply in that thread without disturbing the standing mark on an older reply.
-    card(first).focus()
+    # The keyboard's route in is the focus the walk puts on the card's native title; e
+    # opens the latest agent reply in that thread without disturbing the standing mark on
+    # an older reply. Opening this title closes the quiet card the measurements above
+    # needed open, which is the disclosure group doing its own work.
+    card(first).locator(":scope > .lf-thread-summary").click()
+    expect(card(first)).to_have_attribute("open", "")
     page.keyboard.press("e")
     expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)

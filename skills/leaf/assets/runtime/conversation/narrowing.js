@@ -1,9 +1,11 @@
 /* Search and faceted narrowing for the thread panel.
 
    Status, waiting party, location and subject are independent questions. Each has one
-   optional selection; pressing the active choice clears that restriction. Resolved clears waiting
-   because a resolved thread cannot owe a turn. Counts describe the named subset under the
-   other filters, including the waiting reset when selecting Resolved. The
+   optional selection; pressing the active choice clears that restriction. Resolved
+   clears waiting because a resolved thread cannot owe a turn. Selecting a waiting
+   party leaves Resolved for Open, preserving an already Open or unrestricted status.
+   Counts describe the named subset under the other filters, including those status
+   and waiting transitions. The
    conditional placement refinement finds detached anchored threads. Waiting choices
    select predicates, not exclusive ownership: a thread can await both parties, so
    their counts can overlap and an unrestricted view includes threads awaiting neither.
@@ -48,7 +50,7 @@ const FACETS = Object.freeze([
     choice("subject", "content", "Content"),
     choice("subject", "design", "Design"),
   ]),
-  group("gone", "Thread placement", [choice("gone", "gone", "No longer here")]),
+  group("gone", "Placement", [choice("gone", "gone", "No longer here")]),
 ]);
 
 const DEFAULT_INTENT = Object.freeze({
@@ -134,6 +136,8 @@ const matchesGone = (reading, _thread, threadGroup) =>
 function transition(reading, kind, value) {
   const changes = kind === "gone" ? { onlyGone: value } : { [kind]: value };
   if (kind === "status" && value === "resolved") changes.waiting = "all";
+  if (kind === "waiting" && value !== "all" && reading.status === "resolved")
+    changes.status = "open";
   if (Object.entries(changes).every(([key, next]) => reading[key] === next))
     return reading;
   return Object.freeze({ ...reading, ...changes });
@@ -203,11 +207,7 @@ function presentationReading(reading, threads, shown, groups) {
       ),
     }),
   );
-  const readerDestination = transition(
-    transition(reading, "status", "open"),
-    "waiting",
-    "reader",
-  );
+  const readerDestination = transition(reading, "waiting", "reader");
   const readerAvailable =
     reading.waiting === "reader" ||
     rows.some(({ thread, group }) => includesThread(readerDestination, thread, group));
@@ -298,14 +298,7 @@ export function mountNarrowing(repaintConversation) {
       renarrow(repaintConversation);
     },
     chooseFacet: (kind, value) => chooseFacet(kind, value, repaintConversation),
-    toggleReader: () => {
-      intent = transition(
-        transition(intent, "status", "open"),
-        "waiting",
-        needsYou() ? "all" : "reader",
-      );
-      return renarrow(repaintConversation);
-    },
+    toggleReader: () => chooseFacet("waiting", "reader", repaintConversation),
     reset: () => widen(repaintConversation),
   });
 }

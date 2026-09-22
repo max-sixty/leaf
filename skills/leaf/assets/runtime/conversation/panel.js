@@ -172,8 +172,8 @@ export function createPanelComposer({
         // so the reader learns one idea and reaches it two ways rather than learning
         // "needs you" beside it.
         //
-        // The shortcut applies the same waiting predicate as the visible control,
-        // preserving the search, location and subject restrictions.
+        // The shortcut uses the visible control's toggle, including leaving Resolved
+        // when requesting waiting threads and preserving every other restriction.
         keys: ["w"],
         does: () =>
           needsYou() ? "Clear waiting filter" : "Show only the threads waiting on you",

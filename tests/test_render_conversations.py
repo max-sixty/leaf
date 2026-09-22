@@ -2731,9 +2731,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
 
 
 def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, serve):
-    """The controls form one query over structured thread facts. State is exclusive
-    while scope, subject and the conditional detached-placement facet compose with it;
-    each button's count predicts the result under the other standing facets."""
+    """Optional status, waiting, scope, subject and placement refinements compose.
+    Counts describe named subsets, and pointer and keyboard toggles clear the same
+    restrictions without restoring a status the reader already cleared."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     pagewide = panel_comment(d, "A page-wide content note.")
@@ -2825,6 +2825,16 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.keyboard.press("Space")
     expect(visible).to_have_count(6)
     expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    # The shortcut follows the same toggle as Space, including leaving status
+    # unrestricted rather than silently restoring Open when it clears waiting.
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("w")
+    expect(visible).to_have_count(1)
+    expect(pick("status", "open")).to_have_attribute("aria-pressed", "false")
+    page.keyboard.press("w")
+    expect(visible).to_have_count(6)
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    expect(pick("status", "open")).to_have_attribute("aria-pressed", "false")
     pick("status", "open").click()
     expect(visible).to_have_count(5)
     pick("scope", "local").click()

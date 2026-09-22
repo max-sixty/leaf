@@ -1,10 +1,10 @@
 $ leaf reply /page --text Answer
 exit: 1
-cannot infer a reply: this turn has 0 outstanding delivered replies. Read current obligations with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates to add a message when no reply is owed
+cannot infer a reply: this turn's opened delivery holds 0 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates only if that read shows nothing owed
 
 $ leaf reply /page --text Answer
 exit: 1
-cannot infer a reply: this turn has 2 outstanding delivered replies. Read current obligations with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates to add a message when no reply is owed
+cannot infer a reply: this turn's opened delivery holds 2 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates only if that read shows nothing owed
 
 $ leaf reply /page --to reader-1 --text Answer
 exit: 1

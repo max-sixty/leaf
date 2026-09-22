@@ -497,10 +497,11 @@ def cmd_reply(
             ]
             if len(pending) != 1:
                 sys.exit(
-                    f"cannot infer a reply: this turn has {len(pending)} outstanding "
-                    "delivered replies. Read current obligations with "
-                    "`leaf page state <page>`; use --for EVENT_ID to answer one, "
-                    "or --to ID --initiates to add a message when no reply is owed"
+                    "cannot infer a reply: this turn's opened delivery holds "
+                    f"{len(pending)} reply obligations. Read what the page still "
+                    "owes with `leaf page state <page>`; use --for EVENT_ID to "
+                    "answer one, or --to ID --initiates only if that read shows "
+                    "nothing owed"
                 )
             for_event, expected = pending[0]
             to = expected["to"]

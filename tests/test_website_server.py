@@ -1154,6 +1154,13 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "--listen",
         host.endpoint,
     ]
+    # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
+    # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
+    # hosted page's sentence comes from the steps App Server watches instead, which the
+    # activity fold prefers over Leaf's own claim wording for exactly this reason.
+    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
+    assert "$LEAF status" not in instructions
+    assert "$LEAF version check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(

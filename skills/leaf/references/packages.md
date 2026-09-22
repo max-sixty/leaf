@@ -794,9 +794,8 @@ neither orders the other.
 `data capture` reads a UTF-8 file without making the author copy it into markup.
 The default `text` format can select an inclusive `START:END` line range. The
 `unified-diff` format validates a Git patch and builds the file-fragmented manifest the
-diff widget consumes; binary, mode-only, empty added or deleted, copy, and malformed
-hunk entries are rejected rather than silently omitted. Both formats may attach a
-display label. A capture
+diff widget consumes; an entry the widget's declaration does not support is rejected
+rather than silently omitted. Both formats may attach a display label. A capture
 both replaces the source's current value and retains that value under the reported data
 revision. A widget without its snapshot attribute follows the current value; a widget with
 `snapshot="REVISION"` keeps reading that immutable capture. The captured source path is

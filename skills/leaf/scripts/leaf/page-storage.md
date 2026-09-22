@@ -122,20 +122,13 @@ A page directory holds:
                          At the state boundary, work records become canonical claim
                          updates, while the interaction fold applies handling only to
                          its exact receipt. Both appear beside the page-wide banner.
-                         An optional `stream` record holds two
-                         live Codex App Server readings. `activity` is session-, turn-,
-                         and event-floor-bound; it overlays the declaration in canonical
-                         activity without replacing it and is cleared when the turn or
-                         observer ends. `reply` is the delivery-bound final-answer draft
-                         rendered in its conversation while text arrives. A failed or
-                         disconnected draft remains visible in that state; a successful
-                         commit clears it after the canonical reply event is appended.
-                         `reply_bindings` keeps each response's session and attempt
-                         independent of that one display slot until it commits or fails.
-                         A delivery that ends without ever reaching a provider turn does
-                         neither, so its host gives the reservation up explicitly;
-                         until it does, the address it holds also refuses the receipt
-                         that would tell the reader no answer is coming.
+                         An optional `stream` record holds the live Codex App Server
+                         readings, `activity`, `reply`, and `reply_bindings`, whose
+                         writers and lifetimes `session-lifetime.md`'s table states.
+                         A binding for a delivery that never reaches a provider turn
+                         neither commits nor fails, so its host gives the reservation
+                         up explicitly; until it does, the address it holds refuses
+                         the receipt that would tell the reader no answer is coming.
                          Delivery pickup
                          never writes this file; its queued/opened phase, session,
                          and turn are page-owned evidence in events.jsonl

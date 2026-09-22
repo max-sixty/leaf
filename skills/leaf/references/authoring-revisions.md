@@ -102,8 +102,8 @@ there.
 Before handing the page back, check that its status and outstanding work agree
 with what you report to the reader.
 
-When one page needs several views, use one `lf-tabs` tab set. Keep the shared
-title and lede before it, and put the primary current view first: ordering makes it
+When one page needs several views, use one `lf-tabs` tab set and put the primary
+current view first: ordering makes it
 the default for a reader with no saved panel or reading position, and a saved
 panel or restored position takes precedence. Context an earlier run still owes
 the current one goes in a collapsed `<details>` inside the relevant tab, with any

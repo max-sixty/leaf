@@ -89,8 +89,9 @@ leaf delivery claim <delivery-id> --event <event-id> --detail "checking the roll
 Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer. In the direct loop that consumer is
 model context: direct delivery records the included events as opened in this turn.
-Start `leaf ack <page> <through_seq>` as the next background task for the page the
-batch names, and address every event while ack waits for the next batch. If wait
+Acknowledge with `leaf ack <page> <through_seq>` for the page the batch names, by the
+route the host contract gives, and address every event while ack waits for the next
+batch. If wait
 output is truncated or lost, acknowledge nothing and rerun with enough output
 capacity for the whole batch;
 a scalar cursor cannot represent a missing event in the middle. Acknowledgement

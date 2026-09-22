@@ -116,10 +116,8 @@ leaf page state <page>
 Read `content` for the current document and its construction origins, then the
 active revision, open Asks, current conversation state, and `measurement_lag` for
 figures whose sources have run again. Before editing, follow
-`authoring-revisions.md`'s "Read before editing" section. Read one exact
-conversation with `leaf conversation read <page> <id>`, or its raw event records
-with `leaf events <page> --conversation <id>`. If the state reports a live watcher, the
-host ends that watcher before continuing. The
+`authoring-revisions.md`'s "Read before editing" section. If the state reports a live
+watcher, the host ends that watcher before continuing. The
 successor then runs `leaf wait <page>`, whose named wait claims the page for that
 session. Starting a server when the standing one is already live prints its URL
 without changing its lifetime.

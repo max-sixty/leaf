@@ -66,17 +66,12 @@ Server's separate queue. A delivery can span pages and conversations; the App Se
 adapter preserves that ordered envelope while presenting one chronological slice per
 turn.
 
-The delivery, its provider turn, and each response obligation have stable identities.
-A started turn records the delivery id as its client message id. Each observed slice
-contains at most one plain reply. Write that reply
-as the normal final message. Leaf streams it into the addressed thread and commits its
-completed text through the same reply contract as `leaf reply`; do not run a reply
-command for that response. The committed reply retains the thread's standing anchor.
-Its immutable delivery address remains authoritative if the turn closes, the observer
-reconnects, or a later turn starts; current-turn identity governs only live activity and
-provisional text. A later plain reply remains pending for the next slice. Version and
-receipt obligations in the current slice still use their explicit `resolve` and
-`receipt` operations.
+Each observed slice contains at most one plain reply. Write that reply as the normal
+final message. Leaf streams it into the addressed thread and commits its completed
+text through the same reply contract as `leaf reply`; do not run a reply command for
+that response. The committed reply retains the thread's standing anchor. A later plain
+reply remains pending for the next slice. Version and receipt obligations in the
+current slice still use their explicit `resolve` and `receipt` operations.
 
 A `leaf-delivery` pointer may instead arrive through Codex's durable local queue with no
 App Server observer left to bind or stream its turn. Claiming its first outstanding move
@@ -117,14 +112,7 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 One detached adapter watches every page this task owns. It collects available
 input into one delivery and freezes it. Input collected after the freeze belongs
 to the next delivery. Starting the command again for another page adds that page
-to the same task-wide watch.
-
-The App Server starts the complete envelope directly only when its task is idle. The
-start response identifies a candidate turn; the observer acknowledges pickup only when
-that turn's item stream carries the exact delivery id. Otherwise Leaf keeps the offered
-delivery durable, observes the active turn, and starts the next turn when the task
-becomes idle. The connected Codex client remains the interactive client for approvals
-and user input. A completed turn does not stop the adapter.
+to the same task-wide watch, and a completed turn does not stop the adapter.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
 block, naming the `delivery claim` operation and the immutable delivery `id` that
@@ -132,10 +120,6 @@ block, naming the `delivery claim` operation and the immutable delivery `id` tha
 The same delivery id may return after an uncertain unobserved queue response, which is
 the retry `references/event-batches.md` describes. Queue acceptance records **Queued**
 activity.
-
-The immutable delivery and mutable adapter queue record are separate. Once a
-delivery is accepted and every page batch is acknowledged, the adapter archives
-only its queue record. The globally addressed delivery remains readable by id.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

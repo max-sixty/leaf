@@ -34,9 +34,10 @@ export function retainReaderIntent({
   // A delayed caller must check current() before beginning its synchronous handoff.
   current.handoff = (move) => {
     if (!available() || retained !== intent) return false;
-    if (current()) move();
+    const moved = current();
+    if (moved) move();
     source = focused();
-    return current();
+    return moved && current();
   };
   return current;
 }

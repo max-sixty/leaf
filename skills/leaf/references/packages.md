@@ -431,7 +431,8 @@ focus, `currentIntent.handoff(() => changeSurface())` preserves that synchronous
 transfer without renewing the original input generation. After a wait, check the
 predicate before starting that synchronous handoff. If the synchronous work already
 moved focus, the handoff keeps and adopts that destination instead of running the old
-focus move.
+focus move. A skipped move returns false, so a caller that requires the surface change
+can decline; adoption alone does not report that the move ran.
 
 What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a

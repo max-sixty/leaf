@@ -1398,6 +1398,9 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
 
     page = browser.new_page()
     page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator('meta[name="viewport"]')).to_have_attribute(
+        "content", "width=device-width, initial-scale=1, viewport-fit=cover"
+    )
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=10000
     )

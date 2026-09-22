@@ -21,12 +21,21 @@ def comment_ids(events: list[dict]) -> set[str]:
 def specimen_events(
     document: SourceDocument, events: list[dict], selected: set[str]
 ) -> list[dict]:
-    """Copy selected conversation closures into a fresh page's first revision."""
+    """Copy the selected conversation closures the log holds into a child's log.
+
+    The selection is authored markup naming records the log owns, and the document
+    is what starts a page: one served before any conversation stands in it — a first
+    version, or a page re-created from its source without the log it shipped beside
+    — opens its specimens the same as any other. So a root the log does not hold
+    reads here as absent and the child begins without that conversation, rather than
+    the template's declaration deciding whether the page works at all.
+
+    That leaves a mistyped id to the one reader who can tell it from a page that has
+    not been written into yet: `scripts/corpus.py` selects against a history it is
+    generating from, where every declared root exists by construction, and refuses
+    one that names nothing."""
     roots = thread_roots(events)
-    if unknown := selected - comment_ids(events):
-        raise ValueError(
-            f"unknown specimen conversations: {', '.join(sorted(unknown))}"
-        )
+    selected = selected & comment_ids(events)
     memberships = thread_memberships(
         events, roots, thread_widgets(thread_structure(events), roots), document.within
     )

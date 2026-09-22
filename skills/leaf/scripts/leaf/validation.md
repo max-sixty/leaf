@@ -49,8 +49,11 @@ An ordinary document's comment namespace is the roots present in its log. A
 specimen template's namespace is its `data-specimen-threads` declaration, so a
 first version may name conversations whose seed log has not been written yet.
 Static validation applies the same child-document checks using the selected
-history currently available. Specimen allocation and corpus generation require
-every selected root to exist before copying the conversation history.
+history currently available. Specimen allocation copies that same available
+history and no more, so a root the log does not hold leaves the child without
+that conversation rather than refusing the page. Corpus generation selects
+against the shipped log it is composing from, where a root naming nothing is a
+mistake in the declaration, and refuses it.
 
 ## Delivery policy
 

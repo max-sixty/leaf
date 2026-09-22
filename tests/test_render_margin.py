@@ -176,17 +176,12 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
-    # The corpus carries the gallery's contained frames, and a frame still arriving lays
-    # itself out in this page's own process. Counted against five dispatches that touch
-    # nothing, that reads as the heartbeat forcing layout: what is measured has to have
-    # stopped arriving first.
-    page.wait_for_function(
-        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
-             (frame) => frame.hasAttribute('data-interaction-ready'))"""
-    )
-    # The first layout pass after those frames arrive reconciles them, and on the corpus
-    # it costs 4 layouts and 21 style recalculations against the 2 and 3 of every pass
-    # after it — a resize costs 3 as well, so the reconciliation is page startup rather
+    # The corpus carries the gallery's contained frames, which `open_page` has waited
+    # through: a frame still arriving lays itself out in this page's own process, and
+    # counted against five dispatches that touch nothing that reads as the heartbeat
+    # forcing layout. The first layout pass after they arrive reconciles them, and on the
+    # corpus it costs 4 layouts and 21 style recalculations against the 2 and 3 of every
+    # pass after it — a resize costs 3 as well, so the reconciliation is page startup rather
     # than the price of a changed pass. Spend it before the count starts: what this test
     # bounds is the five passes below, which touch nothing.
     page.evaluate(
@@ -308,14 +303,6 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     comes every two seconds, so at most one of these frames can carry it.
     """
     page = open_page(browser, serve(FEATURE_GALLERY))
-    # The gallery's screenshot upgrades to Web Awesome's draggable comparison after the
-    # page has presented, deliberately off the presentation path (#892), and moving its
-    # two frames into that component lays the margin out twice a few milliseconds apart.
-    # The stamps `open_page` waits on do not cover an upgrade that comes after them, so
-    # until it lands the page is still arriving, and a count started before it read that
-    # pair as the cycle this test denies — on about one run in five here, and once on
-    # CI, with the window landing wherever the module happened to resolve.
-    page.wait_for_function("() => document.querySelector('lf-shot wa-comparison')")
     resized(page, 1280, 900)
     margins_laid_out(page)
     assert page.locator(".lf-react-mark").count() >= 1
@@ -344,14 +331,6 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
-    # The corpus carries the gallery's contained frames, and a frame still arriving lays
-    # itself out in this page's own process. Counted against five viewport refreshes that
-    # change no dimensions, that reads as the refresh forcing layout: what is measured
-    # has to have stopped arriving first.
-    page.wait_for_function(
-        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
-             (frame) => frame.hasAttribute('data-interaction-ready'))"""
-    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {

@@ -22,6 +22,19 @@
    waits for upgraded, applied, the initial presented milestone, the coordinator's
    current reading, and no finite animation reported by `moving`.
 
+   Presentation is not the end of the page's arrival. An owner may deliberately keep work
+   off the presentation path — a widget's progressive upgrade, a developer surface's
+   contained documents — and that work still moves boxes when it lands. `deferredArrival`
+   is where such an owner says so, and `pageArrived` is the one fact that answers whether
+   any of it is still outstanding, so a reader outside the page waits on the page rather
+   than on a widget it had to know about. Without it the only thing outside the page that
+   knows a deferred upgrade exists is whoever remembered to name it, which is a reader
+   repeating what the page should settle.
+
+   `afterPresentation` is the whole of that for a widget: it is the wait and the
+   declaration together, so there is no way to hold work until the page has presented
+   without the page counting it. A package never reaches the two halves separately.
+
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
 
@@ -127,6 +140,28 @@ export function whenPagePresented() {
     });
   });
 }
+
+// The arrivals their owners placed after presentation and that have not landed yet.
+// Registration is synchronous at the point the owner decides to defer — before
+// presentation for anything a page starts with — so the page never reads as arrived in
+// the window between presenting and its first deferred upgrade taking hold.
+const arriving = new Set();
+
+/** Declare work this page finishes after presenting, and hand back its promise. */
+export function deferredArrival(work) {
+  arriving.add(work);
+  const landed = () => arriving.delete(work);
+  work.then(landed, landed);
+  return work;
+}
+
+/** Run `work` once the page has presented, as an arrival the page answers for. */
+export const afterPresentation = (work) =>
+  deferredArrival(whenPagePresented().then(work));
+
+/** The page has presented and nothing it deferred past presentation is still arriving.
+    Not the render gate's `pageSettled`, which is about animation rather than arrival. */
+export const pageArrived = () => pagePresented() && arriving.size === 0;
 
 // The one initial turn in which box-derived page apparatus can read the complete
 // authoritative layout before semantic interaction opens. Widget upgrade gives

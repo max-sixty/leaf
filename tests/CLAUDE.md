@@ -477,6 +477,11 @@ event, and then waits on `BOTH_STAMPS`:
 - The current presentation probe says every required renderer for the active semantic
   epoch has settled. A later publication or same-epoch replacement can make it false
   while `data-lf-presented` remains set.
+- The page-arrived probe says the page has stopped arriving: an owner may put work after
+  presentation deliberately — a widget's progressive upgrade, the gallery's contained
+  documents — and it declares that work to the runtime, so a fixture carrying one is not
+  ready the moment it presents. Never wait for a fixture's own deferred widget by name;
+  the page already states it, and a wait written at one test leaves the next one racing.
 
 These are independent facts. Network quiet implies neither. A browser action
 sent before replay has landed may be ignored without a later assertion revealing

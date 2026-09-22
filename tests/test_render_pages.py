@@ -735,7 +735,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(notice_el).to_have_text("Codex replied — open Threads")
+    expect(notice_el).to_have_text("Codex replied")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 

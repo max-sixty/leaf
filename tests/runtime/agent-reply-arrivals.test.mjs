@@ -19,7 +19,7 @@ test("reply arrivals compare canonical identities across complete readings", () 
   ]);
   assert.equal(
     agentReplyNotice(next.arrivals),
-    "2 replies in 2 threads — open Threads",
+    "2 replies in 2 threads",
   );
   assert.deepEqual(
     agentReplyArrivals(next.observed, [
@@ -39,7 +39,7 @@ test("reply arrivals compare canonical identities across complete readings", () 
     changed.arrivals.map(({ message }) => message.id),
     ["new-c"],
   );
-  assert.equal(agentReplyNotice(changed.arrivals), "Agent replied — open Threads");
+  assert.equal(agentReplyNotice(changed.arrivals), "Agent replied");
   assert.deepEqual(
     agentReplyArrivals(changed.observed, [
       thread("a", reply("old"), reply("new-a"), reply("new-c")),

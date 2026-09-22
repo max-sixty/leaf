@@ -4,6 +4,9 @@
    attempt or event id identifies it across repeated reads, edits, and local-to-server
    settlement. The tracker retains identities already observed even if a later
    reading omits them; a reappearing message is still the same arrival. */
+import { messageKey } from "./identity.js";
+import { isAddressable, threadKey } from "./model.js";
+
 export function agentReplyArrivals(observed, threads) {
   const known = new Set(observed ?? []);
   const arrivals = [];
@@ -14,15 +17,15 @@ export function agentReplyArrivals(observed, threads) {
       if (
         message.author !== "agent" ||
         message.kind !== "reply" ||
-        message.addressable === false ||
+        !isAddressable(message) ||
         message.failure
       )
         continue;
-      const key = message.attempt ?? message.id;
+      const key = messageKey(message);
       if (known.has(key)) continue;
       known.add(key);
       if (observed !== null)
-        arrivals.push({ thread: thread.root.attempt ?? thread.root.id, message });
+        arrivals.push({ thread: threadKey(thread), message });
     }
   }
   return { observed: known, arrivals };
@@ -30,17 +33,14 @@ export function agentReplyArrivals(observed, threads) {
 
 export function agentReplyNotice(arrivals) {
   if (arrivals.length === 1)
-    return `${arrivals[0].message.agent || "Agent"} replied — open Threads`;
+    return `${arrivals[0].message.agent || "Agent"} replied`;
   const threads = new Set(arrivals.map((arrival) => arrival.thread)).size;
-  return `${arrivals.length} replies in ${threads} ${threads === 1 ? "thread" : "threads"} — open Threads`;
+  return `${arrivals.length} replies in ${threads} ${threads === 1 ? "thread" : "threads"}`;
 }
 
 export function combineAgentReplyArrivals(older, newer) {
   const byId = new Map(
-    [...older, ...newer].map((arrival) => [
-      arrival.message.attempt ?? arrival.message.id,
-      arrival,
-    ]),
+    [...older, ...newer].map((arrival) => [messageKey(arrival.message), arrival]),
   );
   return [...byId.values()];
 }

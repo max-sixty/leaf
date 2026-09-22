@@ -26,6 +26,7 @@ from render_cases_layout import (
 )
 from render_cases_navigation import _publish
 from render_harness import (
+    CutOff,
     LONG_PAGE,
     Traffic,
     _until,
@@ -99,11 +100,12 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
-    expect(live).to_have_text("Codex replied — open Threads")
-    expect(notice).to_have_text("Codex replied — open Threads")
+    expect(live).to_have_text("Codex replied")
+    expect(notice).to_have_text("Codex replied")
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this draft")
 
+    reads = CutOff().hold(page)
     events_model.append_event(
         directory,
         {
@@ -124,11 +126,10 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
             "text": "More for B",
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
-    expect(live).to_have_text("2 replies in 2 threads — open Threads")
-    expect(notice).to_have_text("2 replies in 2 threads — open Threads", timeout=5_000)
+    reads.restore()
+    told(page)
+    expect(live).to_have_text("2 replies in 2 threads")
+    expect(notice).to_have_text("2 replies in 2 threads", timeout=5_000)
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this draft")
 
@@ -150,12 +151,12 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
             "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
         )
     page.wait_for_function(
-        "() => window.__lfReplyAnnouncements.filter(words => words === 'Codex replied — open Threads').length === 3"
+        "() => window.__lfReplyAnnouncements.filter(words => words === 'Codex replied').length === 3"
     )
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(1)"
     )
-    expect(notice).to_have_text("4 replies in 2 threads — open Threads")
+    expect(notice).to_have_text("4 replies in 2 threads")
     expect(notice).to_be_visible()
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this draft")
@@ -166,10 +167,10 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     )
     page.wait_for_timeout(100)
     assert page.evaluate("() => window.__lfReplyAnnouncements") == [
-        "Codex replied — open Threads",
-        "2 replies in 2 threads — open Threads",
-        "Codex replied — open Threads",
-        "Codex replied — open Threads",
+        "Codex replied",
+        "2 replies in 2 threads",
+        "Codex replied",
+        "Codex replied",
     ]
     page.reload()
     expect(notice).not_to_have_class(re.compile(r"\bshow\b"))

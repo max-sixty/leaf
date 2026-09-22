@@ -55,7 +55,12 @@ from leaf.schema import VENDORED_FILES
 from leaf.served_state.page import full_state
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
-from leaf.service import PageTransaction, close_session_turn, page_claim
+from leaf.service import (
+    PageTransaction,
+    close_session_turn,
+    page_claim,
+    restore_page_claim,
+)
 from starlette.responses import Response
 from websockets.exceptions import WebSocketException
 
@@ -478,7 +483,7 @@ class HostedTurn(CarriedTurn):
         )
         self.record("turn_delivery_bound", deliveryId=self.delivery_id)
         self.open_reply()
-        set_stream_activity(self.session_id, self.turn_id, "Starting")
+        set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
     def observe(self, message: dict, update: dict | None) -> None:
         """Record what one notification said, before its readings reach the page."""
@@ -997,6 +1002,7 @@ class WebsiteCodexHost:
             self._withdraw_delivery(
                 thread_id, prepared.payload["id"], prepared_events, reply_target
             )
+            restore_page_claim(page_dir, prepared.claim_transition)
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )

@@ -15,6 +15,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     SUGGESTION_PAGE,
 )
+from render_cases_layout import (
+    SHOT_SRC,
+)
 from render_harness import (
     LONG_PAGE,
     RENDERED,
@@ -551,6 +554,14 @@ diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 +RUN pip install --no-cache-dir -r requirements.txt
 </pre></lf-diff>
 """,
+)
+# A page carrying both kinds of native control a widget injects: a checkbox in the light
+# DOM and a <summary> the widget staged in a shadow tree.
+NATIVE_CONTROL_PAGE = DIFF_PAGE.replace(
+    "</main>",
+    f"""<lf-shot id="shot-keys" alt="the navigation rail"
+         before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>
+</main>""",
 )
 # A page that says the same thing twice *within one section*, which is the only case a
 # quote alone cannot place — scoping to a section already separates copies that live under

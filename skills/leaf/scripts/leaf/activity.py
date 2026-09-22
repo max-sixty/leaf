@@ -1,9 +1,10 @@
-"""Canonical agent activity projected from durable page evidence.
+"""Canonical page availability and agent work projected from durable evidence.
 
 Status is an agent declaration, claims prove ownership and turn lifetime, and pickup
-events prove delivery. None is current state by itself. This module is the one fold
-that orders those facts and supplies every reader — browser chrome, hooks, and
-agent-facing state — with one answer.
+events prove delivery. Delivery remains interaction evidence rather than becoming the
+page's execution state. This module is the one fold that orders those facts and
+supplies every reader — browser chrome, hooks, and agent-facing state — with one
+answer.
 """
 
 from datetime import datetime, timedelta
@@ -11,6 +12,14 @@ from datetime import datetime, timedelta
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
 TURN_RENEWAL_GRACE = timedelta(minutes=2)
+WORK_KINDS = {
+    "working",
+    "thinking",
+    "tool",
+    "awaiting_approval",
+    "awaiting_input",
+    "replying",
+}
 
 
 def _moment(value: str | None) -> datetime | None:
@@ -144,7 +153,9 @@ def canonical_activity(
     stream_current = bool(
         stream
         and stream.get("session") == present.get("claim_session")
+        and stream.get("kind") in WORK_KINDS
         and present["listening"]
+        and present.get("turn_closed") is None
         and not stream_quiet
         and status["state"] != "idle"
     )
@@ -202,26 +213,14 @@ def canonical_activity(
     outstanding = list(outstanding_by_coordinate.values())
     obligations = [item for item in outstanding if item["requires_response"]]
     active = [item for item in interactions if item["phase"] == "active"]
+    active_now = [item for item in active if not item["quiet"]]
     active_moves = [item for item in outstanding if item["phase"] == "active"]
-    newest_position = max(
-        (item.get("delivery_seq") or item["seq"] for item in outstanding),
-        default=0,
-    )
-    stream_work = stream_current and stream.get("after", 0) >= newest_position
-    declared_work = (
-        status["state"] == "working"
-        and not status_quiet
-        and status.get("after", 0) >= newest_position
-    )
+    # Page work is scoped to the live claimant, not to one reader input. A newer
+    # delivery may remain queued or pending while the agent continues other work on
+    # the page; its exact progress stays in `interactions` below.
+    stream_work = stream_current
+    declared_work = status["state"] == "working" and not status_quiet
     current_work = stream_work or declared_work
-    status_written = _moment(status.get("ts"))
-    turn_closed = _moment(present.get("turn_closed"))
-    status_in_current_turn = turn_closed is None or bool(
-        status_written and status_written > turn_closed
-    )
-    concurrent_work = stream_current or (
-        status["state"] == "working" and not status_quiet and status_in_current_turn
-    )
     opened = [item for item in outstanding if item["phase"] == "picked_up"]
     handling = [
         item
@@ -242,7 +241,6 @@ def canonical_activity(
     kind = "away"
     detail = ""
     ts = status.get("ts")
-    count = 0
     quiet = status_quiet
     dropped = status_dropped
     if present.get("unattended"):
@@ -251,7 +249,7 @@ def canonical_activity(
         kind, quiet, dropped = "closed", False, False
     elif unheld:
         kind = "unheld"
-    elif current_work or (queued and concurrent_work):
+    elif current_work:
         kind = "working"
         # A newer queued interaction does not erase fresh evidence that the agent is
         # already working, nor does that older work floor claim the queued input. The
@@ -268,7 +266,7 @@ def canonical_activity(
         # declaration with no words at all, which `leaf status <page> working` writes.
         if declared_work and status.get("stated", True) and status.get("detail"):
             detail = status.get("detail", "")
-        elif stream_work or (stream_current and queued):
+        elif stream_work:
             detail, ts, quiet, dropped = (
                 stream.get("detail", ""),
                 stream.get("ts"),
@@ -277,33 +275,25 @@ def canonical_activity(
             )
         else:
             detail = status.get("detail", "")
+    elif active_now:
+        latest = max(active_now, key=lambda item: (item["seq"], item["id"]))
+        detail, ts = latest.get("detail") or "", latest["ts"]
+        quiet, dropped, kind = False, latest["dropped"], "working"
+    elif handling:
+        # Opening an exact delivery into the claimant's current open turn proves
+        # generic page work even before the agent writes a status sentence. It does
+        # not bind that execution state back onto any other interaction; each receipt
+        # keeps its own delivery phase below.
+        latest = max(handling, key=lambda item: item.get("delivery_seq") or 0)
+        kind, ts, quiet, dropped = "working", latest["ts"], False, False
     elif active:
         latest = max(active, key=lambda item: (item["seq"], item["id"]))
         detail, ts = latest.get("detail") or "", latest["ts"]
         quiet, dropped = latest["quiet"], latest["dropped"]
-        kind = (
-            "stalled"
-            if quiet and present["listening"]
-            else ("away" if quiet else "working")
-        )
-    elif handling:
-        latest = max(handling, key=lambda item: item.get("delivery_seq") or 0)
-        kind, ts, quiet, dropped = "handling", latest["ts"], False, False
-        count = len(handling)
-    elif queued:
-        latest = max(queued, key=lambda item: item.get("delivery_seq") or 0)
-        kind, ts, quiet, dropped = "queued", latest["ts"], False, False
-        count = len(queued)
-    elif left_in_old_turn:
-        latest = max(left_in_old_turn, key=lambda item: item.get("delivery_seq") or 0)
-        kind, ts, quiet, dropped = "picked_up", latest["ts"], False, True
-        count = len(left_in_old_turn)
+        kind = "stalled" if present["listening"] else "away"
     elif status["state"] == "working":
-        if status_quiet:
-            detail = status.get("detail", "")
-            kind = "stalled" if present["listening"] else "away"
-        elif present["listening"]:
-            kind, detail = "listening", status.get("detail", "")
+        detail = status.get("detail", "")
+        kind = "stalled" if present["listening"] else "away"
     elif present["listening"]:
         kind, detail, quiet, dropped = (
             "listening",
@@ -325,7 +315,9 @@ def canonical_activity(
         "observed": (
             stream.get("detail", "") if stream_current and kind == "working" else ""
         ),
-        "count": count,
+        "observed_kind": (
+            stream["kind"] if stream_current and kind == "working" else None
+        ),
         "counts": {
             "active": len(active_moves),
             "handling": len(handling),

@@ -554,7 +554,7 @@ test("one publication keeps per-input workflows and reader-first thread attentio
       bare_reaction: false,
       seat: null,
       summaries: [],
-      attention: { kind: "needs_reader", reason: "ask", workflow: "first-work" },
+      attention: { kind: "needs_reader", reason: "ask", workflow: null },
     },
   ];
   reading.workflows = [
@@ -589,14 +589,18 @@ test("one publication keeps per-input workflows and reader-first thread attentio
   assert.deepEqual(thread.attention, {
     kind: "needs_reader",
     reason: "ask",
-    workflow: "first-work",
+    workflow: null,
   });
   assert.equal(thread.workflows.length, 2);
   app.enqueue(
     { kind: "reply", parent: "root", attempt: "local", text: "Third", revision: 1 },
     "2026-09-22T10:02:00-07:00",
   );
-  assert.equal(app.read().effective.conversation.all[0].attention.reason, "ask");
+  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "first-work",
+  });
 });
 
 test("local delivery supplies and can override non-Ask thread attention", () => {
@@ -675,7 +679,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
-    workflow: "accepted-send",
+    workflow: "pending:next",
   });
   acceptedApp.reject("next");
   assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
@@ -875,6 +879,7 @@ test("a pending reader reply hands an accepted question to the agent until it le
       resolved: null,
       awaits_agent: false,
       awaits_reader: true,
+      attention: { kind: "needs_reader", reason: "ask", workflow: null },
       bare_reaction: false,
       seat: null,
     },
@@ -882,9 +887,9 @@ test("a pending reader reply hands an accepted question to the agent until it le
   app.adopt(accepted);
   const turn = () => {
     const thread = app.read().effective.conversation.all[0];
-    return [thread.awaits_agent, thread.awaits_reader];
+    return [thread.awaits_agent, thread.attention?.kind ?? null];
   };
-  assert.deepEqual(turn(), [false, true]);
+  assert.deepEqual(turn(), [false, "needs_reader"]);
 
   app.enqueue(
     {
@@ -896,9 +901,9 @@ test("a pending reader reply hands an accepted question to the agent until it le
     },
     "now",
   );
-  assert.deepEqual(turn(), [true, false]);
+  assert.deepEqual(turn(), [true, "waiting"]);
   app.remove(new Set(["answer"]));
-  assert.deepEqual(turn(), [false, true]);
+  assert.deepEqual(turn(), [false, "needs_reader"]);
 
   app.enqueue(
     {
@@ -910,9 +915,9 @@ test("a pending reader reply hands an accepted question to the agent until it le
     },
     "now",
   );
-  assert.deepEqual(turn(), [true, false]);
+  assert.deepEqual(turn(), [true, "waiting"]);
   app.reject("retry");
-  assert.deepEqual(turn(), [false, true]);
+  assert.deepEqual(turn(), [false, "needs_reader"]);
 });
 
 test("a pending prose reply does not hide a frozen structural Ask", () => {
@@ -961,6 +966,76 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   // reader's, so the obligation does not turn over and back when the reply lands.
   const thread = app.read().effective.conversation.all[0];
   assert.deepEqual([thread.awaits_agent, thread.awaits_reader], [true, true]);
+  assert.deepEqual(thread.attention, {
+    kind: "needs_reader",
+    reason: "ask",
+    workflow: null,
+  });
+});
+
+test("a pending resend replaces accepted recovery until refusal", () => {
+  const app = setup();
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "user",
+    text: "Try this?",
+    ts: "now",
+  };
+  const accepted = state(2);
+  accepted.browser.conversation.threads = [
+    {
+      root,
+      anchor: null,
+      msgs: [root],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: false,
+      attention: {
+        kind: "needs_reader",
+        reason: "recovery",
+        workflow: "failed-response",
+      },
+      bare_reaction: false,
+      seat: null,
+    },
+  ];
+  accepted.workflows = [
+    {
+      id: "failed-response",
+      seq: 1,
+      revision: 1,
+      input: root.id,
+      subject: { kind: "thread", id: root.id },
+      stage: "answered",
+      activity: [],
+      condition: { kind: "failed", operation: "response" },
+      next_actor: "reader",
+    },
+  ];
+  app.adopt(accepted);
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "retry",
+      text: "Try it again.",
+      revision: 1,
+    },
+    "now",
+  );
+  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "pending:retry",
+  });
+  app.reject("retry");
+  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+    kind: "needs_reader",
+    reason: "recovery",
+    workflow: "failed-response",
+  });
 });
 
 test("the publisher carries the server's Ask reading, page asks before thread asks", () => {

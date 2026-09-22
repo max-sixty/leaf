@@ -3003,7 +3003,18 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{asked}"]'))
     reply = page.locator(f'.lf-thread[data-id="{asked}"] textarea')
     reply.fill("SQLite should own it.")
-    page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
+    holding(page, held, 1, "the answer to the prose Ask")
+    expect(
+        page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
+    ).to_have_text("Sending")
+    expect(page.locator('[data-filter-value="reader"]')).to_have_text("On you")
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    held.pop().continue_()
+    page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("On you")
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
@@ -3075,6 +3086,32 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
+
+    # Recovery attention is the reader filter's authority even though the settled
+    # server turn does not carry raw awaits_reader. A held resend hands the thread to
+    # Sending immediately; refusal restores the same recovery and draft.
+    page.locator(".lf-thread-filter-toggle").click()
+    recovery = page.locator('[data-filter-value="reader"]')
+    expect(recovery).to_be_enabled()
+    recovery.click()
+    expect(page.locator(f'.lf-thread[data-id="{unanswered["id"]}"]')).to_be_visible()
+    page.locator('[data-filter-value="open"]').click()
+    card = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    draft = card.locator("textarea")
+    draft.fill("Try the south pair again.")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        card.get_by_role("button", name="Send", exact=True).click()
+    holding(page, held, 1, "the recovery resend")
+    expect(status).to_have_text("Sending")
+    expect(recovery).to_be_disabled()
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    expect(status).to_have_text("Not answered")
+    expect(recovery).to_be_enabled()
+    expect(draft).to_have_value("Try the south pair again.")
+    page.unroute("**/api/event")
 
     # And it is dressed rather than bare: an unmarked span among a head of muted
     # metadata would be the same invisibility in another shape.

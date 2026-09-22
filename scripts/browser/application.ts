@@ -565,14 +565,17 @@ export function createSemanticApplication({
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
     const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
-    // An Ask the server says the reader still owes is carried by the thread it stands
-    // in, and the reader's own unsent reply does not answer it. `foldThreads` hands
-    // that thread to the agent for the reply; the standing obligation goes back on top
-    // of it, from the same reader list the tray and the walk read.
+    // A structural Ask survives prose sent beside it. `foldThreads` clears the
+    // conversation turn the prose answers; the admitted Ask inventory puts back only
+    // the independent obligation that still stands in that thread.
     const owed = new Set(asks.reader.map((ask) => ask.thread));
     const obligated = folded.map((thread: any) =>
-      owed.has(thread.root.id) && !thread.awaits_reader
-        ? { ...thread, awaits_reader: true }
+      owed.has(thread.root.id) && thread.attention?.reason !== "ask"
+        ? {
+            ...thread,
+            awaits_reader: true,
+            attention: { kind: "needs_reader", reason: "ask", workflow: null },
+          }
         : thread,
     );
     const entriesByMessage = new Map(
@@ -609,8 +612,27 @@ export function createSemanticApplication({
         next_actor: rejected ? "reader" : "agent",
       };
     };
+    // An optimistic prose reply answers the exact accepted obligation currently
+    // attached to its conversation. Keep that workflow on its original message as
+    // history, but retire its next actor until refusal removes the optimistic reply.
+    const acceptedThreads = new Map<string, any>();
+    for (const thread of state?.browser.conversation.threads ?? []) {
+      acceptedThreads.set(thread.root.id, thread);
+      if (thread.root.attempt) acceptedThreads.set(PENDING + thread.root.attempt, thread);
+    }
+    const answeredWorkflows = new Set(
+      pendingMessages
+        .filter((message: any) => message.kind === "reply")
+        .map((message: any) => acceptedThreads.get(message.parent)?.attention?.workflow)
+        .filter(Boolean),
+    );
+    const acceptedWorkflows = (state ? state.workflows : []).map((workflow) =>
+      answeredWorkflows.has(workflow.id)
+        ? { ...workflow, next_actor: "none" as const }
+        : workflow,
+    );
     const workflows = [
-      ...(state ? state.workflows : []),
+      ...acceptedWorkflows,
       ...pendingMessages.map((message: any) =>
         localWorkflow(entriesByMessage.get(message.id), false),
       ),

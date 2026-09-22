@@ -7,7 +7,11 @@ import {
   threadAttention,
   workflowLabel,
 } from "../../skills/leaf/assets/runtime/conversation/workflow.js";
-import { readThreadRecords } from "../../skills/leaf/assets/runtime/conversation/model.js";
+import {
+  awaitsReader,
+  foldThreads,
+  readThreadRecords,
+} from "../../skills/leaf/assets/runtime/conversation/model.js";
 
 const workflow = (id, stage, extra = {}) => ({
   id,
@@ -175,6 +179,51 @@ test("thread records project local sending attention", () => {
     reason: "workflow",
     workflow: sending.id,
   });
+});
+
+test("a local prose answer clears accepted reader attention until refusal", () => {
+  const thread = {
+    root: { id: "root", author: "agent", text: "Which one?", ts: "now" },
+    msgs: [{ id: "root", author: "agent", text: "Which one?", ts: "now" }],
+    anchor: null,
+    resolved: null,
+    awaits_agent: false,
+    awaits_reader: false,
+    attention: { kind: "needs_reader", reason: "recovery", workflow: "failed" },
+    bare_reaction: false,
+    seat: null,
+  };
+  const reply = {
+    id: "pending:retry",
+    kind: "reply",
+    parent: "root",
+    author: "user",
+    text: "Try again",
+    ts: "now",
+    pending: true,
+  };
+  const [folded] = foldThreads([thread], [reply], [], []);
+  assert.equal(folded.attention, null);
+
+  const [record] = readThreadRecords(
+    [folded],
+    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    new Map(),
+    [
+      workflow("failed", "answered", {
+        condition: { kind: "failed", operation: "response" },
+        next_actor: "none",
+      }),
+      workflow("pending:retry", "sending"),
+    ],
+  );
+  assert.deepEqual(record.attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "pending:retry",
+  });
+  assert.equal(awaitsReader(record), false);
+  assert.equal(awaitsReader({ ...record, attention: thread.attention }), true);
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {

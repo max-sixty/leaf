@@ -93,12 +93,13 @@ export function strongestWorkflow(workflows) {
 
 export function projectThreadAttention(attention, workflows) {
   if (attention?.kind === "needs_reader") return attention;
+  const current = workflows.filter((workflow) => workflow.next_actor !== "none");
   const reader = strongestWorkflow(
-    workflows.filter((workflow) => workflow.next_actor === "reader"),
+    current.filter((workflow) => workflow.next_actor === "reader"),
   );
   if (reader) return { kind: "needs_reader", reason: "workflow", workflow: reader.id };
   if (attention) return attention;
-  const workflow = strongestWorkflow(workflows);
+  const workflow = strongestWorkflow(current);
   return workflow && (workflow.condition || workflow.stage !== "answered")
     ? { kind: "waiting", reason: "workflow", workflow: workflow.id }
     : null;

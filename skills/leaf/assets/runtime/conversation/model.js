@@ -5,9 +5,8 @@
    a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
    conversation/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsReader`, `awaitsAgent`) is the server's projection, read here rather than
-   derived: the banner's Ask count and the panel's narrowing ask the same question
-   and must get one answer. */
+   (`awaitsReader`, `awaitsAgent`) is read from the complete browser Thread: reader
+   attention is canonical, while agent work can remain concurrent with it. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 import { projectThreadAttention } from "./workflow.js";
@@ -86,6 +85,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
     if (!isReaction(reply)) {
       thread.awaits_agent = true;
       thread.awaits_reader = false;
+      thread.attention = null;
     }
   }
   for (const thread of opened) {
@@ -121,7 +121,8 @@ export const reactionsAt = (threads, anchor) =>
     .map((thread) => thread.root);
 
 export const awaitsAgent = (thread) => thread.awaits_agent;
-export const awaitsReader = (thread) => thread.awaits_reader;
+export const awaitsReader = (thread) =>
+  !thread.resolved && thread.attention?.kind === "needs_reader";
 export const seatRoot = (thread) => thread.seat;
 
 export const threadSummary = (thread) => ({

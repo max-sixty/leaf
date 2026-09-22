@@ -5405,6 +5405,85 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     )
 
 
+# The first closed title the run heading stands partly over, and how deep. The test
+# above reads the list's first card, which it opens; a title is the box the heading
+# buries once every card but one is shut.
+BURIED_TITLE = """() => {
+  const list = document.querySelector('.lf-threads');
+  const heading = [...list.querySelectorAll('.lf-pinned')]
+    .map((head) => head.getBoundingClientRect())
+    .sort((a, b) => a.top - b.top)[0];
+  if (!heading) return null;
+  for (const card of list.querySelectorAll('.lf-thread:not([open])')) {
+    const title = card.querySelector('.lf-thread-summary').getBoundingClientRect();
+    if (title.top < heading.bottom && title.bottom > heading.bottom)
+      return {covered: heading.bottom - title.top, box: title.toJSON(), id: card.dataset.id};
+  }
+  return null;
+}"""
+
+
+def test_a_press_that_opens_a_thread_lands_it_and_holds_it_at_once(browser, serve):
+    """Two writers meet inside one press on a thread title. The press lands the thread
+    out from under the pinned run heading at `pointerup`, and the click that follows
+    opens it, which reflows the list and brings its hold down on `scrollTop` a frame
+    later. A `scrollTop` write cancels a smooth scroll rather than composing with it, so
+    an animated landing is not superseded by what the gesture asks for next — it is
+    dropped, and the reader is left with neither: the title held exactly where the
+    heading was covering it. The landing under a press is therefore instant, which is
+    also what lets the hold take its reference from where the landing put the title.
+
+    Motion stays at its default here. The reduced-motion context the test above builds
+    finishes the landing at `pointerup` and hides the collision, and that test presses a
+    card's body, which opens nothing."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(8):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-summary").first.click()
+    page.evaluate(RENDERED)
+
+    # Nudge until a closed title is buried a few pixels, the reader's own case: the
+    # heading travels with the flow until it pins, so the depth arrives a step at a time.
+    buried = None
+    for top in range(0, 400, 3):
+        page.evaluate(
+            "t => { document.querySelector('.lf-threads').scrollTop = t; }", top
+        )
+        page.evaluate(RENDERED)
+        buried = page.evaluate(BURIED_TITLE)
+        if buried and 3 <= buried["covered"] <= 10:
+            break
+        buried = None
+    assert buried, "no closed title ended up part-way under the run heading"
+
+    box = buried["box"]
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(page.locator(f'.lf-thread[data-id="{buried["id"]}"][open]')).to_have_count(1)
+    # Longer than any landing this could animate, so a cancelled smooth scroll reads as
+    # a stationary title rather than one still on its way.
+    page.wait_for_timeout(600)
+    page.evaluate(RENDERED)
+
+    assert page.evaluate(COVERED_TOP) is None, (
+        f"the press opened the thread but left its title under the heading: "
+        f"{page.evaluate(COVERED_TOP)}"
+    )
+    title = page.locator(f'.lf-thread[data-id="{buried["id"]}"] > .lf-thread-summary')
+    after = title.evaluate("el => el.getBoundingClientRect().top")
+    assert after >= box["y"], (
+        f"the hold carried the pressed title up from {box['y']:.1f}px to {after:.1f}px "
+        f"instead of holding it where the landing put it"
+    )
+
+
 def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser, serve):
     """The same gesture as the test above, from the state the reader is actually in when
     they make it: standing in a comment, the list carried a little, the card's top run

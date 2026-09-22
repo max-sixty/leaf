@@ -3348,7 +3348,8 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
     )
 
     [before] = presence_model.other_leaves(page_dir)
-    assert before["activity"]["interactions"][0]["phase"] == "sent"
+    assert before["workflows"][0]["stage"] == "sent"
+    assert before["workflows"][0]["condition"] is None
     assert before["activity"]["next_transition_at"]
 
     monkeypatch.setattr(
@@ -3357,7 +3358,11 @@ def test_neighbor_activity_cache_expires_at_the_projected_transition(
         lambda: (sent_at + timedelta(minutes=2)).isoformat(),
     )
     [after] = presence_model.other_leaves(page_dir)
-    assert after["activity"]["interactions"][0]["phase"] == "waiting"
+    assert after["workflows"][0]["stage"] == "sent"
+    assert after["workflows"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "delivery",
+    }
     assert (
         after["activity"]["next_transition_at"]
         == (status_at + timedelta(minutes=15)).isoformat()
@@ -4631,6 +4636,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
+        "workflows": [],
         "activity": {
             "kind": "closed",
             "held": True,
@@ -4649,7 +4655,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             },
             "ts": None,
             "next_transition_at": None,
-            "interactions": [],
             "obligations": [],
         },
     }
@@ -4708,7 +4713,6 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 },
                 "ts": "2026-01-01T00:00:00-08:00",
                 "next_transition_at": None,
-                "interactions": [],
                 "obligations": [],
             },
         },

@@ -8,7 +8,6 @@ import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-strips.js";
-import { receiptReading } from "./acknowledgments.js";
 import { offer, reachedForWords } from "../widget-elements.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -21,6 +20,7 @@ import { SAY_BOX } from "./selectors.js";
 import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges } from "./summary-ranges.js";
+import { threadAttention } from "./workflow.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -90,6 +90,7 @@ export function threadReading(
       : null,
     resolved,
     awaitsReader: thread.awaits_reader,
+    attention: threadAttention(thread),
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent || "Agent"}`
@@ -103,12 +104,8 @@ export function threadReading(
       turns(thread).map((message) =>
         messageReading(message, {
           panel,
-          receipts: Object.freeze(
-            message.receipts
-              .filter((receipt) => panel || receipt.target.kind === "thread")
-              .map(receiptReading),
-          ),
           reactions: reactionReading(thread, message, panel || surface === "outlet"),
+          workflows: message.workflows,
         }),
       ),
     ),
@@ -119,39 +116,7 @@ function navigationSummary(navigation, model) {
   if (!navigation) return nothing;
   const title = model.summary.topic || model.quote?.label || "Thread";
   const count = model.summary.count;
-  const latest = model.messages.at(-1);
-  // Pick the most advanced live work across the thread: a later Sent message
-  // must not hide an earlier message the agent is still working on.
-  const receipts = model.messages.flatMap((message) => message.receipts);
-  const liveReceipt = ["working", "picked_up", "queued"]
-    .map((stage) => receipts.findLast((receipt) => receipt.workflowStage === stage))
-    .find(Boolean);
-  const receipt = liveReceipt ?? receipts.at(-1);
-  // TODO(2026-09-21): Replace this compact presentation policy when the shared
-  // workflow and attention ontology defines reader-facing thread groups. Until then,
-  // abbreviate the canonical receipt stages also used by message and margin status.
-  const receiptLabel = receipt
-    ? {
-        sent: "",
-        queued: "Queued",
-        picked_up: "Picked up",
-        picked_up_ended: "Turn ended",
-        working: "Working",
-        was_working: "Was working",
-        waiting: "Waiting",
-      }[receipt.workflowStage]
-    : "";
-  const status = model.resolved
-    ? "Resolved"
-    : latest?.failure
-      ? "Not answered"
-      : latest?.stream === "active"
-        ? "Replying"
-        : latest?.pending && latest.author === "user"
-          ? "Sending"
-          : liveReceipt
-            ? receiptLabel
-            : latest?.streamLabel || (model.awaitsReader ? "On you" : receiptLabel);
+  const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary class="lf-thread-summary" title=${title}>
     ${iconTemplate("next", "lf-thread-chevron")}
@@ -164,8 +129,10 @@ function navigationSummary(navigation, model) {
     >
     <span
       class="lf-thread-status"
-      data-lf-turn=${status === "On you" ? "reader" : nothing}
-      title=${receipt && status === receiptLabel ? receipt.announced : status}
+      data-lf-turn=${model.attention?.kind === "needs_reader" ? "reader" : nothing}
+      title=${
+        model.attention?.secondary ? `${status} · ${model.attention.secondary}` : status
+      }
       >${status}</span
     >
   </summary>`;

@@ -1578,7 +1578,7 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
     assert website_server.page_claim(page_dir) is None
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
     assert activity["observed_kind"] is None
-    assert [item["phase"] for item in activity["obligations"]] == ["sent"]
+    assert [item["stage"] for item in activity["obligations"]] == ["sent"]
     # The seat is free, so the Worker's own receipt reaches the reader.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
@@ -2158,7 +2158,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         assert state["listening"] is True
         assert state["activity"]["kind"] == "working"
         assert state["activity"]["observed_kind"] == "working"
-        assert state["activity"]["obligations"][0]["event"] == comment["id"]
+        assert state["activity"]["obligations"][0]["input"] == comment["id"]
 
         website_server.set_stream_activity(
             "hosted-thread",
@@ -2585,7 +2585,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     assert claim["turn"] == delivery["turn"]
     assert claim["turn_closed"] is not None
     assert [
-        obligation["event"]
+        obligation["input"]
         for obligation in website_server.full_state(page_dir, events)["activity"][
             "obligations"
         ]
@@ -2617,7 +2617,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     assert claim["turn_closed"] is not None
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
     assert [
-        obligation["event"]
+        obligation["input"]
         for obligation in website_server.full_state(page_dir, read_events(page_dir))[
             "activity"
         ]["obligations"]
@@ -2888,7 +2888,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     }
     assert replies == {}
     state = website_server.full_state(page_dir, read_events(page_dir))
-    assert [item["event"] for item in state["activity"]["obligations"]] == [
+    assert [item["input"] for item in state["activity"]["obligations"]] == [
         first["id"],
         second["id"],
     ]
@@ -2987,7 +2987,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             == comment["id"]
         )
         assert comment["id"] in {
-            obligation["event"]
+            obligation["input"]
             for obligation in answer["state"]["activity"]["obligations"]
         }
 
@@ -3475,7 +3475,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
 
     stopped = website_server.full_state(page_dir, read_events(page_dir))
     assert [
-        obligation["event"] for obligation in stopped["activity"]["obligations"]
+        obligation["input"] for obligation in stopped["activity"]["obligations"]
     ] == [comment["id"]]
     assert not verify_site.still_answering(stopped, comment["id"])
 
@@ -3784,7 +3784,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         "active": {"revision": 1, "url": "revisions/1.html"},
         "activity": {
             "kind": "working",
-            "obligations": [{"event": "comment-id", "dropped": False}],
+            "obligations": [{"input": "comment-id", "dropped": False}],
         },
         "events": [
             {

@@ -16,8 +16,8 @@ has tried; settle that before building it.
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
 - **Give conversations a stable hierarchy.** Follow the separate
-  [thread plans](notes/threads.md): make reader attention explicit, prototype compact
-  navigation, then fold long histories. Keep thread context, search, filters, agent
+  [thread plans](notes/threads.md): build long-history reading on the implemented
+  accordion and summary checkpoints. Keep thread context, search, filters, agent
   activity, selection, and reply editing clear.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
@@ -43,10 +43,6 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Settle who owes the next move.** Make the banner, margin, and Threads agree
-  when several subject claims stand or an agent question is followed by another
-  agent turn. Seed that thread shape before changing its projection; choose one
-  colour scheme for reader, agent, and unclaimed work.
 
 ## Next
 

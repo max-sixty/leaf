@@ -132,7 +132,14 @@ export const threadSummary = (thread) => ({
 /* Public conversation values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary. */
-export function readThreadRecords(threads, document, widgets, interactions) {
+export function readThreadRecords(threads, document, widgets, workflows) {
+  const workflowsByInput = new Map();
+  for (const workflow of workflows) {
+    if (!workflow.input) continue;
+    const current = workflowsByInput.get(workflow.input) ?? [];
+    current.push(workflow);
+    workflowsByInput.set(workflow.input, current);
+  }
   const unitsByMessage = new Map();
   for (const descriptor of document.descriptors.values()) {
     if (descriptor.document.kind !== "thread") continue;
@@ -145,7 +152,6 @@ export function readThreadRecords(threads, document, widgets, interactions) {
     unitsByMessage.set(descriptor.document.message, units);
   }
   return threads.map((thread) => {
-    const turnIds = new Set(turns(thread).map((message) => message.id));
     const msgs = thread.msgs.map((message) => {
       const record = {};
       for (const field of [
@@ -166,7 +172,6 @@ export function readThreadRecords(threads, document, widgets, interactions) {
         "text",
         "edited",
         "failure",
-        "stream_state",
         "addressable",
         "revision",
         "awaits",
@@ -196,21 +201,14 @@ export function readThreadRecords(threads, document, widgets, interactions) {
         ...record,
         key: message.attempt ?? message.id,
         body,
-        receipts: interactions.filter((receipt) => {
-          if (receipt.target.kind === "thread") {
-            if (thread.resolved || receipt.target.id !== thread.root.id) return false;
-            return (
-              (turnIds.has(receipt.event) ? receipt.event : thread.root.id) ===
-              message.id
-            );
-          }
-          return (
-            receipt.target.kind === "widget" &&
-            receipt.event &&
-            receipt.revision <= document.revision &&
-            units.some((unit) => unit.id === receipt.target.id)
-          );
-        }),
+        workflows: [
+          ...(workflowsByInput.get(message.id) ?? []),
+          ...workflows.filter(
+            (workflow) =>
+              workflow.subject?.kind === "widget" &&
+              units.some((unit) => unit.id === workflow.subject.id),
+          ),
+        ],
       };
     });
     return {
@@ -223,6 +221,16 @@ export function readThreadRecords(threads, document, widgets, interactions) {
       settling: thread.settling ?? null,
       awaits_agent: thread.awaits_agent,
       awaits_reader: thread.awaits_reader,
+      attention: thread.attention ?? null,
+      workflows: workflows.filter(
+        (workflow) =>
+          (workflow.subject?.kind === "thread" &&
+            workflow.subject.id === thread.root.id) ||
+          (workflow.subject?.kind === "widget" &&
+            msgs.some((message) =>
+              message.body.units?.some((unit) => unit.id === workflow.subject.id),
+            )),
+      ),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries ?? [],

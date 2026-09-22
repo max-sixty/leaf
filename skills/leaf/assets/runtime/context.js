@@ -98,6 +98,9 @@ export const runtime = {
   get versions() {
     return readApplication().authoritative?.versions ?? [];
   },
+  get workflows() {
+    return readApplication().effective.workflows;
+  },
   get view() {
     return runtime.browser?.views[String(runtime.currentRevision)] ?? null;
   },

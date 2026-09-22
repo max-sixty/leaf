@@ -1,11 +1,10 @@
 # Activity and attention: inventory and canonicalization
 
-Status: supporting inventory, grounded in checkout `965369b9`.
-The [thread status proposal](thread-status-proposal.md) supersedes the exploratory
-recommendations below and owns the current design.
-This is the next workflow slice in [the thread plans](threads.md), not an
-implemented schema. The shipped boundary is
+Status: historical investigation, grounded in checkout `965369b9` before the
+message-workflow consolidation. The [thread status proposal](thread-status-proposal.md)
+tracks implementation; the owning contract is
 [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md).
+The inventory below describes the earlier implementation, not the current schema.
 
 ## Questions the model must answer
 

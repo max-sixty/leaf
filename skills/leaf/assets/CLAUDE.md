@@ -322,6 +322,10 @@ before resolving its current node and scrolling to it;
 as values; it reads no runtime store or DOM. `conversation/identity.js` owns pending
 message identity. `conversation/state.js` selects the publisher's canonical Thread
 collection shared by the panel and packages;
+`runtime/conversation/workflow.js` owns the one browser vocabulary for exact-input
+workflow stages, conditions, activity labels, next actor, and thread attention. The
+application publisher overlays unresolved Sending before messages, compact rows, and
+the margin read that same immutable projection;
 `runtime/conversation/messages.js` owns immutable message readings and their synchronous
 Lit presentation, including retained frozen authored islands;
 `runtime/conversation/replies.js` owns reply drafts, retained editor subscription
@@ -350,10 +354,6 @@ margin cards; native editors remain opaque mechanical islands;
 `runtime/conversation/thread-list-view.js` owns keyed panel placement and committed
 descriptor restoration; `conversation/thread-list.js` owns its grouping, scroll holds,
 and connected presentation proof for already-admitted frozen widgets;
-`runtime/conversation/acknowledgments.js` formats the canonical message receipts
-published by the conversation model; message owners place retained
-Lit receipts, which own their words and semantic paint;
-and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
 `runtime/conversation/panel.js` owns the panel composer and the Threads list's own keys —
 its search, waiting filter, match walk, and local route into the page-comment box — and
@@ -390,14 +390,15 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | the publisher adopts `reading`; state presentation paints `data-lf-reading` only after every required view succeeds |
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
-| rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
+| rendered conversation | the server's thread and exact-input workflow projections, then pending messages and Sending workflows | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
 | which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `CLAUDE.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
-| canonical agent activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner, receipts, margin, and leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
+| canonical agent activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and leaves tray paint page-wide activity; the browser only asks for a fresh server reading at `next_transition_at` |
+| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels and reader-Ask precedence |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | thread-panel visibility | the panel controller's constructed visibility reading | `setPanel` writes the reading and projects it to the panel class and body attribute |
@@ -710,21 +711,21 @@ underline or ring on the same selected control; the second edge reads as a stray
 In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
 the selection distinct without adding another line inside it.
 
-Agent workflow stays on the existing semantic margin control whenever one survives:
+Message workflow stays on the existing semantic margin control whenever one survives:
 pickup uses a green icon, moving any positive or negative tone to the existing contour;
 working keeps the green icon, colors the interior green, and pulses once on arrival. A
-generated status carries the same workflow when no semantic control exists. Conversation
-receipts carry it beside the triggering message; thread cards do not repeat it as a
+generated status carries the same workflow when no semantic control exists. Messages
+carry the shared exact-input label beside their timestamp; thread cards do not repeat it as a
 colored edge. Quiet or ended work releases the control. Reduced motion suppresses
 arrival, and repainting or replacing a carrier cannot replay it.
 
-A thread reading whose next word is the reader's wears the same two channels in blue —
+A thread reading whose attention belongs to the reader wears the same two channels in blue —
 icon and interior — in Margin and in Page Map. It reads `awaitsReader` (Authoritative
-projection, above). Agent workflow outranks it on the same carrier: live work is what
-the reader needs first, and one interior carries one wash. Colour is never the only
+projection, above). A concrete reader Ask outranks concurrent agent workflow; that work
+remains secondary detail, and one interior carries one wash. Colour is never the only
 channel, so the reading also says "On you" in its label and accessible name. An
-aggregated thread control takes the turn of any member, as it takes the most urgent
-member's workflow stage.
+aggregated thread control reads the Thread's canonical attention rather than deriving
+another precedence from its messages.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

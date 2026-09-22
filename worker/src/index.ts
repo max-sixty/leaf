@@ -142,7 +142,7 @@ interface ModelRequestFields {
 interface LeafStateAnswer {
   state?: {
     events?: LeafEvent[];
-    activity?: { obligations?: Array<{ event?: string }> };
+    activity?: { obligations?: Array<{ input: string | null }> };
   };
 }
 
@@ -670,7 +670,7 @@ async function acceptedEvent(
       event,
       needsReply:
         answer.state?.activity?.obligations?.some(
-          (obligation) => obligation.event === event.id,
+          (obligation) => obligation.input === event.id,
         ) ?? false,
     };
   } catch {

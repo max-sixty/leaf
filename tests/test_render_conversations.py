@@ -856,23 +856,18 @@ def test_a_card_repaint_keeps_the_reader_on_the_control_they_reached(browser, se
               this.matches?.('.lf-margin-preview-list') &&
               node.matches?.('.lf-margin-thread')
             ) {
-              const receipt = node.querySelector('.lf-receipt');
-              window.__lfDetachedReceipt = receipt && {
-                phase: receipt.dataset.lfPhase,
-                state: receipt.querySelector(':scope > .lf-receipt-state')?.textContent,
-                live: receipt.querySelector(':scope > .lf-receipt-live')?.textContent,
-              };
+                  window.__lfDetachedThread = Boolean(
+                    node.querySelector('.lf-conversation-thread')
+                  );
             }
             return insertBefore.call(this, node, before);
           };
         }"""
     )
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-    assert page.evaluate("() => window.__lfDetachedReceipt") == {
-        "phase": "sent",
-        "state": "✓ Sent",
-        "live": "✓ Sent",
-    }, "the detached margin card reached display before its receipt rendered"
+    assert page.evaluate("() => window.__lfDetachedThread"), (
+        "the detached margin card reached display before its conversation rendered"
+    )
     resolve = page.locator(".lf-margin-thread").get_by_role(
         "button", name="Resolve thread", exact=True
     )
@@ -1540,7 +1535,9 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-receipt')).to_have_count(1)
+    expect(
+        page.locator(f'.lf-thread[data-id="{source}"] .lf-thread-status')
+    ).to_have_text("Working")
     after = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=1), (
         f"the work claim moved the later card from {before:.1f}px to {after:.1f}px"
@@ -1571,9 +1568,9 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
-    receipt = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-receipt')
-    expect(receipt).to_contain_text("Sent")
-    assert receipt.evaluate(
+    workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
+    expect(workflow).to_have_text("Sent")
+    assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"

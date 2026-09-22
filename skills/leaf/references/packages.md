@@ -933,16 +933,21 @@ a reaction that starts a conversation remains its root. `done` contains the admi
 unwithdrawn page approvals shown in the panel.
 
 Each Thread has a stable `key`, `root`, ordered `msgs`, `anchor`, `detached_from`,
-`resolved`, `settling`, `awaits_agent`, `awaits_reader`, `seat`, and `summaries`.
+`resolved`, `settling`, `awaits_agent`, `awaits_reader`, `attention`, `workflows`,
+`seat`, and `summaries`. `attention` is `null` or names `needs_reader`/`waiting`, its
+reason, and the workflow supplying its detail. A concrete reader Ask takes precedence
+over concurrent agent work; explicit resolution remains separate.
 `threadTurns(thread)` selects its ordered displayed turns, including a reaction root
 but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
 turn count, and latest turn timestamp. A Thread's `key` and each message's `key` survive
 admission of a pending gesture; `root.id` and message `id` identify the current admitted
 or provisional record.
 
-Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts
-(`pending`, `failure`, `stream_state`), reaction tokens, and canonical activity
-`receipts`. Their `body.kind` distinguishes prose, reaction, suggestion, and authored
+Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts,
+reaction tokens, and their exact-input `workflows` when work is bound to that message
+or to a widget in its frozen authored body.
+A workflow carries its subject and input identities, stage, typed activity, condition,
+next actor, and delivery/turn/response bindings. Their `body.kind` distinguishes prose, reaction, suggestion, and authored
 content. Each body carries its plain `text`; an authored body also contains an opaque
 `document: {thread, message}` identity, and `units: [{id, tag, state}]` from the
 registry declarations and current widget fold. It contains no HTML or live nodes.

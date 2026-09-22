@@ -1840,7 +1840,9 @@ def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
     expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
-    expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
+    expect(receipt).to_have_attribute(
+        "aria-description", re.compile("checking the mounts")
+    )
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
     # The receipt admitted this claim without an x-work declaration. Its semantic
@@ -1855,7 +1857,9 @@ def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
     expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
-    expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
+    expect(receipt).to_have_attribute(
+        "aria-description", re.compile("checking the mounts")
+    )
 
     honored = ASK_PAGE.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
@@ -2516,15 +2520,13 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
         ("rp-live", {"options": ["rp-stage"]})
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
-    receipt = message.locator(
-        f':scope > .lf-msg-head .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
-    )
+    status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
     expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
-    expect(receipt).to_contain_text("✓ Sent")
+    expect(status).to_have_text("Sent")
     with service_model.PageTransaction(d) as transaction:
         session_model.record_pickup(transaction, actions)
     told(page)
-    expect(receipt).to_contain_text("✓ Picked up")
+    expect(status).to_have_text("Picked up")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0
 
 
@@ -2583,17 +2585,16 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
 
 
-def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
+def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     browser, serve
 ):
-    """Done is a cell of the joined control, and the reader's newest move is its receipt.
+    """Done is a cell of the joined control, and the message shows one workflow.
 
     The Ask projection writes each option's key into the binding slot the row keeps
     for it; Done kept none, so its chip was hung at the button's corner, half outside
     the group's frame — a stray `4` a blind drive could not place. And a tick followed
-    by Done are two coordinates, each of which minted a receipt: "✓ Sent · just now"
-    twice under one question. The newer move supersedes the older for what the reader
-    is owed."""
+    by Done are two coordinates. The message carries their shared strongest workflow
+    once rather than painting two independent receipt classifiers."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -2625,6 +2626,6 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     message = question.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-msg ')][1]"
     )
-    receipts = message.locator(":scope > .lf-msg-head .lf-receipt")
-    expect(receipts).to_have_count(1)
-    expect(receipts).to_contain_text("Sent")
+    statuses = message.locator(":scope > .lf-msg-head .lf-msg-sending")
+    expect(statuses).to_have_count(1)
+    expect(statuses).to_have_text("Sent")

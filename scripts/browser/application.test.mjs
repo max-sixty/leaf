@@ -45,6 +45,7 @@ const state = (taken, events = []) => ({
   layer: { generation: "test" },
   active: { revision: 1 },
   events,
+  workflows: [],
   activity: { phase: "reader", held: false },
   reading: `reading-${taken}`,
   browser: {
@@ -515,6 +516,101 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.acceptData({ revision: 1, sources: {} }), false);
   assert.ok(app.read().semanticEpoch > before);
   assert.equal(app.read().data.sources.input.value, 5);
+});
+
+test("one publication keeps per-input workflows and reader-first thread attention", () => {
+  const app = setup();
+  const reading = state(2);
+  reading.browser.conversation.threads = [
+    {
+      root: {
+        id: "root",
+        kind: "comment",
+        author: "user",
+        ts: "2026-09-22T10:00:00-07:00",
+        text: "First",
+      },
+      msgs: [
+        {
+          id: "root",
+          kind: "comment",
+          author: "user",
+          ts: "2026-09-22T10:00:00-07:00",
+          text: "First",
+        },
+        {
+          id: "newer",
+          kind: "reply",
+          parent: "root",
+          author: "user",
+          ts: "2026-09-22T10:01:00-07:00",
+          text: "Second",
+        },
+      ],
+      anchor: null,
+      resolved: null,
+      awaits_agent: true,
+      awaits_reader: true,
+      bare_reaction: false,
+      seat: null,
+      summaries: [],
+      attention: { kind: "needs_reader", reason: "ask", workflow: "first-work" },
+    },
+  ];
+  reading.workflows = [
+    {
+      id: "first-work",
+      input: "root",
+      subject: { kind: "thread", id: "root" },
+      stage: "replying",
+      activity: [],
+      condition: null,
+      next_actor: "agent",
+    },
+    {
+      id: "second-work",
+      input: "newer",
+      subject: { kind: "thread", id: "root" },
+      stage: "queued",
+      activity: [],
+      condition: null,
+      next_actor: "agent",
+    },
+  ];
+  app.adopt(reading);
+  const thread = app.read().effective.conversation.all[0];
+  assert.deepEqual(
+    thread.msgs.map((message) => [message.id, message.workflows[0]?.stage]),
+    [
+      ["root", "replying"],
+      ["newer", "queued"],
+    ],
+  );
+  assert.deepEqual(thread.attention, {
+    kind: "needs_reader",
+    reason: "ask",
+    workflow: "first-work",
+  });
+  assert.equal(thread.workflows.length, 2);
+});
+
+test("a refused local message publishes one failed workflow before retirement", () => {
+  const app = setup();
+  const event = {
+    kind: "comment",
+    attempt: "refused",
+    text: "Please try this",
+    revision: 1,
+  };
+  app.enqueue(event, "2026-09-22T10:00:00-07:00");
+  assert.equal(app.read().effective.workflows.at(-1).stage, "sending");
+  app.reject("refused");
+  const failed = app.read().effective.workflows.at(-1);
+  assert.deepEqual(failed.condition, { kind: "failed", operation: "delivery" });
+  assert.equal(failed.next_actor, "reader");
+  assert.equal(app.read().effective.conversation.all.length, 0);
+  app.remove(new Set(["refused"]));
+  assert.equal(app.read().effective.workflows.length, 0);
 });
 
 test("semantic epochs include visible revision facts but not transport metadata", () => {

@@ -218,12 +218,15 @@ epoch. That state also lives exactly as long as the node holding it: the log doe
 record it and no projection returns it, so whatever replaces a node hands it across
 itself, under the identity that replacement already keys on, or the reader loses it.
 
-Python also derives one top-level `activity` reading from the agent's status
-declaration, claim and turn identity, watcher lease, pickup events, and unsettled
-reader moves. The banner, thread receipts, margin receipts, neighboring-page rows,
-agent state, and stop guard consume that projection. JavaScript may schedule a new
-state read at its `next_transition_at`; it does not age, override, or independently
-combine those facts.
+Python derives page-wide `activity` and exact-input `workflows` from the agent's
+status declaration, claim and turn identity, watcher lease, delivery, and response
+evidence. The banner and neighboring-page rows describe page activity. Messages,
+thread attention, and margin entries consume the canonical workflows; thread
+attention also retains outstanding reader Asks. Page activity does not imply work
+on every message. JavaScript adds unresolved local sends through the application
+publisher and may schedule a read at `next_transition_at`; it does not age or
+independently reclassify accepted workflow evidence. The stop guard consumes the
+same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
 immutable revisions, an append-only event log, and `data.json` as the

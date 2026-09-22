@@ -1,7 +1,8 @@
 # Threads: workflow and prototype plans
 
 Status: document-outcome guidance, compact navigation, and agent-written summary
-checkpoints are implemented. The remaining plans are proposed.
+checkpoints are implemented. Message-workflow consolidation is implemented locally;
+the remaining plans below are future work.
 They address long conversations taking over the page, an unwieldy Threads panel,
 and uncertainty about who should act next.
 
@@ -20,14 +21,14 @@ and uncertainty about who should act next.
 
 ## Activity and attention ontology
 
-The [thread status proposal](thread-status-proposal.md) owns the proposed design.
-The [activity inventory](activity-ontology.md) records existing producers, storage,
-value sets, consumers, and the investigation behind it.
-The implementation still follows the shipped session-lifetime and event contracts.
+The [thread status plan](thread-status-proposal.md) records implementation status
+and deferred jobs and notifications. The [activity inventory](activity-ontology.md)
+records the pre-consolidation investigation. Current evidence and projection
+contracts live in [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md).
 
-Keep the reader-facing grouping small while retaining exact delivery, work, and
-settlement evidence underneath it. The next slice should make banner, thread,
-and margin attention agree; independently observed jobs and continuation follow it.
+Message marks, compact rows, and margin entries consume the shared workflow;
+thread attention also preserves outstanding reader Asks. Page availability and
+typed host activity remain separate from message progress.
 
 ## Live specimens and further Thread surfaces
 
@@ -43,21 +44,6 @@ presentation-proof contracts. Page-wide Thread placement also needs Leaf-owned
 arbitration when multiple widgets request the same Thread; the current API places
 only exact datum Threads belonging to the consuming widget.
 
-## Workflow and attention model
-
-Consolidate delivery receipts, work claims, live reply evidence, and interruption
-handling into the projected workflow. Derive attention consistently for the banner,
-panel, and margin. Start with states Leaf can establish today; external dependency
-evidence is a separate plan below. Do not redesign panel navigation in this change.
-
-Prove queued input while earlier work continues, an unanswered turn ending, a stale
-claim, failed delivery, and a reply settling only an older message. Check that each
-recovery label offers a meaningful action and that all surfaces agree.
-
-Reconcile the existing TODOs for margin status colour, later replies masking earlier
-questions, and delegated work outliving the coordinator. Those are concrete cases for
-this model, not reasons to add independent status rules at each surface.
-
 ## Compact thread navigation
 
 The selected compact accordion is implemented in the thread panel. A title row opens
@@ -67,8 +53,7 @@ the author row, and the reply field spans the conversation width. The [playgroun
 retains the spacing study and supplies a seeded conversation fixture.
 
 The runtime owners document disclosure, keyboard, draft, and arrival behavior beside
-the code. Existing delivery readings supply compact status labels; the richer workflow
-model above remains a separate backend change. Long-history compression below remains
+the code. The shared message workflow supplies compact status labels. Long-history compression below remains
 independent of collapsing whole conversations.
 
 ## Long-thread reading

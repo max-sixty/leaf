@@ -58,6 +58,7 @@ interface WireProjection {
 /** One wire Ask, as `served_state` serializes it. */
 interface WireAsk {
   id: string;
+  seq: number;
   tag: string;
   source: string;
   source_tag: string;
@@ -70,6 +71,35 @@ interface WireAsks {
   unanswered: WireAsk[];
   awaiting: Record<string, boolean>;
   unanswered_awaiting: Record<string, boolean>;
+}
+
+interface WireWorkflow {
+  id: string;
+  input: string | null;
+  subject: { kind: "thread" | "widget"; id: string };
+  coordinate: unknown;
+  requires_response: boolean;
+  stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
+  ts: string | null;
+  detail: string;
+  agent: string | null;
+  session: string | null;
+  delivery_seq: number | null;
+  delivery_session: string | null;
+  delivery_turn: string | null;
+  response: object | null;
+  activity: readonly {
+    kind: string;
+    detail: string;
+    ts: string;
+    session: string | null;
+    turn: string | null;
+  }[];
+  condition: {
+    kind: "ended" | "interrupted" | "stale" | "failed";
+    operation: "delivery" | "work" | "response";
+  } | null;
+  next_actor: "reader" | "agent" | "none";
 }
 
 /** The public Ask record packages read. */
@@ -121,6 +151,7 @@ export interface AuthoritativeState {
   active: { revision: number; version?: number | null; label?: string | null };
   versions?: { revision: number; version: number; label: string }[];
   events: Event[];
+  workflows: WireWorkflow[];
   browser: {
     basis: { through_seq: number };
     views: Record<
@@ -542,11 +573,68 @@ export function createSemanticApplication({
         ? { ...thread, awaits_reader: true }
         : thread,
     );
+    const workflows = [
+      ...(state?.workflows ?? []),
+      ...unreadMessages(unresolved, receipts).map((message: any) => ({
+        id: `pending:${message.attempt}`,
+        seq:
+          unresolved.find((entry: any) => entry.message?.id === message.id)?.order ?? 0,
+        input: message.id,
+        subject: {
+          kind: "thread",
+          id: message.kind === "reply" ? message.parent : message.id,
+        },
+        coordinate: null,
+        requires_response: true,
+        stage: "sending",
+        ts: message.ts,
+        detail: "",
+        agent: null,
+        session: null,
+        delivery_seq: null,
+        delivery_session: null,
+        delivery_turn: null,
+        response: null,
+        activity: [],
+        condition: null,
+        next_actor: "agent",
+      })),
+      ...unresolved
+        .filter((entry: any) => entry.rejected)
+        .map((entry: any) => {
+          const message = entry.message;
+          return {
+            id: `rejected:${entry.event.attempt}`,
+            seq: entry.order,
+            input: message?.id ?? entry.localId,
+            subject: message
+              ? {
+                  kind: "thread",
+                  id: message.kind === "reply" ? message.parent : message.id,
+                }
+              : { kind: "widget", id: entry.event.widget },
+            coordinate: entry.projection?.coordinate ?? null,
+            requires_response: false,
+            stage: "sending",
+            ts: message?.ts ?? null,
+            detail: "",
+            agent: null,
+            session: null,
+            delivery_seq: null,
+            delivery_session: null,
+            delivery_turn: null,
+            response: null,
+            activity: [],
+            condition: { kind: "failed", operation: "delivery" },
+            next_actor: "reader",
+          };
+        }),
+    ];
     const threads = readThreadRecords(
       obligated,
       document,
       widgets,
-      (state?.activity as any)?.interactions ?? [],
+      workflows,
     );
     return {
       hostAvailable,
@@ -572,6 +660,7 @@ export function createSemanticApplication({
       pendingApprovals: pendingApprovals(unresolved, receipts),
       pendingRequests: projectedRequests,
       delivery: unresolvedAttempts(unresolved),
+      workflows,
       activity: state?.activity ?? null,
       lifecycle,
     };
@@ -882,7 +971,6 @@ export function createSemanticApplication({
       const rejected = entry(attempt);
       if (!rejected) return [];
       const removed = new Set<string>();
-      if (rejected.event.kind !== "action") removed.add(attempt);
       for (const item of publisher.read().unresolved)
         if (
           item.undoTarget === attempt ||

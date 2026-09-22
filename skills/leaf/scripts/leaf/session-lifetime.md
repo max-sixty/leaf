@@ -31,16 +31,36 @@ current turn also proves generic activity before its first work declaration;
 the receipt itself remains Picked up. The banner and Leaves tray consume this
 same reading and present delivery counts separately.
 
-Interaction receipts keep their own exact input and subject identity. On the
-subject's margin entry or message, append is **Sent**, then **Waiting for pickup**
-after the short grace; Codex acceptance is **Queued**; entry into a named open
-turn is **Picked up**; a later `status … --on` claim on the same reader move is
-**Working**. Pickup never rewrites `status.json` or makes the page itself
-Picked up. Counts take the newest unsettled move per subject and unit. A reply,
-resolution, or authored state that honors the move settles it; a later version
+`workflows` is the shared projection for exact reader inputs and proactive subject
+work. Each entry names its `input` event when it has one, its thread or widget
+`subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
+`replying`, or the retained terminal `answered` outcome), and any separately proven
+`condition`. A Sent input that remains
+unpicked after the short grace has a stale delivery condition. Ending the exact
+turn that picked input up adds an ended condition without claiming interruption.
+A Working claim quiet beyond its lease, or a pickup belonging to a different or
+unknown old turn, has a stale work condition while retaining its durable stage.
+A provisional response is Replying only on the input named by its `responds`
+address. Disconnect, interruption, and failure require the response's own state.
+Successful settlement removes the workflow; the logged answer remains its evidence.
+
+Ordinary durable stale, ended, interrupted, and failed observations prove uncertainty
+or a stopped operation but no concrete reader recovery gesture, so they remain
+agent-owned. A terminal host failure reply is the exception: its message explicitly
+tells the reader to resend. It settles the Stop obligation, retains an `answered`
+workflow with a failed response condition, and hands recovery to the reader. A local
+send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
+put the thread in Needs you without persisting another workflow record.
+
+Consecutive reader turns form one response batch addressed by its newest input.
+Before settlement each input retains a workflow, while only the newest has
+`requires_response` and enters the Stop obligation list. A response to an older
+input removes that input and leaves the newer obligation. A response to the newest
+settles the batch. Widget Asks remain independent and settle through their declared
+state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
+resolution or authored state that honors a move also settles it; a later version
 note settles a page action whose verb has no authored record form. A note already
-standing when the move arrives cannot answer it. Turn identity decides whether
-a receipt belongs to the open turn; ending a turn does not settle its input.
+standing when the move arrives cannot answer it.
 
 The App Server observer retains typed `working`, `thinking`, `tool`, `replying`,
 `awaiting_approval`, and `awaiting_input` activity with the observed session and
@@ -53,9 +73,10 @@ A current authored work declaration keeps the page's sentence and date. The
 observed step remains separately available as `observed` and `observed_kind`;
 where the declaration has no authored sentence, the observation supplies it.
 Only current observed work supplies a live subtype. Delivery floors and exact
-response bindings continue to govern local receipts and settlement, without
+response bindings continue to govern local workflows and settlement, without
 making newer input erase overall page work. A page-wide observation alone never
-upgrades a message receipt to Thinking or Working.
+refines a message workflow. Thinking and tool activity stay page-wide until a host
+provides an explicit input or subject binding; the current host contract does not.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about. `leaf delivery claim` instead records one event from an
@@ -80,8 +101,8 @@ The `hook` command, registered on Stop, UserPromptSubmit, and SessionEnd,
 refuses to let a turn end with one of this session's pages unwatched, stamps
 that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
-Its unanswered-work guard reads `activity.obligations`, the same settled
-interaction projection the browser reads; it does not reconstruct conversations
+Its unanswered-work guard reads `activity.obligations`, selected from the same
+`workflows` projection the browser reads; it does not reconstruct conversations
 itself. The App Server adapter presents at most one plain reply in each turn's
 chronological delivery slice. Its completed final-answer item finishes that exact
 response; the hook lets the provider turn close, and the observer commits the same text

@@ -34,6 +34,7 @@ const exactClosures = {
   "projection/state.js": ["semantic-state.js"],
   "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
   "conversation/state.js": ["semantic-state.js"],
+  "conversation/workflow.js": [],
   "pending/model.js": ["conversation/identity.js"],
   "pending/state.js": ["semantic-state.js"],
   "keyboard/dispatch.js": [
@@ -70,7 +71,6 @@ const applicationOwners = [
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "conversation/acknowledgments.js",
     "conversation/box.js",
     "conversation/folding.js",
     "conversation/inline.js",

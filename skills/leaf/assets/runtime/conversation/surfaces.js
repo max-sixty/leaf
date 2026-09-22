@@ -8,6 +8,7 @@ import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
 import { containsAcross, pageText } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
+import { focusThread } from "./focus.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -225,7 +226,8 @@ export function focusSurface(id, { focus = "reply" } = {}) {
       thread.querySelector("textarea:not([disabled])") ??
       summary ??
       thread;
-    target.focus({ preventScroll: true });
+    if (target === thread) focusThread(thread, { preventScroll: true });
+    else target.focus({ preventScroll: true });
     target.scrollIntoView({ block: "nearest" });
     return target;
   }

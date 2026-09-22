@@ -183,13 +183,14 @@ export class MessageView {
   #reaction = null;
   #authored = null;
   #dressed = false;
+  #header = document.createElement("div");
 
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
-  present(model) {
+  present(model, externalHeader = false) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -236,36 +237,45 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    this.#header.className = panel ? "lf-msg-head" : "lf-conversation-head";
     render(
       html`
-        <div class=${panel ? "lf-msg-head" : "lf-conversation-head"}>
-          <b>${model.by}</b
-          ><span class="lf-msg-meta"
-            ><time datetime=${model.timestamp}>${model.age}</time> ${
-              model.failure
-                ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
-                : nothing
-            }
-            ${
-              model.body.kind === "suggestion" && panel
-                ? html`<span class="lf-suggest-label">Suggestion</span>`
-                : nothing
-            }
-            ${
-              model.edited
-                ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
-                : nothing
-            }
-            ${
-              model.streamLabel
-                ? html`<span class="lf-stream-state lf-edited"
-                    >${model.streamLabel}</span
-                  >`
-                : nothing
-            }
-            ${panel ? nothing : receiptTemplate}</span
-          >
-        </div>
+        <b>${model.by}</b
+        ><span class="lf-msg-meta"
+          ><time datetime=${model.timestamp}>${model.age}</time> ${
+            panel && sending
+              ? html`<span class="lf-msg-sending">Sending</span>`
+              : receiptTemplate
+          }
+          ${
+            model.failure
+              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+              : nothing
+          }
+          ${
+            model.body.kind === "suggestion" && panel
+              ? html`<span class="lf-suggest-label">Suggestion</span>`
+              : nothing
+          }
+          ${
+            model.edited
+              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+              : nothing
+          }
+          ${
+            model.streamLabel
+              ? html`<span class="lf-stream-state lf-edited"
+                  >${model.streamLabel}</span
+                >`
+              : nothing
+          }</span
+        >
+      `,
+      this.#header,
+    );
+    render(
+      html`
+        ${externalHeader ? nothing : this.#header}
         ${
           panel
             ? html`<div
@@ -280,13 +290,6 @@ export class MessageView {
                 ${model.body.markup ? this.#authored : nothing}
               </div>`
             : this.#inlineBody(model.body)
-        }
-        ${
-          panel && (sending || receipts.length)
-            ? html`<div class="lf-msg-delivery">
-                ${sending ? html`<span>Sending</span>` : receiptTemplate}
-              </div>`
-            : nothing
         }
         ${
           !panel && model.body.markup
@@ -314,6 +317,10 @@ export class MessageView {
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
     return this.node;
+  }
+
+  get header() {
+    return this.#header;
   }
 
   #body(body) {

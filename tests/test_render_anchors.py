@@ -2139,20 +2139,19 @@ def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
     }
 
 
-def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, serve):
+def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serve):
     """A key on screen is a key that works, and its inversion costs just as much: the
     press is real, the reader can make it, and no surface says so.
 
-    A widget may still declare the meaning of a native press when that meaning is worth
-    naming in Leaf's command reference. The row describes the platform fact without
+    A widget may still declare the meaning of an owned press when that meaning is worth
+    naming in Leaf's command reference. The row describes the control's behavior without
     reimplementing it.
 
-    The two differ in what they answer, and saying so is the point: a <summary> is
-    button-like and takes both keys, while a checkbox takes Space alone, Enter being
-    the form's key and a leaf page having no form. Neither row binds a `run`: the
-    checkbox's press is the platform's, and the summary's is the disclosure scope's,
-    which has to reach a staged control the same way this declaration does. A row
-    consuming a press it does not make would be the same lie from the other side.
+    The comparison handle's arrows and endpoints are the component's own keyboard
+    pattern, while a <summary> answers Enter and Space itself and leaves its horizontal
+    arrow to the disclosure scope. The component and browser rows bind no `run`; the
+    summary's arrow does. A row consuming a press it does not make would be the same lie
+    from the other side.
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
@@ -2164,18 +2163,16 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page = open_page(browser, url)
     line = page.locator(".lf-shortcut-bar")
 
-    box = page.locator("lf-shot input[type=checkbox]")
-    box.scroll_into_view_if_needed()
-    box.focus()
-    expect(line).to_contain_text("show after")
-    page.keyboard.press(" ")
-    expect(box).to_be_checked()
-    # The word is read where it is painted, so it names the frame this press brings up
-    # rather than covering both with one that is never wrong and never says anything.
-    expect(line).to_contain_text("show before")
-    # Enter is not on the row and not the control's: it must leave the box alone.
-    page.keyboard.press("Enter")
-    expect(box).to_be_checked()
+    comparison = page.locator("lf-shot wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    handle.scroll_into_view_if_needed()
+    handle.focus()
+    expect(line).to_contain_text("adjust the comparison")
+    expect(line).to_contain_text("jump to an endpoint")
+    page.keyboard.press("ArrowRight")
+    expect(comparison).to_have_attribute("position", "51")
+    page.keyboard.press("End")
+    expect(comparison).to_have_attribute("position", "100")
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
@@ -3663,9 +3660,15 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     assert label_result.response["violations"] == []
 
     # The keys are one declaration, so the "?" reference names them too — a page with
-    # a second version is the first that has a list to walk.
+    # a second version is the first that has a list to walk. The shelf stands beside the
+    # menu; the reference is a modal and global chrome, so entering it dismisses the menu
+    # the way the platform dismisses any auto popover, and leaves it dismissed. The rows
+    # are read off the declaration rather than off the standing mode, which is why they
+    # are there to read at all once the menu has gone.
     page.keyboard.press("?")
+    expect(menu).to_be_visible()
     page.keyboard.press("?")
+    expect(menu).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
@@ -3674,8 +3677,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(menu).to_be_visible()
+    expect(menu).to_be_hidden()
 
+    open_versions(page)
+    expect(menu).to_be_visible()
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     position = page.locator(".lf-walk-position")
     page.keyboard.press("ArrowUp")
@@ -3699,10 +3704,9 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
     # Escape closes the menu and lands the reader on the page it stood over, whatever
-    # door they came through and whatever the reference did on the way. A popover
-    # restores focus to whatever had it when it showed, which after a reference round
-    # trip is the body; Leaf performs the whole step instead, so the landing is the same
-    # one every time.
+    # door they came through. A popover restores focus to whatever had it when it
+    # showed, which for a menu opened from the page is the body; Leaf performs the whole
+    # step instead, so the landing is the same one every time.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3837,18 +3841,24 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the
-    # page, and Escape there returns through the shelf with the menu where it was — with the
-    # reader on the row they left, since a scope is where focus is and the overlay takes the
-    # focus. Landing on the body instead put the walk it had just described out of reach.
+    # page. The shelf stands beside the menu, and the reference is a modal, so entering
+    # it dismisses the menu as the platform dismisses any auto popover and does not
+    # rebuild it. Reopening is what stands the mode up again, and the reader is back on
+    # the row they left, since a scope is where focus is and the overlay takes the focus.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
+    expect(menu).to_be_visible()
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
+    expect(menu).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
+    expect(menu).to_be_hidden()
+
+    open_versions(page)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
@@ -3866,7 +3876,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(menu).to_be_hidden()
     page.keyboard.press("t")
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread").first).to_be_focused()
+    expect(page.locator(".lf-thread-summary").first).to_be_focused()
 
 
 def clearance_page(browser, serve):
@@ -4024,16 +4034,34 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-version-menu")).to_be_visible()
     expect(compared.locator(".lf-shortcut-bar")).to_contain_text("leave forward")
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
+    # The reference reads the same declaration, but it is a modal and global chrome: its
+    # entry dismisses the menu the way the platform dismisses any auto popover. The bar
+    # speaks for the live scene and names only the direction the reader can take; the
+    # reference is a catalogue and names both, each marked as reachable in the menu
+    # rather than here. Which is the whole of what the pair is for: a reader who cannot
+    # read the second direction anywhere cannot learn that the row has one.
     compared.keyboard.press("?")
     compared.keyboard.press("?")
-    expect(compared.locator(".lf-command-reference")).to_contain_text(
-        "Leave the versions menu forward"
-    )
-    expect(compared.locator(".lf-command-reference")).not_to_contain_text(
-        "Leave the versions menu backward"
-    )
+    reference = compared.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(reference).to_contain_text("Leave the versions menu forward")
+    expect(reference).to_contain_text("Leave the versions menu backward")
+    assert compared.evaluate(
+        """() => Object.fromEntries(
+          ['version.leave-forward', 'version.leave-backward'].map(command => [
+            command,
+            document.querySelector(
+              `.lf-command-reference-command[data-lf-command="${command}"]`
+            )?.dataset.lfAvailable ?? null,
+          ])
+        )"""
+    ) == {"version.leave-forward": "false", "version.leave-backward": "false"}
     compared.keyboard.press("Escape")
-    expect(comparison).to_be_focused()
+    expect(reference).to_be_hidden()
+
+    open_versions(compared)
+    expect(compared.locator(".lf-version-menu")).to_be_visible()
 
     # Holding Tab sends repeated keydowns after the first stop. The boundary action must
     # repeat too: leaving the browser's focus move native does not mean leaving the menu
@@ -4074,7 +4102,10 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
-    # And the key the row had been leaving unnamed does what the row now says it does.
+    # And the key the row had been leaving unnamed does what the row now says it does,
+    # on the menu stood up again after the reference dismissed it.
+    open_versions(page)
+    expect(page.locator(".lf-version-menu")).to_be_visible()
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     page.keyboard.press("Space")
     page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))
@@ -4912,12 +4943,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator("textarea")).to_be_visible()
     inline_receipt = thread.locator(
-        f'.lf-conversation-msg.user[data-event="{root["id"]}"] '
-        f'> .lf-conversation-head .lf-receipt[data-receipt-id="{root["id"]}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     panel_receipt = panel_thread.locator(
-        f'.lf-msg.user[data-mid="{root["id"]}"] > .lf-msg-delivery '
-        f'.lf-receipt[data-receipt-id="{root["id"]}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
     )
     expect(inline_receipt).to_contain_text("✓ Sent")
     expect(panel_receipt).to_contain_text("✓ Sent")
@@ -4971,13 +5000,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread).to_be_focused()
-    # Standing on the card is one step and the panel around it is the next; the seat on
-    # the page is not put back, the reader having left it to come here.
-    page.keyboard.press("Escape")
-    expect(panel_thread.locator(".lf-thread-summary")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
+    # The card is content of the panel. The seat on the page is not put back, the reader
+    # having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -5113,12 +5138,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-delivery) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
         expect(active).to_contain_text("● Working — checking the inline placement")
         expect(sent).to_contain_text("✓ Sent")
         expect(view.locator(":scope > .lf-receipt")).to_have_count(0)

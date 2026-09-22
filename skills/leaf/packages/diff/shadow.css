@@ -56,7 +56,6 @@
                         top: 50%; left: .125rem; transform: translateY(-50%); }
 .lf-diff-wrap:checked { background: var(--accent); border-color: var(--accent); }
 .lf-diff-wrap:checked::before { left: calc(100% - .875rem); }
-.lf-diff-wrap:focus-visible { outline: var(--here-ring); outline-offset: 3px; }
 @media (forced-colors: active) {
   .lf-diff-wrap { appearance: auto; }
   .lf-diff-wrap::before { display: none; }
@@ -147,13 +146,16 @@
 .lf-diff-line-comment:is(:focus-visible, .lf-focus-visible) {
                         opacity: 1; pointer-events: auto; }
 .lf-diff-filtered { display: none !important; }
+/* The filter field is not listed here. It is a vendored text field, whose Tab stop and
+   ringed box are both inside its own shadow root, so a rule on this host would reach
+   neither; the shared Web Awesome theme draws and names that band once for every
+   package. */
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
 .lf-diff-wrap:is(:focus-visible, .lf-focus-visible),
 .lf-diff-review:is(:focus-visible, .lf-focus-visible),
-.lf-diff-comment:is(:focus-visible, .lf-focus-visible),
-.lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
-                                                        --lf-here-ring: diff-tools;
-                                                        outline-offset: 1px; }
+.lf-diff-comment:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+                                                         --lf-here-ring: diff-tools;
+                                                         outline-offset: 1px; }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost

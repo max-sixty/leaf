@@ -6,44 +6,114 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-If the input is a named `leaf_delivery` tool output or a `leaf-delivery` element,
-first run `leaf delivery claim <id>`. A pointer then needs `leaf delivery read <id>`;
-the named tool output already carries the same envelope. The claim immediately marks
-the first delivered reader move that still needs work as Working; a stale delivery
-changes nothing. Then read
-`references/event-batches.md`, the current host contract, and, for reader
-messages, `references/conversation-threads.md`. Process every batch and every
-event. Each event's `obligation.response`, when present, names the Leaf operation
-it required when captured: a reply, a page revision closed with `leaf resolve`,
-or `leaf receipt`. Recheck current page or conversation state before writing because a
-later event may already have settled it. The current host contract names whether it
-binds a plain reply to the turn's normal final message; otherwise use the explicit Leaf
-command. Version and request responses use their explicit Leaf commands. Do not
-initialize or hand the page over again in response to an existing delivery.
+Leaf presents work as a live HTML page. The user reads it in a browser, comments
+on exact passages, and acts through its widgets; you revise the page in place
+while they do. A page is a directory: the mutable `index.html` you write, the
+immutable revision each valid save becomes, the append-only event log, service
+state, and the vendored layer that draws it. A stamp names a revision as a public
+version. You write the page, check it, hand its URL over with a status saying
+what you want back, and wait. Each reader move comes back to you as a delivery;
+you answer it on the page and in its thread, stamp checkpoints, and idle the page
+when it is finished.
 
-Otherwise, present the session's subject as a live HTML page. The user comments
-on exact passages, acts through the page's widgets, and follows revisions in
-place. With no subject in `$ARGUMENTS`, use the work already under discussion.
-
-Leaf's writing guidance supplies defaults only; any user-specific guidance on
-tone, structure, depth, or format takes precedence.
+The input is a subject to present, or a delivery from a page already handed
+over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
+envelope a `leaf wait` printed. A delivery starts at step 5 below; do
+not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
+present the work already under discussion. Leaf's writing guidance supplies
+defaults only; any user-specific guidance on tone, structure, depth, or format
+takes precedence.
 
 $ARGUMENTS
 
-## Return to the user
+## Operate
 
-After first handing over a browser page's URL, repeat that exact URL every time
-you return to the user in chat, including interim updates, questions, and the
-final handoff. An inline MCP App has no durable URL to invent; refer to the review
-and its observed mode instead. If you open its browser page, the URL rule begins then.
+When the host sets `$LEAF`, use that launcher for every command shown as `leaf`.
+Otherwise resolve the directory containing this `SKILL.md` and use its
+`../../bin/leaf` launcher; your host contract may name that path directly or put
+it on `PATH`. If the resolved file is absent, report that the plugin payload is
+incomplete. A checkout keeps the launcher at `bin/leaf`. Pages conventionally
+live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
+directory explicitly; export or copy anything that must outlive the page directory.
+
+1. Run `leaf page init <page>`, and name a package when the page needs an
+   optional shape:
+   `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
+   pass-or-keep triage, `playground` whenever the reader compares or tunes
+   several values or behaviors, `visual-review` for an ordered website run with
+   aligned before-and-after evidence, and `targeting` for selecting and proposing
+   changes to preview elements, as in
+   `leaf page init --package diagram --package diff <page>`. Re-running
+   `page init` with a selection adds it to a page already written.
+2. Read `references/page-authoring.md`, then the authoring reference each part
+   of the page needs, listed under "Author a version" below. Write
+   `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
+   active immutable revision; an invalid save leaves the last valid one live and
+   reports its diagnostic in page state and the browser. You write `index.html` and
+   `page/`; Leaf alone writes revisions and version mappings.
+3. Check the page by its intended lifetime, whatever its shape and whether or
+   not it asks a question. A quick page that will be revised or dropped after an
+   immediate reaction needs only `leaf version check <page>`; fix every failure,
+   and do not stamp it or delay its handoff for a browser review. For a finished
+   record that work will rely on after the conversation, run the pre-handover
+   review in `references/page-authoring.md`, including
+   `leaf version check <page> --render`, then
+   `leaf version stamp <page> --text "<changelog>"` before its URL first reaches
+   the user. A page declaring `<meta name="lf-review" content="sign-off">`
+   is a record whatever else it looks like, since sign-off is offered only on a
+   stamped version. A later stamp that turns a quick page into a record takes
+   that review first.
+4. Read `references/conversation-loop.md` and exactly one host contract,
+   `references/host-claude-code.md` or `references/host-codex.md`. Set the
+   page's status as the conversation reference defines, hand over by the host's
+   route, name the gesture available to the reader, and finish the turn with the
+   exact URL, or with what the host contract hands over instead.
+5. When a delivery arrives, run `leaf delivery claim <id>` first. Then read
+   `references/event-batches.md`, the host contract, and, for reader messages,
+   `references/conversation-threads.md`, and answer every event as they say.
+6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
+
+From the first hand-over on, every chat message repeats the page's exact URL,
+interim updates and questions included.
+
+## Page contract
+
+Using Leaf should feel like playing a game: the reader sees what the page wants
+of them without reading it first, every state they reach offers a move, and a
+move the page can draw shows its result at once. Sometimes the game is Snap,
+where the match is there and they pick it; sometimes it is Factorio, where the
+system is laid out and they move its pieces. It is never a chore.
+
+Unless the user specifies the page's form or depth, a Leaf is a short sequence
+of visually distinct, self-contained views. Each view makes one point, shows one
+state, or offers one move, so the reader can grasp it at a glance and continue;
+disclosures keep supporting detail available without putting it in that path.
+The visible page follows the subject's shape, whether a scrolling document or a
+workspace; `references/page-authoring.md` owns the concrete choices, and
+`references/authoring-asks.md` owns where each Ask goes.
+
+The page contract and widget capabilities are choices, not a checklist. Include
+only controls and gestures whose results advance the reader's task. A widget
+move, a resolution and a sign-off can be taken back; words and requests stand.
 
 ## Keep the reader current
 
 By default, the document is the shared canvas and current record for the subject.
-Keep its findings, decisions, completed work, and remaining work current as the
-work and discussion proceed. A reader should find the outcome in the relevant
-page section without reconstructing a thread or chat. The banner says what you
-are doing now; threads carry discussion and rationale.
+Whenever the reader returns to it, it is the page you would write today from what
+you now know. Its title, lede, and headings state what is true now, and open work
+and open questions stand in the column while finished work sits collapsed after
+them. A reader finds each outcome in the relevant page section without
+reconstructing a thread or chat. The banner says what you are doing now; threads
+carry discussion and rationale.
+
+When work lands, a decision is made, or your understanding moves, reread the whole
+page and rewrite whatever the change reaches, its title, headings, and order
+included. A status note added where the page already mentions the subject leaves
+everything around it as it was written before the change.
+`references/authoring-revisions.md` says what a rewrite carries across. The
+`version stamp` changelog and the event log hold the history, so the page does not
+retell it: correct a wrong figure in place and drop a superseded claim. Save
+freely as the subject changes and stamp meaningful checkpoints.
 
 While a page is live, telling its reader what you are doing takes priority over doing
 it, as a UI thread handles input before background work. Put each step on the page
@@ -52,97 +122,6 @@ the watcher running, and hand work longer than a few minutes to background worke
 rather than waiting on it yourself, so a new comment reaches you in time to change the
 next step. The page stays yours while they run. `references/conversation-loop.md` names
 the surfaces, when to write each, and what a worker may touch.
-
-## Start here
-
-Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
-command takes the directory explicitly. A page holds mutable `index.html`,
-immutable valid revisions, event-backed stamped version aliases, the event log,
-service state, and its vendored layer. Export or copy anything that must outlive
-that live state.
-
-When the host sets `$LEAF`, use that launcher for every command shown as `leaf`.
-Otherwise resolve the directory containing this `SKILL.md` and use its
-`../../bin/leaf` launcher; your host contract may name that path directly or put
-it on `PATH`. If the resolved file is absent, report that the plugin payload is
-incomplete. A checkout keeps the launcher at `bin/leaf`.
-
-1. Run `leaf page init <page>`. Optional shapes need their packages named here:
-   `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
-   pass-or-keep triage, `playground` whenever the reader compares or tunes several
-   values or behaviors,
-   `visual-review` for an ordered website run with aligned before-and-after evidence,
-   and `targeting` for selecting and proposing changes to preview elements, as in
-   `leaf page init --package diagram --package diff <page>`. Re-running `page init`
-   with the selection adds it to a page already written. After selecting `playground`,
-   run `leaf page guidance <page> author` and follow its authoring contract. Bespoke
-   state and gestures stay in that page's module; the package still coordinates their
-   preview, reset, restoration, output, and submitted choice.
-2. Read `references/page-authoring.md`, then the authoring reference each part of
-   the page needs (listed under "Author a version" below). Write
-   `<page>/index.html` using only the registry's vocabulary. A valid save becomes
-   the active immutable revision; an invalid save leaves the last valid revision
-   live and reports its diagnostic in page state and the browser.
-3. Match the handoff ceremony to the page's intended lifetime, regardless of
-   its shape or whether it asks a question:
-   - For a quick page that will be revised or dropped after an immediate
-     reaction, run `leaf version check <page>` and fix every failure. Do not
-     stamp it or delay its first handoff for a browser review.
-   - For a finished record that work will rely on after the conversation, run
-     the pre-handover review in `references/page-authoring.md`, including
-     `leaf version check <page> --render`, and fix every failure. Then stamp it
-     with `leaf version stamp <page> --text "<changelog>"` before its URL first
-     reaches the user.
-   - A page declaring `<meta name="lf-review" content="sign-off">` is a record,
-     whatever else it looks like: work will rely on the approval, and sign-off is
-     offered only on a stamped version. Give it the record's ceremony before its
-     URL first reaches the user.
-   - If a later stamp turns a quick page into a record, run that review before
-     the stamp.
-4. Read `references/conversation-loop.md` and exactly one host contract:
-   `references/host-claude-code.md` or `references/host-codex.md`. Set the page's
-   status as the conversation reference defines, and hand over by the route the
-   host contract defines. Both hosts use the full browser page by default; retain
-   the exact keyed URL. Inline MCP Apps are an explicit experimental route with a
-   reduced fallback.
-5. Name the available gesture and finish the turn. Send the exact URL for a
-   browser handoff; for an MCP App, name the review and report the observed mode
-   or that rendering remains unverified.
-
-When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a conversation needs work. Every host
-delivers the same `leaf-delivery-v1` envelope; your host contract names whether it
-arrives inline or as a pointer to resolve. Read
-`references/page-checkpoints.md` before stamping or ending. Edit only
-`index.html`; Leaf alone writes immutable revisions and public version mappings.
-
-## Page contract
-
-Using Leaf should feel like playing a game: the reader sees what the page wants of them
-without reading it first, every state they reach offers a move, and a move the page can
-draw shows its result at once. Sometimes the game is Snap, where the match is there and they pick it;
-sometimes it is Factorio, where the system is laid out and they move its pieces. It is
-never a chore.
-
-Unless the user specifies the page's form or depth, a Leaf is a short sequence
-of visually distinct, self-contained views. Each view makes one point, shows one
-state, or offers one move, so the reader can grasp it at a glance and continue;
-disclosures keep supporting detail available without putting it in that path. A
-quick-answer page puts its first Ask in the initial viewport, with the short
-shared premise and alternatives it needs. A record or system page may expose the
-whole state and put each Ask where that state makes it answerable. The visible
-page follows the subject's shape, whether a scrolling document or a workspace;
-`references/page-authoring.md` owns the concrete choices.
-
-The page contract and widget capabilities are choices, not a checklist. Include
-only controls and gestures whose results advance the reader's task. A reader part-way
-through should be able to see what they have settled and what is still theirs. A widget
-move, a resolution and a sign-off can be taken back; words and requests stand.
-
-A page states what is true now, not how it got there. Correct a wrong figure in
-place and drop a superseded claim rather than narrating its withdrawal; the
-`version stamp` changelog and the event log carry the history. Save freely as
-the subject changes and stamp meaningful checkpoints.
 
 ## Improve Leaf through use
 

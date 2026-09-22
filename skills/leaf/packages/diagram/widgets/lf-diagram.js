@@ -1,4 +1,4 @@
-/* lf-diagram: renders a Mermaid-source body with Beautiful Mermaid. The body is data,
+/* lf-diagram: renders a Mermaid-source body with Agentic Mermaid. The body is data,
  * not prose — the theme shows it as source until the SVG replaces it, so a page
  * degrades readably if rendering fails. The optional renderer loads lazily, once, and
  * only on pages that use this package. */
@@ -11,94 +11,30 @@ import {
 } from "/runtime/widget-api.js";
 
 let rendererReady;
-const loadRenderer = () =>
-  (rendererReady ??= import("/vendor/beautiful-mermaid.esm.js"));
+const loadRenderer = () => (rendererReady ??= import("/vendor/agentic-mermaid.esm.js"));
 
-/* Beautiful Mermaid writes a Google Fonts import and its requested font name into
- * every SVG. A Leaf page is self-contained and its CSP rejects that import, so the
- * renderer receives a sentinel and the output is rewritten to the page's apparatus
- * face before it ever reaches the DOM. The palette stays as var() expressions in the
- * SVG, which makes light/dark scheme changes live rather than another render. */
+/* The renderer takes the sans face as its `font` option, which reaches the SVG as a
+ * var() expression, but writes class members and ER attributes in a fixed mono stack;
+ * that one is rewritten to the page's apparatus face before it reaches the DOM. The
+ * palette stays as var() expressions in the SVG, which makes light/dark scheme changes
+ * live rather than another render. */
 const prepareSvg = (svg) =>
-  svg
-    .replace(/@import url\(['"]https:\/\/fonts\.googleapis\.com\/[^)]*\);\s*/g, "")
-    .replaceAll("'LeafDiagram', system-ui, sans-serif", "var(--sans)")
-    .replaceAll(
-      "'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace",
-      "var(--mono)",
-    );
+  svg.replaceAll(
+    "'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace",
+    "var(--mono)",
+  );
 
-/* Beautiful Mermaid's flowchart parser reads statements it does not implement as node
- * declarations. Reject the known unsupported Mermaid directives before they can draw
- * boxes labelled with their own keywords. The identifier after `click` distinguishes
- * the directive from an ordinary flowchart node an author happened to name `click`. */
-const UNSUPPORTED_DIRECTIVE =
-  /^\s*(?:click\s+[A-Za-z_]|accTitle\s*:|accDescr\s*(?::|\{))/m;
-
-/* The same parser reads a label as the text up to the first closing delimiter without
- * noticing the quotes Mermaid uses to hold one. `A["list[str]"]` is therefore cut at the
- * inner bracket, and the remainder of the line — the node an edge points at included —
- * is dropped, so the reader sees a box short of a diagram rather than an error. Refuse
- * that source. The reading is the parser's own: a quoted label is cut only by the
- * delimiter run that actually follows it, so a doubled closer (`A[["list[str]"]]`) and a
- * pipe-delimited edge label (`A -->|"list[str]"| B`) both pass through whole. */
-const QUOTED_LABEL = /"([^"\n]*)"([\])}|>/\\]*)/g;
-
-/* A subgraph title is the exception: the parser reads the whole line with its own greedy,
- * end-anchored regex (`/^([\w-]+)\s*\[(.+)\]$/`) rather than through the node patterns,
- * so it carries the closer whole and `subgraph S["Stage [1]"]` renders today. Scan by line
- * so the title's line can be skipped without exempting the nodes around it. */
-const SUBGRAPH_TITLE = /^\s*subgraph\s/;
-
-/* A comment is not read at all: the parser trims each line and drops the ones starting
- * with `%%` before any pattern sees them, so a commented-out label cannot be cut — and
- * refusing one leaves an author no way to set a refused line aside while they work. */
-const COMMENT_LINE = /^\s*%%/;
-const rejectCutLabel = (source) => {
-  for (const line of source.split("\n")) {
-    if (SUBGRAPH_TITLE.test(line) || COMMENT_LINE.test(line)) continue;
-    for (const [, label, closer] of line.matchAll(QUOTED_LABEL))
-      if (closer && label.includes(closer))
-        throw new Error(
-          `a label cannot hold ${closer}, the delimiter that closes its own shape — ` +
-            `the renderer cuts the line there, quoted or not: "${label}"`,
-        );
-  }
-};
-
-const rejectUnsupportedSource = (source) => {
-  if (UNSUPPORTED_DIRECTIVE.test(source))
-    throw new Error(
-      "click, accTitle and accDescr directives are not supported by Leaf diagrams",
-    );
-  rejectCutLabel(source);
-};
-
-/* The renderer uses fixed ids for arrowheads, gradients and masks. Repeated ids make
- * a later diagram's references resolve into an earlier SVG, so each rendering gets a
- * namespace at Leaf's boundary. Source coordinates live in data-id and do not move. */
-const namespaceDefinitions = (svg, prefix) => {
-  const ids = new Map();
-  for (const element of [svg, ...svg.querySelectorAll("[id]")]) {
-    if (!element.id) continue;
-    const namespaced = `${prefix}-${element.id}`;
-    ids.set(element.id, namespaced);
-    element.id = namespaced;
-  }
-  const rewrite = (value) =>
-    value
-      .replace(/url\(#([^)]+)\)/g, (whole, id) =>
-        ids.has(id) ? `url(#${ids.get(id)})` : whole,
-      )
-      .replace(/^#(.+)$/, (whole, id) => (ids.has(id) ? `#${ids.get(id)}` : whole));
-  for (const element of [svg, ...svg.querySelectorAll("*")])
-    for (const attribute of [...element.attributes]) {
-      const value = rewrite(attribute.value);
-      if (value !== attribute.value) element.setAttribute(attribute.name, value);
-    }
-  for (const style of svg.querySelectorAll("style"))
-    style.textContent = rewrite(style.textContent);
-};
+/* The boxes an author can name as parts: the group the renderer writes for each node,
+ * participant, class and entity, and for each group of them — a subgraph, composite
+ * state, namespace or sequence box — carries its source id in data-id and its kind in
+ * data-role, the attributes the renderer documents as its contract. The shapes inside a
+ * box repeat the role under ids of their own. */
+const BOXES = ["node", "group", "actor", "class-box", "entity"]
+  .map((role) => `g[data-role="${role}"]`)
+  .join();
+/* The registry's grammar for a part's source id. An id outside it, such as a quoted ER
+ * name with a space in it, can never be named, and a part id must be one token. */
+const NAMEABLE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
 let seq = 0;
 customElements.define(
@@ -119,7 +55,6 @@ customElements.define(
       const source = dataBody(this).trim();
       const renderId = `lf-diagram-${++seq}`;
       try {
-        rejectUnsupportedSource(source);
         const { renderMermaidSVG } = await loadRenderer();
         const svg = renderMermaidSVG(source, {
           bg: "var(--lf-diagram-paper)",
@@ -132,11 +67,19 @@ customElements.define(
           border:
             "color-mix(in srgb, var(--lf-diagram-accent) 48%, var(--lf-diagram-paper))",
           transparent: true,
-          font: "LeafDiagram",
+          // A chart's values take a hover tooltip, and a line series draws a dot per
+          // value; without it the line alone carries them.
+          interactive: true,
+          font: "var(--sans)",
+          // The renderer's arrowhead and gradient ids are fixed, and a repeated id
+          // resolves a later diagram's references into an earlier SVG.
+          idPrefix: `${renderId}-`,
+          // Otherwise a `click` or `link` target is drawn as a focusable link that
+          // nothing on the page navigates; strict draws that box as a plain one.
+          security: "strict",
         });
         this.innerHTML = prepareSvg(svg);
         const drawn = this.querySelector("svg");
-        namespaceDefinitions(drawn, renderId);
 
         // Keep the renderer's natural size. A drawing wider than its room scrolls in
         // the widget instead of scaling its labels below legibility.
@@ -146,14 +89,19 @@ customElements.define(
           drawn.style.maxWidth = "";
         }
 
+        // A class can share its name with the namespace holding it, so a group gives way
+        // to a box under the same id; two of one kind under one id name neither.
         const boxes = new Map();
-        for (const element of drawn.querySelectorAll("[data-id]")) {
+        for (const element of drawn.querySelectorAll(BOXES)) {
           const id = element.getAttribute("data-id");
-          boxes.set(id, boxes.has(id) ? null : element);
+          const rank = element.getAttribute("data-role") === "group" ? 0 : 1;
+          const held = boxes.get(id);
+          if (!held || rank > held.rank) boxes.set(id, { element, rank });
+          else if (rank === held.rank) held.element = null;
         }
         this.visualParts.clear();
-        for (const [id, element] of boxes) {
-          if (!element) continue;
+        for (const [id, { element }] of boxes) {
+          if (!element || !NAMEABLE.test(id)) continue;
           const says = element.textContent.replace(/\s+/g, " ").trim();
           const label = element.getAttribute("data-label") || says || id;
           this.visualParts.set(`node:${id}`, { element, label });

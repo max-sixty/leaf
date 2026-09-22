@@ -80,19 +80,37 @@ def required_layer_declarations(registry: dict, path):
 
 
 def validate_event_handling(events: dict, kinds: dict, path) -> None:
-    """`$events.handling` is read directly by every batch a wait prints, so a
+    """`$events.handling` is read directly by every event a delivery carries, so a
     layer that restates a kind is held to the shape the consumer assumes: a
-    declared kind, one non-empty sentence. The complete vendored registry must
-    carry the map; individual kind guidance remains optional."""
+    declared kind, a non-empty list of clauses, each a non-empty `text` and an
+    optional `when` that is a valid JSON Schema. The complete vendored registry
+    must carry the map; individual kind guidance remains optional."""
     handling = events.get("handling")
     if not isinstance(handling, dict) or any(
-        kind not in kinds or not isinstance(text, str) or not text.strip()
-        for kind, text in handling.items()
+        kind not in kinds or not _valid_clauses(clauses)
+        for kind, clauses in handling.items()
     ):
         raise RegistryError(
-            f"{path}: $events.handling must map declared kinds to one non-empty "
-            "sentence each"
+            f"{path}: $events.handling must map declared kinds to a non-empty list "
+            "of clauses, each a non-empty `text` and an optional `when` schema"
         )
+
+
+def _valid_clauses(clauses) -> bool:
+    if not isinstance(clauses, list) or not clauses:
+        return False
+    for clause in clauses:
+        if not isinstance(clause, dict) or set(clause) - {"text", "when"}:
+            return False
+        text = clause.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return False
+        if "when" in clause:
+            try:
+                Draft202012Validator.check_schema(clause["when"])
+            except SchemaError:
+                return False
+    return True
 
 
 def validate_event_contracts(kinds: dict, path) -> None:

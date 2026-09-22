@@ -23,6 +23,7 @@ import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
+import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges } from "./summary-ranges.js";
 
@@ -166,13 +167,7 @@ function navigationSummary(navigation, model) {
             ? receiptLabel
             : latest?.streamLabel || (model.awaitsReader ? "On you" : receiptLabel);
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
-  return html`<button
-    type="button"
-    class="lf-thread-summary"
-    title=${title}
-    aria-expanded=${String(navigation.selected)}
-    @click=${navigation.activate}
-  >
+  return html`<summary class="lf-thread-summary" title=${title}>
     ${iconTemplate("next", "lf-thread-chevron")}
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
@@ -187,7 +182,7 @@ function navigationSummary(navigation, model) {
       title=${receipt && status === receiptLabel ? receipt.announced : status}
       >${status}</span
     >
-  </button>`;
+  </summary>`;
 }
 
 export class ThreadView {
@@ -198,14 +193,18 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
+  #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
   #growing = false;
   #navigation = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
-    this.node = document.createElement(surface === "outlet" ? "details" : "div");
-    this.node.tabIndex = -1;
+    this.node = document.createElement(
+      surface === "outlet" || surface === "panel" ? "details" : "div",
+    );
+    if (surface === "panel") this.node.name = "threads";
+    else this.node.tabIndex = -1;
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
       this.node.classList.remove("grow");
@@ -221,10 +220,6 @@ export class ThreadView {
 
   setNavigation(navigation) {
     this.#navigation = navigation;
-  }
-
-  get expanded() {
-    return Boolean(this.#navigation?.selected);
   }
 
   get model() {
@@ -266,10 +261,6 @@ export class ThreadView {
     const panel = model.surface === "panel";
     const navigation = panel ? this.#navigation : null;
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
-    this.node.classList.toggle(
-      "lf-thread-collapsed",
-      Boolean(navigation && !navigation.selected),
-    );
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     this.node.hidden = !model.visible && !model.folding;
@@ -293,18 +284,33 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    const messages = model.messages.map((message) => {
+    const settlement = this.#settlement(model);
+    let headerActions = null;
+    if (!model.resolved || model.folding) {
+      this.#metadataActions.className = "lf-thread-meta-actions";
+      const actions = [settlement];
+      if (
+        actions.length !== this.#metadataActions.children.length ||
+        actions.some(
+          (action, index) => this.#metadataActions.children[index] !== action,
+        )
+      )
+        this.#metadataActions.replaceChildren(...actions);
+      headerActions = this.#metadataActions;
+    }
+    const describedRanges = summaryRanges(model.messages, model.summaries);
+    const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message);
-      return { key: message.key, node: view.node };
+      view.present(message, index === 0 && Boolean(headerActions));
+      return { key: message.key, node: view.node, header: view.header };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
       if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    const ranges = summaryRanges(model.messages, model.summaries).map((range) => {
+    const ranges = describedRanges.map((range) => {
       if (range.kind === "message") {
         const node = messageNodes.get(range.message.key);
         delete node.dataset.lfSummary;
@@ -332,7 +338,6 @@ export class ThreadView {
       };
     });
     if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
-    const settlement = this.#settlement(model);
     render(
       html`
         ${navigationSummary(navigation, model)}
@@ -350,7 +355,7 @@ export class ThreadView {
             : nothing
         }
         ${
-          model.quote || !model.resolved
+          model.quote
             ? html`<header class="lf-thread-head">
                 ${
                   model.quote
@@ -373,8 +378,14 @@ export class ThreadView {
                       </blockquote>`
                     : nothing
                 }
-                ${!model.resolved ? settlement : nothing}
               </header>`
+            : nothing
+        }
+        ${
+          headerActions && messages[0]
+            ? html`<div class="lf-thread-root-meta">
+                ${messages[0].header}${headerActions}
+              </div>`
             : nothing
         }
         ${repeat(
@@ -385,7 +396,7 @@ export class ThreadView {
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved
+          model.resolved && !model.folding
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
               >
@@ -400,17 +411,6 @@ export class ThreadView {
                 >
                 ${settlement}
               </div>`
-            : nothing
-        }
-        ${
-          navigation
-            ? html`<button
-                type="button"
-                class="lf-thread-collapse"
-                @click=${navigation.collapse}
-              >
-                Collapse ↑
-              </button>`
             : nothing
         }
       `,
@@ -560,7 +560,7 @@ export class ThreadView {
       ]);
     }
     const button = this.node.querySelector(
-      ":scope > .lf-thread-head > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+      ":scope .lf-thread-meta-actions > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
     );
     if (button && !this.#keys.has(button)) {
       this.#keys.add(button);
@@ -644,12 +644,17 @@ export class ThreadView {
           if (!mayLand()) return false;
           const kept = openThreads();
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
-          destination.focus({ preventScroll: true });
+          if (destination.matches?.(".lf-thread"))
+            focusThread(destination, { preventScroll: true });
+          else destination.focus({ preventScroll: true });
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
         refused: () => {
-          if (mayRestore()) shownCard()?.focus({ preventScroll: true });
+          if (mayRestore()) {
+            const card = shownCard();
+            if (card) focusThread(card, { preventScroll: true });
+          }
         },
       };
     }

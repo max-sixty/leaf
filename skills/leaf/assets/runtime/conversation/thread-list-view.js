@@ -2,11 +2,11 @@
    Native card roots are retained by stable thread identity. Only their ThreadView
    owns generated descendants; retention re-renders values, never captured DOM.
    Count and narrowing paint share the rows' checkpoint and update boundary.
-   One selected thread expands in place; every other card keeps its message and
-   editor nodes connected behind its title. Disclosure is mechanical state and
+   Native named details keep at most one visible thread open while every card retains
+   its message and editor nodes behind its title. Disclosure is mechanical state and
    never publishes a new application epoch. Explicit arrivals open their target. */
 import { LitElement, html, repeat } from "../../vendor/browser-runtime.js";
-import { focused, keys } from "../keyboard/scopes.js";
+import { focused } from "../keyboard/scopes.js";
 import { ThreadView } from "./thread-card.js";
 import { layoutChanged } from "../widget-elements.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
@@ -17,7 +17,6 @@ const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]) });
 class ThreadListView extends LitElement {
   static properties = {
     model: { attribute: false },
-    navigationRevision: { state: true },
   };
   #commands = null;
   #views = new Map();
@@ -28,14 +27,6 @@ class ThreadListView extends LitElement {
   #rows = [];
   #retaining = false;
   #rollbackFocus = null;
-  // Disclosure is mechanical state; semantic updates retain the selected thread.
-  #selected = null;
-
-  #paintNavigation() {
-    this.navigationRevision = (this.navigationRevision ?? 0) + 1;
-    this.performUpdate();
-    return this.updateComplete;
-  }
 
   navigationThreads() {
     const eligible = new Set(
@@ -51,16 +42,6 @@ class ThreadListView extends LitElement {
       .map((row) => row.node);
   }
 
-  get selectedThreadId() {
-    return this.#selected;
-  }
-
-  collapseNavigation() {
-    if (!this.#selected) return false;
-    this.#select(null);
-    return true;
-  }
-
   revealNavigation(id) {
     const node = this.querySelector(
       `[data-id="${CSS.escape(id)}"], [data-mid="${CSS.escape(id)}"]`,
@@ -69,87 +50,12 @@ class ThreadListView extends LitElement {
     // Narrowing owns hidden rows. Its completed reveal calls back here; opening
     // one before that would paint no disclosure and invalidate the same transition.
     if (!card || card.hidden) return;
-    const threadId = card.dataset.id;
-    if (threadId && this.#selected !== threadId) this.#select(threadId, false);
-  }
-
-  #select(id, focus = true) {
-    const previous = this.#selected;
-    const target = id ?? previous;
-    const summary = this.querySelector(
-      `[data-id="${CSS.escape(target)}"] > .lf-thread-summary`,
-    );
-    // Keep the row the reader pressed in place while the preceding conversation
-    // gives back its height. Direct arrivals place their own target afterward.
-    const top = focus ? summary?.getBoundingClientRect().top : null;
-    this.#selected = id;
-    const painted = this.#paintNavigation();
-    layoutChanged(this);
-    if (top !== null && top !== undefined)
-      this.scrollTop += summary.getBoundingClientRect().top - top;
-    void painted.then(() => {
-      if (this.#selected !== id || !focus) return;
-      summary?.focus({ preventScroll: true });
-    });
+    card.open = true;
   }
 
   constructor() {
     super();
     this.model = EMPTY_MODEL;
-    keys(this, "In the thread list", [
-      {
-        id: "thread.header.step",
-        keys: ["ArrowDown", "ArrowUp", "Home", "End"],
-        routes: [
-          {
-            id: "thread.header.next",
-            binding: "ArrowDown",
-            does: "Focus the next thread title",
-          },
-          {
-            id: "thread.header.previous",
-            binding: "ArrowUp",
-            does: "Focus the previous thread title",
-          },
-          {
-            id: "thread.header.first",
-            binding: "Home",
-            does: "Focus the first thread title",
-          },
-          {
-            id: "thread.header.last",
-            binding: "End",
-            does: "Focus the last thread title",
-          },
-        ],
-        does: "Focus the next / previous / first / last thread title",
-        line: "thread titles",
-        when: () => focused()?.matches(".lf-thread-summary"),
-        run: (binding) => {
-          const headers = this.navigationThreads().map((card) =>
-            card.querySelector(".lf-thread-summary"),
-          );
-          const current = headers.indexOf(focused());
-          const index =
-            binding === "Home"
-              ? 0
-              : binding === "End"
-                ? headers.length - 1
-                : Math.max(
-                    0,
-                    Math.min(
-                      headers.length - 1,
-                      current + (binding === "ArrowDown" ? 1 : -1),
-                    ),
-                  );
-          headers[index]?.focus();
-        },
-      },
-    ]);
-    this.addEventListener("focusin", (event) => {
-      const card = event.target.closest?.(".lf-thread");
-      if (card && event.target === card) this.revealNavigation(card.dataset.id);
-    });
   }
   createRenderRoot() {
     return this;
@@ -219,28 +125,8 @@ class ThreadListView extends LitElement {
   }
 
   willUpdate(changed) {
-    if (
-      (!changed.has("model") && !changed.has("navigationRevision")) ||
-      !this.#commands
-    )
-      return;
+    if (!changed.has("model") || !this.#commands) return;
     this.#focusListAfterPaint ||= this.contains(focused());
-    if (this.#selected) {
-      const selected = [...this.#views.entries()].find(
-        ([, view]) => view.model?.id === this.#selected,
-      );
-      const replacement =
-        selected && this.model.rows.find((row) => row.key === selected[0]);
-      if (replacement?.kind === "thread") this.#selected = replacement.descriptor.id;
-    }
-    if (
-      this.#selected &&
-      !this.model.rows.some(
-        (row) => row.kind === "thread" && row.descriptor.id === this.#selected,
-      )
-    ) {
-      this.#selected = null;
-    }
     const rows = [];
     const wanted = new Set();
     let group = null;
@@ -251,8 +137,10 @@ class ThreadListView extends LitElement {
       }
       wanted.add(row.key);
       let view = this.#views.get(row.key);
-      if (!view)
+      if (!view) {
         this.#views.set(row.key, (view = new ThreadView("panel", this.#commands.card)));
+        view.node.addEventListener("toggle", () => layoutChanged(this));
+      }
       let descriptor = row.descriptor;
       const prior = view.model;
       if (this.#retaining || !descriptor.resolved) finishFold(descriptor.id);
@@ -277,16 +165,10 @@ class ThreadListView extends LitElement {
         });
         if (view.node.contains(focused())) this.focus({ preventScroll: true });
       }
-      if (this.#selected === descriptor.id && !descriptor.visible && !folding)
-        this.#selected = null;
+      view.node.name = folding ? "" : "threads";
+      if (!descriptor.visible && !folding) view.node.open = false;
       view.setNavigation({
-        selected: folding ? view.expanded : this.#selected === descriptor.id,
-        activate: () =>
-          this.#select(this.#selected === descriptor.id ? null : descriptor.id),
-        collapse: () => this.#select(null),
-        draftChanged: () => {
-          this.navigationRevision = (this.navigationRevision ?? 0) + 1;
-        },
+        draftChanged: () => view.present(view.model),
       });
       view.present(descriptor);
       if ((descriptor.visible || descriptor.folding) && row.group.key !== group) {

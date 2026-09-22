@@ -363,7 +363,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 card = page.locator(".lf-thread").filter(has=shown)
                 carried_threads.add(card.get_attribute("data-id"))
                 summary = card.locator(".lf-thread-summary")
-                if summary.get_attribute("aria-expanded") == "false":
+                if card.get_attribute("open") is None:
                     summary.click()
                 expect(shown).to_be_visible()
                 # Where the registry says the element holds a request for the
@@ -390,11 +390,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 "two readings below were handed nothing of the panel's to look at"
             )
             for thread_id in sorted(carried_threads):
-                summary = page.locator(
-                    f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary'
-                )
-                if summary.get_attribute("aria-expanded") == "false":
-                    summary.click()
+                card = page.locator(f'.lf-thread[data-id="{thread_id}"]')
+                if card.get_attribute("open") is None:
+                    card.locator(".lf-thread-summary").click()
                 for finding, probe, arg in (
                     (
                         "draws a box of no size",
@@ -461,13 +459,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
                 shown = undecided.locator(f"#{wid}")
-                summary = (
-                    undecided.locator(".lf-thread")
-                    .filter(has=shown)
-                    .locator(".lf-thread-summary")
-                )
-                if summary.get_attribute("aria-expanded") == "false":
-                    summary.click()
+                card = undecided.locator(".lf-thread").filter(has=shown)
+                if card.get_attribute("open") is None:
+                    card.locator(".lf-thread-summary").click()
                 expect(shown).to_be_visible()
                 assert shown.inner_text() != read_as[wid], (
                     f"{example.stem}: #{wid} reads the same with the log's decision "
@@ -626,7 +620,9 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
-    expect(thread.locator(".lf-msg.agent .lf-msg-head b")).to_have_text("Codex")
+    # The card lifts its first message's head beside the thread's actions.
+    expect(thread.locator(".lf-msg.agent")).to_have_count(1)
+    expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     thread.locator("textarea").fill("three is the retry budget, not a guess")
@@ -1119,7 +1115,9 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
         return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
     quiet = screenshot()
-    shot.locator(".lf-shotflip").click(modifiers=["Alt"])
+    comparison = shot.locator("wa-comparison")
+    comparison.click(modifiers=["Alt"], position={"x": box["width"] / 4, "y": 80})
+    expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
     overlay = page.locator(".lf-visual-mark-pending")
@@ -1258,9 +1256,9 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
 def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
     """Renderer output cannot import a web font or reuse one SVG's definition ids.
 
-    Beautiful Mermaid emits the same marker ids and a Google Fonts import in every
-    result. Leaf normalizes both at the widget boundary before the markup reaches the
-    document, so several diagrams remain independent and the page stays self-contained.
+    The renderer emits the same marker ids in every result unless it is given a prefix,
+    and names its own faces. Leaf passes each rendering a prefix and the page's faces,
+    so several diagrams remain independent and the page stays self-contained.
     """
     page = open_page(browser, serve(TYPED_PARTS_PAGE))
     readings = page.evaluate(
@@ -1305,7 +1303,11 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
         for style in readings["styles"]
     )
     assert len(readings["fonts"]) == readings["count"]
-    assert set(readings["fonts"]) == {readings["expectedFont"]}
+    # The renderer appends its own generic fallbacks after the face it is handed; the
+    # page's face resolves first, so they are never reached.
+    assert all(f.startswith(readings["expectedFont"]) for f in readings["fonts"]), (
+        readings["fonts"]
+    )
     assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
     assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
 
@@ -1329,121 +1331,6 @@ flowchart LR
     )
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
-
-
-def test_unsupported_directives_fail_without_rejecting_keyword_nodes(browser, serve):
-    """Unsupported Mermaid statements cannot corrupt or disappear from a drawing."""
-    directives = leaf_page(
-        "diagram directives",
-        """
-<h1 id="title">Diagram directives</h1>
-<lf-diagram id="click-directive"><pre>
-flowchart LR
-  A[Alpha] --&gt; B[Beta]
-  click A href "https://example.com" "Open"
-</pre></lf-diagram>
-<lf-diagram id="acc-title"><pre>
-flowchart LR
-  accTitle: Checkout flow
-  Cart[Cart] --&gt; Pay[Pay]
-</pre></lf-diagram>
-<lf-diagram id="acc-description"><pre>
-flowchart LR
-  accDescr {
-    A request moves from queued to complete.
-  }
-  Queued[Queued] --&gt; Complete[Complete]
-</pre></lf-diagram>
-<lf-diagram id="keyword-nodes" parts="node:click node:accTitle node:accDescr"><pre>
-flowchart LR
-  click --&gt; done
-  accTitle --&gt; done
-  accDescr --&gt; done
-</pre></lf-diagram>
-""",
-    )
-    page = open_page(browser, serve(directives))
-
-    for diagram, source in (
-        ("click-directive", "click A href"),
-        ("acc-title", "accTitle: Checkout flow"),
-        ("acc-description", "accDescr {"),
-    ):
-        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(
-            "click, accTitle and accDescr directives are not supported"
-        )
-        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
-        expect(page.locator(f"#{diagram} .lf-error pre")).to_contain_text(source)
-
-    for node in ("click", "accTitle", "accDescr"):
-        expect(page.locator(f'#keyword-nodes g[data-id="{node}"]')).to_be_visible()
-    expect(page.locator("#keyword-nodes .lf-error")).to_have_count(0)
-
-
-def test_a_quoted_label_holding_its_own_closer_is_refused(browser, serve):
-    """A label the renderer would cut takes the diagram down rather than a node.
-
-    Beautiful Mermaid reads a node label as the text up to the first closing
-    delimiter and never notices the quotes Mermaid uses to hold one, so
-    `A["list[str]"]` is cut at the inner bracket and the rest of the line — the
-    node the edge points at included — is dropped. A reader cannot see that a box
-    is missing, so the source is refused instead. The refusal is exact: a label
-    whose closer is doubled, a pipe-delimited edge label, and a subgraph title —
-    which the parser reads with its own end-anchored regex rather than through the
-    node patterns — and a commented-out line, which the parser drops before any
-    pattern sees it, all reach the renderer whole.
-    """
-    labels = leaf_page(
-        "diagram labels",
-        """
-<h1 id="title">Diagram labels</h1>
-<lf-diagram id="cut-rectangle"><pre>
-flowchart LR
-  A["names: list[str]"] --&gt; B[plain]
-</pre></lf-diagram>
-<lf-diagram id="cut-diamond"><pre>
-flowchart LR
-  A{"m{k}"} --&gt; B[plain]
-</pre></lf-diagram>
-<lf-diagram id="doubled-closer" parts="node:A node:B"><pre>
-flowchart LR
-  A[["names: list[str]"]] --&gt; B[plain]
-</pre></lf-diagram>
-<lf-diagram id="edge-label" parts="node:A node:B"><pre>
-flowchart LR
-  A --&gt;|"list[str]"| B
-</pre></lf-diagram>
-<lf-diagram id="subgraph-title" parts="node:S node:A node:B"><pre>
-flowchart LR
-  subgraph S["Stage [1]"]
-    A[x] --&gt; B[y]
-  end
-</pre></lf-diagram>
-<lf-diagram id="commented-out" parts="node:A node:B"><pre>
-flowchart LR
-  %% A["names: list[str]"] --&gt; B[plain]
-  A[x] --&gt; B[y]
-</pre></lf-diagram>
-""",
-    )
-    page = open_page(browser, serve(labels))
-
-    for diagram, label in (
-        ("cut-rectangle", "names: list[str]"),
-        ("cut-diamond", "m{k}"),
-    ):
-        expect(page.locator(f"#{diagram} .lf-error")).to_contain_text(label)
-        expect(page.locator(f"#{diagram} svg")).to_have_count(0)
-
-    for diagram in ("doubled-closer", "edge-label", "subgraph-title", "commented-out"):
-        expect(page.locator(f"#{diagram} .lf-error")).to_have_count(0)
-        expect(page.locator(f'#{diagram} g[data-id="B"]')).to_be_visible()
-    expect(page.locator('#doubled-closer g[data-id="A"] text')).to_have_text(
-        "names: list[str]"
-    )
-    expect(page.locator('#subgraph-title g[data-id="S"] text')).to_have_text(
-        "Stage [1]"
-    )
 
 
 def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):

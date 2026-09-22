@@ -80,16 +80,22 @@ CREATED_CHILDREN_DETAIL_SCHEMA = {
 }
 
 
-def handling(batch: list[dict], registry: dict | None) -> dict:
-    """What the layer asks of the agent for each event kind in a batch, keyed by
-    kind, read off the vendored `$events.handling`. A project layer restates a
-    kind's sentence merge-patch style, so the batch carries the rule the page
-    was vendored with. A missing or invalid registry leaves the batch unexplained;
-    it never substitutes instructions from a different layer. A kind no layer
-    describes is absent rather than empty."""
-    declared = (registry or {}).get("$events", {}).get("handling", {})
-    kinds = dict.fromkeys(event.get("kind") for event in batch)
-    return {kind: declared[kind] for kind in kinds if kind in declared}
+def event_clauses(event: dict, registry: dict | None) -> list[dict]:
+    """What the layer asks of the agent for one event, read off the vendored
+    `$events.handling`: its kind's clauses whose `when` schema the event record
+    matches, in declared order, so a plain comment is not told how to read a
+    drawing. A project layer restates a kind's clauses merge-patch style, so the
+    event carries the rule the page was vendored with. A missing or invalid
+    registry leaves the event unexplained; it never substitutes instructions from
+    a different layer. What each case of each kind receives from the shipped
+    layer, clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
+    `test_each_case_of_an_event_is_told_what_the_snapshot_shows`."""
+    clauses = (registry or {}).get("$events", {}).get("handling", {}).get(event["kind"])
+    return [
+        clause
+        for clause in clauses or []
+        if "when" not in clause or json_validator(clause["when"]).is_valid(event)
+    ]
 
 
 def created_children(event: dict, spec: dict) -> dict:

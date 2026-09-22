@@ -201,7 +201,7 @@
      the room from the cluster's left edge within these two measures, so it crosses the
      column by only what the rail lacks. Its height is never cut to spare the cluster
      (thread-card-geometry.js). */
-  --thread-card: 460px;
+  --thread-card: 380px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader
@@ -592,14 +592,12 @@ body { position: static !important; box-sizing: border-box !important;
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
- * Authored dialogs and popovers stay hidden too: those top-layer elements can otherwise
- * escape their ancestors' stacking and inertness. Ordinary prose, links, scrolling, and
- * layout remain available.
+ * Ordinary prose, links, scrolling, and layout remain available.
  *
  * The anonymous layer is first in the merged theme, so these important declarations
  * outrank every later layer and unlayered stylesheet declaration without reserving a
  * named layer custom CSS could append to. Inline importance ranks higher still, so the
- * version gate refuses it on the protected top-layer properties below. */
+ * version gate refuses it for the display and visibility properties this boundary owns. */
 @layer {
   @media screen {
     html[data-lf-live] body:not([data-lf-presented]),
@@ -610,19 +608,6 @@ body { position: static !important; box-sizing: border-box !important;
     }
     html[data-lf-live] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
-    }
-    html[data-lf-live] body:not([data-lf-presented])
-      > main :is(dialog, [popover]) {
-      visibility: hidden !important;
-      opacity: 0 !important;
-      transition: none !important;
-      interactivity: inert !important;
-    }
-    html[data-lf-live] body:not([data-lf-presented])
-      > main :is(dialog, [popover])::backdrop {
-      visibility: hidden !important;
-      opacity: 0 !important;
-      transition: none !important;
     }
   }
 }

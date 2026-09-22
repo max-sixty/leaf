@@ -85,8 +85,6 @@ and authored-widget markers once; the composition root initializes the existing
 application publisher from that reading before it constructs browser owners, while
 version travel and contained gallery documents consume the executable and widget
 readings;
-`runtime/deferred-modals.js` holds authored modals outside the top layer until the
-first presentation boundary, and declares each opening to the keyboard's layer stack;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event and media
 POSTs, and page-error channel;
 `runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
@@ -104,7 +102,9 @@ resolution, immutable page and frozen-fragment boundaries, and the shared pointe
 keyboard candidate walk;
 `runtime/reader-intent.js` owns the gesture generation a delayed navigation must still
 match before it may move focus or scroll the reader;
-`runtime/application.js` owns typed action, undo, and one-shot request transport;
+`runtime/application.js` composes delivery, state application, projection, conversation,
+and the pending ledger, and owns typed action, undo, and one-shot request transport;
+its command path enqueues, stages, and paints a gesture before starting delivery;
 `runtime/request-elements.js` owns the controller-backed request-control adapter while
 each package supplies its words and bound detail;
 `runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
@@ -125,9 +125,10 @@ search: the scene, chip, and activation it declares over the shared hint session
 `runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
 geometry of the search marks that share its layer;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
-`runtime/composing/drawing.js` owns Draw mode's stroke capture and drawing commands;
-`composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
-projection into the page;
+`runtime/composing/drawing.js` owns Draw mode's stroke capture, the reading of the page's
+words a drawing stands over, and drawing commands;
+`composing/drawing-record.js` owns drawing payload shape and validation;
+`composing/drawing-paint.js` owns their projection into the page;
 `runtime/composing/input.js` owns shared text input and pasted-media draft state, while
 its retained Lit shelf owns the thumbnail projection; `runtime/composing/selection.js`
 owns selection-composer state;
@@ -188,9 +189,6 @@ same window cannot settle differently based on the posture it arrived from;
 ordered gesture ledger, with no network or rendering dependencies;
 `runtime/delivery.js` owns serialized event delivery and retry, independently of whether
 an accepted answer can be rendered;
-`runtime/application.js` composes delivery, state application, projection, conversation,
-and the pending ledger. Its command path enqueues, stages, and paints a gesture before
-starting delivery;
 `runtime/presence.js` owns the calibrated server clock, relative-time wording,
 and the deadline at which canonical activity asks for another server read;
 `runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
@@ -393,13 +391,13 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
-| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged; `foldThreads` hands a thread to the agent for the reader's own unsent reply, and a thread the reader list still names keeps its obligation over that |
+| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
-| when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region inside that publication and paints on the pass after it, projection before conversation before Asks; no caller orders a paint |
+| when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `CLAUDE.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
-| canonical agent activity | the server fold of status, claim and turn identity, watcher lease, pickup events, and unsettled interactions | the banner, receipts, margin, and leaves tray paint `activity`; the browser only asks for a fresh server reading at `next_transition_at` |
+| canonical agent activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner, receipts, margin, and leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | thread-panel visibility | the panel controller's constructed visibility reading | `setPanel` writes the reading and projects it to the panel class and body attribute |
@@ -473,15 +471,14 @@ first state read is pending.
 Generated interface constructed from authored markup participates in layout while it
 settles, then `data-lf-upgraded` releases it from authored and tab-local state without
 waiting for the first server reading. Durable controls remain unavailable until
-`data-lf-presented`, and authored top-layer UI stays withheld until that same semantic
-interaction boundary. A data-backed widget whose authored element has no content takes its
-source-dependent space when that data arrives; stable geometry for that content requires
-an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
-chrome remain usable while a live page waits.
+`data-lf-presented`; what a package may do before and after that stamp is
+`../references/packages.md`, "A theme change". A data-backed widget whose authored
+element has no content takes its source-dependent space when that data arrives; stable
+geometry for that content requires an authored reserve or a fixed rendering posture.
+Fixed status and unanchored discussion chrome remain usable while a live page waits.
 An optional page-interface failure reports itself without withholding presentation.
-Modules read command availability from `widgetController(owner).read()` before
-optimistic mutation; `dispatch()` re-reads the publisher and repeats the check. Selecting a passage
-does not raise the anchored composer until the passage has survived the first projection.
+Selecting a passage does not raise the anchored composer until the passage has
+survived the first projection.
 
 `presentPage` owns the one transition from arrival to stateful interaction. Motion
 helpers and the stylesheet collapse arrival animations until that boundary. Its final
@@ -516,38 +513,26 @@ projections. `x-awaits.answers` says which actions actually close the Ask;
 orthogonal actions do not, and neither does a conversation standing in the widget's
 declared `x-conversation` seat — that takes the Ask off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
-it. An answer with a position record may declare
-`completion: {empty: {within, when}}`: POST applies the candidate position to the
-authoritative owner relation and admits it only when the one matching member container
-inside the answering widget is empty. The same predicate decides whether a standing
-record answers the Ask, so no private completion flag can diverge from the durable
-arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
+it. A position answer's `completion` predicate (`../references/packages.md`, "A
+widget") is one reading for the POST and the standing record alike. An answer or
+thread-completion verb cannot require its own awaiting value, or
 an aggregate parent's awaiting value, to be false: either prerequisite is circular
 while the Ask stands. `x-awaits.rollup` carries the logical OR of its nearest
 local Asks and child roll-ups; the aggregate owner never originates or
 surfaces an Ask. Quoted, retired, and resolved-thread sources are absent from the
 inventory and the rollup through the same existence reading.
 
-`leaf.asks` is the one implementation of all of that. It folds the page and
-frozen-thread readings under the page transaction that answers each state read, and
-`browser_state` serializes both: each view's `document.asks` and the conversation's
-`asks`, as `{all, reader, unanswered, awaiting, unanswered_awaiting}`. Each listed Ask
-names the surface the reader is sent to and the `source` that answers it. The browser
-concatenates the two, page before thread. No runtime module folds a declaration to
-decide which Asks stand, which of them the reader still owes, or whether one is
-answered, so an answer reaches the tray, the walk, the banner count, and an action's
-`requires` gate when the state its POST returns is adopted — one reading after the
-widget state the reader sees change at once.
+The server's one Ask fold (root `CLAUDE.md`, Cross-runtime invariants; `leaf/asks.py`)
+reaches the browser through `browser_state`, which serializes each view's
+`document.asks` and the conversation's `asks`, as `{all, reader, unanswered, awaiting,
+unanswered_awaiting}`. Each listed Ask names the surface the reader is sent to and the
+`source` that answers it. The browser concatenates the two, page before thread.
 
-Python's `state_projection` is the durable derived view. Under the same page
-transaction as `/api/state`, `browser_state` serializes its classified events and
-winners, Asks, conversations, updates, undo candidates, receipts, and coverage at
-one `through_seq`. A normal response projects the revision the tab shows and the
-active revision it may install next. A version comparison requests its older base
-from `/api/view` at the exact `through_seq` already applied to the live DOM, so every
-view used together has the same sequence basis without every state read parsing all
-historical revisions. Page coordinates use that revision's document window;
-conversation coordinates use the unbounded frozen-markup window.
+Every state read is served at one `through_seq`. A normal response projects the
+revision the tab shows and the active revision it may install next. A version
+comparison requests its older base from `/api/view` at the exact `through_seq` already
+applied to the live DOM, so every view used together has the same sequence basis
+without every state read parsing all historical revisions.
 
 `awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
 Ask carried anywhere in the unresolved thread; a later plain turn does not hide
@@ -563,27 +548,15 @@ without closing the thread.
 
 ### Version and conversation windows
 
-A page widget's projection stops at the revision the tab shows (`runtime.currentRevision`). Later actions and reports belong to
-documents written after this version. A widget instantiated inside frozen thread
-markup is in chrome and reads the whole action sequence because the conversation,
-not a page version, owns it.
+A page widget's projection stops at `runtime.currentRevision`; a widget in frozen
+thread markup reads the whole log (root `CLAUDE.md`, Cross-runtime invariants).
 
 The server projects threads from the whole log, so a conversation stays current
 on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document. A declared
-`x-thread-surface` may instead seat the canonical response composer and complete shared
-Thread views beside an exact projected datum. The registration handle opens Comment
-from one of the widget's projected elements; it never constructs an anchor or owns an
-editor. The widget owns only the trigger and outlet's layout and visibility; core owns
-the draft, response modes, messages, replies, reactions, settlement, receipts, focus,
-and fallback. The living
-margin carries a thread while no widget claims it, and the Threads panel remains the
-complete index. With the panel closed, a thread margin entry and the `t`/`T` walk use that
-inline seat; with it open, they use its indexed cards. A press on a marked passage or its
-accessible comment-count note follows the same rule. Opening Threads while an inline
-thread holds focus carries that thread into the panel and keeps focus on its card.
-A root
+`x-thread-surface` seats the canonical composer and Thread views inside the widget on
+the terms in `../references/packages.md`, "Widget-local Thread surfaces". A root
 declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
 view text-only and refuses an agent reply because the next authored version is its
 response. Dropping the owner drops only the inline seat.
@@ -594,59 +567,23 @@ later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
 
-An Ask the reader answers with a request for change is answered by a version, not
-a reply (`runtime/asks/model.js` reads the seat): authored state in a later
-version must answer an originating open Ask, or change the declared answer when
-the Ask was already answered; a reader action in the log cannot substitute for
-that revision. Only then may the agent resolve the thread that carried the request.
-Threads owns the reader-facing clarification; the page's Ask remains the proposal
-with the agent rather than counting both.
+An Ask the reader answers with a request for change is answered by a version, not a
+reply; `runtime/asks/model.js` reads the seat, and `../scripts/leaf/events.md`,
+"Threads", says when the door then accepts a resolve. Threads owns the reader-facing
+clarification; the page's Ask remains the proposal with the agent rather than counting
+both.
 
 ## The widget vocabulary stays open
 
-`registry.json` is the layer contract shared by rendering, validation, agent
-queries, event parsing, replay, and export. Core code may name a widget only when the
-widget is part of how Leaf itself works. Content widgets remain anonymous
-outside their module. The test for a general mechanism is whether another widget
-family can join by adding its entry, module, and theme rules without editing a
-consumer.
-
-The registry has two grains. An element declaration is one complete schema and later layers
-replace it whole. A `$` entry is a shared namespace and layers merge its members.
+Core code may name a widget only when the widget is part of how Leaf itself works
+(root `CLAUDE.md`, "Keep the layer open"); the merge grains are
+`../references/packages.md`, "Package contract".
 Shared facts such as languages, tones, idioms, and event definitions belong
 under `$languages`, `$tones`, `$idioms`, and `$events`. A consumer reaching into
 some named widget to find a layer-wide list is reading the wrong owner.
 
-The extension keys describe general behavior:
-
-| Declaration | Meaning to the layer |
-| --- | --- |
-| `x-upgrade` | import this tag's module |
-| `x-content` | the element contains authored markup, owned members, data, or nothing |
-| `x-required-members` | fixed member roles: exactly one direct member for every value of a required member enum |
-| `x-inline` | the widget stands in an inline run |
-| `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
-| `x-says` | named attributes are visible words at declared edges |
-| `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
-| `x-verbatim` | own authored or canonically projected words and the order and identity of nested upgraded boundaries must agree with the rendering |
-| `x-shadow` | a declared open shadow tree is part of the page's composed reading |
-| `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
-| `x-report` | report verbs with the same semantic state shape |
-| `x-request` | direct-child command offers, typed one-shot external-operation verbs, and whether a ready lifecycle is an Ask |
-| `x-refers` | element-id attributes and optional package-owned map predicates that type their targets |
-| `x-owners` | the element types that may directly own this member |
-| `x-retired-when` | outcome-to-slot retirement relations |
-| `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
-| `x-ask-surface` | the complete reading and arrival region around one nested Ask source |
-| `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for an Ask |
-| `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
-| `x-thread-surface` | the upgraded widget may provide local outlets for the canonical response composer and complete Threads anchored to its exact projected data |
-| `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its target margin entry |
-| `x-exhibit` | this occurrence is evidence, not an actionable live widget |
-| `x-space` | the width allocation a surface requests, independently of its internal layout |
-
-Use the exact current `$keys` descriptions and schema when editing an entry.
-This table states ownership, not a replacement schema.
+Each `x-` key's meaning is its `$keys` entry in `registry.json`; read that entry
+before editing a declaration.
 
 Booleans are appropriate only when the false case has one clear meaning.
 `x-space` distinguishes the shared wide measure from all available room. A fact
@@ -655,25 +592,9 @@ values instead of hiding one widget's policy in `true`.
 
 ### Data projections
 
-Where records come from outside the document, their authority is `data.json`: one
-page-owned store with a replaceable current value and retained immutable captures.
-`$data.contracts` declares reusable meanings and schemas. A widget's `x-data` names the
-contract, the attribute carrying this page's concrete source id, and optionally an
-attribute selecting one capture by data revision. `leaf data set` validates and
-atomically replaces the current value. `leaf data capture` reads a UTF-8 file; text
-captures may slice an inclusive line range, while an explicit format may transform the
-file into a contract-shaped value. Both replace current and retain the value under the
-new data revision.
-Neither command appends an event or runs package code, and capture stores no source
-path. Each stored source retains its contract even after clear, so re-vendoring never has
-to infer meaning from a source's spelling.
-
-A source id keeps that contract across every stamped version and widget frozen into
-a thread. Bindings without a snapshot selector read current; durable documents may
-select a retained capture. Clearing removes current and unreferenced captures but never
-releases the id for a new meaning. Re-vendoring must preserve the page-lifetime binding
-and every standing selection. `page state` exposes those bindings and consumers to
-producers.
+External data's authority, its commands, and the page-lifetime source-id contract are
+`../references/packages.md`, "External or derived data"; the browser's side is the
+ownership rows above and `runtime/data.js`.
 
 ### Passage fences
 
@@ -794,12 +715,12 @@ colored edge. Quiet or ended work releases the control. Reduced motion suppresse
 arrival, and repainting or replacing a carrier cannot replay it.
 
 A thread reading whose next word is the reader's wears the same two channels in blue —
-icon and interior — in Margin and in Page Map. It reads `awaitsReader`, the server's one
-answer to whose turn a conversation is, rather than deriving a second one. Agent workflow
-outranks it on the same carrier: live work is what the reader needs first, and one
-interior carries one wash. Colour is never the only channel, so the reading also says
-"On you" in its label and accessible name. An aggregated thread control takes the turn of
-any member, as it takes the most urgent member's workflow stage.
+icon and interior — in Margin and in Page Map. It reads `awaitsReader` (Authoritative
+projection, above). Agent workflow outranks it on the same carrier: live work is what
+the reader needs first, and one interior carries one wash. Colour is never the only
+channel, so the reading also says "On you" in its label and accessible name. An
+aggregated thread control takes the turn of any member, as it takes the most urgent
+member's workflow stage.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
@@ -880,9 +801,9 @@ asserting one widget's exported implementation.
 
 ## Render gates
 
-`leaf version check <page> --render` is the browser contract. It re-vendors
-before loading, runs both color schemes, waits for the runtime's actual readiness
-and finite motion boundary, reads screen and print, and reapplies standing state.
+`leaf version check <page> --render` is the browser contract. It runs both color
+schemes, waits for the runtime's actual readiness and finite motion boundary, reads
+screen and print, and reapplies standing state.
 A local browser check is required after changing `leaf.js`, a runtime owner, a widget
 module, the registry, or the theme.
 
@@ -966,12 +887,9 @@ source map) live under `scripts/browser/generated/`. The manifest names its inpu
 exports, and output hashes; `scripts/CLAUDE.md`
 owns the contributor build and check commands. The internal bundle contains Lit and
 Signals once, with no external imports or runtime compiler. Content modules import
-only `runtime/widget-api.js`. The publisher owns Leaf's pure semantic folds and exposes
-read-only selectors; DOM rendering, transport promises, and presentation proof remain
-in runtime adapters. Server projection entries carry the declaration admitted from
+only `runtime/widget-api.js`. Server projection entries carry the declaration admitted from
 their captured revision, so neither active nor historical views reinterpret an event
-through the current DOM's registry. Regenerate this output through its owning script,
-never by editing it.
+through the current DOM's registry.
 
 Run `node --check` on the module, formatting, and a focused real-browser test while
 iterating. What a module decides on its own — a value folded from values, a tree
@@ -984,7 +902,3 @@ rule and its remedies are under Runtime ownership above. Before handing over a r
 change, run the relevant full browser file or `leaf version check --render` on
 the affected example. `node --check` cannot validate browser bindings, computed
 layout, or reconciliation; the layer tests parse every vendored stylesheet.
-
-Re-vendor a page before trusting its browser result. A page directory carries
-the runtime, registry, modules, vendor files, and theme copied by `page init`; a
-page not re-vendored is testing an older layer.

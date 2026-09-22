@@ -4,6 +4,7 @@ import contextlib
 import json
 import re
 import shutil
+import textwrap
 import threading
 import time
 from copy import deepcopy
@@ -23,7 +24,9 @@ from interact_support import (
     SHELVED,
     TRIAL_CACHE,
     TRIAL_LOG,
+    Json,
     ModelPage,
+    Prose,
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
@@ -49,6 +52,8 @@ from interact_support import (
     stamp,
     styled,
     trial_version,
+    yaml_block,
+    yaml_document,
 )
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
@@ -63,6 +68,7 @@ from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
@@ -4005,12 +4011,19 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
 
 def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tmp_path):
     """`$events.handling` merges by kind like `$reactions.tokens`: a project layer
-    replaces one sentence, deletes one with null, and inherits every other."""
+    replaces one kind's clauses, deletes one with null, and inherits every other."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
         json.dumps(
-            {"$events": {"handling": {"comment": "Reply in French.", "reply": None}}}
+            {
+                "$events": {
+                    "handling": {
+                        "comment": [{"text": "Reply in French."}],
+                        "reply": None,
+                    }
+                }
+            }
         )
     )
 
@@ -4028,7 +4041,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$events"
     ]["handling"]
-    assert merged["comment"] == "Reply in French."
+    assert merged["comment"] == [{"text": "Reply in French."}]
     assert "reply" not in merged
     assert merged["resolve"] == shipped["resolve"]
 
@@ -4036,9 +4049,12 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
 @pytest.mark.parametrize(
     "handling",
     [
-        {"bogus-kind": "A sentence for no kind."},
-        {"comment": ""},
-        {"comment": 5},
+        {"bogus-kind": [{"text": "A clause for no kind."}]},
+        {"comment": []},
+        {"comment": "Reply in French."},
+        {"comment": [{"text": ""}]},
+        {"comment": [{"text": "Reply in French.", "tone": "warm"}]},
+        {"comment": [{"text": "Reply in French.", "when": {"type": 5}}]},
         "Reply in French.",
         None,
     ],
@@ -4046,8 +4062,9 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
 def test_init_refuses_handling_that_a_batch_could_not_carry(
     page_dir, tmp_path, handling
 ):
-    """Every batch reads `$events.handling` directly, so the door holds a layer to a
-    declared kind and one non-empty sentence rather than passing junk to the agent."""
+    """Every delivered event reads `$events.handling` directly, so the door holds a
+    layer to declared kinds and well-formed clauses rather than passing junk to the
+    agent."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
@@ -4065,9 +4082,280 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
     )
     assert result.exit_code != 0
     assert (
-        "$events.handling must map declared kinds to one non-empty sentence"
+        "$events.handling must map declared kinds to a non-empty list of clauses"
         in result.output
     )
+
+
+HANDLING_WALKTHROUGH = """\
+What the agent is told when a reader acts on a page
+===================================================
+
+A test records this file; nobody writes it by hand. The lines starting with `#`
+explain it, and everything else is the recorded data. The walkthrough below is
+one real run: the test serves a page, posts a comment to it the way the browser
+does, and runs `leaf wait`. Only the id, the times and the page's path are
+pinned, so the file stays the same from run to run.
+
+How this text reaches the agent, by example
+-------------------------------------------
+
+1. The page's `plan` section reads "The nightly backfill moves to Tuesdays so it
+   stops colliding with the report run." The reader selects "moves to Tuesdays"
+   and comments "why here?". The page's JavaScript sends this to the page's
+   server as POST /api/event:
+
+@POSTED@
+
+2. The server checks the comment against the page, adds who wrote it (`author`),
+   when (`ts`) and an `id`, and appends it to the page's event log, events.jsonl,
+   as this one line:
+
+@LOGGED@
+
+3. Earlier, the agent started `leaf wait` in the background and went idle. The
+   agent does nothing in this step: `leaf wait`, a leaf process, notices the new
+   line and builds a delivery for it. For the instructions, `leaf wait` reads the
+   clauses under `$events.handling.comment` in the page's copy of registry.json.
+   Each clause has a `text` and may have a `when`, a JSON Schema the log line must
+   satisfy for the clause to apply. There are @COUNT@; here they all are, with
+   whether the line from step 2 satisfies each `when`:
+
+@CLAUSES@
+
+4. `leaf wait` prints the delivery as JSON and exits. The agent's host hands that
+   output to the agent as the result of the background command, which wakes it.
+   The delivery's event is the log line from step 2 less @DROPPED@, the
+   browser's retry key, and with these fields added:
+   @ADDED@.
+   `handling` is the texts of the clauses that apply, in order, joined with
+   spaces. The whole output, indented here (leaf prints it on one line):
+
+@DELIVERY@
+
+5. The agent follows `handling`: it replies in the thread with `leaf reply`, edits
+   the page if warranted, and runs `leaf ack` to mark the event handled and wait
+   for the next one.
+
+What this file records
+----------------------
+
+Step 3, for one example of every case, using the clauses in
+skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
+Each top-level key below names a case and holds:
+
+  event:  the input: a log line's `kind` and the fields some `when` reads,
+          and nothing else. A field no `when` names, such as a comment's
+          `anchor` or `text`, cannot change what the agent is told, so it is
+          left out; the test checks both halves of that.
+  told:   the output, the clauses that apply to that line, in order. Each
+          clause has a `text` and may have a `when`:
+  when:   the clause's `when`, exactly as registry.json writes it: a JSON
+          Schema the log line must satisfy for the clause to apply. A clause
+          with no `when` always applies, and has no `when` key here either.
+  text:   the clause's text.
+
+The walkthrough's comment is the first case. No `when` reads any field of its
+log line from step 2 except `kind`, so the case is that line cut down to `kind`,
+and it gets the clauses marked "applies" in step 3. It is recorded as:
+
+@RECORDED@
+
+After changing a clause, re-record this file and review the diff:
+
+  uv run pytest --regtest-reset -n0 tests/test_interact_contract.py::test_each_case_of_an_event_is_told_what_the_snapshot_shows"""
+
+WALKTHROUGH_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<title>Backfill</title>
+</head>
+<body>
+<main>
+<section id="plan">
+  <h2>Plan</h2>
+  <p>The nightly backfill moves to Tuesdays so it stops colliding with the report run.</p>
+</section>
+</main>
+</body>
+</html>
+"""
+
+
+def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
+    snapshot, page_dir, server, capsys
+):
+    """The snapshot is the table a developer reads to see what the agent is told for
+    each case: every kind, and every condition a clause's `when` names, resolved
+    through the shipped layer clause by clause, each under the condition that let it
+    in. A wording or condition change shows up as a diff per case. The assertions
+    keep the table whole: every declared kind has a case, and every clause reaches
+    at least one case, so no `when` is dead. Its header walks one real comment from
+    the HTTP route through `leaf wait`, and holds that the clauses it lists as
+    applying are exactly the `handling` the delivery carries."""
+    registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    # Each case holds its `kind` and the fields some `when` reads, and nothing else:
+    # a field no `when` names cannot change what the agent is told.
+    on_page = {"document": {"kind": "page"}}
+    cases = {
+        "comment": {"kind": "comment"},
+        "comment with a drawing": {
+            "kind": "comment",
+            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
+        },
+        "comment awaiting a version": {
+            "kind": "comment",
+            "response": {"kind": "version"},
+        },
+        "suggestion": {"kind": "comment", "suggestion": True},
+        "design comment": {"kind": "comment", "about": "design"},
+        "reaction on the page": {"kind": "comment", "token": "+1"},
+        "reply": {"kind": "reply"},
+        "reaction on a message": {"kind": "reply", "token": "+1"},
+        "pick on the page": {"kind": "action", "meaning": on_page},
+        "pick adding an option": {
+            "kind": "action",
+            "detail": {"additions": {"mine": "My own way"}},
+            "meaning": on_page,
+        },
+        "pick inside a thread": {
+            "kind": "action",
+            "meaning": {"document": {"kind": "thread"}},
+        },
+        "resolve": {"kind": "resolve"},
+        "unresolve": {"kind": "unresolve"},
+        "done": {"kind": "done"},
+        "request": {"kind": "request"},
+        "undo": {"kind": "undo"},
+        "report": {"kind": "report"},
+        "error": {"kind": "error"},
+    }
+    told = {
+        name: registry_contract.event_clauses(event, registry)
+        for name, event in cases.items()
+    }
+
+    declared = registry["$events"]["handling"]
+    assert {event["kind"] for event in cases.values()} == set(declared)
+    read = {
+        field
+        for clauses in declared.values()
+        for clause in clauses
+        if "when" in clause
+        for field in fields_named(clause["when"])
+    }
+    for name, event in cases.items():
+        assert set(event) - {"kind"} <= read, (name, set(event) - {"kind"} - read)
+    for kind, clauses in declared.items():
+        reached = [told[name] for name, event in cases.items() if event["kind"] == kind]
+        for clause in clauses:
+            assert any(clause in matched for matched in reached), (kind, clause)
+
+    # The walkthrough: one comment through the real HTTP route and `leaf wait`.
+    (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
+    publish(page_dir)
+    session_model.cmd_status(page_dir, "waiting", "")
+    posted = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "why here?",
+        "anchor": {"section": "plan", "quote": "moves to Tuesdays"},
+        "attempt": "9f86d081884c7d659a2feaa0c55ad015",
+    }
+    status, answer = fetch(f"{server}/api/event", data=json.dumps(posted).encode())
+    assert status == 200, answer
+    logged = (page_dir / "events.jsonl").read_text().splitlines()[-1]
+    capsys.readouterr()
+    assert session_model.cmd_wait(page_dir) == 0
+    printed = capsys.readouterr().out
+    record, envelope = json.loads(logged), json.loads(printed)
+    [batch] = envelope["batches"]
+    [delivered] = batch["events"]
+    page_clauses = registry_storage.load_registry(page_dir)["$events"]["handling"][
+        "comment"
+    ]
+    applying = registry_contract.event_clauses(
+        record, registry_storage.load_registry(page_dir)
+    )
+    assert " ".join(clause["text"] for clause in applying) == delivered["handling"]
+    # The full line, anchor and all, gets exactly the `comment` case's clauses.
+    assert applying == told["comment"]
+
+    pinned = {
+        record["id"]: "1946b466",
+        record["ts"]: "2026-09-21T20:12:30-07:00",
+        envelope["id"]: "e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92",
+        str(page_dir): "/path/to/page",
+    }
+    envelope["created_at"] = 1790046750.29
+
+    def pin(shown: str) -> str:
+        for actual, steady in pinned.items():
+            shown = shown.replace(actual, steady)
+        return shown
+
+    def indented(block: str) -> str:
+        return textwrap.indent(block, " " * 5)
+
+    listing = []
+    for number, clause in enumerate(page_clauses, 1):
+        verdict = "applies" if clause in applying else "does not apply"
+        listing.append(f"clause {number}, {verdict}:")
+        if "when" in clause:
+            listing.append(f"  when: {json.dumps(clause['when'])}")
+        else:
+            listing.append("  (no `when`, so it always applies)")
+        listing.append(
+            textwrap.fill(
+                clause["text"],
+                79,
+                initial_indent="  text: ",
+                subsequent_indent=" " * 8,
+                break_on_hyphens=False,
+            )
+        )
+    added = [f"`{key}`" for key in delivered if key not in record]
+    [dropped] = [f"`{key}`" for key in record if key not in delivered]
+    header = (
+        HANDLING_WALKTHROUGH.replace("@POSTED@", indented(json.dumps(posted)))
+        .replace("@LOGGED@", indented(pin(logged)))
+        .replace("@COUNT@", str(len(page_clauses)))
+        .replace("@CLAUSES@", indented("\n".join(listing)))
+        .replace("@ADDED@", ", ".join(added[:-1]) + " and " + added[-1])
+        .replace("@DROPPED@", dropped)
+        .replace("@DELIVERY@", indented(pin(json.dumps(envelope, indent=2))))
+    )
+
+    recorded = {
+        name: {
+            "event": event,
+            "told": [
+                {
+                    **({"when": Json(clause["when"])} if "when" in clause else {}),
+                    "text": Prose(clause["text"]),
+                }
+                for clause in told[name]
+            ],
+        }
+        for name, event in cases.items()
+    }
+    header = header.replace(
+        "@RECORDED@", indented(yaml_block({"comment": recorded["comment"]}).rstrip())
+    )
+    snapshot.check(yaml_document(header, recorded))
+
+
+def fields_named(schema: dict) -> set[str]:
+    """Every event field a `when` schema names at its top level, through `not`,
+    `anyOf` and `allOf`."""
+    named = set(schema.get("required", [])) | set(schema.get("properties", {}))
+    for part in [
+        *([schema["not"]] if "not" in schema else []),
+        *schema.get("anyOf", []),
+        *schema.get("allOf", []),
+    ]:
+        named |= fields_named(part)
+    return named
 
 
 @pytest.mark.parametrize("names", ["ok", ["ok", "ok"], ["ok", 1]])

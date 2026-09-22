@@ -110,16 +110,17 @@ row — is never the landing for a step whose parent is the document. A step who
 really is a control does land there: a reply box hands back to its thread, an unfolded
 margin cluster to the entry it hangs from.
 
-Standing on a destination — a card in the list, an Ask or a heading on the page — is one
-step of its own, whatever put the reader there: letting go lands them on the floor of the
-layer they are in, the panel's list or the page, and it is an inner step because standing
-is the newest thing they did.
+Standing on a destination on the page — a conversation, an Ask or a heading — is one
+step of its own, whatever put the reader there: letting go lands them on the document,
+and it is an inner step because standing is the newest thing they did.
 
-The thread panel's accordion adds a disclosure inside that standing: Escape leaves
-its reply box for the conversation, collapses the conversation to its title, then
-lets go of the title to reach the list. Title arrows and Home/End move focus without
-opening a conversation; Enter/Space toggles it. The semantic thread walk opens its
-destination, and Comment enters its reply box even from a collapsed title.
+The thread panel is one surface. Its titles and open conversations are content of that
+surface, so accordion disclosure does not add an Escape level: after a reply box or
+narrowing is gone, Escape closes Threads from either a title or a conversation. Native
+focus order moves from a title through its open conversation; Enter/Space toggles it. The
+semantic thread walk opens its conversation directly, whether that conversation is on
+the page or requires Threads. `g T` is the route to the list itself. Comment enters the
+reply box even from a collapsed title.
 
 What this gives up, each a rule the reader can learn: a surface they already had open
 closes on the way out, because no state distinguishes one this press opened from one it

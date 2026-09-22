@@ -2968,7 +2968,6 @@ flowchart LR
           >
             <pre>
 stateDiagram-v2
-  [*] --> S0
   state "S0 · Gate passed" as S0
   state "S1 · Wᵣ prepared" as S1
   state "S2 · Wₐ imported" as S2
@@ -2978,6 +2977,7 @@ stateDiagram-v2
   state "S6 · Quiescent; outputs validated or skipped" as S6
   state "S7 · Fixed cleanup, trusted tail + POST" as S7
   state "Fail closed" as F
+  [*] --> S0
   S0 --> S1: checkout base/default + setup
   S1 --> S2: import exact target into a new checkout
   S2 --> S3: trusted launcher starts supervisor + SRT

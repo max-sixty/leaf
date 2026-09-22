@@ -22,10 +22,9 @@ If a worker becomes unreachable, start a successor with `leaf page state`. Keep
 completed rows as history, save unreachable nonterminal rows as `idle` without
 `on`, assign the remaining work to a fresh task, and retain its new handle.
 
-Worker reports are provisional page state. A later revision records the report,
-marks its element `overruled` with a reason in the next stamp's note, or leaves it
-visibly provisional. `version check` refuses a contradiction that does neither,
-and the page must not end with report debt.
+A worker's report is provisional page state that a later revision absorbs or
+overrules (`authoring-revisions.md`, "Honor reader state"); the page must not end
+with report debt.
 
 Route an anchored comment only while the assigned row or task is nonterminal and
 its worker handle is reachable. Comments on terminal or unreachable assignments

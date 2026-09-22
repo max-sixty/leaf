@@ -31,9 +31,6 @@ from render_cases_interaction import (
     live_url,
     sent_events,
 )
-from render_cases_layout import (
-    flip_point,
-)
 from render_cases_navigation import (
     TWICE_PAGE,
 )
@@ -1454,10 +1451,10 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     """The group takes the pick on the whole option, and the case the reader decides on
     is argued inside the option. So the two gestures land in the same box, and the
-    evidence has to win the ones aimed at it: an image flip once chose that option, and
-    its label-routed follow-up cleared it again — two decisions in the log, no state on
-    the page to show for either, and nothing the reader could have seen. The disclosure
-    and the draft chose it outright.
+    evidence has to win the ones aimed at it: clicking the comparison once chose that
+    option, and its label-routed follow-up cleared it again — two decisions in the log,
+    no state on the page to show for either, and nothing the reader could have seen. The
+    disclosure and the draft chose it outright.
 
     Each gesture is read against its own effect rather than against the absence of a
     pick, because a click that never arrived would satisfy the absence: the frame changes
@@ -1468,9 +1465,14 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
 
-    page.mouse.click(*flip_point(page, "#ro-shot"))
+    comparison = page.locator("#ro-shot wa-comparison")
+    comparison.scroll_into_view_if_needed()
+    bounds = comparison.bounding_box()
+    assert bounds is not None
+    page.mouse.click(bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
+    expect(comparison).to_have_attribute("position", "100")
     expect(page.locator("#ro-shot input[type=checkbox]")).to_be_checked()
-    assert not option.evaluate(picked), "flipping the shot answered the question"
+    assert not option.evaluate(picked), "clicking the shot answered the question"
     page.get_by_role(
         "button",
         name="before — the run list, before and after the status column",
@@ -2515,7 +2517,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
     receipt = message.locator(
-        f':scope > .lf-msg-delivery .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
+        f':scope > .lf-msg-head .lf-receipt[data-receipt-id="{actions[0]["id"]}"]'
     )
     expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
     expect(receipt).to_contain_text("✓ Sent")
@@ -2623,6 +2625,6 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     message = question.locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' lf-msg ')][1]"
     )
-    receipts = message.locator(":scope > .lf-msg-delivery .lf-receipt")
+    receipts = message.locator(":scope > .lf-msg-head .lf-receipt")
     expect(receipts).to_have_count(1)
     expect(receipts).to_contain_text("Sent")

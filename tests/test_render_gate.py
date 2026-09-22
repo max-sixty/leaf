@@ -1265,7 +1265,7 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
 def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     browser, serve
 ):
-    """The corpus needs one page covering all six supported renderer paths.
+    """The corpus needs one page covering the six diagram types the guide documents.
 
     State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
     The whole-page contracts (both palettes, axe, print, export, reachability) are what
@@ -1273,6 +1273,83 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     every kind of source id accepted by `parts`.
     """
     assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
+
+
+def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
+    """A namespace and a class inside it can share a name, and the class is the box.
+
+    The renderer writes the same `data-id` on both groups. Treating the pair as an
+    ambiguous id would leave `node:Job` unregistered, which the gate reports against a
+    declared part; `Runner` is the control that registers either way.
+    """
+    page = leaf_page(
+        "namespaced class",
+        """<h1 id="title">Namespaced class</h1>
+<lf-diagram id="model" parts="node:Job node:Runner"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+  Runner --&gt; Job
+</pre></lf-diagram>""",
+    )
+    assert render_gate_model.render_version(browser, serve(page)) == []
+
+
+DIAGRAM_FAMILIES = {
+    "pie": 'pie title Pets\n  "Dogs" : 386\n  "Cats" : 85',
+    "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
+    # A box whose id is several words can never be a part, and still has to draw.
+    "mindmap": "mindmap\n  root((Leaf))\n    Big idea\n    Threads",
+    "er-quoted-name": 'erDiagram\n  "Line Item" ||--o{ ORDER : in',
+    "timeline": "timeline\n  2025 : Draft\n  2026 : Ship",
+    "journey": "journey\n  title Review\n  section Read\n    Open page: 5: Reader",
+    "quadrant": "quadrantChart\n  x-axis Low --&gt; High\n  y-axis Low --&gt; High\n  A: [0.3, 0.6]",
+    "git-graph": "gitGraph\n  commit\n  branch fix\n  commit\n  checkout main\n  merge fix",
+    "architecture": "architecture-beta\n  service api(server)[API]\n  service db(database)[DB]\n  api:R --&gt; L:db",
+    "radar": "radar-beta\n  axis a, b, c\n  curve one{1, 2, 3}",
+}
+
+
+def test_the_gate_passes_what_the_renderer_draws(browser, serve):
+    """Leaf draws what Agentic Mermaid draws, beyond the families its guide documents.
+
+    The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
+    family it can draw is no failure, whether or not the guide names it.
+    """
+    url = serve(
+        leaf_page(
+            "diagram families",
+            '<h1 id="title">Diagram families</h1>\n'
+            + "\n".join(
+                f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
+                for name, source in DIAGRAM_FAMILIES.items()
+            ),
+        )
+    )
+    assert render_gate_model.render_version(browser, url) == []
+
+
+def test_a_diagram_link_draws_no_tab_stop(browser, serve):
+    """Nothing on the page navigates a Mermaid `click` or `link` target, so its box
+    draws as a plain one rather than as a focusable link that goes nowhere."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "diagram links",
+                '<h1 id="title">Diagram links</h1>\n'
+                '<lf-diagram id="flow"><pre>\nflowchart LR\n  A[Alpha] --&gt; B[Beta]\n'
+                '  click A href "https://example.com" "Open"\n</pre></lf-diagram>\n'
+                '<lf-diagram id="model"><pre>\nclassDiagram\n  class A\n'
+                '  link A "https://example.com"\n</pre></lf-diagram>',
+            )
+        ),
+    )
+    expect(page.locator("lf-diagram svg")).to_have_count(2)
+    expect(
+        page.locator("lf-diagram :is([tabindex], [role='link'], [data-href])")
+    ).to_have_count(0)
 
 
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
@@ -1343,7 +1420,7 @@ flowchart LR
     for diagram in ("flow", "sent"):
         expected = (
             f"<lf-diagram id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
-            "for data-id='Missing'"
+            "for data-id='node-shape:Missing'"
         )
         assert sum(expected in failure for failure in unresolved) == 2, unresolved
     assert not any(

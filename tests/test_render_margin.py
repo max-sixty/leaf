@@ -4671,7 +4671,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
     ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardWidth"] >= 379, geometry
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["bottomChrome"] > 0, geometry
     assert geometry["coveredBottomChrome"] == 0, geometry
@@ -4731,7 +4731,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         geometry["controlsRight"] + 8, abs=0.5
     ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardWidth"] >= 379, geometry
     assert geometry["coveredControls"] == 0, geometry
     assert geometry["targetTop"] >= geometry["bannerBottom"], geometry
     assert geometry["targetBottom"] <= 900, geometry
@@ -4782,10 +4782,17 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
-    """A rail a few pixels short of the card's measure narrows the card, not its height."""
+    """A rail a few pixels short of the card's measure narrows the card, not its height.
+
+    The width is the arrangement: the rail beside this cluster grows with half the
+    viewport, and the case only says anything where the room it leaves falls between
+    `--thread-card-min` and `--thread-card`. Wider and the card takes its preferred
+    measure with room to spare, narrower and it is the short-rail case below. The room
+    is asserted before the outcome is, so moving either token reddens the arrangement
+    and names the width to re-pick rather than reading as a layout regression."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1440, 900)
+    resized(page, 1220, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
     page.keyboard.press("t")
@@ -4815,6 +4822,11 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
     assert geometry["cardLeft"] == pytest.approx(
         geometry["controlsRight"] + 8, abs=0.5
     ), geometry
+    # The room between the cluster and the visible edge is what the card has to fit
+    # into, and this case is the one where that room falls short of the preferred
+    # measure without reaching the minimum.
+    room = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+    assert geometry["minimum"] <= room < geometry["preferred"], geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -5507,15 +5519,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
           const head = preview.querySelector('.lf-margin-preview-head');
-          const messageHead = thread.querySelector(
-            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
-          );
+          // The first message's head is hoisted out of its message and onto the row the
+          // thread opens with, which carries its Resolve beside the author. The head
+          // itself is `display: contents` there, so the row is what has a box.
+          const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
           const reply = thread.querySelector('.lf-reply-disclosure');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const tr = thread.getBoundingClientRect();
           const hr = head.getBoundingClientRect();
-          const mh = messageHead.getBoundingClientRect();
+          const mr = metaRow.getBoundingClientRect();
           const rb = reply.getBoundingClientRect();
           const cr = close.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
@@ -5529,8 +5542,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
               left: tr.left + parseFloat(ts.borderLeftWidth)
                 + parseFloat(ts.paddingLeft),
             },
-            head: {bottom: hr.bottom},
-            messageHead: {top: mh.top},
+            head: {top: hr.top, bottom: hr.bottom},
+            metaRow: {top: mr.top},
             reply: {right: rb.right, left: rb.left},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
             closeBorder: getComputedStyle(close).borderTopWidth,
@@ -5550,7 +5563,11 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         geometry["close"]["bottom"], abs=1
     )
     assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
-    assert geometry["messageHead"]["top"] - geometry["head"]["bottom"] < 24
+    # The card opens on that row rather than above a band of its own: Dismiss is
+    # positioned onto it, so the two share a line.
+    assert geometry["metaRow"]["top"] == pytest.approx(
+        geometry["head"]["top"], abs=1
+    ), geometry
     reply_button.click()
     expect(preview.locator("textarea")).to_be_visible()
     page.locator("h1").click()
@@ -5744,7 +5761,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(f'.lf-thread[data-id="{root_id}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-thread[data-id="{root_id}"] > .lf-thread-summary')
+    ).to_be_focused()
 
     preview.evaluate(
         """card => {
@@ -5817,9 +5836,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(preview).to_be_hidden()
         thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
         expect(thread).to_contain_text(sent["text"])
-        expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-            "aria-expanded", "true"
-        )
+        expect(thread).to_have_attribute("open", "")
     else:
         expect(preview).to_be_visible()
         thread = preview.locator(
@@ -5845,19 +5862,16 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         )
     # The send left the reader in the new thread's reply box, and the way out is the
     # levels it stands in: the box hands them to the thread, and then the surface
-    # holding that thread. A card goes straight onto the page it is anchored to; a panel
-    # card lets go onto its list first. What neither does is focus the margin entry the
+    # holding that thread. What neither does is focus the margin entry the
     # card hangs from — or, where no rail stands, the Page Map button — which the reader
     # never stood on and which says its transient label as they arrive.
     page.keyboard.press("Escape")  # out of the reply box the send landed in
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
-        summary = thread.locator(".lf-thread-summary")
-        expect(summary).to_be_focused()
-        expect(summary).to_have_attribute("aria-expanded", "false")
-        page.keyboard.press("Escape")  # off the title and onto the list holding it
-        expect(page.locator(".lf-threads")).to_be_focused()
-        expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        assert page.evaluate("() => document.activeElement === document.body")
     else:
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
@@ -5908,10 +5922,10 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     if panel_open:
-        expect(threads).to_have_class(re.compile(r"\bopen\b"))
+        expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
         expect(preview).to_be_hidden()
-        assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def seeded_thread(page, page_dir, passage):
@@ -5950,22 +5964,19 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     note = page.locator("#mounts-p .lf-mark-note")
     note.focus()
     page.keyboard.press("Enter")
-    expect(threads.locator(f'.lf-thread[data-id="{first["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{first["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
     page.keyboard.press("t")
-    expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{second["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
 
-    # The walk moved the reader laterally to a second open conversation. Letting go
-    # first collapses it to its title, then leaves that standing for the list holding it.
-    # The note that took them into the panel is not a landing.
+    # The walk moved the reader laterally to a second conversation in Threads. Escape
+    # closes that surface; the note that took them there is not a landing.
     page.keyboard.press("Escape")
-    summary = threads.locator(
-        f'.lf-thread[data-id="{second["id"]}"] .lf-thread-summary'
-    )
-    expect(summary).to_be_focused()
-    expect(summary).to_have_attribute("aria-expanded", "false")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(threads).to_have_class(re.compile(r"\bopen\b"))
+    expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
+    assert page.evaluate("() => document.activeElement === document.body")
 
 
 def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve):
@@ -5993,7 +6004,9 @@ def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve
     # The box hands the reader back to the thread it belongs to; the marker is Leaf's
     # own control beside the words it marks rather than a place they were standing.
     page.keyboard.press("Escape")
-    expect(threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
 
 
@@ -6206,7 +6219,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     send_anchored_comment(page, "Check the January failure mode.")
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
-    assert wide["cardWidth"] >= 459, wide
+    assert wide["cardWidth"] >= 379, wide
     assert wide["cardLeft"] >= wide["mainRight"], wide
     assert wide["cardLeft"] >= wide["controlsRight"] + 7, wide
 
@@ -6240,10 +6253,11 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
           )
         )"""
     )
-    middles = [box["middle"] for box in controls.values()]
-    assert max(middles) - min(middles) <= 2, controls
+    assert controls[".lf-margin-preview-nav"]["middle"] == pytest.approx(
+        controls[".lf-margin-preview-close"]["middle"], abs=1
+    ), controls
     assert (
-        controls[".lf-margin-preview-nav"]["right"] < controls[".lf-resolve"]["left"]
+        controls[".lf-margin-preview-nav"]["middle"] < controls[".lf-resolve"]["middle"]
     ), controls
     assert (
         controls[".lf-resolve"]["right"] < controls[".lf-margin-preview-close"]["left"]
@@ -6303,8 +6317,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview.locator(".lf-margin-preview-title")).to_have_text(
-        "iOS reconnect stall"
+    expect(preview).to_have_attribute(
+        "aria-label", "Conversation for iOS reconnect stall"
     )
     expect(thread.locator(".lf-conversation-msg.user").first).to_be_visible()
     expect(
@@ -6318,8 +6332,8 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          const title = document.querySelector('.lf-margin-preview-title')
-            .getBoundingClientRect();
+          const metadata = document.querySelector(
+            '.lf-margin-preview .lf-thread-root-meta').getBoundingClientRect();
           const reply = document.querySelector('.lf-margin-thread .lf-say')
             .getBoundingClientRect();
           const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview'));
@@ -6331,21 +6345,21 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   viewportRight: document.documentElement.clientWidth,
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
-                  titleLeft: title.left, titleTop: title.top,
+                  metadataLeft: metadata.left, metadataTop: metadata.top,
                   replyTop: reply.top, replyBottom: reply.bottom,
                   panelOpen: document.querySelector('.lf-thread-panel').classList.contains('open')};
         }"""
     )
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardWidth"] >= 379, geometry
     assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
-    assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
+    assert geometry["metadataLeft"] == pytest.approx(geometry["cardLeft"] + 17, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
     words = thread.locator(".lf-conversation-body").first
@@ -6380,20 +6394,25 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
-    # The conversation scrolls; its subject and settlement remain usable. A tall
-    # focused root must not scroll the title away just to fit its entire transcript.
-    title = preview.locator(".lf-margin-preview-title")
+    # The conversation scrolls while its opening metadata and settlement remain usable.
+    metadata = preview.locator(".lf-thread-root-meta")
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
-    title_box = title.bounding_box()
+    metadata_box = metadata.bounding_box()
     resolve_box = resolve.bounding_box()
-    preview.locator(".lf-margin-preview-list").hover()
-    page.mouse.wheel(0, -800)
+    preview.locator(".lf-margin-preview-list").evaluate(
+        "node => { node.scrollTop = node.scrollHeight; }"
+    )
     ticked(page)
-    assert title.bounding_box() == pytest.approx(title_box, abs=0.5)
-    assert resolve.bounding_box() == pytest.approx(resolve_box, abs=0.5)
-    assert title_box["y"] >= capped["top"], title_box
-    assert resolve_box["y"] >= capped["top"], resolve_box
-    assert resolve_box["y"] + resolve_box["height"] <= capped["bottom"], resolve_box
+    scrolled_metadata = metadata.bounding_box()
+    scrolled_resolve = resolve.bounding_box()
+    assert scrolled_metadata["y"] >= capped["top"], scrolled_metadata
+    assert scrolled_resolve["y"] >= capped["top"], scrolled_resolve
+    assert scrolled_resolve["y"] + scrolled_resolve["height"] <= capped["bottom"], (
+        scrolled_resolve
+    )
+    assert scrolled_resolve["y"] - scrolled_metadata["y"] == pytest.approx(
+        resolve_box["y"] - metadata_box["y"], abs=0.5
+    )
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")

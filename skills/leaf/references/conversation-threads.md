@@ -1,7 +1,5 @@
 # Conversation threads
 
-Read this before opening, replying to, editing, or resolving a thread.
-
 Open a thread when the answer depends on the reader. Use a quote for a passage, a
 section id for a diagram or image, a declared part for one box within a visual,
 and no anchor for the page as a whole:
@@ -32,8 +30,8 @@ The thread panel is a narrow column beside the page, so a paragraph that reads f
 in chat is a wall there. A reply says what changed or where to look: a sentence or
 two, or one short paragraph or list item per point when there are several. The page
 carries the evidence, and a stamp's changelog carries the full list of changes.
-When a discussion produces a decision or defers work, revise the relevant page
-section first, then link the outcome from the reply with a fragment link such as
+When a discussion produces a decision or defers work, revise the page first, then
+link the outcome from the reply with a fragment link such as
 `[the decision](#decision)`. When the rationale matters to a reader using the
 result, keep the thread anchored to that page section. Keep the discussion active
 if the outcome is not yet incorporated or the reader still owes an explicit review.
@@ -41,12 +39,19 @@ if the outcome is not yet incorporated or the reader still owes an explicit revi
 A browser comment may carry a drawing of one or more strokes that continue across the
 page. A drawing whose first stroke began over or in the margin beside an addressable
 element anchors there; one begun where no addressable element shares its line belongs to
-the page whole. Treat it as visual evidence for that ordinary thread: inspect the strokes
-on the live page, use any accompanying text, and reply or revise through the same path as
-any other comment.
+the page whole. Treat it as visual evidence for that ordinary thread. Its `says` is the
+page's words the drawing stood over when it was drawn, from the first word inside the
+ink's extents to the last. That is the neighbourhood of the mark rather than the mark:
+an arrow across a paragraph says the paragraph. It is absent where the extents hold no
+words, as over a picture or in a margin. An anchored
+drawing's `strokes` are offsets from that element's top-left corner, and `box` is the
+element's width and height at the time, so a stroke's share of the box says which part
+of a picture it marks; a page drawing has no `box`, and its strokes are offsets from the
+document's origin. Use any accompanying text, and reply or revise through the same path
+as any other comment.
 
-A reader may paste an image into any thread text box. The composer shows a thumbnail,
-while its message carries an ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
+A reader may paste an image into any thread text box; the message carries it as an
+ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
 that path beneath the absolute page directory named by the delivered batch and inspect
 the image itself before replying; alt text is a label, not evidence of what the pixels
 show.
@@ -101,7 +106,15 @@ comment keeps its original anchor in `leaf events --conversation`. The panel kee
 detached thread open under **No longer in this version**, and `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject. Held command-goal
-threads cannot move or detach, and a version-response thread cannot take a reply.
+threads cannot move or detach.
+
+A thread the reader opened as a request for change, delivered as a `version`
+obligation, takes no reply from you: the next stamped version is its answer. Where the
+change needs clarification first, open a separate thread on the same Ask with
+`leaf comment <page> --section <ask-id>`; the reader's answer hands both threads back
+to you. The original stays open until authored state in a later stamped version
+answers the Ask it came from, or changes the declared answer where the Ask was already
+answered, and `leaf resolve` accepts it only then.
 
 A declared visual part is held only while a live conversation's current anchor names
 it, so a version may drop the part once every thread on it has moved, detached, or
@@ -111,8 +124,9 @@ reader can reopen a resolved thread, and it comes back pointing at a coordinate 
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-Fragment links take the reader to page content. `--markup` adds a validated widget
-after reply text; its ids must be new.
+A fragment link takes the reader to page content, opening whatever tab or group hides
+it, and the runtime marks one the current version cannot follow. `--markup` adds a
+validated widget after reply text; its ids must be new.
 An ordinary reply answers the thread without adding it to the outstanding Ask
 list. Add `--awaits` when the reply's prose asks the reader to answer:
 
@@ -173,8 +187,3 @@ As the discussion grows, write another summary with the desired endpoints.
 An overlapping summary replaces the earlier summary; disjoint ranges can retain
 separate summaries. New messages outside the endpoints remain visible. Editing a
 covered message invalidates its summary so stale prose cannot hide the correction.
-
-An acknowledged reader message still requires a reply: acknowledgement only removes it
-from future deliveries. When the active host binds the delivery's reply to its turn,
-the normal assistant final message is that reply; otherwise write the explicit Leaf
-operation. Version and request responses always use their explicit Leaf operations.

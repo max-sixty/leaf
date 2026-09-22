@@ -8,8 +8,19 @@ import {
 import { visualPartProblems } from "/runtime/visual-parts.js";
 import { openRoots } from "./open-roots.js";
 
+// Each error box's message and the widget that drew it. A box's `pre` echoes the source,
+// which the author already has; the widget's id says which block failed.
 export const failSoftErrors = () =>
-  [...document.querySelectorAll(".lf-error")].map((el) => el.textContent.trim());
+  [...document.querySelectorAll(".lf-error")].map((box) => {
+    let owner = box.parentElement;
+    while (!owner.localName.includes("-")) owner = owner.parentElement;
+    const message = [...box.childNodes]
+      .filter((node) => node.localName !== "pre")
+      .map((node) => node.textContent)
+      .join("")
+      .trim();
+    return { tag: owner.localName, id: owner.id, message };
+  });
 
 const PAINT_PROBE = "--_leaf-render-paint-value";
 const validPaint = (element, property, value) => {

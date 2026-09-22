@@ -6,10 +6,9 @@ fixture. The website publishes those pages with the same vendored layer.
 cards are the source of truth for catalog membership and generated previews. An
 unlisted page can remain published, as Command Hub and Security Boundary do.
 
-A published page says what it is in its own head: a `<title>` and a
-`<meta name="description">`, distinct from every other page's. Those two are what a
-search result and a shared link show, and the site build composes the rest of the
-card from them and refuses a page missing either.
+Each page's `<title>` and `<meta name="description">` are distinct from every other
+page's; the site build composes the catalog card from them and refuses a page
+missing either.
 
 Keep core examples focused and include small pages: a board, a short proposal, or a
 draft can demonstrate Leaf without becoming a product tour. Choose examples for
@@ -99,21 +98,22 @@ copied to the prepared page's `page/` directory when the example owns declaratio
 modules, styles, or other captured resources. A page fixture that was revised ships
 each earlier version in its sibling `versions/` directory as `<stem>.vN.html`.
 `example_versions` in `scripts/example_data.py` is the one reader of that list, in
-filename order, and each builder walks it oldest first through the real `version
-stamp`: `scripts/preview.py`, `publish_pages` in `scripts/site.py`, `serve` in
-`tests/render_harness.py`, and `test_page_fixtures_pass_check`, which lints every
-version rather than only the current one. Prior versions live under `versions/`
+filename order. `prepare_page` in `scripts/page_fixtures.py` is the one builder of a
+page directory from an example, which `scripts/preview.py`, `publish_examples` in
+`scripts/site.py`, and `serve` in `tests/render_harness.py` call: it walks the
+versions oldest first through the real `version stamp`, lays in the log, data, and
+media, and sets the cursor to the end of the seeded log.
+`test_page_fixtures_pass_check` repeats those steps by hand so that it can lint
+every version rather than only the current one. Prior versions live under `versions/`
 so top-level `*.html` discovery never reads a version as a page fixture, and the
 authored-content sweeps (above all the one holding two examples to twelve
 consecutive shared words) never read a revision against its own earlier draft.
 
-Three orderings hold. The seed goes in after the first stamp and before any later
+Two orderings hold. The seed goes in after the first stamp and before any later
 one, so a revised example reads the way it happened: the version, what the reader
-said about it, then the version that answered them. The cursor goes to the end
-after the last stamp, or the closing note arrives as unread news. The current
-version is written into the page before the data operations, because the data
-door validates a source against the page's markup and the current version is the
-one that has to bind it.
+said about it, then the version that answered them. The current version is written
+into the page before the data operations, because the data door validates a source
+against the page's markup and the current version is the one that has to bind it.
 
 `log-retention` is the revising example. Its second version rewrites one paragraph
 around a sentence the reader quoted, adds a paragraph and a step, and updates the
@@ -126,13 +126,9 @@ Write one when there is a page it makes sense on, not to fill the slot.
 Event state is the one thing no markup describes, so an example that wants to show
 a thread or a reader decision ships its events as `<stem>.jsonl` beside the page.
 A thread-bearing log opens mid-conversation; an action-only log replays a page-owned
-decision without inventing a thread. Every place that builds a page directory out of
-an example lays the log in: `scripts/preview.py`,
-`publish_pages`, `test_page_fixtures_pass_check`, and `serve` in
-`tests/render_harness.py`. `serve` seeds when handed an example rather than
-markup, and sets the cursor past the seed as `preview.py` does. The anchor sweep
-opts out, because it writes its own anchors and compares the whole painted mark
-against exactly those. `ship-review.jsonl` carries a thread. Under
+decision without inventing a thread. `serve` seeds when handed an example rather than
+markup. The anchor sweep opts out, because it writes its own anchors and compares the
+whole painted mark against exactly those. `ship-review.jsonl` carries a thread. Under
 `tests/fixtures/pages/`, `review-queue.jsonl` carries two page-owned decisions and
 `current-proposed-comparison.jsonl` carries the one choice its next version applies.
 The public examples' seeds reach the published site through the session running in
@@ -152,10 +148,9 @@ real doors. `scripts/corpus.py` composes those companions into
 in the combined data log, so each source page owns only its local snapshot
 numbers.
 
-Wherever the page is served, the cursor is set to the end of the seeded log. A
-seed is history, not news; a cursor at zero hands the next agent session a
-question the same log already answers, and the loop guard nags about it each
-time.
+The cursor is set to the end of the seeded log because a seed is history, not
+news: a cursor at zero hands the next agent session a question the same log
+already answers, and the loop guard nags about it each time.
 
 When a seeded event needs an anchor, capture it with `leaf comment --quote`
 against the file; do not write the `{section, quote, suffix}` out by hand. A
@@ -218,12 +213,9 @@ single borrowed clause can still pass and remains a judgment for review.
 
 An `lf-shot` needs image bytes a single file cannot hold. `examples/media/`
 carries them, content-addressed exactly as `leaf page media` names them in a page
-directory, and every place that builds a page directory out of an example lays
-them in: `serve` and `test_an_installed_payload_passes_its_real_browser_gate` in
-the browser test modules, `test_page_fixtures_pass_check`, `publish_pages` in
-`scripts/site.py`, and `scripts/preview.py`. A publisher that forgets fails
-loudly, because `version check` refuses a `/media/` reference the directory
-cannot answer.
+directory, and `prepare_page` lays them in, as do the tests that build a page by
+hand. A publisher that forgets fails loudly, because `version check` refuses a
+`/media/` reference the directory cannot answer.
 
 A seeded message names its media the other way: a pasted screenshot lives in the
 message's Markdown, where the parsed reading that harvests attributes cannot see

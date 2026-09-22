@@ -18,19 +18,8 @@ those concepts. It is Leaf's canonical implementation vocabulary.
 
 Read the scoped `CLAUDE.md` for every implementation area the change reaches and the
 module header for each module changed. For a contract shared across modules or runtimes,
-read the sidecar beside the Python code that owns the boundary:
-
-- `<root>/skills/leaf/scripts/leaf/page-storage.md`: page files and storage invariants;
-- `<root>/skills/leaf/scripts/leaf/session-lifetime.md`: work claims, watchers, hooks,
-  and server lifetime;
-- `<root>/skills/leaf/scripts/leaf/layer-registry.md`: composition and the registry
-  vocabulary;
-- `<root>/skills/leaf/scripts/leaf/events.md`: events, undo, authorship, and conversation
-  semantics;
-- `<root>/skills/leaf/scripts/leaf/validation.md`: static and browser validation,
-  passages, and parsed source;
-- `<root>/skills/leaf/scripts/leaf/mcp-app.md`: MCP tools, the app resource,
-  process-scoped page server, private result payload, and snapshot fallback.
+read the sidecar beside the Python code that owns the boundary;
+`<root>/skills/leaf/scripts/CLAUDE.md` lists them under "Protocol references".
 
 This skill is maintainer workflow, not a second home for product specifications. Agents
 using Leaf read `<root>/skills/leaf/SKILL.md`. Package authors read the public contract
@@ -54,8 +43,12 @@ owns that surface and preview its real output and styling. A Leaf interface ther
 implements candidates in its owning runtime and theme and presents them through a
 shipped example or fixture. When the user asks for sketches without implementation,
 keep the current surface as a baseline and derive each sketch from its actual controls,
-copy, and styling. Page-local HTML and CSS may frame it; a page-local recreation is a
-sketch.
+copy, and styling. Runtime-owned chrome is operable only in a normally served complete
+Leaf document; the developer feature gallery's contained documents are inert replays,
+not interactive previews. Page-local HTML and CSS may frame the comparison and build
+proposed sketches. Embedding an operable current surface beside them needs a new runtime
+boundary; when implementation is out of scope, serve that surface separately as the
+interactive baseline.
 
 ## Prove and hand off a visible change
 
@@ -105,7 +98,10 @@ log. That is what every screenshot and browser check needs. Add `--reader` for a
 preview whose URL goes to the user, at `.tmp/previews/<example>-reader`: the claim
 carries their comments to `leaf wait`. It carries the agent's own gestures just as
 readily, so a preview this session drives under `--reader` reports each screenshot
-click as an unanswered reader move, and the Stop hook holds the turn open for it.
+click as an unanswered reader move, and the Stop hook holds the turn open for it. A
+preview of either kind owes no watcher, so the per-turn reminder to start one skips
+it. Do not idle a preview to quiet the loop: `idle` closes the page in the browser
+and changes the banner a visual check may be reading.
 `--reader` also fixes the address: the durable service records it, so the URL
 survives a stop, while an unclaimed preview's server is its watcher's and a new
 watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`

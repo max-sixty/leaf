@@ -7540,9 +7540,18 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
 
     # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
     # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
+    #
+    # The walk arrives and then travels, in that order and in one task, so the arrival is
+    # the fact each stillness reading is taken behind. Stillness on its own answers the
+    # same for a page that has finished travelling and one whose asynchronous reveal has
+    # not started it, and the second answer is the one that loses this test: the geometry
+    # below is measured where the walk began, the scroll it computes is issued there, and
+    # the travel then lands on top of it with the badge back above the bar.
     page.keyboard.press("a")
+    expect(page.locator("#cards-decision")).to_be_focused()
     scroll_settled(page)
     page.keyboard.press("a")
+    expect(page.locator("#rows-decision")).to_be_focused()
     scroll_settled(page)
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
@@ -8175,11 +8184,16 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+    inline_thread = page.locator(
+        "#cd-q .lf-conversation-thread:has("
+        f'.lf-conversation-msg[data-event="{message["id"]}"])'
+    )
     expect(inline.locator(".lf-conversation-body")).to_have_text(
         "The north bracket fit."
     )
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
+    panel_thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{message["id"]}"])')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     page.evaluate(
         """([message]) => {
@@ -8215,8 +8229,15 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     )
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
     expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
-    expect(inline.locator(".lf-edited")).to_have_text("edited")
-    expect(panel.locator(".lf-edited")).to_have_text("edited")
+    # The disclosure is on the head, and a thread's first message lends its head to the
+    # card, where the thread's own actions sit beside the author. So the mark belongs to
+    # the card holding the message rather than to the message node, on both surfaces.
+    expect(inline_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
+        "edited"
+    )
+    expect(panel_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
+        "edited"
+    )
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(

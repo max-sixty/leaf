@@ -1,8 +1,5 @@
 # Interactive and external evidence
 
-Read the selected element declarations first. Read this reference when the page uses
-measured facts, diagrams, charts, source files, images, or before/after captures.
-
 ## Measured facts
 
 When one measured scalar belongs inside a sentence, freeze it with its provenance:
@@ -33,26 +30,26 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task's nested Ask takes a pick.
 Do not copy the connective sentence from another page.
 
-Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
-schemas, and small XY plots; Beautiful Mermaid renders that Mermaid-source subset.
+Use `lf-diagram` for flows, state machines, sequences, class relationships, and ER
+schemas. Agentic Mermaid draws them from Mermaid source, along with many of Mermaid's
+other families, such as Gantt charts, timelines, and mindmaps.
 Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf's
 accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
-as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
-honors `stroke-width`; other properties are ignored. The widget refuses the
-`click`, `accTitle`, and `accDescr` directives, which the renderer would draw as
-nodes, and a node label holding the delimiter that closes its own shape, such as
-`A["names: list[str]"]`, which the renderer cuts at that character, quoted or not,
-and then drops the rest of the line; a shape whose closer is doubled carries the
-character whole, so `A[["names: list[str]"]]` and `A(["names: list[str]"])` both
-render, as does a subgraph title, which the renderer reads whole —
-`subgraph S["Stage [1]"]`. A malformed statement the renderer does not recognise can
-still render as a node or only in part, and `version check --render` reports renderer
-failures, not that partial output, so look at each flowchart once. Use `lf-chart` for
-quantities that need Leaf's data-first chart vocabulary: a comparison across a few
-categories, a run over time, a ranking, a composition, or two numbers against each
-other. The diagram renderer is 1.5MB, so `lf-diagram` travels in the `diagram`
-package rather than in every page: initialize a page that wants one with
+as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. The renderer also
+honors `stroke-width`; other properties are ignored. `version check --render` reports
+a diagram the renderer refuses or draws empty, not one it draws only in part, so look
+at each diagram once. Quote a label that holds its shape's closing bracket:
+`A["names: list[str]"]`, not `A[names: list[str]]`. The renderer parts from Mermaid in
+places the gate does not see: it draws no `click` or `link` target and no frontmatter
+or sequence `title`, drops a state statement that ends in `;`, labels a state with its
+bare id when a transition names it before `state "…" as S0` declares it, reads an ER
+relationship only in its symbol form (`||--o{`), and draws an entity code such as
+`#36;` as written. Use `lf-chart` rather than
+Mermaid's XY or pie charts for quantities that need Leaf's data-first chart vocabulary:
+a comparison across a few categories, a run over time, a ranking, a composition, or two
+numbers against each other. `lf-diagram` travels in the `diagram` package rather than
+in every page: initialize a page that wants one with
 `leaf page init --package diagram <page>`. `lf-chart` needs no selection. A handful of
 numbers the sentence beside them can carry is prose; a chart is for when the
 shape of the numbers is the point. Use inline SVG only for a bespoke drawing.
@@ -70,9 +67,9 @@ stable source id and take comments on the whole drawing.
 Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable
 without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
-and gives each source line a stable comment coordinate. Its Pierre renderer is
-1.7MB, so `lf-diff` and the `unified-diff` contract travel in the `diff` package:
-initialize such a page with `leaf page init --package diff <page>`. The reader gets
+and gives each source line a stable comment coordinate. `lf-diff` and the
+`unified-diff` contract travel in the `diff` package: initialize such a page with
+`leaf page init --package diff <page>`. The reader gets
 the rest of a long review without anything authored: each file's header pins under
 the banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
 by file, and a Soft wrap switch in the diff's own header folds lines too long for
@@ -98,10 +95,8 @@ leaf data capture <page> pr-patch --file change.patch --format unified-diff \
 ```
 
 The `unified-diff` transform validates each file and builds a structured value whose
-`files` array carries its path, change counts, and patch. Leaf sends only that manifest
-at startup and fetches each patch fragment when its disclosure opens. Files the widget
-cannot present as review evidence are rejected before capture: binary, mode-only, empty
-added or deleted, copy, malformed hunk, and inexact hunkless rename entries.
+`files` array carries its path, change counts, and patch. An entry the widget's
+declaration does not support is refused before capture.
 
 Capture and structured `data set --capture-label` print the data revision retained. Add
 `snapshot="REVISION"` before

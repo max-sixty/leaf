@@ -479,38 +479,56 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
     ], lost
 
 
-def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """Captions choose a frame; image clicks and the margin entry flip it.
+def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
+    """The live pair is continuously comparable, with direct endpoint alternatives.
 
-    Both state labels keep their corresponding sides while the active rule moves, and
-    mouse or keyboard activation chooses the named frame directly. Repeated flip presses
-    keep their target and focus. The margin entry names the next frame after either
-    route and answers both native activation keys. Arriving by Tab rings the whole card,
-    rail included. The render gate also checks selectable captions and the two-frame
-    print view."""
+    Pointer drag and the component's complete keyboard pattern move one divider. The
+    rail and the stable margin entry still jump to the named endpoints, while print
+    keeps the two complete frames and their order."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
     assert render_gate_model.render_version(browser, url) == []
 
-    page = open_page(browser, url)
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """new MutationObserver(() => {
+          if (document.body?.hasAttribute('data-lf-presented') &&
+              window.__lfPresentedAt === undefined)
+            window.__lfPresentedAt = performance.now();
+        }).observe(document, {attributes: true, subtree: true});"""
+    )
+    page.goto(url)
+    page.wait_for_function(
+        "document.body.hasAttribute('data-lf-presented') && "
+        "document.querySelector('lf-shot wa-comparison')"
+    )
+    timing = page.evaluate(
+        """() => ({
+          presented: window.__lfPresentedAt,
+          loaded: performance.getEntriesByType('resource')
+            .find(entry => entry.name.endsWith('/vendor/webawesome.esm.js'))?.startTime,
+        })"""
+    )
+    assert timing["loaded"] >= timing["presented"]
     rail = page.locator("lf-shot .lf-shotrail")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
     before_bounds = rail.locator('[data-lf-state="before"]').bounding_box()
     after_bounds = rail.locator('[data-lf-state="after"]').bounding_box()
     assert before_bounds is not None and after_bounds is not None
-    before_face = rail.evaluate(
-        """rail => [...rail.children].map(cap => ({
-          state: cap.dataset.lfState,
-          ink: getComputedStyle(cap).color,
-          rule: getComputedStyle(cap).boxShadow,
-        }))"""
-    )
-    assert before_face[0]["ink"] != before_face[1]["ink"]
-    assert before_face[0]["rule"] != "none"
-    assert before_face[1]["rule"] == "none"
+    comparison = page.locator("lf-shot wa-comparison")
+    expect(comparison).to_have_attribute("position", "50")
+    glyph = comparison.locator('[slot="handle"].lf-shot-handle')
+    expect(glyph).to_have_count(1)
+    assert glyph.evaluate(
+        "node => [getComputedStyle(node).borderStyle, "
+        "getComputedStyle(node).borderRadius]"
+    ) == ["solid", "50%"]
+    handle = comparison.get_by_role("scrollbar")
+    expect(handle).to_have_accessible_name("Before and after — the navigation rail")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 50%, after 50%")
     page.emulate_media(media="print")
     assert shown_frames(page) == ["before", "after"]
     assert (
@@ -526,51 +544,94 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         == '" · bottom"'
     )
     page.emulate_media(media="screen")
-    assert shown_frames(page) == ["before"]
+    expect(comparison).to_be_visible()
+    page.mouse.move(0, 0)
+    divider_face = comparison.evaluate(
+        """async node => {
+          const divider = node.shadowRoot.querySelector('[part~="divider"]');
+          const handle = node.shadowRoot.querySelector('[part~="handle"]');
+          await Promise.all(handle.getAnimations().map(animation => animation.finished));
+          return {
+            divider: getComputedStyle(divider).backgroundColor,
+            handle: getComputedStyle(handle).backgroundColor,
+            opacity: parseFloat(getComputedStyle(handle).opacity),
+          };
+        }"""
+    )
+    assert divider_face["divider"] != divider_face["handle"]
+    assert 0.45 < divider_face["opacity"] < 0.6
+
+    comparison.scroll_into_view_if_needed()
+    bounds = comparison.bounding_box()
+    assert bounds is not None
+    image_point = (bounds["x"] + bounds["width"] / 4, bounds["y"] + 80)
+    page.mouse.move(*image_point)
+    active_midpoint = comparison.evaluate(
+        """async node => {
+          const handle = node.shadowRoot.querySelector('[part~="handle"]');
+          await Promise.all(handle.getAnimations().map(animation => animation.finished));
+          return parseFloat(getComputedStyle(handle).opacity);
+        }"""
+    )
+    assert active_midpoint == 1
+    page.mouse.down()
+    page.mouse.up()
+    expect(comparison).to_have_attribute("position", "100")
+    page.mouse.move(0, 0)
+    quiet_handle = comparison.evaluate(
+        """async node => {
+          const handle = node.shadowRoot.querySelector('[part~="handle"]');
+          await Promise.all(handle.getAnimations().map(animation => animation.finished));
+          return parseFloat(getComputedStyle(handle).opacity);
+        }"""
+    )
+    assert quiet_handle < 0.25
+    handle.focus()
+    active_handle = comparison.evaluate(
+        """async node => {
+          const handle = node.shadowRoot.querySelector('[part~="handle"]');
+          await Promise.all(handle.getAnimations().map(animation => animation.finished));
+          return parseFloat(getComputedStyle(handle).opacity);
+        }"""
+    )
+    assert active_handle == 1
+    page.mouse.click(*image_point)
+    expect(comparison).to_have_attribute("position", "0")
+    comparison.evaluate("node => { node.position = 50; }")
+    handle.click()
+    expect(comparison).to_have_attribute("position", "50")
+
     before_caption = page.get_by_role(
         "button", name="before — the navigation rail", exact=True
     )
     after_caption = page.get_by_role(
         "button", name="after — the navigation rail", exact=True
     )
-    expect(before_caption).to_have_attribute("aria-pressed", "true")
+    expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "false")
     before_caption.focus()
-    assert "show before" not in shortcut_bar_text(page)
+    assert "show before" in shortcut_bar_text(page)
     after_caption.focus()
     assert "show after" in shortcut_bar_text(page)
     after_caption.click()
-    assert shown_frames(page) == ["after"]
+    expect(comparison).to_have_attribute("position", "100")
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(0, 0)
+    assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
+        before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
+    )
     assert "show after" not in shortcut_bar_text(page)
     after_caption.click()
-    assert shown_frames(page) == ["after"], (
-        "the active caption toggled away from itself"
-    )
+    expect(comparison).to_have_attribute("position", "100")
     before_caption.click()
-    assert shown_frames(page) == ["before"]
+    expect(comparison).to_have_attribute("position", "0")
     after_caption.focus()
     page.keyboard.press("Enter")
-    assert shown_frames(page) == ["after"]
+    expect(comparison).to_have_attribute("position", "100")
     before_caption.focus()
     page.keyboard.press("Space")
-    assert shown_frames(page) == ["before"]
-    at = flip_point(page)
-    page.mouse.click(*at)
-    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
-    assert shown_frames(page) == ["after"]
-    after_face = rail.evaluate(
-        """rail => [...rail.children].map(cap => ({
-          state: cap.dataset.lfState,
-          ink: getComputedStyle(cap).color,
-          rule: getComputedStyle(cap).boxShadow,
-        }))"""
-    )
-    assert after_face[0]["ink"] == before_face[1]["ink"]
-    assert after_face[1]["ink"] == before_face[0]["ink"]
-    assert after_face[0]["rule"] == "none"
-    assert after_face[1]["rule"] != "none"
+    expect(comparison).to_have_attribute("position", "0")
     for locator, bounds in (
         (rail.locator('[data-lf-state="before"]'), before_bounds),
         (rail.locator('[data-lf-state="after"]'), after_bounds),
@@ -580,17 +641,41 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         assert {key: flipped_bounds[key] for key in ("x", "width", "height")} == {
             key: bounds[key] for key in ("x", "width", "height")
         }
-    box = page.locator("lf-shot input[type=checkbox]")
-    expect(box).to_be_focused()
-    assert "show before" in shortcut_bar_text(page)
-    # The native checkbox is the overlay itself. Hold it across two frames: focus and the
-    # screenshot shortcut bar must remain stable for the whole human press.
+
+    handle.focus()
+    expect(handle).to_be_focused()
+    assert "adjust the comparison" in shortcut_bar_text(page)
+    page.keyboard.press("ArrowRight")
+    expect(comparison).to_have_attribute("position", "1")
+    expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")
+    page.keyboard.press("Shift+ArrowRight")
+    expect(comparison).to_have_attribute("position", "11")
+    page.keyboard.press("End")
+    expect(comparison).to_have_attribute("position", "100")
+    page.keyboard.press("Home")
+    expect(comparison).to_have_attribute("position", "0")
+
+    comparison.evaluate("node => { node.position = 50; }")
+    expect(comparison).to_have_attribute("position", "50")
+    bounds = comparison.bounding_box()
+    handle_bounds = handle.bounding_box()
+    assert bounds is not None and handle_bounds is not None
+    at = (
+        handle_bounds["x"] + handle_bounds["width"] / 2,
+        handle_bounds["y"] + handle_bounds["height"] / 2,
+    )
+    page.mouse.move(*at)
     page.mouse.down()
-    expect(box).to_be_focused()
-    assert "show before" in shortcut_bar_text(page)
+    page.mouse.move(at[0] + bounds["width"] / 4, at[1], steps=4)
     page.mouse.up()
-    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
-    assert shown_frames(page) == ["before"]
+    dragged = float(comparison.get_attribute("position"))
+    assert 70 <= dragged <= 80
+    expect(handle).to_have_attribute(
+        "aria-valuetext", f"Before {100 - dragged:g}%, after {dragged:g}%"
+    )
+
+    comparison.evaluate("node => { node.position = 0; }")
+    expect(comparison).to_have_attribute("position", "0")
     button = page.get_by_role("button", name="Show after — the navigation rail")
     expect(page.locator(".lf-margin-cluster").filter(has=button)).to_be_visible()
     expect(button.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -603,8 +688,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         button_bounds["y"] + button_bounds["height"] / 2,
     )
     page.mouse.click(*button_at)
-    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
-    assert shown_frames(page) == ["after"]
+    expect(comparison).to_have_attribute("position", "100")
     button = page.get_by_role("button", name="Show before — the navigation rail")
     expect(button).to_be_focused()
     assert "show before" in shortcut_bar_text(page)
@@ -615,106 +699,95 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.mouse.down()
     expect(button).to_be_focused()
     page.mouse.up()
-    assert shown_frames(page) == ["before"]
+    expect(comparison).to_have_attribute("position", "0")
     page.keyboard.press("Enter")
-    assert shown_frames(page) == ["after"]
+    expect(comparison).to_have_attribute("position", "100")
     page.keyboard.press("Space")
-    assert shown_frames(page) == ["before"]
+    expect(comparison).to_have_attribute("position", "0")
 
-    # Image activation updates the margin entry too; Space still works at the image.
-    page.mouse.click(*at)
-    expect(
-        page.get_by_role("button", name="Show before — the navigation rail")
-    ).to_be_visible()
-    box.focus()
-    page.keyboard.press(" ")
-    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
-    expect(
-        page.get_by_role("button", name="Show after — the navigation rail")
-    ).to_be_visible()
-
-    # The rail and the frame are one card, so the ring a reader arriving by Tab leaves
-    # goes round the card. Drawn on the frame alone it ran three pixels up inside the
-    # rail, which is a rule across the card rather than a ring round the thing in hand,
-    # and the rail's own surface stands where that run is. Asked here as well as in the
-    # corpus ring walk because that walk is nightly and reports its first fault only.
-    for _ in range(40):
-        page.keyboard.press("Tab")
-        if box.evaluate("flip => flip === document.activeElement"):
-            break
-    expect(box).to_be_focused()
-    ring = page.locator("lf-shot").evaluate(
-        """shot => {
-          const cs = getComputedStyle(shot);
-          const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
-          const b = shot.getBoundingClientRect();
-          const card = [...shot.querySelectorAll('.lf-shotrail, .lf-shotframe')]
-            .map((part) => part.getBoundingClientRect());
-          return {
-            name: cs.getPropertyValue('--lf-here-ring').trim(),
-            width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
-            top: b.top - grow,
-            bottom: b.bottom + grow,
-            card_top: Math.min(...card.map((part) => part.top)),
-            card_bottom: Math.max(...card.map((part) => part.bottom)),
-            corners: [cs.borderTopLeftRadius, cs.borderBottomRightRadius],
-            card_corners: [
-              getComputedStyle(shot.querySelector('.lf-shotrail')).borderTopLeftRadius,
-              getComputedStyle(shot.querySelector('.lf-shotframe'))
-                .borderBottomRightRadius,
-            ],
-          };
-        }"""
+    handle.focus()
+    ring = handle.evaluate(
+        """node => { const cs = getComputedStyle(node); return {
+          name: cs.getPropertyValue('--lf-here-ring').trim(),
+          width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
+        }}"""
     )
     assert ring["name"] == "shot" and ring["width"] > 0
-    assert ring["top"] < ring["card_top"] and ring["bottom"] > ring["card_bottom"]
-    # An outline follows its own box's corners, and lf-shot draws no border of its own
-    # to have rounded them, so the ring's corners are asked against the rail's top and
-    # the frame's foot — the card's own outer corners.
-    assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
 
 
-def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
-    """Clicking a tall comparison must not focus a remote control and scroll away
-    from the image. The same causal gesture is checked on a desk and phone."""
-    before = solid_png(390, 844, (232, 226, 213))
+def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser, serve):
+    """Dragging a tall comparison stays under the pointer on a desk and phone."""
+    before = solid_png(390, 700, (232, 226, 213))
     after = solid_png(390, 844, (214, 226, 235))
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
     page = open_page(browser, url)
-    box = page.locator("lf-shot > input.lf-shotflip")
-    expect(box).to_have_accessible_name(
-        "Compare before and after — the navigation rail"
-    )
-    frame = page.locator('lf-shot .lf-shotframe[data-lf-state="before"]')
+    comparison = page.locator("lf-shot wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    expect(handle).to_have_accessible_name("Before and after — the navigation rail")
 
     for width in (1200, 390):
         resized(page, width, 900)
+        comparison.evaluate("node => { node.position = 50; }")
         page.evaluate(
             """() => { const r = document.querySelector('lf-shot .lf-shotframe')
                                   .getBoundingClientRect();
                        document.scrollingElement.scrollBy(0, r.top - 140); }"""
         )
-        image_point = frame.evaluate(
-            "el => { const r = el.getBoundingClientRect();"
-            "        return [r.left + r.width / 2, r.top + 80]; }"
+        box = comparison.bounding_box()
+        handle_box = handle.bounding_box()
+        image_heights = comparison.locator("img").evaluate_all(
+            "nodes => nodes.map(node => node.getBoundingClientRect().height)"
         )
-        assert page.evaluate(
-            "([x, y]) => document.elementFromPoint(x, y) === "
-            "document.querySelector('lf-shot > input.lf-shotflip')",
-            image_point,
+        assert box is not None and handle_box is not None
+        assert box["height"] >= max(image_heights) - 1
+        divider = (
+            handle_box["x"] + handle_box["width"] / 2,
+            box["y"] + 80,
         )
-        was_checked = box.is_checked()
         scroll_before = page.evaluate("document.scrollingElement.scrollTop")
-        page.mouse.click(*image_point)
+        page.mouse.move(*divider)
+        page.mouse.down()
+        page.mouse.move(divider[0] + 24, divider[1], steps=3)
+        page.mouse.up()
         scroll_settled(page)
-        assert box.is_checked() is not was_checked
+        assert float(comparison.get_attribute("position")) > 50
         assert (
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
             <= 1
         )
+
+
+def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
+    """A reader's before → after → before choice survives the deferred import."""
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.add_init_script(
+        """new MutationObserver(() => {
+          if (!document.body?.hasAttribute('data-lf-presented') || window.__lfFlipped)
+            return;
+          const box = document.querySelector('lf-shot input.lf-shotflip');
+          if (!box) return;
+          window.__lfFlipped = true;
+          window.__lfHadComparison = !!document.querySelector('lf-shot wa-comparison');
+          box.click();
+          box.click();
+          window.__lfFallbackShown = [...document.querySelectorAll('.lf-shotframe')]
+            .filter(frame => getComputedStyle(frame).visibility === 'visible')
+            .map(frame => frame.dataset.lfState);
+        }).observe(document, {attributes: true, subtree: true});"""
+    )
+    page.goto(url)
+    comparison = page.locator("lf-shot wa-comparison")
+    expect(comparison).to_have_attribute("position", "0")
+    assert page.evaluate(
+        "() => [window.__lfHadComparison, window.__lfFallbackShown]"
+    ) == [False, ["before"]]
 
 
 def test_a_shot_still_flips_with_every_script_removed(
@@ -775,11 +848,27 @@ def test_a_shot_still_flips_with_every_script_removed(
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
+    assert loose.locator("wa-comparison, [slot=handle]").count() == 0
+    assert loose.locator("lf-shot > .lf-shotframe").count() == 2
+    expect(loose.locator("lf-shot [aria-keyshortcuts]")).to_have_attribute(
+        "aria-keyshortcuts", "Space"
+    )
     assert shown_frames(loose) == ["before"]
     loose.mouse.click(*flip_point(loose))
     assert shown_frames(loose) == ["after"]
+    before_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="before"]')
+    after_caption = loose.locator('lf-shot .lf-shotcap[data-lf-state="after"]')
+    before_caption.hover()
+    assert before_caption.evaluate(
+        "node => getComputedStyle(node).backgroundColor"
+    ) != (after_caption.evaluate("node => getComputedStyle(node).backgroundColor"))
     loose.keyboard.press("Space")
     assert shown_frames(loose) == ["before"]
+    loose.emulate_media(media="print")
+    printed_tops = loose.locator("lf-shot .lf-shotframe").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
+    )
+    assert printed_tops[0] != printed_tops[1]
 
 
 def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
@@ -1020,4 +1109,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        assert "failed soft" in run.stderr and "Invalid mermaid header" in run.stderr
+        # The report names the widget and gives the renderer's reason, not the source.
+        assert "<lf-diagram id='d-broken'> failed soft:" in run.stderr
+        assert "is unsupported" in run.stderr
+        assert "Ada,Review,3" not in run.stderr

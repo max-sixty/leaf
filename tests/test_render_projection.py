@@ -7285,7 +7285,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     reach the agent live, so only its Done press closes it, as an `answer` action
     the decision stands until (x-awaits.until). The thread's own reply box is the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
-    Threads, while `t` and Enter reach a particular thread and its reply box.
+    Threads, while `t` reaches a particular thread and `c` reaches its reply box.
 
     The answer is said once, when the log takes it. The log is where it is recorded,
     and the group's own markup stays the author's: a module writes there only where the
@@ -7312,7 +7312,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # The box hands the reader back to the conversation it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
+    expect(page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")).to_be_focused()
 
     page.locator("#tq-redis").click()
     expect(decisions).to_have_text("Asks 1/2")
@@ -7413,8 +7413,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes
-    # the repeatable category walk and the thread-local landing explicit.
+    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
+    # the repeatable category walk and the thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
@@ -7428,7 +7428,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("1")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("t")
-    page.keyboard.press("Enter")
+    page.keyboard.press("c")
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -7694,7 +7694,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —
     and the row is the only thing here either one can be wrong about: the repaint that
     turns them over together is the document's disclosure watch, held up by
-    `test_a_widgets_native_control_names_the_press_the_platform_makes`, and not anything
+    `test_staged_widget_controls_name_the_presses_their_owners_make`, and not anything
     this widget does. Read once and never retried, for the reason `shortcut_bar_text` is: the
     heartbeat repaints scopes too, and an assertion that retries goes green on whichever
     tick lands inside its budget.

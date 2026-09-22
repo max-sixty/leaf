@@ -221,15 +221,15 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve stands beside the quoted target.
+    """Submit belongs to the field while Resolve stands with the root metadata.
 
     Growing the field carries Submit with it and leaves Resolve fixed. The textarea
     reserves the icon's whole horizontal band, so words and a scrollbar do not run
-    underneath it. Resolve aligns with the quoted target instead of either message's
-    metadata. The same geometry holds in the panel's narrowest useful window and with
+    underneath it. Resolve aligns with the root author and time instead of the quoted
+    target. The same geometry holds in the panel's narrowest useful window and with
     room beside the page, in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
@@ -251,6 +251,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    expect(thread.get_by_role("button", name="Close thread", exact=True)).to_have_count(
+        0
+    )
     expect(send).to_have_text("")
     expect(resolve).to_have_text("")
     expect(close).to_have_text("")
@@ -274,7 +277,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-compose'), field: rect('.lf-compose-field'),
                           textarea: rect('.lf-compose textarea'),
-                          quote: rect('.lf-quote'),
+                          metadata: rect('.lf-thread-root-meta'),
+                          metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
                             '.lf-thread-panel-head [aria-label="Close threads"]')).borderTopWidth,
@@ -305,10 +309,15 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     assert short["send"]["right"] < short["textarea"]["right"]
     assert short["send"]["bottom"] < short["textarea"]["bottom"]
     assert short["padding"] >= short["send"]["width"] + 10
-    assert short["resolve"]["y"] == pytest.approx(short["quote"]["y"], abs=1)
-    assert short["resolve"]["right"] == pytest.approx(short["compose"]["right"], abs=1)
-    assert short["resolve"]["x"] - short["quote"]["right"] >= 8
-    assert short["resolve"]["bottom"] <= short["quote"]["bottom"] + 1
+    assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
+    assert short["metadataActions"]["right"] == pytest.approx(
+        short["compose"]["right"], abs=1
+    )
+    assert short["resolve"]["right"] == pytest.approx(
+        short["metadataActions"]["right"], abs=1
+    )
+    assert short["metadata"]["x"] == pytest.approx(short["messageStart"], abs=1)
+    assert short["resolve"]["bottom"] <= short["metadata"]["bottom"] + 1
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
     assert float(short["sendBorder"][:-2]) == 0
@@ -327,6 +336,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
         grown["textarea"]["bottom"] - 6, abs=1
     )
     assert grown["send"]["y"] > short["send"]["y"]
+    assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0
 

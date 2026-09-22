@@ -1,9 +1,5 @@
 # Conversation handoff
 
-Read this before handing a page to the user or marking work in progress. The
-main skill routes waiting, delivered events, threads, and ending to phase-specific
-references.
-
 ## What the reader sees
 
 The reader follows your work on the page:
@@ -55,8 +51,8 @@ leaf status <page> waiting "<what you want back>"
 
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
-banner then invites the reader to select text to comment. Follow the main
-skill's "Return to the user" rule for every chat message.
+banner then invites the reader to select text to comment. Every chat message
+from here on repeats the page's exact URL (the main skill, "Operate").
 
 While the next move is yours the page is `working`. Name the local subject when
 the detail is about one open comment thread or page widget:
@@ -80,32 +76,9 @@ Stamping accepts only widget ids with standing work. `status --on` refuses a
 widget with neither an unsettled action receipt nor an active `x-work` seat; use
 the page-wide detail when neither admits a local claim.
 
-An inline delivery advances each included reader move to **Picked up** and the page
-to **handling** when it enters this turn. A queued pointer remains **Queued** until your
-host contract's own confirmation step opens it; reading its envelope alone does not.
-
-UI feedback is the first operation for every delivery:
-
-```bash
-leaf delivery claim <delivery-id>
-```
-
-The command atomically selects the first delivered reader move that is still
-outstanding, writes `working` with “Reading your feedback,” and strengthens that exact
-move's receipt to **Working**. It changes nothing when a retry contains no outstanding
-reader move. For a queued pointer, run `delivery read` only after this claim. An inline
-delivery already carries the envelope and needs no read.
-
-After reading the feedback, a more specific claim can name the exact delivered event:
-
-```bash
-leaf delivery claim <delivery-id> --event <event-id> --detail "checking the rollout"
-```
-
-Use `status --on` for proactive subject work that did not begin with a delivery. Do not
-write `waiting` merely to end the delivery step. Write it after replies, revisions, or
-receipts have settled what this turn took in; until then the canonical activity
-fold continues to report the stronger exact handling evidence.
+Use `status --on` for proactive subject work that did not begin with a delivery. A
+delivery claims its own subject (`references/event-batches.md`, "Delivery and
+acknowledgement").
 
 ## Long-running work
 
@@ -139,5 +112,5 @@ after about a quarter of an hour. Before you end a turn while workers run, make 
 last status say what is still running, and write it again in the turn that a worker's
 result or the reader's next comment wakes. Within a turn, fold your workers' progress
 into your own status: one sentence covering three workers reads better than three
-claims competing for one row. A thread claim written after your reply stands until your
-next reply there, and claims on different subjects stand side by side at the page edge.
+claims competing for one row, while claims on different subjects stand side by side at
+the page edge.

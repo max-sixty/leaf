@@ -322,13 +322,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert 'operation="delivery claim"' in prompt.prompt
     assert "skill=" not in prompt.prompt
     [batch] = prompt.payload["batches"]
-    assert set(batch) == {
-        "page",
-        "through_seq",
-        "conversations",
-        "handling",
-        "events",
-    }
+    assert set(batch) == {"page", "through_seq", "conversations", "events"}
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
     assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
@@ -3488,27 +3482,66 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
     assert renewed["disposition"] == "effective"
 
 
-def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys):
-    """The first line's `handling` is the vendored layer's `$events.handling` for
-    exactly the kinds in the batch, so the rule reaches the agent beside the event
-    it applies to rather than in a reference the loop never opens."""
+def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys):
+    """An event carries its kind's `$events.handling` clauses whose `when` its record
+    matches, so the rule reaches the agent beside the event it applies to, and a plain
+    comment is not told how to read a drawing, nor a pick on the page how a thread's
+    group answers."""
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
-    events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
-    )
-    events_model.append_event(
-        page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
-    )
+    page_pick = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "w",
+        "action": "choose",
+        "detail": {"options": ["a"]},
+        "meaning": {
+            "document": {"kind": "page", "revision": 1},
+            "coordinate": ["w", "w", "selection"],
+            "depends": ["a", "w"],
+            "answer": None,
+        },
+    }
+    thread_pick = {
+        **page_pick,
+        "meaning": {**page_pick["meaning"], "document": {"kind": "thread"}},
+    }
+    drawing = {"format": "leaf-drawing/2", "strokes": [[[0, 0], [10, 10]]]}
+    for event in (
+        {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
+        {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
+        {"kind": "resolve", "author": "user", "parent": "c1"},
+        page_pick,
+        thread_pick,
+    ):
+        events_model.append_event(page_dir, event)
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
+    assert "handling" not in header
+    plain, drawn, resolved, on_page, in_thread = (event["handling"] for event in shown)
     declared = registry_storage.load_registry(page_dir)["$events"]["handling"]
-    assert set(header["handling"]) == {event["kind"] for event in shown}
-    assert header["handling"] == {
-        "comment": declared["comment"],
-        "resolve": declared["resolve"],
-    }
+    [reading_a_drawing] = [
+        c["text"]
+        for c in declared["comment"]
+        if c.get("when") == {"required": ["drawing"]}
+    ]
+    [(in_a_thread, thread_answers)] = [
+        (c["when"], c["text"])
+        for c in declared["action"]
+        if "meaning" in c.get("when", {}).get("required", [])
+    ]
+    page_only = [
+        c["text"] for c in declared["action"] if c.get("when") == {"not": in_a_thread}
+    ]
+    # A drawn comment is told how to read its drawing, then all a plain one is told.
+    assert drawn == f"{reading_a_drawing} {plain}"
+    assert reading_a_drawing not in plain
+    assert resolved == declared["resolve"][0]["text"]
+    assert page_only and thread_answers not in on_page
+    assert all(text in on_page and text not in in_thread for text in page_only)
+    assert thread_answers in in_thread
 
 
 def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
@@ -3516,19 +3549,18 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     assert activated.error is None and activated.revision == 1
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    handling = registry["$events"]["handling"]["comment"]
+    comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    active = registry_contract.event_clauses(comment, registry)
     del registry["$events"]["handling"]
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
-    events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
-    )
+    events_model.append_event(page_dir, comment)
 
     assert session_model.cmd_wait(page_dir) == 0
-    _, header, _ = delivered(capsys.readouterr().out)
-    assert header["handling"] == {"comment": handling}
+    _, _, [shown] = delivered(capsys.readouterr().out)
+    assert active and shown["handling"] == " ".join(c["text"] for c in active)
 
 
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
@@ -3692,9 +3724,9 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     grown = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert grown.exit_code == 0, grown.output
     _, grown_header, grown_events = delivered(grown.output)
-    assert {
-        key: grown_header[key] for key in ("page", "conversations", "handling")
-    } == {key: header[key] for key in ("page", "conversations", "handling")}
+    assert {key: grown_header[key] for key in ("page", "conversations")} == {
+        key: header[key] for key in ("page", "conversations")
+    }
     assert grown_header["through_seq"] == 3
     assert [event["seq"] for event in grown_events] == [1, 3]
 
@@ -4250,6 +4282,9 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     assert thread["id"] == asked["id"]
     # The markup, because `m-cap` is a word only the question spells out.
     assert 'id="m-cap"' in thread["messages"][0]["markup"]
+    # And the pick in words, read from that frozen message: the group is left
+    # out because it only encloses the option chosen in it.
+    assert shown[0]["says"] == {"m-cap": "Cap retries"}
 
     # Standing, so a later delivery in this thread carries what the reader
     # settled. Without it the agent meets the question with no answer under it
@@ -4283,6 +4318,68 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     [withdrawn] = withdrawn_batch["conversations"]
     assert withdrawn["id"] == asked["id"]
     assert withdrawn["actions"] == []
+
+
+def test_a_delivered_gesture_says_what_the_reader_chose_on_their_version(
+    page_dir, capsys
+):
+    """A page gesture is recorded as ids, and the agent reading the batch may
+    hold none of the page: it compacted, or another session wrote it. The
+    envelope spells out the elements the gesture names, from the revision the
+    reader pressed on, so a later version that rewords an option does not
+    change what they chose. A gesture naming only its widget says the whole
+    widget, and an undo says what it takes back."""
+    asked = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+    )
+    (page_dir / "index.html").write_text(asked)
+    publish(page_dir)
+    (page_dir / "index.html").write_text(
+        asked.replace("Ship dark.", "Ship behind the flag, reworded.")
+    )
+    advanced = stamp(page_dir, "Reworded the first plan")
+    assert advanced.exit_code == 0, advanced.output
+    serving(page_dir, 1)
+
+    chose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
+    )
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 2,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    _, _, shown = delivered(capsys.readouterr().out)
+    assert [e["id"] for e in shown] == [chose["id"], answered["id"]]
+    assert shown[0]["says"] == {
+        "flag-first": "effort: low risk: med Flag first Ship dark."
+    }
+    [(widget, whole)] = shown[1]["says"].items()
+    assert widget == "plan-choice"
+    assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
+
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    _, _, [undone] = delivered(capsys.readouterr().out)
+    assert undone["says"] == shown[0]["says"]
 
 
 def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
@@ -6450,8 +6547,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY_FORMAT
             assert all(
-                set(batch)
-                == {"page", "through_seq", "conversations", "handling", "events"}
+                set(batch) == {"page", "through_seq", "conversations", "events"}
                 for batch in payload["batches"]
             )
             queue_history = (

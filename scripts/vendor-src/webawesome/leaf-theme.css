@@ -2,6 +2,7 @@
 :is(
   wa-color-picker,
   wa-copy-button,
+  wa-comparison,
   wa-switch,
   wa-radio-group,
   wa-radio,
@@ -28,6 +29,10 @@
   --wa-color-brand-on-quiet: var(--accent);
   --wa-color-brand-border-quiet: var(--accent);
   --wa-color-focus: var(--accent);
+  /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
+     vendored control wears that band rather than the vendor's own wider one. */
+  --wa-focus-ring-style: solid;
+  --wa-focus-ring-width: var(--here-ring-w);
   --wa-form-control-activated-color: var(--accent);
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
@@ -36,4 +41,24 @@
 
 :is(wa-input, wa-textarea, wa-number-input) {
   --wa-form-control-background-color: var(--card);
+}
+
+/* The band appears with the focus. A running transition is reported as the value the
+   property is leaving, so a ring that fades in is a ring no reading sees at the moment
+   it is drawn — theme.css states the same for the layer's own rules, and these two are
+   the vendored controls that animate their outline. Naming the properties that stay
+   leaves the vendor's own durations and easing to it. */
+:is(wa-input, wa-textarea, wa-number-input)::part(base),
+wa-select::part(combobox) {
+  transition-property: background-color, border-color;
+}
+
+/* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
+   root, where the host rule a Leaf control wears reaches neither. The band is therefore
+   drawn and named on the field's own part: --lf-here-ring does not inherit, and the
+   layer credits a ring to the rule that names it. Leaf enables none of the buttons the
+   field can carry beside its input, so focus inside it is focus in the input. */
+:is(wa-input, wa-textarea, wa-number-input):focus-within::part(base) {
+  outline: var(--here-ring);
+  --lf-here-ring: text-entry;
 }

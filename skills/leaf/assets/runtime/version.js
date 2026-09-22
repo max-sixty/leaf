@@ -131,7 +131,7 @@ import {
 import { captureCarry, restoreCarry } from "./carry.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
-import { clippedRect, shownBox } from "./geometry.js";
+import { clippedContents, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -473,7 +473,7 @@ export function createVersionController({
     when: versionsOffered,
     at: versionMenuIsOpen,
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
-    // reading so the reference filters member-dependent rows by their actual liveness.
+    // reading so the reference documents its rows as unavailable in the remaining scene.
     liveInCommandReference: true,
     // A chooser over the page suspends the page, which the two transient contexts above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
@@ -493,6 +493,14 @@ export function createVersionController({
       // once — and while they shared a word it printed it twice, leaving the reader to
       // tell them apart by their keycaps. The direction is the whole difference between
       // them and it is what each says.
+      //
+      // Their `when` reads where focus stands, which is a dispatch question: the press
+      // closes the menu only from the end it is held to. The reference asks a different
+      // one — does this scene offer the capability — and it asks it of a menu the modal
+      // has just dismissed, so a position predicate answers no for both and the pair
+      // would be the only rows in this scope the reference can never name. They say so
+      // themselves, and the reference marks them unreachable the way it marks the
+      // numbered destinations beside them.
       {
         id: "version.leave-forward",
         keys: ["Tab"],
@@ -504,6 +512,7 @@ export function createVersionController({
         // fresh Tab; only the platform's focus move remains native.
         repeat: true,
         when: () => atVersionBoundary(-1),
+        commandReferenceWhen: () => true,
         run: closeVersionMenu,
       },
       {
@@ -514,6 +523,7 @@ export function createVersionController({
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
+        commandReferenceWhen: () => true,
         run: closeVersionMenu,
       },
       // The menu is a layer over the page and its parent is the page, so the one press
@@ -1614,7 +1624,7 @@ export function createVersionController({
       const range = document.createRange();
       range.selectNodeContents(block);
       const rect = range.getBoundingClientRect();
-      const seen = clippedRect(rect, block, new Map());
+      const seen = clippedContents(rect, block, new Map());
       if (seen && seen.bottom > bounds.top && seen.top < bounds.bottom)
         yield [block, rect];
     }

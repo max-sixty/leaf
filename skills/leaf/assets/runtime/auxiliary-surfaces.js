@@ -189,21 +189,28 @@ export function createAuxiliarySurfaces({
     if (active) leave(active);
     selectedKey = key;
     arriving = null;
+    const selected = controllers.get(key);
+    // One surface goes down, the shell changes, the next comes up. The shell write is the
+    // whole of what the content frame carries, and a surface's own rendering stands
+    // either side of it rather than inside it: the browser holds the reader's place
+    // across the reflow that write lands, and that hold rests on the ordering theme.css
+    // states at the body strip. Rendering the surface into the same batch switches it
+    // off — measured at 900px, showing the panel's dialog inside the callback left the
+    // reader three paragraphs back from the words they were on.
+    previous?.hide({ returnFocus });
     moveContentFrame(() => {
-      previous?.hide({ returnFocus });
       if (key) document.body.dataset.lfAuxiliarySurface = key;
       else delete document.body.dataset.lfAuxiliarySurface;
-      const selected = controllers.get(key);
-      if (selected) {
-        if (
-          phase === "arrival" &&
-          selected.arrival === "presentation" &&
-          !pagePresented()
-        )
-          arriving = selected;
-        else selected.show({ phase });
-      }
     });
+    if (selected) {
+      if (
+        phase === "arrival" &&
+        selected.arrival === "presentation" &&
+        !pagePresented()
+      )
+        arriving = selected;
+      else selected.show({ phase });
+    }
     sync();
     syncLayout();
     afterChange();

@@ -1303,7 +1303,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
         actionPress =
-          (touchSelectionAnchor && Boolean(ev.target.closest?.(".lf-banner"))) ||
+          (touchSelectionAnchor && Boolean(ev.target.closest?.(".lf-chrome"))) ||
           ev.target === selectionComment ||
           Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
       },

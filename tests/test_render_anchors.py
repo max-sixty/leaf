@@ -4952,23 +4952,20 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator("textarea")).to_be_visible()
-    inline_receipt = thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
-    )
-    panel_receipt = panel_thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
-    )
-    expect(inline_receipt).to_contain_text("✓ Sent")
-    expect(panel_receipt).to_contain_text("✓ Sent")
-    inline_receipt.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
-    panel_receipt.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    # The root message's own workflow line, which each surface holds beside its head.
+    inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    panel_status = panel_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    expect(inline_status).to_have_text("Sent")
+    expect(panel_status).to_have_text("Sent")
+    inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
+    panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_receipt).to_contain_text("✓ Picked up")
-    expect(panel_receipt).to_contain_text("✓ Picked up")
-    expect(inline_receipt).to_have_attribute("data-identity-probe", "inline")
-    expect(panel_receipt).to_have_attribute("data-identity-probe", "panel")
+    expect(inline_status).to_have_text("Picked up")
+    expect(panel_status).to_have_text("Picked up")
+    expect(inline_status).to_have_attribute("data-identity-probe", "inline")
+    expect(panel_status).to_have_attribute("data-identity-probe", "panel")
 
     reply = events_model.append_event(
         serve.page_dir,
@@ -4982,8 +4979,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     told(page)
-    expect(inline_receipt).to_have_count(0)
-    expect(panel_receipt).to_have_count(0)
+    expect(inline_status).to_have_count(0)
+    expect(panel_status).to_have_count(0)
     palette = thread.evaluate(
         """thread => {
           const style = getComputedStyle(thread);
@@ -5150,15 +5147,19 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
-        expect(active).to_contain_text("● Working — checking the inline placement")
-        expect(sent).to_contain_text("✓ Sent")
-        expect(view.locator(":scope > .lf-receipt")).to_have_count(0)
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        expect(active).to_have_text("Working")
+        expect(active).to_have_attribute(
+            "title", "Working · checking the inline placement"
+        )
+        expect(sent).to_have_text("Sent")
+        # The workflow line belongs to a message; the thread view carries none of its own.
+        expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
         expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 

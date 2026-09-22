@@ -24,16 +24,14 @@ export function agentReplyArrivals(observed, threads) {
       const key = messageKey(message);
       if (known.has(key)) continue;
       known.add(key);
-      if (observed !== null)
-        arrivals.push({ thread: threadKey(thread), message });
+      if (observed !== null) arrivals.push({ thread: threadKey(thread), message });
     }
   }
   return { observed: known, arrivals };
 }
 
 export function agentReplyNotice(arrivals) {
-  if (arrivals.length === 1)
-    return `${arrivals[0].message.agent || "Agent"} replied`;
+  if (arrivals.length === 1) return `${arrivals[0].message.agent || "Agent"} replied`;
   const threads = new Set(arrivals.map((arrival) => arrival.thread)).size;
   return `${arrivals.length} replies in ${threads} ${threads === 1 ? "thread" : "threads"}`;
 }

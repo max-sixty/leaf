@@ -17,10 +17,7 @@ test("reply arrivals compare canonical identities across complete readings", () 
     thread("a", reply("old"), reply("new-a")),
     thread("b", reply("new-b")),
   ]);
-  assert.equal(
-    agentReplyNotice(next.arrivals),
-    "2 replies in 2 threads",
-  );
+  assert.equal(agentReplyNotice(next.arrivals), "2 replies in 2 threads");
   assert.deepEqual(
     agentReplyArrivals(next.observed, [
       thread("a", reply("old"), reply("new-a", { text: "edited" })),

@@ -1,12 +1,6 @@
 /* A monitoring root shares Leaf's page-fit lifecycle while keeping its own asymmetric
    minimum: one release panel beside the checks and log that explain its state. */
-import {
-  arrangeReadingElement,
-  fitRootReadingElement,
-  once,
-  registerReadingElement,
-  widgetController,
-} from "/runtime/widget-api.js";
+import { arrangeReadingElement, once, widgetController } from "/runtime/widget-api.js";
 
 const direct = (owner, tag) =>
   [...owner.children].find((child) => child.tagName === tag.toUpperCase()) ?? null;
@@ -51,40 +45,24 @@ const minimumSize = (owner, content) => {
 customElements.define(
   "lf-monitor",
   class extends HTMLElement {
-    #readingArrangement = null;
-    #content = null;
-    #fitting = null;
+    #layout = null;
 
     connectedCallback() {
-      if (once(this)) {
-        const arranged = arrangeReadingElement({
+      if (!this.#layout) {
+        once(this);
+        this.#layout = arrangeReadingElement({
           owner: this,
           role: "workspace",
           header: direct(this, "header"),
           footer: direct(this, "footer"),
-        });
-        this.#readingArrangement = arranged.readingArrangement;
-        this.#content = arranged.content;
-      } else {
-        this.#content = this.querySelector(":scope > .lf-workspace-content");
-        this.#readingArrangement = registerReadingElement({
-          owner: this,
-          content: this.#content,
+          minimumSize: () => minimumSize(this, this.#layout.content),
         });
       }
-      this.#fitting = fitRootReadingElement({
-        owner: this,
-        readingArrangement: this.#readingArrangement,
-        minimumSize: () => minimumSize(this, this.#content),
-      });
-      widgetController(this).present(this.#fitting.update());
+      widgetController(this).present(this.#layout.connect());
     }
 
     disconnectedCallback() {
-      this.#fitting?.cleanup();
-      this.#fitting = null;
-      this.#readingArrangement?.cleanup();
-      this.#readingArrangement = null;
+      this.#layout?.disconnect();
     }
   },
 );

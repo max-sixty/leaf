@@ -226,14 +226,16 @@ validator reads roles rather than tag names, so a package may supply a different
 member without changing Leaf or joining an `x-owners` list.
 
 Behavior modules compose these reading areas with
-`arrangeReadingElement({owner, role, header, footer, regions})` from the public widget
-API. It returns `{body, content, readingArrangement}`; `role` selects workspace, pane,
-or partition.
+`arrangeReadingElement({owner, role, header, footer, regions, minimumSize})` from the
+public widget API. It returns a retained layout with `body` and `content` nodes;
+`role` selects workspace, pane, or partition.
 The optional header and footer are elements the caller identifies, including generated
 elements; shared slot classes carry their geometry. The helper groups the remaining
-children into the content body and registers any declared reading regions. On reconnect,
-`registerReadingElement({owner, content, body, regions})` rebinds that existing DOM.
-Both helpers mark a workspace owner `data-lf-workspace-context="root"` when it is the only
+children into the content body and registers any declared reading regions. Keep the
+layout for the element's lifetime. Call `connect()` from `connectedCallback` and
+`disconnect()` from `disconnectedCallback`: disconnect retires registrations and
+observers, and connect restores them from the retained nodes and declarations.
+Neither rebuilds DOM. The helper marks a workspace owner `data-lf-workspace-context="root"` when it is the only
 non-metadata element directly inside `body > main`; other workspaces receive `embedded`.
 Packages read that context to choose
 bounded posture. The shared theme gives only a marked `.lf-workspace-reading` owner the
@@ -246,12 +248,14 @@ named pane, including furniture, region registration, accessibility, and reconne
 it when a package-specific pane differs only through its registry contract and CSS;
 write a behavior module when the element owns another interaction.
 
-`fitRootReadingElement({owner, readingArrangement, minimumSize})` owns the root's observation
-of available page width and height, window resize, and descendant layout changes. The
-caller supplies the complete minimum as `{width, height}` and keeps the composition's
+The optional `minimumSize` callback gives the layout ownership of root fitting:
+available page width and height, window resize, and descendant layout changes. The
+callback returns the complete minimum as `{width, height}` or `null` for flow, keeping the composition's
 policy: the default workspace derives one recursively from equal partitions, while an
-asymmetric package root may read its own grid tracks. The returned `update()` promise
-joins initial settlement; `cleanup()` retires its observers and listeners. Leaf reads
+asymmetric package root may read its own grid tracks. Pass the promise returned by
+`connect()` to `widgetController(owner).present()` to join initial settlement;
+`update()` requests another fit. A layout without root fitting may choose posture
+explicitly through `setReadingPosture("bounded"|"flow")`. Leaf reads
 the available room and minimum synchronously inside the bounded posture under decision,
 while its current document height remains fixed. Live boxes therefore describe the
 candidate arrangement rather than whichever posture is currently drawn, and taking the

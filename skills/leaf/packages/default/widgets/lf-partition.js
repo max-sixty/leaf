@@ -1,32 +1,23 @@
 /* A partition gives its two declared children equal rows or columns. Nested partitions
    inherit the outer reading arrangement's posture through the shared registration API. */
-import {
-  arrangeReadingElement,
-  once,
-  registerReadingElement,
-} from "/runtime/widget-api.js";
+import { arrangeReadingElement, once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-partition",
   class extends HTMLElement {
-    #readingArrangement = null;
+    #layout = null;
 
     connectedCallback() {
-      if (!once(this)) {
-        const content = this.querySelector(":scope > .lf-partition-content");
-        this.#readingArrangement = registerReadingElement({ owner: this, content });
-        return;
+      if (!this.#layout) {
+        once(this);
+        this.dataset.lfDirection = this.getAttribute("direction");
+        this.#layout = arrangeReadingElement({ owner: this, role: "partition" });
       }
-      this.dataset.lfDirection = this.getAttribute("direction");
-      this.#readingArrangement = arrangeReadingElement({
-        owner: this,
-        role: "partition",
-      }).readingArrangement;
+      this.#layout.connect();
     }
 
     disconnectedCallback() {
-      this.#readingArrangement?.cleanup();
-      this.#readingArrangement = null;
+      this.#layout?.disconnect();
     }
   },
 );

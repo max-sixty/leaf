@@ -931,17 +931,19 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           const detachedArrangement = leaf.arrangeReadingElement({
             owner: detached,
             role: 'workspace',
-          }).readingArrangement;
+          });
           const detachedMarkerCleared =
             detached.dataset.lfWorkspaceContext === 'embedded';
-          detachedArrangement.cleanup();
+          detachedArrangement.disconnect();
 
-          const {content, readingArrangement} = leaf.arrangeReadingElement({
+          const layout = leaf.arrangeReadingElement({
             owner,
             role: 'pane',
             header,
+            regions: [{id: 'retained-region'}],
           });
-          await readingArrangement.setReadingPosture('bounded');
+          const {content} = layout;
+          await layout.setReadingPosture('bounded');
           let ownerMessage;
           try {
             leaf.registerReadingArrangement({owner, content});
@@ -956,18 +958,21 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           } catch (error) {
             contentMessage = error.message;
           }
-          const pending = readingArrangement.setReadingPosture('flow');
-          readingArrangement.cleanup();
-          const replacement = leaf.registerReadingElement({owner, content});
-          await replacement.setReadingPosture('bounded');
+          const pending = layout.setReadingPosture('flow');
+          layout.disconnect();
+          layout.disconnect();
+          layout.connect();
+          layout.connect();
+          const retainedBody = leaf.readingRegion('retained-region').body === layout.body;
+          await layout.setReadingPosture('bounded');
           await pending;
           const postureAfterReplacement = leaf.readingPosture(owner);
-          replacement.cleanup();
+          layout.disconnect();
           owner.remove();
           otherOwner.remove();
           occupiedHost.remove();
           return {message, ownerMessage, contentMessage, postureAfterReplacement,
-                  reclaimed, unchanged, detachedMarkerCleared};
+                  reclaimed, unchanged, detachedMarkerCleared, retainedBody};
         }"""
     )
     assert result == {
@@ -978,6 +983,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
         "reclaimed": True,
         "unchanged": True,
         "detachedMarkerCleared": True,
+        "retainedBody": True,
     }
 
 

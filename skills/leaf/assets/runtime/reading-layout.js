@@ -1,8 +1,9 @@
-/* Shared light-DOM construction for structural and compound reading arrangements.
+/* Retained light-DOM layouts for structural and compound reading arrangements.
 
    The caller chooses which direct authored nodes are furniture and whether the
    remaining content is a reading region. This helper owns the common DOM and
-   registration lifecycle, plus the page-room observation a root fits against; CSS owns
+   registration lifecycle. A layout retains its nodes and declarations while disconnected;
+   connect restores its live registration and any root-fitting observers. CSS owns
    division and scrolling, while each root supplies its own minimum-size policy. */
 import {
   readReadingArrangementAt,
@@ -58,6 +59,7 @@ export function arrangeReadingElement({
   header = null,
   footer = null,
   regions = [],
+  minimumSize = null,
 }) {
   if (!owner || !["workspace", "pane", "partition"].includes(role))
     throw new Error("leaf: a reading element needs an owner and reading role");
@@ -65,7 +67,7 @@ export function arrangeReadingElement({
   const content = generated(`lf-reading-content lf-${role}-content`);
   const body = role === "pane" ? generated("lf-reading-body lf-pane-body") : content;
   const frame = new Set([header, footer].filter(Boolean));
-  const readingArrangement = registerReadingArrangement({
+  const declaration = {
     owner,
     content,
     regions: regions.map((region) => ({
@@ -73,7 +75,10 @@ export function arrangeReadingElement({
       host: region.host ?? owner,
       body: region.body ?? body,
     })),
-  });
+  };
+  // Admission precedes every DOM write: an invalid declaration leaves authored nodes
+  // untouched. Later connections use this same declaration and the same nodes.
+  let readingArrangement = registerReadingArrangement(declaration);
   for (const child of [...owner.childNodes]) {
     if (!frame.has(child)) body.append(child);
   }
@@ -85,27 +90,31 @@ export function arrangeReadingElement({
   syncWorkspaceContext(owner);
 
   layoutChanged(owner);
-  return { body, content, readingArrangement };
-}
-
-export function registerReadingElement({
-  owner,
-  content,
-  body = content,
-  regions = [],
-}) {
-  const readingArrangement = registerReadingArrangement({
-    owner,
+  let fitting = null;
+  return {
+    body,
     content,
-    regions: regions.map((region) => ({
-      ...region,
-      host: region.host ?? owner,
-      body: region.body ?? body,
-    })),
-  });
-  syncWorkspaceContext(owner);
-  layoutChanged(owner);
-  return readingArrangement;
+    connect() {
+      readingArrangement ??= registerReadingArrangement(declaration);
+      syncWorkspaceContext(owner);
+      if (minimumSize)
+        fitting ??= fitRootReadingElement({ owner, readingArrangement, minimumSize });
+      layoutChanged(owner);
+      return fitting?.update() ?? Promise.resolve();
+    },
+    update() {
+      return fitting?.update() ?? Promise.resolve();
+    },
+    setReadingPosture(posture) {
+      return readingArrangement.setReadingPosture(posture);
+    },
+    disconnect() {
+      fitting?.cleanup();
+      fitting = null;
+      readingArrangement?.cleanup();
+      readingArrangement = null;
+    },
+  };
 }
 
 const directChild = (owner, tag) =>
@@ -115,42 +124,32 @@ export function defineReadingPaneElement(tagName) {
   customElements.define(
     tagName,
     class extends HTMLElement {
-      #readingArrangement = null;
+      #layout = null;
 
       connectedCallback() {
-        if (!once(this)) {
-          const content = this.querySelector(":scope > .lf-pane-content");
-          const body = this.querySelector(":scope > .lf-pane-content > .lf-pane-body");
-          this.#readingArrangement = registerReadingElement({
+        if (!this.#layout) {
+          once(this);
+          this.setAttribute("role", "region");
+          this.setAttribute("aria-label", this.getAttribute("label"));
+          this.#layout = arrangeReadingElement({
             owner: this,
-            content,
-            body,
-            regions: [{ id: this.id, host: this, body }],
+            role: "pane",
+            header: directChild(this, "header"),
+            footer: directChild(this, "footer"),
+            regions: [{ id: this.id }],
           });
-          return;
         }
-        const header = directChild(this, "header");
-        const footer = directChild(this, "footer");
-        this.setAttribute("role", "region");
-        this.setAttribute("aria-label", this.getAttribute("label"));
-        this.#readingArrangement = arrangeReadingElement({
-          owner: this,
-          role: "pane",
-          header,
-          footer,
-          regions: [{ id: this.id, host: this }],
-        }).readingArrangement;
+        this.#layout.connect();
       }
 
       disconnectedCallback() {
-        this.#readingArrangement?.cleanup();
-        this.#readingArrangement = null;
+        this.#layout?.disconnect();
       }
     },
   );
 }
 
-export function fitRootReadingElement({ owner, readingArrangement, minimumSize }) {
+function fitRootReadingElement({ owner, readingArrangement, minimumSize }) {
   if (
     !owner ||
     !readingArrangement?.setReadingPosture ||

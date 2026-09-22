@@ -169,6 +169,17 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
         "() => document.querySelector('#queue > .lf-pane-content > .lf-pane-body').scrollTop > 0"
     )
     assert detail.evaluate("el => el.scrollTop") == 0
+    assert workspace.evaluate(
+        """owner => {
+          const parent = owner.parentNode;
+          const next = owner.nextSibling;
+          const nodes = [...owner.querySelectorAll('*')];
+          owner.remove();
+          parent.insertBefore(owner, next);
+          return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     expect(queue).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = el.scrollHeight")
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
@@ -801,35 +812,25 @@ CUSTOM_WORKSPACE_WIDGETS = {
     "lf-studio.js": """
 import {
   arrangeReadingElement,
-  fitRootReadingElement,
   once,
-  registerReadingElement,
   widgetController,
 } from '/runtime/widget-api.js';
 
 customElements.define('lf-studio', class extends HTMLElement {
   connectedCallback() {
-    if (once(this)) {
-      const arranged = arrangeReadingElement({owner: this, role: 'workspace'});
-      this.readingArrangement = arranged.readingArrangement;
-      this.content = arranged.content;
-    } else {
-      this.content = this.querySelector(':scope > .lf-workspace-content');
-      this.readingArrangement = registerReadingElement({owner: this, content: this.content});
+    if (!this.layout) {
+      once(this);
+      this.layout = arrangeReadingElement({
+        owner: this,
+        role: 'workspace',
+        minimumSize: () => ({width: 200, height: 200}),
+      });
     }
-    this.fitting = fitRootReadingElement({
-      owner: this,
-      readingArrangement: this.readingArrangement,
-      minimumSize: () => ({width: 200, height: 200}),
-    });
-    widgetController(this).present(this.fitting.update());
+    widgetController(this).present(this.layout.connect());
   }
 
   disconnectedCallback() {
-    this.fitting?.cleanup();
-    this.fitting = null;
-    this.readingArrangement?.cleanup();
-    this.readingArrangement = null;
+    this.layout?.disconnect();
   }
 });
 """
@@ -3447,6 +3448,18 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
     expect(page.locator(".notification-demo-strip-owner")).to_have_count(2)
+    assert playground.evaluate(
+        """owner => {
+          const parent = owner.parentNode;
+          const next = owner.nextSibling;
+          const nodes = [...owner.querySelectorAll('*')];
+          const values = JSON.stringify(owner.values);
+          owner.remove();
+          parent.insertBefore(owner, next);
+          return values === JSON.stringify(owner.values)
+            && nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
+        }"""
+    )
     regular_strip_padding = page.locator(
         ".notification-demo-card-status-strip"
     ).first.evaluate("card => getComputedStyle(card).paddingTop")

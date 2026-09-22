@@ -205,9 +205,6 @@ export function stack(binding = null) {
       if (!typing && !controlScope) return elementStack;
       const own = elementStack.filter(({ el }) => el === active);
       const ancestors = elementStack.filter(({ el }) => el !== active);
-      // A control's own state is the innermost layer, before the generic text-box escape
-      // and any containing widget: the find box clears its own query before handing the
-      // reader back to the list the box belongs to.
       return [...own, ...(typing ? [TYPING] : [controlScope]), ...ancestors];
     }
     if (scope === TYPING && typing) return [];

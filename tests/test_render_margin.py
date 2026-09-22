@@ -4143,7 +4143,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "leader": "none",
         }
 
-    assert_status("Sent", "Sent")
+    assert_status("Sent", "just now")
     result = Axe().run(
         page,
         options={
@@ -4196,12 +4196,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     session_model.cmd_status(page_dir, "idle", "")
     told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
-    assert_status("Waiting for pickup", "Waiting for pickup")
+    assert_status("Waiting for pickup", "3m ago")
 
     with service_model.PageTransaction(page_dir) as transaction:
         session_model.record_pickup(transaction, [logged_action])
     told(page)
-    assert_status("Picked up", "Picked up")
+    assert_status("Picked up", "just now")
 
     # A surviving semantic action carries pickup itself. Removing that carrier
     # restores the status fallback with the same canonical receipt.
@@ -4260,7 +4260,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert working["role"] == "button"
     assert working["icon"] == "activity"
     assert working["word"] == "Working…"
-    assert working["context"] == "Working · checking the mounts"
+    assert working["context"] == "just now · checking the mounts"
     assert working["cursor"] == "pointer"
     assert working["opacity"] == "1"
     assert working["background"] != "rgba(0, 0, 0, 0)"

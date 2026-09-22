@@ -61,6 +61,11 @@ export const isLiveWorkflow = (workflow) =>
 export const isWorkflowProgress = (workflow) =>
   !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
 
+export const isPageWidgetWorkflow = (workflow, revision) =>
+  workflow.subject.kind === "widget" &&
+  Boolean(workflow.coordinate) &&
+  workflow.revision <= revision;
+
 function compareWorkflows(left, right) {
   const nextActor =
     Number(right.next_actor === "reader") - Number(left.next_actor === "reader");
@@ -86,13 +91,26 @@ export function strongestWorkflow(workflows) {
   );
 }
 
+export function projectThreadAttention(attention, workflows) {
+  if (attention?.kind === "needs_reader") return attention;
+  const reader = strongestWorkflow(
+    workflows.filter((workflow) => workflow.next_actor === "reader"),
+  );
+  if (reader) return { kind: "needs_reader", reason: "workflow", workflow: reader.id };
+  if (attention) return attention;
+  const workflow = strongestWorkflow(workflows);
+  return workflow && (workflow.condition || workflow.stage !== "answered")
+    ? { kind: "waiting", reason: "workflow", workflow: workflow.id }
+    : null;
+}
+
 export function threadAttention(thread) {
   if (thread.resolved) return null;
   const workflow = thread.attention?.workflow
     ? (thread.workflows.find(
         (candidate) => candidate.id === thread.attention.workflow,
       ) ?? null)
-    : strongestWorkflow(thread.workflows);
+    : null;
   if (thread.attention?.kind === "needs_reader") {
     const secondary = strongestWorkflow(
       thread.workflows.filter(

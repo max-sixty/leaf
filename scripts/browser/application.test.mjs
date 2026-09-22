@@ -592,6 +592,97 @@ test("one publication keeps per-input workflows and reader-first thread attentio
     workflow: "first-work",
   });
   assert.equal(thread.workflows.length, 2);
+  app.enqueue(
+    { kind: "reply", parent: "root", attempt: "local", text: "Third", revision: 1 },
+    "2026-09-22T10:02:00-07:00",
+  );
+  assert.equal(app.read().effective.conversation.all[0].attention.reason, "ask");
+});
+
+test("local delivery supplies and can override non-Ask thread attention", () => {
+  const app = setup();
+  const reading = state(2);
+  reading.browser.conversation.threads = [
+    {
+      root: {
+        id: "root",
+        kind: "comment",
+        author: "user",
+        ts: "2026-09-22T10:00:00-07:00",
+        text: "First",
+      },
+      msgs: [
+        {
+          id: "root",
+          kind: "comment",
+          author: "user",
+          ts: "2026-09-22T10:00:00-07:00",
+          text: "First",
+        },
+      ],
+      anchor: null,
+      resolved: null,
+      awaits_agent: true,
+      awaits_reader: false,
+      bare_reaction: false,
+      seat: null,
+      summaries: [],
+      attention: null,
+    },
+  ];
+  app.adopt(reading);
+  app.enqueue(
+    { kind: "reply", parent: "root", attempt: "local", text: "Second", revision: 1 },
+    "2026-09-22T10:01:00-07:00",
+  );
+  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "pending:local",
+  });
+  app.reject("local");
+  assert.deepEqual(app.read().effective.conversation.all[0].attention, {
+    kind: "needs_reader",
+    reason: "workflow",
+    workflow: "rejected:local",
+  });
+
+  const acceptedApp = setup();
+  const acceptedReading = structuredClone(reading);
+  acceptedReading.workflows = [
+    {
+      id: "accepted-send",
+      seq: 1,
+      revision: 1,
+      input: "root",
+      subject: { kind: "thread", id: "root" },
+      stage: "sent",
+      activity: [],
+      condition: null,
+      next_actor: "agent",
+    },
+  ];
+  acceptedReading.browser.conversation.threads[0].attention = {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "accepted-send",
+  };
+  acceptedApp.adopt(acceptedReading);
+  acceptedApp.enqueue(
+    { kind: "reply", parent: "root", attempt: "next", text: "Third", revision: 1 },
+    "2026-09-22T10:02:00-07:00",
+  );
+  assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: "accepted-send",
+  });
+  acceptedApp.reject("next");
+  assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
+    kind: "needs_reader",
+    reason: "workflow",
+    workflow: "rejected:next",
+  });
 });
 
 test("a refused local message publishes one failed workflow before retirement", () => {

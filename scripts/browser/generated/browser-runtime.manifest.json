@@ -11,6 +11,7 @@
     "skills/leaf/assets/runtime/anchor-coordinate.js",
     "skills/leaf/assets/runtime/conversation/identity.js",
     "skills/leaf/assets/runtime/conversation/model.js",
+    "skills/leaf/assets/runtime/conversation/workflow.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js"
   ],
@@ -60,12 +61,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 46482,
-      "sha256": "ae2ccbb997838c10f302420570d9af67834cddab593c0043c3d99b7b6b501c29"
+      "bytes": 47673,
+      "sha256": "da4c7f0ad6c2c61d0833ec78d9814c67fda9db8e4c21b6e9314eeb844a025210"
     },
     "scripts/browser/generated/browser-runtime.js.map": {
-      "bytes": 399644,
-      "sha256": "508bdd2deead78c0da48444280b7210fe5da78f8d47e0ad1749af2d23037e595"
+      "bytes": 406882,
+      "sha256": "4df5336326a8cc268e5fa7052880ee5806c91f8b8dd70197351a7051d2c1dab9"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

@@ -135,10 +135,10 @@ import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import {
   isLiveWorkflow,
+  isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
   workflowLabel,
-  workflowTitle,
 } from "./conversation/workflow.js";
 
 // Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
@@ -790,8 +790,8 @@ export function createMarginProjection({
   }
 
   function visibleWidgetWorkflows() {
-    return workflows().filter(
-      (workflow) => workflow.subject?.kind === "widget" && workflow.coordinate,
+    return workflows().filter((workflow) =>
+      isPageWidgetWorkflow(workflow, runtime.currentRevision),
     );
   }
 
@@ -809,7 +809,9 @@ export function createMarginProjection({
               ? "pickup"
               : "sent",
       text: label,
-      context: workflowTitle(receipt),
+      context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
+        .filter(Boolean)
+        .join(" · "),
     };
   }
 

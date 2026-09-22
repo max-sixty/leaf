@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isPageWidgetWorkflow,
+  projectThreadAttention,
   strongestWorkflow,
   threadAttention,
   workflowLabel,
@@ -10,6 +12,7 @@ import { readThreadRecords } from "../../skills/leaf/assets/runtime/conversation
 const workflow = (id, stage, extra = {}) => ({
   id,
   seq: 1,
+  revision: 1,
   input: id,
   subject: { kind: "thread", id: "root" },
   stage,
@@ -86,8 +89,69 @@ test("thread attention gives a standing reader Ask precedence over agent work", 
   );
 });
 
+test("local workflows complete and override server attention without hiding an Ask", () => {
+  const sending = workflow("pending:send", "sending");
+  assert.deepEqual(projectThreadAttention(null, [sending]), {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: sending.id,
+  });
+
+  const failed = workflow("rejected:send", "sending", {
+    condition: { kind: "failed", operation: "delivery" },
+    next_actor: "reader",
+  });
+  assert.deepEqual(
+    projectThreadAttention(
+      { kind: "waiting", reason: "workflow", workflow: "server-work" },
+      [workflow("server-work", "working"), failed],
+    ),
+    { kind: "needs_reader", reason: "workflow", workflow: failed.id },
+  );
+  assert.deepEqual(
+    projectThreadAttention({ kind: "needs_reader", reason: "ask", workflow: "ask" }, [
+      failed,
+    ]),
+    { kind: "needs_reader", reason: "ask", workflow: "ask" },
+  );
+  const recovery = {
+    kind: "needs_reader",
+    reason: "recovery",
+    workflow: "accepted-recovery",
+  };
+  assert.equal(
+    projectThreadAttention(recovery, [
+      workflow("accepted-recovery", "answered", {
+        condition: { kind: "failed", operation: "response" },
+        next_actor: "reader",
+      }),
+    ]),
+    recovery,
+  );
+
+  const accepted = workflow("accepted", "sent");
+  assert.deepEqual(
+    projectThreadAttention(
+      { kind: "waiting", reason: "workflow", workflow: accepted.id },
+      [accepted, sending],
+    ),
+    { kind: "waiting", reason: "workflow", workflow: accepted.id },
+  );
+});
+
+test("page widget workflows are revision-bounded independently of frozen widgets", () => {
+  const widget = workflow("widget", "working", {
+    revision: 2,
+    subject: { kind: "widget", id: "frozen-choice" },
+    coordinate: '["frozen-choice","choice","selection"]',
+  });
+  assert.equal(isPageWidgetWorkflow(widget, 1), false);
+  assert.equal(isPageWidgetWorkflow(widget, 2), true);
+});
+
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
   const widgetWork = workflow("action-1", "working", {
+    revision: 2,
     input: "action-1",
     subject: { kind: "widget", id: "frozen-choice" },
   });

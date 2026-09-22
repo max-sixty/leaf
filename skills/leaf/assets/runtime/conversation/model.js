@@ -217,6 +217,12 @@ export function readThreadRecords(threads, document, widgets, workflows) {
     const widgetIds = new Set(
       msgs.flatMap((message) => message.body.units?.map((unit) => unit.id) ?? []),
     );
+    const threadWorkflows = workflows.filter(
+      (workflow) =>
+        (workflow.subject.kind === "thread" &&
+          workflow.subject.id === thread.root.id) ||
+        (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
+    );
     return {
       key: threadKey(thread),
       root: msgs.find((message) => message.id === thread.root.id),
@@ -228,12 +234,7 @@ export function readThreadRecords(threads, document, widgets, workflows) {
       awaits_agent: thread.awaits_agent,
       awaits_reader: thread.awaits_reader,
       attention: thread.attention ?? null,
-      workflows: workflows.filter(
-        (workflow) =>
-          (workflow.subject.kind === "thread" &&
-            workflow.subject.id === thread.root.id) ||
-          (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
-      ),
+      workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries ?? [],

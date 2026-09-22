@@ -28,6 +28,7 @@ import {
   unresolvedAttempts,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/conversation/identity.js";
+import { projectThreadAttention } from "../../skills/leaf/assets/runtime/conversation/workflow.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -75,6 +76,7 @@ interface WireAsks {
 
 interface WireWorkflow {
   id: string;
+  revision: number | null;
   input: string | null;
   subject: { kind: "thread" | "widget"; id: string };
   coordinate: unknown;
@@ -583,6 +585,7 @@ export function createSemanticApplication({
       const message = entry.message;
       return {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
+        revision: entry.event.revision ?? document.revision,
         seq: entry.order,
         input: message?.id ?? entry.localId,
         subject: message
@@ -616,7 +619,12 @@ export function createSemanticApplication({
         .filter((entry: any) => entry.rejected)
         .map((entry: any) => localWorkflow(entry, true)),
     ];
-    const threads = readThreadRecords(obligated, document, widgets, workflows);
+    const threads = readThreadRecords(obligated, document, widgets, workflows).map(
+      (thread: any) => ({
+        ...thread,
+        attention: projectThreadAttention(thread.attention, thread.workflows),
+      }),
+    );
     return {
       hostAvailable,
       projection,

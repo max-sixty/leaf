@@ -962,7 +962,12 @@ Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `anchor`, `deta
 `resolved`, `settling`, `awaits_agent`, `awaits_reader`, `attention`, `workflows`,
 `seat`, and `summaries`. `attention` is `null` or names `needs_reader`/`waiting`, its
 reason, and the workflow supplying its detail. A concrete reader Ask takes precedence
-over concurrent agent work; explicit resolution remains separate.
+over concurrent agent work; explicit resolution remains separate. Use unresolved
+`attention.kind === "needs_reader"` for reader attention, including recovery after a
+failed response. `awaits_reader` is the raw conversation-turn flag and does not include
+that recovery; it is not the presentation authority. `awaits_agent` remains independent,
+so a standing reader Ask and agent work can coexist. Pending replies and refused sends
+are already reflected in the published attention.
 `threadTurns(thread)` selects its ordered displayed turns, including a reaction root
 but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
 turn count, and latest turn timestamp. Its topic uses the agent-chosen `title`, or

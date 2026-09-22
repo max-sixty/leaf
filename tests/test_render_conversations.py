@@ -1660,7 +1660,12 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
     neighbor = page.locator(f'.lf-thread[data-id="{second}"]')
     card.locator(".lf-thread-summary").click()
     trigger = card.locator(".lf-msg.agent .lf-react-trigger")
+    assert trigger.evaluate("b => getComputedStyle(b).backgroundColor") == (
+        "rgba(0, 0, 0, 0)"
+    )
     trigger.hover()
+    expect(trigger).to_have_css("background-color", token_colour(page, "--chip"))
+    expect(trigger).to_have_css("border-top-color", token_colour(page, "--border-2"))
     before = {
         "card": card.bounding_box(),
         "neighbor": neighbor.bounding_box(),

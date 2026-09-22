@@ -7,77 +7,40 @@ from pathlib import Path
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# How long a page whose claim carries no liveness of its own (`activity`, for a
-# host that multiplexes every session into one process) stays owned after the
-# last thing touched it.
-#
-# Sized by the longest ordinary gap between touches, which is the reader's, not
-# the agent's. A visible tab renews the page every thirty seconds, but only a
-# visible one: `state-feed.js` closes the news stream on `visibilitychange`, so a
-# reader who opens the handover link and switches away stops touching the page
-# until they come back. The gap to survive is therefore however long a page sits
-# in a background tab during a working session, and minutes is the wrong unit for
-# that — half an hour would take the page down under the ordinary handover.
-#
-# Four hours covers that and still drains: the run of stale pages this was found
-# on had gone 6 to 28 hours untouched, so the throwaway previews of an afternoon
-# clear overnight rather than surviving to the next app restart. A page that does
-# expire is re-served by the next command that reaches it, and one meant to
-# outlive its session is `--standing`.
+# Activity-backed claims must survive time in a background tab, which stops
+# renewing viewed.json. Four hours permits those gaps while retiring abandoned
+# session pages. Claim renewal and service lifetime: session-lifetime.md.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
-# What the page calls the agent before anything has claimed it. A claim always
-# carries a name, so this stands only where there is no claimant to ask, and it
-# is deliberately the harness-neutral word: a page served from a bare shell
-# belongs to whoever picks it up next, and guessing at a product name there
-# would be the page saying something it does not know. A served state carries
-# this word already; `context.js` says the same one where the browser has no
-# authoritative reading at all, as on an exported page.
+# Harness-neutral label when no claimant supplies a name. context.js uses the
+# same label before a browser has an authoritative state, including exports.
 UNCLAIMED_AGENT = "Agent"
-# The kinds a reader can take back. A message is not among them: a comment is
-# speech, and the agent may already have read it — what a reader regrets there
-# they say, rather than unsay. A reaction is the exception the message kinds
-# carry (`undo_error`): a token is a mark rather than speech, and while nothing
-# has answered it the mark is one press from off the page, which is what makes
-# it cheap. Nor is an undo itself, which would be a redo.
-#
-# `done` joins them because approval is the one press on the page with no second
-# step and the heaviest meaning: a reader who meant to press Threads and hit the
-# button beside it had signed the work off, and nothing on the page or in the log
-# would take it back. It is a mark rather than speech by the same reading a
-# reaction is — the agent is told the version is approved, not told something,
-# and the withdrawal is the whole of the correction. A request is still not
-# undoable, and for the reason it never was: its effect may be out of the page
-# before the receipt is.
+# Non-message gesture kinds eligible for withdrawal; events.undo_error handles
+# reactions. The complete eligibility contract is events.md, "Undo".
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
 ANSWER_ASK_INSTRUCTION = (
-    "`leaf page state <page>` lists each conversation's current state, and "
-    "`leaf conversation read <page> <id>` prints one exact bounded history. A "
-    "conversation with "
-    "`response.kind: version` is answered by revising the page and resolving it; open a "
-    "separate `leaf comment <page> --section <ask-id>` on the same Ask if that revision "
-    "needs an answer first. Answer each reply through the active host's reply "
-    "interface. A host may bind the current response to its normal final message; "
-    "CLI hosts use `leaf reply <page> --text ...`, selecting an event with `--for "
-    "<event-id>` when several are pending. "
-    "An explicit reply validates and activates a changed source, and leaves the "
-    "conversation open for the reader."
+    "Read current obligations with `leaf page state <page>` and conversation history "
+    "with `leaf conversation read <page> <id>`. Reply using "
+    "`leaf reply <page> --for <event-id> --text ...`, or your final message if the "
+    "host sends it as the reply. For `response.kind: version`, revise and stamp the "
+    "page, then resolve the conversation. If you need clarification first, open "
+    "`leaf comment <page> --section <ask-id>` on the same Ask. "
+    "An explicit reply checks and activates page edits; it leaves the conversation open."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
-    "A wait result prints one immutable Leaf delivery envelope containing one page's "
-    "complete ordered batch, conversation context, and capture-time response "
-    "requirements. First run `leaf delivery claim <id>` so the page shows the exact "
-    "outstanding move as Working; the same envelope remains available with `leaf "
-    "delivery read <id>`."
+    "Print one page's complete ordered batch, conversation context, and response "
+    "requirements as an immutable delivery. Run `leaf delivery claim <id>` to mark "
+    "the outstanding move Working. `leaf delivery read <id>` reads that same delivery."
 )
 ACK_BATCH_INSTRUCTION = (
-    "If wait output is truncated, acknowledge nothing and rerun with enough output "
-    "capacity for the whole batch. After the complete batch reaches its next durable "
-    "consumer, the wait owner runs `leaf ack <page> <through-seq>` for the page and "
-    "sequence the batch names. Ack advances the cursor, then waits for the next batch "
-    "while the page remains live."
+    "If output is truncated, acknowledge nothing; rerun with enough output capacity "
+    "for the whole batch. If you handle the batch yourself, read it fully before "
+    "acknowledging. If forwarding it, wait for durable delivery to its handler. "
+    "Then run `leaf ack <page> <through-seq>` in the background, using the batch's "
+    "page and sequence. Ack advances the cursor, then "
+    "waits for the next batch while the page remains live."
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"

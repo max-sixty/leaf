@@ -420,6 +420,30 @@ test("a frozen descriptor capture cannot relabel the shown document", () => {
   assert.equal(app.read().document.stamp, 1);
 });
 
+test("message capture preserves a deferred document's identity and immutable fields", () => {
+  for (const stamp of [null, 1]) {
+    const app = capture();
+    app.identify(1, stamp, true);
+    const shown = app.read().document;
+    const body = { text: "A newly read message" };
+    const messageBodies = new Map([["message", body]]);
+    const read = state(2);
+    read.active = { revision: 2, version: 2 };
+
+    assert.equal(app.adopt(read, { ...shown, messageBodies }), true);
+    const admitted = app.read().document;
+    assert.equal(admitted.revision, 1);
+    assert.equal(admitted.stamp, stamp);
+    assert.equal(admitted.registry, shown.registry);
+    assert.equal(admitted.authored, shown.authored);
+    assert.equal(admitted.descriptors, shown.descriptors);
+    body.text = "Changed outside the application";
+    messageBodies.clear();
+    assert.equal(admitted.messageBodies.get("message").text, "A newly read message");
+    assert.throws(() => admitted.authored.clear(), /read-only/);
+  }
+});
+
 test("document capture and its matching admitted reading publish atomically", () => {
   const app = setup();
   const seen = [];
@@ -599,7 +623,9 @@ test("conversation acceptance is semantic before presentation can retire its loc
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
-  read.browser.conversation.threads = [{ root: accepted, msgs: [], resolved: false }];
+  read.browser.conversation.threads = [
+    { root: accepted, msgs: [accepted], resolved: false },
+  ];
   app.adopt(read);
   app.accept("comment", accepted);
   assert.equal(app.read().effective.conversation.all.length, 1);

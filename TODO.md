@@ -52,11 +52,13 @@ has tried; settle that before building it.
 
 ### Reader continuity and mobile access
 
-- **Make a phone reading journey complete.** Give touch readers an element-target
-  route and visible passage threads; supply the document viewport at delivery.
-  Check the selection-menu collision and interactive-reply crash on a real iPhone
-  before choosing those fixes. Then remove keyboard-only hints, hover-only reasons,
-  clipped diagram and diff content, and undersized touch targets.
+- **Verify the native phone reading journey.** Check the explicit selection-to-comment
+  handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
+  covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
+  show the native selection menu or software keyboard.
+- **Finish what a phone reader still cannot reach.** Give touch readers visible passage
+  threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
+  and remaining undersized touch targets.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 - **Keep wrapped inline code inside the column.** `theme.css` gives inline `code`
@@ -66,22 +68,6 @@ has tried; settle that before building it.
 
 ### The agent's text interface
 
-- **Tell a thread widget's multi-pick toggles apart from its Done.** Leaf holds two
-  readings of one rule. `asks.py` honours the registry's `x-awaits.until`, so a
-  `multiple` group inside a thread is answered only by its `answer` action; the
-  frozen-widget loop in `acknowledgments.py` owes a reply to every toggle until an
-  agent reply responds to it. The `handling` text follows `until`. Make
-  acknowledgments read `until` too. **Unconfirmed:** found by reading both
-  modules; no run has shown an agent held on a toggle.
-- **Send each `handling` clause once per batch.** Each delivered event carries its
-  clauses' full text, so ten plain comments repeat one 493-character instruction
-  ten times. List each distinct clause once per batch and have each event name the
-  ones that apply. **Unconfirmed:** no agent run shows a clause named by reference
-  is followed as reliably as one printed on its event.
-- **Say what an agent without a browser does instead of looking.** Two places in
-  the guidance ask the agent to look at the rendered page: the pre-handover review
-  ("read the page as the user will") and diagrams ("look at each flowchart once").
-  Name what an agent with only the Leaf skill does in their place.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it.
@@ -95,10 +81,6 @@ has tried; settle that before building it.
   `status waiting` leave the ordinary batch. **Unconfirmed:** advancing on print
   gives up what `ack` guards today: a `leaf wait` output that was truncated or
   lost before it reached the agent is delivered again (`event-batches.md`).
-- **Shorten the delivery id.** It is still a 36-character UUID, beside 8-character
-  event ids. Codex names its queue files with it and `delivery_path` requires the
-  UUID form, so both change together, with a collision check like event ids have.
-  **Unconfirmed:** it saves under 30 characters a batch, which may not be worth it.
 
 ## Etc
 

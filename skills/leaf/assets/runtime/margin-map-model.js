@@ -3,6 +3,7 @@
  * input and focus stay in the dialog adapter. */
 
 import {
+  spokenSubject,
   compareMarginEntryRecords,
   visibleMarginEntryLabel,
 } from "./margin-entry-model.js";
@@ -48,11 +49,10 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
             entry,
             item,
             icon: face.icon,
-            label: `Open ${face.label.toLowerCase()}: ${visibleLabel}`,
+            label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
             visibleLabel,
-            // Map rows stay one line unless their producer explicitly owes a second.
-            // Version comparisons do: their pair is provenance rather than part of the
-            // account.
+            // Producers add context only when it carries another fact. Version
+            // comparisons do: their pair is provenance, separate from the account.
             context: item.mapContext,
           };
         }),

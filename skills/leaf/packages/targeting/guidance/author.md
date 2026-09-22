@@ -27,7 +27,7 @@ targets, choose element or class scope, preview supported box-model changes, rem
 change or revert the draft, and add prose for a named target before submitting once.
 
 The submitted `targets` preserve an authored id when available and always include a
-structural path plus short visible context. Each style or prose `change` carries its
-target key separately. Process that key as the reference; names make the draft readable,
+structural path plus the element's complete visible text. Each style or prose `change`
+carries its target key separately. Process that key as the reference; names make the draft readable,
 but consumers must not infer identity from prose. A submitted action is the durable
 record; unsubmitted selection and preview changes stay local to the reader.

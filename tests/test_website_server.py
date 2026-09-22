@@ -22,8 +22,16 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, append_command, running_http_server
+from interact_support import (
+    COMMAND_SUBJECTS,
+    STATED_TIMEOUT,
+    Prose,
+    append_command,
+    running_http_server,
+    yaml_document,
+)
 from leaf import codex as leaf_codex
+from leaf.cli import cli
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
 from leaf.event_log import append_event, read_events
@@ -32,6 +40,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
 from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
+from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
 from render_harness import consume_browser_errors
 from websockets.exceptions import ConnectionClosedError
@@ -102,6 +111,8 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
         "pages": {
             route: {
                 "directory": directory,
+                "assets": f"/_leaf-release/{'0' * 64}/{route.strip('/').replace('/', '--') or 'root'}",
+                "states": {},
                 "kind": kind,
                 "title": f"The {route} page",
                 "description": f"What a reader does at {route}.",
@@ -798,6 +809,131 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     )
 
 
+@pytest.mark.parametrize("response_kind", ["reply", "version", "receipt"])
+def test_hosted_agent_receives_the_response_instructions_and_delivery(
+    page_dir, monkeypatch, snapshot, response_kind
+):
+    """Capture real instructions and deliveries at the App Server wire boundary.
+
+    Only the external App Server connection is replaced. Event admission, delivery
+    preparation, response addressing, and both request builders run normally.
+    """
+    command = {"kind": "comment", "author": "user", "text": "Use backfill first."}
+    if response_kind == "version":
+        registry_path = page_dir / "registry.json"
+        registry = json.loads(registry_path.read_text())
+        registry["lf-options"]["x-conversation"] = {
+            "when": {"choose": [True]},
+            "response": {"kind": "version", "verb": "choose"},
+        }
+        registry_path.write_text(json.dumps(registry))
+        source = page_dir / "index.html"
+        source.write_text(
+            source.read_text().replace(
+                "<lf-options>", '<lf-options id="choice" choose>'
+            )
+        )
+        command.update(
+            anchor={"section": "choice"},
+            response={"kind": "version", "verb": "choose"},
+        )
+    if response_kind == "receipt":
+        source = page_dir / "index.html"
+        controls = (
+            '<lf-command id="hub"><lf-task id="goal" status="active">'
+            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+            '<lf-ask id="recovery"><h3>Restart the worker?</h3>'
+            '<lf-operations id="commands" target="goal" worker="worker" '
+            'worktree="tree">'
+            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+            "</lf-operations></lf-ask>"
+        )
+        source.write_text(
+            source.read_text().replace("</section>", controls + "</section>")
+        )
+        activated = activate_source(page_dir, [])
+        assert activated.error is None
+        command = {
+            "kind": "request",
+            "author": "user",
+            "revision": activated.revision,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        }
+        event = append_command(page_dir, command)
+    else:
+        event = append_event(page_dir, command)
+    host = website_server.WebsiteCodexHost("codex")
+    outgoing = {}
+
+    def request(method, params, before_close=None):
+        outgoing[method] = params
+        result = {"thread": {"id": "hosted-thread"}}
+        before_close("socket", result, [])
+        return result
+
+    def send(socket, method, params, pending=None):
+        outgoing[method] = params
+        return {"turn": {"id": "initial-turn"}}
+
+    monkeypatch.setattr(host, "_request", request)
+    monkeypatch.setattr(host, "_send", send)
+    assert (
+        host._start_thread(page_dir, SimpleNamespace(pid=os.getpid()), event["id"])
+        == "hosted-thread"
+    )
+    payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
+    [delivered] = payload["batches"][0]["events"]
+    assert delivered["obligation"]["response"]["kind"] == response_kind
+    replacements = {
+        str(page_dir): "/page",
+        event["id"]: "reader-event",
+        event["ts"]: "2026-09-22T10:00:00-07:00",
+        payload["id"]: "00000000-0000-4000-8000-000000000001",
+        str(payload["created_at"]): "1790096400.0",
+    }
+    serialized = json.dumps(outgoing)
+    for actual, stable in replacements.items():
+        serialized = serialized.replace(actual, stable)
+    recorded = json.loads(serialized)
+    recorded["thread/start"]["developerInstructions"] = Prose(
+        recorded["thread/start"]["developerInstructions"]
+    )
+    snapshot.check(
+        yaml_document(
+            "Actual outgoing App Server requests for an admitted reader event.\n"
+            "Only the page path, event/delivery identities, and timestamps are pinned.\n"
+            "toolOutput.output is the complete serialized delivery the agent receives.",
+            recorded,
+        )
+    )
+    if response_kind == "receipt":
+        # The host's scope forbids restarting a worker outside this page. Its
+        # command route must still let it report failure and reopen the request.
+        result = CliRunner().invoke(
+            cli,
+            [
+                "receipt",
+                str(page_dir),
+                event["id"],
+                "failed",
+                "--text",
+                "The worker is outside this hosted page's scope.",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        receipt = json.loads(result.output)
+        assert (receipt["request"], receipt["status"]) == (event["id"], "failed")
+        assert (
+            website_server.full_state(page_dir, read_events(page_dir))["activity"][
+                "obligations"
+            ]
+            == []
+        )
+
+
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     host = website_server.WebsiteCodexHost("codex")
     requests = []
@@ -1020,23 +1156,13 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "--listen",
         host.endpoint,
     ]
-    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "$LEAF" in instructions
-    assert "structured `leaf_delivery` tool output" in instructions
-    assert "$LEAF delivery claim ID" in instructions
-    assert "$LEAF delivery read ID" in instructions
-    assert "at most one response whose kind is `reply`" in instructions
-    assert "normal final message is that reply's only writer" in instructions
-    assert "Do not run `$LEAF reply`" in instructions
-    assert "no separate `leaf publish` command" in instructions
-    assert "$LEAF version check" not in instructions
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
     # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
     # activity fold prefers over Leaf's own claim wording for exactly this reason.
+    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "$LEAF status" not in instructions
-    assert "$LEAF resolve . --to RESPONSE_CONVERSATION" in instructions
-    assert "binds its destination before" in instructions
+    assert "$LEAF version check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -2768,6 +2894,69 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
         first["id"],
         second["id"],
     ]
+
+
+@pytest.mark.parametrize("published_revision", [False, True])
+def test_website_specimens_serve_private_pages_without_starting_an_agent(
+    page_dir, tmp_path, published_revision
+):
+    source = (page_dir / "index.html").read_text()
+    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A private child page.</p></template>'
+    (page_dir / "index.html").write_text(
+        source.replace("</main>", template + "</main>")
+    )
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    host = FakeCodexHost()
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    if published_revision:
+        manifest["pages"]["/examples/decision"]["states"] = {
+            "1": "/_leaf/state/decision--r1.json"
+        }
+    manifest_path.write_text(json.dumps(manifest))
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, host))
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        parent = origin + "/examples/decision/"
+        state = json.loads(get(parent + "api/state")[0])
+        child, _ = post(
+            parent + "api/specimens",
+            {"template": "practice"},
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        url = origin + child["url"]
+        document, headers = get(url)
+        assert b"A private child page." in document
+        asset_root = (
+            manifest["pages"]["/examples/decision"]["assets"]
+            if published_revision
+            else "/examples/decision"
+        )
+        expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
+        assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
+        assert f'data-lf-page-root="{child["url"].rstrip("/")}"'.encode() in document
+        assert b"sitenote.js" not in document
+        assert b"data-lf-release=" not in document
+        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
+        assert headers["Leaf-Layer"] == state["layer"]["generation"]
+        accepted, _ = post(
+            url + "api/event",
+            {
+                "kind": "comment",
+                "revision": 1,
+                "text": "Try this here",
+                "anchor": {"section": "child-text"},
+            },
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        assert accepted["state"]["events"][-1]["text"] == "Try this here"
+        assert read_events(published) == []
+        assert host.attached == []
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):

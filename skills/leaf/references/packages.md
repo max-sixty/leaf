@@ -455,11 +455,24 @@ the gallery's playback controls; the same call must still reach its complete sta
 the caller ignores the return. Optional recorded scalar attributes have a null initial
 value and must be removed when that value returns.
 
+### A hosted specimen
+
+`await mountSpecimen(frame, {template, passive})` hosts an isolated Leaf page from an
+authored `template[data-specimen]` id. `ready` resolves to the presented child
+`Document`; `reset()` replaces it with a fresh child and resolves the same way.
+`enter(returnTo)` activates the child and records the parent control to return to;
+`leave()` returns there. Size the frame with CSS. `destroy()` releases the child.
+The frame emits `lf-specimen-enter` and
+`lf-specimen-leave` when the host changes its focus boundary, including Escape
+from the child. A passive specimen stays inert for demonstration playback.
+`page-authoring.md`, "Live specimens", owns the authored element and its
+isolation contract.
+
 ### A package-owned interaction replay
 
 The developer Product Gallery can replay a package widget's production motion without
 moving that package into the default layer. Its figure carries the contained page's
-authored markup in `template[data-interaction-page]` and names the widget module with
+authored markup in `template[data-specimen]` and names the widget module with
 `data-interaction-module`; that module exports one optional
 `interactionGalleryScenario` object with `reset(root)` and `play(context)` methods.
 `reset` receives the contained page's `Document` and restores its authored starting
@@ -932,42 +945,86 @@ and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
 
 ## Widget-local Thread surfaces
 
-An upgraded widget declares `"x-thread-surface": true` when it can place the canonical
-response composer and complete Threads beside its own projected data. Its module
-registers one adapter:
+`readThreads()` returns the same immutable, JSON-shaped collection the built-in Thread
+panel reads: `{phase, threads, done}`. `phase` is `waiting`, `offline`, or `ready`;
+only `ready` with an empty `threads` array means there are no conversations. A later
+connection failure retains the last admitted collection. Bare reactions are absent;
+a reaction that starts a conversation remains its root. `done` contains the admitted,
+unwithdrawn page approvals shown in the panel.
+
+Each Thread has a stable `key`, `root`, ordered `msgs`, `anchor`, `detached_from`,
+`resolved`, `settling`, `awaits_agent`, `awaits_reader`, `seat`, and `summaries`.
+`threadTurns(thread)` selects its ordered displayed turns, including a reaction root
+but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
+turn count, and latest turn timestamp. A Thread's `key` and each message's `key` survive
+admission of a pending gesture; `root.id` and message `id` identify the current admitted
+or provisional record.
+
+Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts
+(`pending`, `failure`, `stream_state`), reaction tokens, and canonical activity
+`receipts`. Their `body.kind` distinguishes prose, reaction, suggestion, and authored
+content. Each body carries its plain `text`; an authored body also contains an opaque
+`document: {thread, message}` identity, and `units: [{id, tag, state}]` from the
+registry declarations and current widget fold. It contains no HTML or live nodes.
+Leaf retains one live instance of each authored document in the panel; inline cards
+provide a route to those controls.
+
+`consumeThreads(owner, render)` registers one consumer per Element and returns a
+handle with `read()`, `reveal(key)`, `update()`, `open(datum, {origin})`, and
+`unregister()`. The callback receives the complete collection on its initial
+presentation and later publications and mechanical placement updates. A returned
+promise participates in document presentation. Its second argument's `signal` is
+aborted when its presentation fails, a newer render supersedes it, or the consumer
+unregisters; asynchronous callbacks check it before changing their UI. The owner
+unregisters on disconnect.
+Reading, grouping, or searching Threads needs no registry declaration.
+
+A widget declares `"x-thread-surface": true` to place complete Thread UI beside its
+own projected data. It selects records from that same collection:
 
 ```js
-this.threadSurface = registerThreadSurface(this, {
-  begin: () => beginThreadRows(),
-  outletFor: ({ anchor, placement, thread }) => threadOutlet(anchor.datum),
-  end: () => finishThreadRows(),
+this.threadSurface = consumeThreads(this, (collection, surfaces) => {
+  beginThreadRows();
+  for (const thread of collection.threads) {
+    if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
+    const target = surfaces.target(thread.key);
+    const outlet = target && threadOutlet(target.anchor.datum, target.placement);
+    if (outlet) surfaces.place(thread.key, outlet);
+  }
+  const target = surfaces.composition;
+  const outlet = target && threadOutlet(target.anchor.datum, target.placement);
+  if (outlet) surfaces.placeComposition(outlet);
+  finishThreadRows();
 });
 ```
 
-Core calls `begin`, asks `outletFor` about each exact datum Thread and the active
-composer owned by that widget, then calls `end`. The adapter returns an element inside
-the widget or `null`. It owns only outlet creation, removal, and layout. Core moves its
+`target(key)` returns `{anchor, placement}` only for an exact datum belonging to the
+widget, otherwise `null`. `composition` supplies the equivalent placement for the
+active composer, which may precede any Thread. These DOM placement capabilities stay
+outside the JSON collection. The widget owns outlet creation, removal, and layout.
+Leaf validates target ownership and outlet containment before committing placements.
+Core moves its
 one composer node or renders retained messages, replies, reactions, settlement controls,
 and receipts into each outlet. A claimed thread does not
 also appear in the margin projection; the Threads panel remains the complete index. With
 Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
-fallback. Opening Threads from the focused surface carries the same thread into the
-panel.
+fallback. Clicking the Threads toggle from the focused surface carries the same thread
+into the panel.
 
-The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
+The consumer omits placements for data that is filtered, collapsed, or not yet hydrated.
 That keeps lazy widgets lazy and restores the margin-projection fallback. Deliberate thread
 travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
-then asks the adapter again. The registration handle's `update()` invalidates layout-only
+then invokes the consumer again. The registration handle's `update()` invalidates layout-only
 visibility changes, and `unregister()` removes the surface when the widget disconnects.
-If an adapter throws, Leaf reports a page error, clears that registration's core-owned
+If a callback throws, Leaf reports a page error, clears that registration's core-owned
 views, and returns its threads to the margin. Other registrations continue, and the
-next ordinary reconciliation retries the adapter. Outlets must remain inside their
-widget after `end`; disconnected outlets claim no threads. Core message-rendering
+next ordinary reconciliation retries the consumer. Outlets must remain inside their
+widget after the callback completes; disconnected outlets claim no threads. Core message-rendering
 errors still fail the state application rather than accepting a partial conversation.
 
 The registration handle's `open(datum, { origin })` accepts one projected element owned
 by the widget. Core captures its full datum coordinate, including external-data source
-revision, opens the ordinary anchored draft, and seats the response bar in the adapter's
+revision, opens the ordinary anchored draft, and seats the response bar in the consumer's
 outlet when the datum still resolves exactly. `origin` is the widget control to which
 Escape may return focus. Widgets do not receive draft, submission, or event APIs.
 

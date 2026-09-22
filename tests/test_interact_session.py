@@ -33,6 +33,7 @@ from interact_support import (
     PLUGIN_ROOT,
     SKILL_ROOT,
     STATED_TIMEOUT,
+    Prose,
     _status,
     append_command,
     available_loopback_port,
@@ -50,6 +51,7 @@ from interact_support import (
     start_server_command,
     state_json,
     wait_for,
+    yaml_document,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -175,6 +177,48 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             page_dir, transaction, [stored[event["id"]] for event in events]
         )
     return delivery_model.freeze_delivery([batch])
+
+
+def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
+    minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
+    widths = []
+    token_hex_real = delivery_model.secrets.token_hex
+
+    def token_hex(width):
+        if width != 4:
+            return token_hex_real(width)
+        widths.append(width)
+        return next(minted)
+
+    monkeypatch.setattr(delivery_model.secrets, "token_hex", token_hex)
+    first = delivery_model.freeze_delivery([], created_at=1)
+    second = delivery_model.freeze_delivery([], created_at=2)
+
+    assert widths == [4, 4, 4]
+    assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
+
+
+def test_codex_readdresses_a_collecting_queue_if_its_delivery_id_collides(
+    page_dir, monkeypatch
+):
+    minted = iter(["aaaaaaaa", "bbbbbbbb"])
+    monkeypatch.setattr(codex_model, "new_delivery_id", lambda: next(minted))
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        path, _, _ = codex_model.append_batch(
+            "collision-test", page_dir, transaction, transaction.events
+        )
+    assert path.stem == "aaaaaaaa"
+    delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
+
+    prepared = codex_model.offer_delivery(path, files_model.read_json(path))
+
+    assert prepared.payload["id"] == "bbbbbbbb"
+    assert prepared.queue_path == path.with_name("bbbbbbbb.json")
+    assert prepared.queue_path.is_file()
+    assert not path.exists()
 
 
 def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
@@ -322,7 +366,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert 'operation="delivery claim"' in prompt.prompt
     assert "skill=" not in prompt.prompt
     [batch] = prompt.payload["batches"]
-    assert set(batch) == {"page", "through_seq", "conversations", "events"}
+    assert set(batch) == {"page", "through_seq", "conversations", "handling", "events"}
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
     assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
@@ -1455,10 +1499,11 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
-    pointer = codex_model.delivery_pointer_prompt("delivery-42")
+    pointer = codex_model.delivery_pointer_prompt("aaaaaaaa")
+    invalid_pointer = codex_model.delivery_pointer_prompt("../status")
     payload = {
         "format": delivery_model.DELIVERY_FORMAT,
-        "id": "delivery-43",
+        "id": "bbbbbbbb",
         "batches": [],
     }
 
@@ -1478,7 +1523,21 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
                 },
             }
         )
-        == "delivery-42"
+        == "aaaaaaaa"
+    )
+    assert (
+        codex_model.app_server_delivery_id(
+            {
+                "method": "item/started",
+                "params": {
+                    "item": {
+                        "type": "userMessage",
+                        "content": [{"type": "text", "text": invalid_pointer}],
+                    }
+                },
+            }
+        )
+        is None
     )
     assert (
         codex_model.app_server_delivery_id(
@@ -1497,7 +1556,7 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
                 },
             }
         )
-        == "delivery-43"
+        == "bbbbbbbb"
     )
     assert (
         codex_model.app_server_delivery_id(
@@ -1511,7 +1570,7 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
                 },
             }
         )
-        == "delivery-42"
+        == "aaaaaaaa"
     )
     assert (
         codex_model.app_server_delivery_id(
@@ -3787,10 +3846,7 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
 
 
 def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys):
-    """An event carries its kind's `$events.handling` clauses whose `when` its record
-    matches, so the rule reaches the agent beside the event it applies to, and a plain
-    comment is not told how to read a drawing, nor a pick on the page how a thread's
-    group answers."""
+    """Shared clauses travel once, and each event names only its applicable rules."""
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
     page_pick = {
@@ -3823,8 +3879,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
-    assert "handling" not in header
-    plain, drawn, resolved, on_page, in_thread = (event["handling"] for event in shown)
+    handling = header["handling"]
+    assert len(handling.values()) == len(set(handling.values()))
+    assert shown[0]["handling"][0] in shown[1]["handling"]
+    plain, drawn, resolved, on_page, in_thread = (
+        " ".join(handling[clause] for clause in event["handling"]) for event in shown
+    )
     declared = registry_storage.load_registry(page_dir)["$events"]["handling"]
     [reading_a_drawing] = [
         c["text"]
@@ -3863,8 +3923,77 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     events_model.append_event(page_dir, comment)
 
     assert session_model.cmd_wait(page_dir) == 0
-    _, _, [shown] = delivered(capsys.readouterr().out)
-    assert active and shown["handling"] == " ".join(c["text"] for c in active)
+    _, batch, [shown] = delivered(capsys.readouterr().out)
+    assert active and [batch["handling"][ref] for ref in shown["handling"]] == [
+        c["text"] for c in active
+    ]
+
+
+def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
+    """A later reply stays out of this delivery, including its unique clauses."""
+    for event in (
+        {"kind": "error", "message": "first failure"},
+        {"kind": "error", "message": "second failure"},
+        {"kind": "comment", "text": "first question"},
+        {
+            "kind": "comment",
+            "text": "later drawing",
+            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [1, 1]]]},
+        },
+    ):
+        events_model.append_event(page_dir, {"author": "user", **event})
+    with service_model.PageTransaction(page_dir) as transaction:
+        selected = transaction.events[:3]
+        queued, _, _ = codex_model.append_batch(
+            "handling-test", page_dir, transaction, transaction.events
+        )
+    payload = codex_model.offer_delivery(queued, files_model.read_json(queued)).payload
+    [batch] = payload["batches"]
+    assert [event["id"] for event in batch["events"]] == [
+        event["id"] for event in selected
+    ]
+    registry = registry_storage.active_registry(page_dir)
+    expected = [registry_contract.event_clauses(event, registry) for event in selected]
+    assert [
+        [batch["handling"][ref] for ref in event["handling"]]
+        for event in batch["events"]
+    ] == [[clause["text"] for clause in clauses] for clauses in expected]
+    assert len(batch["handling"]) == 2
+    assert delivery_model.read_delivery(payload["id"]) == payload
+
+
+def test_delivery_without_a_registry_has_no_handling(page_dir):
+    (page_dir / "registry.json").unlink()
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    [batch] = freeze_events(page_dir, [comment])["batches"]
+    assert batch["handling"] == {}
+    assert "handling" not in batch["events"][0]
+
+
+@pytest.mark.parametrize("state", ["collecting", "offering"])
+def test_codex_drops_a_queue_whose_handling_representation_it_cannot_read(
+    page_dir, state
+):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        path, _, _ = codex_model.append_batch(
+            "handling-test", page_dir, transaction, transaction.events
+        )
+    queue = files_model.read_json(path)
+    if state == "collecting":
+        del queue["batches"][0]["handling"]
+        files_model.write_json(path, queue)
+    else:
+        payload = codex_model.offer_delivery(path, queue).payload
+        payload["format"] = "leaf-delivery-v1"
+        files_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
+        with pytest.raises(RuntimeError, match="invalid envelope"):
+            delivery_model.read_delivery(payload["id"])
+    assert codex_model.queue_records("handling-test") == []
 
 
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
@@ -4274,8 +4403,8 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
         "through": spoken[7]["id"],
         "operation": "conversation summarize",
         "instruction": (
-            "This thread has become long and could benefit from a summary. "
-            "Read the original messages and consider summarizing this range; "
+            "Consider summarizing this older exchange. Read the original messages "
+            "in the suggested range first; "
             "keep the newer exchange outside the summary."
         ),
     }
@@ -4390,7 +4519,16 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
     }
 
 
-def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_dir):
+def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
+    claimed, capsys
+):
+    page_dir = claimed
+    session_model.cmd_status(page_dir, "waiting", "")
+    session = service_model.page_claim(page_dir)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, session["id"])
+    )
+    assert lease
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
@@ -4406,7 +4544,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
             "</lf-options>",
         },
     )
-    append_command(
+    chose = append_command(
         page_dir,
         {
             "kind": "action",
@@ -4417,6 +4555,16 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
             "detail": {"options": ["east"]},
         },
     )
+    selecting = state_json(page_dir)
+    assert [ask["source"] for ask in selecting["asks"]] == ["regions"]
+    assert selecting["activity"]["obligations"] == []
+    [receipt] = selecting["activity"]["interactions"]
+    assert receipt["event"] == chose["id"]
+    assert receipt["requires_response"] is False
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
     answered = append_command(
         page_dir,
         {
@@ -4428,8 +4576,35 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
             "detail": {},
         },
     )
-    before = state_json(page_dir)["activity"]["obligations"]
-    assert before == [answered["id"]]
+    completed = state_json(page_dir)
+    assert completed["asks"] == []
+    assert completed["activity"]["obligations"] == [answered["id"]]
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    blocked = json.loads(capsys.readouterr().out)
+    assert blocked["decision"] == "block"
+    assert "1 acknowledged reader move with no answer" in blocked["reason"]
+    assert answered["id"] in blocked["reason"]
+
+    events_model.append_event(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": answered["id"]},
+    )
+    resumed = state_json(page_dir)
+    assert [ask["source"] for ask in resumed["asks"]] == ["regions"]
+    assert resumed["activity"]["obligations"] == []
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "regions",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert state_json(page_dir)["activity"]["obligations"] == [answered["id"]]
 
     conversation_model.cmd_reply(
         page_dir,
@@ -5400,7 +5575,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
     assert (page_dir / "status.json").read_bytes() == status_before_delivery
 
 
-def test_ack_success_outlives_a_refused_rearm(page_dir):
+def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
     """A standing watcher ends the re-arm the way it ends a bare `leaf wait`, on
     2. The acknowledgement still landed: 1 is the code that says it did not, and
     the cursor names the event the batch reached."""
@@ -5419,8 +5594,22 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
     assert "another `leaf wait` is already active" in result.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
 
+    snapshot.check(
+        yaml_document(
+            "Full CLI output after acknowledgment succeeds but its next wait cannot start.",
+            _interaction_prompt_evidence(
+                page_dir,
+                {
+                    "exit": result.exit_code,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                },
+            ),
+        )
+    )
 
-def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
+
+def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -5435,6 +5624,20 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
     assert "no page named" not in result.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert service_model.page_claim(page_dir)["id"] == "successor"
+
+    snapshot.check(
+        yaml_document(
+            "Full CLI output after acknowledgment succeeds but its next wait cannot start.",
+            _interaction_prompt_evidence(
+                page_dir,
+                {
+                    "exit": result.exit_code,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                },
+            ),
+        )
+    )
 
 
 def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
@@ -5497,7 +5700,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
 
 
 def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
-    page_dir, spawn, monkeypatch
+    page_dir, spawn, monkeypatch, snapshot
 ):
     """A successor's page is not idle when it leaves the session-wide watch.
 
@@ -5542,6 +5745,20 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     assert "the leaf ended" not in err
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
+    snapshot.check(
+        yaml_document(
+            "An already-running acknowledgment wait loses its page to another session.",
+            _interaction_prompt_evidence(
+                page_dir,
+                {
+                    "exit": acknowledging.returncode,
+                    "stdout": out,
+                    "stderr": err,
+                },
+            ),
+        )
+    )
+
 
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
@@ -5559,7 +5776,7 @@ def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     assert status_path.read_bytes() == before
 
 
-def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch):
+def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch, snapshot):
     files_model.write_json(
         page_dir / "service.json",
         {
@@ -5585,6 +5802,22 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch):
 
     assert reading.lost is True
     assert reading.restarted is None
+
+    result = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert result.exit_code == 2, result.output
+    snapshot.check(
+        yaml_document(
+            "A deliberately stopped server is not revived; wait supplies its restart command.",
+            _interaction_prompt_evidence(
+                page_dir,
+                {
+                    "exit": result.exit_code,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                },
+            ),
+        )
+    )
 
 
 def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
@@ -5636,7 +5869,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
 
 
 def test_wait_restarts_a_server_that_died_under_it(
-    page_dir, comment_once_served, capsys
+    page_dir, comment_once_served, capsys, snapshot
 ):
     """A page whose server died is offline in the user's browser and nowhere
     else — so `leaf wait`, the one thing positioned to notice, brings it back
@@ -5662,7 +5895,21 @@ def test_wait_restarts_a_server_that_died_under_it(
     assert (
         urllib.request.urlopen(state._replace(path="/api/state").geturl()).status == 200
     )
-    assert "server had died; restarted" in capsys.readouterr().err
+    printed = capsys.readouterr()
+    assert "server had died; restarted" in printed.err
+    snapshot.check(
+        yaml_document(
+            "A wait revives its server, reports recovery on stderr, and delivers input.\n"
+            "The URL's dynamic port and access token are represented by <served-url>.",
+            _interaction_prompt_evidence(
+                page_dir,
+                {
+                    "exit": 0,
+                    "stderr": printed.err.replace(info["url"], "<served-url>"),
+                },
+            ),
+        )
+    )
     # A wait claims the page it names, so what it revives is the claiming
     # session's server and dies with that session. Here the session is the
     # worker (conftest), which is what keeps a killed run from stranding this.
@@ -5808,7 +6055,7 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
     assert files_model.read_json(claimed / "service.json")["lifetime"] == "standing"
 
 
-def test_wait_ends_when_the_leaf_does(page_dir):
+def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
     """Idling is how a leaf ends, and it has to reach the watcher: a wait that
     held on past it left a long-running command open for a page nobody was going
     to press. The server is not
@@ -5818,6 +6065,7 @@ def test_wait_ends_when_the_leaf_does(page_dir):
     session_model.cmd_status(page_dir, "idle", "the page is done")
     assert session_model.cmd_wait(page_dir) == 2
     assert server_model.running_server(page_dir)
+    served = capsys.readouterr()
 
     # And where SessionEnd idled the page and stopped its server both, a watcher
     # still winding down must not put it straight back up. Dropping the lease is
@@ -5825,6 +6073,27 @@ def test_wait_ends_when_the_leaf_does(page_dir):
     HELD_LEASES.pop().close()
     assert session_model.cmd_wait(page_dir) == 2
     assert server_model.running_server(page_dir) is None
+    stopped = capsys.readouterr()
+    snapshot.check(
+        yaml_document(
+            "An idle page ends its wait whether the server is still running or stopped.",
+            _interaction_prompt_evidence(
+                page_dir,
+                {
+                    "still served": {
+                        "exit": 2,
+                        "stdout": served.out,
+                        "stderr": served.err,
+                    },
+                    "server stopped": {
+                        "exit": 2,
+                        "stdout": stopped.out,
+                        "stderr": stopped.err,
+                    },
+                },
+            ),
+        )
+    )
 
 
 def test_one_wait_watches_every_page_the_session_holds(
@@ -5909,13 +6178,20 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     assert (first["page"], first["conversations"]) == (str(page_dir), [])
 
 
-def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys):
+def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys, snapshot):
     """A no-argument wait in a session that holds no pages has nothing to hold
     open — exit rather than sleep forever on an empty set."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-empty")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert session_model.cmd_wait() == 2
-    assert "nothing to watch" in capsys.readouterr().err
+    printed = capsys.readouterr()
+    assert "nothing to watch" in printed.err
+    snapshot.check(
+        yaml_document(
+            "An unnamed wait exits when the session owns no page.",
+            {"exit": 2, "stdout": printed.out, "stderr": Prose(printed.err)},
+        )
+    )
 
 
 def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
@@ -6087,6 +6363,24 @@ def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
     assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
 
 
+@pytest.mark.parametrize("state", ["collecting", "offering"])
+def test_codex_ignores_queue_records_from_the_previous_id_vocabulary(state):
+    directory = codex_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    legacy = directory / "3f2a6c1e-9b44-4f0a-8a1f-2c5d7e8b9012.json"
+    files_model.write_json(
+        legacy,
+        {
+            "format": codex_model.QUEUE_FORMAT,
+            "state": state,
+            "created_at": 0,
+            "batches": [],
+        },
+    )
+
+    assert codex_model.queue_records("codex-thread") == []
+
+
 def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     page = codex_claimed_page
     for event_id in ("first", "second"):
@@ -6117,8 +6411,8 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     # Filename order is deliberately opposite to event order. The cursor is
     # monotonic, so taking receipt for the second batch first would hide the
     # first batch before its pickup record is written.
-    files_model.write_json(directory / "z-old.json", epoch(first, created_at=1))
-    files_model.write_json(directory / "a-new.json", epoch(second, created_at=2))
+    files_model.write_json(directory / "ffffffff.json", epoch(first, created_at=1))
+    files_model.write_json(directory / "aaaaaaaa.json", epoch(second, created_at=2))
 
     assert codex_adapter_model._recover_receipt("codex-thread")
     assert codex_adapter_model._recover_receipt("codex-thread")
@@ -6851,7 +7145,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY_FORMAT
             assert all(
-                set(batch) == {"page", "through_seq", "conversations", "events"}
+                set(batch)
+                == {"page", "through_seq", "conversations", "handling", "events"}
                 for batch in payload["batches"]
             )
             queue_history = (
@@ -7666,7 +7961,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf ack" in reason and "If this task is the consumer" in reason
+    assert "leaf ack" in reason and "must address every event" in reason
     assert "`leaf wait` before the first batch" in reason
     assert "rearmed `leaf ack` afterward" in reason
     assert schema_model.ACK_BATCH_INSTRUCTION in reason
@@ -8221,7 +8516,7 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
 
 
 def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
-    claimed, tmp_path, capsys
+    claimed, tmp_path, capsys, snapshot
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
@@ -8247,6 +8542,21 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     # The lines stand together, so the reader reaches every page before the
     # first protocol rather than one page per protocol.
     assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
+    snapshot.check(
+        yaml_document(
+            "Two pages carry distinct debts and one shared acknowledgment instruction.",
+            {
+                "Stop": {
+                    "decision": "block",
+                    "reason": Prose(
+                        reason.replace(str(claimed), "<first-page>").replace(
+                            str(second), "<second-page>"
+                        )
+                    ),
+                }
+            },
+        )
+    )
 
 
 def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):
@@ -8646,7 +8956,7 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
 
 
 def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
-    server, page_dir, tmp_path, monkeypatch, socket_dir
+    server, page_dir, tmp_path, monkeypatch, socket_dir, snapshot
 ):
     """A running turn's Stop hook refuses to end with a reader move unpicked, and a
     live `leaf wait` delivers one, so the move nobody picks up arrives at a Claude
@@ -8728,6 +9038,13 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert user["type"] == "user" and user["session_id"] == "s1"
         assert user["message"]["role"] == "user"
         assert str(page_dir.resolve()) in user["message"]["content"]
+        snapshot.check(
+            yaml_document(
+                "A real reader POST reaches the Claude Code socket after its watcher died.\n"
+                "This is the complete user frame, without the separate authentication frame.",
+                _interaction_prompt_evidence(page_dir, {"socket user frame": user}),
+            )
+        )
         assert messages("s2") is None
         react("in the same closed turn")
         assert messages("s1") is None
@@ -9030,7 +9347,7 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     )
 
 
-def test_waiting_written_over_an_unanswered_move_names_it(claimed):
+def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     """`leaf status` reads its transition back so a silent success cannot pass for a
     no-op. Canonical activity keeps showing an unanswered reader move over a `waiting`
     written ahead of it, so the banner the agent believes it set is not the one the
@@ -9059,6 +9376,21 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed):
     assert replied.exit_code == 0, replied.output
     settled = CliRunner().invoke(cli_model.cli, waiting)
     assert settled.output.splitlines() == ["waiting — pick one"]
+    snapshot.check(
+        yaml_document(
+            "The waiting status command names unanswered work until the reply settles it.",
+            _interaction_prompt_evidence(
+                claimed,
+                {
+                    "before reply": {"exit": early.exit_code, "output": early.output},
+                    "after reply": {
+                        "exit": settled.exit_code,
+                        "output": settled.output,
+                    },
+                },
+            ),
+        )
+    )
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
@@ -9073,7 +9405,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert refused.exit_code == 1
     assert "1 update nobody has picked up" in refused.output
     assert schema_model.ACK_BATCH_INSTRUCTION in refused.output
-    assert "wait owner must finish the delivery contract" in refused.output
+    assert "read them with `leaf wait` before idling" in refused.output
     assert files_model.read_json(claimed / "status.json")["state"] != "idle"
 
     # `leaf wait` returns at once, and acknowledgement records that its output
@@ -9833,3 +10165,261 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert json.loads(capsys.readouterr().out)["decision"] == "block"
+
+
+def _interaction_prompt_evidence(page, value):
+    """Keep complete output, replacing only run-specific identities and times."""
+    events = events_model.read_events(page)
+    identities = {event["id"]: f"event-{event['seq']}" for event in events}
+
+    def stable(item):
+        if isinstance(item, dict):
+            return {
+                key: "<time>" if key in {"ts", "created_at"} else stable(child)
+                for key, child in item.items()
+            }
+        if isinstance(item, list):
+            return [stable(child) for child in item]
+        if isinstance(item, str):
+            item = item.replace(str(page), "<page>")
+            for source, replacement in identities.items():
+                item = item.replace(source, replacement)
+            return Prose(item) if " " in item or "\n" in item else item
+        return item
+
+    return stable(value)
+
+
+@pytest.mark.parametrize("response", ["reply", "version", "receipt"])
+def test_agent_sees_the_complete_interaction_recovery(
+    claimed, capsys, snapshot, response
+):
+    """The real hook and CLI outputs, from unpicked input through settlement."""
+    page = claimed
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    if response == "version":
+        registry_path = page / "registry.json"
+        registry = json.loads(registry_path.read_text())
+        registry["lf-options"]["x-conversation"] = {
+            "when": {"choose": [True]},
+            "response": {"kind": "version", "verb": "choose"},
+        }
+        registry_path.write_text(json.dumps(registry))
+    if response == "receipt":
+        source = source.replace(
+            "</section>",
+            '<lf-command id="hub"><lf-task id="goal" status="active">'
+            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+            '<lf-ask id="restart-decision"><h2>Restart the worker?</h2>'
+            '<lf-operations id="commands" target="goal" worker="worker" '
+            'worktree="tree"><lf-operation verb="restart">'
+            "<strong>Restart</strong></lf-operation></lf-operations></lf-ask></section>",
+        )
+    (page / "index.html").write_text(source)
+    publish(page)
+    session_model.cmd_status(page, "waiting", "")
+    observations = {}
+
+    def hook(name):
+        hooks_model.cmd_hook({"hook_event_name": name, "session_id": "s1"})
+        output = capsys.readouterr().out
+        return json.loads(output) if output else None
+
+    def idle():
+        result = CliRunner().invoke(cli_model.cli, ["status", str(page), "idle"])
+        return {"exit": result.exit_code, "output": result.output}
+
+    observations["no watcher"] = hook("Stop")
+    if response == "receipt":
+        sent = append_command(
+            page,
+            {
+                "kind": "request",
+                "author": "user",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+            },
+        )
+    else:
+        sent = events_model.append_event(
+            page,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Add the camera first.",
+                **(
+                    {
+                        "anchor": {"section": "choice"},
+                        "response": {"kind": "version", "verb": "choose"},
+                    }
+                    if response == "version"
+                    else {}
+                ),
+            },
+        )
+    observations["unpicked at prompt"] = hook("UserPromptSubmit")
+    observations["unpicked at stop"] = hook("Stop")
+    observations["idle before pickup"] = idle()
+    serving(page, 1)
+    wait = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert wait.exit_code == 0, wait.output
+    envelope = json.loads(wait.output)
+    envelope["id"] = "<delivery>"
+    observations["delivered"] = envelope
+    session_model.cmd_ack(page, last_deliverable_seq(page))
+    session = service_model.page_claim(page)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page, session["id"])
+    )
+    assert lease
+    try:
+        observations["acknowledged at stop"] = hook("Stop")
+        observations["idle before answer"] = idle()
+        if response == "reply":
+            result = CliRunner().invoke(
+                cli_model.cli,
+                [
+                    "reply",
+                    str(page),
+                    "--for",
+                    sent["id"],
+                    "--text",
+                    "I will add the camera first.",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            observations["answer"] = (
+                json.loads(result.output)
+                if result.output.startswith("{")
+                else result.output
+            )
+        elif response == "receipt":
+            result = CliRunner().invoke(
+                cli_model.cli,
+                [
+                    "receipt",
+                    str(page),
+                    sent["id"],
+                    "succeeded",
+                    "--text",
+                    "Restarted the worker.",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            observations["answer"] = (
+                json.loads(result.output)
+                if result.output.startswith("{")
+                else result.output
+            )
+        else:
+            (page / "index.html").write_text(
+                source.replace('id="flag-first"', 'id="flag-first" chosen')
+            )
+            # The public version answers the choice; resolve then closes its thread.
+            stamped = stamp(page, "Choose the flag-first rollout.")
+            assert stamped.exit_code == 0, stamped.output
+            observations["stamped answer"] = stamped.output
+            result = CliRunner().invoke(
+                cli_model.cli, ["resolve", str(page), "--to", sent["id"]]
+            )
+            assert result.exit_code == 0, result.output
+            observations["answer"] = (
+                json.loads(result.output)
+                if result.output.startswith("{")
+                else result.output
+            )
+        observations["answered at stop"] = hook("Stop")
+    finally:
+        lease.close()
+    snapshot.check(
+        yaml_document(
+            "Complete agent-facing outputs through real hooks, wait and response commands.\n"
+            "Only page paths, event/delivery identities and timestamps are normalized.\n"
+            "A null hook output means the turn can end without a reminder.",
+            _interaction_prompt_evidence(page, observations),
+        )
+    )
+
+
+def test_agent_sees_codex_watcher_recovery(codex_claimed_page, capsys, snapshot):
+    page = codex_claimed_page
+    session_model.cmd_status(page, "waiting", "")
+    observations = {}
+
+    def hook():
+        hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+        output = capsys.readouterr().out
+        return json.loads(output) if output else None
+
+    observations["no adapter"] = hook()
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page, "codex-thread")
+    )
+    assert lease
+    try:
+        observations["direct wait still running"] = hook()
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "Check this."}
+        )
+        observations["direct wait has input"] = hook()
+        adapter = leases_model.take_waiter_lease(
+            leases_model.adapter_lease_path("codex-thread")
+        )
+        assert adapter
+        try:
+            observations["adapter carries input"] = hook()
+        finally:
+            adapter.close()
+    finally:
+        lease.close()
+    snapshot.check(
+        yaml_document(
+            "Codex Stop output: no adapter, a direct shell wait, and a live adapter.",
+            _interaction_prompt_evidence(page, observations),
+        )
+    )
+
+
+def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
+    publish(page_dir)
+    serving(page_dir, 1)
+    root = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which rollout?"}
+    )
+    for number in range(1, 11):
+        events_model.append_event(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if number % 2 else "user",
+                "parent": root["id"],
+                "text": f"Rollout consideration {number}.",
+            },
+        )
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "text": "What do you recommend now?",
+        },
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    envelope = json.loads(capsys.readouterr().out)
+    envelope["id"] = "<delivery>"
+    assert envelope["batches"][0]["conversations"][0]["summary_hint"]
+    pointer = codex_model.delivery_pointer_prompt(envelope["id"], envelope)
+    snapshot.check(
+        yaml_document(
+            "The summary hint from real conversation events, their wait delivery, and\n"
+            "the Codex pointer generated from that same immutable delivery.",
+            _interaction_prompt_evidence(
+                page_dir, {"delivery": envelope, "Codex task input": pointer}
+            ),
+        )
+    )

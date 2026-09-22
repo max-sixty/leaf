@@ -13,6 +13,49 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
 
+def comment_ids(events: list[dict]) -> set[str]:
+    """Comment roots present in the log, excluding orphaned reply parents."""
+    return {event["id"] for event in events if event["kind"] == "comment"}
+
+
+def specimen_events(
+    document: SourceDocument, events: list[dict], selected: set[str]
+) -> list[dict]:
+    """Copy the selected conversation closures the log holds into a child's log.
+
+    The selection is authored markup naming records the log owns, and the document
+    is what starts a page: one served before any conversation stands in it — a first
+    version, or a page re-created from its source without the log it shipped beside
+    — opens its specimens the same as any other. So a root the log does not hold
+    reads here as absent and the child begins without that conversation, rather than
+    the template's declaration deciding whether the page works at all.
+
+    That leaves a mistyped id to the one reader who can tell it from a page that has
+    not been written into yet: `scripts/corpus.py` selects against a history it is
+    generating from, where every declared root exists by construction, and refuses
+    one that names nothing."""
+    roots = thread_roots(events)
+    selected = selected & comment_ids(events)
+    memberships = thread_memberships(
+        events, roots, thread_widgets(thread_structure(events), roots), document.within
+    )
+    seeded = [
+        {
+            **{key: value for key, value in event.items() if key != "seq"},
+            **({"revision": 1} if "revision" in event else {}),
+        }
+        for event in events
+        if selected.intersection(memberships[event["id"]])
+    ]
+    for event in seeded:
+        if event.get("meaning", {}).get("document", {}).get("kind") == "page":
+            event["meaning"] = {
+                **event["meaning"],
+                "document": {"kind": "page", "revision": 1},
+            }
+    return seeded
+
+
 def thread_roots(events: list) -> dict:
     """Message id → the id of the comment that opened its thread.
 
@@ -341,8 +384,8 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
                 "through": candidate[-1]["id"],
                 "operation": "conversation summarize",
                 "instruction": (
-                    "This thread has become long and could benefit from a summary. "
-                    "Read the original messages and consider summarizing this range; "
+                    "Consider summarizing this older exchange. Read the original messages "
+                    "in the suggested range first; "
                     "keep the newer exchange outside the summary."
                 ),
             }

@@ -148,6 +148,7 @@ class LeafHTTPServer:
     def server_close(self) -> None:
         """Release the listening socket this server has kept."""
         self.socket.close()
+        self.specimens.close()
 
 
 class TemporaryPageServer:

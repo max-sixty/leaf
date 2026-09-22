@@ -54,6 +54,25 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     return attrs
 
 
+def thread_completion(
+    rec: dict, entry: dict, projection: StateProjection
+) -> bool | None:
+    """Whether a frozen widget's explicit completion verb stands.
+
+    None leaves completion to ordinary answer records. When `until` applies,
+    its standing verb decides both whether the reader still owes an answer and
+    whether their widget moves require the agent to respond.
+    """
+    until = (entry.get("x-awaits") or {}).get("until")
+    if not until or not asking(replayed_attrs(rec, projection), until["when"]):
+        return None
+    unit = rec["attrs"].get("id")
+    return any(
+        action["widget"] == unit and action["action"] == until["verb"]
+        for action, _spec in projection.actions.values()
+    )
+
+
 def answered_verb(
     rec: dict,
     projection: StateProjection,
@@ -301,14 +320,9 @@ class _AskReducer:
         if self.thread:
             if not entry.get("x-state"):
                 return True
-            until = self._declaration(record).get("until")
-            attrs = replayed_attrs(record, self.projection)
-            if until and asking(attrs, until["when"]):
-                unit = record["attrs"].get("id")
-                return any(
-                    action["widget"] == unit and action["action"] == until["verb"]
-                    for action, _spec in self.projection.actions.values()
-                )
+            completed = thread_completion(record, entry, self.projection)
+            if completed is not None:
+                return completed
         return answered_ask(
             record,
             entry,

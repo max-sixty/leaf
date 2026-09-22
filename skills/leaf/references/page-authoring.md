@@ -5,6 +5,7 @@
 - [Document, page tabs, or workspace](#document-page-tabs-or-workspace)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
+- [Live specimens](#live-specimens)
 - [Stable anchors](#stable-anchors)
 - [Reading cost](#reading-cost)
 - [Pre-handover review](#pre-handover-review)
@@ -53,6 +54,10 @@ Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address whe
 delivers the document. Put page-specific CSS in `<style>` and JavaScript in inline
 module blocks. Every `lf-*` element has an explicit end tag.
 
+Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
+when the head has no viewport meta. This lets Leaf's chrome use the device's
+safe-area insets. An authored viewport is preserved and replaces that policy.
+
 The title and description are what the page says it is anywhere outside itself: a
 tab, a search result, a link someone pastes into a chat. Write a description that
 stands alone, since whoever reads it there has none of the page around it.
@@ -61,7 +66,6 @@ stands alone, since whoever reads it there has none of the page around it.
 <!doctype html>
 <html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
   <meta name="description" content="…">
 </head>
@@ -170,33 +174,17 @@ integrates with Leaf may import the public `/runtime/widget-api.js` module. Leaf
 the complete local dependency graph, effective registry, and selected layer bytes in the
 same immutable revision as the markup they control.
 
-A live revision reaches a reader one of two ways, and what the revision changes decides
-which. Every revision states what it is as running code: its registry, its module graph,
-and the bodies of its inline modules. Where that is unchanged, the arriving markup is
-patched onto the page the reader is standing in. They keep their caret, selection,
-hover, scroll and focus, every widget whose authored markup you did not touch keeps its
-element and the state the log gave it, and a key sequence they were part-way through
-goes on naming the page in front of them. Their selection covers the words it covered,
-including in a paragraph you edited around it; only where you rewrote the selected
-words themselves does it have nothing left to hold. One shape cannot be decided at all:
-insert a sibling of the same kind directly above an unnamed element you also rewrote,
-and nothing distinguishes the two, so the words may land in either — the reader loses
-no node and the page is in order, but give either element an `id` if which is which
-matters. Where it differs, the stable live address
-opens a fresh document, because a running document cannot evaluate a module twice or
-redefine an element; reading position, recoverable drafts, and comparison are restored
-explicitly, while element instances, focus, and arbitrary module state do not cross. Either way Leaf waits while a reader is composing, dragging, or has
-an unresolved delivery.
+Content and style changes update the open document when its registry and JavaScript
+are unchanged. Unchanged widgets keep their elements and local interaction state;
+changed widgets are replaced. An edit inside an element whose children a page module
+moved or detached also replaces that element. Give elements stable ids when their
+identity must survive a rewrite ("Stable anchors").
 
-Prose, styling, media, and markup are not code, so revising them costs a reader nothing.
-Within a patched revision, a widget whose authored markup changed is replaced rather
-than corrected, so its module renders the new baseline from scratch; one you left alone
-keeps its element and everything the reader had done inside it. The same all-or-nothing
-rule reaches any authored element whose children a page module detached or moved: its
-interior is that module's, so an edit inside it replaces the element whole. A patch
-writes an attribute only where the two revisions disagree, so what a reader toggled
-stays as they left it; a form control's `value` or `checked` a reader has already
-changed keeps the reader's choice even where the revision moved the attribute.
+Changing the registry or JavaScript opens a fresh document. Leaf restores reading
+position, recoverable drafts, and comparison state. It can also restore focus and
+supported control state when an element keeps its authored id and tag. Element
+instances and arbitrary module state do not survive the reload. Both update paths
+wait while the reader is composing, dragging, or has an unresolved delivery.
 
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
@@ -216,6 +204,50 @@ filesystem escapes, classic scripts, event-handler attributes, and `javascript:`
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.
+
+## Live specimens
+
+Use `lf-specimen` with one direct `template[data-specimen]` to let the reader
+operate a complete Leaf page inside the surrounding document. Give both the
+element and template stable ids, and put the child page's main content in the
+template:
+
+```html
+<lf-specimen id="practice" label="practice release note">
+  <template id="practice-page" data-specimen>
+    <h1>Weekend service</h1>
+    <p id="service-note">The sample shuttle runs every hour.</p>
+  </template>
+</lf-specimen>
+```
+
+The specimen's gutter contains only the content being demonstrated. Keep labels,
+host controls, and instructions about using the specimen outside that gutter;
+instructions that belong to the demonstrated page remain inside it.
+
+The child uses the parent's selected layer and starts with its own event log.
+Enter specimen activates the child; its normal widget controls, keyboard routes,
+comments, and replies work there. Escape closes the child's open controls before
+returning to the surrounding page. Reset creates a fresh page from the template.
+Child decisions and comments do not change the parent's log or Ask inventory.
+The child is temporary: use an ordinary Leaf page when its history must outlive
+the specimen. A standalone copy keeps the rendered child and its assets as an
+isolated static document; native links and disclosures remain usable.
+Live specimens require a server, so pages declaring them cannot be exported with
+`--interactive`; use the static copy instead.
+
+To begin with conversations from the parent, set `data-specimen-threads` on the
+template to their space-separated root event ids. The declaration selects from the
+parent's standing log rather than requiring it: a page whose log does not hold one
+of those roots yet — a first version, or a copy made from the source alone — opens
+the specimen without that conversation. Their anchored content must exist in the
+child. Reset copies those conversations again from the parent; subsequent child
+replies remain independent.
+
+A page module can await the element's `ready` promise to receive the child
+`Document`, and await `reset()` to replace it. Author child content in the
+template rather than copying rendered controls from the parent. Ordinary
+`lf-specimen` children, without a template, remain static quoted material.
 
 ## Stable anchors
 
@@ -285,8 +317,8 @@ deterministic markup check; this review adds the browser gate and a reading:
 leaf version check <page> --render
 ```
 
-It runs the browser gate in both color schemes. Fix every failure; a screenshot is
-not a substitute.
+It runs the browser gate in both color schemes, including when the host gives you
+no separate browser tool. Fix every failure; a screenshot is not a substitute.
 
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
@@ -299,3 +331,10 @@ arrival, confirm that the question, shared premise, alternatives, and evidence
 that distinguishes them are visible together, the displayed numbers match the
 available actions, and the next press of `a` reaches the next open Ask while the
 complete page remains visible.
+
+Without a way to inspect the rendered page, read `leaf page state <page>`'s
+`content` and `asks` alongside the source to review the words, evidence, and
+available choices. Report the render command's result separately from the visual
+and keyboard review you could not perform. If the command cannot launch a browser,
+run `leaf version check <page>` for the markup and report the render check as
+unfinished. A text reading does not establish layout or interaction quality.

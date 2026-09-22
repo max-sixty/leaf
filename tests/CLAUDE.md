@@ -45,11 +45,7 @@ A test is nightly when a pull request can land without it: the broad browser cor
 most `test_render_*.py` modules, and the published site in `test_site.py`. The everyday
 gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`, and
 `test_render_application_boundary.py`, so the `test_render_` prefix does not say which
-run a file belongs to. A test does not become nightly because it is expensive. The
-expensive copying is already there: `test_site.py` builds and stages the published site,
-and its `staged_site` fixture records what that costs. Every `copytree` left in the
-everyday suite duplicates one initialized page or one source directory instead — 195
-files and under 4M at the largest, in under 0.1s. Broad discovery skips nightly tests.
+run a file belongs to. A test does not become nightly because it is expensive. Broad discovery skips nightly tests.
 An explicit file, node id, `-k`, `-m`, or `--lf` selection runs what it names. During
 development, select the owning file or one named case and use `-n 0` so the trace and
 process tree stay local:
@@ -60,14 +56,25 @@ uv run pytest --lf --lfnf=none -x -n0
 ```
 
 Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
-change, reset only the affected test, then inspect the recorded diff before committing:
-
-TODO(2026-09-12): Move more stable multiline CLI output contracts from partial
-string assertions to regtest snapshots.
+change, reset only the affected test, then inspect the recorded diff:
 
 ```sh
 uv run pytest --regtest-reset -n0 <node-id>
 ```
+
+Agent-facing interaction specimens record complete outputs at their delivery
+boundaries. Review the affected specimens when changing interaction guidance:
+
+| File | Boundary |
+| --- | --- |
+| `test_interact_contract.py` | event handling and browser POST through delivery |
+| `test_interact_session.py` | hooks, watcher recovery, reply/version/receipt lifecycles, summary suggestions |
+| `test_interact_layer.py` | command help and reply selection errors |
+| `test_interact_mcp.py` | stdio tool descriptions and metadata |
+| `test_website_server.py` | hosted agent start messages and serialized tool output |
+
+Specimens normalize temporary paths and generated identities, not instruction
+text. Multiline prompts use literal YAML blocks to preserve their line breaks.
 
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. If the change affects behavior covered by nightly tests, run
@@ -178,81 +185,29 @@ reading of the band a box shows, naming overflow, paint containment, and
 `content-visibility`; `version check --render` and `RINGS_DRAWN` both consume it
 rather than copying it.
 
-A focus ring is drawn only in keyboard modality: `element.focus()` alone sets
-`:focus` and not `:focus-visible`. A direct specimen first presses `Tab`, then
-focuses its exact sequential stop and requires it to retain `:focus-visible`.
-The reading must find a ring on that stop, its ancestor, or the exact semantic
-carrier the test links to it before asserting anything about the ring's shape.
-A separate fast sweep reaches every stop in the selected pages' ordinary Tab
-orders, and a planted test reaches the banner and thread list through their real
-keys before taking the ring away. Which box wears the ring is a separate
-question from which holds focus: a decision may
-wrap the control reached, a joined option group may stand for the pick that gave
-up focus, and an anchored element may have no focus of its own. The reading
-therefore sweeps every box painting a ring and asks the paint, never
-`getComputedStyle(activeElement)` and never a selector. A thread is the distinct
-large-composite case: the current panel card repaints its existing border and surface,
-while an unbordered inline card reserves symmetric resting room around its content and
-draws the same quiet edge inside that room. Their tests compare that paint with a
-resting state while checking the card's visible placement and unchanged focused
-geometry, including a later sibling that must not carry an old divider inside its edge.
-The band has two carriers: `--here-ring`, the outline
-nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
-the two boxes that cannot spend an outline on it — the anchored response bar and
-the target hint the keyboard is browsing. A shadow ring is the layer's spread with
-no offsets and no blur, and its outset is that spread, where an outline's is its
-width and offset. Each rule names the ring it draws in `--lf-here-ring`, so
-the population the floor divides by is read off the page's composed stylesheets,
-one question per carrier: does the value name the layer's token.
-`test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge`
-plants one outset ring under three clipping parents with a control case that
-must report nothing,
-`test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow` puts the three
-shadows the layer draws that are not the band in front of the reading and then
-stands the band on the window's foot, and
-`test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails
-on any rule with no causal specimen and any required surface that does not open. A ring
-is credited when a box painting the layer's band also carries a name; a name
-whose ring a later rule took away is not credited — which is what keeps the
-response bar's own controls off `pressable`, the floor rule whose outline the bar
-removes — and a ring painted with no name is its own finding. Nothing reads
-`@media` or `@supports`: the reading is taken on screen.
+Focus evidence starts in keyboard modality: press `Tab`, focus the exact
+sequential stop, and require `:focus-visible`. `element.focus()` alone is not
+sufficient. Reset sequential navigation with `document.body.focus()` when an
+opening key sequence needs a fresh starting point; `blur()` retains the old one.
 
-Each focused specimen also asks whether the reader can see where the keyboard
-is. Four answers count: the platform's own ring (`outline-style: auto`), the
-layer's here ring on the stop or an ancestor drawing for it, the element mark's
-own ink at the indicated weight, and the band the anchored response bar casts as
-a shadow — the sweep's own reading of it, so the two halves of the file agree on
-what one is. Colours are resolved through a swatch rather than compared as
-written, since a `color-mix` and a plain token spell one colour two ways. Any
-outline an element wears for a reason other than focus silently costs it the
-ring it would otherwise have had.
+A ring can belong to the stop, an ancestor, or a semantic carrier linked to the
+stop. Inspect the actual paint rather than assuming the focused box draws it.
+`RINGS_DRAWN` and `ring_faults` own the shared reading. Focus tests cover:
 
-An opening key sequence states its starting point. `blur()` retains the previous
-sequential focus navigation position; `document.body.focus()` resets it.
+- native `outline-style: auto`, the layer's outline and shadow bands, and the
+  element mark's own focus ink;
+- every stylesheet rule naming a band through `--lf-here-ring`, with a causal
+  specimen for each rule and every required surface opened;
+- both inset and outset rings, clipping, and overlapping neighbors under their
+  actual paint order;
+- comparison with the resting state, including unchanged focused geometry and
+  no stale divider on a later thread sibling.
 
-A reach case answers for the shapes it is written over, and a ring has two,
-outset and inset. `ring_faults`'s cover check steps past the ring's own band
-(`grow + w`) to ask whether a control stands behind something; a one-pixel step
-clears an outward ring and lands inside an inset one.
-`test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
-is the plant over the inset shape.
-
-The same stepped-in point answers the order the other way about. An outline is
-painted by its control, so a box the control stands in front of cannot stand over
-the ring around it, and the sample outside the control's box lands on one of those
-whenever a control floats over content its own holder scrolls — the panel's edge
-grip does, at every width. The reading ranks the nearest box holding the neighbour
-that is present at that point and is not itself holding the control; a z-index
-named on the way up stops the walk, since it lifts the box past the holder being
-ranked. Position lifts a box the same way without naming one, so where the ranked
-holder is static the answer is the control's own layer instead: one that names a
-z-index stands clear of the layer a lifted neighbour paints in, and one that names
-none shares it.
-`test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across` plants
-the same band under each order against the grip, which names one, and
-`test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_in`
-against a control that does not.
+Resolve colors through a swatch so equivalent CSS expressions compare equally.
+A credited ring must be painted and named; a declaration removed by a later rule
+is not coverage. Read the rendered styles rather than attempting to interpret
+`@media` or `@supports` in the test. Focus-ring probe tests in
+`test_render_gate.py` plant faults and clean controls for these cases.
 
 Prefer the public route through the product. A CLI test invokes the command or
 the same command function the entry point uses. A browser test serves a
@@ -287,11 +242,9 @@ pages under the current pytest worker's pid. Do not replace it by moving `HOME`;
 uv's cache and unrelated developer state are not part of leaf's isolation
 boundary.
 
-The one subject that must take uv's cache into its world is what the launcher
-resolves. A test of where `bin/leaf` looks for a dependency asks the host's
-index for every one of them, so it needs the network the nightly run holds, and
-a cache directory of its own (`UV_CACHE_DIR`), since a wheel already in the
-developer's cache answers before any index is consulted.
+Launcher dependency-resolution tests use their own `UV_CACHE_DIR` so a cached
+wheel cannot bypass the package index under test. These tests need the network
+available to the nightly run.
 
 Use `sessionless` when the subject is a command launched outside any host
 session. Use `codex_env` when constructing a real Codex process ancestry; it
@@ -301,59 +254,31 @@ a test body.
 
 ### A process the suite starts ends with the run
 
-The run catches SIGINT itself, so every child starts at the default disposition
-a terminal gives. A run launched as a shell's background job inherits SIGINT set
-to SIG_IGN and passes it to everything it spawns, and a test that interrupts its
-own child would otherwise pass or fail on how the run was launched rather than
-on the code.
+The run restores SIGINT handling so children have the same interrupt behavior
+whether pytest was launched in the foreground or as a background shell job.
+Resource ownership is explicit:
 
-Server ownership has two layers:
+| Resource | Fixture owner |
+| --- | --- |
+| Child process | `spawn`, which ends survivors and their process groups when given a new session |
+| Page server | `_no_page_outlives_its_test`, which releases held leases and sweeps the test's temporary page and isolated state roots |
+| Preview slot | `preview_slot`, which places pages under `LEAF_PREVIEWS_ROOT` in `tmp_path` and retires detached watchers through `preview.retire_preview` |
+| In-process HTTP server | `interact_support.running_http_server`, which closes the socket and joins its serving thread within a deadline |
+| Unix socket directory | `socket_dir`, which uses a short system-temporary path to fit `sun_path` |
 
-- `spawn` owns every child process started directly by a test and ends any
-  survivor during teardown — the group, for a child given a session of its own,
-  because such a child's own children join that group and the handle the test
-  keeps names only the launcher.
-- `_no_page_outlives_its_test` releases the suite's held leases, searches the
-  temporary page and state roots, and stops every live leaf server it finds.
-- `preview_slot` sets `LEAF_PREVIEWS_ROOT` under `tmp_path`, so a preview test's
-  pages are in the roots that sweep walks rather than in the checkout's shared
-  `.tmp/previews`. It then retires each slot's watcher through
-  `preview.retire_preview`, because a watcher is detached into a session of its
-  own: neither the sweep nor `spawn` reaches one, and retiring it waits for its
-  lease rather than pulling its page out from under it.
+Tests of standing servers stop them explicitly: that lifetime does not depend on
+session claims. Other page servers use the synthetic session claim as their
+final owner if a worker dies before teardown. A `Popen` handle alone does not
+own a detached server's process tree.
 
-The search is intentional: a cleanup list catches only the server a test
-remembered to register. A page server is spawned into its own process session,
-so a local `Popen` handle is not a general substitute for `leaf server stop`.
-The synthetic session claim is the final owner when a worker itself is killed
-and fixture teardown cannot run.
+`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` checks that tests
+use these owners. Its exceptions name the file and reason.
 
-In-process HTTP fixtures use `interact_support.running_http_server`, which owns
-the serving thread, socket close, and bounded join.
-
-A standing server is the explicit exception. It declines session ownership by
-definition, and tests of standing lifetime must stop it themselves. Keep that
-exception narrow and short-lived.
-
-A Unix socket is the one file that cannot live under those roots: `sun_path` is 104
-bytes and pytest has spent most of them before a test's own files begin. `socket_dir`
-owns that exception — a short directory under the system temporary root, removed when
-the test ends — so a test never names `/tmp` itself.
-
-A fixture cannot stop a test making its own, so
-`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads the suite for
-the calls these fixtures exist in place of — starting a process, launching a browser,
-making a socket directory — and names the owner of each. An exception is a line in
-that list saying which file holds it and why.
-
-The sweep's roots are the run's own: the test's `tmp_path` and the state home
-`isolated_session` returns. An autouse fixture that needs the isolated home takes
-it from that fixture, never from `state_home()` read at setup or teardown, where
-the environment is the developer's. Autouse fixtures set up outermost first (a
-`pytest_plugins` module's before the conftest's) and tear down in reverse.
-`test_a_run_ends_only_the_servers_it_started` runs a nested suite against a
-planted home and requires the planted page untouched and the run's own leftover
-stopped.
+An autouse cleanup fixture takes the isolated home from `isolated_session`, not
+from `state_home()` at setup or teardown: fixture ordering can expose the
+developer's environment there. Sweep only that home and the test's `tmp_path`.
+`test_a_run_ends_only_the_servers_it_started` proves that cleanup stops the run's
+leftover server and leaves an unrelated planted server alone.
 
 ### Reloading is not resetting
 
@@ -375,54 +300,28 @@ when source structure is the subject:
 lint fixtures, malformed markup, tokenizer input, line-number assertions, or a
 document whose missing boundary is the condition under test.
 
-The browser fixture `serve` is the normal owner of a specimen. It runs `page
-init` once per worker for the ordinary layer, takes an initialized page of that
-shape from `initialized_page`, writes the document as v1, copies the example
-media that document
-names, adds the publishing note and any requested comments, then serves the
-directory with the real HTTP routes and page key at that version's immutable
-URL. Handed an example's path rather than its markup it also lays in the
-external data and event log the example ships, and sets the cursor past the
-log. It lays in the media that log names too, which a message writes in its
-Markdown rather than in an attribute, where the parsed reading that answers for
-a document cannot see it; the seed is read for content-addressed names, and
-they arrive whether or not the call seeds the log, since `seed_log=False` is
-how a caller appends those same events itself. Markup is one version; an
-example is every version it ships (`example_versions`), stamped oldest first
-with the seed between the first note and any later one, and the URL is the
-newest. Use `serve(example, seed_log=False)` when only the shipped conversation
-would be noise. Reach the page directory through `serve.page_dir` when a test
-needs to publish v2 or inspect the log. `page_dir` in `interact_support.py`
-owns command-level files without starting a browser and takes its ordinary
-initialized layer the same way. `ModelPage` owns less again: a rule the append
-door decides from authored markup and the standing log is stated as that markup
-and put to `event_contracts.admitted_event`, with no page directory under it.
-`model_folds.py` states a page the same way for the other question a document
-and a log settle between them — what `browser_state` folds them into, which
-`test_model_folds.py` asks. The two divide by subject rather than by machinery:
-a rule the door decides goes to `ModelPage`, a reading the fold produces to
-`model_folds`, and both compose their vocabulary through `model_layer`. Neither
-answers what a renderer draws, what admission reads out of `data.json`, or what
-the log still owes a reader; those keep `page_dir` or the browser.
+Choose the fixture by the boundary under test:
 
-`initialized_page` composes one page per shape and lends it. A test gets that
-page moved to the path it asked for, and when the test ends the page goes back
-to the pool, where the next loan resets it: every file whose inode, size or
-modification time moved is put back from the shape, and everything the test
-added is removed. Copying the layer instead costs 195 files a test. Measured when
-a page was 146, that put 2,272 pages and 393,473 directory entries through a
-nightly run — bytes a hard link shares, but a directory entry is what a
-filesystem event watcher counts.
+- `serve` initializes and serves a complete page through real HTTP routes. With
+  markup, it publishes one version; with an example path, it includes companion
+  versions, data, log, and referenced media, and returns the newest immutable
+  version URL. `serve.page_dir` exposes the directory for later writes.
+- `serve(example, seed_log=False)` omits the conversation log while still copying
+  its referenced media, so the test can append those events itself.
+- `page_dir` in `interact_support.py` supplies command-level files without a
+  browser.
+- `ModelPage` puts authored markup and the standing log to
+  `event_contracts.admitted_event` without a page directory.
+- `model_folds.py` supplies the same kind of input to `browser_state`. Both model
+  helpers compose vocabulary through `model_layer`. File-backed admission,
+  outstanding-reader obligations, and rendered behavior use the fuller fixtures.
 
-Runtime and vendor files are immutable fixture inputs and are hard links into
-the shape; the rest is a private copy. Nothing may write a page's layer in
-place — vendoring replaces, and a file written through its link fails the next
-loan by name. A page-owned file the reset has never heard of needs no entry
-anywhere: it is removed because the shape has not got it.
-
-Tests of initialization, re-vendoring, or a custom overlay still cross the real
-`page init` boundary, and a test whose subject is the composition itself passes
-`initialized_page` a shape of its own or builds its page without the fixture.
+`initialized_page` lends one prepared page per composition shape. The next loan
+restores changed files and removes additions. Runtime and vendor files are
+hard-linked immutable inputs; other files are private copies. Never write
+through a layer hard link: re-vendoring replaces files, and the fixture rejects
+an in-place mutation by name. Tests of initialization or composition cross
+`page init` themselves or request their own shape.
 
 ## Drive the browser a reader gets
 
@@ -490,70 +389,28 @@ manual navigations as well; the `upgraded=False` escape in `open_page` is only
 for a test whose subject is the interval before those stamps, waits for the
 banner module to exist, and must make its later readiness explicit.
 
-A test whose subject is the page before the runtime lands needs the other end of
-that distinction, and element visibility does not carry it. A forced layout —
-`bounding_box`, and `to_be_visible` with it — answers from the stylesheets that
-have arrived, so an element has a box while the render-blocking theme is still in
-flight, and the geometry read behind it is the user agent's own. `displayed` waits
-on first contentful paint, the browser's record that the head has been applied and
-what it composed is on screen. Every pre-runtime measurement takes it first, in
-`test_authored_html_paints_while_runtime_startup_is_held`,
-`test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads`, and
-the two site shells: the reading it excludes is the unstyled document, which
-differs from the presented page by the whole theme and arrives as a report that
-startup moved the shell.
+For a pre-runtime measurement, call `displayed` first. It waits for first
+contentful paint; element visibility can force layout before a render-blocking
+stylesheet arrives and therefore measure the unstyled document.
 
-Every page the `browser` fixture makes arrives readable: the problem list `watched`
-collects into, the interception arm, and the `Traffic` ledger, installed by
-`WatchedBrowser` in the call that makes the page. None of the three can be added
-afterwards — an init script has to precede the navigation it instruments, and a
-console entry from a page nobody was listening to is gone — so a test that makes a
-page cannot end up with one that reports nothing. It used to: 38 test functions made
-a page of their own and never asked for the readings, and every one of them was green
-about a page whose console, `pageerror` and window `error` channels nothing read.
-A page must therefore come from that fixture, or from a context it made.
+The `browser` fixture installs error collection, route interception, and the
+`Traffic` ledger before navigation. Create pages through that fixture or a
+context it owns. `watched` returns the existing collector; do not install a
+second one or add instrumentation inside a Playwright event handler.
 
-The fixture ends it too, so a test that has finished with a page leaves it open. It
-closes every context after reading what the pages reported, in that order and for
-this reason: closing stops event delivery, so a close written at the end of a test
-cuts the reading short — its own reading, a step before the fixture takes it.
+The collector combines console warnings/errors, `pageerror`, and window errors
+through `leaf.render_checks.install_window_errors`, shared with the render gate.
+`navigate` retries a complete navigation after a ResizeObserver-loop notice;
+a recurring notice fails. The fixture checks collected problems after the
+journey, then closes its remaining contexts. Leave ordinary cleanup to it so
+closing a page cannot truncate its own error reading.
 
-A close inside a test is a different thing, and it stays: a second tab shut to show
-what the first one still holds is the gesture the test is about, and the assertions
-after it are what read the close. So the rule is the ending, not the call, and
-`test_the_resources_a_fixture_owns_are_taken_from_that_fixture` reads for exactly
-that — a close anywhere in a `finally`, or on the line a test ends on, followed down
-through the loop or branch it ends inside — on anything the browser fixture handed
-over, however it travelled. Its one exception is the page that keeps making the
-fault its test is about, where the consume has to follow a close of its own.
-
-For the same reason nothing installs them a second time. `watched` returns the list a
-page already has, because a second list would take `lf_errors` with it and leave the
-first collecting into a reading no test can consume; and nothing installs them from
-inside a Playwright event handler, where a `page.route` leaves the `add_init_script`
-after it without effect and says nothing about it.
-
-`watched` collects console warnings, console errors, and `pageerror`, and calls
-`leaf.render_checks.install_window_errors` so browser `error` events without an
-exception reach the same list. That script is shared with `render_version`; the suite
-and the handover gate must not disagree about which browser error channels count.
-
-`navigate` handles the one browser notice that needs confirmation: a
-ResizeObserver-loop notice raised during handover is repeated with a complete
-second navigation; a recurring notice is a failure, a one-off platform notice is
-not. The function-scoped browser fixture rejects every collected problem after the
-journey, then closes its remaining contexts. Context closure can cancel an outstanding
-request, so it is cleanup rather than part of the health reading. A test that
-intentionally produces a known class of problem uses `consume_browser_errors` at the
-causal point; every collected entry must match one of its named fragments. Use
-`take_browser_errors` only when the test itself asserts the exact list or partitions
-every entry. Filtering the collector or leaving expected noise behind is not an
-assertion.
-
-A fault the page keeps meeting has no causal point to be consumed at: a route that
-answers every `/api/state` with a refusal is met again two seconds later, and a list
-read before the next one is a list with a later entry still to come. Consume that
-after `page.close()`, which is what settles it; the entries survive the page.
+Close a page within a test when closing is part of the journey, or when it ends
+a deliberately recurring fault. Consume a single expected fault at its causal
+point with `consume_browser_errors`; every collected entry must match. For a
+recurring fault, close the page first, then consume its retained entries. Use
+`take_browser_errors` only when asserting or partitioning the complete list.
+Filtering the collector or leaving expected noise behind is not an assertion.
 
 ## A wait consumes a fact the system states
 
@@ -617,70 +474,39 @@ The causal helpers:
   fault draws before consuming it. A fault is named by every boundary that
   carried it, and the later words can trail the first by whatever the page does
   between them, so an equality assertion taken on the first word is a race.
-- `scroll_settled(page)` waits for a scroller to have stopped, and is asked
-  behind the fact that it started. Stillness answers the same for a travel that
-  is over and for one an asynchronous gesture has not issued yet, so the press
-  before it consumes a fact the page states — the arrival the walk paints, the
-  focus it moves, the attribute it writes — and this helper reads the stillness
-  behind that. Every travel here is issued in the same task as the fact that
-  announces it, so the fact is enough; no count of frames substitutes for it.
-  What the count is for is the glide: a gesture's travel is two moves — the
-  runtime places the element's nested scrollports at once and then glides the
-  scroller that owns it to the centring position — so the page holds still for a
-  frame or more between them. The hold is counted in animation frames, not
-  milliseconds, because the compositor advances a glide on every frame it runs:
-  a still frame can only be one the glide has not started on, and a slower
-  machine takes fewer frames through the pause rather than more. `scroller=` and
-  `axis=` name a nested scrollport; the helper clears its own record, so no
-  caller resets it.
+- `scroll_settled(page)` waits for the scroller to stop. First observe the fact
+  that the gesture issued its scroll; stillness alone also describes a scroll
+  that has not begun. The helper counts animation frames to span the pause
+  between instant placement and smooth scrolling. `scroller=` and `axis=` select
+  a nested scrollport; the helper resets its own record.
+
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
   frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
-- `ask_actions_hint(digits)` is what that bar's Ask row says for an Ask holding
-  `digits` numbered routes. The live range is the fact a test asserts; the word
-  beside it is the runtime's own, so it is stated here rather than quoted at each
-  assertion, and changing what the runtime says is one edit rather than a sweep.
-  The same holds for any runtime wording several tests read: give it a helper
-  beside the read, because a sweep driven by grepping the reader's name misses
-  the call site that stored its answer in a local first.
+- `ask_actions_hint(digits)` supplies the runtime wording for an Ask's numbered
+  routes. Keep shared wording in one helper beside its reading rather than
+  copying strings across tests.
 
-A surface that reads the same before and after the press cannot be its own
-wait. `expect(...).to_have_text(...)` is satisfied by the frame the press has
-not reached yet, and a measurement taken behind it compares a reading with
-itself. When a surface does not itself change, a test whose subject is what a
-press does within it waits on some other fact of that press
-(`test_numbered_addresses_show_progress_on_complete_routes_without_moving`),
-and its bug-back is run more than once, because a wait that is sometimes real
-looks exactly like one that is.
+Choose a completion fact that the gesture changes. An unchanged surface, an
+empty highlight registry entry, or an optimistic thread count can all satisfy
+an assertion before the work under test completes.
 
-A container the runtime keeps whether or not it holds anything is that surface
-too. Every anchor pass calls `CSS.highlights.set` for each of its names, empty
-ranges included, so wait on what the pass put in it
-(`(CSS.highlights.get(name)?.size ?? 0) > 0`, or `wait_for_pending_mark`),
-never on the name being there.
+- Wait on nonempty highlight ranges or `wait_for_pending_mark`, not merely a
+  registered highlight name.
+- For an admitted comment, wait on its durable identity rather than its
+  `pending:` card, or use `sending` when the request has a definitive outcome.
+  A retrying request does not finish `round_trip`.
+- For paint that must happen in the gesture's own frame, read once after that
+  frame. `shortcut_bar_text` provides this boundary; a retrying assertion can
+  instead pass on the periodic repaint and hide the missed immediate update.
+- For absence, observe the positive fact that would cause the forbidden paint,
+  then read once. Plant that paint to prove the assertion can fail; reverting
+  the change may remove the path that paints it.
 
-A surface the page paints before the server answers is that surface too. A
-comment is rendered the turn it is sent, under the `pending:` identity
-`conversationForAttempt` gives it, so a `.lf-thread` count reads the same on the
-path where the request is refused. Wait on the identity the response replaced it
-with (`.lf-thread:not([data-id^="pending:"])`) or enclose the gesture in
-`sending`. Where the refusal under test is a request failure the outbox retries
-rather than settles, the identity is the only one of the two that answers:
-`round_trip` inside `sending` waits out its whole deadline on it
-(`test_the_captured_quote_is_prose_a_file_can_hold`).
-
-A retrying assertion that a paint has not happened is the same trap with the
-other sign, and worse: a negative assertion is satisfied by the first poll, and
-the first poll is before the frame. Wait on a positive fact the same frame
-writes (the shortcut bar's word, through `shortcut_bar_text`) and read the absence behind it.
-Bug-back with a probe that paints the mark the assertion denies, not by
-reverting the change, which usually stops the mark being painted at all.
-
-The shortcut bar is the sharpest case, because a second mechanism supplies its
-answer late: every state application repaints it, the two-second heartbeat
-included, so an auto-retrying assertion on what it says goes green on whichever
-tick lands inside its budget. A word that is supposed to turn over within the
-press is read once, through `shortcut_bar_text`, and never waited for.
+`test_numbered_addresses_show_progress_on_complete_routes_without_moving` and
+`test_the_captured_quote_is_prose_a_file_can_hold` exercise unchanged surfaces
+and optimistic admission respectively. Repeat a bug-back when a probabilistic
+wait could otherwise appear causal.
 
 Read the event log only after `round_trip`, and read the event a gesture just
 made through `sending`; the runtime posts behind the press the driver has
@@ -695,24 +521,19 @@ reply, or reaction states is its paint or its card (`test_render_reactions.py`'s
 `painted`). After changing a file behind a live page, call `told` before reading
 the page.
 
-For layout, animation, and navigation, identify the final fact precisely.
-`panel_settled` waits for the requested panel class and nothing past it: the runtime
-places the margin and the page's marks against the moved column inside the gesture, so
-no frame is left for a read to race, and
-`test_closing_the_panel_lands_the_margin_where_the_column_lands` holds that.
-`resized` waits for the resize event to reach listeners
-and then for one rendering update behind it; the document's own scrolling area is
-published in the update after the one the event arrived in. An observer or protocol
-record that outlives a motion is read after `moving` says finite motion has ended. An
-element-anchored quote can cause an instant document scroll
-followed by a smooth scroll, so its first `scrollend` is a real edge but not the
-destination; wait for the mark to reach the computed position, or use
-`scroll_settled`, which holds for animation frames the glide would have moved on.
-Do not measure that hold in milliseconds. The window then has to be shorter than
-a pause the machine decides the length of, and it answers with the place the
-instant move left as soon as the runner's frames are further apart than the
-window — which is how a 50ms hold read the page before its glide on the nightly
-run and held on every desk.
+For layout, animation, and navigation, wait for the boundary being measured:
+
+- `panel_settled` observes the requested panel class. The runtime places the
+  margin and marks synchronously with the column;
+  `test_closing_the_panel_lands_the_margin_where_the_column_lands` proves this.
+- `resized` waits for resize listeners and the following rendering update,
+  including the document's scrolling area. Wait separately for any ensuing
+  motion whose geometry is the subject.
+- `moving` ends finite motion before reading a surviving observer or protocol
+  record.
+- An anchored quote can scroll instantly and then smoothly. Its first
+  `scrollend` need not be the destination; inspect the final mark position or
+  use `scroll_settled` after observing scroll initiation.
 
 Absence usually has no completion event of its own. Anchor it after the positive
 edge that would have caused the forbidden behavior, then read once. If the
@@ -739,25 +560,14 @@ browser is not a page state any route can arrange: `opened_tab` observes the
 browser's target list because Playwright can lose the Page for a tab Chromium
 opened. Observe the browser's own record rather than repeating the gesture.
 
-Install a hold on the page's first POST before navigation: `held_events`
-supplies this for event requests, and `primed` lets a test prepare other routes.
-Enabling interception on an already-running page can let that POST reach the
-server without a route callback. `open_page` arms each page it makes on a
-pattern nothing ever asks for, so a route a test registers later only adds to a
-list the browser is already consulting; a page made another way is unarmed.
-A hold a test leaves standing needs no teardown of its own: closing the context
-is what ends a held request, and only a release run during teardown could resume
-one into a server that has already stopped.
+Use `held_events` for event holds installed before navigation, or `primed` for
+other routes. Pages created through the `browser` fixture are instrumented by
+`readable` before navigation, including pre-armed interception for later routes.
+Raw or `browser.unwatched` pages do not carry that guarantee.
 
-A handler that appends a route to `held` has established only that the browser
-made the request. Before reading that list — indexing it, asserting its length,
-or taking the handler away with `page.unroute`, which leaves a request dispatched
-any later to go out unrecorded — wait through `holding`, which is that
-sanctioned repeat: the ledger shows the send was made, and the driver call it
-repeats is what dispatches the route into this process. Do not wait on the
-corresponding `Traffic` edge instead — the ledger counts the send a beat before
-the request arrives here, and once it is held nothing repaints, so a wait on the
-paint has no second wake-up to catch a route that lands late.
+Before indexing a handler's `held` list, asserting its length, or removing its
+route, call `holding`. `Traffic` records a send before Playwright dispatches the
+route callback, so its count does not prove the list has received the request.
 
 Keep the three route operations distinct:
 
@@ -772,17 +582,18 @@ Keep the three route operations distinct:
   an ordinary abort only when the failed request and its browser error are the
   subject.
 
-A route on `**/api/state*` makes the page deaf but not blind: it leaves the
-news stream alone, so a read that failed is asked again two seconds later for
-as long as the route stands.
+A route on `**/api/state*` leaves the news stream active. Failed state reads
+are retried, so a standing refusal can keep producing errors.
 
-Every hold has a release path. If the verdict depends on a response remaining
-lost, make the assertion first, then continue or fulfill the route, wait for the
-handler to finish, and remove the route; the fixture closes the page after that.
-Put release and `unroute` in cleanup that also runs when the assertion fails. When a handler
-calls `route.fetch()`, use `page.unroute_all(behavior="wait")` before teardown,
-because the fetched body belongs to that page and ordinary close can dispose it
-while a handler is still reading it.
+A request held before the server receives it can remain held at test end;
+context closure cancels it. Release it during the journey only when subsequent
+behavior is part of the assertion. Do not add a teardown release that could
+resume the request after its server has stopped.
+
+A handler already executing `route.fetch()` needs different cleanup: its
+response body belongs to the page. Complete that handler and call
+`page.unroute_all(behavior="wait")` before teardown closes the page. Ensure this
+cleanup also runs when the assertion fails.
 
 The assertion names the ordering the route created: hold the first POST, make
 the second gesture, and inspect `Traffic.sends` before release. The final log
@@ -798,15 +609,11 @@ reports a default aborted request as a console load failure, which is why
 produces an HTTP error, assert the enriched status-and-URL entry collected by
 `open_page` instead of filtering it out globally.
 
-A test that stops the page's own server has no way to keep the browser quiet
-about it. Bracket the span that makes the noise instead of listing what it says.
-`restarting` drops what the page said inside the block, so the fixture's reading
-everywhere else remains clean, and a diagnostic the test means to produce is asserted
-inside the block that produces it. A filter stated over a whole test's output
-takes a new member every time a fetch moves, and it ends up describing the test's
-own noise. `test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back`
-pins both halves, arranging the interruption rather than waiting for a loaded
-machine to produce it.
+Use `restarting` around a deliberate server interruption. It excludes the
+transport noise inside that span while keeping the rest of the test's collector
+strict. Assert diagnostics that are the subject inside the block that produces
+them. `test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back`
+checks both the interruption and recovery.
 
 ### A repeated gesture has to let the repaint it causes land
 
@@ -937,11 +744,8 @@ that distinguish causes. `open_page` enriches HTTP failures with status and URL;
 `round_trip` reports both ends of its wait; a fixture cleanup failure names the
 server or process it could not stop.
 
-The `browser` fixture checks collected problems after all gestures, polls, reloads, and
-route releases, then closes the remaining contexts. Close a page explicitly only when
-the lifecycle or an earlier release matters to the journey. If an earlier fault is
-intentionally induced, assert and consume that exact expected entry at the point it
-occurs.
+Browser error ownership and deliberate faults follow "A page is ready when it
+says what has finished" above.
 
 Assert durable output as meaning rather than formatter layout. Collapse
 whitespace when testing what a page says, use `spoken` when the registry-backed

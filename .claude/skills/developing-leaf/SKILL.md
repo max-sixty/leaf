@@ -43,12 +43,12 @@ owns that surface and preview its real output and styling. A Leaf interface ther
 implements candidates in its owning runtime and theme and presents them through a
 shipped example or fixture. When the user asks for sketches without implementation,
 keep the current surface as a baseline and derive each sketch from its actual controls,
-copy, and styling. Runtime-owned chrome is operable only in a normally served complete
-Leaf document; the developer feature gallery's contained documents are inert replays,
-not interactive previews. Page-local HTML and CSS may frame the comparison and build
-proposed sketches. Embedding an operable current surface beside them needs a new runtime
-boundary; when implementation is out of scope, serve that surface separately as the
-interactive baseline.
+copy, and styling. Embed an operable current surface with a live `lf-specimen`,
+following `skills/leaf/references/page-authoring.md`: it hosts a complete Leaf page
+with independent state and the ordinary runtime-owned chrome. The developer gallery's
+choreographed replays use the same host in passive mode; they demonstrate a sequence
+rather than accept reader gestures. Page-local HTML and CSS may frame the comparison
+and build proposed sketches.
 
 ## Prove and hand off a visible change
 

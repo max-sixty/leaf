@@ -320,8 +320,9 @@ export function retainConversationFocus(panelIsOpen) {
 // the same shape one scope out.
 let pressedPointer = null;
 const standing = () => focused()?.closest?.(".lf-thread");
-const land = (thread) => {
-  if (thread && threadsBox.contains(thread)) revealConversation(thread, focused());
+const land = (thread, behavior) => {
+  if (thread && threadsBox.contains(thread))
+    revealConversation(thread, focused(), behavior);
 };
 // The primary pointer owns the provisional landing until that same gesture ends. A
 // cancellation means the browser took it for something else — commonly a touch scroll —
@@ -334,7 +335,16 @@ const finishPress = (event, shouldLand) => {
   const thread = standing() ?? pressedThread;
   if (thread && !reachedForWords(thread)) {
     if (!thread.contains(focused())) focusThread(thread, { preventScroll: true });
-    land(thread);
+    // Instantly, because this correction is the one with a later writer behind it. The
+    // press's click is the next thing to run, and a click on a thread title reflows the
+    // list, whose hold writes `scrollTop` a frame after (thread-list.js). A write lands
+    // on a smooth scroll as a cancellation rather than a supersession, so an animated
+    // correction is not superseded by what the gesture asks for next — it is dropped,
+    // and the reader keeps neither the landing nor the place. Arriving before the click
+    // is also what lets that hold take its reference from the landed geometry rather
+    // than from the band this was still leaving. The `focusin` landing below has no
+    // such successor and keeps the shared behavior.
+    land(thread, "instant");
   }
 };
 addEventListener("pointerup", (event) => finishPress(event, true), true);

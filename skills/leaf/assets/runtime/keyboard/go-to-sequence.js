@@ -109,11 +109,9 @@ export function createGoToSequence({
   setPanel,
   setOpenTray,
   scrollToElement,
-  showThread,
   leavesOffered,
   othersLinks,
   activateMarginEntry,
-  activeInlineThread,
   marginEntryKind,
   visibleMarginEntries,
   glideTo,
@@ -230,12 +228,8 @@ export function createGoToSequence({
       control: () => toggleBtn,
       when: () => true,
       go: () => {
-        const inline = activeInlineThread();
-        if (inline) showThread(inline.dataset.thread, { focus: "thread" });
-        else {
-          setPanel(true);
-          threadsBox.focus({ preventScroll: true });
-        }
+        setPanel(true);
+        threadsBox.focus({ preventScroll: true });
       },
       active: (...args) => panelIsOpen(...args),
       // The mnemonic pressed over an open panel closes it outright. The way back out of

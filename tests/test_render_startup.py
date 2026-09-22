@@ -281,7 +281,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     expect(reference).to_have_text("Session 239383829012")
     expect(reference).to_have_accessible_name("Session 239383829012 · copy reference")
     page.set_viewport_size({"width": 390, "height": 844})
-    expect(page.locator(".lf-banner-menu > .lf-session-reference")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-session-reference")).to_be_visible()
     reference.click()
     expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
     assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
@@ -352,7 +352,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     page.get_by_role("button", name="More page controls", exact=True).click()
     expect(badge).to_be_visible()
     badge.click()
-    expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
+    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
     expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
     expect(page.locator(".lf-notice")).to_be_visible()
     diagnostics = page.evaluate("() => navigator.clipboard.readText()")
@@ -470,17 +470,34 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ),
     ],
 )
+@pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, root_attribute, body_attribute
+    browser, serve, saved, root_attribute, body_attribute, contained
 ):
     """Returning readers do not watch saved auxiliary chrome move the document."""
-    url = serve(leaf_page("Restored surface", "<h1>Restored surface</h1>"))
+    content = "<h1>Restored surface</h1>"
+    if contained:
+        content = (
+            '<lf-specimen id="practice" label="Practice">'
+            '<template id="practice-source" data-specimen>'
+            + content
+            + "</template></lf-specimen>"
+        )
+    url = serve(leaf_page("Restored surface", content))
     context = browser.new_context(viewport={"width": 1600, "height": 900})
+    if contained:
+        host = context.new_page()
+        host.goto(url, wait_until="load")
+        expect(host.get_by_role("button", name="Enter specimen")).to_be_enabled()
+        url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.evaluate(
-        "saved => { for (const [key, value] of Object.entries(saved)) "
-        "localStorage.setItem(key, value); }",
+        """async saved => {
+            const entry = document.querySelector('script[type="module"][src]');
+            const {readerStore} = await import(new URL('runtime/storage.js', entry.src));
+            for (const [key, value] of Object.entries(saved)) readerStore.set(key, value);
+        }""",
         saved,
     )
     priming.close()
@@ -1140,14 +1157,23 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     watched(page)
     page.add_init_script(
         """
-        document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => {
-            window.releaseHeldPageInterface = resolve;
-          }));
-        });
+        if (window === window.top) {
+          document.addEventListener('lf-page-interface', event => {
+            event.detail.present(new Promise(resolve => {
+              window.releaseHeldPageInterface = resolve;
+            }));
+          });
+        }
         """
     )
-    page.route("**/api/state*", lambda route: held.append(route))
+
+    def hold_parent_state(route):
+        if route.request.frame == page.main_frame:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/state*", hold_parent_state)
     page.goto(url, wait_until="load")
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
@@ -3769,6 +3795,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
         "moved",
         "detached",
         "hidden",
+        "target-removed",
     ],
 )
 def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
@@ -3792,7 +3819,7 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, registerThreadSurface} from '/runtime/widget-api.js';
+import {projectData, consumeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     projectData(this, ['first', 'second'], key => key, key => {
@@ -3805,13 +3832,15 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       row.append(words, outlet);
       return row;
     });
-    this.surface = registerThreadSurface(this, {
-      begin: () => this.check('begin'),
-      outletFor: ({anchor, placement}) => {
+    this.surface = consumeThreads(this, async (collection, surfaces) => {
+      this.check('begin');
+      for (const thread of collection.threads) {
+        const target = surfaces.target(thread.key);
+        if (!target) continue;
+        const {anchor, placement} = target;
         if (anchor.datum === 'second') this.check('outletFor');
-        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
-      },
-      end: () => {
+        if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
+      }
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
@@ -3821,7 +3850,13 @@ customElements.define('lf-test-surface', class extends HTMLElement {
           if (this.failure === 'moved') document.querySelector('main').append(row.outlet);
           if (this.failure === 'detached') row.outlet.remove();
         }
-      },
+        if (this.failure === 'target-removed') {
+          await Promise.resolve();
+          for (const row of [...this.children].filter(row => row.outlet)) {
+            this.append(row.outlet);
+            row.remove();
+          }
+        }
     });
   }
   check(phase) {
@@ -3937,7 +3972,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # widget still on the page its passages keep a page-local destination, so the margin's
     # thread margin entry and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such destination and the panel answers.
-    if failure == "disconnect":
+    if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
         page.get_by_role("button", name=re.compile(r"^Threads")).click()
         fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
@@ -3956,7 +3991,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
     expect(fallback.locator("textarea")).to_have_value("Keep this unsent reply.")
-    if failure not in {"unregister", "end-unregister", "disconnect"}:
+    if failure not in {"unregister", "end-unregister", "disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
             widget.failure = null;
@@ -3979,7 +4014,14 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    if failure not in {"detached", "hidden", "end-unregister"}:
+    if failure not in {
+        "detached",
+        "hidden",
+        "end-unregister",
+        "unregister",
+        "disconnect",
+        "target-removed",
+    }:
         expected_phase = "end" if failure in {"unregister", "disconnect"} else failure
         expected = (
             "returned an outlet outside its widget"

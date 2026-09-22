@@ -1,6 +1,9 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
-import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
+// Restored panels and the first keyboard gesture share the ordinary synchronous
+// control routes, so their controls must be upgraded before those routes mount.
+import "./vendor/webawesome-chrome.js";
+import { passiveSpecimen, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
@@ -291,6 +294,10 @@ aim = createAim({
   standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
+  targetChooser: {
+    active: () => targets.pointerChoosing(),
+    choose: (...args) => targets.chooseTarget(...args),
+  },
 });
 pageGeometry = createPageGeometry({
   refreshAnchorHover: anchorPaint.refreshHover,
@@ -596,6 +603,7 @@ targets = createTargetChooser({
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
+  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPaint.pendingAt },
@@ -687,11 +695,9 @@ goToSequence = createGoToSequence({
   setPanel: threadPanelController.setPanel,
   setOpenTray: trays.setOpenTray,
   scrollToElement: anchorTravel.scrollToElement,
-  showThread: landing.showThread,
   leavesOffered,
   othersLinks,
   activateMarginEntry: app.margin.activateMarginEntry,
-  activeInlineThread: app.margin.activeInlineThread,
   marginEntryKind: app.margin.marginEntryKind,
   visibleMarginEntries: app.margin.visibleMarginEntries,
   glideTo,
@@ -732,7 +738,11 @@ skipToChrome.onclick = () => {
 };
 
 if (!offlineInteractive) {
-  document.adoptedStyleSheets = [chromeSheet, marksSheet];
+  document.adoptedStyleSheets = [
+    ...document.adoptedStyleSheets,
+    chromeSheet,
+    marksSheet,
+  ];
   chromeRoot.append(
     banner,
     overflowMenu,
@@ -774,7 +784,10 @@ if (!offlineInteractive) {
   });
   reserveBannerControls();
   auxiliaryModality.mount();
-  panelComposer.mount();
+  // Connect the search field before mount awaits its rendered input: Lit does not
+  // resolve updateComplete until connection, and keyboard registration needs that input.
+  mountNarrowing(app.presentConversation);
+  await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
   reactions.mount();
@@ -791,7 +804,6 @@ if (!offlineInteractive) {
   app.mountConversation();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
-  mountNarrowing(app.presentConversation);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();
@@ -815,21 +827,25 @@ if (!offlineInteractive) {
     pageShifted: pageGeometry.pageShifted,
     paintStandingGeometry: standing.paintStandingGeometry,
   });
-
-  window.leafInteractionGalleryFrame?.mount({
-    toggleBtn,
-    panelIsOpen,
-    setPanel: threadPanelController.setPanel,
-    detachComposer: selectionComposer.detachComposer,
-    fabInput,
-    openComposer: selectionComposer.openComposer,
-    closePreview: app.margin.closePreview,
-    openInlineThread: app.margin.openInlineThread,
-    threadTransitionOrigin: app.margin.threadTransitionOrigin,
-    currentTray,
-    setOpenTray: trays.setOpenTray,
-  });
 }
+
+const replayReady = passiveSpecimen
+  ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
+      mountReplay({
+        toggleBtn,
+        panelIsOpen,
+        setPanel: threadPanelController.setPanel,
+        detachComposer: selectionComposer.detachComposer,
+        fabInput,
+        openComposer: selectionComposer.openComposer,
+        closePreview: app.margin.closePreview,
+        openInlineThread: app.margin.openInlineThread,
+        threadTransitionOrigin: app.margin.threadTransitionOrigin,
+        currentTray,
+        setOpenTray: trays.setOpenTray,
+      }),
+    )
+  : Promise.resolve();
 
 const initialStateRead = app.beginRead();
 let interactionGalleryModule;
@@ -858,7 +874,7 @@ if (!offlineInteractive) {
   );
 }
 
-if (!containedPage && !offlineInteractive) {
+if (!passiveSpecimen && !offlineInteractive) {
   restoreReaderView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
@@ -926,6 +942,7 @@ async function startPage() {
     offlineInteractive
       ? Promise.resolve()
       : loadIcon().catch((error) => console.error(error)),
+    replayReady,
   ]);
   if (!upgraded) return;
   if (!offlineInteractive) {

@@ -1,6 +1,8 @@
 /* Retained comment-panel list reconciliation.
 
-   `renderThreads` holds one live card through every list mutation. It chooses the card
+   Every change to this list's content holds one live card through it: the renders
+   `renderThreads` drives, and the disclosure the browser drives when a reader opens a
+   card and the named group closes the one that was open. The hold chooses the card
    under the pointer while the pointer is in the list, then the card containing focus,
    then the topmost visible card. It records later visible cards before the mutation
    and refreshes their baselines after each correction, so a live successor can take
@@ -79,14 +81,13 @@ import { narrowingView, threadsBox } from "./panel-elements.js";
 import { pointerAt } from "../pointer.js";
 import { focused } from "../keyboard/scopes.js";
 import { conversational, threadKey } from "./model.js";
-import { runtime } from "../context.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { narrowingModel, threadSearchReading } from "./narrowing.js";
-import { conversationState } from "./state.js";
+import { readThreads } from "./state.js";
 import { threadReading } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
@@ -137,6 +138,33 @@ function paintHeadRoom(panelIsOpen) {
 // Observed once the chrome is mounted (leaf.js): the list is the panel's.
 export function mountThreadList(panelIsOpen) {
   new ResizeObserver(() => paintHeadRoom(panelIsOpen)).observe(threadsBox);
+  holdThroughDisclosure(panelIsOpen);
+}
+
+// Opening a card is the third thing that reflows this list, beside the two renders, and
+// the only one the browser performs on its own: the named group closes the card that was
+// open, and every card after it — the title the reader just pressed among them — comes up
+// by that card's open height. Native scroll anchoring answers this only when the node it
+// picked happens to be the pressed card or below it; picked above, it holds the room that
+// did not change and lets the pressed title travel, measured at 186px on an ordinary
+// panel and off the top of the scrollport from the first visible row. So disclosure takes
+// the same hold the renders take. `toggle` arrives with the reflow already in the
+// geometry, so the hold is taken on the way down, while the activation is still the click
+// default action pending, and corrected on the frame that paints it. Both routes to that
+// press land the right card: `takeScrollHold` leads with the card under the pointer, and
+// with the card holding focus when the hand is elsewhere, which is where Enter or Space
+// on a title is standing.
+function holdThroughDisclosure(panelIsOpen) {
+  threadsBox.addEventListener(
+    "click",
+    (event) => {
+      const summary = event.target?.closest?.(".lf-thread-summary");
+      if (!summary || !summary.parentElement?.matches?.(".lf-thread")) return;
+      const hold = takeScrollHold(panelIsOpen);
+      if (hold) requestAnimationFrame(() => finishScrollHold(hold, panelIsOpen));
+    },
+    true,
+  );
 }
 
 // Keep one card at the same viewport position while this list changes around it.
@@ -377,8 +405,6 @@ const rowModel = (all, commands) => {
         kind: "thread",
         key: `thread:${threadKey(t)}`,
         descriptor: threadReading(t, "panel", commands.card, {
-          interactions: runtime.activity?.interactions ?? [],
-          revision: runtime.currentRevision,
           visible: visible.has(t),
           grow,
           outline,
@@ -388,7 +414,7 @@ const rowModel = (all, commands) => {
       }),
     );
   }
-  for (const e of conversationState().done)
+  for (const e of readThreads().done)
     rows.push(
       Object.freeze({
         kind: "system",
@@ -485,7 +511,8 @@ async function presentList(model, current) {
 // The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
 // one proof for the existing conversation presentation ticket. Only the newest call can
 // run post-paint work, capture authored values, or commit a fallback.
-export async function renderThreads(all, commands) {
+export async function renderThreads(collection, commands) {
+  const all = collection.threads;
   const generation = ++renderGeneration;
   const current = () => generation === renderGeneration;
   let reading = rowModel(all, commands);

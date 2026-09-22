@@ -45,6 +45,11 @@ export with the rest of discussion chrome.
 
 ## Undo
 
+The reader may withdraw a resolve, unresolve, action, or approval. A reaction
+may also be withdrawn while unanswered and on an unresolved thread. Spoken
+messages cannot be withdrawn; requests cannot be withdrawn because their external
+effects may precede the receipt. An undo cannot itself be undone.
+
 `undo` names the gesture and nothing else; every other field is the target's to
 state. It withdraws rather than deletes: nothing leaves the log, and the folds and
 the thread reading drop the event, so the page is what the revision says plus
@@ -78,19 +83,16 @@ and the transcript.
 
 ## Admission
 
-Every event reaches the log through one door. The browser endpoint, each `leaf`
-writer, the delivery carrier, and `version stamp` all append through it, under the
-page transaction's lease, and nothing else appends. It admits in one order for
-every kind: an accepted retry returns its own event and repeats no gesture; the
-revision the event names supplies the vocabulary that admits it, so a re-vendor
-cannot reinterpret a document its reader is still looking at; that vocabulary has
-to declare the kind; the kind's gates run against the page and the standing log;
-server-owned meaning is derived; and the finished record is checked against the
-stored-record contract for its kind. A refusal says what to do about it, as a
-command's exit or a final 400 — a gate is stated once and holds for every writer,
-rather than for whichever one remembered it. Only the transport differs above the
-door: which kinds a browser may post, which fields it may send, and how a retry is
-answered.
+`event_contracts.append_admitted` admits every writer's event under the page
+transaction's lease. It returns an accepted retry without repeating the gesture;
+otherwise it reads the named revision's vocabulary, checks that the kind is
+declared, runs its gates against the page and standing log, derives server-owned
+meaning, and validates the finished record against its stored-record contract.
+Using the event's revision keeps re-vendoring from reinterpreting an open document.
+A refusal returns a command error or a final HTTP 400.
+
+Transports own only their input boundary: which kinds and fields they accept,
+how they answer retries, and whether their anchors need file-side capture.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it or `generated`, and retry identity
@@ -130,7 +132,17 @@ draws such a reply as a receipt whose head says the message answers nothing, sin
 otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
-instead; the CLI refuses a parallel `--awaits` flag on that markup.
+instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
+whose `x-awaits.until` applies keeps the reader's Ask open until its declared
+completion verb stands. Interim actions still receive delivery receipts, but
+require no agent reply; completion hands the turn to the agent. Undoing that
+completion returns the Ask to the reader and removes the reply obligation.
+
+An open structural Ask anywhere in an unresolved thread keeps it awaiting the
+reader after later prose or a settling reaction. Without one, the latest spoken
+turn determines the prose obligation described above. A user reaction on that
+latest request whose token declares `settles` clears the prose obligation without
+resolving the thread. `served_state/conversation.py` owns this precedence.
 
 What each conversation command does for its reader, and when an agent uses it, is
 `../../references/conversation-threads.md`. The door and the fold hold these rules behind

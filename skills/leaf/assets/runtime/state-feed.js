@@ -15,7 +15,13 @@
 
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
-import { containedPage, offlineInteractive, offlineState, runtime } from "./context.js";
+import {
+  passiveSpecimen,
+  offlineInteractive,
+  offlineState,
+  pageUrl,
+  runtime,
+} from "./context.js";
 import { applicationState } from "./semantic-state.js";
 import {
   layerHeaders,
@@ -41,7 +47,7 @@ async function readState(bound) {
     let res;
     try {
       const revision = runtime.currentRevision;
-      res = await fetch("/api/state", {
+      res = await fetch(pageUrl("api/state"), {
         headers: layerHeaders({
           ...(Number.isInteger(revision) && {
             "Leaf-View-Revision": String(revision),
@@ -326,7 +332,7 @@ export function createStateFeed({
     };
     const listen = () => {
       if (!feedStarted || !pageIsVisible() || !sessionIsActive() || news) return;
-      const opened = new EventSource("/api/news");
+      const opened = new EventSource(pageUrl("api/news"));
       news = opened;
       const alive = () => {
         if (news !== opened || !pageIsVisible()) return;
@@ -380,7 +386,7 @@ export function createStateFeed({
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot
       // accept reader input or durable updates.
-      if (containedPage) {
+      if (passiveSpecimen) {
         const retry = () => {
           if (document.body.hasAttribute("data-lf-presented")) return;
           if (!readAnswered) void ask();

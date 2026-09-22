@@ -964,26 +964,10 @@ def held_stale(context):
     return stale
 
 
-# The page's arrival facts plus its current presentation reading. `lf-upgraded` is the
-# document's — widgets upgraded and the anchor pass run — `lf-applied` is the log's,
-# written at the end of every replay pass, and `lf-presented` says the initial
-# authoritative projection or offline fallback was released to the reader. That last
-# attribute is monotonic, so the coordinator must also say the current semantic epoch is
-# presented before a test can interact with or inspect the page.
-#
-# `lfPageArrived` is the last of them, and the one that says the page has stopped
-# arriving: a widget or developer surface may place work after presentation on purpose —
-# the screenshot's draggable comparison, the interaction gallery's contained documents —
-# and that work moves boxes when it lands. A fixture carrying one is not ready when it
-# presents, and a test that reads geometry or counts layouts in the interval reads a page
-# mid-upgrade. Three tests each waited for a widget of their own by hand; the page states
-# it once instead (`runtime/presentation.js`, `afterPresentation` and `pageArrived`).
-#
-# Keep one predicate for `open_page` and the navigations tests perform directly. The
-# version chooser, live-pages button, and thread count are drawn from the application
-# reading, so a document-only wait can return a page whose banner the reader would not
-# recognize. The coordinator check also prevents the monotonic arrival attributes from
-# authorizing interaction during a later repaint.
+# Shared readiness for `open_page` and manual navigation. Initial upgrade/replay
+# stamps remain set during later work, so also require the current presentation
+# and declared post-presentation work to settle. See tests/CLAUDE.md,
+# "A page is ready when it says what has finished".
 BOTH_STAMPS = """() => {
   if (
     document.body.dataset.lfUpgraded !== '1' ||
@@ -1000,18 +984,10 @@ FIRST_PAINT = """() => performance
 
 
 def displayed(page):
-    """Wait until the browser has painted the document the reader arrived on.
+    """Wait for first contentful paint before measuring pre-runtime geometry.
 
-    A box is not a paint. `getBoundingClientRect`, and every driver read built over it
-    including `to_be_visible`, forces layout from the stylesheets that have arrived so
-    far, while a render-blocking stylesheet still in flight holds the paint itself
-    back. A geometry read taken behind element visibility alone can therefore answer
-    with the user agent's own layout of the authored HTML, and a test that compares
-    that reading against the page's later one reports the theme arriving as the page
-    moving. First contentful paint is the browser's own record that the render-blocking
-    head has been applied and what it composed is on screen, which is the state a test
-    about what a reader sees before the runtime loads means to measure.
-    """
+    Visibility checks can force layout before a render-blocking stylesheet arrives;
+    first contentful paint excludes that unstyled reading."""
     page.wait_for_function(FIRST_PAINT)
 
 
@@ -1086,27 +1062,13 @@ def clean_browser():
 
 
 def watched(page):
-    """Everything a page says went wrong, on every channel that carries it.
+    """Collect browser problems into one retained list per page.
 
-    `pageerror` is an uncaught exception, while the console carries warnings and errors
-    from the page and browser. Between them a whole channel goes unread: an `error`
-    event with no exception behind it reaches neither. Chrome reports a ResizeObserver
-    loop that way. A runtime change that put the layout writer inside an observation of
-    the box that writer resizes made every load report one, and the suite called it
-    clean — 754 tests, no console output, nothing on `pageerror`. Routed into the
-    console here, which is the one channel every reader in this file already has, and
-    only for the events with no exception, since the rest arrive on `pageerror` already.
-
-    The script is installed by `render_checks.install_window_errors`, which
-    `render_version` lays in for the same
-    reason: one implementation with two callers is what keeps `version check --render`
-    and this suite holding the same invariants, and a channel read on one side only is
-    that drift in its quietest form.
-
-    Must be called before the page navigates, the init script being what carries it.
-
-    One list per page, whoever asks: a second list would take `lf_errors` with it and
-    leave the first one collecting into a reading no test can consume."""
+    Console warnings/errors and uncaught exceptions are joined by window errors
+    without exceptions, installed through the same `install_window_errors` helper
+    the render gate uses. Call before navigation so the init script takes effect.
+    Repeated calls return the existing list. `tests/CLAUDE.md`, "A page is ready
+    when it says what has finished", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
     )
@@ -1200,30 +1162,9 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
-# Rendered turns, waited for with a deadline of their own.
-#
-# A frame wait is the one browser wait Playwright does not bound: `evaluate` takes no
-# timeout in any binding, so a promise that never settles blocks the worker for as long
-# as the job lives. Every other wait here ends — Playwright's own thirty seconds, or the
-# deadline `_until` states — and each of those names the test it ran out in. A frame wait
-# that never comes back names nothing: the worker's last word is the nodeid it picked up,
-# the step spends its whole forty-five minutes, and the tests xdist had already handed
-# that worker never run. No run has been measured ending here: the 45-minute `ci` runs
-# on main that prompted this were never traced, and a wedge reproduced locally under a
-# call tracer stopped in a response body read instead (#85). This bounds a class the
-# suite is open to; it makes no claim on those runs.
-#
-# So the wait states its own end, on the page's clock rather than Playwright's. A
-# driver-side deadline is available — a flag a nested `requestAnimationFrame` sets, read
-# by `page.wait_for_function(polling=...)`, whose `TimeoutError` names the test the same
-# way — but it costs a second round trip and a page-global name, and it does not compose
-# into a larger page script the way `RING_NEW_STOP` composes this one. The page-side
-# timer keeps running through the frames that stop, and its rejected promise comes back
-# through `evaluate` as the failure of the test that asked for it.
-#
-# What that bounds is a page whose compositor has stopped drawing. `setTimeout` and
-# `requestAnimationFrame` share the renderer's main thread, so a page that blocks the
-# thread itself stops the deadline along with the frames, and still wedges silently.
+# Frame waits compose into page scripts such as RING_NEW_STOP. Since evaluate
+# supplies no timeout, their page-side timer rejects when frames stop arriving.
+# It cannot bound a blocked renderer main thread: that also stops setTimeout.
 FRAME_DEADLINE_MS = 30_000
 FRAMES = (
     "(turns) => new Promise((rendered, ranOut) => {\n"
@@ -1555,22 +1496,13 @@ class WatchedContext:
 
 
 class WatchedBrowser:
-    """The browser a test is handed: nothing it makes can arrive unreadable.
+    """Wrap a browser so every test page is instrumented before navigation.
 
-    The readings below used to be each caller's to install, and 38 test functions
-    made a page without them — no console, no `pageerror`, no window `error` event,
-    so every one of those tests was green about a page nobody was listening to. A
-    guarantee the browser fixture makes for the pages it hands out cannot be
-    declined by making a page a different way.
-
-    `unwatched` is the one way past it, and it is for a page the product opens to
-    read for itself: `render_version` collects a page's console and `pageerror` and
-    reports them as findings, so a gate test driving a page that is meant to be
-    faulty hands over this browser rather than asserting the same errors twice, once
-    against the gate's report and once against the collector here. Everything else —
-    including the product calls whose page is expected to be clean — takes the
-    watched browser, where an unexpected error fails the test that caused it.
-    """
+    `readable` installs the error collector, interception arm, and traffic reading.
+    `unwatched` exposes the underlying browser for product gates that deliberately
+    open faulty pages and report those faults themselves. Ordinary clean-page
+    journeys use the wrapped browser. Fixture policy lives in `tests/CLAUDE.md`,
+    "A page is ready when it says what has finished"."""
 
     def __init__(self, browser):
         self._browser = browser
@@ -1587,28 +1519,12 @@ class WatchedBrowser:
 
 
 def primed(browser, prepare):
-    """A browser whose pages reach the product with the suite's hands already on them.
+    """Prepare each page before a product render or export call navigates it.
 
-    `render_version` and `export_page` open their own pages, so a test can otherwise only
-    watch them from outside — on the failure list or the copy they return — and can never
-    state the conditions the page meets them under. A page and the browser's own version
-    are all either asks of a browser, so a stand-in that makes the page, hands it to
-    `prepare`, returns it, and reports the real browser's age needs no parameter added to
-    production for a caller that is only ever a test. The age is passed through rather
-    than invented, because export refuses a browser too old to serialize shadow roots and
-    a stand-in that answered for that would be answering the question under test. It is
-    read where there is one: `held_stale` wraps a context, which has no version and never
-    reaches the export that reads one.
-
-    What a test states there is `page.route`, which stops or delays a request from outside
-    the page as everything else here now does. Refusing the first `/api/state` is the one
-    that has earned its keep: the runtime starts that read beside widget startup but never
-    applies it there. A refusal lets `lf-upgraded` land while replay remains held, putting
-    the two readiness facts on opposite sides of a deterministic boundary.
-
-    The browser is passed through as given, so a page made for a test's own journey
-    (`held_events`) is readable and one made for the gate's report
-    (`browser.unwatched`) is not."""
+    The wrapper preserves the supplied browser's instrumentation and real version;
+    contexts have no version and are used only by callers that do not need one.
+    `prepare` installs external controls such as routes. Use `browser.unwatched`
+    when the product call itself must report an intentionally faulty page."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)
@@ -1622,15 +1538,9 @@ def primed(browser, prepare):
 def held_events(browser):
     """Hold event requests from navigation onward, including the first POST.
 
-    Enabling interception on an already loaded page can let its first POST escape
-    both the route and Playwright's request events. Each test releases the routes
-    its own assertions are about; what is left when the test ends is left held.
-    Teardown used to release those too, and to pull `serve` in ahead of itself so
-    that release would precede the server's shutdown — but closing the context is
-    what ends a held request, and nothing resumes one into a closed socket unless
-    teardown releases it. Measured: a test failing on a held `/api/event` and
-    `/api/state` tears down in about two seconds either way.
-    """
+    Interception installed after navigation can miss that first request. Tests
+    release routes needed by their journey; context closure cancels any left held.
+    Teardown does not resume them into a possibly stopped server."""
     held = []
 
     def prepare(page):
@@ -1708,52 +1618,17 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 
 
 def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
-    """Wait until the scroller has stopped, read behind the fact that it started.
+    """Wait for stable scroll position after the caller observes scroll initiation.
 
-    Stillness is half a reading. A page that has not begun an effect is indistinguishable
-    from one that finished it when the only evidence is the number holding still, so this
-    helper answers for a travel that is over and for a travel that an asynchronous gesture
-    has not issued yet with the same silence. It cannot tell them apart and no count of
-    frames makes it able to: the caller consumes a fact the page states — the arrival the
-    walk paints, the focus it moves, the attribute it writes — and asks for stillness
-    behind that. Every travel here is issued in the same task as the fact that announces
-    it, so the fact is enough. `test_ask_binding_badges_do_not_cover_their_key_line` is
-    the case that pins it, and the one that lost twice without it.
+    The helper cannot distinguish a finished scroll from one not yet issued.
+    Callers first observe the gesture's synchronous arrival, focus, or attribute
+    change that accompanies its scroll. The quiet interval is counted in animation
+    frames to span the pause between instant nested-scrollport placement and the
+    outer scroller's smooth movement, rather than a machine-dependent time window.
 
-    What the stillness itself has to outlast is the glide. One gesture's travel is two
-    moves: `scrollRevealedElement` (anchor-travel.js) places the element's nested
-    scrollports at once and then glides the scroller that owns it to the centring
-    position, so between the instant move and the glide's first step the page can stand
-    still for a rendering frame. A wait that asks only "has the number held for N
-    milliseconds" cannot tell that pause from the arrival, and it answers with the place
-    the instant move left — which a test then measures, scrolls from, and loses when the
-    glide lands on top of its own `scrollTo`.
-
-    That pause is small and it shrinks under load: measured on the ask walk here it is
-    nought to one frame, and throttling the processor holds it at nought, because the
-    compositor starts the glide on the frame after the move whatever the main thread is
-    doing. The window that grows is the other one — the asynchronous gesture before the
-    travel is issued at all, which is main-thread work and which no count of frames
-    bounds. `test_ask_binding_badges_do_not_cover_their_key_line` lost the nightly run
-    twice: to the millisecond window (run 35527368685), and then, with the count already
-    in frames and the glide pause measuring nought, to the only window left ungated
-    (run 35616173899). The first is why the unit here is frames; the second is why the
-    fact comes first.
-
-    Frames are the unit the browser schedules a glide in. The compositor advances the
-    scroller on every frame the animation runs, independently of the main thread, so a
-    still frame can only be one the animation has not started on — and a loaded machine
-    takes *fewer* frames through that pause, not more. A hold counted in frames therefore
-    means the same thing on every machine, where a hold counted in milliseconds means
-    whatever the frame rate makes of it.
-
-    Playwright polls `wait_for_function` on `requestAnimationFrame`, so one evaluation is
-    one frame. The count is this helper's own: it clears the record each time rather than
-    leaving a caller to delete the last wait's state before its own can mean anything.
-
-    A wait that runs out names the scroller it was watching and the reading it gave up
-    on, so a scroller that never stops and a selector that matches nothing read
-    differently."""
+    Each call resets its observation. Timeout reports the selected scroller and
+    its last reading. `tests/CLAUDE.md`, "A wait consumes a fact the system states",
+    owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:
         page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
@@ -1768,21 +1643,12 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
 
 
 def panel_settled(page, open=True):
-    """Wait for the panel to reach `open`, which is the settled page.
+    """Wait for the requested panel class.
 
-    The panel's class, the shell, and the paint that follows the column all change in the
-    one gesture: `moveContentFrame` applies the state and then places the margin's rows
-    and the page's marks against the column where it now stands, synchronously, before
-    the gesture returns. So there is no pending frame for a geometry read to race, and
-    nothing to wait on past the class.
-
-    That is a property of the runtime, and this helper relies on it rather than papering
-    over its absence. It was not always so: the column used to glide into place, the
-    repaint was deferred to follow it, and a read taken straight after the class flipped
-    could find the margin standing where the column had been. The glide went because
-    animating `main`'s `left` switched off the browser's scroll anchoring (theme.css, at
-    the body strip), and the deferral went with it.
-    `test_closing_the_panel_lands_the_margin_where_the_column_lands` holds the property."""
+    `moveContentFrame` places the column, margin, and marks synchronously, so the
+    class is also the geometry boundary. The regression test
+    `test_closing_the_panel_lands_the_margin_where_the_column_lands` checks this
+    runtime guarantee."""
     page.wait_for_function(
         "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
@@ -1790,48 +1656,14 @@ def panel_settled(page, open=True):
 
 
 def resized(page, width, height):
-    """Resize the window, and wait for the page to have handled it.
+    """Resize and wait for the page's listeners and rendering update.
 
-    `set_viewport_size` returns once the browser is the new size, which is a fact about
-    the browser and not about the page: the page may not have been told yet, so its
-    layout — the strip the panel holds, the covering sheet, and with it which region a
-    half-page key moves — can still be the old window's. A test that reads layout on
-    that frame reads the width it just left, and only on a machine loaded enough to fit
-    the read in first, which is the shape of every wait this suite has had to learn
-    (`tests/CLAUDE.md`, "A wait consumes a fact the system states").
+    `set_viewport_size` alone does not prove that resize listeners ran. The
+    counter is installed after the runtime's listeners; `ONE_FRAME` then lets
+    the document's scrolling area catch up before the caller measures it.
+    Wait separately for any resulting motion whose geometry is under test.
 
-    The fact the page states here is the event reaching its listeners, counted by one
-    added now: the runtime registered its own when it loaded, so this one runs after
-    them. The rest of the answer is CSS container layout, resolved in that rendering
-    update. What moved is a separate question, and a test whose subject is the new
-    layout still waits for its transition; a margin easing into place is the ordinary
-    case.
-
-    That event is the page's fact and not the document's, and one reading waits a
-    further frame for the difference: the browser publishes the size of the document's
-    own scrolling area — what `documentElement.scrollWidth` answers with — during the
-    rendering update *after* the one that dispatched the event. So a read taken in the
-    task the event returns to comes back with the width the document scrolled to before
-    the window narrowed, while every box on it already measures the new one, which is a
-    failure that names the page's layout for something the page's layout has already
-    got right. Measured on the specimen page narrowed to 380px, over a fresh load for
-    each point so no read forces the layout the next one asks about: stale in the resize
-    handler, stale in a task behind it, stale in that update's animation frame and in
-    the next update's, and 380 first in a task behind that second frame.
-
-    So this waits the rendering turn behind the event, with the `ONE_FRAME` every other
-    frame wait in this module uses — the one `navigate` takes after the readiness stamp.
-    It resolves in that turn's animation-frame callback, so the caller's next read is a
-    round trip behind it, which is the task the measurement above finds settled. It
-    costs one frame per resize, and it is what
-    `test_a_specimen_holds_a_wide_exhibit_inside_the_column` was failing on — the
-    board's 596px, read off a document that had already narrowed to 380, five times in
-    a hundred and eighty runs here and once on the nightly run that found it.
-
-    A window already the size asked for fires nothing, so waiting on it would hang out
-    a whole timeout rather than return at once. The sweep that walks each example at
-    both a desk's width and a phone's asks for the first of those on a page opened at
-    it."""
+    An unchanged viewport returns immediately because it emits no resize event."""
     if page.viewport_size == {"width": width, "height": height}:
         return
     page.evaluate("""() => {

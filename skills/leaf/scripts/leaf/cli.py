@@ -690,21 +690,15 @@ def _status_line(state: str, detail: str, on: str | None) -> str:
 def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
 
-    DETAIL is what the banner says after the state: what you are doing while
-    `working`, and what you want back from the reader while `waiting` ("pick a
-    storage engine"). A waiting page that declares none falls back to the
-    standing "select text to comment".
+    Use working with DETAIL naming your current work, or waiting with the answer
+    you want from the reader. Waiting without DETAIL invites text comments.
+    Use idle when finished; unread input and unanswered reader moves prevent it.
 
-    --on names the open conversation or local page widget that detail is about,
-    and the reader sees it beside that subject as well as in the banner. Conversation
-    work stays beside the message that awaited your reply when the claim began. Thread
-    work stands until your next reply there. Widget work stands until a later
-    version stamp explicitly names it with --completes. Work in flight, such as a
-    long tool run, therefore reads as picked up rather than as silence. A
-    `working` claim is believed while the turn that wrote it is open; a couple of
-    minutes after that turn ends the page reports the ending instead, until a later
-    turn writes the status again, and one nobody renews at all goes quiet after
-    about a quarter of an hour — on the banner and each local line.
+    With working, --on names an open conversation or page widget and requires
+    DETAIL. The reader sees it beside that subject as well as in the banner.
+    Your next reply ends a thread claim; a version stamp with --completes ends
+    a widget claim. Renew the status as work changes: a claim left after your
+    turn ends, or without updates, eventually reads as stalled.
     """
     from leaf.activity import unanswered
     from leaf.session import cmd_idle, cmd_status
@@ -793,7 +787,7 @@ def comment(
 @click.option(
     "--to",
     metavar="ID",
-    help="comment or reply ID to answer (inferred for a delivered reply)",
+    help="conversation message ID for --initiates; inferred when answering --for",
 )
 @click.option(
     "--for",
@@ -816,7 +810,9 @@ def comment(
 )
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
-@click.option("--awaits", is_flag=True, help="mark this reply as waiting on the reader")
+@click.option(
+    "--awaits", is_flag=True, help="the reply's prose asks the reader a question"
+)
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
 def reply(
     dir: str,
@@ -834,12 +830,13 @@ def reply(
 ) -> None:
     """Post a threaded reply as the agent (--text or stdin).
 
-    Supplying --quote, --section, or --part moves the conversation's current anchor in
-    the same event. --detach removes that current page target when its subject no longer
-    exists. The opening comment keeps its original anchor in the log. With one reply
-    obligation in this turn's opened delivery, --to and --for are inferred. The command
-    validates and activates a changed source before posting, so a reply never announces
-    an invalid page edit.
+    Answer reader input with --for EVENT_ID. With exactly one outstanding reply
+    in this turn's opened delivery, omit it to select that reply. To add a new
+    agent message when no reply is owed, use --to ID --initiates.
+
+    --quote, --section, and --part move the thread's current anchor; --detach
+    removes it when the subject leaves the page. The original anchor stays in
+    the log. A reply validates and activates any changed source before posting.
     """
     from leaf.conversation import cmd_reply, thread_of
 
@@ -894,11 +891,11 @@ def edit(dir: str, to: str, text: str, as_json: bool) -> None:
 def resolve(dir: str, to: str, as_json: bool) -> None:
     """Close a thread as the agent.
 
-    The reader's own ✓ Resolve is the ordinary way a thread closes, so this is for
-    the cases where waiting on them says nothing: they asked for it closed, or the
-    thread is plainly moot — what it was about has left the page, or the work has
-    since answered the question it put. Reply first where the thread asked something —
-    closing is not an answer, and the panel names the agent that did it.
+    For a version response, revise and stamp the requested change before resolving.
+    Otherwise answer any outstanding reader input before resolving, and leave
+    closing to the reader unless they requested it or no further discussion could
+    change the outcome. Completing the work alone is not a reason to close its
+    thread. The panel names who resolved it.
     """
     from leaf.conversation import cmd_resolve, thread_of
 

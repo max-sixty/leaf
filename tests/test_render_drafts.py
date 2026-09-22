@@ -1186,8 +1186,10 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     holding(page, held, 1, "the general send")
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending).to_have_count(1)
-    pending.focus()
-    expect(pending).to_be_focused()
+    # The card is a native disclosure, so its title is the stop the reader stands on.
+    title = pending.locator(":scope > .lf-thread-summary")
+    title.focus()
+    expect(title).to_be_focused()
 
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -1504,7 +1506,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-find-box").fill("Comment 0")
+    page.get_by_role("searchbox", name="Find in threads").fill("Comment 0")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
     select_words(page, "#p1")
@@ -1533,7 +1535,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     )
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-find-box")).to_have_value("")
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread).to_contain_text(sent["text"])
     if later_selection:

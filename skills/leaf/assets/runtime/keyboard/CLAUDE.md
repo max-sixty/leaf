@@ -20,17 +20,11 @@ Core owns commands that act on Leaf's page, chrome, navigation, comments, and sh
 conversation state. A widget owns commands that interpret or change its content. Widget
 scopes join the register only while their instance exists.
 
-Every owner declares its own keys where its code is, and no module enumerates another's
-capabilities to do it. A widget or a generated control uses
-the element register — `keys(element, …)` and `commandScope(…)` in `scopes.js` — which
-applies while focus is inside that element. A core owner whose condition is the page's
-rather than the reader's position uses `register.js`: `pageScope(name, …)` for a scope of
-its own, `pageCommand(row)` for a row of the page's own scope, and `pageRung(name, …)`
-for a step of Escape's fallback ladder. Contribution runs as
-the owner is constructed, so a row closes over that owner's state and the register never
-holds a capability. Adding a command to a surface a feature already declares costs
-nothing outside that feature; a new page-level letter, a new scope, or a new step of the
-Escape ladder takes its rank in the orders `register.js` holds.
+Owners declare their keys during construction, before the first scope read. Element
+scopes use `keys(element, …)` and `commandScope(…)` from `scopes.js`. Core scopes use
+`pageScope`, `pageCommand`, and `pageRung` from `register.js`. Adding a command to an
+existing scope stays with its owner; a new scope, page command, or Escape rung also needs
+an entry in the register's ordering tables.
 
 ## Scope resolution
 
@@ -47,99 +41,63 @@ as Mod+Enter or its own Escape step. Radio and slider navigation likewise belong
 the focused control before ancestor widgets, and a focused select option retains
 typeahead while its list is open.
 
-Escape follows semantic unwind order instead of ordinary reservation. The focused
-control or active mode may consume one inner step; then the surface holding focus, with
-whatever the reader has put on inside it; then every step rooted outside that surface,
-in the register's order. Browser modal and popover boundaries remain outside that order.
-One press closes one layer.
-
 ## Escape unwinds the hierarchy, not the history
 
-**The canonical keyboard route down to a state is matched, step for step, by the Escape
-route back out of it.** That is what Leaf guarantees a reader, and the sentence that
-decides any case.
+Escape removes one layer of the current interaction and lands at its parent. The
+canonical keyboard route into a state defines that parent; pointer and Tab entry use the
+same route out. The runtime does not record how the reader arrived. The current `t`
+shortcut departs from entry/exit symmetry as described below.
 
-It is stated over what stands in front of the reader rather than over how they got
-there. Nothing records a press, so one state has one way out however it was reached, and
-a pointer press or a Tab is an arbitrary jump into the hierarchy rather than a descent
-through it: it gets the same unwind, and is owed no return to the control it landed on.
+Containment decides which layer closes first. An inner claim from the focused control
+or active interaction answers first, followed by steps inside the focused surface, then
+that surface, then steps outside it. `STACK` and `RUNG_LADDER` rank siblings. A selection
+left on the page therefore waits while the reader is inside Threads and answers first
+when focus is on the page. Native modal and popover boundaries keep their browser order.
 
-The levels, from the floor up:
+These states have distinct parents:
 
-1. **The document** — the reader's position in the authored page, and the destinations
-   they can stand on. This is the floor; Escape's job ends here.
-2. **A page mode**: Draw, Design. A mode is the stance the whole page is in rather than
-   something standing on part of it, so everything else the reader puts up while one
-   holds is put up inside it, and the mode is the last thing off before the document.
-3. **Auxiliary surfaces**: the Threads panel, the trays.
-4. **Layers of a surface**: the panel's narrowing, a widget's filter.
-5. **Page-side state**, put on out on the page without entering chrome: a selection, a
-   captured target, an unfolded margin cluster, the page composer. Standing on a
-   destination is not one of these: a reader puts page-side state on while already
-   standing where they are, so it comes off before the let-go.
-6. **Native layers**: a margin card, the versions menu, a modal dialog.
-7. **Boxes**: a composer, a reply box, a find box, which their surface contains.
+- The document is the base. An entered live specimen adds a final Escape back to its
+  containing page after its own unwind finishes.
+- Draw and Design are page modes. Surfaces opened within them close before the mode.
+- Auxiliary surfaces contain their own state, such as the Threads narrowing. Page-side
+  selections, captured targets, expanded margin clusters, and the page composer can
+  coexist beside an auxiliary surface; focus determines which answers first.
+- A composer, reply box, or find box exits to its container. A native layer such as a
+  margin card, versions menu, or modal dialog owns its dismissal.
+- A selected page destination, such as a conversation, Ask, or heading, has a let-go step
+  back to the document. Page-side state added there closes before that step.
 
-What separates 2 from 5, which are both put on out on the page, is how much of the page
-each holds: a mode holds all of it and a selection holds one part, so a surface opened
-afterwards is inside the mode and beside the selection. That is why a panel a send
-opened while Design mode stood closes before the mode does.
+Bounded interactions — Go-to, target hints, page search, reactions, and the command
+reference — own the keyboard and their return while active. They do not add persistent
+page modes to the ladder.
 
-Levels 3 and 5 are not nested: a reader can hold a selection out on the page and have
-the panel open beside it, and neither is inside the other. What decides them, and any
-other two steps standing at once, is **containment before kind**: a step rooted inside
-the surface holding focus answers before that surface, and a step rooted outside it
-answers after — so a selection left on the page waits behind the thread the reader is
-reading, and answers first when they are out on the page. The register's orders, `STACK`
-and `RUNG_LADDER`, rank siblings, which is the only order they can state.
+A landing in the document uses the block visible after closing the surface, through
+`letGo`: focus establishes the starting point for the next Tab, then blur returns Space
+and PageDown to page scrolling. It does not restore an earlier chrome invoker. A step
+whose parent is a control lands there instead: a reply box returns to its thread, and an
+expanded margin cluster returns to its entry.
 
-A bounded interaction — the Go-to sequence, the target chooser, page search, reactions,
-the command reference — owns the keyboard while it stands and unwinds itself. It is not
-a level, and it hands the reader back itself. Draw and Design mode are not of that kind:
-they persist until the reader leaves them, so each is a level of its own on the ladder.
+The Threads panel has two selection levels: the whole panel, reached by `g T`, and
+one thread, reached by the semantic thread walk or focus inside that thread. Escape
+from a reply box returns to its thread, then to the whole panel, preserving disclosures
+and drafts. At the whole-panel level, Escape removes narrowing, then closes the panel.
+A title and its conversation select the same thread. Native focus order runs from the
+title through its open conversation; Enter/Space toggles disclosure, and Comment enters
+the reply box even from a collapsed title.
 
-Each step lands the reader at the parent of what it closed: a box at its container, a
-standing at its floor, a surface at the document. **A landing in the document is the
-block the reader is reading**, focused and then blurred (`letGo`), read off the current
-scroll rather than remembered from before the press: a surface closing moves the page
-under them, and what they can see once it has gone is the answer. The focus moves the
-browser's sequential focus navigation starting point there, so their next Tab carries on
-from what they are reading; the blur hands Space and PageDown back to the page's own
-scroll box. A chrome control — the Threads toggle, a margin marker, a mark's note, a tray
-row — is never the landing for a step whose parent is the document. A step whose parent
-really is a control does land there: a reply box hands back to its thread, an unfolded
-margin cluster to the entry it hangs from.
+TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy. It jumps directly
+to a page thread, bypassing panel selection. A thread that requires the panel also opens
+directly with `t`, but exits through whole-panel selection. Preserve this behavior until
+there is a route that respects the hierarchy without making page threads harder to reach.
 
-Standing on a destination on the page — a conversation, an Ask or a heading — is one
-step of its own, whatever put the reader there: letting go lands them on the document,
-and it is an inner step because standing is the newest thing they did.
+Unwinding closes a surface even if it was already open before entry. Thus `g A` from
+Threads leaves Threads closed, and `c` from the page needs one Escape from the box and
+another from the panel. Walks do not rewind; document landings use the current position.
 
-The thread panel is one surface. Its titles and open conversations are content of that
-surface, so accordion disclosure does not add an Escape level: after a reply box or
-narrowing is gone, Escape closes Threads from either a title or a conversation. Native
-focus order moves from a title through its open conversation; Enter/Space toggles it. The
-semantic thread walk opens its conversation directly, whether that conversation is on
-the page or requires Threads. `g T` is the route to the list itself. Comment enters the
-reply box even from a collapsed title.
-
-What this gives up, each a rule the reader can learn: a surface they already had open
-closes on the way out, because no state distinguishes one this press opened from one it
-found; `g A` from Threads leaves Threads shut; a press that opens a container only to
-hold its content costs two Escapes, so `c` from the page leaves the box and then the
-panel; a walk is not rewound, and the reader lands in the document where they now are; a
-control reached by Tab or by click is not returned to.
-
-A close by pointer — the view's ×, the panel's Close — is not an Escape and takes the
-layer off without a landing: the pointer is already on the surface that is closing, so
-focus lands on the surviving control that reopens it.
-
-Those steps are contributed through `pageRung` by the owner of the state each one takes
-off; `register.js` orders them and resolves the innermost into the one `navigation.back`
-command every surface reads, rooted at the surface that step is inside. One command
-rather than one per step, because a reference listing each step whose own condition holds
-would promise presses the innermost step has already taken. `layer-stack.js` holds only
-the native layers the browser is standing, in the order they opened, because that is the
-one fact about the scene its own DOM cannot be asked for in order.
+Closing by pointer uses the surviving reopening control for focus rather than Escape's
+parent landing. Each state owner contributes its Escape step through `pageRung`;
+`register.js` exposes the innermost available step as one `navigation.back` command.
+`layer-stack.js` records open native layers in opening order.
 
 ## Page grammar
 
@@ -182,18 +140,12 @@ binding invoke the original command through its stable identity and source scope
   template. `shortcut-bar.js` and `command-reference.js` synchronously derive and
   Lit-render their complete persistent surfaces from evaluated command readings; their
   controllers retain native focus, disclosure, fitting, and dispatch mechanics.
-- `hints.js` owns the generated-hint session: the route codes, the no-drop placement
-  pass, and the arming, prefix, audible walk, scroll freeze, and keyed Lit paint over
-  them. `go-to-sequence.js` and `composing/target-chooser.js` each declare one scene,
-  chip, and activation over that session and hold nothing of the interaction themselves.
-  `key-badge-placement.js` owns what the reader can see of a target — the room the banner
-  leaves, and the hit test that catches a member covered without being clipped — and the
-  reserved placement Ask binding badges use. Both maps admit and seat members by that one
-  reading, so "visible" means the same thing wherever the reader is offered a letter.
-  Chrome at the foot is deliberately outside it: the bar states the armed map's own keys,
-  so a map that read it would lose members as it armed. A chip that would land there is
-  moved by the placement pass instead. A page-search mark is drawn where it stands rather
-  than moved, so it alone reads a box with that chrome taken out (`clearPart`).
+- `hints.js` owns generated-hint sessions. `go-to-sequence.js` and
+  `composing/target-chooser.js` supply their scenes and activation commands.
+  `key-badge-placement.js` supplies visibility and reserved placement for hints and Ask
+  badges. Its visibility reading excludes the shortcut bar, whose changing armed-map
+  commands must not change map membership. Hint chips avoid that bar during placement;
+  page-search marks stay at their targets and use `clearPart` to exclude its box.
 - `disclosure.js` owns the shared native disclosure reading and bindings.
 
 Before changing a binding, inspect the complete register for conflicting meanings,

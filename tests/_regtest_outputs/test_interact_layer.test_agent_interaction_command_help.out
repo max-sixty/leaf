@@ -1,0 +1,219 @@
+## leaf wait --help
+Usage: leaf wait [OPTIONS] PAGE
+
+  Watch every page this session holds \u2014 plus PAGE, claimed first, when given.
+
+  Print one page's complete ordered batch, conversation context, and response
+  requirements as an immutable delivery. Run `leaf delivery claim <id>` to mark
+  the outstanding move Working. `leaf delivery read <id>` reads that same
+  delivery.
+
+  If output is truncated, acknowledge nothing; rerun with enough output capacity
+  for the whole batch. If you handle the batch yourself, read it fully before
+  acknowledging. If forwarding it, wait for durable delivery to its handler.
+  Then run `leaf ack <page> <through-seq>` in the background, using the batch's
+  page and sequence. Ack advances the cursor, then waits for the next batch
+  while the page remains live.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf ack --help
+Usage: leaf ack [OPTIONS] PAGE SEQ
+
+  Print one page's complete ordered batch, conversation context, and response
+  requirements as an immutable delivery. Run `leaf delivery claim <id>` to mark
+  the outstanding move Working. `leaf delivery read <id>` reads that same
+  delivery.
+
+  If output is truncated, acknowledge nothing; rerun with enough output capacity
+  for the whole batch. If you handle the batch yourself, read it fully before
+  acknowledging. If forwarding it, wait for durable delivery to its handler.
+  Then run `leaf ack <page> <through-seq>` in the background, using the batch's
+  page and sequence. Ack advances the cursor, then waits for the next batch
+  while the page remains live.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf delivery claim --help
+Usage: leaf delivery claim [OPTIONS] DELIVERY_ID
+
+  Claim one still-outstanding reader move from DELIVERY_ID.
+
+  The page and subject come from the immutable delivery. Current page state is
+  checked in the same transaction that writes the Working receipt, so a stale
+  delivery is a successful no-op rather than a claim on newer input.
+
+Options:
+  --event EVENT_ID  Claim this delivered event instead of the first outstanding
+                    reader move.
+  --detail TEXT     What the page says the agent is doing (default: "Reading
+                    your feedback").
+  --help            Show this message and exit.
+
+## leaf delivery read --help
+Usage: leaf delivery read [OPTIONS] DELIVERY_ID
+
+  Print DELIVERY_ID with its complete batches and response requirements.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf page state --help
+Usage: leaf page state [OPTIONS] PAGE
+
+  Fold the log onto the active revision and print the result as one JSON object:
+  effective content with source and edit addresses, standing state, reports,
+  open Asks, conversation summaries, versions, presence, and bound data. Content
+  follows the same document projection as the browser.
+
+Options:
+  --help  Show this message and exit.
+
+## leaf conversation read --help
+Usage: leaf conversation read [OPTIONS] PAGE CONVERSATION_ID
+
+  Print one current conversation and a page of its exact event history.
+
+Options:
+  --after SEQ            [default: 0; x>=0]
+  --limit INTEGER RANGE  [default: 50; 1<=x<=100]
+  --help                 Show this message and exit.
+
+## leaf conversation summarize --help
+Usage: leaf conversation summarize [OPTIONS] PAGE CONVERSATION_ID
+
+  Replace FROM through THROUGH in the panel with a Markdown summary.
+
+  The original messages remain in the append-only transcript and can always be
+  revealed. A later overlapping summary replaces this one.
+
+Options:
+  --from ID     [required]
+  --through ID  [required]
+  --text TEXT   summary Markdown (default: stdin)
+  --json        print the summary event
+  --help        Show this message and exit.
+
+## leaf status --help
+Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
+
+  Set the agent's banner state.
+
+  Use working with DETAIL naming your current work, or waiting with the answer
+  you want from the reader. Waiting without DETAIL invites text comments. Use
+  idle when finished; unread input and unanswered reader moves prevent it.
+
+  With working, --on names an open conversation or page widget and requires
+  DETAIL. The reader sees it beside that subject as well as in the banner. Your
+  next reply ends a thread claim; a version stamp with --completes ends a widget
+  claim. Renew the status as work changes: a claim left after your turn ends, or
+  without updates, eventually reads as stalled.
+
+Options:
+  --on SUBJECT  The open conversation or local page widget this work is about.
+  --help        Show this message and exit.
+
+## leaf comment --help
+Usage: leaf comment [OPTIONS] PAGE
+
+  Open a thread as the agent (--text or stdin): anchored where --quote or
+  --section points at a passage, general where neither does \u2014 a question about
+  the work as a whole.
+
+  The user answers it in the browser and resolves it there. Refuses a quote the
+  active revision does not hold, or holds more than once.
+
+Options:
+  --quote TEXT   passage text from the active revision
+  --section ID   element ID to anchor or scope --quote
+  --part ID      declared visual part within --section
+  --text TEXT    comment text (default: stdin)
+  --markup TEXT  widget markup to render after the text, validated here
+  --json         print the comment event instead
+  --help         Show this message and exit.
+
+## leaf reply --help
+Usage: leaf reply [OPTIONS] PAGE
+
+  Post a threaded reply as the agent (--text or stdin).
+
+  Answer reader input with --for EVENT_ID. With exactly one outstanding reply in
+  this turn's opened delivery, omit it to select that reply. To add a new agent
+  message when no reply is owed, use --to ID --initiates.
+
+  --quote, --section, and --part move the thread's current anchor; --detach
+  removes it when the subject leaves the page. The original anchor stays in the
+  log. A reply validates and activates any changed source before posting.
+
+Options:
+  --to ID         conversation message ID for --initiates; inferred when
+                  answering --for
+  --for EVENT_ID  delivery event whose current reply obligation this answers
+  --initiates     start an agent turn only when this conversation owes no reply
+  --quote TEXT    new passage text to move this thread onto
+  --section ID    new element ID, or scope for --quote
+  --part ID       new declared visual part within --section
+  --detach        remove the current page target when its subject leaves the
+                  page
+  --text TEXT     reply text (default: stdin)
+  --markup TEXT   widget markup to render after the text, validated here
+  --awaits        the reply's prose asks the reader a question
+  --json          print the reply event instead
+  --help          Show this message and exit.
+
+## leaf resolve --help
+Usage: leaf resolve [OPTIONS] PAGE
+
+  Close a thread as the agent.
+
+  For a version response, revise and stamp the requested change before
+  resolving. Otherwise answer any outstanding reader input before resolving, and
+  leave closing to the reader unless they requested it or no further discussion
+  could change the outcome. Completing the work alone is not a reason to close
+  its thread. The panel names who resolved it.
+
+Options:
+  --to ID  a message in the thread to close  [required]
+  --json   print the resolve event instead
+  --help   Show this message and exit.
+
+## leaf receipt --help
+Usage: leaf receipt [OPTIONS] PAGE REQUEST succeeded|failed
+
+  Record exactly one terminal host outcome for REQUEST.
+
+Options:
+  --text TEXT  host outcome (default: stdin)
+  --json       print the receipt event instead
+  --help       Show this message and exit.
+
+## leaf version check --help
+Usage: leaf version check [OPTIONS] PAGE
+
+  Check PAGE/index.html.
+
+  Runs deterministic markup checks. --render also checks the drawn page in the
+  host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
+  CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
+
+Options:
+  --render  also check the rendered page in the host's browser
+  --help    Show this message and exit.
+
+## leaf version stamp --help
+Usage: leaf version stamp [OPTIONS] PAGE
+
+  Stamp PAGE/index.html with a changelog.
+
+  Checks the exact source first, then records it as the next public version.
+  Repeat --completes for each active widget work claim this version completes. A
+  widget claim otherwise survives unrelated versions, and a version cannot
+  silently remove its page target.
+
+Options:
+  --text TEXT         changelog text (default: stdin)
+  --completes WIDGET  active widget work this version completes (repeatable)
+  --json              print the note event instead
+  --help              Show this message and exit.

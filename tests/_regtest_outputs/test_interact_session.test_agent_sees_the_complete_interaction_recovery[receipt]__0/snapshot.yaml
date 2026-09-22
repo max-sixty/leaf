@@ -1,0 +1,90 @@
+# Complete agent-facing outputs through real hooks, wait and response commands.
+# Only page paths, event/delivery identities and timestamps are normalized.
+# A null hook output means the turn can end without a reminder.
+
+no watcher:
+  decision: block
+  reason: |-
+    Leaf needs attention:
+    - <page>: no watcher. Start `leaf wait` in the background for all this session's pages, or run `leaf status <page> idle` if this page is done.
+
+unpicked at prompt:
+  hookSpecificOutput:
+    hookEventName: UserPromptSubmit
+    additionalContext: |-
+      Leaf needs attention:
+      - <page>: 1 update you haven't picked up. `leaf wait` prints them.
+
+      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live. The agent handling the batch must address every event.
+
+unpicked at stop:
+  decision: block
+  reason: |-
+    Leaf needs attention:
+    - <page>: 1 update you haven't picked up. `leaf wait` prints them.
+
+    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live. The agent handling the batch must address every event.
+
+idle before pickup:
+  exit: 1
+  output: |
+    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live.
+
+delivered:
+  format: leaf-delivery-v2
+  id: <delivery>
+  created_at: <time>
+  batches:
+    - page: <page>
+      through_seq: 2
+      conversations: []
+      handling:
+        h1: >-
+          The reader asked you to run an operation the page's package defines, once.
+          The request id, with the page, identifies it: after an interruption, check
+          whether it already ran before acting. Run it at most once, then record
+          the outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed
+          --text "…"`. The receipt does not change the page: refresh any data the
+          page shows, update `index.html` to reflect the result, and stamp it if
+          it is worth a note.
+      events:
+        - kind: request
+          author: user
+          revision: 1
+          widget: commands
+          action: restart
+          detail:
+            target: goal
+            worker: worker
+            worktree: tree
+          meaning:
+            document:
+              kind: page
+              revision: 1
+          id: event-2
+          ts: <time>
+          seq: 2
+          subject:
+            kind: widget
+            id: commands
+          conversations: []
+          says:
+            commands: Restart
+          handling: [h1]
+          obligation:
+            as_of_seq: 2
+            response:
+              kind: receipt
+              request: event-2
+
+acknowledged at stop: null
+
+idle before answer:
+  exit: 0
+  output: |
+    idle
+
+answer: |
+  settled request event-2 as succeeded
+
+answered at stop: null

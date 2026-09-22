@@ -1,0 +1,10 @@
+# Two pages carry distinct debts and one shared acknowledgment instruction.
+
+Stop:
+  decision: block
+  reason: |-
+    Leaf needs attention:
+    - <first-page>: 1 update you haven't picked up. `leaf wait` prints them.
+    - <second-page>: 1 update you haven't picked up. `leaf wait` prints them.
+
+    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live. The agent handling the batch must address every event.

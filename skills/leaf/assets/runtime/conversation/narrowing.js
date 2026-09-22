@@ -70,9 +70,7 @@ const labelFor = (kind, value) =>
   )?.label;
 
 const messageWords = (message) => {
-  const template = document.createElement("template");
-  template.innerHTML = message.markup ?? "";
-  return [message.text ?? message.token, template.content.textContent]
+  return [message.text ?? message.token, message.body.text]
     .filter(Boolean)
     .join("\n")
     .toLowerCase();

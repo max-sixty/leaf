@@ -4584,7 +4584,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
   <lf-targeting id="landing-targeting">
     <lf-target-preview id="landing-preview">
       <section id="hero" class="landing-card">
-        <h3 class="section-title"><span>Build the next release</span></h3>
+        <h3 class="section-title"><span>Build the next release with complete instructions that remain available even when the candidate display has less room</span></h3>
         <p>Keep the request path visible.</p>
       </section>
       <section id="evidence" class="landing-card">
@@ -4606,6 +4606,11 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     candidates.filter(has_text="<section#hero>").click()
 
     first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
+    expect(first.locator("wa-input")).to_have_js_property(
+        "value",
+        "Build the next release with complete instructions that remain available even "
+        "when the candidate display has less room",
+    )
     first.locator("wa-input").click()
     first.locator("wa-input").press("ControlOrMeta+A")
     first.locator("wa-input").press_sequentially("Hero cards")
@@ -4703,7 +4708,9 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
                 "className": "landing-card",
                 "reference": {"kind": "id", "id": "hero"},
                 "label": "<section#hero>",
-                "text": "Build the next release Keep the request path visible.",
+                "text": "Build the next release with complete instructions that remain "
+                "available even when the candidate display has less room "
+                "Keep the request path visible.",
             },
             {
                 "key": "target-2",
@@ -8350,6 +8357,8 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
 
     thread = page.locator('.lf-thread[data-id="c-on-sent"]')
     expect(thread).to_be_visible()
+    # The card is a native disclosure; its quote is behind the title until it is opened.
+    thread.locator(":scope > .lf-thread-summary").click()
     label = thread.locator(".lf-quote").inner_text()
     assert "Which store should I write up?" in label, label
     assert "ps-decision-region" not in label, label
@@ -9600,18 +9609,16 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     assert after["notes"] == before["notes"], (before, after)
 
 
-def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none(
+def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     browser, serve
 ):
-    """A chart is drawn to the room it has, and a widget upgrades wherever the runtime
-    connects it — including a message body inside a thread panel nobody has opened,
-    which is `display: none` and has no room at all. Drawn there it would be a drawing
-    720 pixels of nothing wide, and `once` refuses the second upgrade that would put it
-    right, so the reader would open the panel onto an empty box for the life of the tab.
+    """A chart connected inside a closed panel must draw at its visible width once
+    the reader opens the panel and the thread.
 
-    The reply is in the log before the page loads and the panel is shut, which is the
-    initial hidden arrangement. Opening the panel keeps the thread collapsed; opening
-    its title gives the chart the box it needs."""
+    A closed native details element can answer layout queries with a nonzero width.
+    Read the visible drawing after opening both disclosures; an intermediate absence
+    of SVG cannot distinguish a closed card from a drawing that has not finished.
+    """
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -9641,7 +9648,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     ), "the panel must be shut, or there was a box all along"
 
     page.locator(".lf-threads-toggle").click()
-    assert page.locator("#msg-chart").evaluate("chart => chart.clientWidth") == 0
+    panel_settled(page)
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#msg-chart svg")).to_be_visible()
     page.wait_for_function(
@@ -9674,11 +9681,11 @@ WEB_AWESOME_SHEET = """sheets => sheets.some(
 )"""
 
 
-def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
+def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
         plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is False
+        is True
     )
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
@@ -9686,6 +9693,9 @@ def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
             "() => performance.getEntriesByType('resource').map(entry => entry.name)"
         )
     )
+
+    assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
+    assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
 
     playground = open_page(browser, serve(PLAYGROUND_PAGE))
     assert (
@@ -10263,4 +10273,30 @@ def test_diff_export_keeps_native_soft_wrap_without_scripted_search(
     expect(line).to_have_css("white-space", "pre-wrap")
     switch.focus()
     copy.keyboard.press("Space")
+    expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
+    patch = (
+        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone diff",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    label = page.locator(".lf-diff-wrap-label")
+    line = page.locator("lf-diff [data-line]").last
+    expect(line).to_have_css("white-space", "pre")
+    assert label.bounding_box()["height"] >= 44
+    before = line.bounding_box()["height"]
+    label.tap()
+    expect(line).to_have_css("white-space", "pre-wrap")
+    assert line.bounding_box()["height"] > before
+    label.tap()
     expect(line).to_have_css("white-space", "pre")

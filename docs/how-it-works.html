@@ -1,10 +1,6 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
     <title>how leaf works</title>
     <meta
       name="description"
@@ -26,10 +22,10 @@
         <p class="eyebrow">how it works</p>
         <h1>How leaf works</h1>
         <p class="lede" id="lede">
-          No daemon, no database, no build step: the server starts with the session and
-          stops with it. One <code>leaf</code> process serves the page and mediates an
-          append-only event log; an ES-module runtime renders the widgets and injects
-          the comments, threads, banner, and Versions menu.
+          Leaf serves an authored page alongside an append-only event log. The browser
+          combines them to show the current document, reader choices, and conversations.
+          The agent receives feedback through its host's delivery loop and updates the
+          page with ordinary file writes.
         </p>
       </header>
 
@@ -46,7 +42,7 @@ sequenceDiagram
   participant Agent as agent session
   participant Leaf as leaf server
   participant Browser as your browser
-  Agent-&gt;&gt;Leaf: version files · commands
+  Agent-&gt;&gt;Leaf: authored files · commands
   Leaf-&gt;&gt;Browser: page + current state
   Browser-&gt;&gt;Leaf: comments · drags · picks
   Leaf-&gt;&gt;Agent: leaf wait carries the event batch
@@ -55,8 +51,8 @@ sequenceDiagram
 
         <h3 id="loop-shell">One turn, from the agent's side</h3>
         <p id="loop-shell-lede">
-          A file write and four commands. The output below is a real page's, on a
-          version asking which of two ways to shed load when a queue backs up:
+          The output below is a real page's delivery cycle, on a version asking which of
+          two ways to shed load when a queue backs up:
         </p>
         <lf-specimen id="loop-transcript-specimen" label="a real turn">
           <pre id="loop-transcript"><code>$ leaf page init ./review
@@ -72,120 +68,79 @@ stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
-{"format": "leaf-delivery-v1", "id": "ba1916f0-5650-4e89-b5e1-37d081211ac1", "created_at": 1790056848.473763, "batches": [{"page": "/home/you/review", "through_seq": 3, "conversations": [], "events": [{"kind": "action", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "author": "user", "meaning": {"document": {"kind": "page", "revision": 1}, "coordinate": ["shed", "shed", "selection"], "depends": ["opt-drop", "shed"], "answer": null}, "generated": [], "id": "853e2569", "ts": "2026-09-21T23:00:48-07:00", "seq": 2, "subject": {"kind": "widget", "id": "shed"}, "conversations": [], "says": {"opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."}, "handling": "The reader already sees the action applied. The log carries the action onto every later version, so the page keeps it without an edit. Until the markup records it, though, the page shows it as waiting on you, so write it in when you next revise the page. Continue the work the action selects or unblocks. If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note."}, {"kind": "comment", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "author": "user", "id": "947629d9", "ts": "2026-09-21T23:00:48-07:00", "seq": 3, "subject": {"kind": "conversation", "id": "947629d9"}, "conversations": ["947629d9"], "handling": "Reply in the thread with `leaf reply &lt;page&gt; --for &lt;event-id&gt;`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome.", "obligation": {"as_of_seq": 3, "response": {"kind": "reply", "to": "947629d9", "for": "947629d9"}}}]}]}
+{"format": "leaf-delivery-v2", "id": "ba1916f0-5650-4e89-b5e1-37d081211ac1", "created_at": 1790056848.473763, "batches": [{"page": "/home/you/review", "through_seq": 3, "conversations": [], "handling": {"h1": "The reader already sees the action applied.", "h2": "The log carries the action onto every later version, so the page keeps it without an edit. Until the markup records it, though, the page shows it as waiting on you, so write it in when you next revise the page.", "h3": "Continue the work the action selects or unblocks.", "h4": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h5": "Reply in the thread with `leaf reply &lt;page&gt; --for &lt;event-id&gt;`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."}, "events": [{"kind": "action", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "author": "user", "meaning": {"document": {"kind": "page", "revision": 1}, "coordinate": ["shed", "shed", "selection"], "depends": ["opt-drop", "shed"], "answer": null}, "generated": [], "id": "853e2569", "ts": "2026-09-21T23:00:48-07:00", "seq": 2, "subject": {"kind": "widget", "id": "shed"}, "conversations": [], "says": {"opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."}, "handling": ["h1", "h2", "h3", "h4"]}, {"kind": "comment", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "author": "user", "id": "947629d9", "ts": "2026-09-21T23:00:48-07:00", "seq": 3, "subject": {"kind": "conversation", "id": "947629d9"}, "conversations": ["947629d9"], "handling": ["h5"], "obligation": {"as_of_seq": 3, "response": {"kind": "reply", "to": "947629d9", "for": "947629d9"}}}]}]}
 
 $ leaf ack ./review 3</code></pre>
         </lf-specimen>
         <p id="loop-shell-read">
-          The batch carries two events. The pick is an action, and every later revision
-          replays it, so the decision survives the page being rewritten under it. The
-          comment carries the passage it was drawn on — the reader selected
-          <em>Callers get a 429 immediately</em> and wrote against it — so the objection
-          reaches the agent attached to the sentence that prompted it, rather than as a
-          paraphrase of where they were looking. The pick belongs to no conversation and
-          the comment opens its own, so the batch's <code>conversations</code> is empty;
-          a later reply in that thread names only the message it answers, and the
-          exchange behind it comes along there. Each event's <code>handling</code> is
-          what Leaf asks of the agent in that event's case, so the loop's rules arrive
-          with the work rather than in a reference the agent may not have read. The
-          agent answers by updating <code>index.html</code>; the valid save goes live,
-          and a meaningful checkpoint can then be stamped as v2.
+          The batch carries a pick and a comment. The pick survives later revisions; the
+          comment names the selected passage, so the agent receives the objection with
+          its context. Each event's <code>handling</code> gives the instructions for
+          that kind of feedback. The agent replies in the comment's thread and revises
+          <code>index.html</code> when the feedback calls for it. A valid save goes
+          live, and a meaningful checkpoint can then be stamped as v2.
         </p>
 
         <p id="wait-trick">
-          The hosts carry that context through different loops. On Claude Code,
-          <code>leaf wait</code> is a background task whose completion joins the same
-          queue as a terminal message: an idle session takes it as a new turn, and a
-          working one folds it in between tool calls. On Codex, the full Leaf page opens
-          in the browser pane, or a local browser when the pane is unavailable. A
-          detached adapter queues the complete pending batch into the same task. The
-          experimental inline MCP App uses that adapter too; its own
-          <code>ui/message</code> response is not a delivery receipt. Comments from
-          either surface pass through the same validator and log. The presentation
-          changes; the page, event identities, and delivery contract do not.
+          Feedback returns to the agent task that owns the page. Claude Code receives it
+          through <code>leaf wait</code>; Codex uses a detached adapter. Both carry the
+          same immutable delivery, with the events and their handling instructions. The
+          host integration owns delivery and acknowledgement, so opening a browser page
+          does not itself prove that an agent received its comments.
         </p>
         <p id="wait-ack">
-          The wait owner acknowledges a complete, untruncated JSON batch only after it
-          reaches the next durable consumer. That is model context in a direct loop and
-          receiver acceptance when an adapter forwards the batch. A truncated batch is
-          acknowledged not at all and retrieved again with enough room for the whole
-          result. Until acknowledgement the next wait prints the events again. That
-          separation makes “the process printed it” and “the next durable step has it”
-          two different facts, so an abandoned wait cannot silently consume the user's
-          words.
+          The wait owner acknowledges a complete batch after its next consumer has
+          received it: model context in a direct loop, or the receiving host when an
+          adapter forwards the batch. Until acknowledgement, waits repeat the events. A
+          truncated batch must be retrieved again in full before acknowledgement.
         </p>
         <p id="wait-stateless">
-          The server and the wait both go down with the session, and the page directory
-          is the whole state. Which is what lets a page outlive every session that works
-          on it: run <code>server start</code> from a shell of your own and it belongs
-          to no session, so nothing takes it down but <code>leaf server stop</code>.
-          Sessions then come and go around a page that stays up, and between them the
-          banner says so — no session holds this page, and it picks up again when one
-          does. The tab says it too: a leaf's icon wears the color of that banner's dot,
-          so a row of them tells you which page is working, which is waiting on you, and
-          which has nobody behind it, without opening any.
+          The page directory keeps the document and its history between sessions. A
+          session-lifetime server retires when no live session claims the page. A server
+          started from the user's shell, or with <code>--standing</code>, remains
+          available until <code>leaf server stop</code>. The banner and tab icon show
+          whether an agent is working, waiting for the reader, or absent.
         </p>
       </section>
 
       <section id="agent">
         <h2>A command never edits the document</h2>
         <p id="agent-split">
-          The agent has two ways in, and only one of them is HTML. The source is a file:
-          the agent writes the whole document to <code>index.html</code>, an ordinary
-          file write with nothing mediating it. Everything it has to <em>say</em> goes
-          through the <code>leaf</code> command instead — a reply in a thread, a comment
-          it opens on a passage of its own, the changelog note that stamps a version —
-          and each of those appends one event to the log. The log takes a command rather
-          than a file write because it isn't the agent's alone: the browser appends to
-          it too, and one writer is what gives every event an id to reply to and a place
-          in the order.
+          The agent writes the document to <code>index.html</code>. Replies, comments,
+          and version notes go through the <code>leaf</code> command, which appends them
+          to the event log. Browser gestures enter through the same validation and
+          append boundary, giving every event a stable identity and order.
         </p>
         <p id="agent-render">
-          So the agent's words reach the screen without the document changing. What the
-          user looks at is the active revision composed with the log, recomposed when
-          the server names a change on the stream the tab holds open: the reply appears
-          in a thread in the injected panel, the passage it answers is lit by the
-          browser's highlight registry — which paints a range and touches no nodes — and
-          the banner's line is whatever
-          <code>leaf status</code> last wrote. Nothing in the document was rewritten to
-          put any of it there, and it is the same composition that shows the user their
-          own edits before a later revision carries them.
+          The browser combines the active revision with the log and updates when the
+          server announces a change. Replies appear in the thread panel, their passages
+          are highlighted, and the banner reflects the agent's activity. Reader choices
+          appear immediately and remain effective across later revisions.
         </p>
         <p id="thread-navigation">
-          Threads keeps each conversation behind a compact title row. Open one to read
-          its messages and reply; opening another preserves your unfinished draft. Enter
-          or Space toggles a title, arrow keys move between titles, and Home or End
-          reaches the first or last. The thread walk uses <kbd>t</kbd> and
-          <kbd>Shift+t</kbd>; <kbd>c</kbd> enters the reply box. Escape leaves the box,
-          collapses the conversation, then steps out through the panel. Links to
-          messages and search results open the conversation they refer to.
+          The thread panel groups messages behind conversation titles. Opening another
+          conversation preserves the unfinished draft; links to messages and search
+          results open the conversation they name. The shortcut bar shows the commands
+          available in the current context.
         </p>
         <p id="agent-versions">
-          The HTML can change on every save, without spending a public version number.
-          Leaf validates <code>index.html</code>, copies each changed valid save to an
-          immutable revision such as <code>r2-a81c…html</code>, and moves the live root
-          to it. An invalid save creates no revision, leaves the last valid one live,
-          and shows its diagnostic. <code>version stamp</code> copies the exact current
-          source to the next public file, such as <code>v2.html</code>, and records
-          which revision it names. A tab at the root follows revisions while a tab
-          pinned to v1 stays there. A live tab hears that the page moved and follows
-          onto the new revision, keeping the reader's place, and holds while the user is
-          mid-comment or mid-drag. Coming back the other way,
-          <code>leaf wait</code> starts after the last acknowledged user event, so a
-          comment posted between a wait and its acknowledgement remains beyond the
-          cursor and still lands.
+          Each changed, valid save becomes an immutable revision, including the document
+          and its local dependencies. An invalid save leaves the last valid revision
+          live and shows its diagnostic. <code>version stamp</code> checks the current
+          source and records a public version pointing to its revision, served at an
+          address such as <code>/versions/v2.html</code>. The live address follows
+          revisions; a tab pinned to v1 stays there. Live updates wait while the reader
+          is composing or dragging, and preserve their reading position.
         </p>
       </section>
 
       <section id="pages">
         <h2>What a page is made of</h2>
         <p id="scaffold">
-          A revision is one complete authored HTML document. Its head names and
-          describes the page; Leaf adds the security policy, identity, theme, runtime,
-          and canonical address when it delivers it. The body is the agent's, drawn from
-          the four building blocks below in ascending order of specialization; each
-          earns its place only where the one before it has no way to carry what the page
-          needs.
+          An authored HTML document supplies the page's title, description, and content.
+          Leaf adds the security policy, identity, theme, runtime, and canonical address
+          when serving it. Authors start with the existing vocabulary and add local
+          presentation where the page needs it.
         </p>
         <ol class="steps" id="sources">
           <li id="src-html">
@@ -219,23 +174,21 @@ $ leaf ack ./review 3</code></pre>
           </li>
         </ol>
         <p id="boundaries">
-          Each language has one owner. HTML is the author's whole medium: pages carry
-          markup and never script, and interactivity is authored as markup too, so
-          writing <code>&lt;lf-board&gt;</code> is what adds dragging. CSS is the
-          theme's: it renders every widget's look, and many widgets need nothing else.
-          JS is the runtime's, opt-in per widget: a registry flag
-          (<code>x-upgrade</code>) names the tags that have a behavior module, each page
-          loads the ones its own markup uses, and the behavior attaches to markup that
-          has already rendered, so a module that fails to load leaves a readable page
-          rather than a blank one.
+          The theme styles authored HTML and Leaf elements. Interactive elements load
+          their declared behavior modules when the page uses them. Page-specific
+          behavior can use inline module scripts or local modules under
+          <code>page/</code>; reusable behavior belongs in a package. The
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/page-authoring.md#page-behavior"
+            >page-authoring reference</a
+          >
+          defines the module and dependency rules.
         </p>
         <p id="review-meta">
-          The head's meta channel carries what the page asks of its reader: one that
-          seeks approval declares
-          <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>, and only then
-          does the banner offer "✓ Looks good". The declaration versions with the
-          document; without it the banner carries no terminal control at all, a page
-          that asks nothing having nothing for the reader to answer.
+          A page seeking approval declares
+          <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. That
+          declaration enables the banner's "✓ Looks good" control and versions with the
+          document.
         </p>
         <p id="dogfood">
           This page is running the plugin's own <code>theme.css</code> and widget
@@ -324,51 +277,39 @@ $ leaf ack ./review 3</code></pre>
       </section>
 
       <section id="edits">
-        <h2>Edits are events; the document stays the state</h2>
+        <h2>Reader choices survive revisions</h2>
         <p>
-          Dragging a card or clicking an option reaches the agent as a structured action
-          on the same channel as comments, and the next version ships with the board as
-          you left it and your pick marked. Until it ships, the page shows the version
-          plus your own edits; a reload replays them, and a second tab follows along
-          live.
+          Dragging a card or choosing an option records a structured action. The browser
+          applies it immediately, and the agent receives it alongside comments. The log
+          preserves the choice across reloads and later revisions; other tabs follow the
+          same state.
         </p>
         <p id="undo">
-          <code>z</code> takes back the last change you made here — a card returned to
-          the column this version had it in, a thread you resolved by mistake open
-          again, a suggestion you accepted pending again — and pressing it again steps
-          further back. Nothing is erased and nothing is restated: the log gains one
-          word withdrawing the change, and the page is this version plus whatever still
-          stands, which is what a reload has always shown you.
+          <code>z</code> withdraws the reader's last undoable gesture; pressing it again
+          steps further back. The log records the withdrawal, and the browser redraws
+          the state with that gesture excluded. Reloading the page gives the same
+          result.
         </p>
         <p id="reactions">
-          The cheapest answer is one token. On a selected passage or an agent reply,
-          open <strong>…</strong>, use the small reaction control in a hovered or
-          focused reply, or press <code>r</code>. Pressing <code>s</code> and an item
-          hint, or Alt-clicking the item, immediately focuses a compact Comment field
-          beside it. The field grows as you type; Enter adds a line and
-          Command/Ctrl-Enter sends. Tab or its ellipsis extends it in place with six
-          agent-feedback reaction controls: 👍 keep, ❌ change, 🤔 clarify, ✂️ shorten,
-          🔎 support, and 🎯 prioritize; digits are optional shortcuts. The token paints
-          as an emoji in the margin and a faint wash on the words, and opens no thread.
-          Press the standing emoji to reveal its separate Remove control, then press
-          Remove to take the reaction back. A 👍 on the agent's latest reply request
-          takes the thread out of "On you" without a word typed. The tokens are the
-          layer's: an explicitly selected package can rename, add, or remove them.
+          A reaction attaches brief feedback to a passage or agent reply without opening
+          a thread. The default tokens ask the agent to keep, change, clarify, shorten,
+          support, or prioritize something. The reaction appears beside its target and
+          can be removed there. Packages declare the available tokens and their meaning.
         </p>
         <p id="decline">
-          Declining is a version too. When the agent disagrees with an edit, it ships
-          the next version without the change, says why in the changelog, and the page
-          rolls back to the authored state as that version lands.
+          To override a reader's choice, the agent marks the rewritten element
+          <code>restated</code> and explains the change in the version note. Without
+          that declaration, the recorded choice still applies; a conflicting revision is
+          refused.
         </p>
       </section>
 
       <section id="layer">
         <h2>Each page owns its layer</h2>
         <p>
-          <code>page init</code> composes the kernel and packages into one checked
-          layer, then vendors its runtime, theme, registry, and widget modules into the
-          page's directory. Because pages are self-contained, a version you approved
-          can't change under you when the defaults do. The
+          <code>page init</code> composes the kernel and selected packages into a
+          checked layer in the page directory. Revisions capture the layer they use, so
+          changing the installed defaults cannot change a version already approved. The
           <a
             href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md"
             >package contract</a
@@ -376,69 +317,44 @@ $ leaf ack ./review 3</code></pre>
           owns composition order and replacement rules.
         </p>
         <p id="what-is-customizable">
-          The kernel is the machine: the runtime and chrome, shared tokens and idioms,
-          and the registry contracts the collaboration loop itself reads. The bundled
-          default package carries broadly useful fallback shapes, such as boards, code
-          walkthroughs, drafts, and charts, while a shape whose renderer is large
-          travels in a bundled package a page opts into — <code>diagram</code> for
-          Mermaid, <code>diff</code> for a unified patch, and <code>swipe</code> for
-          rapid pass-or-keep triage. The <code>playground</code> package provides
-          declarative controls, presets, live previews, and one typed configuration
-          decision. Page-specific behavior lives with the page in inline module scripts;
-          reusable behavior remains a package concern. The
-          <code>targeting</code> package lets a reader select preview elements and
-          submit structured, reversible change proposals. The
-          <code>visual-review</code> package presents an ordered website run with
-          aligned stills, automatic comparison, authored focus with full-frame context,
-          local flip and overlay, fit and captured-size inspection, exact preview links,
-          and a disposition for each case. An explicit package may contain one widget,
-          while another contains only theme rules. Package size and provenance do not
-          change the format. Packages are composed rather than added as runtime
-          branches, so a default widget reaches the page through the same door as a
-          project widget. You or the agent can restyle or replace an entry or file and
-          add new ones beside it; the checked result must still satisfy the kernel's
-          generic event and runtime contracts. The
-          <a href="/extending/">extension guide</a> builds the smallest useful package.
+          The kernel owns the shared runtime, chrome, and collaboration protocol.
+          Packages supply reusable elements, modules, styles, and guidance. The default
+          package provides common shapes; optional packages add capabilities such as
+          diagrams and diffs. Project packages use the same format and can replace or
+          extend the selected layer. The <a href="/extending/">extension guide</a>
+          lists the bundled packages and builds a small package.
         </p>
       </section>
 
       <section id="gate">
-        <h2>Nothing broken goes live</h2>
+        <h2>Validation before publication</h2>
         <p>
-          Before a source save becomes a revision, Leaf runs the same deterministic lint
-          as <code>version check</code>, with no browser: the HTML parses with balanced
-          tags, delivery-owned scripts, stylesheets, and policy stay out of the source,
-          every <code>lf-*</code> element validates against the page's registry along
-          with the head's <code>lf-*</code> metas, ids stay unique and every comment
-          anchor from the previous revision survives, and nothing is wider than the
-          readable column. A stamp checks the exact current source again and refuses a
-          failing source, so neither the live root nor a version can expose broken
-          markup. Before a page's URL first goes out,
-          <code>version check --render</code> also loads it in the machine's own Chrome
-          and refuses what only a layout engine can see — a console error, a widget
-          rendered into a box of no size, a sideways scroll — in both color schemes.
+          Before activating a revision or stamping a version, Leaf checks the source's
+          structure, vocabulary, dependencies, and standing reader decisions. An invalid
+          source leaves the last valid revision available. For a finished record,
+          <code>version check --render</code> also checks the page in Chrome in both
+          color schemes, catching failures such as console errors, invisible widgets,
+          and horizontal overflow.
         </p>
       </section>
 
       <section id="local">
         <h2>Served where you are</h2>
         <p>
-          A page is served on the address its session arrived on: over SSH, the one your
-          client just reached the machine on; otherwise <code>127.0.0.1</code>. An SSH
-          serve opens as-is, with no port to forward and nothing to configure; a
-          <code>127.0.0.1</code> serve says beside the URL that it opens only from a
-          browser on the serving machine, so an agent running somewhere you aren't asks
-          for a name you reach rather than handing you a dead link. The URL carries a
-          key — the machine's, shared by every page it serves — and the browser keeps
-          that key in a cookie from the first request, so the open port is still a page
-          nobody without a link can read or comment on.
+          Leaf uses the session's SSH destination as its default serving address, or
+          loopback for a local session. A loopback URL opens only on the serving
+          machine. The URL carries a machine-wide access key, which the browser stores
+          in a cookie. Sharing that key grants access to every Leaf page on the machine.
         </p>
         <p>
-          When a jump host or NAT leaves that address unroutable from your browser, say
-          so and the agent re-serves the page with
-          <code>server start --host NAME</code> on a hostname you do reach (a tailnet
-          name works). The key still gates every request, and leaf serves only networks
-          the machine is already on: there is no public tunnel.
+          When the default address is unreachable, the agent can re-serve the page with
+          <code>server start --host NAME</code> on a hostname the reader can reach. Leaf
+          uses the machine's existing networks and creates no public tunnel. The
+          <a
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/serving-pages.md"
+            >serving reference</a
+          >
+          covers addresses, authentication, and server lifetimes.
         </p>
       </section>
 

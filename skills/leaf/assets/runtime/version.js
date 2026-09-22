@@ -1,127 +1,56 @@
-/* Version travel: everything the reader's move between two documents of one page takes.
+/* Version travel, comparison, and reader continuity.
  *
- * One owner, because it is one gesture: the walk through the chooser's menu states a
- * comparison per row, an activation drops the standing comparison and puts it back once
- * new document stands, the chooser's word says whether one is standing, and the
- * activation captures the reading landmark before navigating. Those
- * are local calls here rather than callbacks across a seam nothing else could stand at.
+ * `renderVersions` supplies the immutable chooser reading. `prepareActivation` installs
+ * a live revision; `goActive` also returns from a pinned document, while `goVersion`
+ * opens a historical `?pin` address. The controller receives application and travel
+ * capabilities before mount binds listeners; `installArrival` restores continuity once
+ * the arriving geometry is ready.
  *
- * The surface is its key rows; the two calls state application drives —
- * `renderVersions` supplies one immutable chooser reading from a state,
- * `prepareActivation` prepares navigation to the revision a state names; the arrival
- * landing; the menu readings the composing surface and the
- * margin take (`closeVersionMenu`, `comparisonBase`,
- * `comparisonChanges`, and the pair the margin's Change reading discloses with,
- * `inlineComparison` and `toggleInlineComparison`); and `readingBlock`, the block the
- * decision walk starts from and the one an Escape out of the chrome lands the reader on.
+ * The chooser owns the complete version list. Its focused row selects the comparison
+ * base; the row for the displayed version clears comparison. Block marks show changes,
+ * and `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
+ * request. `comparisonBase`, `comparisonChanges`, and `closeVersionMenu` serve other
+ * surfaces. `readingBlock` supplies the page landmark for decision walks and Escape.
  *
- * A comparison has two depths and both are this owner's. The marks say which blocks
- * changed; the inline comparison splices dropped text into one of them and paints its
- * added text in place. The second is per block and asked for, because a page's
- * worth of before-and-after opened at once is a diff view rather than the version the
- * reader chose to read. Nothing else shows a base version's words: this is the one place
- * that document is ever in hand.
+ * Executable identity selects the install. An unchanged registry, module graph, and
+ * inline module bodies permit an in-place patch; changed executable inputs require a
+ * fresh document. Prose, styles, and media can change without reloading. Served identity
+ * is captured before upgrade, including per-widget authored digests: upgraded DOM cannot
+ * supply those baselines. The patch retains unchanged widgets and recaptures replaced
+ * widgets against the arriving source.
  *
- * One surface owns each destination. The version control opens the complete version list
- * with notes and comparison controls. There are no separate older/newer page keys. A
- * comparison base is the focused row in the menu; opening the menu lands on the current
- * base, and walking to the version being read clears the comparison because it has no
- * earlier base to mark against.
+ * Composition, unresolved delivery, and an open version menu defer either install.
+ * Ending composition releases its hold on the next heartbeat; pressing the newest-version
+ * chip explicitly releases that hold. The chip remains available while activation waits.
  *
- * A live revision arrives through one door, `prepareActivation`, with two installs
- * behind it, and one server fact decides which. Each revision's delivery states the
- * digest of what it is as running code — registry, module graph, inline module bodies —
- * and the state naming the next revision carries the same digest for it. Equal, and the
- * revision is taken on in the document the reader is standing in: the authored page is
- * patched onto the arriving source, the widgets it rewrote are recaptured, and the rest
- * of the document is untouched. Different, and it opens a fresh one, because a live
- * document cannot re-evaluate a module graph or redefine a custom element. Content,
- * prose, styling, and media are not executable and cost nobody a reload.
+ * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
+ * contract, and the Ask view restores the selected Ask by id. Both installs restore these
+ * readings; the patch passes its retained nodes so restoration skips them. Unnamed
+ * replaced controls receive no guessed focus. Native selections and arbitrary module
+ * state cannot cross documents; drafts and chrome preferences use their own stores.
  *
- * `midComposition`, an unresolved delivery, or an open version menu defers either
- * install and leaves the newest-version chip visible. Ending composition releases it on
- * the next heartbeat; pressing the chip explicitly releases the composition hold.
- * `goActive` is that door and the way back from a pinned document; `goVersion` opens an
- * older public version.
+ * A fresh-document install stores a page-scoped, one-use handoff: reading position,
+ * comparison, pointer, margin standing, mechanical carry, and Ask standing. A newer
+ * revision may consume it, but ordinary reloads and history travel cannot replay it.
+ * Explicit historical travel carries reading position and the decision landmark, without
+ * mechanical carry or Ask standing. State application serializes responses and remains
+ * pending after navigation starts until the old document is discarded.
  *
- * What a patch keeps, it keeps by keeping the node: caret, native selection, hover,
- * scroll, focus, an armed key sequence over the ids in front of the reader, and every
- * widget the revision left word-for-word alone, with the state the log gave it. Nothing
- * is carried across anything, because nothing crosses. The reading landmark and the
- * standing comparison are still recorded, because content above the reader can change
- * height and the base document is another fetch.
+ * `captureView` records a passage landmark, its viewport correction, and the decision
+ * landmark. `restoreView` restores ordinary passages at their exact viewport coordinate
+ * and headings at their scroller's scroll-padding edge. `landArrival` runs after final
+ * geometry: a valid revision handoff restores continuity; otherwise fresh navigation
+ * follows its fragment or restores a saved view from a different revision. Ordinary
+ * reloads and history travel retain native browser restoration. Comparison is restored
+ * after activation because its base must be fetched again. Reading position is restored
+ * even after a patch because content above it may have changed height.
  *
- * An older version is historical rather than live: choosing one navigates to its virtual
- * version address with `?pin`, and it stays at the revision it was pinned at while
- * offering the newest-version chip. The view record carries reading position and the
- * decision-walk landmark across navigation. A reload install additionally carries a
- * one-use handoff containing that reading, the standing comparison, the pointer, and the
- * margin's own retained standing, which is keyed by the entries and owners it names
- * rather than by where anything sat. Focus on the page is not in it: an authored control
- * has no identity a new document could be sure it had found again, only a shape — an
- * owner's id, a tag, a class, a count among its siblings, a string of its words — and a
- * guess that lands on the wrong control hands it the reader's next press. Focus goes to
- * the page instead, where its keys are live.
- *
- * What does cross is what the author named. An authored id is not a shape: it is the
- * identity the patch matches nodes on, that threads, the diff, `restated`, the tab store
- * and drafts key on, and that a version check will not let a revision silently drop. So
- * `carry.js` carries the mechanical state on any id'd element the install replaced — the
- * words in a field and the caret in them, a disclosure, an inner scroll, focus — and the
- * ask view carries the reader's standing on an Ask, which the inventory, the tray and the
- * ask walk all resolve by that same kind of id. Both are lookups rather than guesses, and
- * a control the author left unnamed still keeps nothing. Explicit historical travel
- * carries neither. Durable drafts and stored chrome arrangement use their existing stores;
- * a module's own state is the module's to write and read back. Native selections and
- * arbitrary module state never cross documents.
- *
- * The handoff is scoped to this page and consumed once, even when a newer revision
- * overtakes the one that triggered navigation. Ordinary reloads and history travel
- * cannot replay an old focus handoff. State responses serialize at the application
- * boundary; after navigation begins the old application stays pending until its
- * document is discarded.
- *
- * `captureView` stores a passage-based reading landmark, correction within the block,
- * and the last decision landmark. `restoreView` resolves the landmark after upgrade and
- * corrects the scroll from the rendered box. It retains an ordinary passage's exact
- * viewport coordinate; capture normalizes a heading to its scroller's declared
- * scroll-padding edge, because a title with opening lines behind fixed chrome is not a
- * valid semantic view to carry into another document. A URL fragment outranks the saved
- * view on a fresh navigation; the saved view outranks a leftover fragment on reload or
- * back navigation. `landArrival` applies that ranking only after final page geometry is
- * available.
- *
- * Neither install claims the reader still stands on an unnamed control. A patch does not
- * have to claim it: focus the revision did not disturb was never lost, because the control
- * is the same element. A reload cannot, so it does not try. Both run the same two
- * restores over what the author did name, because a reader told "Updated to …" cannot
- * tell the two installs apart and should not have to. The in-place install passes the
- * nodes it held so the carry skips them; the reload install passes none, having kept
- * nothing.
- *
- * Served identity is read before boot mutates the document, and it includes what each
- * declared widget in this page was written as, one digest per id, decided by the capture
- * that wrote the revision. A patch keeps the widgets the arriving revision spells the
- * same way. The page cannot answer that for itself — after upgrade a controller owns
- * every widget's children — and does not have to: both maps arrive in a document head,
- * this one at boot and the other inside the revision document a patch already fetches.
- *
- * A layer also owes a way out at all, over the same page the way in is live on.
- * `versionsOffered` (there is a menu) answers for the destination, the chooser standing over
- * the page, and the button; `versionsToWalk` (there is somewhere to step) answers for the
- * menu's own scope. One predicate for both left `g V` opening a menu on a page whose way
- * out no scope was live over. Where the platform owns the dismissal the chooser's own rows
- * still have to be live over the same page, since a chooser with no live row is a claim the
- * surfaces never hear. A section merges the rows of every scope sharing its title, so a
- * contributor the page hasn't got must bring none — `merge` drops it — or the two
- * capabilities cannot differ in liveness under one heading.
- *
- * Served identity is captured before boot mutates the document. The controller receives
- * application and travel capabilities;
- * mount binds chooser/intent listeners and paints the initial version reading.
- * installArrival remains the later geometry-ready continuity boundary.
+ * `versionsOffered` controls the destination, chooser, and button; `versionsToWalk`
+ * controls the menu's local scope. Keep chooser rows available wherever the menu can
+ * open, including when the platform dismisses it. Scopes sharing a title merge their
+ * rows; an unavailable contributor supplies none.
  */
-import { revisionLabel, runtime } from "./context.js";
+import { pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -818,7 +747,7 @@ export function createVersionController({
       revision: String(baseRevision),
       through_seq: String(throughSeq),
     });
-    const res = await fetch(`/api/view?${params}`);
+    const res = await fetch(pageUrl(`api/view?${params}`));
     if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
     const answer = await res.json();
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
@@ -1285,10 +1214,8 @@ export function createVersionController({
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
 
-  // The revision arriving in the document the reader is standing in. Their caret,
-  // selection, parked pointer, focus and armed key sequence live on the nodes they are
-  // over, so the page keeps every node this revision did not rewrite and nothing has to
-  // be carried across anything.
+  // Patch against the authored baselines. Retained nodes keep their live state;
+  // replacement nodes recover eligible state through carry and Ask restoration.
   async function activateRevision(doc, target) {
     const currentIntent = retainReaderIntent();
     const view = captureView();
@@ -1298,10 +1225,7 @@ export function createVersionController({
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
     const live = document.querySelector("body > main");
-    // The reader's own state on the nodes this patch is about to take away, read
-    // while they are still standing there, against the same authored side `patchTree`
-    // diffs: what the reader has that the author of the revision they stand in did not
-    // write is theirs, and the rest is the arriving revision's to say again.
+    // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
@@ -1441,10 +1365,7 @@ export function createVersionController({
       restoreAskStanding(askStanding);
     }
     if (comparedFrom !== null) showComparison(comparedFrom);
-    // The same words the fresh document says on arrival. The page changing under a
-    // reader is the thing announced, and which install carried it is not their business.
-    // Named from the descriptor rather than the current label, which still reads the
-    // revision this document is a statement away from leaving.
+    // Use the arriving descriptor: the current label still names the previous revision.
     notice(`Updated to ${target.label}`, { background: true });
     const authoredFacets = new Map(
       [...prior.authored].filter(
@@ -1539,11 +1460,8 @@ export function createVersionController({
     };
   }
 
-  // The other install, for a revision whose executable identity differs: a live document
-  // cannot re-evaluate a module graph or redefine a custom element, so arbitrary page
-  // modules, listeners, custom elements, and styles start together in a fresh one. The
-  // reader's place, standing, comparison, and pointer are the only things a new document
-  // can be given, and they ride across as a one-use handoff.
+  // Changed executable identity requires a fresh document. Serialize the continuity
+  // handoff before reload; installArrival consumes it once after upgrade.
   const reloadInto = (target) => () => {
     forceActivation = false;
     const view = captureView();
@@ -1572,17 +1490,9 @@ export function createVersionController({
   };
 
   // ---------- reading continuity across a replacement ----------
-  // Following a new version opens a fresh document. A raw navigation leaves the reader
-  // at the top mid-session, standing nowhere in the walk they were making. Where they are
-  // rides across as one semantic view — and through tabStore on document travel, per-tab
-  // because a place in a page shouldn't outlive it. Two things are recorded, because
-  // the runtime records two things it can write down: the passage they were reading, and
-  // the ask the a/A walk had stepped them to. The passage travels as a landmark rather
-  // than a pixel offset, since content moves between versions: re-find it by its text
-  // within its section, then the section alone, and only fall back to the raw offset when
-  // neither survived the revision. The panel's own open state is restored separately
-  // (THREAD_PANEL_KEY); because that runs first, the column is already reflowed by the time we
-  // scroll.
+  // Capture passage and decision landmarks plus each reading region's position. Resolve
+  // a passage first, then its section, then a raw offset in the same scroller. Document
+  // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
   // The page's own text blocks the reader can see, in document order, with the rect of each
   // one's first line — one reading of what is in front of them, for the two questions that
@@ -1904,11 +1814,7 @@ export function createVersionController({
         return null;
       }
     })();
-    // Parsed inside its own guard, which is a different question from whether the store
-    // answered: tabStore hands back null for a store that refused, and what a page wrote
-    // there is only JSON while every version of this runtime agrees about the shape. A
-    // landmark that no longer parses costs the reader their scroll position; throwing here
-    // would cost them the page, at module top level, with nothing else having run.
+    // Unreadable saved JSON means no saved view; it must not prevent page startup.
     const savedView = (() => {
       try {
         return JSON.parse(tabStore.get(VIEW_KEY) || "null");

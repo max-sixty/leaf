@@ -17,7 +17,7 @@ import {
   offer,
   paintKeys,
   projectData,
-  registerThreadSurface,
+  consumeThreads,
   relabel,
   scrollBehavior,
   shadowStage,
@@ -246,12 +246,16 @@ function commentButton(label, opened, className) {
   return button;
 }
 
-// The soft-wrap switch is a native checkbox and the theme reads it with `:has()`, the
-// same bargain lf-shot strikes: the state is the control, so a copy with its scripts
-// dropped still wraps and unwraps, and no second store can disagree with what the box
-// says. It stands ahead of the file rows in the shadow tree because the rule that reads
-// it is a sibling combinator — the switch is the only thing every file's lines can be
-// addressed from without naming a widget or hoisting the state onto the host.
+// A shared body lets the checkbox style its own subtree. WebKit does not repaint
+// a shadow-root sibling selected through the toolbar's :has() after a native tap.
+function diffBody(nodes) {
+  const body = document.createElement("div");
+  body.className = "lf-diff-body";
+  body.append(...nodes);
+  return body;
+}
+
+// The checkbox is the complete wrap state, including in a scriptless export.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
   const box = offer("input", "lf-diff-wrap", undefined, "checkbox");
@@ -267,7 +271,7 @@ function wrapSwitch() {
 function diffTools(host, reviewing) {
   const tools = offer("div", "lf-diff-tools");
   const label = offer("div", "lf-diff-search-label");
-  const search = offer("wa-input", "lf-diff-search");
+  const search = offer("wa-input", "lf-diff-search lf-label-hidden");
   search.type = "search";
   search.size = "s";
   search.label = "Filter diff files";
@@ -433,10 +437,18 @@ customElements.define(
     connectedCallback() {
       this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
-        this.threadSurface = registerThreadSurface(this, {
-          begin: () => this.beginThreadSurface(),
-          outletFor: (entry) => this.threadOutletFor(entry),
-          end: () => this.endThreadSurface(),
+        this.threadSurface = consumeThreads(this, (collection, surfaces) => {
+          this.beginThreadSurface();
+          for (const thread of collection.threads) {
+            if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
+            const target = surfaces.target(thread.key);
+            const outlet = target && this.threadOutletFor(target);
+            if (outlet) surfaces.place(thread.key, outlet);
+          }
+          const outlet =
+            surfaces.composition && this.threadOutletFor(surfaces.composition);
+          if (outlet) surfaces.placeComposition(outlet);
+          this.endThreadSurface();
         });
       if (this.stopWatching) return;
       // A page diff's file header pins under the banner; one an agent sent in a reply
@@ -565,20 +577,9 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const source = snapshot?.value ?? null;
-        const stamp = snapshot
-          ? `${snapshot.snapshot ? "snapshot" : "current"}:${snapshot.revision}`
-          : null;
-        if (this.boundStamp === stamp) return this.boundRendering ?? Promise.resolve();
-        this.boundStamp = stamp;
-        const rendering = this.render(source, snapshot);
-        this.boundRendering = rendering;
-        rendering.finally(() => {
-          if (this.boundRendering === rendering) this.boundRendering = null;
-        });
-        return rendering;
-      });
+      this.stopWatching = watchData(this, "document", (snapshot) =>
+        this.render(snapshot?.value ?? null, snapshot),
+      );
     }
 
     disconnectedCallback() {
@@ -589,8 +590,6 @@ customElements.define(
       this.stopWatching = null;
       this.headRoom?.disconnect();
       this.headRoom = null;
-      this.boundStamp = undefined;
-      this.boundRendering = null;
       this.manifestEntries = null;
       this.manifestSnapshot = null;
       this.sharedStyles = null;
@@ -664,8 +663,7 @@ customElements.define(
           this.replaceChildren();
           shadowStage(this, [
             ...sharedStyles.values(),
-            this.diffTools.node,
-            ...entries.map(({ node }) => node),
+            diffBody([this.diffTools.node, ...entries.map(({ node }) => node)]),
           ]);
           if (bound)
             projectData(
@@ -771,6 +769,10 @@ customElements.define(
         this.diffTools = diffTools(this, this.reviewing());
         for (const entry of entries)
           this.attachEntryControls(entry, { commentable: true });
+        this.manifestBody = diffBody([
+          this.diffTools.node,
+          ...entries.map(({ node }) => node),
+        ]);
         this.replaceChildren();
         this.stageManifest();
         this.projectManifest();
@@ -786,14 +788,7 @@ customElements.define(
 
     stageManifest() {
       if (!this.manifestEntries) return;
-      shadowStage(
-        this,
-        [
-          ...this.sharedStyles.values(),
-          this.diffTools?.node,
-          ...this.manifestEntries.map(({ node }) => node),
-        ].filter(Boolean),
-      );
+      shadowStage(this, [...this.sharedStyles.values(), this.manifestBody]);
     }
 
     projectManifest() {

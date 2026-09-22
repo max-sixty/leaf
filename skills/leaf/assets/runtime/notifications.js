@@ -79,10 +79,10 @@ function showNotice(msg, background) {
 // Reader commands own the next brief interval. Background arrivals wait behind one,
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // Durable unread state remains on the banner and Threads control throughout.
-export function notice(msg, { background = false } = {}) {
+export function notice(msg, { background = false, announce: speak = true } = {}) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
-  announce(msg);
+  if (speak) announce(msg);
   if (
     background &&
     (readerContext || readerHoldTimer || (noticeVisible() && !showingBackground))

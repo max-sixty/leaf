@@ -1,6 +1,7 @@
 /* The banner shelf owns the complete generated control run.
  *
- * Contributors register one stable native control with an explicit rank and policy.
+ * Contributors register one stable control with an explicit rank and policy.
+ * A compound control also names its retained focus target.
  * This synchronous light-DOM Lit owner is then the only code that decides inventory,
  * order, presence, row-versus-overflow placement, and the overflow door's state. The
  * native controls are retained islands: their own owners keep commands, words, and
@@ -25,6 +26,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
+  select: 35,
   leaves: 40,
   latest: 50,
   asks: 60,
@@ -33,6 +35,8 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   versions: 90,
   approval: 100,
   threads: 110,
+  cancelSelection: 120,
+  commentSelection: 130,
 });
 
 export const bannerActions = el("div", "lf-banner-actions");
@@ -122,13 +126,13 @@ function paint() {
 
 const focusable = (entry) =>
   visible(entry) &&
-  entry.control.tabIndex >= 0 &&
-  !entry.control.matches(":disabled, [aria-disabled='true']") &&
+  entry.focusTarget.tabIndex >= 0 &&
+  !entry.focusTarget.matches(":disabled, [aria-disabled='true']") &&
   !entry.control.closest("[inert]") &&
   entry.control.checkVisibility();
 const canRetainFocus = (entry) =>
   visible(entry) &&
-  !entry.control.matches(":disabled") &&
+  !entry.focusTarget.matches(":disabled") &&
   !entry.control.closest("[inert]") &&
   entry.control.checkVisibility();
 
@@ -136,7 +140,7 @@ overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   overflowBtn.setAttribute("aria-expanded", String(open));
   if (open && document.activeElement === overflowBtn)
-    menu.find(focusable)?.control.focus();
+    menu.find(focusable)?.focusTarget.focus();
   if (!open) {
     const measurements = [...pendingMeasurements];
     pendingMeasurements.clear();
@@ -177,6 +181,7 @@ function replaceEntry(prior, next) {
 export function registerBannerControl({
   key,
   control,
+  focusTarget = control,
   rank,
   alwaysFolded = false,
   conditional = false,
@@ -199,6 +204,7 @@ export function registerBannerControl({
     Object.freeze({
       key,
       control,
+      focusTarget,
       rank,
       sequence: sequence++,
       alwaysFolded: Boolean(alwaysFolded),
@@ -221,7 +227,7 @@ export function showBannerControl(control, shown) {
   if (!entry) throw new TypeError("Banner control is not registered");
   shown = Boolean(shown);
   if (entry.present === shown) return;
-  const heldFocus = document.activeElement === control;
+  const heldFocus = document.activeElement === entry.focusTarget;
   const wasInMenu = menu.includes(entry);
   const prior = entry;
   entry = Object.freeze({ ...entry, present: shown });
@@ -245,7 +251,7 @@ export function showNews(control, on) {
   if (!entry) throw new TypeError("Banner news control is not registered");
   on = Boolean(on);
   if (entry.conditional && entry.offered === on && (!on || entry.reserved)) return;
-  const focused = document.activeElement === control;
+  const focused = document.activeElement === entry.focusTarget;
   const wasInMenu = menu.includes(entry);
   const prior = entry;
   entry = Object.freeze({
@@ -279,12 +285,15 @@ function focusAfterRemoval(entry, wasInMenu) {
     run.findIndex((candidate) => candidate === entry),
   );
   const next = [...run.slice(at), ...run.slice(0, at).reverse()].find(focusable);
-  (next?.control ?? overflowBtn).focus({ preventScroll: true });
+  (next?.focusTarget ?? overflowBtn).focus({ preventScroll: true });
 }
 
 function heldShelfFocus() {
   const focused = document.activeElement;
-  return focused === overflowBtn || controls.has(focused) ? focused : null;
+  return focused === overflowBtn ||
+    ordered().some((entry) => entry.focusTarget === focused)
+    ? focused
+    : null;
 }
 
 function restoreShelfFocus(focused) {
@@ -293,11 +302,11 @@ function restoreShelfFocus(focused) {
   if (focused === overflowBtn) {
     if (!overflowBtn.hidden && overflowBtn.checkVisibility()) target = overflowBtn;
   } else {
-    const entry = controls.get(focused);
+    const entry = ordered().find((entry) => entry.focusTarget === focused);
     if (entry && canRetainFocus(entry)) target = focused;
     else if (entry && menu.includes(entry) && !overflowBtn.hidden) target = overflowBtn;
   }
-  target ??= row.find(focusable)?.control;
+  target ??= row.find(focusable)?.focusTarget;
   if (target && document.activeElement !== target)
     target.focus({ preventScroll: true });
 }

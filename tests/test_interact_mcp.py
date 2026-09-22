@@ -10,17 +10,66 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 import pytest
-from interact_support import PAGE, run_async
+from interact_support import PAGE, run_async, yaml_document
 from leaf import event_log as events_model
-from leaf.files import replace_files
+from leaf.files import replace_files, revision_path
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
-from leaf.mcp_page import PAGE_RESOURCE_URI
+from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
 from leaf.mcp_server import make_mcp_server
 from leaf.passages import TEXT_BLOCK_TAGS
 from leaf.revisioning import activate_source
 from leaf.structure import UTF8_BOM, SourceDocument
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+
+
+def test_mcp_specimens_keep_the_parent_capability_and_their_own_log(page_dir):
+    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A child page.</p></template>'
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    activation = activate_source(page_dir, [])
+    assert activation.error is None
+    pages = ProcessPageServer()
+    try:
+        parent = pages.open(page_dir)
+        with urllib.request.urlopen(urljoin(parent, "api/state")) as response:
+            state = json.load(response)
+        request = urllib.request.Request(
+            urljoin(parent, "api/specimens"),
+            data=b'{"template":"practice"}',
+            headers={"Leaf-Layer": state["layer"]["generation"]},
+        )
+        with urllib.request.urlopen(request) as response:
+            path = json.load(response)["url"]
+        child = urljoin(parent, path)
+        assert child.startswith(parent + "api/specimens/")
+        with urllib.request.urlopen(child) as response:
+            document = response.read()
+            assert b"A child page." in document
+            assets = urljoin(parent, "revisions/" + revision_path(page_dir, 1).stem)
+            asset_path = urllib.parse.urlsplit(assets).path
+            assert f'data-lf-entry="{asset_path}/leaf.js"'.encode() in document
+            assert f'data-lf-page-root="{path.rstrip("/")}"'.encode() in document
+            assert response.headers.get("Content-Security-Policy") is None
+            assert response.headers["Leaf-Layer"] == state["layer"]["generation"]
+        request = urllib.request.Request(
+            urljoin(child, "api/event"),
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Child feedback",
+                    "anchor": {"section": "child-text"},
+                }
+            ).encode(),
+            headers={"Leaf-Layer": state["layer"]["generation"]},
+        )
+        with urllib.request.urlopen(request) as response:
+            assert (
+                json.load(response)["state"]["events"][-1]["text"] == "Child feedback"
+            )
+        assert events_model.read_events(page_dir) == []
+    finally:
+        pages.close()
 
 
 def test_snapshot_event_round_trip_is_durable_retryable_and_canonical(page_dir):
@@ -200,7 +249,9 @@ def test_codex_manifest_launches_the_bundled_server(page_server):
     }
 
 
-def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_dir):
+def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(
+    page_dir, snapshot
+):
     async def exchange():
         parameters = StdioServerParameters(
             command=sys.executable,
@@ -223,6 +274,13 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
             return initialized, tools, resources, resource, result
 
     initialized, tools, resources, resource, result = run_async(exchange)
+    snapshot.check(
+        yaml_document(
+            "Complete tools/list response received through the bundled stdio server.\n"
+            "Model-visible presentation tools and app-only controls retain their metadata.",
+            tools.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
+    )
     by_name = {tool.name: tool for tool in tools.tools}
 
     assert initialized.protocol_version == "2025-11-25"

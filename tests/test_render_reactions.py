@@ -2140,7 +2140,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()  # the waiting-on-you narrowing
-    expect(page.locator(".lf-needs")).to_be_checked()
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-thread")).to_have_count(1)
 
     strip.locator(".lf-react-trigger").click()

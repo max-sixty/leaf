@@ -4547,7 +4547,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
   <lf-targeting id="landing-targeting">
     <lf-target-preview id="landing-preview">
       <section id="hero" class="landing-card">
-        <h3 class="section-title"><span>Build the next release</span></h3>
+        <h3 class="section-title"><span>Build the next release with complete instructions that remain available even when the candidate display has less room</span></h3>
         <p>Keep the request path visible.</p>
       </section>
       <section id="evidence" class="landing-card">
@@ -4569,6 +4569,11 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     candidates.filter(has_text="<section#hero>").click()
 
     first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
+    expect(first.locator("wa-input")).to_have_js_property(
+        "value",
+        "Build the next release with complete instructions that remain available even "
+        "when the candidate display has less room",
+    )
     first.locator("wa-input").click()
     first.locator("wa-input").press("ControlOrMeta+A")
     first.locator("wa-input").press_sequentially("Hero cards")
@@ -4666,7 +4671,9 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
                 "className": "landing-card",
                 "reference": {"kind": "id", "id": "hero"},
                 "label": "<section#hero>",
-                "text": "Build the next release Keep the request path visible.",
+                "text": "Build the next release with complete instructions that remain "
+                "available even when the candidate display has less room "
+                "Keep the request path visible.",
             },
             {
                 "key": "target-2",

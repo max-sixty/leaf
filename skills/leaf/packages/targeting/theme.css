@@ -85,6 +85,20 @@ lf-targeting .lf-targeting-candidates[hidden] {
   display: none;
 }
 
+/* Candidate labels retain their complete text; the offered width owns the excerpt. */
+lf-targeting .lf-targeting-candidate-choice {
+  min-width: 0;
+  overflow: hidden;
+}
+
+lf-targeting .lf-targeting-candidate-choice strong,
+lf-targeting .lf-targeting-candidate-context {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 lf-targeting .lf-targeting-target,
 lf-targeting .lf-targeting-change-form {
   display: grid;

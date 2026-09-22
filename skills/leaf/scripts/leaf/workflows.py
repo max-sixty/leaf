@@ -1,4 +1,4 @@
-"""Interaction-scoped acknowledgment lifecycle projection."""
+"""Canonical workflows for exact reader inputs and proactive subject work."""
 
 from .asks import thread_completion
 from .events import awaits_agent, seat_root, spoken_turns
@@ -9,6 +9,51 @@ from .projection import (
     folded_facet,
     markup_facet,
 )
+
+
+def thread_response_batch(turns: list[dict]) -> tuple[list[dict], dict | None]:
+    """Return the consecutive reader-input batch and its response address.
+
+    A thread exposes one response obligation, addressed by its newest reader
+    input. Before that address is answered every unresponded input retains its
+    own workflow. Answering the newest address settles the batch; answering an
+    older address removes only that input while the newer address remains owed.
+    Independent widget Asks use their own settlement fold and never enter here.
+    """
+    floor = -1
+    newest_before = None
+    for index, message in enumerate(turns):
+        if message["author"] != "agent":
+            newest_before = message
+        elif (
+            newest_before is not None and message.get("responds") == newest_before["id"]
+        ):
+            # Answering the batch's newest address settles every reader input
+            # accumulated through it. A later reader input starts a fresh batch.
+            floor = index
+            newest_before = None
+    standing = turns[floor + 1 :]
+    newest = next(
+        (message for message in reversed(standing) if message["author"] != "agent"),
+        None,
+    )
+    if newest is None:
+        return [], None
+    responses = {
+        message.get("responds")
+        for message in standing
+        if message["author"] == "agent" and message.get("responds")
+    }
+    if newest["id"] in responses:
+        return [], None
+    return (
+        [
+            message
+            for message in standing
+            if message["author"] != "agent" and message["id"] not in responses
+        ],
+        newest,
+    )
 
 
 def page_action_unsettled(
@@ -33,7 +78,7 @@ def page_action_unsettled(
     return authored != folded
 
 
-def canonical_acknowledgments(
+def canonical_workflows(
     claims: list,
     threads: dict,
     conversation,
@@ -41,14 +86,15 @@ def canonical_acknowledgments(
     page: PageReading | None = None,
     events: list | None = None,
 ) -> list[dict]:
-    """The unsettled reader moves and the strongest evidence held for each.
+    """The unsettled reader inputs and strongest evidence held for each.
 
-    Acknowledgment is one interaction-scoped projection over the document and
-    log: append means Sent, queue acceptance means Queued, entry into an exact
-    agent turn means Picked up, and a matching effective work claim means
-    Working. Replies and authored state
-    settle the source move, so the row disappears instead of becoming a second
-    outcome surface.
+    This is one interaction-scoped projection over the document and log: append
+    means Sent, queue acceptance means Queued, entry into an exact agent turn
+    means Picked up, and a matching effective work claim means Working. Replies
+    and authored state settle the source move, so the workflow disappears instead
+    of becoming a second outcome surface. Consecutive inputs retain distinct
+    workflows even though the conversation's single response obligation is
+    addressed to the newest one.
     """
     if page is not None:
         events = page.events
@@ -56,6 +102,18 @@ def canonical_acknowledgments(
         raise TypeError("events are required without a page reading")
 
     deliveries: dict[str, dict[str, dict]] = {}
+    responses = {
+        event["responds"]: event
+        for event in events
+        if event["kind"] == "reply"
+        and event["author"] == "agent"
+        and event.get("responds")
+    }
+    failed_responses = {
+        input_id: response
+        for input_id, response in responses.items()
+        if response.get("failure")
+    }
     for event in events:
         if event["kind"] != "pickup":
             continue
@@ -70,10 +128,9 @@ def canonical_acknowledgments(
     interaction_claims = {
         claim["event"]: claim for claim in claims if claim.get("scope") == "interaction"
     }
-    used_claims = set()
     used_targets = set()
 
-    def receipt(
+    def workflow(
         source: dict,
         target: dict,
         coordinate: list[str],
@@ -99,40 +156,57 @@ def canonical_acknowledgments(
                 or claim.get("event") == source["id"]
             )
         )
-        if claim_matches and claim["log_floor"] >= delivery_seq:
-            phase, evidence = "active", claim
-            used_claims.add(claim["id"])
+        if claim_matches and (
+            claim.get("event") == source["id"] or claim["log_floor"] >= delivery_seq
+        ):
+            stage, evidence = "working", claim
             used_targets.add((target["kind"], target["id"]))
         elif opened:
-            phase, evidence = "picked_up", opened
+            stage, evidence = "picked_up", opened
         elif queued:
-            phase, evidence = "queued", queued
+            stage, evidence = "queued", queued
         else:
-            phase, evidence = "sent", source
+            stage, evidence = "sent", source
         fallback = opened or queued
         return {
             "id": source["id"],
-            "event": source["id"],
+            "input": source["id"],
             "seq": source["seq"],
             "revision": source.get("revision"),
-            "target": target,
+            "subject": target,
             "coordinate": coordinate,
             "requires_response": requires_response,
-            "phase": phase,
+            "stage": stage,
             "ts": evidence.get("ts"),
-            "fallback_phase": (
+            "fallback_stage": (
                 "picked_up" if opened else "queued" if queued else "sent"
             ),
             "fallback_ts": (fallback.get("ts") if fallback else source.get("ts")),
             "delivery_seq": fallback["seq"] if fallback else None,
             "delivery_session": fallback.get("session") if fallback else None,
             "delivery_turn": fallback.get("turn") if fallback else None,
-            "detail": claim["text"] if phase == "active" else None,
-            "agent": claim.get("agent") if phase == "active" else None,
-            "session": claim.get("session") if phase == "active" else None,
+            "detail": claim["text"] if stage == "working" else None,
+            "agent": claim.get("agent") if stage == "working" else None,
+            "session": claim.get("session") if stage == "working" else None,
+            "activity": (
+                [
+                    {
+                        "kind": "working",
+                        "detail": claim["text"],
+                        "ts": claim["ts"],
+                        "session": claim.get("session"),
+                        "turn": claim.get("turn"),
+                    }
+                ]
+                if stage == "working"
+                else []
+            ),
+            "condition": None,
+            "next_actor": "agent",
+            "response": None,
         }
 
-    acknowledgments = []
+    workflows = []
     clarifications = [
         (thread["root"]["seq"], seat)
         for thread in threads.values()
@@ -143,53 +217,65 @@ def canonical_acknowledgments(
     ]
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
-        unanswered = next(
-            (message for message in reversed(turns) if message["author"] != "agent"),
-            None,
-        )
-        if thread["resolved"] or unanswered is None:
+        unanswered_inputs, response_address = thread_response_batch(turns)
+        if thread["resolved"]:
             continue
-        if any(
-            message["author"] == "agent" and message.get("responds") == unanswered["id"]
-            for message in turns
-        ):
+        target = {"kind": "thread", "id": thread_id}
+        coordinate = ["thread", thread_id]
+        turns_by_id = {message["id"]: message for message in turns}
+        for input_id, response in failed_responses.items():
+            source = turns_by_id.get(input_id)
+            if source is None or any(
+                message["author"] != "agent" and message["seq"] > response["seq"]
+                for message in turns
+            ):
+                continue
+            failed = workflow(
+                source,
+                target,
+                coordinate,
+                requires_response=False,
+            )
+            failed.update(
+                {
+                    "stage": "answered",
+                    "ts": response["ts"],
+                    "detail": None,
+                    "agent": response.get("agent"),
+                    "session": response.get("session"),
+                    "activity": [
+                        {
+                            "kind": "response",
+                            "detail": None,
+                            "ts": response["ts"],
+                            "session": response.get("session"),
+                            "turn": response.get("turn"),
+                        }
+                    ],
+                    "condition": {"kind": "failed", "operation": "response"},
+                    "next_actor": "reader",
+                }
+            )
+            workflows.append(failed)
+        if response_address is None:
             continue
         if (thread["root"].get("response") or {}).get("kind") == "version" and any(
             seat == seat_root(thread) and root_seq > thread["root"]["seq"]
             for root_seq, seat in clarifications
         ):
             continue
-        source = unanswered
-        target = {"kind": "thread", "id": thread_id}
-        coordinate = ["thread", thread_id]
-        acknowledgments.append(
-            receipt(
-                source,
-                target,
-                coordinate,
-                requires_response=True,
-            )
-        )
-        claim = effective_claims.get(("thread", thread_id))
-        claim_event = claim.get("event") if claim else None
-        if claim_event and claim_event != source["id"]:
-            claimed_source = next(
-                (message for message in turns if message["id"] == claim_event), None
-            )
-            if claimed_source:
-                anchor = receipt(
-                    claimed_source,
+        # Every exact input keeps its own transport/work evidence. The response
+        # contract deliberately coalesces consecutive reader turns onto the newest
+        # address, so only that workflow is a stop obligation.
+        for source in unanswered_inputs:
+            workflows.append(
+                workflow(
+                    source,
                     target,
                     coordinate,
-                    requires_response=False,
+                    requires_response=source is response_address,
                 )
-                # The anchor holds Working beside the message that started the work.
-                # Any weaker phase is a second delivery receipt on a subject whose
-                # newest move already carries one.
-                if anchor["phase"] == "active":
-                    anchor["anchor"] = True
-                    acknowledgments.append(anchor)
-
+            )
     # A page action stays unsettled only while the authored document still lags
     # its standing record. A recordless verb has no markup form to compare, so a
     # later version note in the log is the document's answer to that move.
@@ -261,8 +347,8 @@ def canonical_acknowledgments(
             newest[key] = source
     for source, target, coordinate, requires_response, unsettled in moves:
         if unsettled and newest[(target["id"], coordinate[1])] is source:
-            acknowledgments.append(
-                receipt(
+            workflows.append(
+                workflow(
                     source,
                     target,
                     coordinate,
@@ -275,22 +361,34 @@ def canonical_acknowledgments(
     # without inventing pickup evidence.
     for claim in effective_claims.values():
         target = claim["target"]
-        if claim["id"] in used_claims or (target["kind"], target["id"]) in used_targets:
+        if (target["kind"], target["id"]) in used_targets:
             continue
-        acknowledgments.append(
+        workflows.append(
             {
                 "id": f"claim:{claim['id']}",
-                "event": None,
+                "input": None,
                 "seq": claim["log_floor"],
                 "revision": claim.get("revision"),
-                "target": target,
+                "subject": target,
                 "coordinate": [target["kind"], target["id"]],
                 "requires_response": False,
-                "phase": "active",
+                "stage": "working",
                 "ts": claim["ts"],
                 "detail": claim["text"],
                 "agent": claim.get("agent"),
                 "session": claim.get("session"),
+                "activity": [
+                    {
+                        "kind": "working",
+                        "detail": claim["text"],
+                        "ts": claim["ts"],
+                        "session": claim.get("session"),
+                        "turn": claim.get("turn"),
+                    }
+                ],
+                "condition": None,
+                "next_actor": "agent",
+                "response": None,
             }
         )
-    return sorted(acknowledgments, key=lambda item: (item["seq"], item["id"]))
+    return sorted(workflows, key=lambda item: (item["seq"], item["id"]))

@@ -32,8 +32,13 @@ const exactClosures = {
   "margin-map-model.js": ["margin-entry-model.js"],
   "projection/model.js": [],
   "projection/state.js": ["semantic-state.js"],
-  "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
+  "conversation/model.js": [
+    "anchor-coordinate.js",
+    "conversation/identity.js",
+    "conversation/workflow.js",
+  ],
   "conversation/state.js": ["semantic-state.js"],
+  "conversation/workflow.js": [],
   "pending/model.js": ["conversation/identity.js"],
   "pending/state.js": ["semantic-state.js"],
   "keyboard/dispatch.js": [
@@ -70,7 +75,6 @@ const applicationOwners = [
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "conversation/acknowledgments.js",
     "conversation/box.js",
     "conversation/folding.js",
     "conversation/inline.js",

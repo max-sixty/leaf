@@ -29,11 +29,15 @@ def _thread_awaits_reader(
     if thread_id in open_ask_threads:
         return True
     turns = spoken_turns(thread)
-    if not turns or turns[-1]["author"] != "agent":
-        return False
-    last = turns[-1]
-    if last["kind"] == "reply":
-        fragment = structure.fragments.get(last["id"])
+    tokens = registry.get("$reactions", {}).get("tokens", {})
+    for index in range(len(turns) - 1, -1, -1):
+        message = turns[index]
+        if message["author"] != "agent":
+            continue
+        later = turns[index + 1 :]
+        if any(entry["author"] != "agent" for entry in later):
+            continue
+        fragment = structure.fragments.get(message["id"])
         asks = [
             rec["attrs"].get("id")
             for rec in (fragment.lf_elements if fragment else [])
@@ -42,16 +46,24 @@ def _thread_awaits_reader(
         structural = (
             any(awaiting.get(identity, False) for identity in asks) if asks else None
         )
-        if structural is False or (structural is None and not last.get("awaits")):
-            return False
-    tokens = registry.get("$reactions", {}).get("tokens", {})
-    return not any(
-        is_reaction(message)
-        and message["author"] == "user"
-        and message.get("parent") == last["id"]
-        and (tokens.get(message["token"]) or {}).get("settles")
-        for message in thread["msgs"]
-    )
+        settled = any(
+            is_reaction(reaction)
+            and reaction["author"] == "user"
+            and reaction.get("parent") == message["id"]
+            and (tokens.get(reaction["token"]) or {}).get("settles")
+            for reaction in thread["msgs"]
+        )
+        if message["kind"] != "reply":
+            if structural is False:
+                continue
+            if not settled:
+                return True
+            continue
+        if structural is False or (structural is None and not message.get("awaits")):
+            continue
+        if not settled:
+            return True
+    return False
 
 
 def _answers_live_reply(event: dict, live_reply: dict) -> bool:
@@ -161,7 +173,6 @@ def browser_conversation(
                     "text": live_reply.get("text", ""),
                     "ts": live_reply["ts"],
                     "pending": live_reply.get("state") == "active",
-                    "stream_state": live_reply.get("state"),
                 },
             ]
     withdrawn = taken_back(events)

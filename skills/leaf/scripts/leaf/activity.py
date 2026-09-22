@@ -81,14 +81,44 @@ def _reply_evidence(reply: dict) -> dict:
     } | {"has_text": bool(reply.get("text"))}
 
 
+def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
+    """Bind provisional response progress only to the exact input it names."""
+    if reply is None or not reply.get("responds"):
+        return
+    workflow = next(
+        (item for item in workflows if item.get("input") == reply["responds"]), None
+    )
+    if workflow is None:
+        return
+    workflow["response"] = _reply_evidence(reply)
+    workflow["stage"] = "replying"
+    workflow["activity"] = [
+        {
+            "kind": "replying",
+            "detail": None,
+            "ts": reply.get("updated_at") or reply.get("ts"),
+            "session": reply.get("session"),
+            "turn": reply.get("turn"),
+        }
+    ]
+    condition = {
+        "disconnected": "stale",
+        "interrupted": "interrupted",
+        "failed": "failed",
+    }.get(reply.get("state"))
+    workflow["condition"] = (
+        {"kind": condition, "operation": "response"} if condition else None
+    )
+
+
 def unanswered(obligations: list[dict], of: str = "") -> str:
     """Say how many reader moves have no answer and name each by the id it is
     answered through: a thread's own, and the event of any other move. `of`
     narrows which moves these are, such as the acknowledged ones."""
     ids = ", ".join(
-        obligation["target"]["id"]
-        if obligation["target"]["kind"] == "thread"
-        else obligation["event"]
+        obligation["subject"]["id"]
+        if obligation["subject"]["kind"] == "thread"
+        else obligation["input"]
         for obligation in obligations
     )
     moves = f"reader move{'s' if len(obligations) != 1 else ''}"
@@ -101,16 +131,16 @@ def transition_due(activity: dict, now_iso: str) -> bool:
     return bool(due and due <= datetime.fromisoformat(now_iso))
 
 
-def _canonical_interactions(
+def _canonical_workflows(
     evidence: list[dict], present: dict, now: datetime, *, held: bool
 ) -> list[dict]:
     result = []
     for raw in evidence:
         item = dict(raw)
-        phase = item["phase"]
+        stage = item["stage"]
         quiet = False
         dropped = False
-        if phase == "active":
+        if stage == "working":
             same_session = bool(
                 item.get("session") and item["session"] == present.get("claim_session")
             )
@@ -118,22 +148,26 @@ def _canonical_interactions(
                 item["ts"], present.get("turn_closed"), now
             )
             quiet = _quiet(item["ts"], now, WORKING_GRACE) or dropped
+            if quiet and held:
+                item["condition"] = {"kind": "stale", "operation": "work"}
             if not held:
-                if item.get("event") is None or item.get("anchor"):
+                if item.get("input") is None:
                     continue
-                phase = item.get("fallback_phase", "sent")
+                stage = item.get("fallback_stage", "sent")
                 item["ts"] = item.get("fallback_ts", item["ts"])
                 item["detail"] = None
                 item["agent"] = None
                 item["session"] = None
+                item["activity"] = []
                 quiet = dropped = False
-        if phase == "sent" and _quiet(item["ts"], now, PICKUP_GRACE):
-            phase = "waiting"
-        item["phase"] = phase
+        if stage == "sent" and _quiet(item["ts"], now, PICKUP_GRACE):
+            quiet = True
+            item["condition"] = {"kind": "stale", "operation": "delivery"}
+        item["stage"] = stage
         item["quiet"] = quiet
         item["dropped"] = dropped
         item.pop("anchor", None)
-        item.pop("fallback_phase", None)
+        item.pop("fallback_stage", None)
         item.pop("fallback_ts", None)
         result.append(item)
     return result
@@ -166,9 +200,8 @@ def canonical_activity(
         present["session_alive"] is None and not present["listening"] and status_quiet
     )
     held = not present.get("unattended") and not unheld
-    interactions = _canonical_interactions(
-        interaction_evidence, present, now, held=held
-    )
+    workflows = _canonical_workflows(interaction_evidence, present, now, held=held)
+    _bind_reply(workflows, reply)
 
     deadlines = []
     # Status age and turn closure can change ownership even when the primary label
@@ -190,11 +223,11 @@ def canonical_activity(
         deadlines.append(due)
     if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
         deadlines.append(due)
-    for item in interactions:
-        if item["phase"] == "sent":
+    for item in workflows:
+        if item["stage"] == "sent":
             if due := _deadline(item["ts"], PICKUP_GRACE, now):
                 deadlines.append(due)
-        elif item["phase"] == "active":
+        elif item["stage"] == "working":
             if due := _deadline(item["ts"], WORKING_GRACE, now):
                 deadlines.append(due)
             if item.get("session") == present.get("claim_session") and (
@@ -207,21 +240,20 @@ def canonical_activity(
     # still counts one interaction per semantic coordinate, taking the newest move.
     outstanding_by_coordinate = {
         tuple(item["coordinate"]): item
-        for item in interactions
-        if item.get("event") is not None
+        for item in workflows
+        if item.get("input") is not None
     }
     outstanding = list(outstanding_by_coordinate.values())
     obligations = [item for item in outstanding if item["requires_response"]]
-    active = [item for item in interactions if item["phase"] == "active"]
+    active = [item for item in workflows if item["stage"] == "working"]
     active_now = [item for item in active if not item["quiet"]]
-    active_moves = [item for item in outstanding if item["phase"] == "active"]
+    active_moves = [item for item in outstanding if item["stage"] == "working"]
     # Page work is scoped to the live claimant, not to one reader input. A newer
     # delivery may remain queued or pending while the agent continues other work on
-    # the page; its exact progress stays in `interactions` below.
-    stream_work = stream_current
+    # the page; its exact progress stays in `workflows` below.
     declared_work = status["state"] == "working" and not status_quiet
-    current_work = stream_work or declared_work
-    opened = [item for item in outstanding if item["phase"] == "picked_up"]
+    current_work = stream_current or declared_work
+    opened = [item for item in outstanding if item["stage"] == "picked_up"]
     handling = [
         item
         for item in opened
@@ -235,8 +267,16 @@ def canonical_activity(
         # reading. Pickup remains durable history, while this flag says the exact
         # turn it entered is no longer the turn handling it now.
         item["dropped"] = True
-    queued = [item for item in outstanding if item["phase"] == "queued"]
-    pending = [item for item in outstanding if item["phase"] in {"sent", "waiting"}]
+        if (
+            item.get("delivery_session") == present.get("claim_session")
+            and item.get("delivery_turn") == present.get("claim_turn")
+            and present.get("turn_closed") is not None
+        ):
+            item["condition"] = {"kind": "ended", "operation": "work"}
+        else:
+            item["condition"] = {"kind": "stale", "operation": "work"}
+    queued = [item for item in outstanding if item["stage"] == "queued"]
+    pending = [item for item in outstanding if item["stage"] == "sent"]
 
     kind = "away"
     detail = ""
@@ -266,7 +306,7 @@ def canonical_activity(
         # declaration with no words at all, which `leaf status <page> working` writes.
         if declared_work and status.get("stated", True) and status.get("detail"):
             detail = status.get("detail", "")
-        elif stream_work:
+        elif stream_current:
             detail, ts, quiet, dropped = (
                 stream.get("detail", ""),
                 stream.get("ts"),
@@ -283,7 +323,7 @@ def canonical_activity(
         # Opening an exact delivery into the claimant's current open turn proves
         # generic page work even before the agent writes a status sentence. It does
         # not bind that execution state back onto any other interaction; each receipt
-        # keeps its own delivery phase below.
+        # keeps its own workflow stage below.
         latest = max(handling, key=lambda item: item.get("delivery_seq") or 0)
         kind, ts, quiet, dropped = "working", latest["ts"], False, False
     elif active:
@@ -328,7 +368,7 @@ def canonical_activity(
         },
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
-        "interactions": interactions,
+        "workflows": workflows,
         "obligations": obligations,
         **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

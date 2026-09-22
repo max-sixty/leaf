@@ -257,10 +257,10 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     assert status["handling"]["event"] == first["id"]
     live = page_state(page_dir)
     assert "handling" not in live["status"]
-    [receipt] = live["activity"]["interactions"]
-    assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
+    [workflow] = live["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
         first["id"],
-        "active",
+        "working",
         session_model.DELIVERY_CLAIM_DETAIL,
     )
     assert all(
@@ -278,12 +278,13 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
             "text": "Correction: use B.",
         },
     )
-    [receipt] = page_state(page_dir)["activity"]["interactions"]
-    assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
-        second["id"],
-        "sent",
-        None,
-    )
+    workflows = page_state(page_dir)["workflows"]
+    assert [
+        (item["input"], item["stage"], item["requires_response"]) for item in workflows
+    ] == [
+        (first["id"], "working", False),
+        (second["id"], "sent", True),
+    ]
     stale = CliRunner().invoke(
         cli_model.cli, ["delivery", "claim", first_delivery["id"]]
     )
@@ -305,10 +306,14 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
         ],
     )
     assert retargeted.exit_code == 0, retargeted.output
-    [receipt] = page_state(page_dir)["activity"]["interactions"]
-    assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
+    workflow = next(
+        item
+        for item in page_state(page_dir)["workflows"]
+        if item["input"] == second["id"]
+    )
+    assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
         second["id"],
-        "active",
+        "working",
         "Checking the correction",
     )
 
@@ -326,6 +331,341 @@ def test_delivery_claim_refuses_an_event_outside_the_delivery(page_dir):
 
     assert result.exit_code != 0
     assert "is not in delivery" in result.output
+
+
+def test_consecutive_reader_inputs_share_one_exact_response_obligation(page_dir):
+    """Each input keeps progress while the newest address owns batch settlement."""
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "batch-first", "author": "user", "text": "A"},
+    )
+    second = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "batch-second",
+            "author": "user",
+            "parent": first["id"],
+            "text": "B",
+        },
+    )
+
+    state = page_state(page_dir)
+    assert [
+        (item["input"], item["requires_response"], item["next_actor"])
+        for item in state["workflows"]
+    ] == [
+        (first["id"], False, "agent"),
+        (second["id"], True, "agent"),
+    ]
+    assert [item["input"] for item in state["activity"]["obligations"]] == [
+        second["id"]
+    ]
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "batch-answer",
+            "author": "agent",
+            "parent": second["id"],
+            "responds": second["id"],
+            "text": "Answered together",
+        },
+    )
+    assert page_state(page_dir)["workflows"] == []
+
+
+def test_terminal_host_failure_keeps_exact_reader_recovery_without_stop_obligation(
+    page_dir,
+):
+    publish(page_dir)
+    source = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "failed-input", "author": "user", "text": "A"},
+    )
+    failure = conversation_model.cmd_reply(
+        page_dir,
+        source["id"],
+        "The agent's turn ended without an answer. Send it again to retry.",
+        None,
+        for_event=source["id"],
+        failure="turn_failed",
+    )
+
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    assert (
+        workflow["input"],
+        workflow["stage"],
+        workflow["requires_response"],
+        workflow["next_actor"],
+        workflow["condition"],
+    ) == (
+        source["id"],
+        "answered",
+        False,
+        "reader",
+        {"kind": "failed", "operation": "response"},
+    )
+    assert workflow["activity"] == [
+        {
+            "kind": "response",
+            "detail": None,
+            "ts": failure["ts"],
+            "session": failure.get("session"),
+            "turn": failure.get("turn"),
+        }
+    ]
+    assert state["activity"]["obligations"] == []
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert thread["attention"] == {
+        "kind": "needs_reader",
+        "reason": "recovery",
+        "workflow": source["id"],
+    }
+
+
+def test_reader_resend_clears_terminal_failure_recovery(page_dir):
+    publish(page_dir)
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "failed-first", "author": "user", "text": "A"},
+    )
+    failure = conversation_model.cmd_reply(
+        page_dir,
+        first["id"],
+        "The agent's turn ended without an answer. Send it again to retry.",
+        None,
+        for_event=first["id"],
+        failure="turn_failed",
+    )
+    resent = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "failed-resent",
+            "author": "user",
+            "parent": failure["id"],
+            "text": "Please try again.",
+        },
+    )
+
+    state = page_state(page_dir)
+    assert [(item["input"], item["next_actor"]) for item in state["workflows"]] == [
+        (resent["id"], "agent")
+    ]
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert thread["attention"] == {
+        "kind": "waiting",
+        "reason": "workflow",
+        "workflow": resent["id"],
+    }
+
+
+def test_answering_an_older_input_leaves_the_newer_response_obligation(page_dir):
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "older-first", "author": "user", "text": "A"},
+    )
+    second = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "older-second",
+            "author": "user",
+            "parent": first["id"],
+            "text": "B",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "older-answer",
+            "author": "agent",
+            "parent": first["id"],
+            "responds": first["id"],
+            "text": "A only",
+        },
+    )
+
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["requires_response"]) == (second["id"], True)
+    assert [item["input"] for item in state["activity"]["obligations"]] == [
+        second["id"]
+    ]
+
+
+def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_dir):
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "closed-first", "author": "user", "text": "A"},
+    )
+    second = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "closed-second",
+            "author": "user",
+            "parent": first["id"],
+            "text": "B",
+        },
+    )
+    answer = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "closed-answer",
+            "author": "agent",
+            "parent": second["id"],
+            "responds": second["id"],
+            "text": "A and B",
+        },
+    )
+    third = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "closed-third",
+            "author": "user",
+            "parent": answer["id"],
+            "text": "C",
+        },
+    )
+
+    state = page_state(page_dir)
+    assert [
+        (item["input"], item["requires_response"]) for item in state["workflows"]
+    ] == [(third["id"], True)]
+
+
+def test_unrelated_agent_update_does_not_clear_a_standing_reader_ask(page_dir):
+    publish(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "ask-root", "author": "user", "text": "Start"},
+    )
+    question = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "ask-question",
+            "author": "agent",
+            "parent": root["id"],
+            "responds": root["id"],
+            "awaits": True,
+            "text": "Which option?",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "ask-update",
+            "author": "agent",
+            "parent": question["id"],
+            "initiates": True,
+            "text": "The checks finished.",
+        },
+    )
+
+    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    assert thread["awaits_reader"] is True
+    assert thread["attention"] == {
+        "kind": "needs_reader",
+        "reason": "ask",
+        "workflow": None,
+    }
+
+
+def test_settling_reaction_closes_an_agent_root_ask(page_dir):
+    publish(page_dir)
+    question = conversation_model.cmd_comment(
+        page_dir, "", "", "", "Is forty enough?", None
+    )
+    [before] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    assert before["awaits_reader"] is True
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": question["id"],
+            "token": "keep",
+        },
+    )
+
+    [after] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    assert after["awaits_reader"] is False
+    assert after["attention"] is None
+
+
+def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
+    asked = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "widget-thread",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="thread-region" choose>'
+            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-region",
+            "action": "choose",
+            "detail": {"options": ["thread-east"]},
+        },
+    )
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-region",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    delivery = freeze_events(page_dir, [answered])
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["delivery", "claim", delivery["id"], "--detail", "Checking East"],
+    )
+    assert claimed.exit_code == 0, claimed.output
+
+    state = page_state(page_dir)
+    workflow = next(
+        item for item in state["workflows"] if item["input"] == answered["id"]
+    )
+    assert (workflow["subject"], workflow["stage"]) == (
+        {"kind": "widget", "id": "thread-region"},
+        "working",
+    )
+    thread = next(
+        item
+        for item in state["browser"]["conversation"]["threads"]
+        if item["root"]["id"] == asked["id"]
+    )
+    assert thread["attention"] == {
+        "kind": "waiting",
+        "reason": "workflow",
+        "workflow": answered["id"],
+    }
 
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
@@ -349,19 +689,19 @@ def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
 
     assert result.exit_code == 0, result.output
     assert f"working on widget choice for event {chosen['id']}" in result.output
-    [receipt] = page_state(page_dir)["activity"]["interactions"]
-    assert (receipt["event"], receipt["target"], receipt["phase"]) == (
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
         chosen["id"],
         {"kind": "widget", "id": "choice"},
-        "active",
+        "working",
     )
 
     # A later open-ended subject claim is useful for work that outlives this
     # delivery, but it is not a second interaction beside the exact Working receipt.
     continued = _status(page_dir, "working", "Applying the choice", "--on", "choice")
     assert continued.exit_code == 0, continued.output
-    [receipt] = page_state(page_dir)["activity"]["interactions"]
-    assert (receipt["event"], receipt["phase"]) == (chosen["id"], "active")
+    [workflow] = page_state(page_dir)["workflows"]
+    assert (workflow["input"], workflow["stage"]) == (chosen["id"], "working")
 
 
 def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
@@ -467,7 +807,7 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
             "reply_to": "widget-owner-thread",
             "responds": "widget-action",
         },
-        {"event": "widget-action"},
+        {"input": "widget-action"},
         {"claim_session": "codex-thread", "claim_turn": "leaf-turn"},
     )
 
@@ -515,11 +855,12 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     codex_model.accept_codex_delivery("hosted-thread")
 
     claim = service_model.page_claim(page_dir)
-    activity = page_state(page_dir)["activity"]
+    state = page_state(page_dir)
+    activity = state["activity"]
     interactions = {
-        item["event"]: item
-        for item in activity["interactions"]
-        if item.get("event") in {first["id"], second["id"]}
+        item["input"]: item
+        for item in state["workflows"]
+        if item.get("input") in {first["id"], second["id"]}
     }
     assert claim["turn"] == first_turn
     assert activity["counts"]["handling"] == 2
@@ -917,11 +1258,11 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
             "text": "and this?",
         },
     )
-    activity = page_state(page_dir)["activity"]
+    state = page_state(page_dir)
+    activity = state["activity"]
     assert [
-        (receipt["event"], receipt["phase"]) for receipt in activity["interactions"]
-    ] == [("c1", "active"), ("c2", "sent")]
-    assert all("anchor" not in receipt for receipt in activity["interactions"])
+        (workflow["input"], workflow["stage"]) for workflow in state["workflows"]
+    ] == [("c1", "working"), ("c2", "sent")]
     assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
     assert (
         _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
@@ -929,9 +1270,9 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     renewed = files_model.read_json(page_dir / "status.json")["work"][0]
     assert renewed["event"] == "c1"
     assert [
-        (receipt["event"], receipt["phase"])
-        for receipt in page_state(page_dir)["activity"]["interactions"]
-    ] == [("c1", "active"), ("c2", "sent")]
+        (workflow["input"], workflow["stage"])
+        for workflow in page_state(page_dir)["workflows"]
+    ] == [("c1", "working"), ("c2", "sent")]
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     assert session_model.cmd_wait(page_dir) == 0
     session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
@@ -967,9 +1308,9 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
         },
     )
 
-    interactions = page_state(page_dir)["activity"]["interactions"]
-    assert [(item["event"], item["phase"]) for item in interactions] == [
-        (None, "active"),
+    interactions = page_state(page_dir)["workflows"]
+    assert [(item["input"], item["stage"]) for item in interactions] == [
+        ("c1", "working"),
         ("c2", "sent"),
     ]
 
@@ -1117,13 +1458,14 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
     activity = page_state(claimed)["activity"]
     assert activity["kind"] == "working"
-    assert [item["phase"] for item in activity["obligations"]] == ["picked_up"]
-    agent_activity = state_json(claimed)["activity"]
+    assert [item["stage"] for item in activity["obligations"]] == ["picked_up"]
+    agent_state = state_json(claimed)
+    agent_activity = agent_state["activity"]
     assert agent_activity["kind"] == activity["kind"]
     # The agent reading names each obligation by id; the move itself is listed once.
-    [move] = owed(agent_activity)
+    [move] = owed(agent_state)
     assert agent_activity["obligations"] == [move["id"]]
-    assert move["target"] == {"kind": "conversation", "id": comment["id"]}
+    assert move["subject"] == {"kind": "conversation", "id": comment["id"]}
     assert "acknowledgments" not in page_state(claimed)["browser"]
     pickup = events_model.read_events(claimed)[-1]
     claim = service_model.page_claim(claimed)
@@ -1141,6 +1483,10 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     ended = page_state(claimed)["activity"]
     assert ended["kind"] == "away"
     assert ended["obligations"][0]["dropped"] is True
+    assert ended["obligations"][0]["condition"] == {
+        "kind": "ended",
+        "operation": "work",
+    }
 
     lease = leases_model.take_waiter_lease(
         leases_model.waiter_lease_path(claimed, claim["id"])
@@ -1162,6 +1508,96 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     lease.close()
 
 
+def test_quiet_exact_workflow_has_a_stale_work_condition(claimed):
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    result = _status(claimed, "working", "reading it", "--on", comment["id"])
+    assert result.exit_code == 0, result.output
+    status = files_model.read_json(claimed / "status.json")
+    files_model.write_json(
+        claimed / "status.json",
+        {
+            **status,
+            "work": [
+                {
+                    **status["work"][0],
+                    "ts": (
+                        datetime.now().astimezone() - timedelta(minutes=20)
+                    ).isoformat(),
+                }
+            ],
+        },
+    )
+
+    [workflow] = page_state(claimed)["workflows"]
+    assert workflow["stage"] == "working"
+    assert workflow["condition"] == {"kind": "stale", "operation": "work"}
+
+
+def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
+    now = datetime.now().astimezone()
+    workflow = {
+        "id": "input-1",
+        "input": "input-1",
+        "seq": 1,
+        "coordinate": ["thread", "input-1"],
+        "requires_response": True,
+        "stage": "working",
+        "ts": (now - timedelta(minutes=20)).isoformat(),
+        "detail": "Old work",
+        "agent": "Leaf guide",
+        "session": "session-1",
+        "activity": [],
+        "condition": None,
+        "next_actor": "agent",
+        "response": None,
+    }
+    present = {
+        "status": {"state": "idle", "ts": now.isoformat(), "detail": ""},
+        "claim_session": "session-1",
+        "claim_turn": "turn-1",
+        "turn_closed": None,
+        "listening": True,
+        "session_alive": True,
+        "unattended": False,
+    }
+    reply = {
+        "state": "active",
+        "session": "session-1",
+        "turn": "turn-1",
+        "reply_to": "input-1",
+        "responds": "input-1",
+        "settles": False,
+        "text": "Fresh response",
+        "updated_at": now.isoformat(),
+    }
+
+    activity = activity_model.canonical_activity(
+        present, [workflow], now.isoformat(), reply=reply
+    )
+    [projected] = activity["workflows"]
+    assert (projected["stage"], projected["condition"]) == ("replying", None)
+
+
+def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
+    serving(claimed, 1)
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "new input"}
+    )
+    assert session_model.cmd_wait(claimed) == 0
+    session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
+    old = service_model.page_claim(claimed)
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.close_turn(old["id"])
+    assert service_model.claim_page(claimed)
+    assert service_model.page_claim(claimed)["turn"] != old["turn"]
+
+    [workflow] = page_state(claimed)["workflows"]
+    assert workflow["stage"] == "picked_up"
+    assert workflow["condition"] == {"kind": "stale", "operation": "work"}
+
+
 def test_queued_input_does_not_hide_fresh_work(claimed):
     serving(claimed, 1)
     session_model.cmd_status(claimed, "working", "Revising the heading")
@@ -1177,7 +1613,7 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
         "Revising the heading",
     )
     assert activity["counts"]["queued"] == 1
-    assert activity["obligations"][0]["phase"] == "queued"
+    assert activity["obligations"][0]["stage"] == "queued"
 
 
 def test_newer_pending_input_does_not_reclassify_page_work(claimed):
@@ -1194,7 +1630,7 @@ def test_newer_pending_input_does_not_reclassify_page_work(claimed):
         "Revising the heading",
     )
     assert activity["counts"]["pending"] == 1
-    assert activity["obligations"][0]["phase"] == "sent"
+    assert activity["obligations"][0]["stage"] == "sent"
 
 
 def test_queued_input_does_not_hide_live_codex_activity(claimed):
@@ -2380,6 +2816,7 @@ def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
         timeout=5,
     )
     assert (streamed["pending"], streamed["parent"]) == (True, comment["id"])
+    assert "stream_state" not in streamed
 
     release.set()
     assert completed.wait(timeout=5)
@@ -3582,7 +4019,9 @@ def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
         codex_model.check_app_server_endpoint(endpoint)
 
 
-def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir):
+def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
+    page_dir, monkeypatch
+):
     """One held decision governs both the page and its interaction receipts."""
     serving(page_dir, 1)
     comment = events_model.append_event(
@@ -3600,9 +4039,9 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
         },
     )
     assert [
-        (receipt["event"], receipt["phase"])
-        for receipt in page_state(page_dir)["activity"]["interactions"]
-    ] == [(comment["id"], "active"), (followup["id"], "sent")]
+        (workflow["input"], workflow["stage"])
+        for workflow in page_state(page_dir)["workflows"]
+    ] == [(comment["id"], "working"), (followup["id"], "sent")]
     status = files_model.read_json(page_dir / "status.json")
     files_model.write_json(
         page_dir / "status.json",
@@ -3611,13 +4050,28 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
             "ts": (datetime.now().astimezone() - timedelta(minutes=20)).isoformat(),
         },
     )
+    monkeypatch.setattr(
+        served_page,
+        "now_iso",
+        lambda: (datetime.now().astimezone() + timedelta(minutes=20)).isoformat(),
+    )
 
-    activity = page_state(page_dir)["activity"]
+    state = page_state(page_dir)
+    activity = state["activity"]
     assert (activity["kind"], activity["held"]) == ("unheld", False)
-    [receipt] = activity["interactions"]
-    assert receipt["event"] == followup["id"]
-    assert receipt["phase"] == "sent"
-    assert (receipt["agent"], receipt["detail"]) == (None, None)
+    assert [(item["input"], item["stage"]) for item in state["workflows"]] == [
+        (comment["id"], "sent"),
+        (followup["id"], "sent"),
+    ]
+    assert all(
+        (workflow["agent"], workflow["detail"]) == (None, None)
+        for workflow in state["workflows"]
+    )
+    assert all(workflow["activity"] == [] for workflow in state["workflows"])
+    assert all(
+        workflow["condition"] == {"kind": "stale", "operation": "delivery"}
+        for workflow in state["workflows"]
+    )
 
 
 def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
@@ -3653,9 +4107,10 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
         "now_iso",
         lambda: (started + timedelta(minutes=14)).isoformat(),
     )
-    before = page_state(page_dir)["activity"]
+    before_state = page_state(page_dir)
+    before = before_state["activity"]
     assert (before["kind"], before["held"]) == ("closed", True)
-    assert before["interactions"][0]["phase"] == "active"
+    assert before_state["workflows"][0]["stage"] == "working"
     assert before["next_transition_at"] == (started + timedelta(minutes=15)).isoformat()
 
     monkeypatch.setattr(
@@ -3663,10 +4118,14 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
         "now_iso",
         lambda: (started + timedelta(minutes=15)).isoformat(),
     )
-    after = page_state(page_dir)["activity"]
+    after_state = page_state(page_dir)
+    after = after_state["activity"]
     assert (after["kind"], after["held"]) == ("closed", False)
-    assert after["interactions"][0]["phase"] == "waiting"
-    assert (after["interactions"][0]["agent"], after["interactions"][0]["detail"]) == (
+    assert after_state["workflows"][0]["stage"] == "sent"
+    assert (
+        after_state["workflows"][0]["agent"],
+        after_state["workflows"][0]["detail"],
+    ) == (
         None,
         None,
     )
@@ -3753,9 +4212,10 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
             "detail": {},
         },
     )
-    before_pickup = page_state(page_dir)["activity"]
-    acknowledgments = before_pickup["interactions"]
-    assert any(receipt["event"] == answer["id"] for receipt in acknowledgments)
+    before_state = page_state(page_dir)
+    before_pickup = before_state["activity"]
+    acknowledgments = before_state["workflows"]
+    assert any(receipt["input"] == answer["id"] for receipt in acknowledgments)
     assert before_pickup["kind"] == "working"
     assert before_pickup["counts"]["total"] == 1
     assert before_pickup["obligations"] == []
@@ -3783,8 +4243,8 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     answered = stamp(page_dir, "Answered the completed choice")
     assert answered.exit_code == 0, answered.output
 
-    acknowledgments = page_state(page_dir)["activity"]["interactions"]
-    assert not any(receipt["event"] == answer["id"] for receipt in acknowledgments)
+    acknowledgments = page_state(page_dir)["workflows"]
+    assert not any(receipt["input"] == answer["id"] for receipt in acknowledgments)
     claim = next(
         update
         for update in state_json(page_dir)["updates"]
@@ -4261,8 +4721,8 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     ]
     assert [item["author"] for item in reading["content"]] == ["user", "agent"]
     assert reading["content"][1]["parent"] == messages[0]["id"]
-    [move] = owed(reading["activity"])
-    assert move["response"] == {
+    [move] = owed(reading)
+    assert move["response_address"] == {
         "kind": "reply",
         "to": messages[2]["id"],
         "for": messages[2]["id"],
@@ -4573,9 +5033,9 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
         for_event=chose["id"],
     )
     assert replied["responds"] == chose["id"]
-    after = state_json(page_dir)["activity"]
-    assert after["obligations"] == [newer["id"]]
-    assert owed(after)[0]["response"] == {
+    after = state_json(page_dir)
+    assert after["activity"]["obligations"] == [newer["id"]]
+    assert owed(after)[0]["response_address"] == {
         "kind": "reply",
         "to": newer["id"],
         "for": newer["id"],
@@ -4621,9 +5081,9 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     selecting = state_json(page_dir)
     assert [ask["source"] for ask in selecting["asks"]] == ["regions"]
     assert selecting["activity"]["obligations"] == []
-    [receipt] = selecting["activity"]["interactions"]
-    assert receipt["event"] == chose["id"]
-    assert receipt["requires_response"] is False
+    [workflow] = selecting["workflows"]
+    assert workflow["input"] == chose["id"]
+    assert workflow["requires_response"] is False
     receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -5566,7 +6026,7 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
     ]
     assert pickup["events"] == [comment["id"]]
     assert pickup["phase"] == "opened"
-    assert page_state(page_dir)["activity"]["obligations"][0]["phase"] == "picked_up"
+    assert page_state(page_dir)["activity"]["obligations"][0]["stage"] == "picked_up"
 
 
 def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
@@ -5608,7 +6068,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     for page in (page_dir, other):
         assert files_model.read_json(page / "cursor.json") == {"seq": 1}
         obligations = page_state(page)["activity"]["obligations"]
-        assert obligations[0]["phase"] == "picked_up"
+        assert obligations[0]["stage"] == "picked_up"
     assert page_state(other)["pending"] == 1
     assert (
         service_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
@@ -5688,7 +6148,7 @@ session.receive_delivery(os.environ["DELIVERY"])
             if event["kind"] == "pickup"
         ]
         assert pickup["phase"] == "opened"
-        assert page_state(page)["activity"]["obligations"][0]["phase"] == "picked_up"
+        assert page_state(page)["activity"]["obligations"][0]["stage"] == "picked_up"
     assert files_model.read_json(silent / "cursor.json") is None
 
 
@@ -7384,7 +7844,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         assert capsys.readouterr().out == ""
         assert [
-            item["phase"] for item in page_state(page)["activity"]["obligations"]
+            item["stage"] for item in page_state(page)["activity"]["obligations"]
         ] == ["picked_up"]
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
         reason = json.loads(capsys.readouterr().out)["reason"]
@@ -7803,7 +8263,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
         assert service_model.page_claim(page)["turn_closed"] == closed
         queued = page_state(page)["activity"]
         assert queued["kind"] == "working"
-        assert [item["phase"] for item in queued["obligations"]] == ["queued"]
+        assert [item["stage"] for item in queued["obligations"]] == ["queued"]
 
         session_model.cmd_status(page, "idle", "")
     finally:
@@ -10375,7 +10835,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     claim = service_model.page_claim(claimed)
     activity = page_state(claimed)["activity"]
     assert activity["kind"] == "working"
-    assert activity["obligations"][0]["phase"] == "picked_up"
+    assert activity["obligations"][0]["stage"] == "picked_up"
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
     assert activity["obligations"][0]["dropped"] is False
 

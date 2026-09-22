@@ -87,24 +87,30 @@ export function mountApplication(dependencies) {
   const approvalBlockingAsks = readApprovalBlockingAsks;
   const watchAsks = observeAsks;
 
-  const releasableActions = () =>
+  const releasableEntries = () =>
     ledger
       .snapshot()
       .filter(
         (entry) =>
           entry.answered &&
-          entry.event.kind === "action" &&
-          (entry.rejected || (entry.presented && entry.readEvent)),
+          (entry.rejected ||
+            (entry.event.kind === "action" && entry.presented && entry.readEvent)),
       );
 
   const releasePending = async () => {
-    const candidates = releasableActions();
+    const candidates = releasableEntries();
     if (!candidates.length) return false;
     const attempts = new Set(candidates.map((entry) => entry.event.attempt));
     const stillCurrent = () =>
-      releasableActions().some((entry) => attempts.has(entry.event.attempt));
+      releasableEntries().some((entry) => attempts.has(entry.event.attempt));
     await Promise.all([
-      whenWidgetsPresented([...new Set(candidates.map((entry) => entry.event.widget))]),
+      whenWidgetsPresented([
+        ...new Set(
+          candidates
+            .filter((entry) => entry.event.kind === "action")
+            .map((entry) => entry.event.widget),
+        ),
+      ]),
       whenApplicationRegionsPresented(
         ["projection:chrome", "conversation", "asks"],
         stillCurrent,
@@ -112,7 +118,7 @@ export function mountApplication(dependencies) {
     ]);
     // Waiting can cross a newer publication. Retire only the candidates selected
     // before the wait and only if their semantic settlement still permits release.
-    const released = releasableActions().filter((entry) =>
+    const released = releasableEntries().filter((entry) =>
       attempts.has(entry.event.attempt),
     );
     // Widget updates and the conversation, projection, and Ask owners have now committed

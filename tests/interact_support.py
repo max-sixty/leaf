@@ -638,14 +638,14 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def owed(activity):
-    """The interactions one agent-facing activity reading still owes an answer.
+def owed(state):
+    """The workflows one agent-facing state still owes an answer.
 
-    `obligations` names them by id, so this is the join an agent makes to reach a
-    move's phase, target, or response address.
+    `activity.obligations` names them by id, so this is the join an agent makes to
+    reach a move's stage, subject, or response address.
     """
-    standing = set(activity["obligations"])
-    return [item for item in activity["interactions"] if item["id"] in standing]
+    standing = set(state["activity"]["obligations"])
+    return [item for item in state["workflows"] if item["id"] in standing]
 
 
 # A question and the accept that answers it, written as a stored log holds them:

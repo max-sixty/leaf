@@ -956,7 +956,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./conversation/|\\./)identity\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./conversation/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Conversation readings depend only on pure record operations.",
             },
           ],

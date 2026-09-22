@@ -395,8 +395,7 @@ HEARTBEAT_PAGES = (
         id="corpus",
     ),
     # The gallery draws the margin entries the corpus has none of, and the writers that only
-    # run for those are watched nowhere else: a reading option under an entry holding
-    # several readings, and the readings whose move is made, which wear the `status`
+    # run for those are watched nowhere else: readings whose move is made wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
     # would overlap, so the push measurement is read here and nowhere else. Its docked
     # rows exercise the rail re-read; none changes posture during an unchanged refresh.
@@ -404,7 +403,6 @@ HEARTBEAT_PAGES = (
         FEATURE_GALLERY,
         {
             ".lf-margin-cluster": 10,
-            ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
         {"rail width", "row push"},
@@ -1507,8 +1505,8 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         "sent",
         "waiting for pickup",
         "queued",
-        "was working",
-        "picked up · turn ended",
+        "update stale",
+        "turn ended",
         "glyph face",
         "count badge",
         "picked up",
@@ -1565,7 +1563,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     resting = specimen("resting")
     picked_up = specimen("picked up")
     working = specimen("working")
-    was_working = specimen("was working")
+    stale = specimen("update stale")
     fallback = specimen("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
@@ -1595,17 +1593,15 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
-    expect(was_working).not_to_have_attribute(
-        "data-lf-agent-workflow", re.compile(".+")
-    )
-    expect(was_working.locator(".lf-margin-entry-icon")).to_have_attribute(
+    expect(stale).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(stale.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     for name, icon in (
         ("sent", "sent"),
         ("waiting for pickup", "waiting"),
         ("queued", "pickup"),
-        ("picked up · turn ended", "waiting"),
+        ("turn ended", "waiting"),
     ):
         status = specimen(name)
         expect(status).to_have_attribute("role", "status")
@@ -1637,8 +1633,8 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
             "Queued",
             "Picked up",
             "Working",
-            "Was working",
-            "Picked up · turn ended",
+            "Update stale",
+            "Turn ended",
             "Working · fallback",
             "Glyph face",
             "Count badge",
@@ -1765,10 +1761,10 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(save).to_have_attribute("data-lf-rank", "complete")
     expect(cancel_draft).to_have_attribute("data-lf-rank", "escape")
     cancel_draft.click()
-    waiting = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
-        "status", name=re.compile(r"^Waiting for pickup for ")
+    uncertain = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
+        "button", name=re.compile(r"^Edit bg-history")
     )
-    expect(waiting).to_have_attribute("data-lf-state", "idle")
+    expect(uncertain).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
 
     workflow = page.locator('[data-lf-margin-for="bg-margin-control-workflow"]')
     accept = workflow.get_by_role(
@@ -3066,14 +3062,17 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           const tones = ['neutral', 'positive', 'negative'];
           let currentState = 'idle';
-          let phase = null;
+          let stage = null;
           const registrations = tones.map((tone, index) =>
             registerMarginContribution({
               key: `tone-${tone}`, target: document.querySelector(`#${tone}-target`),
               read: () => ({entries: [marginEntry({
                 key: tone, icon: 'check', label: tone, tone, state: currentState,
-                disabled: currentState === 'busy', workflowReceipt: phase ? {
-                  id: `tone-${index}`, target: {kind: 'widget', id: `${tone}-target`}, phase
+                disabled: currentState === 'busy', workflowReceipt: stage ? {
+                  id: `tone-${index}`,
+                  subject: {kind: 'widget', id: `${tone}-target`},
+                  stage,
+                  condition: null,
                 } : null
               })]}), activate: () => {}
             })
@@ -3083,7 +3082,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             registrations.forEach(registration => registration.update({immediate: true}));
           };
           window.setToneReceiptPhase = next => {
-            phase = next;
+            stage = next;
             registrations.forEach(registration => registration.update({immediate: true}));
           };
         }"""
@@ -3144,7 +3143,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     assert {reading["icon"] for reading in picked_up} == {
         token_colour(page, "--ok-ink")
     }
-    page.evaluate("() => window.setToneReceiptPhase('active')")
+    page.evaluate("() => window.setToneReceiptPhase('working')")
     working = [button.evaluate(read) for button in buttons]
     assert [reading["shell"][1] for reading in working] == [
         ordinary[0]["shell"][1],
@@ -3751,7 +3750,9 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # A secondary entry can publish the same canonical workflow receipt.
     page.evaluate("""async () => {
       const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-      const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
+      const receipt = runtime.workflows.find(
+        item => item.stage === 'working' && !item.condition
+      );
       window.setAgentCancelReceipt(receipt);
     }""")
     cluster.locator(":scope > .lf-margin-more").click()
@@ -3768,27 +3769,12 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     working_thread = page.locator(".lf-thread").filter(
-        has=page.locator(".lf-receipt.is-working")
+        has=page.locator(".lf-thread-status", has_text="Working")
     )
     working_thread.locator(".lf-thread-summary").click()
-    receipt = page.locator(".lf-thread-panel .lf-receipt.is-working .lf-receipt-state")
-    expect(receipt).to_have_text(f"● Working — {detail}")
-    expect(receipt).to_have_attribute("title", f"● Working — {detail}")
-    expect(receipt).to_have_css("color", colors["--ok-ink"])
-    geometry = receipt.evaluate("""node => {
-      const style = getComputedStyle(node);
-      const box = node.getBoundingClientRect();
-      return {width: box.width, height: box.height, lineHeight: parseFloat(style.lineHeight),
-        overflow: node.scrollWidth > node.clientWidth, whiteSpace: style.whiteSpace,
-        textOverflow: style.textOverflow, right: box.right, viewport: innerWidth};
-    }""")
-    assert geometry["width"] > 0 and geometry["right"] <= geometry["viewport"], geometry
-    assert geometry["height"] <= geometry["lineHeight"] + 1, geometry
-    assert (
-        geometry["overflow"]
-        and geometry["whiteSpace"] == "nowrap"
-        and geometry["textOverflow"] == "ellipsis"
-    ), geometry
+    workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
+    expect(workflow).to_have_text("Working")
+    expect(workflow).to_have_attribute("title", f"Working · {detail}")
 
 
 def _margin_entry_paint(control):
@@ -4223,7 +4209,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     session_model.cmd_status(page_dir, "idle", "")
     told(page)
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
-    assert_status("Waiting for pickup", "Sent 3m ago")
+    assert_status("Waiting for pickup", "3m ago")
 
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
@@ -4287,7 +4273,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert working["role"] == "button"
     assert working["icon"] == "activity"
     assert working["word"] == "Working…"
-    assert working["context"] == "Checked in just now · checking the mounts"
+    assert working["context"] == "just now · checking the mounts"
     assert working["cursor"] == "pointer"
     assert working["opacity"] == "1"
     assert working["background"] != "rgba(0, 0, 0, 0)"

@@ -121,33 +121,35 @@ def cmd_delivery_claim(
 
     for page_dir, delivered_events in candidates:
         with PageTransaction(page_dir) as page:
-            activity = full_state(
+            state = full_state(
                 page_dir,
                 page.events,
                 stored_status=page.status,
-            )["activity"]
-            interactions = {
-                item.get("event"): item for item in activity["interactions"]
+            )
+            workflows = {
+                item.get("input"): item
+                for item in state["workflows"]
+                if item["requires_response"] or item["subject"]["kind"] == "widget"
             }
             event = next(
                 (
                     delivered
                     for delivered in delivered_events
-                    if delivered["id"] in interactions
+                    if delivered["id"] in workflows
                 ),
                 None,
             )
-            interaction = interactions.get(event["id"]) if event is not None else None
-            if interaction is None:
+            workflow = workflows.get(event["id"]) if event is not None else None
+            if workflow is None:
                 continue
-            target = interaction["target"]
+            target = workflow["subject"]
             handling = {
                 "target": target,
                 "event": event["id"],
                 "after": page.events[-1]["seq"] if page.events else 0,
             }
             if target["kind"] == "widget":
-                handling["revision"] = interaction.get("revision")
+                handling["revision"] = workflow.get("revision")
             page.set_status("working", detail, handling=handling, stated=stated)
             return (
                 f"working on {target['kind']} {target['id']} for event "

@@ -5130,7 +5130,7 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
 
 def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     """A covering panel locks the page scroller, so focus cannot honestly return to
-    that page while keeping the panel open. Escape closes Threads from its conversation."""
+    that page while keeping the panel open. Escape returns through the whole panel."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
@@ -5146,6 +5146,8 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     page.keyboard.press("p")
     expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -5932,6 +5934,9 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     ), "native focus order skipped the open conversation"
     header.focus()
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(card).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(card).to_have_attribute("open", "")
     page.locator(".lf-threads-toggle").click()
@@ -5975,6 +5980,9 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     expect(other.locator(":scope > .lf-thread-summary")).to_be_focused()
     search.fill("")
     header.click()
+    expect(editor).to_have_value("Keep this unfinished answer.")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     expect(editor).to_have_value("Keep this unfinished answer.")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()

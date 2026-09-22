@@ -1,193 +1,103 @@
 # Page storage
 
-A page directory holds:
-    index.html            mutable author document. The agent writes this and page/
-                         candidate inputs; Leaf owns the rest of the directory.
-                         The server validates it before activation and never serves
-                         it directly. An invalid save creates no revision, leaves the
-                         previous valid revision live, and exposes the diagnostic in
-                         page state and browser chrome.
-    revisions/rN-H.html  immutable valid-save marker, where N is activation order and
-                         H is the first 16 hexadecimal characters of the complete
-                         artifact-manifest digest. The sibling revisions/rN-H/
-                         directory captures index.html, manifest.json, the effective
-                         registry, page/ dependencies, media dependencies, and the
-                         selected runtime, theme, widgets, and vendor bytes. The bundle
-                         is durable before its marker appears. A change to any captured
-                         input becomes the next revision; an identical artifact reuses
-                         the existing one. The manifest also records an `executable`
-                         digest over the captured inputs an already-open document
-                         cannot re-evaluate: the widget vocabulary without its
-                         `$layer` stamp, every captured JavaScript module, and the
-                         authored inline module bodies. That stamp says where a
-                         layer was built rather than what it runs, and vendoring
-                         writes its generation into a captured module, so a
-                         re-vendor reaches the digest through the modules it
-                         replaced. Two revisions sharing the digest differ only in
-                         what a live document can be given, so a reader keeps their
-                         open document across the change. Beside it, `widgets`
-                         maps each declared widget in the authored main — by id,
-                         or by tag and place among the unnamed of that tag in
-                         document order, template content included — to a digest
-                         of its authored markup, taken from the parsed tree before
-                         delivery rewrites any address; a patch keeps a widget
-                         whose digest the arriving revision repeats and replaces
-                         every other one. A revision captured before either field
-                         existed records neither, and a document delivered from it
-                         states no executable identity, which is the reload path.
-                         The live root follows the active revision, and each
-                         revision is also served at its own address under the same
-                         delivery boundary as the root.
-                         All three addresses a page answers name the page root as
-                         their canonical, so a reader sent to any of them, and a
-                         crawler that finds all of them, are looking at one page.
-    /versions/v1.html…   virtual public addresses. Each `note` event maps a version to
-                         its immutable revision, and the server renders that revision
-                         at the stable version URL. No second HTML copy is stored in the
-                         durable page record. A static-site build may materialize the
-                         same responses beside a copied record as disposable delivery
-                         output; those files are never an authority. A pinned version
-                         therefore never moves while later source saves become live.
-    leaf.js              the browser entry, served at /leaf.js
-    theme.css            tokens, element styles, class idioms, element-widget CSS
-    shadow.css           the rules declared shadow trees also need; theme.css
-                         carries them too, ahead of each package's own rules
-    registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
-                         layer-wide facts under $ — $idioms, $languages, $keys (what
-                         each x- key means), and the page's vocabulary stamp ($events,
-                         x-state): the one statement of what this page's vendored
-                         runtime speaks. $layer keeps the reload-safety generation,
-                         stable content fingerprint, the identity of the kernel runtime
-                         it was vendored from, selected packages, and optional
-                         producer commit/dirty provenance
-    guidance/            package-owned guidance grouped by audience. Files with the
-                         same name concatenate in package order; `page guidance` reads
-                         any audience
-    icon.svg             the mark the tab wears, whose lf-tone element the runtime
-                         paints in whatever colour the banner's dot is wearing — so a
-                         reader with six leaves open sees which one wants them
-                         without opening any
-    runtime/             private browser owners plus the public widget-api.js module
-    widgets/             one ES module per upgraded widget (lf-tabs.js, lf-board.js)
-    vendor/              vendored third-party assets (sortable.esm.js, plot.esm.js),
-                         and whatever a selected package brings (agentic-mermaid.esm.js)
-    page/                mutable page-specific browser-ready modules, styles, assets,
-                         page/registry.json declarations, and page/widgets/ modules.
-                         These are candidate inputs only; delivery reads their captured
-                         revision copies, never these mutable files directly.
-    media/               images the page shows, each named by the hash of its bytes
-                         (`page media`). Not vendored — this is the page's content,
-                         not the layer's — but served the same way.
-                         Content-addressing is what lets content live here at all:
-                         a name means one set of bytes forever, so a revision the
-                         user approved cannot show them different pixels later,
-                         and two versions showing the same screenshot share one
-                         file rather than carrying a copy each. It is also the
-                         transport an image uses to enter a page. `page media`
-                         admits files chosen by the author; `/api/media` admits a
-                         bounded raster image pasted by the reader into a text box.
-                         Both meet at the same content-addressed write, and the
-                         pasted draft carries only Markdown pointing here.
-                         The page's author is a language model, and a screenshot is
-                         a megabyte of base64 it cannot type — nor should each version
-                         carry a copy that `version check` walks and a browser reloads.
-                         So the transport was never an optimisation over
-                         inlining; inlining was never available
-    events.jsonl         append-only event log; an event's seq is its line number (1-based)
-    data.json            explicit authority for page-bound sources: each record keeps
-                         its contract identity, may have a replaceable current value
-                         with the data revision that wrote it and the revision ids of
-                         earlier values without retaining those values,
-                         and may retain immutable captures selected by document
-                         versions or frozen threads. Initialized as the empty revision
-                         0 store. Agent page state names this file and its revision,
-                         joining selected values to their bound widget inputs.
-                         Browser state normally carries the
-                         validated values; for a contract-declared fragment field it
-                         carries only the surrounding manifest, and `/api/data` reads
-                         one keyed payload from this same revision on demand. No split
-                         payload becomes a second authority.
-    status.json          the agent's declared state: {"state": working|waiting|idle,
-                         "detail", "ts", "after"}; `after` is the exact event-log
-                         floor observed when the declaration was written;
-                         `"stated": false` marks a detail Leaf wrote for the agent,
-                         which a watched step outranks;
-                         detail is the finer grain the banner reads out after the
-                         state — what the agent is doing while working, what it
-                         needs from the reader while waiting;
-                         "work" holds typed, sequence-bounded claims on comment
-                         threads or page widgets; a thread claim records the
-                         unanswered source event when there is one. "handling"
-                         holds one exact event selected from an immutable delivery
-                         and admitted only while that reader move remains outstanding.
-                         At the state boundary, work records become canonical claim
-                         updates, while the interaction fold applies handling only to
-                         its exact receipt. Both appear beside the page-wide banner.
-                         An optional `stream` record holds the live Codex App Server
-                         readings, `activity`, `reply`, and `reply_bindings`, whose
-                         writers and lifetimes `session-lifetime.md`'s table states.
-                         A binding for a delivery that never reaches a provider turn
-                         neither commits nor fails, so its host gives the reservation
-                         up explicitly; until it does, the address it holds refuses
-                         the receipt that would tell the reader no answer is coming.
-                         Delivery pickup
-                         never writes this file; its queued/opened phase, session,
-                         and turn are page-owned evidence in events.jsonl
-    waiter.lock          bare-shell `leaf wait` lease, held open and locked for
-                         the command's life. A host session holds one lease at
-                         sessions/<id>.wait instead, because one wait watches all
-                         of that session's pages
-    viewed.json          when a browser last had the page visible, bumped
-                         (throttled) by the server while a visible tab's news
-                         stream stands; absent for a page nobody has ever viewed,
-                         which would otherwise be indistinguishable from one the
-                         user studied and left. Hidden tabs release their stream,
-                         so this is reader attention rather than tab lifetime
-    cursor.json          seq of the last user event acknowledged after the complete
-                         batch reached its next durable consumer — written by
-                         `leaf wait --ack`; a page-owned pickup event separately names
-                         the exact reader events accepted by that consumer.
-                         The seq is a position in this log: a fresh log starts
-                         without the cursor of the log it replaced, and a seq past
-                         the log's end reads as 0, since nothing the log holds now
-                         was acknowledged through it
-    preview.json         the whole record of a slot of the repository's live example
-                         preview, written only by the watcher that holds it. The
-                         server projects the named safe fields — example, checkout
-                         name, interaction (`reader` or `author`), start time, and
-                         optional commit/dirty state — into preview-only browser
-                         chrome, and nothing else: the rest is the watcher's own
-                         identity for the slot, including the absolute fixture and
-                         checkout paths it follows, and `url` and `note`, where the
-                         slot answers and what ends it, rewritten at every transition
-                         because a watcher that has detached is the only thing that
-                         knows either. The server serves neither this file nor a path
-                         out of it. Its presence is the one statement
-                         "this page is a preview, not a handoff", so the loop guard
-                         also reads it and asks no watcher of the page
-    service.json         {"host", "bind", "port", "enabled", "lifetime", "runtime"}:
-                         the durable desired service. It preserves the exact URL an
-                         open browser holds and whether a session may end it.
-                         A crash leaves it enabled so `leaf wait` can revive it;
-                         `server stop` disables it and leaves the address and
-                         lifetime ready for a later start. `runtime` identifies the
-                         payload path and its available Git provenance. The key in the
-                         URL is the machine's, not the page's, and lives in the state home
-    server.lock          a contentless live-server lease, locked for the process's
-                         whole life. The kernel releases it on a crash. A stop
-                         asks the server to exit through service.json and waits
-                         for this lease, so no listening or accepted socket
-                         remains when the command returns
-    claims/              outside the page, one atomic record per resolved page:
-                         its last claimant, release time, and the lifetime it
-                         rests on. `id` is the session, `agent` the display name
-                         it chose, and `harness` which agent host took the page.
-                         A later reader rebuilds that harness's declaration from
-                         the name and asks it how input reaches the session,
-                         rather than re-deriving one from its own environment,
-                         which need not be the claimant's.
-                         Keeping provenance outside the disposable page lets
-                         ownership discovery survive a page moving between sessions
+## Files
+
+The author writes `index.html` and `page/` candidate inputs. Leaf owns the
+other page files and the external state listed below.
+
+- `index.html` — mutable author document. The server validates it before activation and
+  never serves it directly. An invalid save creates no revision, leaves the previous
+  valid revision live, and exposes the diagnostic in page state and browser chrome.
+
+- `revisions/rN-H.html` — immutable valid-save marker; N is activation order and H is
+  the first 16 hex characters of the artifact-manifest digest. Its sibling
+  revisions/rN-H/ captures index.html, manifest.json, registry, and every dependency
+  needed to deliver that revision. The complete bundle is durable before the marker
+  appears. Identical artifacts reuse a revision; changed inputs create one. See
+  “Revision delivery” below for document replacement and widget retention.
+
+- `/versions/v1.html…` — virtual public addresses. Each `note` event maps a version to
+  its immutable revision, and the server renders that revision at the stable version
+  URL. No second HTML copy is stored in the durable page record. A static-site build may
+  materialize the same responses beside a copied record as disposable delivery output;
+  those files are never an authority. A pinned version therefore never moves while later
+  source saves become live.
+
+- `leaf.js` — the browser entry, served at /leaf.js
+
+- `theme.css` — tokens, element styles, class idioms, element-widget CSS
+
+- `shadow.css` — the rules declared shadow trees also need; theme.css carries them too,
+  ahead of each package's own rules
+
+- `registry.json` — effective widget schemas and layer metadata. Composition and
+  identity are defined in [layer-registry.md](layer-registry.md).
+
+- `guidance/` — package-owned guidance grouped by audience. Files with the same name
+  concatenate in package order; `page guidance` reads any audience
+
+- `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
+
+- `runtime/` — private browser owners plus the public widget-api.js module
+
+- `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
+
+- `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
+  selected package brings (agentic-mermaid.esm.js)
+
+- `page/` — mutable page-specific browser-ready modules, styles, assets,
+  page/registry.json declarations, and page/widgets/ modules. These are candidate inputs
+  only; delivery reads their captured revision copies, never these mutable files
+  directly.
+
+- `media/` — content-addressed page images, shared across revisions. `media.py` owns
+  ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
+  them with Markdown; a public filename always identifies the same bytes.
+
+- `events.jsonl` — append-only event log; an event's seq is its line number (1-based)
+
+- `data.json` — page-bound source contracts, replaceable current values, and immutable
+  captures; initialized at data revision 0. `data.py` owns storage and updates.
+  Fragment payloads served by `/api/data` come from this same store.
+
+- `status.json` — work declarations and transient delivery handling, observed activity,
+  and reply bindings. [session-lifetime.md](session-lifetime.md) owns their writers and
+  lifetimes; `conversation.py` owns response reservations and their release.
+
+- `waiter.lock` — bare-shell wait lease; host sessions instead use
+  `<state-home>/sessions/<id>.wait`. See [session-lifetime.md](session-lifetime.md).
+
+- `viewed.json` — last visible browser attention, written by the server and absent until
+  first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.
+
+- `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
+  log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
+
+- `preview.json` — watcher-owned preview identity and lifecycle, managed by
+  `scripts/preview.py`. The server exposes only preview chrome fields, never the file
+  or its private paths. Its presence exempts the page from the handoff's watcher guard.
+
+- `service.json` — desired server address, enabled state, lifetime, and runtime
+  provenance. `hosting.py` owns start/stop and revival;
+  [session-lifetime.md, “Lifetime”](session-lifetime.md#lifetime) owns the lifetime rule.
+  The URL's access key belongs to the machine's state home.
+
+- `server.lock` — process-held server lease. `hosting.py` waits for its release on stop,
+  after the server has closed its sockets.
+
+- `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
+  directory. [session-lifetime.md](session-lifetime.md) owns claimant identity,
+  release, harness, and lifetime.
+
+## Revision delivery
+
+The live root follows the active revision. Immutable revision and version
+addresses use the same delivery boundary, and all three advertise the page
+root as their canonical URL. The executable and widget digests in the revision
+manifest control document replacement and widget retention;
+`revision_artifact.py` owns their inputs and construction.
+
+## Page state
 
 `leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
@@ -196,12 +106,10 @@ fingerprint, kernel runtime identity, packages, and producer;
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data.file` always names a readable JSON store.
 `active.executable`, shared with `/api/state`, gives the active revision's
-executable digest (`null` for a revision captured before it was recorded), and a
-delivered document repeats it as `<meta name="lf-executable">` when it has one,
-so a reader's own document can tell whether a later revision needs a fresh one.
-`event_seq`
-is the last event folded into the snapshot and can be passed to `leaf events
---after`; it is distinct from the acknowledgement cursor.
+nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
+digest is available; `../../assets/runtime/version.js` owns the resulting install choice.
+`event_seq` is the last event folded into the snapshot and can be passed to
+`leaf events --after`; it is distinct from the acknowledgement cursor.
 
 `content` joins the authored tree with standing state and declared data inputs.
 It includes ordinary HTML and content in disclosures or inactive tabs. An authored node

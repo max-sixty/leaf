@@ -146,6 +146,5 @@ second Leaf interface and understated what the complete route can carry.
 Both modes persist reader gestures before reporting success. Neither calls
 `ui/message` to claim delivery or advances the event cursor from an MCP response:
 the host may accept that JSON-RPC request without starting or durably queueing a
-turn. `leaf codex start <page>` remains the authoritative return carrier. Its
-detached adapter waits on the same log, queues an exact persisted batch into the
-same Codex task, and acknowledges only after durable queue acceptance.
+turn. `leaf codex start <page>` supplies the return carrier described in
+[session-lifetime.md, "Carriers"](session-lifetime.md#carriers).

@@ -1,7 +1,7 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
 import { JUST_NOW, ago, clocked } from "./presence.js";
-import { el, reserve } from "./widget-elements.js";
+import { el, offer, reserve } from "./widget-elements.js";
 import { agentName, runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -229,7 +229,21 @@ const presentStatus = ({
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.
 // The shelf still owns and measures it with every other control.
+function copyControl(trigger, success, error) {
+  const copy = offer("wa-copy-button", "lf-banner-copy");
+  copy.successLabel = success;
+  copy.errorLabel = error;
+  copy.tooltip = "none";
+  // Web Awesome announces the result; Leaf puts the same words in its status line.
+  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
+  copy.addEventListener("wa-error", () => notice(error, { announce: false }));
+  copy.append(trigger);
+  copy.updateComplete.then(reserveBannerControls);
+  return copy;
+}
+
 let previewMarginEntry = null;
+let previewMarginEntryCopy = null;
 // A checkout goes dirty and clean again while a developer works, so the chip holds the
 // wider of its two spellings for the page's life rather than growing a character under
 // the reader's pointer. Renewed with the row's other reservations at a breakpoint.
@@ -267,22 +281,22 @@ function renderPreview(state) {
     previewMarginEntry = el("button", "lf-btn lf-preview", label);
     previewMarginEntry.type = "button";
     previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
-    previewMarginEntry.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(previewDiagnostics);
-        notice("Copied preview diagnostics");
-      } catch (_error) {
-        notice("Couldn't copy preview diagnostics");
-      }
-    });
+    previewMarginEntryCopy = copyControl(
+      previewMarginEntry,
+      "Copied preview diagnostics",
+      "Couldn't copy preview diagnostics",
+    );
     registerBannerControl({
       key: "preview",
-      control: previewMarginEntry,
+      control: previewMarginEntryCopy,
+      focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
       alwaysFolded: true,
     });
     reserveBannerControls();
   }
+  previewMarginEntryCopy.value = previewDiagnostics;
+  previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
   previewMarginEntry.textContent = label;
   previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
@@ -292,6 +306,7 @@ function renderPreview(state) {
 // `page init` rather than a live package or server version. Pages built outside Git
 // retain a stable identity through the composed layer fingerprint.
 let layerReferenceElement = null;
+let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
   if (state.preview) return;
@@ -318,21 +333,21 @@ function renderLayerReference(state) {
   if (!layerReferenceElement) {
     layerReferenceElement = el("button", "lf-btn lf-layer-reference");
     layerReferenceElement.type = "button";
-    layerReferenceElement.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(layerDiagnostics);
-        notice("Copied Leaf version");
-      } catch (_error) {
-        notice("Couldn't copy Leaf version");
-      }
-    });
+    layerReferenceElementCopy = copyControl(
+      layerReferenceElement,
+      "Copied Leaf version",
+      "Couldn't copy Leaf version",
+    );
     registerBannerControl({
       key: "layer",
-      control: layerReferenceElement,
+      control: layerReferenceElementCopy,
+      focusTarget: layerReferenceElement,
       rank: BANNER_CONTROL_RANK.layer,
       alwaysFolded: true,
     });
   }
+  layerReferenceElementCopy.value = layerDiagnostics;
+  layerReferenceElementCopy.copyLabel = `Leaf ${identity} · copy version`;
   layerReferenceElement.replaceChildren(
     "Leaf ",
     el("code", "lf-layer-version", identity),
@@ -424,6 +439,7 @@ function statusWords({
 // The public website support handle is available on demand with the banner's other
 // low-frequency controls. It does not compete with the page's live status sentence.
 let sessionReferenceElement = null;
+let sessionReferenceElementCopy = null;
 let sessionReferenceLabel = "";
 function renderSessionReference() {
   const reference = runtime.sessionReference;
@@ -436,21 +452,21 @@ function renderSessionReference() {
       sessionReferenceLabel,
     );
     sessionReferenceElement.type = "button";
-    sessionReferenceElement.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(runtime.sessionReference);
-        notice("Copied session reference");
-      } catch (_error) {
-        notice("Couldn't copy session reference");
-      }
-    });
+    sessionReferenceElementCopy = copyControl(
+      sessionReferenceElement,
+      "Copied session reference",
+      "Couldn't copy session reference",
+    );
     registerBannerControl({
       key: "session",
-      control: sessionReferenceElement,
+      control: sessionReferenceElementCopy,
+      focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       alwaysFolded: true,
     });
   }
+  sessionReferenceElementCopy.value = runtime.sessionReference;
+  sessionReferenceElementCopy.copyLabel = `${sessionReferenceLabel} · copy reference`;
   sessionReferenceElement.textContent = sessionReferenceLabel;
   sessionReferenceElement.setAttribute(
     "aria-label",

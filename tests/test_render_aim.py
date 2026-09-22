@@ -1675,10 +1675,12 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(panel_reply).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     # Escape takes off one level a press, from where the send left the reader: the
-    # reply box hands them to its thread, the panel hands them to the page, and the
-    # mode they put on before any of it comes off last.
+    # reply box hands them to its thread, the thread to the whole panel, the panel to
+    # the page, and the mode they put on before any of it comes off last.
     page.keyboard.press("Escape")
     expect(panel.locator(".lf-thread > .lf-thread-summary")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_be_focused()
@@ -1855,10 +1857,12 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator(".lf-thread textarea")).to_be_focused()
     # The send opened Threads on the new thread, the card being withheld in the mode,
-    # and left the reader in its reply box: the box hands them to the thread, then the
-    # panel returns to the page.
+    # and left the reader in its reply box: the box hands them to the thread, the
+    # thread to the whole panel, and the panel back to the page.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-summary").first).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator("body")).to_be_focused()
@@ -2911,4 +2915,100 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
     expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
     assert page.evaluate(at_pointer, on_item) == "auto", (
         "the key came up and the page went on offering the aim's press"
+    )
+
+
+@pytest.mark.parametrize("edge", ["top", "bottom"])
+def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
+    """A phone selection near either viewport edge stays readable.
+
+    WebKit emulation supplies a Selection without the native iOS long-press menu;
+    this proves Leaf's own field does not obscure the selected line.
+    """
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Tall phone passage",
+                '<div style="height: 100vh"></div><p id="passage">'
+                + " ".join(f"Sentence {n} keeps its words readable." for n in range(90))
+                + '</p><div style="height: 100vh"></div>',
+            )
+        ),
+        context=iphone,
+    )
+    page.locator("#passage").evaluate(
+        """(paragraph, edge) => {
+      const range = document.createRange();
+      range.setStart(paragraph.firstChild, 1500);
+      range.setEnd(paragraph.firstChild, 1525);
+      const box = range.getBoundingClientRect();
+      scrollTo(0, scrollY + box.top - (edge === 'top' ? 65 : innerHeight - 70));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""",
+        edge,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_hidden()
+    page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
+    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    expect(field).to_be_focused()
+    page.evaluate(RENDERED)
+    geometry = page.evaluate("""() => {
+      const quote = window.phoneQuote.getBoundingClientRect();
+      const field = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+      return {quote: quote.toJSON(), field: field.toJSON(), height: innerHeight};
+    }""")
+    quote, bar = geometry["quote"], geometry["field"]
+    assert bar["bottom"] <= quote["top"] or bar["top"] >= quote["bottom"], geometry
+    assert bar["top"] >= 0 and bar["bottom"] <= geometry["height"], geometry
+
+
+def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
+    """A real browser zoom shrinks the visible viewport without changing layout.
+
+    A software keyboard also reduces that viewport, but this emulation does not
+    claim to reproduce the keyboard or native selection menu.
+    """
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Visible comment",
+                '<p id="passage">Words to comment on.</p><div style="height: 150vh"></div>',
+            )
+        ),
+        context=context,
+    )
+    page.locator("#passage").evaluate("""paragraph => {
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }""")
+    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    session = context.new_cdp_session(page)
+    session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})
+    page.wait_for_function("visualViewport.scale === 1.25")
+    page.evaluate(RENDERED)
+    box = page.locator(".lf-fab-bar").bounding_box()
+    viewport = page.evaluate(
+        "({left: visualViewport.offsetLeft, top: visualViewport.offsetTop, width: visualViewport.width, height: visualViewport.height})"
+    )
+    assert box["x"] >= viewport["left"], (box, viewport)
+    assert box["x"] + box["width"] <= viewport["left"] + viewport["width"], (
+        box,
+        viewport,
+    )
+    assert box["y"] >= viewport["top"], (box, viewport)
+    assert box["y"] + box["height"] <= viewport["top"] + viewport["height"], (
+        box,
+        viewport,
     )

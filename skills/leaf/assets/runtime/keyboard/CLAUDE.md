@@ -67,7 +67,8 @@ through it: it gets the same unwind, and is owed no return to the control it lan
 The levels, from the floor up:
 
 1. **The document** — the reader's position in the authored page, and the destinations
-   they can stand on. This is the floor; Escape's job ends here.
+   they can stand on. This is the floor. In an entered live specimen, one further
+   Escape returns to its containing page through the specimen host.
 2. **A page mode**: Draw, Design. A mode is the stance the whole page is in rather than
    something standing on part of it, so everything else the reader puts up while one
    holds is put up inside it, and the mode is the last thing off before the document.
@@ -114,13 +115,20 @@ Standing on a destination on the page — a conversation, an Ask or a heading �
 step of its own, whatever put the reader there: letting go lands them on the document,
 and it is an inner step because standing is the newest thing they did.
 
-The thread panel is one surface. Its titles and open conversations are content of that
-surface, so accordion disclosure does not add an Escape level: after a reply box or
-narrowing is gone, Escape closes Threads from either a title or a conversation. Native
-focus order moves from a title through its open conversation; Enter/Space toggles it. The
-semantic thread walk opens its conversation directly, whether that conversation is on
-the page or requires Threads. `g T` is the route to the list itself. Comment enters the
-reply box even from a collapsed title.
+The thread panel has two selection levels: the whole panel, reached by `g T`, and
+one thread, reached by the semantic thread walk or by focus inside that thread.
+Escape from a thread returns to the whole panel, preserving disclosure and drafts;
+a reply box first returns to its thread. There is no separate title-selection level:
+a title and its conversation select the same thread. At the whole-panel level,
+Escape removes narrowing, then closes the panel. Native focus order moves from a
+title through its open conversation; Enter/Space toggles disclosure. Comment enters
+the reply box even from a collapsed title.
+
+TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy. It can jump
+directly to a page thread, bypassing both panel selection levels. Keep this aberration
+for now; find a route that avoids the skipped levels without making page threads
+harder to reach. A thread that requires the panel also opens directly with `t`, but
+unwinds through whole-panel selection regardless of how it was reached.
 
 What this gives up, each a rule the reader can learn: a surface they already had open
 closes on the way out, because no state distinguishes one this press opened from one it

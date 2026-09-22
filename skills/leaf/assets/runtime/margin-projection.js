@@ -86,7 +86,6 @@ import {
   readingState,
   readingBehavior,
   awaitingReader,
-  TURN_WORD,
   readingContext,
   clusterProjection,
   marginInventory,
@@ -117,9 +116,9 @@ import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
-import { agentWorkflowStage, updateSequence } from "./updates.js";
+import { updateSequence } from "./updates.js";
 import { threadList } from "./conversation/state.js";
-import { awaitsReader, threadKey } from "./conversation/model.js";
+import { threadKey } from "./conversation/model.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -133,6 +132,14 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
+import {
+  isLiveWorkflow,
+  isPageWidgetWorkflow,
+  isWorkflowProgress,
+  strongestWorkflow,
+  threadAttention,
+  workflowLabel,
+} from "./conversation/workflow.js";
 
 // Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
 // posture on `main` where it claims the rail, and this reads that answer rather than
@@ -261,7 +268,7 @@ export function createMarginProjection({
     return snapshot;
   }
 
-  const acknowledgments = () => runtime.activity?.interactions ?? [];
+  const workflows = () => runtime.workflows;
   const renderMargin = clocked(document.body, renderNow);
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -493,15 +500,11 @@ export function createMarginProjection({
   let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
   const workflowReceipt = (items) =>
-    items
-      .map((item) => item.workflowReceipt)
-      .filter((receipt) =>
-        ["picked_up", "working"].includes(agentWorkflowStage(receipt)),
-      )
-      .sort(
-        (left, right) =>
-          (left.phase === "active" ? 0 : 1) - (right.phase === "active" ? 0 : 1),
-      )[0] ?? null;
+    strongestWorkflow(
+      items
+        .map((item) => item.workflowReceipt)
+        .filter((workflow) => workflow && isWorkflowProgress(workflow)),
+    );
   const rows = new Map();
   const rowTops = new WeakMap();
   const moreMarginEntries = new Map();
@@ -786,41 +789,30 @@ export function createMarginProjection({
     group.items.push(item);
   }
 
-  function visibleAcknowledgments() {
-    return acknowledgments().filter(
-      (projected) => projected.revision <= runtime.currentRevision,
+  function visibleWidgetWorkflows() {
+    return workflows().filter((workflow) =>
+      isPageWidgetWorkflow(workflow, runtime.currentRevision),
     );
   }
 
   function agentWorkflowFace(receipt) {
-    const age = ago(receipt.ts);
-    const workflowStage = agentWorkflowStage(receipt);
-    if (["working", "was_working"].includes(workflowStage)) {
-      const state = workflowStage === "was_working" ? `Was working ${age}` : "Working";
-      return {
-        kind: "activity",
-        text: [state, receipt.detail].filter(Boolean).join(" · "),
-        context: [age && `Checked in ${age}`, receipt.detail]
-          .filter(Boolean)
-          .join(" · "),
-      };
-    }
-    if (workflowStage === "queued")
-      return { kind: "pickup", text: "Queued", context: age };
-    if (["picked_up", "picked_up_ended"].includes(workflowStage))
-      return {
-        kind: workflowStage === "picked_up_ended" ? "waiting" : "pickup",
-        text:
-          workflowStage === "picked_up_ended" ? "Picked up · turn ended" : "Picked up",
-        context: age,
-      };
-    if (workflowStage === "waiting")
-      return {
-        kind: "waiting",
-        text: "Waiting for pickup",
-        context: age && `Sent ${age}`,
-      };
-    return { kind: "sent", text: "Sent", context: age };
+    if (!receipt) return null;
+    const label = workflowLabel(receipt);
+    if (!label) return null;
+    return {
+      kind:
+        receipt.next_actor === "reader" || receipt.condition
+          ? "waiting"
+          : ["working", "replying"].includes(receipt.stage)
+            ? "activity"
+            : receipt.stage === "picked_up"
+              ? "pickup"
+              : "sent",
+      text: label,
+      context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail]
+        .filter(Boolean)
+        .join(" · "),
+    };
   }
 
   const marginThreadItem = (thread) => (thread ? `comment:${threadKey(thread)}` : null);
@@ -828,17 +820,12 @@ export function createMarginProjection({
   function collectEntries() {
     const groups = new Map();
     const receiptByCoordinate = new Map();
-    for (const receipt of visibleAcknowledgments()) {
-      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
-    }
-    const threadReceipts = new Map();
-    for (const receipt of visibleAcknowledgments()) {
-      if (receipt.target.kind !== "thread") continue;
-      const previous = threadReceipts.get(receipt.target.id);
-      threadReceipts.set(
-        receipt.target.id,
-        workflowReceipt([{ workflowReceipt: previous }, { workflowReceipt: receipt }]),
-      );
+    for (const receipt of visibleWidgetWorkflows()) {
+      const coordinate =
+        typeof receipt.coordinate === "string"
+          ? receipt.coordinate
+          : JSON.stringify(receipt.coordinate);
+      receiptByCoordinate.set(coordinate, receipt);
     }
     const representedThreads = new Set();
     for (const thread of threadList()) {
@@ -846,7 +833,8 @@ export function createMarginProjection({
       const id = thread.root.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
-      const onReader = awaitsReader(thread);
+      const attention = threadAttention(thread);
+      const onReader = attention?.kind === "needs_reader";
       add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
@@ -858,15 +846,21 @@ export function createMarginProjection({
           thread.root.text || anchorLabel(thread.anchor, thread.root.about),
         ),
         thread,
-        // Whose word this conversation waits on, read from the server's projection
-        // rather than derived again here: the banner's count, the panel's On-you facet
-        // and this margin entry are one question, and a second reading of it in the
-        // margin would be a second answer.
-        awaitsReader: onReader,
+        // The Thread record already combines server attention with the local workflow
+        // overlay. Margin and Page Map carry that reading rather than deriving another
+        // answer from raw turn or workflow fields.
+        readerAttention: onReader
+          ? {
+              label: attention.label,
+              reason: thread.attention?.reason ?? "workflow",
+            }
+          : null,
         // Page Map lists each conversation on its own row, so the word goes on the row
         // rather than on an aggregate.
-        ...(onReader ? { mapContext: TURN_WORD } : {}),
-        workflowReceipt: threadReceipts.get(id),
+        ...(onReader ? { mapContext: attention.label } : {}),
+        // Work decorates the conversation control; it never replaces the control's
+        // comment face or its disclosure action.
+        workflowReceipt: onReader ? null : attention?.workflow,
         activate: () => showThread(id),
       });
     }
@@ -915,9 +909,9 @@ export function createMarginProjection({
       });
     }
     const claimActivity = new Map(
-      acknowledgments()
-        .filter((item) => item.phase === "active")
-        .map((item) => [`${item.target.kind}:${item.target.id}`, item]),
+      workflows()
+        .filter(isLiveWorkflow)
+        .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
     );
     const activityAlreadyShown = new Set();
     for (const [coordinate, entry] of projection.desired) {
@@ -934,8 +928,9 @@ export function createMarginProjection({
         .filter(Boolean)
         .join(" · ");
       const face = agentWorkflowFace(receipt);
+      if (!face) continue;
       if (face.kind === "activity")
-        activityAlreadyShown.add(`widget:${receipt.target.id}`);
+        activityAlreadyShown.add(`widget:${receipt.subject.id}`);
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
@@ -1171,7 +1166,10 @@ export function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${awaitingReader(choice?.items ?? []) ? `, ${TURN_WORD}` : ""}`;
+    const readerContext = awaitingReader(choice?.items ?? [])
+      ? readingContext(choice)
+      : null;
+    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${readerContext ? `, ${readerContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
@@ -1578,13 +1576,14 @@ export function createMarginProjection({
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
+    const readerContext = awaitingReader(choice.items) ? readingContext(choice) : null;
     presentMarginEntry(
       node,
       marginEntry({
         key: `reading:${choice.key}`,
         icon: face.icon,
         label,
-        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${awaitingReader(choice.items) ? `, ${TURN_WORD}` : ""}`,
+        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${readerContext ? `, ${readerContext}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",

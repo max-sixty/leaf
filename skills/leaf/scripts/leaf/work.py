@@ -3,7 +3,6 @@
 import sys
 from pathlib import Path
 
-from .acknowledgments import page_action_unsettled
 from .asks import asking, quoted_in, replayed_attrs
 from .events import awaits_agent, build_threads, note_settlements, spoken_turns
 from .files import latest_revision
@@ -16,6 +15,7 @@ from .projection import (
 )
 from .registry.storage import require_registry
 from .structure import parse_revision
+from .workflows import page_action_unsettled
 
 
 def standing_work_claims(status: dict, events: list) -> list:

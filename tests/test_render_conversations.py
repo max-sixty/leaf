@@ -151,6 +151,75 @@ def append_agent_reply(page_dir, parent, text, markup=None):
     return events_model.append_event(page_dir, event)
 
 
+def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
+    browser, serve, request
+):
+    """The answer the log holds is what the panel draws, not the draft it replaced.
+
+    `publish-site` failed on a deployed turn that published its revision and replied:
+    the container held the answer, every server reading returned it, and the reader's
+    panel showed one agent bubble with no words in it. The provisional reply was
+    retired by the response address it was sent to, while every consumer keys the
+    message on the delivery attempt it was reserved under, so an answer that named
+    only the attempt stood beside its own placeholder under one key and the draft is
+    what got drawn.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
+    claim = record_claim(
+        serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
+    )
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    attempt = service_model.delivery_reply_attempt("delivery-1")
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_stream_reply(
+            "codex-thread",
+            "leaf-turn",
+            root,
+            root,
+            attempt,
+            None,
+            "",
+            "active",
+        )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(
+        page.locator(f'.lf-msg[data-attempt="{attempt}"] .lf-msg-text')
+    ).to_be_empty()
+
+    # An answer that names the attempt it was reserved under and nothing else. The
+    # attempt is the identity the placeholder was opened on and the one the panel
+    # draws by, so this is the whole of what says the draft is finished.
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "codex-thread",
+            "parent": root,
+            "revision": 1,
+            "attempt": attempt,
+            "text": "deployment verified",
+        },
+    )
+    assert "responds" not in reply
+    told(page)
+
+    answered = page.locator(f'.lf-msg[data-attempt="{attempt}"]')
+    expect(answered).to_have_count(1)
+    expect(answered).to_have_attribute("data-mid", reply["id"])
+    expect(answered.locator(".lf-msg-text")).to_have_text("deployment verified")
+
+
 def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, request):
     """One retained message gains its durable prose and validated authored island.
 
@@ -856,23 +925,18 @@ def test_a_card_repaint_keeps_the_reader_on_the_control_they_reached(browser, se
               this.matches?.('.lf-margin-preview-list') &&
               node.matches?.('.lf-margin-thread')
             ) {
-              const receipt = node.querySelector('.lf-receipt');
-              window.__lfDetachedReceipt = receipt && {
-                phase: receipt.dataset.lfPhase,
-                state: receipt.querySelector(':scope > .lf-receipt-state')?.textContent,
-                live: receipt.querySelector(':scope > .lf-receipt-live')?.textContent,
-              };
+                  window.__lfDetachedThread = Boolean(
+                    node.querySelector('.lf-conversation-thread')
+                  );
             }
             return insertBefore.call(this, node, before);
           };
         }"""
     )
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-    assert page.evaluate("() => window.__lfDetachedReceipt") == {
-        "phase": "sent",
-        "state": "✓ Sent",
-        "live": "✓ Sent",
-    }, "the detached margin card reached display before its receipt rendered"
+    assert page.evaluate("() => window.__lfDetachedThread"), (
+        "the detached margin card reached display before its conversation rendered"
+    )
     resolve = page.locator(".lf-margin-thread").get_by_role(
         "button", name="Resolve thread", exact=True
     )
@@ -1618,7 +1682,9 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-receipt')).to_have_count(1)
+    expect(
+        page.locator(f'.lf-thread[data-id="{source}"] .lf-thread-status')
+    ).to_have_text("Working")
     after = target_card.evaluate("el => el.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=1), (
         f"the work claim moved the later card from {before:.1f}px to {after:.1f}px"
@@ -1649,9 +1715,9 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
-    receipt = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-receipt')
-    expect(receipt).to_contain_text("Sent")
-    assert receipt.evaluate(
+    workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
+    expect(workflow).to_have_text("Sent")
+    assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"
@@ -3048,7 +3114,21 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{asked}"]'))
     reply = page.locator(f'.lf-thread[data-id="{asked}"] textarea')
     reply.fill("SQLite should own it.")
-    page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
+    holding(page, held, 1, "the answer to the prose Ask")
+    expect(
+        page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
+    ).to_have_text("Sending")
+    expect(page.locator('[data-filter-value="reader"]')).to_have_text("You (0)")
+    expect(page.locator('[data-filter-value="reader"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    held.pop().continue_()
+    page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("You (0)")
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
@@ -3105,6 +3185,12 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     real = page.locator(f'#cd-q .lf-conversation-msg[data-event="{answer["id"]}"]')
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
+    # The server settled its turn, so raw awaits_reader is false. Canonical recovery
+    # attention still owns the aggregated margin reading and keeps its exact label.
+    margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
+    expect(margin).to_have_attribute("data-lf-turn", "reader")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Not answered")
+
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
@@ -3114,6 +3200,34 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
+
+    # Recovery attention is the reader filter's authority even though the settled
+    # server turn does not carry raw awaits_reader. A held resend hands the thread to
+    # Sending immediately; refusal restores the same recovery and draft.
+    page.locator(".lf-thread-filter-toggle").click()
+    recovery = page.locator('[data-filter-value="reader"]')
+    expect(recovery).to_be_enabled()
+    recovery.click()
+    expect(page.locator(f'.lf-thread[data-id="{unanswered["id"]}"]')).to_be_visible()
+    page.locator('[data-filter-value="open"]').click()
+    card = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    draft = card.locator("textarea")
+    draft.fill("Try the south pair again.")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        card.get_by_role("button", name="Send", exact=True).click()
+    holding(page, held, 1, "the recovery resend")
+    expect(status).to_have_text("Sending")
+    expect(recovery).to_have_text("You (0)")
+    expect(recovery).to_have_attribute("aria-pressed", "true")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    expect(status).to_have_text("Not answered")
+    expect(recovery).to_have_text("You (1)")
+    expect(recovery).to_be_enabled()
+    expect(draft).to_have_value("Try the south pair again.")
+    page.unroute("**/api/event")
 
     # And it is dressed rather than bare: an unmarked span among a head of muted
     # metadata would be the same invisibility in another shape.
@@ -3288,10 +3402,8 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         ).to_be_focused()
 
 
-def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
-    browser, serve
-):
-    """New messages reconcile before the resolved thread's persistent actions."""
+def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
+    """New spoken content returns to Open Threads, including after a reload."""
     url = serve(LONG_PAGE, comments=1)
     root = next(
         event
@@ -3303,8 +3415,8 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
+    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    expect(thread).to_be_hidden()
     events_model.append_event(
         serve.page_dir,
         {
@@ -3312,18 +3424,19 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
             "author": "agent",
             "revision": 1,
             "parent": root["id"],
+            "responds": root["id"],
             "text": "This arrived after resolution.",
         },
     )
     told(page)
-
-    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]:not([hidden])')
-    expect(thread.locator(":scope > .lf-msg")).to_have_count(2)
-    assert thread.evaluate(
-        """node => [...node.querySelectorAll(':scope > .lf-msg')].every(message =>
-          message.compareDocumentPosition(node.querySelector('.lf-thread-actions'))
-            & Node.DOCUMENT_POSITION_FOLLOWING)"""
-    ), "the late reply landed below Reopen"
+    expect(thread).to_be_visible()
+    thread.locator(".lf-thread-summary").press("Enter")
+    expect(thread.locator(".lf-msg.agent")).to_be_visible()
+    expect(thread.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
+    page.reload()
+    told(page)
+    expect(thread).to_be_visible()
+    expect(thread).to_have_attribute("data-resolved", "false")
 
 
 def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
@@ -6197,3 +6310,45 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
         "Keep this unfinished answer.",
     )
     assert not take_browser_errors(page)
+
+
+def test_agent_titles_update_without_losing_the_readers_draft(browser, serve):
+    url = serve(PANEL_PAGE)
+    opening = "I was wondering which space would be easier for everyone to find."
+    root = panel_comment(serve.page_dir, opening, {"section": "h-how"})
+    other = panel_comment(serve.page_dir, "Keep the filter rows compact.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-topic")).to_have_text(opening)
+    focus_panel_thread(thread)
+    editor = thread.locator("textarea")
+    editor.fill("Keep this unfinished reply")
+    for title in ("Workshop venue", "Terrace accessibility"):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "conversation",
+                "title",
+                str(serve.page_dir),
+                root,
+                "--text",
+                title,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        told(page)
+        expect(thread.locator(".lf-thread-topic")).to_have_text(title)
+        expect(editor).to_have_value("Keep this unfinished reply")
+        expect(thread.get_by_text(opening, exact=True)).to_be_visible()
+    find = page.get_by_role("searchbox", name="Find in threads")
+    find.fill("Terrace accessibility")
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{other}"]')).to_be_hidden()
+    expect(thread).to_be_visible()
+    find.fill("")
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{other}"]')).to_be_visible()
+    page.reload()
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{root}"] .lf-thread-topic')
+    ).to_have_text("Terrace accessibility")

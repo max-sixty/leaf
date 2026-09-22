@@ -183,11 +183,26 @@
       const visible = sessionStorage.getItem(visibleReplyAtKey);
       return visible === null ? null : Number(visible);
     },
+    // What a reply the container holds and the panel never drew has to say for the next
+    // reader. The page already paints the facts that separate the ways it can happen —
+    // the reading it last applied, the reads it has issued and heard, and the identity
+    // each message carries — so the probe reports them beside the DOM snapshot instead
+    // of leaving a snapshot that fits every cause equally.
     visibleReplyDebug() {
       return {
-        panel: document.querySelector(".lf-thread-panel")?.checkVisibility(),
+        panel: document.querySelector(".lf-thread-panel")?.checkVisibility() ?? null,
+        visibility: document.visibilityState,
+        presented: document.body.hasAttribute("data-lf-presented"),
+        reading: document.body.dataset.lfReading ?? null,
+        traffic: document.documentElement.dataset.lfTraffic ?? null,
+        revision: document.querySelector('meta[name="lf-revision"]')?.content ?? null,
+        status: document.querySelector(".lf-status-text")?.textContent?.trim() || null,
         messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
-          author: [...node.classList],
+          classes: [...node.classList],
+          mid: node.dataset.mid ?? null,
+          attempt: node.dataset.attempt ?? null,
+          stream: node.dataset.streamState ?? null,
+          busy: node.hasAttribute("aria-busy"),
           hasText: Boolean(node.querySelector(".lf-msg-text")?.textContent.trim()),
           visible: node.checkVisibility(),
         })),

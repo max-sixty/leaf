@@ -91,6 +91,7 @@ const threadWords = (thread, threadGroup) =>
   [
     anchorLabel(thread.detached_from ?? thread.anchor, thread.root.about),
     threadGroup.label,
+    thread.title,
     ...thread.msgs.map(messageWords),
     ...(thread.summaries ?? []).map((summary) => summary.text),
   ]

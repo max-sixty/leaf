@@ -18,6 +18,19 @@ cross-boundary text instead of creating a detached comment. It prints the id of
 the thread it opened, which `leaf status --on`, `leaf edit --to`, and
 `leaf resolve --to` take.
 
+Give a conversation a short, descriptive title when you open it or first handle
+the reader's thread. Choose a few words that identify its subject in the thread
+panel. Keep the title stable; rename it only when it no longer describes the
+discussion.
+
+```bash
+leaf conversation title <page> <conversation-id> --text "Afternoon workshop"
+```
+
+The conversation id is its opening comment's id. Titles are plain text, at most
+80 characters. The same command sets or replaces the title without changing
+messages or adding a conversational turn.
+
 Use `--markup` for a small question: an `lf-ask` containing one heading and
 its `lf-options` group. Thread markup is frozen in the log and has no revision
 boundary: every immutable historical document shows the same markup. It must
@@ -75,10 +88,11 @@ With one reply obligation in the current turn's opened delivery, Leaf infers its
 and address. When that delivery contains several, select one with `--for <event-id>`;
 Leaf derives its response address and rechecks both against current state, so a response
 captured before a newer reader correction cannot settle the correction. `leaf
-conversation read` exposes the same response on the interaction that its current
+conversation read` exposes the same response on the workflow that its current
 `activity.obligations` names, when the delivery is no longer the freshest reading.
-`activity.obligations` is a list of ids into `activity.interactions`, where each move's
-phase, target and response address are stated once. When the source changed, the reply
+`activity.obligations` is a list of ids into `workflows`, where each move's stage and
+subject are canonical and `response_address` names the current writer operation.
+Provisional response progress remains separately available as `response`. When the source changed, the reply
 validates and activates it before posting, so an edit and its answer cross one command
 boundary.
 
@@ -155,8 +169,8 @@ in the append-only event log. Only text is revised; any widget markup stays froz
 sentence naming what they wrote. `--json` prints the posted event instead, whose
 `id` is what `--to` takes here. A refusal lists the ids it knows.
 
-An ordinary reply leaves the thread open so the reader can inspect the answer or
-revised page. The reader closes it by default. Resolve it yourself only when the
+An ordinary reply leaves the thread open, or reopens a resolved thread, so the reader
+can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The reader closes it by default. Resolve it yourself only when the
 reader asks, when an event rule requires resolution, or when no review or
 follow-up can change the outcome. Completing the requested work does not meet
 that bar by itself; when uncertain, leave the thread open. Reply before resolving:

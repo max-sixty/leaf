@@ -11,9 +11,11 @@ import {
   clusterProjection,
   marginInventory,
   readingChoices,
+  readingContext,
   secondaryCount,
   choosePrimary,
   entryHasMarginHost,
+  awaitingReader,
 } from "../../skills/leaf/assets/runtime/margin-model.js";
 import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
 
@@ -154,6 +156,18 @@ test("an open thread replaces a spilled peer while Page Map retains every action
     pageMap.actions.map((action) => action.record?.key ?? action.item.id),
     ["conversation", "save", "a", "b", "c", "d", "e", "f"],
   );
+});
+
+test("thread aggregation preserves canonical reader attention and Ask precedence", () => {
+  const recovery = marker("recovery", "comment", {
+    readerAttention: { label: "Not answered", reason: "workflow" },
+  });
+  const ask = marker("ask", "comment", {
+    readerAttention: { label: "On you", reason: "ask" },
+  });
+  assert.equal(awaitingReader([recovery]), true);
+  assert.equal(readingContext({ items: [recovery] }), "Not answered");
+  assert.equal(readingContext({ items: [recovery, ask] }), "On you");
 });
 
 test("declared representation and a workflow carrier suppress only duplicate readings", () => {

@@ -5,11 +5,11 @@
    a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
    conversation/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsReader`, `awaitsAgent`) is the server's projection, read here rather than
-   derived: the banner's Ask count and the panel's narrowing ask the same question
-   and must get one answer. */
+   (`awaitsReader`, `awaitsAgent`) is read from the complete browser Thread: reader
+   attention is canonical, while agent work can remain concurrent with it. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
+import { projectThreadAttention } from "./workflow.js";
 
 export const isReaction = (message) => Boolean(message.token);
 export const isAddressable = (message) => message.addressable !== false;
@@ -83,8 +83,10 @@ export function foldThreads(threads, messages, reactions, settlements) {
     if (!thread) continue;
     thread.msgs.push(reply);
     if (!isReaction(reply)) {
+      thread.resolved = null;
       thread.awaits_agent = true;
       thread.awaits_reader = false;
+      thread.attention = null;
     }
   }
   for (const thread of opened) {
@@ -120,11 +122,12 @@ export const reactionsAt = (threads, anchor) =>
     .map((thread) => thread.root);
 
 export const awaitsAgent = (thread) => thread.awaits_agent;
-export const awaitsReader = (thread) => thread.awaits_reader;
+export const awaitsReader = (thread) =>
+  !thread.resolved && thread.attention?.kind === "needs_reader";
 export const seatRoot = (thread) => thread.seat;
 
 export const threadSummary = (thread) => ({
-  topic: thread.root.body.text.trim(),
+  topic: thread.title ?? thread.root.body.text.trim(),
   count: turns(thread).length,
   latest: turns(thread).at(-1)?.ts ?? null,
 });
@@ -132,7 +135,21 @@ export const threadSummary = (thread) => ({
 /* Public conversation values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary. */
-export function readThreadRecords(threads, document, widgets, interactions) {
+export function readThreadRecords(threads, document, widgets, workflows) {
+  const workflowsByInput = new Map();
+  const workflowsByWidget = new Map();
+  for (const workflow of workflows) {
+    if (workflow.input) {
+      const current = workflowsByInput.get(workflow.input) ?? [];
+      current.push(workflow);
+      workflowsByInput.set(workflow.input, current);
+    }
+    if (workflow.subject.kind === "widget") {
+      const current = workflowsByWidget.get(workflow.subject.id) ?? [];
+      current.push(workflow);
+      workflowsByWidget.set(workflow.subject.id, current);
+    }
+  }
   const unitsByMessage = new Map();
   for (const descriptor of document.descriptors.values()) {
     if (descriptor.document.kind !== "thread") continue;
@@ -145,7 +162,6 @@ export function readThreadRecords(threads, document, widgets, interactions) {
     unitsByMessage.set(descriptor.document.message, units);
   }
   return threads.map((thread) => {
-    const turnIds = new Set(turns(thread).map((message) => message.id));
     const msgs = thread.msgs.map((message) => {
       const record = {};
       for (const field of [
@@ -166,7 +182,6 @@ export function readThreadRecords(threads, document, widgets, interactions) {
         "text",
         "edited",
         "failure",
-        "stream_state",
         "addressable",
         "revision",
         "awaits",
@@ -196,25 +211,24 @@ export function readThreadRecords(threads, document, widgets, interactions) {
         ...record,
         key: message.attempt ?? message.id,
         body,
-        receipts: interactions.filter((receipt) => {
-          if (receipt.target.kind === "thread") {
-            if (thread.resolved || receipt.target.id !== thread.root.id) return false;
-            return (
-              (turnIds.has(receipt.event) ? receipt.event : thread.root.id) ===
-              message.id
-            );
-          }
-          return (
-            receipt.target.kind === "widget" &&
-            receipt.event &&
-            receipt.revision <= document.revision &&
-            units.some((unit) => unit.id === receipt.target.id)
-          );
-        }),
+        workflows: [
+          ...(workflowsByInput.get(message.id) ?? []),
+          ...units.flatMap((unit) => workflowsByWidget.get(unit.id) ?? []),
+        ],
       };
     });
+    const widgetIds = new Set(
+      msgs.flatMap((message) => message.body.units?.map((unit) => unit.id) ?? []),
+    );
+    const threadWorkflows = workflows.filter(
+      (workflow) =>
+        (workflow.subject.kind === "thread" &&
+          workflow.subject.id === thread.root.id) ||
+        (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
+    );
     return {
       key: threadKey(thread),
+      title: thread.title ?? null,
       root: msgs.find((message) => message.id === thread.root.id),
       msgs,
       anchor: thread.anchor ?? null,
@@ -223,6 +237,8 @@ export function readThreadRecords(threads, document, widgets, interactions) {
       settling: thread.settling ?? null,
       awaits_agent: thread.awaits_agent,
       awaits_reader: thread.awaits_reader,
+      attention: projectThreadAttention(thread.attention ?? null, threadWorkflows),
+      workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries ?? [],

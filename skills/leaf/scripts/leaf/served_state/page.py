@@ -4,7 +4,6 @@ import copy
 import time
 from pathlib import Path
 
-from ..acknowledgments import canonical_acknowledgments
 from ..activity import canonical_activity, canonical_stream_reply
 from ..data import browser_data, browser_data_from
 from ..event_log import now_iso
@@ -16,6 +15,7 @@ from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
+from ..workflows import canonical_workflows
 from .browser import project_browser_state
 
 
@@ -38,7 +38,7 @@ def project_activity(
         threads = build_threads(events, active_enclosing(page_dir))
     except (FileNotFoundError, SystemExit):
         threads = {}
-    evidence = canonical_acknowledgments(
+    evidence = canonical_workflows(
         present["claims"],
         threads,
         None,
@@ -129,6 +129,9 @@ def full_state(
         identity = (
             layer_metadata(page_dir) if layer_identity is None else layer_identity
         )
+    workflows = (
+        browser.pop("workflows") if browser is not None else activity.pop("workflows")
+    )
     return {
         "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads
@@ -161,6 +164,7 @@ def full_state(
         ),
         **present,
         "activity": activity,
+        "workflows": workflows,
         "browser": browser,
         # As logged: a message's text is Markdown the page's vendored runtime renders,
         # and its markup is the fragment the CLI gate validated. The wire adds nothing,

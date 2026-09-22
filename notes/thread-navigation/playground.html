@@ -399,27 +399,33 @@
         <p>Threads / activity and attention</p>
         <h1>What is happening, and who needs to act?</h1>
         <p>
-          Implemented: #21, separating overall page activity, and #22, retaining typed
-          host observations. Combining message workflow and deriving thread attention
-          remain the next step after the shared Thread collection. The accordion and
-          expandable summaries are implemented; their history is below.
+          Message workflows now combine delivery, sending and failure, and response
+          progress into one reading for messages, thread rows, and the margin. Overall
+          page activity remains separate.
         </p>
       </header>
       <section id="activity-ontology">
-        <h2>Proposal: one message workflow, distinct page state</h2>
+        <h2>One message workflow, distinct page state</h2>
         <p id="current-review">
-          The plan still combines delivery receipts, local sending state, and response
-          progress into one message workflow, with thread attention derived from it. The
-          current implementation covers #21 and #22 below. There is no decision waiting
-          on you. The shared Thread collection is a separate dependency for the next
-          implementation.
+          Messages, thread rows, and margin entries share one workflow reading. Exact
+          input and response bindings preserve newer unanswered messages; standing
+          reader questions survive later informational updates. The comparisons below
+          show the visible changes. Independent jobs and notification subscriptions
+          remain later work.
+        </p>
+        <p id="workflow-validation">
+          Backend and browser coverage exercises sending, refusal, response progress,
+          standing questions, stale work, and recovery. Matched browser checks also
+          cover keyboard submission and Escape navigation. The implementation uses one
+          local-send producer, one-pass workflow selection, and indexed widget
+          membership; the owning contracts live beside the code.
         </p>
         <table id="proposed-status-model">
           <thead>
             <tr>
               <th>Level</th>
               <th>Question</th>
-              <th>Proposed reading</th>
+              <th>Reading</th>
             </tr>
           </thead>
           <tbody>
@@ -452,17 +458,17 @@
         <section id="message-workflow-proposal">
           <h3>Consolidate the message classifications</h3>
           <p>
-            Interaction receipts, sending failures, and streamed response state become
-            one shared workflow reading. Keep exact input, delivery, turn, claim, and
-            reply bindings underneath it. The displayed stage selects the strongest
+            Interaction receipts, sending failures, and streamed response state now
+            share one workflow reading. It retains exact input, delivery, turn, claim,
+            and reply bindings underneath it. The displayed stage selects the strongest
             applicable evidence; proactive work can have no preceding message and
             appears on its thread or widget instead.
           </p>
           <p>
-            Store no new thread-status table. Derive stage, optional typed activity,
-            condition, and next actor from the existing evidence. A condition retains
-            its cause: a failed send, an interrupted turn, or lost observation are
-            different problems. Typed Thinking can refine Working only with host
+            There is no new thread-status table. Stage, optional typed activity,
+            condition, and next actor are derived from existing evidence. A condition
+            retains its cause: a failed send, an interrupted turn, or lost observation
+            are different problems. Typed Thinking can refine Working only with host
             evidence bound to that input or subject; otherwise it stays overall page
             activity. A completed turn alone never proves an answer.
           </p>
@@ -474,7 +480,41 @@
             resolution. A settled input normally loses its active-work mark rather than
             gaining a permanent Answered badge.
           </p>
+          <p>
+            A host failure remains visibly Not answered in the transcript. It asks for a
+            resend only until the reader sends again. Stale work loses its active
+            treatment, and a fresh response replaces the earlier uncertainty.
+          </p>
         </section>
+        <details id="workflow-visual-comparison">
+          <summary>
+            Before and after: shared message workflow and reader attention
+          </summary>
+          <p>
+            The same unanswered question is followed by an informational agent update.
+            The candidate keeps On you in the compact row and the blue margin mark; the
+            previous runtime drops both. These are matched captures of real Leaf pages
+            with the same conversation log.
+          </p>
+          <lf-shot
+            id="workflow-attention-comparison"
+            before="/media/39bc55b3f16bf55f.png"
+            after="/media/c5fc0f3a354f35e0.png"
+            alt="An unanswered question remains On you after a later agent update"
+          ></lf-shot>
+          <p>
+            After a keyboard-submitted answer, Sent appears beside the message time and
+            in the thread row from the same workflow. The former green delivery receipt
+            is now a quiet status label. Sending, uncertainty, and recovery use that
+            same location rather than adding a second status line.
+          </p>
+          <lf-shot
+            id="workflow-message-comparison"
+            before="/media/6b43f1d37651e8bd.png"
+            after="/media/a7ac6271d6032dfd.png"
+            alt="One compact Sent reading shared by the message and thread row"
+          ></lf-shot>
+        </details>
         <section id="page-state-proposal">
           <h3>Overall activity does not confer message progress</h3>
           <p>
@@ -549,14 +589,15 @@
             Observations without an exact input or subject binding stay page-wide.
           </p>
           <p>
-            Next, combine the message ontologies once the shared Thread collection
-            lands. Independently running jobs, delegated work, and notification
-            subscriptions remain later work. The full design is in
-            <code>notes/thread-status-proposal.md</code>.
+            Message consolidation now consumes the shared Thread collection. Its
+            canonical contract lives beside the implementation in
+            <code>skills/leaf/scripts/leaf/session-lifetime.md</code> and the public
+            Thread API reference. Independently running jobs, delegated work, and
+            notification subscriptions remain later work.
           </p>
         </section>
         <details>
-          <summary>Existing implementation inventory</summary>
+          <summary>Earlier inventory — before consolidation</summary>
           <table id="activity-inventory">
             <thead>
               <tr>
@@ -599,8 +640,8 @@
             </tbody>
           </table>
           <p>
-            The full source and storage map is in
-            <code>notes/activity-ontology.md</code>.
+            This earlier inventory motivated the consolidation. The current contract is
+            in <code>skills/leaf/scripts/leaf/session-lifetime.md</code>.
           </p>
         </details>
       </section>

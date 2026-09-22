@@ -11,6 +11,7 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
@@ -119,13 +120,18 @@ sorted identity snapshot the server stamps in `generated`.
 
 ## Threads
 
-An agent comment opens a question. A reply answers without closing the thread;
+An agent comment opens a question. A substantive reply opens or resumes the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply
 always hands the thread back to the agent, so it needs no parallel declaration.
-An agent reply records the delivery event it answers as `responds`; a proactive
-`--initiates` reply records `initiates: true`. Settlement consumes this durable
-scope rather than log order, so answering older work cannot erase newer reader input.
+An agent reply records the delivery event it answers as `responds`, including a
+completed delivery answer whose move was settled during the turn. A proactive
+message with no response address records `initiates: true` instead. Settlement
+consumes this exact identity rather than log order, so answering older work cannot
+erase newer reader input. A substantive reply reopens a resolved conversation;
+reactions and host failure receipts leave its closure standing. A later resolution
+closes the conversation again. Reopening restores its still-unanswered widget Asks,
+as an explicit reopen does.
 A host that settles an ask because it cannot start work records `failure`, a nonempty
 host-owned code, on its reply; only the host reply writer can supply it, and the panel
 draws such a reply as a receipt whose head says the message answers nothing, since
@@ -153,6 +159,10 @@ them:
   rest on a widget in it. The original stays in the log with its id, timestamp,
   author, thread position, and anchor; the panel, wait digests, and the transcript
   fold the latest text onto it and label it edited.
+- `conversation_title` names an existing conversation with a nonblank, single-line
+  plain-text title of at most 80 characters. The latest title is projected separately
+  from messages into browser state and agent context; an unnamed conversation has
+  a null title and the panel uses its opening text until the agent names it.
 - `summary` names an inclusive `from`–`through` range of at least two spoken turns in
   one conversation; a reaction may lie inside the range but not at an endpoint. A
   later overlapping summary replaces the earlier one whole, disjoint summaries

@@ -16,8 +16,8 @@ has tried; settle that before building it.
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
 - **Give conversations a stable hierarchy.** Follow the separate
-  [thread plans](notes/threads.md): make reader attention explicit, prototype compact
-  navigation, then fold long histories. Keep thread context, search, filters, agent
+  [thread plans](notes/threads.md): build long-history reading on the implemented
+  accordion and summary checkpoints. Keep thread context, search, filters, agent
   activity, selection, and reply editing clear.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
@@ -36,7 +36,9 @@ has tried; settle that before building it.
 - **Run the first agent-usability baseline, including #19.** Execute the
   [cold-authoring, reading-parity, and resume cases](notes/agent-usability-evals.md#first-executable-slice).
   Compare authoring and a feedback cycle with plain HTML before improving Leaf's
-  authoring guidance. Use observed failures to choose new reading interfaces;
+  authoring guidance. Include the simplified delivery-receipt loop; the focused
+  receipt tests do not replace this baseline. Use observed failures to choose
+  new reading interfaces;
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
@@ -44,10 +46,6 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Settle who owes the next move.** Make the banner, margin, and Threads agree
-  when several subject claims stand or an agent question is followed by another
-  agent turn. Seed that thread shape before changing its projection; choose one
-  colour scheme for reader, agent, and unclaimed work.
 
 ## Next
 
@@ -65,21 +63,24 @@ has tried; settle that before building it.
 - **Keep wrapped inline code inside the column.** `theme.css` gives inline `code`
   `box-decoration-break: clone`, which pads every wrapped fragment and pushes it
   about 4px past the text column; `slice` keeps it inside, with a squared-off end
-  where a code span breaks. A visual call.
+  where a code span breaks. Compare both in a rendered narrow column before
+  choosing the treatment.
 
 ### The agent's text interface
 
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
-  element in a narrower window; reflowed text still moves under it.
+  element in a narrower window; reflowed text still moves under it. Verify replay
+  at different widths and keep that limitation explicit.
 - **Record the reader's view beside `viewed`.** Add the window size, colour scheme
   and revision a visible tab reports to the presence reading, and document them.
-  **Unconfirmed:** no agent failure yet shows the agent needs them; the
-  agent-usability baseline above should.
+  **Unconfirmed:** establish whether the missing view causes an agent failure in
+  the agent-usability baseline above before adding fields to the interface.
 - **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner
-  explains who owes the next move.
+  explains who owes the next move. Keep explicit agent status available when the
+  Ask alone does not explain the wait.
 
 ## Etc
 

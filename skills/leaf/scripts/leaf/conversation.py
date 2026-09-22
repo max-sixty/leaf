@@ -167,6 +167,9 @@ class DeliveryReply:
     ) -> BaseException | None:
         """Commit only a completed final, retaining rejected or partial text.
 
+        A completed answer retains its delivered response address even when that
+        move was settled during the turn. The reply reopens the conversation.
+
         The binding is given up on every way out but a commit, which clears it in
         the transaction that appends the reply. That includes the ways out that
         raise: recording the draft's last state re-reads a page the turn's own work
@@ -223,7 +226,7 @@ class DeliveryReply:
                 "",
                 for_event=self.target["responds"],
                 attempt=self.attempt,
-                skip_if_settled=True,
+                when_settled="post",
                 identity={"session": self.session_id},
                 validate_source=True,
                 claimed_session=self.session_id,
@@ -415,7 +418,7 @@ def cmd_reply(
     detach: bool = False,
     attempt: str | None = None,
     initiates: bool = False,
-    skip_if_settled: bool = False,
+    when_settled: str = "refuse",
     only_if_unclaimed: bool = False,
     failure: str | None = None,
     identity: dict | None = None,
@@ -427,9 +430,15 @@ def cmd_reply(
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
     conversation. One unambiguous delivered reply supplies both values. ``initiates``
-    explicitly posts when the conversation currently owes no reply. Durable hosts may
-    make an already-settled retry a no-op. ``failure`` records a host-owned failure
-    code alongside its presentation text; ordinary agent answers omit it.
+    explicitly posts when the conversation currently owes no reply.
+
+    ``when_settled`` distinguishes completed delivery answers from failure receipts.
+    ``post`` retains the delivered response address even after settlement; ``skip``
+    omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
+    response address from an ordinary CLI writer.
+
+    ``failure`` records a host-owned failure code alongside its presentation text;
+    ordinary agent answers omit it.
     """
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
@@ -507,32 +516,32 @@ def cmd_reply(
             to = expected["to"]
         else:
             expected = responses.get(for_event)
-            if expected is not None and expected["kind"] == "version":
-                root_id, _ = _thread_root(
-                    page_dir, events, to or expected["conversation"]
-                )
-                if skip_if_settled:
-                    return None
-                sys.exit(
-                    f"thread {root_id!r} requires a page version and cannot take a "
-                    f"reply; {VERSION_THREAD_RECOURSE}"
-                )
             if expected is None or expected["kind"] != "reply":
-                if skip_if_settled:
+                if expected is not None and expected["kind"] == "version":
+                    root_id, _ = _thread_root(
+                        page_dir, events, to or expected["conversation"]
+                    )
+                    refusal = (
+                        f"thread {root_id!r} requires a page version and cannot "
+                        f"take a reply; {VERSION_THREAD_RECOURSE}"
+                    )
+                else:
+                    held = logged_id(events, for_event, responses)
+                    refusal = f"event {for_event!r} takes no reply; " + (
+                        held or f"this page's log holds no event {for_event!r}"
+                    )
+                if when_settled == "skip":
                     return None
-                held = logged_id(events, for_event, responses)
-                sys.exit(
-                    f"event {for_event!r} takes no reply; "
-                    + (held or f"this page's log holds no event {for_event!r}")
-                )
-            if to is None:
+                if when_settled != "post" or to is None:
+                    sys.exit(refusal)
+            elif to is None:
                 to = expected["to"]
         assert to is not None
         root_id, root = _thread_root(page_dir, events, to)
-        if (thread_obligation(events, responses, root_id) or {}).get("kind") == (
-            "version"
-        ):
-            if skip_if_settled:
+        if (thread_obligation(events, responses, root_id) or {}).get(
+            "kind"
+        ) == "version":
+            if when_settled == "skip":
                 return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
@@ -541,12 +550,14 @@ def cmd_reply(
         if for_event is not None:
             expected = responses.get(for_event)
             if expected != {"kind": "reply", "to": to, "for": for_event}:
-                if skip_if_settled:
+                if when_settled == "skip":
                     return None
-                sys.exit(
-                    f"event {for_event!r} no longer requires a reply to {to!r}; "
-                    "read the current delivery or conversation state"
-                )
+                if when_settled != "post":
+                    sys.exit(
+                        f"event {for_event!r} no longer requires a reply to {to!r}; "
+                        "read the current delivery or conversation state"
+                    )
+        if for_event is not None:
             stream = page.status.get("stream") or {}
             binding = (stream.get("reply_bindings") or {}).get(for_event) or {}
             claim = page.active_claim
@@ -744,6 +755,22 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
                 **identity,
                 "message": to,
                 "text": body,
+            },
+        )
+
+
+@contract_writer
+def cmd_title(page_dir: Path, conversation: str, text: str) -> dict:
+    """Name a conversation without adding a turn or changing its obligations."""
+    with PageTransaction(page_dir) as page:
+        return append_admitted(
+            page,
+            {
+                "kind": "conversation_title",
+                "author": "agent",
+                **message_identity(),
+                "conversation": conversation,
+                "title": text,
             },
         )
 

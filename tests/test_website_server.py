@@ -34,6 +34,8 @@ from leaf import codex as leaf_codex
 from leaf.cli import cli
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
+from leaf.conversation import cmd_resolve
+from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -42,7 +44,8 @@ from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
-from render_harness import consume_browser_errors
+from playwright.sync_api import expect
+from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
@@ -1580,7 +1583,7 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
     assert website_server.page_claim(page_dir) is None
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
     assert activity["observed_kind"] is None
-    assert [item["phase"] for item in activity["obligations"]] == ["sent"]
+    assert [item["stage"] for item in activity["obligations"]] == ["sent"]
     # The seat is free, so the Worker's own receipt reaches the reader.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
@@ -2160,7 +2163,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
         assert state["listening"] is True
         assert state["activity"]["kind"] == "working"
         assert state["activity"]["observed_kind"] == "working"
-        assert state["activity"]["obligations"][0]["event"] == comment["id"]
+        assert state["activity"]["obligations"][0]["input"] == comment["id"]
 
         website_server.set_stream_activity(
             "hosted-thread",
@@ -2587,7 +2590,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     assert claim["turn"] == delivery["turn"]
     assert claim["turn_closed"] is not None
     assert [
-        obligation["event"]
+        obligation["input"]
         for obligation in website_server.full_state(page_dir, events)["activity"][
             "obligations"
         ]
@@ -2619,7 +2622,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     assert claim["turn_closed"] is not None
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
     assert [
-        obligation["event"]
+        obligation["input"]
         for obligation in website_server.full_state(page_dir, read_events(page_dir))[
             "activity"
         ]["obligations"]
@@ -2686,6 +2689,98 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert receipt["failure"] == "turn_failed"
     assert socket.closed
+
+
+@pytest.mark.parametrize("read_elsewhere", [False, True])
+def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
+    browser, serve, read_elsewhere
+):
+    """A resolve during a turn cannot hide its completed answer from Open Threads.
+
+    Exercise the hosted commit and the publication gate's actual browser observer,
+    then verify settlement and retry at the same durable response address.
+    """
+    url = serve(LONG_PAGE)
+    page_dir = serve.page_dir
+    page = open_page(browser, url)
+    verify_site.observe_startup(page)
+    page.reload()
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    box = page.locator(".lf-general textarea")
+    box.fill("edit the page")
+    box.press("ControlOrMeta+Enter")
+    told(page)
+    [comment] = [event for event in read_events(page_dir) if event["kind"] == "comment"]
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        website_server.website_harness("hosted-thread", os.getpid()),
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    turn = hosted_follower(host, page_dir, prepared)
+    turn.begin()
+    cmd_resolve(page_dir, comment["id"])
+    told(page)
+    # Let resolution finish filtering the card out; racing its fold can conceal a
+    # disclosure reset that would hide an answer arriving later in a real turn.
+    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
+    expect(thread).to_be_hidden()
+    if read_elsewhere:
+        box.fill("A separate conversation")
+        box.press("ControlOrMeta+Enter")
+        told(page)
+        [other] = [
+            event
+            for event in read_events(page_dir)
+            if event["kind"] == "comment" and event["id"] != comment["id"]
+        ]
+        other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
+        expect(other_thread).to_have_attribute("open", "")
+
+    turn.commit(
+        {
+            "id": "app-server-turn",
+            "status": "completed",
+            "items": [
+                {
+                    "type": "agentMessage",
+                    "phase": "final_answer",
+                    "id": "msg-1",
+                    "text": "deployment verified",
+                }
+            ],
+        }
+    )
+
+    told(page)
+    if read_elsewhere:
+        expect(other_thread).to_have_attribute("open", "")
+        expect(thread.locator(".lf-msg.agent")).to_be_hidden()
+        assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
+    else:
+        page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
+        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
+        assert current_responses(page_dir, read_events(page_dir)) == {}
+    [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert answer["parent"] == comment["id"]
+    assert answer["text"] == "deployment verified"
+    assert answer["responds"] == comment["id"]
+    assert "initiates" not in answer
+    # Retrying the same delivery keeps one answer and its original response scope.
+    assert (
+        website_server.cmd_reply(
+            page_dir,
+            comment["id"],
+            "deployment verified",
+            "",
+            for_event=comment["id"],
+            attempt=answer["attempt"],
+            when_settled="post",
+            identity={"session": "hosted-thread"},
+        )
+        == answer
+    )
 
 
 def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
@@ -2775,7 +2870,7 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
         "",
         for_event=comment["id"],
         attempt=website_server.agent_attempt(comment["id"]),
-        skip_if_settled=True,
+        when_settled="skip",
         only_if_unclaimed=True,
         identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
     )
@@ -2890,7 +2985,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     }
     assert replies == {}
     state = website_server.full_state(page_dir, read_events(page_dir))
-    assert [item["event"] for item in state["activity"]["obligations"]] == [
+    assert [item["input"] for item in state["activity"]["obligations"]] == [
         first["id"],
         second["id"],
     ]
@@ -3052,7 +3147,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             == comment["id"]
         )
         assert comment["id"] in {
-            obligation["event"]
+            obligation["input"]
             for obligation in answer["state"]["activity"]["obligations"]
         }
 
@@ -3506,6 +3601,63 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     assert "widget module 404" in early
 
 
+def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
+    """A reply the container admitted and the panel never drew has one open question.
+
+    `publish-site` failed on a turn whose every server record was healthy — it published
+    its revision, replied, and went back to listening — while the reader's panel held an
+    agent bubble with no words in it. The gate reported the message nodes and nothing
+    else, and that snapshot is the same whether the page stopped asking, asked and never
+    got an answer, or took the answer in and drew nothing. The page paints the reading it
+    last applied, so the message says which.
+    """
+    drew_nothing = verify_site.undrawn_reply(
+        "https://leaf.page/examples/triage-board/",
+        {
+            "panel": True,
+            "visibility": "visible",
+            "presented": True,
+            "reading": "abc123.p1",
+            "traffic": '{"asked":9,"heard":9}',
+            "revision": "1",
+            "status": "Codex is listening",
+            "messages": [
+                {
+                    "classes": ["lf-msg", "agent"],
+                    "mid": "stream:leaf-turn",
+                    "attempt": "leaf-delivery-1",
+                    "stream": "active",
+                    "busy": True,
+                    "hasText": False,
+                    "visible": True,
+                }
+            ],
+        },
+        "abc123.p2",
+    )
+    assert "the answer reached it and was not drawn" in drew_nothing
+    # The identity the panel is standing on, which says a stream placeholder outlived
+    # the durable reply that was meant to complete it.
+    assert "stream:leaf-turn" in drew_nothing
+    assert "attempt=leaf-delivery-1" in drew_nothing
+    assert '{"asked":9,"heard":9}' in drew_nothing
+
+    behind = verify_site.undrawn_reply(
+        "https://leaf.page/examples/triage-board/",
+        {"reading": "older.p1", "messages": []},
+        "abc123.p1",
+    )
+    assert "never took the answer in" in behind
+    assert "older.p1" in behind and "abc123.p1" in behind
+
+    silent = verify_site.undrawn_reply(
+        "https://leaf.page/examples/triage-board/",
+        {"reading": None, "messages": []},
+        "abc123.p1",
+    )
+    assert "applied no state at all" in silent
+
+
 def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     """A hosted turn's pace is the model's, so the wait reads the page's own account.
 
@@ -3540,7 +3692,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
 
     stopped = website_server.full_state(page_dir, read_events(page_dir))
     assert [
-        obligation["event"] for obligation in stopped["activity"]["obligations"]
+        obligation["input"] for obligation in stopped["activity"]["obligations"]
     ] == [comment["id"]]
     assert not verify_site.still_answering(stopped, comment["id"])
 
@@ -3849,7 +4001,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
         "active": {"revision": 1, "url": "revisions/1.html"},
         "activity": {
             "kind": "working",
-            "obligations": [{"event": "comment-id", "dropped": False}],
+            "obligations": [{"input": "comment-id", "dropped": False}],
         },
         "events": [
             {

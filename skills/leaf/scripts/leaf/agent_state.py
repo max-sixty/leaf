@@ -70,32 +70,27 @@ def _conversation_target(target: dict) -> dict:
 
 
 def _conversation_interaction(item: dict) -> dict:
-    translated = {**item, "target": _conversation_target(item["target"])}
+    translated = {**item, "subject": _conversation_target(item["subject"])}
     coordinate = translated.get("coordinate")
     if coordinate and coordinate[0] == "thread":
         translated["coordinate"] = ["conversation", *coordinate[1:]]
     return translated
 
 
-def _conversation_activity(activity: dict, responses: dict[str, dict]) -> dict:
+def _conversation_workflows(
+    workflows: list[dict], responses: dict[str, dict]
+) -> list[dict]:
     """Translate only Leaf-owned protocol fields in the shared browser reading.
 
-    Every obligation is one of the interactions listed beside it, so an agent reads
-    it by id: its phase, target and the `response` address a writer needs are on
-    that interaction and stated once.
+    Every obligation is one of the workflows listed beside it, so an agent reads it
+    by id: its stage and subject are canonical, while `response_address` supplies
+    the current writer operation without replacing provisional response evidence.
     """
-    interactions = [
-        _conversation_interaction(item) for item in activity["interactions"]
-    ]
-    standing = {item["id"] for item in activity["obligations"]}
-    for item in interactions:
-        if item["id"] in standing and (response := responses.get(item.get("event"))):
-            item["response"] = response
-    return {
-        **activity,
-        "interactions": interactions,
-        "obligations": [item["id"] for item in activity["obligations"]],
-    }
+    translated = [_conversation_interaction(item) for item in workflows]
+    for item in translated:
+        if item["requires_response"] and (response := responses.get(item.get("input"))):
+            item["response_address"] = response
+    return translated
 
 
 def _conversation_update(update: dict) -> dict:
@@ -192,6 +187,7 @@ def _base_state(
         "conversations": [
             {
                 "id": root,
+                "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],
@@ -379,8 +375,12 @@ def _write_page_state(
         registry,
         requests,
     )
-    state["activity"] = _conversation_activity(
-        activity, current_responses(page_dir, events)
+    state["activity"] = {
+        **activity,
+        "obligations": [item["id"] for item in activity["obligations"]],
+    }
+    state["workflows"] = _conversation_workflows(
+        served["workflows"], current_responses(page_dir, events)
     )
     if document is not None:
         _apply_document_state(
@@ -532,16 +532,12 @@ def _write_page_state(
         widget_ids = {element["id"] for element in elements}
 
         def belongs(interaction: dict) -> bool:
-            target = interaction["target"]
+            target = interaction["subject"]
             return target == {"kind": "conversation", "id": conversation_id} or (
                 target["kind"] == "widget" and target["id"] in widget_ids
             )
 
-        interactions = [
-            interaction
-            for interaction in state["activity"]["interactions"]
-            if belongs(interaction)
-        ]
+        workflows = [workflow for workflow in state["workflows"] if belongs(workflow)]
         obligations = set(state["activity"]["obligations"])
         state = {
             "page": str(page_dir),
@@ -556,10 +552,10 @@ def _write_page_state(
             "reactions": reactions,
             "updates": updates,
             "activity": {
-                "interactions": interactions,
                 "obligations": [
-                    item["id"] for item in interactions if item["id"] in obligations
+                    item["id"] for item in workflows if item["id"] in obligations
                 ],
             },
+            "workflows": workflows,
         }
     print(json.dumps(state, indent=2, ensure_ascii=False))

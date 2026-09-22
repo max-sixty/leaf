@@ -109,14 +109,14 @@ const GROUPS = [
         workflowStage: "working",
       },
       {
-        name: "Was working",
-        detail: "claim quiet · awaiting continuation",
+        name: "Update stale",
+        detail: "work went quiet · awaiting continuation",
         icon: "activity",
         behavior: "disclosure",
         rank: "reading",
       },
       {
-        name: "Picked up · turn ended",
+        name: "Turn ended",
         detail: "unsettled · awaiting continuation",
         icon: "waiting",
         behavior: "status",
@@ -248,11 +248,9 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
         workflowReceipt: specimen.workflowStage
           ? {
               id: key,
-              target: { kind: "widget", id: key },
-              phase:
-                specimen.workflowStage === "working"
-                  ? "active"
-                  : specimen.workflowStage,
+              subject: { kind: "widget", id: key },
+              stage: specimen.workflowStage,
+              detail: "",
             }
           : null,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,

@@ -156,6 +156,11 @@ exact id. The host confirms receipt; no work claim is required. For every delive
 event, read its `handling` clause ids in order from that batch's `handling` object
 and follow those instructions and `obligation.response`.
 
+When first handling a conversation whose title is null, name it with
+`$LEAF conversation title . CONVERSATION_ID --text "Short descriptive title"`.
+Choose a few words identifying its subject (at most 80 characters). Keep the title
+stable; use the same command to rename it only when it no longer describes the discussion.
+
 Each App Server delivery contains at most one response whose kind is `reply`.
 The normal final message is that reply's only writer: the host binds its destination
 before the turn, streams it, and commits the completed text. Do not run `$LEAF reply`
@@ -334,7 +339,7 @@ def write_failure_receipt(
         "",
         for_event=responds,
         attempt=agent_attempt(responds),
-        skip_if_settled=True,
+        when_settled="skip",
         only_if_unclaimed=only_if_unclaimed,
         failure=failure,
         identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
@@ -355,7 +360,7 @@ def agent_event_pending(page_dir: Path, event_id: str) -> bool:
         if any(event.get("attempt") == agent_attempt(event_id) for event in events):
             return False
         return any(
-            obligation.get("event") == event_id
+            obligation.get("input") == event_id
             for obligation in full_state(page_dir, events)["activity"]["obligations"]
         )
 
@@ -366,17 +371,15 @@ def agent_event_thread(page_dir: Path, event_id: str) -> str | None:
         activation = activate_source(page_dir, page.events)
         if activation.error:
             raise ValueError(activation.error)
-        interaction = next(
+        workflow = next(
             (
                 item
-                for item in full_state(page_dir, page.events)["activity"][
-                    "interactions"
-                ]
-                if item.get("event") == event_id
+                for item in full_state(page_dir, page.events)["workflows"]
+                if item.get("input") == event_id
             ),
             None,
         )
-        session = interaction.get("delivery_session") if interaction else None
+        session = workflow.get("delivery_session") if workflow else None
         return session if isinstance(session, str) and session else None
 
 
@@ -390,7 +393,7 @@ def next_unaccepted_agent_event(
     This asks the log what the page still owes, and nothing more. It used to activate
     the source first and refuse a page whose `index.html` no longer opens, which put a
     start-door condition in front of a reading that does not need one: obligations and
-    interactions come out of the log either way. The refusing belongs at the door, and
+    workflows come out of the log either way. The refusing belongs at the door, and
     the door already holds it — `attach` reaches `agent_event_pending`, which raises on
     such a page — so a start there throws to a caller that receipts the move. Held here
     instead, the refusal came before any move was named, which is the one shape that
@@ -399,17 +402,18 @@ def next_unaccepted_agent_event(
     who to tell.
     """
     with PageTransaction(page_dir) as page:
-        activity = full_state(page_dir, page.events)["activity"]
+        state = full_state(page_dir, page.events)
+        activity = state["activity"]
         sessions = {
-            interaction.get("event"): interaction.get("delivery_session")
-            for interaction in activity["interactions"]
+            workflow.get("input"): workflow.get("delivery_session")
+            for workflow in state["workflows"]
         }
         return next(
             (
-                obligation["event"]
+                obligation["input"]
                 for obligation in activity["obligations"]
-                if obligation.get("event") not in excluding
-                and not sessions.get(obligation.get("event"))
+                if obligation.get("input") not in excluding
+                and not sessions.get(obligation.get("input"))
             ),
             None,
         )

@@ -159,6 +159,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     effect replaces a closing answer without itself closing a thread. ``anchor`` is
     the thread's current page location, and ``detached_from`` retains the last real
     anchor only when an explicit null replacement leaves the thread detached.
+    A new spoken reply resumes the conversation; reactions and failure receipts
+    leave its closure standing. A later resolution closes it again.
     """
     floors = retractions(events)
     if withdrawn is None:
@@ -186,6 +188,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             messages[e["id"]] = message
             thread = {
                 "root": message,
+                "title": None,
                 "anchor": message.get("anchor"),
                 "detached_from": None,
                 "msgs": [message],
@@ -200,6 +203,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             answered = threads.get(e["meaning"].get("answer"))
             if answered and winners.get(tuple(e["meaning"]["coordinate"])) is e:
                 answered["resolved"] = e
+            continue
+        if e["kind"] == "conversation_title":
+            if thread := threads.get(e["conversation"]):
+                thread["title"] = e["title"]
             continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
@@ -223,6 +230,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if thread is None:
                 thread = {
                     "root": e,
+                    "title": None,
                     "anchor": e.get("anchor"),
                     "detached_from": None,
                     "msgs": [],
@@ -233,6 +241,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             message = dict(e)
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            if "token" not in e and "failure" not in e:
+                thread["resolved"] = None
             if "anchor" in e:
                 thread["detached_from"] = (
                     thread["anchor"] if e["anchor"] is None else None

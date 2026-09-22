@@ -1,6 +1,6 @@
 /** Bundle the published browser runtime while preserving its public module URLs. */
 
-import { cp, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,8 @@ function layerPath(path, assetRoot) {
 }
 
 export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) {
+  const inPlace = resolve(outputRoot) === resolve(layerRoot);
+  layerRoot = await realpath(layerRoot);
   const entries = {
     leaf: join(layerRoot, "leaf.js"),
     "runtime/interaction-gallery-frame": join(
@@ -78,7 +80,7 @@ export async function bundleLayer(layerRoot, assetRoot, outputRoot = layerRoot) 
       plugins: [preserveUrls],
       splitting: true,
     });
-    if (resolve(outputRoot) === resolve(layerRoot)) {
+    if (inPlace) {
       const runtime = join(outputRoot, "runtime");
       await Promise.all(
         (await readdir(runtime, { recursive: true }))

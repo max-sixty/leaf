@@ -28,11 +28,11 @@ authored executable content, and marks each authored inline module with the nonc
 policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
-one of each slot, at least one of them, no nesting, `resolves` naming a real
-comment); ids are unique, no authored id, class, or attribute sits in the runtime's
-`lf-` and `data-lf-` namespaces, named today or not, and ids needed by anchored
-unresolved threads, standing reader actions, or effective standing reports survive
-from the previous revision. A
+one of each slot, at least one of them, no nesting, `resolves` naming a comment
+in the document's reference namespace); ids are unique, no authored id, class, or
+attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
+not, and ids needed by anchored unresolved threads, standing reader actions, or
+effective standing reports survive from the previous revision. A
 declared visual part survives on the same terms as an id: while a live
 conversation's current anchor names it, and no longer once every thread on it
 has moved, detached, or closed. That release is final — a revision the part has
@@ -45,6 +45,13 @@ it with `--lf-reading-column: 1`, so the width and the claim come from one block
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in `--render`.
 
+An ordinary document's comment namespace is the roots present in its log. A
+specimen template's namespace is its `data-specimen-threads` declaration, so a
+first version may name conversations whose seed log has not been written yet.
+Static validation applies the same child-document checks using the selected
+history currently available. Specimen allocation and corpus generation require
+every selected root to exist before copying the conversation history.
+
 ## Delivery policy
 
 The document policy cannot restrict ancestors when delivered through `<meta>`. Every
@@ -53,9 +60,12 @@ version routes receive the current document policy and the same header. A standa
 file has no response header and cannot make this framing guarantee. The process-scoped
 MCP page server omits the header because its exact, ephemeral origin is intentionally
 framed by the host that approved it; the unguessable page path remains that transport's
-access boundary. Every response carries `X-Content-Type-Options: nosniff`; typed data
-is available only through its JSON API, and media routes serve only admitted image
-types, so neither input surface can become a script module.
+access boundary. A specimen child permits its same-origin parent with
+`frame-ancestors 'self'`; under the MCP transport it inherits the omitted header,
+so the host can frame the complete page hierarchy. Every response carries
+`X-Content-Type-Options: nosniff`; typed data is available only through its JSON
+API, and media routes serve only admitted image types, so neither input surface
+can become a script module.
 
 ## Browser validation
 

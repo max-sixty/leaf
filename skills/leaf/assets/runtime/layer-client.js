@@ -20,7 +20,7 @@
    or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
-import { offlineInteractive, runtime } from "./context.js";
+import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
@@ -195,7 +195,7 @@ export const postEvent = async (event) => {
   countTraffic("sends");
   let response;
   try {
-    response = await fetch("/api/event", {
+    response = await fetch(pageUrl("api/event"), {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": "application/json",
@@ -221,7 +221,7 @@ export const uploadMedia = async (file) => {
   countTraffic("sends");
   let response;
   try {
-    response = await fetch("/api/media", {
+    response = await fetch(pageUrl("api/media"), {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": file.type,

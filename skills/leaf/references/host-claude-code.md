@@ -28,8 +28,8 @@ transport"). Name a page only to pick up a page this session did not serve;
 
 Start `leaf wait` as a background task and end the turn. Its completion becomes
 host input. Process every event and its capture-time `obligation.response`. After
-each batch, start `leaf ack <page> <through_seq>` as the next background task; it
-acknowledges that batch and waits for another. The event reference owns the
+each complete envelope, start `leaf wait --ack <delivery-id>` as the next background
+task; it acknowledges that delivery and waits for another. The event reference owns the
 complete-batch and acknowledgement rules.
 
 If a turn ends without answering an acknowledged move, the next prompt hook
@@ -37,7 +37,7 @@ carries that obligation back into context and renews its **Picked up** receipt
 for the new turn without a status write. The banner reports overall page activity
 separately.
 
-How `leaf wait` and `leaf ack` end, and what each ending asks of the loop, is in
+How `leaf wait` ends, and what each ending asks of the loop, is in
 `references/event-batches.md` under "Delivery and acknowledgement". The signal that
 reference leaves to the host is a message from Leaf saying a page has new input and
 no `leaf wait` is running for this session: start a replacement unnamed wait. It

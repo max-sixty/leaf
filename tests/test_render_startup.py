@@ -15,6 +15,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -931,17 +932,19 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           const detachedArrangement = leaf.arrangeReadingElement({
             owner: detached,
             role: 'workspace',
-          }).readingArrangement;
+          });
           const detachedMarkerCleared =
             detached.dataset.lfWorkspaceContext === 'embedded';
-          detachedArrangement.cleanup();
+          detachedArrangement.disconnect();
 
-          const {content, readingArrangement} = leaf.arrangeReadingElement({
+          const layout = leaf.arrangeReadingElement({
             owner,
             role: 'pane',
             header,
+            regions: [{id: 'retained-region'}],
           });
-          await readingArrangement.setReadingPosture('bounded');
+          const {content} = layout;
+          await layout.setReadingPosture('bounded');
           let ownerMessage;
           try {
             leaf.registerReadingArrangement({owner, content});
@@ -956,18 +959,21 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           } catch (error) {
             contentMessage = error.message;
           }
-          const pending = readingArrangement.setReadingPosture('flow');
-          readingArrangement.cleanup();
-          const replacement = leaf.registerReadingElement({owner, content});
-          await replacement.setReadingPosture('bounded');
+          const pending = layout.setReadingPosture('flow');
+          layout.disconnect();
+          layout.disconnect();
+          layout.connect();
+          layout.connect();
+          const retainedBody = leaf.readingRegion('retained-region').body === layout.body;
+          await layout.setReadingPosture('bounded');
           await pending;
           const postureAfterReplacement = leaf.readingPosture(owner);
-          replacement.cleanup();
+          layout.disconnect();
           owner.remove();
           otherOwner.remove();
           occupiedHost.remove();
           return {message, ownerMessage, contentMessage, postureAfterReplacement,
-                  reclaimed, unchanged, detachedMarkerCleared};
+                  reclaimed, unchanged, detachedMarkerCleared, retainedBody};
         }"""
     )
     assert result == {
@@ -978,6 +984,57 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
         "reclaimed": True,
         "unchanged": True,
         "detachedMarkerCleared": True,
+        "retainedBody": True,
+    }
+
+
+def test_a_pane_retries_refused_admission_before_retaining_its_layout(browser, serve):
+    page = open_page(browser, serve(SHORT_SUGGESTION))
+    result = page.evaluate(
+        """async () => {
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          leaf.defineReadingPaneElement('test-retry-pane');
+          const main = document.querySelector('main');
+          const occupiedHost = document.createElement('div');
+          main.append(occupiedHost);
+          const release = leaf.registerReadingRegion({
+            id: 'retry-pane', host: occupiedHost, body: occupiedHost,
+          });
+          const pane = document.createElement('test-retry-pane');
+          pane.id = 'retry-pane';
+          pane.setAttribute('label', 'Retry pane');
+          pane.innerHTML = '<header>Heading</header><input value="Authored">';
+          const authored = [...pane.childNodes];
+          main.append(pane);
+          const refusedWithoutWrapping = authored.every(
+            (node, index) => node === pane.childNodes[index]);
+          const refusedWithoutUpgrade = !pane.hasAttribute('data-lf-done');
+          pane.remove();
+          release();
+          main.append(pane);
+          const body = leaf.readingRegion(pane.id)?.body;
+          const nodes = [...pane.querySelectorAll('*')];
+          pane.querySelector('input').value = 'Reader draft';
+          pane.remove();
+          const retired = !leaf.readingRegion(pane.id);
+          main.append(pane);
+          const retained = leaf.readingRegion(pane.id)?.body === body
+            && nodes.every((node, index) => node === pane.querySelectorAll('*')[index]);
+          const value = pane.querySelector('input').value;
+          pane.remove();
+          occupiedHost.remove();
+          return {refusedWithoutWrapping, refusedWithoutUpgrade, retired, retained, value,
+                  registered: !!body && body.contains(authored[1])};
+        }"""
+    )
+    consume_browser_errors(page, "reading region retry-pane is already live")
+    assert result == {
+        "refusedWithoutWrapping": True,
+        "refusedWithoutUpgrade": True,
+        "registered": True,
+        "retired": True,
+        "retained": True,
+        "value": "Reader draft",
     }
 
 
@@ -2807,7 +2864,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [first_comment], phase="queued")
+        delivery_model.record_pickup(transaction, [first_comment], phase="queued")
     told(page)
     expect(text).to_have_text(
         re.compile(
@@ -3093,7 +3150,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Durable delivery into the open turn advances the exact same row in place and
     # does not disturb another reader move.
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [comments[0]])
+        delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
     expect(held_thread).not_to_have_attribute(
@@ -3277,7 +3334,7 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
     with service_model.PageTransaction(page_dir) as transaction:
-        session_model.record_pickup(transaction, [comment])
+        delivery_model.record_pickup(transaction, [comment])
     told(page)
 
     page.keyboard.press("c")
@@ -3309,7 +3366,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
 
     with live_watcher(page_dir, page):
         with service_model.PageTransaction(page_dir) as transaction:
-            session_model.record_pickup(transaction, [comment])
+            delivery_model.record_pickup(transaction, [comment])
             transaction.close_turn(claim["id"])
         result = CliRunner().invoke(
             cli_model.cli,
@@ -3405,7 +3462,7 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
         }"""
     )
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [comment])
+        delivery_model.record_pickup(transaction, [comment])
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
     expect(thread.locator(".lf-thread-status")).to_have_text("Picked up")

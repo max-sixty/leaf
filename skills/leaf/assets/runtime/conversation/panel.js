@@ -24,11 +24,10 @@ import {
   generalSend,
   inPanel as panelFocusIsInside,
   narrowingView,
-  threadsBox,
 } from "./panel-elements.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { narrowed, needsYou, threadSearchActive } from "./narrowing.js";
+import { needsYou, threadSearchActive } from "./narrowing.js";
 import { openThreads } from "./thread-list.js";
 import { standingConversation } from "./landing.js";
 import { runtime } from "../context.js";
@@ -45,7 +44,6 @@ export function createPanelComposer({
   setPanel,
   panelIsOpen,
   stepThread,
-  widen,
   fabAnchorAt,
   paintDrawings,
 }) {
@@ -204,33 +202,15 @@ export function createPanelComposer({
     ],
   });
 
-  // The find box is a text box and takes the letters like any other, so it stands inside
-  // the typing scope and states only what it does differently: Escape lets the narrowing go
-  // rather than merely leaving the box, and Enter walks into the list the words just found.
-  // Registered on the exact input, which is the whole of how it shadows that scope's own
-  // Escape — no listener of its own, no preventDefault written by hand.
+  // Search shares the text-entry scope's Escape: leave typing and keep the query.
+  // Only Enter differs, walking into the first result of the narrowed list.
   function declareFindBoxKeys() {
     keys(
       findInput.input,
       "In the find box",
       [
         {
-          id: "thread.find.close",
-          keys: ["Escape"],
-          does: () =>
-            narrowed()
-              ? "Reset thread filters"
-              : "Leave the box, keeping what is typed",
-          line: () => (narrowed() ? "reset filters" : "back to list"),
-          // One press, one step, like every other Escape in the register: the narrowing
-          // goes first and the box is left on the next press, rather than both at once.
-          run: () => {
-            if (widen()) return;
-            findInput.blur();
-            threadsBox.focus();
-          },
-        },
-        {
+
           id: "thread.find.first",
           keys: ["Enter"],
           does: "Go to the first thread found",

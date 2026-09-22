@@ -39,6 +39,7 @@ from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import http as http_model
@@ -51,7 +52,6 @@ from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.render_gate import readings as render_gate_readings
 from leaf.validation import compatibility as validation_model
@@ -1780,7 +1780,7 @@ def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             [comment],
             session=claim["id"],
@@ -1811,7 +1811,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             [comment],
             session=claim["id"],
@@ -1850,7 +1850,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             comments,
             session=claim["id"],
@@ -1887,7 +1887,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             [delivered],
             session=claim["id"],
@@ -1927,7 +1927,7 @@ def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             [comment],
             session=claim["id"],
@@ -1952,7 +1952,7 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             [comment],
             session=claim["id"],
@@ -2030,7 +2030,7 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
     service_model.claim_page(page_dir)
     with service_model.PageTransaction(page_dir) as page:
         claim = page.active_claim
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             page,
             [comment],
             session=claim["id"],

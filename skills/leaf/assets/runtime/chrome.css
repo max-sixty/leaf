@@ -1315,8 +1315,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg.agent:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger {
     opacity: 1; }
   .lf-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
-  .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
-    background: var(--card); }
   /* A thread whose root is a mark: the glyph and its word where the comment's words
      would stand, in the chrome's face. */
   .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }

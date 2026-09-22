@@ -10,7 +10,7 @@ One of two transports carries an offer. Over App Server, `start_delivery_turn` o
 a turn on a connection of its own as soon as the task is idle and `DeliveryTurn`
 follows it there until it ends, which is also how the reader sees activity and a
 streamed answer; the `codex queue` command leaves a pointer for the task's next turn,
-and the turn reports back through `leaf delivery claim`. The private App Server the
+and the task reads that immutable input through `leaf delivery read`. The private App Server the
 first transport needs is what `leaf codex launch` runs.
 
 `TaskObserver` holds the other connection, on the turns Leaf did not start: the
@@ -70,6 +70,7 @@ from .conversation import (
     release_delivery_reply,
     reserve_delivery_reply,
 )
+from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .event_log import flocked, read_cursor
 from .files import read_json
 from .host import CodexHarness, session_harness
@@ -82,7 +83,7 @@ from .service import (
     restore_page_claim,
     take_page_claim,
 )
-from .session import Watch, acknowledge, read_watch_pass, record_pickup
+from .session import Watch, read_watch_pass
 
 QUEUE_TIMEOUT = 20
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
@@ -659,28 +660,21 @@ def capture_batch(session_id: str, reading) -> bool:
 def _finish_batch(batch: dict, transport: dict | None = None) -> None:
     """Take receipt for one persisted batch, preserving a successor's claim."""
     page_dir = Path(batch["page"])
-    expected = {event["seq"]: event["id"] for event in batch["events"]}
     try:
-        with PageTransaction(page_dir) as page:
-            delivered = {
-                event["seq"]: event
-                for event in page.events
-                if min(expected) <= event["seq"] <= max(expected)
-            }
-            if not all(
-                delivered.get(seq, {}).get("id") == event_id
-                for seq, event_id in expected.items()
-            ):
-                return
+        with (
+            PageTransaction(page_dir) as page,
+            receive_batch(page, batch, session_id=batch["session"]) as delivered,
+        ):
             record_pickup(
                 page,
-                [delivered[seq] for seq in expected],
+                delivered,
                 phase=(transport or {}).get("phase", "queued"),
                 session=batch["session"],
                 turn=(transport or {}).get("turn"),
             )
-            acknowledge(page, max(expected))
-    except FileNotFoundError:
+    except (FileNotFoundError, ReceiptRefused):
+        # The accepted transport record survives, but a removed or transferred
+        # page has no cursor this carrier may advance.
         pass
 
 
@@ -712,7 +706,7 @@ def _record_receipt(path: Path, batch_index: int) -> None:
 
 
 def _recover_receipt(session_id: str) -> bool:
-    """Reconcile one accepted batch with its page, regardless of ownership."""
+    """Reconcile one accepted batch while its session still owns the page."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -777,7 +771,8 @@ def _offer_queued_delivery(
         queued = None
         if unoffered is not None:
             path, queue = unoffered
-            queued = path, queue, offer_delivery(path, queue)
+            prepared = offer_delivery(path, queue)
+            queued = prepared.queue_path, queue, prepared
     if queued is None:
         return False
     path, _offered, prepared = queued
@@ -912,11 +907,10 @@ def run_adapter(
 
             captured = False
 
-            def capture(reading) -> bool:
+            def capture(reading) -> None:
                 """Persist the batch without claiming that a turn opened."""
                 nonlocal captured
                 captured = capture_batch(harness.session, reading)
-                return False
 
             reading = read_watch_pass(watch, None, deliver=capture)
             if captured:

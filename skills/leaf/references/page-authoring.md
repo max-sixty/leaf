@@ -277,9 +277,9 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 
 ## Pre-handover review
 
-The main skill's handoff ceremony decides which page takes this review: a
-finished record before its URL first reaches the user, and a quick page before
-the stamp that turns it into one. Every source activation already runs the
+Step 3 of the main skill's "Operate" decides which page takes this review, by
+its lifetime: a finished record before its URL first reaches the user, and a
+quick page before the stamp that turns it into one. Every source activation already runs the
 deterministic markup check; this review adds the browser gate and a reading:
 
 ```bash

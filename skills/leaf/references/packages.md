@@ -962,7 +962,7 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the main skill's re-vendoring route restores the recorded URL, run
+After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
 `leaf version check <page> --render` on the version that uses the replacement
 layer. Note the re-vendor in the next stamped version's changelog.
 

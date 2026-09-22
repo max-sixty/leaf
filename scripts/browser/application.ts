@@ -637,10 +637,19 @@ export function createSemanticApplication({
         localWorkflow(entriesByMessage.get(message.id), false),
       ),
       ...unresolved
-        .filter((entry: any) => entry.rejected)
+        .filter((entry: any) => entry.rejected && entry.event.kind !== "read")
         .map((entry: any) => localWorkflow(entry, true)),
     ];
-    const threads = readThreadRecords(obligated, document, widgets, workflows);
+    const pendingReads = unresolved
+      .filter((entry: any) => entry.event.kind === "read" && !entry.rejected)
+      .map((entry: any) => entry.event);
+    const threads = readThreadRecords(
+      obligated,
+      document,
+      widgets,
+      workflows,
+      pendingReads,
+    );
     return {
       hostAvailable,
       projection,

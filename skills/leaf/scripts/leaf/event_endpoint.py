@@ -20,7 +20,7 @@ from .host import claim_harness
 from .leases import wait_is_live
 from .page_view import PageView
 from .registry.contract import RegistryError
-from .service import PageTransaction
+from .service import PageTransaction, requires_agent_attention
 
 EventAnswer = tuple[int, dict]
 StateReader = Callable[[], dict]
@@ -142,7 +142,8 @@ def _execute_event(
             # exact: a local socket accepts or refuses at once, and input after
             # a refusal tries again.
             if (
-                claim
+                requires_agent_attention(event)
+                and claim
                 and claim["turn_closed"]
                 and claim.get("messaged_turn") != claim["turn"]
                 and not wait_is_live(page_dir, claim["id"])

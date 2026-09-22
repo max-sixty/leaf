@@ -13,6 +13,7 @@ from ..events import (
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
 from ..requests import request_lifecycles_for, request_phases
+from ..read_state import read_versions, reader_message_content
 from .wire import browser_projection
 
 
@@ -104,9 +105,16 @@ def browser_conversation(
         request_phases=request_phases(requests),
     )
     awaiting = asks["awaiting"]
+    acknowledged = read_versions(events)
     open_ask_threads = {ask["thread"] for ask in asks["reader"]}
     rendered_threads = []
     for thread_id, thread in threads.items():
+        for message in thread["msgs"]:
+            if not reader_message_content(message):
+                continue
+            version = message.get("edited", {}).get("id", message["id"])
+            message["content_version"] = version
+            message["unread"] = (message["id"], version) not in acknowledged
         awaits_reader = _thread_awaits_reader(
             thread_id,
             thread,

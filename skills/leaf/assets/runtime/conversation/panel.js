@@ -44,6 +44,8 @@ export function createPanelComposer({
   setPanel,
   panelIsOpen,
   stepThread,
+  firstUnread,
+  unreadCount,
   fabAnchorAt,
   paintDrawings,
 }) {
@@ -179,6 +181,14 @@ export function createPanelComposer({
         control: () => narrowingView.readerControl,
         when: () => runtime.statePhase === "ready" && narrowingView.canToggleReader,
         run: () => narrowingView.toggleReader(),
+      },
+      {
+        id: "thread.unread.first",
+        keys: ["u"],
+        does: "Go to the first unread message",
+        line: "first unread",
+        when: () => unreadCount() > 0,
+        run: firstUnread,
       },
       {
         id: "thread.find",

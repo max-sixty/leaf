@@ -15,7 +15,9 @@ export const conversationForAttempt = (event, timestamp) => ({
 });
 
 export const unresolvedAttempts = (entries) =>
-  entries.filter((entry) => !entry.answered).map((entry) => entry.event.attempt);
+  entries
+    .filter((entry) => !entry.answered && entry.event.kind !== "read")
+    .map((entry) => entry.event.attempt);
 
 export const unreadMessages = (entries, receipts) => {
   const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));

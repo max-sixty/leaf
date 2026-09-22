@@ -708,6 +708,64 @@ test("a refused local message publishes one failed workflow before retirement", 
   assert.equal(app.read().effective.workflows.length, 0);
 });
 
+test("read acknowledgement publishes exact unread state without delivery or work", () => {
+  const app = setup();
+  const reading = state(2);
+  const root = {
+    id: "agent-root",
+    kind: "comment",
+    author: "agent",
+    agent: "Agent",
+    ts: "2026-09-22T10:00:00-07:00",
+    seq: 1,
+    text: "Answer",
+    content_version: "agent-root",
+    unread: true,
+  };
+  reading.browser.conversation.threads = [{
+    root,
+    msgs: [root],
+    anchor: null,
+    resolved: null,
+    awaits_agent: false,
+    awaits_reader: false,
+    bare_reaction: false,
+    seat: null,
+    summaries: [],
+    attention: null,
+  }];
+  app.adopt(reading);
+  const message = () => app.read().effective.conversation.all[0].msgs[0];
+  assert.equal(message().unread, true);
+  assert.equal(message().contentVersion, "agent-root");
+  assert.equal(app.read().effective.conversation.all[0].unreadCount, 1);
+
+  app.enqueue({
+    kind: "read",
+    attempt: "read-first",
+    messages: [{ message: "agent-root", version: "agent-root" }],
+  }, "now");
+  assert.equal(message().unread, false);
+  assert.equal(app.read().effective.conversation.all[0].unreadCount, 0);
+  assert.deepEqual(app.read().effective.delivery, []);
+  assert.deepEqual(app.read().effective.workflows, []);
+  app.reject("read-first");
+  assert.equal(message().unread, true);
+  assert.deepEqual(app.read().effective.delivery, []);
+  assert.deepEqual(app.read().effective.workflows, []);
+
+  const edited = structuredClone(reading);
+  edited.browser.conversation.threads[0].msgs[0].content_version = "edit-2";
+  edited.browser.conversation.threads[0].msgs[0].edited = { id: "edit-2", seq: 3 };
+  app.adopt(edited);
+  app.enqueue({
+    kind: "read",
+    attempt: "late-original",
+    messages: [{ message: "agent-root", version: "agent-root" }],
+  }, "now");
+  assert.equal(message().unread, true);
+});
+
 test("semantic epochs include visible revision facts but not transport metadata", () => {
   const app = setup();
   const lifecycle = state(2);

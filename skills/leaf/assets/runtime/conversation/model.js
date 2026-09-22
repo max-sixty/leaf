@@ -135,7 +135,12 @@ export const threadSummary = (thread) => ({
 /* Public conversation values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary. */
-export function readThreadRecords(threads, document, widgets, workflows) {
+export function readThreadRecords(threads, document, widgets, workflows, pendingReads = []) {
+  const locallyRead = new Set(
+    pendingReads.flatMap((event) =>
+      event.messages.map(({ message, version }) => `${message}\u0000${version}`),
+    ),
+  );
   const workflowsByInput = new Map();
   const workflowsByWidget = new Map();
   for (const workflow of workflows) {
@@ -171,6 +176,7 @@ export function readThreadRecords(threads, document, widgets, workflows) {
         "author",
         "agent",
         "ts",
+        "seq",
         "parent",
         "pending",
         "anchor",
@@ -209,6 +215,10 @@ export function readThreadRecords(threads, document, widgets, workflows) {
         throw new Error(`Authored message ${message.id} has no captured body`);
       return {
         ...record,
+        contentVersion: message.content_version ?? null,
+        unread:
+          Boolean(message.unread) &&
+          !locallyRead.has(`${message.id}\u0000${message.content_version}`),
         key: message.attempt ?? message.id,
         body,
         workflows: [
@@ -231,6 +241,7 @@ export function readThreadRecords(threads, document, widgets, workflows) {
       title: thread.title ?? null,
       root: msgs.find((message) => message.id === thread.root.id),
       msgs,
+      unreadCount: msgs.filter((message) => message.unread).length,
       anchor: thread.anchor ?? null,
       detached_from: thread.detached_from ?? null,
       resolved: thread.resolved ?? null,

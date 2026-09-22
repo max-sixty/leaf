@@ -971,23 +971,24 @@ def queue_records(session_id: str) -> list[tuple[Path, dict]]:
     directory = delivery_dir(session_id)
     if not directory.is_dir():
         return []
-    records = [
-        (path, queue)
-        for path in directory.glob("*.json")
-        if (queue := read_json(path)) is not None
-        and queue.get("format") == QUEUE_FORMAT
-        and (
-            queue["state"] != "collecting"
-            or all("handling" in batch for batch in queue["batches"])
-        )
-        and (
-            queue["state"] != "offering"
-            or (
-                (payload := read_json(delivery_path(path.stem))) is not None
-                and payload.get("format") == DELIVERY_FORMAT
-            )
-        )
-    ]
+    records = []
+    for path in directory.glob("*.json"):
+        try:
+            validate_delivery_id(path.stem)
+        except ValueError:
+            continue
+        queue = read_json(path)
+        if queue is None or queue.get("format") != QUEUE_FORMAT:
+            continue
+        if queue["state"] == "collecting" and not all(
+            "handling" in batch for batch in queue["batches"]
+        ):
+            continue
+        if queue["state"] == "offering":
+            payload = read_json(delivery_path(path.stem))
+            if payload is None or payload.get("format") != DELIVERY_FORMAT:
+                continue
+        records.append((path, queue))
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
 
@@ -1033,13 +1034,14 @@ def delivery_pointer_prompt(delivery_id: str, payload: dict | None = None) -> st
 
 @dataclass(frozen=True)
 class PreparedDelivery:
-    """One immutable delivery in pointer and structured forms."""
+    """One immutable delivery and the queue address that prepared it, if any."""
 
     prompt: str
     payload: dict
     claim_transition: tuple[dict | None, dict] | None = field(
         default=None, compare=False, repr=False
     )
+    queue_path: Path | None = field(default=None, compare=False, repr=False)
 
 
 def _readdress_queue(path: Path) -> Path:
@@ -1060,7 +1062,9 @@ def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
         payload = read_json(payload_path)
         if payload is None:
             raise RuntimeError("the Codex delivery payload is missing")
-        return PreparedDelivery(delivery_pointer_prompt(path.stem, payload), payload)
+        return PreparedDelivery(
+            delivery_pointer_prompt(path.stem, payload), payload, queue_path=path
+        )
 
     while True:
         try:
@@ -1085,7 +1089,9 @@ def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
     ]
     queue["state"] = "offering"
     write_queue(path, queue)
-    return PreparedDelivery(delivery_pointer_prompt(path.stem, payload), payload)
+    return PreparedDelivery(
+        delivery_pointer_prompt(path.stem, payload), payload, queue_path=path
+    )
 
 
 def append_batch(

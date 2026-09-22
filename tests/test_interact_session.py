@@ -216,7 +216,8 @@ def test_codex_readdresses_a_collecting_queue_if_its_delivery_id_collides(
     prepared = codex_model.offer_delivery(path, files_model.read_json(path))
 
     assert prepared.payload["id"] == "bbbbbbbb"
-    assert path.with_name("bbbbbbbb.json").is_file()
+    assert prepared.queue_path == path.with_name("bbbbbbbb.json")
+    assert prepared.queue_path.is_file()
     assert not path.exists()
 
 
@@ -6362,6 +6363,24 @@ def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
     assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
 
 
+@pytest.mark.parametrize("state", ["collecting", "offering"])
+def test_codex_ignores_queue_records_from_the_previous_id_vocabulary(state):
+    directory = codex_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    legacy = directory / "3f2a6c1e-9b44-4f0a-8a1f-2c5d7e8b9012.json"
+    files_model.write_json(
+        legacy,
+        {
+            "format": codex_model.QUEUE_FORMAT,
+            "state": state,
+            "created_at": 0,
+            "batches": [],
+        },
+    )
+
+    assert codex_model.queue_records("codex-thread") == []
+
+
 def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     page = codex_claimed_page
     for event_id in ("first", "second"):
@@ -6392,8 +6411,8 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     # Filename order is deliberately opposite to event order. The cursor is
     # monotonic, so taking receipt for the second batch first would hide the
     # first batch before its pickup record is written.
-    files_model.write_json(directory / "z-old.json", epoch(first, created_at=1))
-    files_model.write_json(directory / "a-new.json", epoch(second, created_at=2))
+    files_model.write_json(directory / "ffffffff.json", epoch(first, created_at=1))
+    files_model.write_json(directory / "aaaaaaaa.json", epoch(second, created_at=2))
 
     assert codex_adapter_model._recover_receipt("codex-thread")
     assert codex_adapter_model._recover_receipt("codex-thread")

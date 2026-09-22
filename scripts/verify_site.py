@@ -55,7 +55,7 @@ TURN_PRESENTATION = 120_000
 # The activity readings that mean a turn is on this work. A page that reads away,
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
 # `TURN_PATIENCE` rather than running out the limit.
-ANSWERING = frozenset({"queued", "handling", "working"})
+ANSWERING = frozenset({"working"})
 TURN_ASKS = 2
 
 

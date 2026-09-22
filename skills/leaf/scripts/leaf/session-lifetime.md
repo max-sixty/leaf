@@ -11,7 +11,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
-| live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live Codex activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
@@ -23,38 +23,39 @@ and requests another reading at its next deadline; it does not run a second fold
 | Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
-Delivery acceptance is a different fact from authored work, but it is exact agent
-activity. These facts project into one reader-facing **Agent workflow**; the browser
-does not present delivery status and work ownership as separate categories. Pickup
-never rewrites `status.json`. Page activity counts one interaction
-per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one). On the subject's existing target
-margin entry or a compact local row, append is **Sent**, then **Waiting for pickup** after the short grace;
-Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
-later `status … --on` claim on the same reader move is **Working**. That same evidence
-makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,
-resolution, or authored state that honors the move settles the interaction; a later
-version note settles a page action whose verb has no authored record form, and a note
-already standing when the move arrives cannot answer it.
+Page activity describes ownership, carrier availability, and current work. Its
+`kind` is `unattended`, `closed`, `unheld`, `away`, `listening`, `working`, or
+`stalled`. Fresh declared or observed work makes the page working independently
+of how far newer input has progressed. Delivery opened into the claimant's
+current turn also proves generic activity before its first work declaration;
+the receipt itself remains Picked up. The banner and Leaves tray consume this
+same reading and present delivery counts separately.
 
-The activity fold defines precedence once. An unsettled opened interaction outranks
-a `waiting` declaration, so a receipt cannot say **Picked up** while the banner says
-the agent awaits the reader. A fresh `working` declaration whose recorded event floor
-reaches the standing obligations is current work. If newer interactions are only
-**Queued**, an otherwise current declaration or live Codex activity remains visible
-alongside them and the banner names both facts; the older event floor does not claim
-that work has started on the queued input. Turn identity, not elapsed time, decides
-whether opened delivery belongs to the turn now running.
-Fresh activity from the claimed Codex task's App Server is an observation bound to one
-turn and event floor, not a second work declaration. It can make a page working over a
-declaration that says otherwise, because it proves a session is alive and moving. It
-does not say what the work is: a current `working` declaration keeps the reading's
-sentence and its own date on every host, and the observed step is reported beside it as
-`observed`. `delivery claim` given no detail writes one of Leaf's own so a taken-up move says so at
-once, and marks it `stated: false`; a watched step whose own floor reaches the newest
-input knows more than that wording and takes the sentence back, while an older step
-leaves it standing. Where no current declaration stands, the step is the sentence,
-and the declaration becomes current again when the turn or observer ends.
+Interaction receipts keep their own exact input and subject identity. On the
+subject's margin entry or message, append is **Sent**, then **Waiting for pickup**
+after the short grace; Codex acceptance is **Queued**; entry into a named open
+turn is **Picked up**; a later `status … --on` claim on the same reader move is
+**Working**. Pickup never rewrites `status.json` or makes the page itself
+Picked up. Counts take the newest unsettled move per subject and unit. A reply,
+resolution, or authored state that honors the move settles it; a later version
+note settles a page action whose verb has no authored record form. A note already
+standing when the move arrives cannot answer it. Turn identity decides whether
+a receipt belongs to the open turn; ending a turn does not settle its input.
+
+The App Server observer retains typed `working`, `thinking`, `tool`, `replying`,
+`awaiting_approval`, and `awaiting_input` activity with the observed session and
+provider turn. These are observations of the page's agent, not claims on every
+message. Missing subtype evidence means generic Working. A tool invocation is
+not an independently tracked background job, and neither an old observation nor
+a disconnected carrier proves a job failed.
+
+A current authored work declaration keeps the page's sentence and date. The
+observed step remains separately available as `observed` and `observed_kind`;
+where the declaration has no authored sentence, the observation supplies it.
+Only current observed work supplies a live subtype. Delivery floors and exact
+response bindings continue to govern local receipts and settlement, without
+making newer input erase overall page work. A page-wide observation alone never
+upgrades a message receipt to Thinking or Working.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
 or widget the work is about. `leaf delivery claim` instead records one event from an

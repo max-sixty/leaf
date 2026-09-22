@@ -1451,10 +1451,10 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
     assert interrupts == [("hosted-thread", "")]
     assert codex_queues("hosted-thread") == []
     assert competing_writer_rejected == [True]
-    assert (
-        website_server.full_state(page_dir, read_events(page_dir))["activity"]["kind"]
-        != "working"
-    )
+    assert website_server.page_claim(page_dir) is None
+    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert activity["observed_kind"] is None
+    assert [item["phase"] for item in activity["obligations"]] == ["sent"]
     # The seat is free, so the Worker's own receipt reaches the reader.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
@@ -2033,15 +2033,18 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
 
         assert state["listening"] is True
         assert state["activity"]["kind"] == "working"
-        assert state["activity"]["detail"] == "Starting"
+        assert state["activity"]["observed_kind"] == "working"
         assert state["activity"]["obligations"][0]["event"] == comment["id"]
 
         website_server.set_stream_activity(
-            "hosted-thread", "app-server-turn", "Editing index.html"
+            "hosted-thread",
+            "app-server-turn",
+            {"kind": "tool", "detail": "Editing index.html"},
         )
         working = website_server.full_state(page_dir, read_events(page_dir))
         assert working["activity"]["kind"] == "working"
-        assert working["activity"]["detail"] == "Editing index.html"
+        assert working["activity"]["observed_kind"] == "tool"
+        assert working["activity"]["observed"] == "Editing index.html"
     finally:
         host.close()
 
@@ -2186,9 +2189,15 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     hosted_follower(host, page_dir, prepared, socket, turn_id="initial-turn").follow()
 
     assert updates == [
-        ("hosted-thread", "initial-turn", "Starting"),
-        ("hosted-thread", "initial-turn", "Running leaf version check ."),
-        ("hosted-thread", "initial-turn", "Deployment verified."),
+        ("hosted-thread", "initial-turn", {"kind": "working"}),
+        (
+            "hosted-thread",
+            "initial-turn",
+            {"kind": "tool", "detail": "Running leaf version check ."},
+        ),
+        ("hosted-thread", "initial-turn", {"kind": "working"}),
+        ("hosted-thread", "initial-turn", {"kind": "replying"}),
+        ("hosted-thread", "initial-turn", {"kind": "working"}),
     ]
     # The turn's own reading and no other. A completed turn's reading is released
     # both as its completion is folded and again when the follower accounts for the
@@ -3328,7 +3337,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     [delivery] = accept_codex_delivery("hosted-thread")
 
     handling = website_server.full_state(page_dir, read_events(page_dir))
-    assert handling["activity"]["kind"] == "handling"
+    assert handling["activity"]["kind"] == "working"
     assert verify_site.still_answering(handling, comment["id"])
     # Another page's comment is not this gate's turn, whatever this page is doing.
     assert not verify_site.still_answering(handling, "another-event")

@@ -15,6 +15,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
@@ -2807,7 +2808,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [first_comment], phase="queued")
+        delivery_model.record_pickup(transaction, [first_comment], phase="queued")
     told(page)
     expect(text).to_have_text(
         re.compile(
@@ -3093,7 +3094,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Durable delivery into the open turn advances the exact same row in place and
     # does not disturb another reader move.
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [comments[0]])
+        delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
     expect(held_thread).not_to_have_attribute(
@@ -3277,7 +3278,7 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
     with service_model.PageTransaction(page_dir) as transaction:
-        session_model.record_pickup(transaction, [comment])
+        delivery_model.record_pickup(transaction, [comment])
     told(page)
 
     page.keyboard.press("c")
@@ -3309,7 +3310,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
 
     with live_watcher(page_dir, page):
         with service_model.PageTransaction(page_dir) as transaction:
-            session_model.record_pickup(transaction, [comment])
+            delivery_model.record_pickup(transaction, [comment])
             transaction.close_turn(claim["id"])
         result = CliRunner().invoke(
             cli_model.cli,
@@ -3405,7 +3406,7 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
         }"""
     )
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [comment])
+        delivery_model.record_pickup(transaction, [comment])
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
     expect(thread.locator(".lf-thread-status")).to_have_text("Picked up")

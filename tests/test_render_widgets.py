@@ -8,6 +8,7 @@ import pytest
 from interact_support import append_command
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
@@ -3998,13 +3999,21 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         if event["id"] == action["id"]
     )
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             transaction,
             [logged_action],
             session="notification-agent",
             turn="create-artifact",
         )
-    session_model.cmd_ack(serve.page_dir, logged_action["seq"])
+    with (
+        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        delivery_model.receive_batch(
+            receipt_page,
+            {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
+            session_id=None,
+        ),
+    ):
+        pass
     session_model.cmd_status(
         serve.page_dir,
         "working",
@@ -4121,13 +4130,21 @@ body { font-family: system-ui, sans-serif; }
     )
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             transaction,
             [logged_comment],
             session="notification-agent",
             turn="refine-artifact",
         )
-    session_model.cmd_ack(serve.page_dir, logged_comment["seq"])
+    with (
+        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        delivery_model.receive_batch(
+            receipt_page,
+            {"events": [{"seq": logged_comment["seq"], "id": logged_comment["id"]}]},
+            session_id=None,
+        ),
+    ):
+        pass
     second_artifact = first_artifact.replace(
         "</article>",
         '  <footer><a href="/deployments/2.8.0">Open deployment run</a></footer>\n'

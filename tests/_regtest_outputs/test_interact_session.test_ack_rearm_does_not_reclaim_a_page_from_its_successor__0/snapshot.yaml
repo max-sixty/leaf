@@ -1,8 +1,8 @@
-# Full CLI output after acknowledgment succeeds but its next wait cannot start.
+# Full CLI output when receipt is refused after page ownership transfers.
 
-exit: 2
+exit: 1
 
 stdout: ''
 
 stderr: |
-  nothing to watch: <page> is not claimed by this session
+  Error: delivery no longer owns its page: <page>

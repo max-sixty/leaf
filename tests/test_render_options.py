@@ -9,10 +9,10 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_command
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1823,8 +1823,16 @@ def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
     receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, [logged_action])
-    session_model.cmd_ack(d, logged_action["seq"])
+        delivery_model.record_pickup(transaction, [logged_action])
+    with (
+        service_model.PageTransaction(d) as receipt_page,
+        delivery_model.receive_batch(
+            receipt_page,
+            {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
+            session_id=None,
+        ),
+    ):
+        pass
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "pickup")
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
@@ -2524,7 +2532,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
     expect(status).to_have_text("Sent")
     with service_model.PageTransaction(d) as transaction:
-        session_model.record_pickup(transaction, actions)
+        delivery_model.record_pickup(transaction, actions)
     told(page)
     expect(status).to_have_text("Picked up")
     assert page.locator("#rp-quoted lf-option[chosen]").count() == 0

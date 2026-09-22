@@ -179,6 +179,19 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
     return delivery_model.freeze_delivery([batch])
 
 
+def delivery_through(page_dir: Path, seq: int) -> str:
+    """Freeze the complete deliverable prefix used to arrange a received fixture."""
+    events = service_model.unacknowledged(events_model.read_events(page_dir), 0)
+    return freeze_events(
+        page_dir, [event for event in events if event["seq"] <= int(seq)]
+    )["id"]
+
+
+def receive_through(page_dir: Path, seq: int) -> None:
+    service_model.claim_page(page_dir)
+    session_model.receive_delivery(delivery_through(page_dir, seq))
+
+
 def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
     minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
     widths = []
@@ -703,7 +716,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     [accepted] = codex_model.accept_codex_delivery("hosted-thread")
 
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
-    assert 'operation="delivery claim"' in prompt.prompt
+    assert 'operation="delivery read"' in prompt.prompt
     assert "skill=" not in prompt.prompt
     [batch] = prompt.payload["batches"]
     assert set(batch) == {"page", "through_seq", "conversations", "handling", "events"}
@@ -1262,7 +1275,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     ] == [("c1", "working"), ("c2", "sent")]
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     assert session_model.cmd_wait(page_dir) == 0
-    capsys.readouterr()
+    session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
     handed = files_model.read_json(page_dir / "status.json")
     assert (handed["state"], handed["detail"]) == ("waiting", "look at v2")
     assert handed["work"][0]["detail"] == "reading the traces"
@@ -1283,7 +1296,7 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
         _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
     )
     with service_model.PageTransaction(page_dir) as transaction:
-        session_model.record_pickup(transaction, [comment])
+        delivery_model.record_pickup(transaction, [comment])
     events_model.append_event(
         page_dir,
         {
@@ -1442,7 +1455,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     )
 
     assert session_model.cmd_wait(claimed) == 0
-    capsys.readouterr()
+    session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
     activity = page_state(claimed)["activity"]
     assert activity["kind"] == "working"
     assert [item["stage"] for item in activity["obligations"]] == ["picked_up"]
@@ -1573,7 +1586,7 @@ def test_pickup_from_an_older_turn_has_a_stale_work_condition(claimed, capsys):
         claimed, {"kind": "comment", "author": "user", "text": "new input"}
     )
     assert session_model.cmd_wait(claimed) == 0
-    capsys.readouterr()
+    session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
     old = service_model.page_claim(claimed)
     with service_model.PageTransaction(claimed) as transaction:
         transaction.close_turn(old["id"])
@@ -1592,7 +1605,7 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
     )
     with service_model.PageTransaction(claimed) as transaction:
-        session_model.record_pickup(transaction, [comment], phase="queued")
+        delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = page_state(claimed)["activity"]
     assert (activity["kind"], activity["detail"]) == (
@@ -1637,7 +1650,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
     )
     with service_model.PageTransaction(claimed) as transaction:
-        session_model.record_pickup(transaction, [comment], phase="queued")
+        delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = page_state(claimed)["activity"]
     assert (activity["kind"], activity["detail"]) == (
@@ -4209,7 +4222,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
 
     claim = record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
-        session_model.record_pickup(
+        delivery_model.record_pickup(
             transaction,
             [answer],
             session=claim["id"],
@@ -4482,7 +4495,7 @@ def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
     assert claim["disposition"] == "effective"
 
 
-def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsys):
+def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, capsys):
     # A held server.lock lease is what wait's liveness probe asks for.
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
@@ -4506,7 +4519,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
-    _, header, shown = delivered(capsys.readouterr().out)
+    payload, header, shown = delivered(capsys.readouterr().out)
     assert (header["page"], header["conversations"]) == (str(page_dir), [])
     assert [e["kind"] for e in shown] == ["comment", "action"]
     assert shown[1]["detail"]["to"] == "y"
@@ -4521,8 +4534,11 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "later"}
     )
     delivered_through = shown[-1]["seq"]
-    session_model.cmd_ack(page_dir, delivered_through)
-    session_model.cmd_ack(page_dir, delivered_through)  # retries are harmless
+    assert not any(
+        event["kind"] == "pickup" for event in events_model.read_events(page_dir)
+    )
+    session_model.receive_delivery(payload["id"])
+    session_model.receive_delivery(payload["id"])  # retries are harmless
     assert files_model.read_json(page_dir / "cursor.json")["seq"] == delivered_through
     assert page_state(page_dir)["pending"] == 1
 
@@ -4530,7 +4546,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     _, _, later_events = delivered(capsys.readouterr().out)
     [later] = later_events
     assert later["id"] == "c2"
-    session_model.cmd_ack(page_dir, later["seq"])
+    receive_through(page_dir, later["seq"])
     assert page_state(page_dir)["pending"] == 0
     # Pickup is exact log evidence and does not rewrite the agent's page-wide claim.
     status = files_model.read_json(page_dir / "status.json")
@@ -4573,8 +4589,8 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     assert session_model.cmd_wait(page_dir) == 0
     _, _, shown = delivered(capsys.readouterr().out)
     assert [(e["kind"], e.get("agent")) for e in shown] == [("report", "Indexer")]
-    session_model.cmd_ack(page_dir, 4)
-    assert files_model.read_json(page_dir / "cursor.json")["seq"] == 4
+    receive_through(page_dir, shown[-1]["seq"])
+    assert files_model.read_json(page_dir / "cursor.json")["seq"] == shown[-1]["seq"]
 
 
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
@@ -4606,7 +4622,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     assert retry_batch == header
     assert retry_payload["id"] != first_payload["id"]
     pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
-    assert len(pickups) == 1 and pickups[0]["events"] == ["c1"]
+    assert pickups == []
 
     # If wait output was lost or truncated, retrieving it again before ack can
     # include a newer event. The old event keeps the same page-and-seq identity
@@ -4620,8 +4636,8 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     assert {key: grown_header[key] for key in ("page", "conversations")} == {
         key: header[key] for key in ("page", "conversations")
     }
-    assert grown_header["through_seq"] == 3
-    assert [event["seq"] for event in grown_events] == [1, 3]
+    assert grown_header["through_seq"] == 2
+    assert [event["seq"] for event in grown_events] == [1, 2]
 
 
 def test_conversation_read_is_exact_and_paginated(page_dir):
@@ -5021,7 +5037,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     [workflow] = selecting["workflows"]
     assert workflow["input"] == chose["id"]
     assert workflow["requires_response"] is False
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -5039,7 +5055,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     completed = state_json(page_dir)
     assert completed["asks"] == []
     assert completed["activity"]["obligations"] == [answered["id"]]
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     blocked = json.loads(capsys.readouterr().out)
     assert blocked["decision"] == "block"
@@ -5106,7 +5122,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     # Acknowledged, so the opening comment is off every later batch. That and
     # the agent's own answer — which, being nobody's news, was never on one —
     # leave the envelope as the only route to what was said.
-    session_model.cmd_ack(page_dir, 1)
+    receive_through(page_dir, 1)
     followed = events_model.append_event(
         page_dir,
         {
@@ -5137,7 +5153,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
 
     # A comment that opens a thread states its own anchor on its own line, so
     # there is nothing behind it to carry.
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "separately — the rollout"},
@@ -5148,7 +5164,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
 
     # The reader closing a thread from the panel posts a resolve, whose only
     # pointer at the conversation is the message it names.
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": followed["id"]}
     )
@@ -5228,7 +5244,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     # Standing, so a later delivery in this thread carries what the reader
     # settled. Without it the agent meets the question with no answer under it
     # and replies reopening a list they have already ticked.
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
         {
@@ -5248,7 +5264,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
 
     # Taken back, and the conversation stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
     )
@@ -5312,7 +5328,7 @@ def test_a_delivered_gesture_says_what_the_reader_chose_on_their_version(
     assert widget == "plan-choice"
     assert "Ship behind the flag, reworded." in whole and "Backfill first" in whole
 
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
     )
@@ -5358,7 +5374,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
         for event in events_model.read_events(page_dir)
         if event["id"] == target["id"]
     )
-    session_model.cmd_ack(page_dir, target_seq)
+    receive_through(page_dir, target_seq)
     capsys.readouterr()
     accepted = append_command(
         page_dir,
@@ -5583,7 +5599,7 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
     thread at all. Reading the sending widget alone therefore left the gesture
     that closes a thread as the one gesture arriving with nothing behind it."""
     _settling_page(page_dir)
-    session_model.cmd_ack(page_dir, 1)  # c1 delivered; its words are the
+    receive_through(page_dir, 1)  # c1 delivered; its words are the
     capsys.readouterr()  # envelope's to carry from here
     append_command(page_dir, dict(SETTLING_ACCEPT))
     # The action door accepts this event, so the shape is the product's own.
@@ -5612,7 +5628,7 @@ def test_an_undo_of_a_page_ask_carries_the_thread_it_reopens(page_dir, capsys):
     the same reading the accept did."""
     _settling_page(page_dir)
     accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
@@ -5632,7 +5648,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
     directly. Exact history and live delivery use one Leaf-owned membership join."""
     _settling_page(page_dir)
     accepted = append_command(page_dir, dict(SETTLING_ACCEPT))
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
 
     rejected = append_command(
@@ -5655,7 +5671,7 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
         for event in events_model.read_events(page_dir)
         if event["id"] == rejected["id"]
     )
-    session_model.cmd_ack(page_dir, rejected_seq)
+    receive_through(page_dir, rejected_seq)
     capsys.readouterr()
     undone = events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": rejected["id"]}
@@ -5754,7 +5770,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     # By seq off the log: `append_event` hands back what it was given plus an id,
     # and a seq is the line the log gave it.
     logged_seq = {e["id"]: e["seq"] for e in events_model.read_events(page_dir)}
-    session_model.cmd_ack(page_dir, logged_seq[answered["id"]])
+    receive_through(page_dir, logged_seq[answered["id"]])
     events_model.append_event(
         page_dir,
         {
@@ -5819,7 +5835,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         assert session_model.cmd_wait(page_dir) == 0
         _, batch, _ = delivered(capsys.readouterr().out)
         headers.append(len(json.dumps(batch["conversations"])))
-        session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+        receive_through(page_dir, last_deliverable_seq(page_dir))
         capsys.readouterr()
 
     # Flat, not merely slower: twenty further exchanges add only the few
@@ -5886,7 +5902,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
                 "text": f"turn {turn}",
             },
         )["id"]
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     capsys.readouterr()
     events_model.append_event(
         page_dir,
@@ -5905,65 +5921,224 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     assert chose["id"] == thread["actions"][0]["id"]
 
 
-def test_ack_checks_its_target_and_advances_monotonically(page_dir):
-    """Exit 1 is the acknowledgement refused and the cursor unmoved. Past that the
-    command is the wait it re-armed, and this page is claimed by nobody, so every
-    acknowledgement that lands ends on the same 2 a bare `leaf wait` would."""
-    events_model.append_event(
-        page_dir,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 1,
-            "revision": 1,
-            "text": "published",
-        },
+def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir):
+    service_model.claim_page(page_dir)
+    first = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
-    events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    older = freeze_events(page_dir, [first])
+    second = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "second"}
     )
-    events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "later"}
-    )
+    newer = freeze_events(page_dir, [first, second])
     runner = CliRunner()
-
-    missing = runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"])
+    missing = runner.invoke(cli_model.cli, ["wait", "--ack", "00000000"])
     assert missing.exit_code == 1
-    assert "event 4 does not exist" in missing.output
+    assert "unknown delivery" in missing.output
+    combined = runner.invoke(
+        cli_model.cli, ["wait", str(page_dir), "--ack", newer["id"]]
+    )
+    assert combined.exit_code == 2
+    assert files_model.read_json(page_dir / "cursor.json") is None
+    for payload in (newer, newer, older):
+        assert session_model.receive_delivery(payload["id"]) == [page_dir]
+        assert files_model.read_json(page_dir / "cursor.json") == {"seq": 2}
+    pickups = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert len(pickups) == 1
+    assert pickups[0]["events"] == [first["id"], second["id"]]
 
-    agent_event = runner.invoke(cli_model.cli, ["ack", str(page_dir), "1"])
-    assert agent_event.exit_code == 1
+
+def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch):
+    service_model.claim_page(page_dir)
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Answer"}
+    )
+    payload = freeze_events(page_dir, [comment])
+
+    def failed_pickup(*args, **kwargs):
+        raise OSError("pickup write interrupted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(session_model, "record_pickup", failed_pickup)
+        with pytest.raises(OSError, match="pickup write interrupted"):
+            session_model.receive_delivery(payload["id"])
+    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert page_state(page_dir)["pending"] == 1
+    session_model.receive_delivery(payload["id"])
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    [pickup] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert pickup["events"] == [comment["id"]]
+    assert pickup["phase"] == "opened"
+    assert page_state(page_dir)["activity"]["obligations"][0]["stage"] == "picked_up"
+
+
+def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
+    service_model.claim_page(page_dir)
+    original = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Original"}
+    )
+    payload = freeze_events(page_dir, [original])
+    (page_dir / "events.jsonl").write_text("")
+    replacement = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Replacement"}
+    )
+    [replacement] = events_model.read_events(page_dir)
+    assert replacement["seq"] == payload["batches"][0]["through_seq"]
+    with pytest.raises(RuntimeError):
+        session_model.receive_delivery(payload["id"])
+    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert events_model.read_events(page_dir) == [replacement]
+
+
+def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp_path):
+    other = tmp_path / "other"
+    shutil.copytree(page_dir, other)
+    batches = []
+    for page in (page_dir, other):
+        service_model.claim_page(page)
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "Please answer"}
+        )
+        with service_model.PageTransaction(page) as transaction:
+            batches.append(
+                delivery_model.batch_data(page, transaction, transaction.events)
+            )
+    payload = delivery_model.freeze_delivery(batches)
+    later = events_model.append_event(
+        other, {"kind": "comment", "author": "user", "text": "Later"}
+    )
+    assert session_model.receive_delivery(payload["id"]) == [page_dir, other]
+    for page in (page_dir, other):
+        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+        obligations = page_state(page)["activity"]["obligations"]
+        assert obligations[0]["stage"] == "picked_up"
+    assert page_state(other)["pending"] == 1
     assert (
-        "event 1 is not a user event, a report, or a page error" in agent_event.output
+        service_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
+        == later["id"]
     )
 
-    first = runner.invoke(cli_model.cli, ["ack", str(page_dir), "3"])
-    retry = runner.invoke(cli_model.cli, ["ack", str(page_dir), "3"])
-    older = runner.invoke(cli_model.cli, ["ack", str(page_dir), "2"])
-    assert first.exit_code == retry.exit_code == older.exit_code == 2
-    assert "nothing to watch" in first.output
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 3}
 
-    # A worker's report is part of the watcher's batch, so it is a valid ack
-    # target too — the same cursor covers both kinds.
-    events_model.append_event(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "widget": "t1",
-            "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["t1", "t1", "status"],
-                "depends": ["t1"],
-            },
-            "action": "status",
-            "detail": {"status": "review"},
-            "revision": 1,
-        },
+def test_concurrent_receipts_open_sibling_turns_without_nesting_page_locks(
+    claimed, tmp_path, spawn
+):
+    """Both consumers reach the sibling sweep before either can run it.
+
+    If receipt still holds its own page lock at this boundary, each process
+    waits on the other's page forever. The real sweep must complete both
+    receipts, including the sibling that supplied neither batch.
+    """
+    second = tmp_path / "second"
+    silent = tmp_path / "silent"
+    for page in (second, silent):
+        shutil.copytree(claimed, page)
+        service_model.claim_page(page)
+    pages = (claimed, second, silent)
+    session_id = service_model.page_claim(claimed)["id"]
+    for page in pages:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.close_turn(session_id)
+    deliveries = []
+    for page in pages[:2]:
+        comment = events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "Please answer"}
+        )
+        deliveries.append(freeze_events(page, [comment]))
+    release = tmp_path / "release-sibling-sweeps"
+    arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
+    probe = """\
+import time
+from leaf import session
+
+original_open = session.open_session_turn
+def synchronized_open(*args, **kwargs):
+    Path(os.environ["ARRIVAL"]).write_text("ready", encoding="utf-8")
+    release = Path(os.environ["RELEASE"])
+    while not release.exists():
+        time.sleep(0.01)
+    return original_open(*args, **kwargs)
+
+session.open_session_turn = synchronized_open
+session.receive_delivery(os.environ["DELIVERY"])
+"""
+    consumers = [
+        spawn_probe(
+            spawn,
+            page,
+            probe,
+            DELIVERY=payload["id"],
+            ARRIVAL=arrival,
+            RELEASE=release,
+        )
+        for page, payload, arrival in zip(pages[:2], deliveries, arrivals, strict=True)
+    ]
+    wait_for(
+        lambda: all(arrival.exists() for arrival in arrivals),
+        bool,
+        failure="both receipts did not reach the sibling-turn sweep",
     )
-    assert runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"]).exit_code == 2
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 4}
+    release.write_text("continue", encoding="utf-8")
+    for consumer in consumers:
+        out, err = consumer.communicate(timeout=STATED_TIMEOUT)
+        assert consumer.returncode == 0, out + err
+    for page in pages:
+        assert service_model.page_claim(page)["turn_closed"] is None
+    for page in pages[:2]:
+        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+        [pickup] = [
+            event
+            for event in events_model.read_events(page)
+            if event["kind"] == "pickup"
+        ]
+        assert pickup["phase"] == "opened"
+        assert page_state(page)["activity"]["obligations"][0]["stage"] == "picked_up"
+    assert files_model.read_json(silent / "cursor.json") is None
+
+
+def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
+    page_dir, spawn, monkeypatch
+):
+    service_model.claim_page(page_dir)
+    event = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Answer"}
+    )
+    payload = freeze_events(page_dir, [event])
+    with service_model.PageTransaction(page_dir):
+        # The command must wait behind the same lock that protects ownership changes.
+        receiving = spawn_probe(
+            spawn,
+            page_dir,
+            """
+from leaf import service, session
+original_enter = service.PageTransaction.__enter__
+def entered(transaction):
+    print("locking", flush=True)
+    return original_enter(transaction)
+service.PageTransaction.__enter__ = entered
+session.receive_delivery(os.environ["DELIVERY"])
+""",
+            DELIVERY=payload["id"],
+        )
+        assert receiving.stdout.readline().strip() == "locking"
+        record_claim(page_dir, id="successor", pid=os.getpid())
+    out, err = receiving.communicate(timeout=10)
+    assert receiving.returncode == 1, out + err
+    assert "delivery no longer owns its page" in err
+    assert files_model.read_json(page_dir / "cursor.json") is None
+    assert not any(
+        item["kind"] == "pickup" for item in events_model.read_events(page_dir)
+    )
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    assert session_model.receive_delivery(payload["id"]) == [page_dir]
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
 
 
 def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_dir):
@@ -5986,7 +6161,7 @@ def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_di
 
     # Acknowledging the delivered batch replaces the stale position, so the next
     # read is an ordinary one.
-    session_model.cmd_ack(page_dir, event["seq"])
+    receive_through(page_dir, event["seq"])
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert page_state(page_dir)["cursor"] == 1
     assert page_state(page_dir)["pending"] == 0
@@ -5999,8 +6174,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
+    delivery_id = delivery_through(page_dir, 1)
     acknowledging = spawn(
-        [*LEAF_COMMAND, "ack", str(page_dir), "1"],
+        [*LEAF_COMMAND, "wait", "--ack", delivery_id],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -6030,7 +6206,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = delivered(out)
     assert (header["page"], header["conversations"]) == (str(page_dir), [])
-    assert (event["id"], event["seq"], event["text"]) == ("c2", 2, "two")
+    assert (event["id"], event["seq"], event["text"]) == ("c2", 3, "two")
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert (page_dir / "status.json").read_bytes() == status_before_delivery
 
@@ -6039,6 +6215,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
     """A standing watcher ends the re-arm the way it ends a bare `leaf wait`, on
     2. The acknowledgement still landed: 1 is the code that says it did not, and
     the cursor names the event the batch reached."""
+    service_model.claim_page(page_dir)
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -6048,7 +6225,9 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
     )
     assert lease
     with lease:
-        result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
+        result = CliRunner().invoke(
+            cli_model.cli, ["wait", "--ack", delivery_through(page_dir, 1)]
+        )
 
     assert result.exit_code == 2, result.output
     assert "another `leaf wait` is already active" in result.output
@@ -6075,19 +6254,18 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot
     )
     record_claim(page_dir, id="successor", pid=os.getpid())
 
-    result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
-
-    assert result.exit_code == 2, result.output
-    assert (
-        f"nothing to watch: {page_dir} is not claimed by this session" in result.output
+    result = CliRunner().invoke(
+        cli_model.cli, ["wait", "--ack", delivery_through(page_dir, 1)]
     )
-    assert "no page named" not in result.output
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+
+    assert result.exit_code == 1, result.output
+    assert "delivery no longer owns its page" in result.output
+    assert files_model.read_json(page_dir / "cursor.json") is None
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
     snapshot.check(
         yaml_document(
-            "Full CLI output after acknowledgment succeeds but its next wait cannot start.",
+            "Full CLI output when receipt is refused after page ownership transfers.",
             _interaction_prompt_evidence(
                 page_dir,
                 {
@@ -6122,12 +6300,13 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
+    delivery_id = delivery_through(page_dir, 1)
     status_path = page_dir / "status.json"
     status = status_path.read_bytes()
     status_path.unlink()
     os.mkfifo(status_path)
     acknowledging = spawn(
-        [*LEAF_COMMAND, "ack", str(page_dir), "1"],
+        [*LEAF_COMMAND, "wait", "--ack", delivery_id],
         env=os.environ,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -6175,12 +6354,13 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
+    delivery_id = delivery_through(page_dir, 1)
     status_path = page_dir / "status.json"
     status = status_path.read_bytes()
     status_path.unlink()
     os.mkfifo(status_path)
     acknowledging = spawn(
-        [*LEAF_COMMAND, "ack", str(page_dir), "1"],
+        [*LEAF_COMMAND, "wait", "--ack", delivery_id],
         env=os.environ,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -6253,7 +6433,7 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch, snapsho
         pytest.fail("disabled desired state was revived")
 
     monkeypatch.setattr(session_model, "start_server", unexpected_start)
-    watch = session_model.Watch(None, named=page_dir)
+    watch = session_model.Watch(None, pages=(page_dir,))
     try:
         assert watch.acquire()
         reading = next(watch.tick())
@@ -6302,7 +6482,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
 
     monkeypatch.setattr(session_model, "start_server", delayed_start)
     readings, errors = [], []
-    watch = session_model.Watch(None, named=page_dir)
+    watch = session_model.Watch(None, pages=(page_dir,))
     assert watch.acquire()
 
     def tick():
@@ -6585,10 +6765,10 @@ def test_one_wait_watches_every_page_the_session_holds(
     # The page that spoke records exact pickup; neither page's status is rewritten.
     assert files_model.read_json(second / "status.json")["state"] == "waiting"
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
-    assert events_model.read_events(second)[-1]["kind"] == "pickup"
+    assert events_model.read_events(second)[-1]["kind"] == "comment"
 
     # Idling one leaf leaves the watch to the others; idling the last ends it.
-    session_model.cmd_ack(second, 1)
+    receive_through(second, 1)
     session_model.cmd_status(second, "idle", "")
     session_model.cmd_status(page_dir, "idle", "")
     assert session_model.cmd_wait() == 2
@@ -6691,6 +6871,50 @@ def test_a_named_bare_shell_wait_keeps_its_directory_without_a_claim(
     assert service_model.page_claim(page_dir) is None
 
 
+def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
+    page_dir, tmp_path, sessionless, spawn
+):
+    other = tmp_path / "other"
+    shutil.copytree(page_dir, other)
+    batches = []
+    for index, page in enumerate((page_dir, other), 1):
+        serving(page, index)
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "first"}
+        )
+        with service_model.PageTransaction(page) as transaction:
+            batches.append(
+                delivery_model.batch_data(page, transaction, transaction.events)
+            )
+    payload = delivery_model.freeze_delivery(batches)
+    watching = spawn(
+        [*LEAF_COMMAND, "wait", "--ack", payload["id"]],
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    wait_for(
+        lambda: (
+            leases_model.lock_is_held(page_dir / "waiter.lock"),
+            leases_model.lock_is_held(other / "waiter.lock"),
+        ),
+        all,
+        failure="receipt did not rearm both standalone pages",
+    )
+    later = events_model.append_event(
+        other, {"kind": "comment", "author": "user", "text": "next"}
+    )
+    out, err = watching.communicate(timeout=10)
+    assert watching.returncode == 0, out + err
+    _, batch, [event] = delivered(out)
+    assert batch["page"] == str(other)
+    assert event["id"] == later["id"]
+    for page in (page_dir, other):
+        assert service_model.page_claim(page) is None
+        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+
+
 def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
     """Without a host identity or a named page, there is nothing to watch."""
     session_model.cmd_status(page_dir, "waiting", "")
@@ -6761,7 +6985,7 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
     assert [event["id"] for event in shown] == ["once"]
 
 
-def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
+def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
     events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
@@ -6789,7 +7013,7 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
     codex_adapter_model._finish_batch(batch)
     codex_adapter_model._finish_batch(batch)
 
-    assert files_model.read_json(page_dir / "cursor.json") == {"seq": delivered["seq"]}
+    assert files_model.read_json(page_dir / "cursor.json") is None
     assert service_model.page_claim(page_dir) == successor
     status = files_model.read_json(page_dir / "status.json")
     assert (status["state"], status["detail"]) == (
@@ -6801,7 +7025,7 @@ def test_codex_receipt_advances_after_page_ownership_transfers(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "pickup"
     ]
-    assert len(pickups) == 1 and pickups[0]["events"] == [delivered["id"]]
+    assert pickups == []
 
 
 def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
@@ -6887,6 +7111,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
     standing = tmp_path / "z-standing-page"
     for page, event_id in ((replaced, "old"), (standing, "standing")):
         vendoring_model.cmd_init(page)
+        record_claim(page, id="codex-thread", harness="codex", agent="Codex")
         events_model.append_event(
             page,
             {
@@ -6951,6 +7176,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     page = codex_claimed_page
     other = tmp_path / "other-page"
     vendoring_model.cmd_init(other)
+    record_claim(other, id="codex-thread", harness="codex", agent="Codex")
 
     for target, event_id in ((page, "old"), (other, "other")):
         events_model.append_event(
@@ -7598,7 +7824,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         for prompt in unique_prompts:
             delivery = ElementTree.fromstring(prompt.splitlines()[1])
             assert delivery.tag == "leaf-delivery"
-            assert delivery.attrib["operation"] == "delivery claim"
+            assert delivery.attrib["operation"] == "delivery read"
             assert set(delivery.attrib) == {"operation", "id"}
             payload_path = delivery_model.delivery_path(delivery.attrib["id"])
             assert payload_path.exists()
@@ -7875,7 +8101,7 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
             transaction.release_claim()
 
 
-def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
+def test_codex_adapter_keeps_transferred_input_unreceived(
     codex_claimed_page, spawn, codex_env, tmp_path
 ):
     page = codex_claimed_page
@@ -7907,7 +8133,6 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
     events_model.append_event(
         page, {"kind": "comment", "author": "user", "text": "hello adapter"}
     )
-    comment = events_model.read_events(page)[-1]
     started = queue_wait.with_name(f"{queue_wait.name}.started")
     wait_for(
         started.exists,
@@ -7919,19 +8144,20 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
     queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
     assert adapter.wait(timeout=10) == 0
 
-    assert files_model.read_json(page / "cursor.json") == {"seq": comment["seq"]}
+    assert files_model.read_json(page / "cursor.json") is None
+    assert page_state(page)["pending"] == 1
     assert service_model.page_claim(page) == successor
     pickups = [
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     ]
-    assert len(pickups) == 1 and pickups[0]["events"] == [comment["id"]]
+    assert pickups == []
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
-    """A direct wait's handoff is the turn opening, because the batch is in model
-    context the moment the command returns. This carrier's is not: it hands a pointer
+    """A direct wait's receipt opens the turn after the agent confirms the complete
+    batch entered its context. This carrier's is not: it hands a pointer
     to Codex's durable same-task queue, which the loaded client starts and an unloaded
     task leaves standing until someone reopens it — and the adapter never reopens one.
 
@@ -8385,7 +8611,7 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
     assert "`leaf wait` before the first batch" in reason
-    assert "rearmed `leaf ack` afterward" in reason
+    assert "rearmed `leaf wait --ack` afterward" in reason
 
     # The adapter's second lease proves that the watcher can deliver into a
     # later turn. With that carrier alive, this turn may end normally.
@@ -8421,13 +8647,13 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf ack" in reason and "must address every event" in reason
+    assert "leaf wait --ack" in reason and "must address every event" in reason
     assert "`leaf wait` before the first batch" in reason
-    assert "rearmed `leaf ack` afterward" in reason
+    assert "rearmed `leaf wait --ack` afterward" in reason
     assert schema_model.ACK_BATCH_INSTRUCTION in reason
     lease.close()
 
-    session_model.cmd_ack(page, 1)
+    receive_through(page, 1)
     # Answered before the page closes: an acknowledged comment with nothing
     # under it holds the turn on its own account, which is the subject of
     # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
@@ -8766,7 +8992,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     lease.close()
 
 
-def test_delivering_a_batch_opens_the_turn_on_every_page_the_session_holds(
+def test_receiving_a_batch_opens_the_turn_on_every_page_the_session_holds(
     claimed, tmp_path, capsys
 ):
     """The turn is the session's, not the delivering page's. The Stop hook closes it
@@ -8797,7 +9023,7 @@ def test_delivering_a_batch_opens_the_turn_on_every_page_the_session_holds(
         claimed, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
     assert session_model.cmd_wait() == 0
-    capsys.readouterr()
+    session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert service_model.page_claim(sibling)["turn_closed"] is None
 
@@ -8818,7 +9044,7 @@ def test_delivering_a_batch_opens_the_turn_on_every_page_the_session_holds(
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     capsys.readouterr()
     assert session_model.cmd_wait() == 0
-    capsys.readouterr()
+    session_model.receive_delivery(json.loads(capsys.readouterr().out)["id"])
     assert service_model.page_claim(others)["turn_closed"] == "then"
     session_model.cmd_status(sibling, "idle", "")
     session_model.cmd_status(others, "idle", "")
@@ -8872,16 +9098,13 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     session_model.cmd_status(sibling, "idle", "")
 
 
-def test_delivering_a_batch_opens_the_turn_the_stop_hook_closed(claimed, capsys):
-    """The Stop hook stamps the ending of a turn; a delivery is the one observable
-    beginning of the next one, and until it cleared the stamp nothing did.
+def test_a_named_wait_claim_opens_the_turn_without_receiving_its_output(
+    claimed, capsys
+):
+    """Naming a page explicitly claims it for this session and starts its turn.
 
-    That asymmetry was reader-facing. Two minutes past the stamp the browser stops
-    believing the `working` claim under it, so a session that came back, took its
-    batch and spent longer than that answering it read exactly like one that had
-    walked away: the banner said the agent left when its turn ended and told the
-    reader to nudge it in the terminal, over a turn that was running. Only the stamp
-    moves — what the agent said it was doing stays the agent's to write.
+    That ownership action does not confirm receipt of output: the batch remains
+    pending, and no pickup is recorded until its consumer acknowledges it.
     """
     session_model.cmd_status(claimed, "working", "answering the first comment")
     hooks_model.cmd_hook(
@@ -8900,6 +9123,10 @@ def test_delivering_a_batch_opens_the_turn_the_stop_hook_closed(claimed, capsys)
     capsys.readouterr()
     assert service_model.page_claim(claimed)["turn_closed"] is None
     assert (claimed / "status.json").read_bytes() == status_before
+    assert files_model.read_json(claimed / "cursor.json") is None
+    assert not any(
+        event["kind"] == "pickup" for event in events_model.read_events(claimed)
+    )
 
     # A batch this session never took says nothing about its turn: the successor
     # that delivers it is the one whose turn opened.
@@ -9143,7 +9370,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     if rewritten:
         note["restated"] = ["flag-first"]
     events_model.append_event(claimed, note)
-    session_model.cmd_ack(
+    receive_through(
         claimed,
         next(
             e["seq"]
@@ -9180,7 +9407,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
@@ -9229,7 +9456,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert asked["id"] in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_reply(
@@ -9247,7 +9474,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     moot = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "and C?"}
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert moot["id"] in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_resolve(claimed, moot["id"])
@@ -9269,7 +9496,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         claimed,
         {"kind": "reply", "author": "user", "parent": ask["id"], "text": "sqlite"},
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert ask["id"] in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_reply(
@@ -9317,7 +9544,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
             "text": "Add the camera first.",
         },
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
@@ -9348,7 +9575,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
             "text": "Yes.",
         },
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert proposal["id"] in reason
@@ -9366,14 +9593,6 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     little older than the checkout, and says nothing about it. Found by running
     the guard against a real page from an earlier vendoring, where reading the
     published version to settle threads loaded that page's registry."""
-    registry = files_model.read_json(claimed / "registry.json")
-    del registry["$events"]["kinds"]["action"]
-    files_model.write_json(claimed / "registry.json", registry)
-    # Without this the test passes for the wrong reason: it has to be a page
-    # whose registry the current layer really does refuse.
-    with pytest.raises(registry_contract.RegistryError):
-        registry_storage.load_registry(claimed)
-
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
@@ -9383,7 +9602,15 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
+    registry = files_model.read_json(claimed / "registry.json")
+    del registry["$events"]["kinds"]["action"]
+    files_model.write_json(claimed / "registry.json", registry)
+    # Without this the test passes for the wrong reason: it has to be a page
+    # whose registry the current layer really does refuse.
+    with pytest.raises(registry_contract.RegistryError):
+        registry_storage.load_registry(claimed)
+
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert answer["decision"] == "block"
@@ -9560,7 +9787,7 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
     assert "1 update" in json.loads(capsys.readouterr().out)["reason"]
 
-    session_model.cmd_ack(page_dir, 1)
+    receive_through(page_dir, 1)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s7"})
     assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
 
@@ -9874,7 +10101,12 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     # idle holds until the thread has something under it.
     assert CliRunner().invoke(cli_model.cli, ["wait", str(claimed)]).exit_code == 0
     # 2 is the re-armed wait's own ending; a refused acknowledgement would be 1.
-    assert CliRunner().invoke(cli_model.cli, ["ack", str(claimed), "1"]).exit_code == 2
+    assert (
+        CliRunner()
+        .invoke(cli_model.cli, ["wait", "--ack", delivery_through(claimed, 1)])
+        .exit_code
+        == 2
+    )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged reader move with no answer" in refused.output
@@ -9929,7 +10161,12 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 update nobody has picked up" in refused.output
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
-        CliRunner().invoke(cli_model.cli, ["ack", str(claimed), report]).exit_code == 2
+        CliRunner()
+        .invoke(
+            cli_model.cli, ["wait", "--ack", delivery_through(claimed, int(report))]
+        )
+        .exit_code
+        == 2
     )
     # A report is the agent's own news, so acknowledging it is the whole of what
     # it asks for; only a reader's comment owes an answer as well.
@@ -10535,7 +10772,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "still working on it?"}
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert json.loads(capsys.readouterr().out)["decision"] == "block"
     hooks_model.cmd_hook(
@@ -10579,7 +10816,7 @@ def test_wait_prints_a_reaction_token_and_ack_covers_it(page_dir, capsys):
     assert "means" not in shown
     assert "text" not in shown
     assert page_state(page_dir)["pending"] == 1
-    session_model.cmd_ack(page_dir, shown["seq"])
+    receive_through(page_dir, shown["seq"])
     assert page_state(page_dir)["pending"] == 0
 
 
@@ -10612,7 +10849,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
         claimed,
         {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -10622,7 +10859,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
         claimed,
         {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
     )
-    session_model.cmd_ack(claimed, last_deliverable_seq(claimed))
+    receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert json.loads(capsys.readouterr().out)["decision"] == "block"
 
@@ -10729,7 +10966,7 @@ def test_agent_sees_the_complete_interaction_recovery(
     envelope = json.loads(wait.output)
     envelope["id"] = "<delivery>"
     observations["delivered"] = envelope
-    session_model.cmd_ack(page, last_deliverable_seq(page))
+    receive_through(page, last_deliverable_seq(page))
     session = service_model.page_claim(page)
     lease = leases_model.take_waiter_lease(
         leases_model.waiter_lease_path(page, session["id"])
@@ -10859,7 +11096,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
                 "text": f"Rollout consideration {number}.",
             },
         )
-    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
         {

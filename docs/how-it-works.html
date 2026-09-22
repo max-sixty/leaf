@@ -51,10 +51,15 @@ sequenceDiagram
 
         <h3 id="loop-shell">One turn, from the agent's side</h3>
         <p id="loop-shell-lede">
-          The output below is a real page's delivery cycle, on a version asking which of
-          two ways to shed load when a queue backs up:
+          The captured delivery below comes from a page asking which of two ways to shed
+          load when a queue backs up. The commands show the direct loop: each wait runs
+          in the background, so the agent can answer while the next input is being
+          watched.
         </p>
-        <lf-specimen id="loop-transcript-specimen" label="a real turn">
+        <lf-specimen
+          id="loop-transcript-specimen"
+          label="direct loop with a captured delivery"
+        >
           <pre id="loop-transcript"><code>$ leaf page init ./review
 initialized /home/you/review
 
@@ -67,10 +72,17 @@ $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
-# … held here, for as long as the reader takes …
-{"format": "leaf-delivery-v2", "id": "ba1916f0-5650-4e89-b5e1-37d081211ac1", "created_at": 1790056848.473763, "batches": [{"page": "/home/you/review", "through_seq": 3, "conversations": [], "handling": {"h1": "The reader already sees the action applied.", "h2": "The log carries the action onto every later version, so the page keeps it without an edit. Until the markup records it, though, the page shows it as waiting on you, so write it in when you next revise the page.", "h3": "Continue the work the action selects or unblocks.", "h4": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h5": "Reply in the thread with `leaf reply &lt;page&gt; --for &lt;event-id&gt;`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."}, "events": [{"kind": "action", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "author": "user", "meaning": {"document": {"kind": "page", "revision": 1}, "coordinate": ["shed", "shed", "selection"], "depends": ["opt-drop", "shed"], "answer": null}, "generated": [], "id": "853e2569", "ts": "2026-09-21T23:00:48-07:00", "seq": 2, "subject": {"kind": "widget", "id": "shed"}, "conversations": [], "says": {"opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."}, "handling": ["h1", "h2", "h3", "h4"]}, {"kind": "comment", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "author": "user", "id": "947629d9", "ts": "2026-09-21T23:00:48-07:00", "seq": 3, "subject": {"kind": "conversation", "id": "947629d9"}, "conversations": ["947629d9"], "handling": ["h5"], "obligation": {"as_of_seq": 3, "response": {"kind": "reply", "to": "947629d9", "for": "947629d9"}}}]}]}
+# background task completes when the reader sends input
+{"format": "leaf-delivery-v2", "id": "2d5bdcc4", "created_at": 1790100943.144468, "batches": [{"page": "/home/you/review", "through_seq": 3, "conversations": [], "handling": {"h1": "The reader already sees the action applied.", "h2": "The log carries the action onto every later version, so the page keeps it without an edit. Until the markup records it, though, the page shows it as waiting on you, so write it in when you next revise the page.", "h3": "Continue the work the action selects or unblocks.", "h4": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h5": "Reply in the thread with `leaf reply &lt;page&gt; --for &lt;event-id&gt;`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."}, "events": [{"kind": "action", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "author": "user", "meaning": {"document": {"kind": "page", "revision": 1}, "coordinate": ["shed", "shed", "selection"], "depends": ["opt-drop", "shed"], "answer": null}, "generated": [], "id": "0b0fd3b7", "ts": "2026-09-22T11:15:42-07:00", "seq": 2, "subject": {"kind": "widget", "id": "shed"}, "conversations": [], "says": {"opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."}, "handling": ["h1", "h2", "h3", "h4"]}, {"kind": "comment", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "author": "user", "id": "ebe8f367", "ts": "2026-09-22T11:15:42-07:00", "seq": 3, "subject": {"kind": "conversation", "id": "ebe8f367"}, "conversations": ["ebe8f367"], "handling": ["h5"], "obligation": {"as_of_seq": 3, "response": {"kind": "reply", "to": "ebe8f367", "for": "ebe8f367"}}}]}]}
 
-$ leaf ack ./review 3</code></pre>
+# after the complete envelope reaches the agent, start the next background task
+$ leaf wait --ack 2d5bdcc4
+
+# while that wait runs, answer the comment
+$ leaf reply ./review --for ebe8f367 --text "I’ll use drop-oldest for the batch importer and keep rejection at the API boundary."
+
+# update ./review/index.html, validate and stamp the checkpoint
+$ leaf status ./review waiting "Does the API/importer split match what you need?"</code></pre>
         </lf-specimen>
         <p id="loop-shell-read">
           The batch carries a pick and a comment. The pick survives later revisions; the
@@ -88,12 +100,43 @@ $ leaf ack ./review 3</code></pre>
           host integration owns delivery and acknowledgement, so opening a browser page
           does not itself prove that an agent received its comments.
         </p>
-        <p id="wait-ack">
-          The wait owner acknowledges a complete batch after its next consumer has
-          received it: model context in a direct loop, or the receiving host when an
-          adapter forwards the batch. Until acknowledgement, waits repeat the events. A
-          truncated batch must be retrieved again in full before acknowledgement.
-        </p>
+        <section id="receipt-work-response">
+          <h3>Receipt, work, and response</h3>
+          <p id="wait-ack">
+            Receipt says which input reached the agent. In the direct loop,
+            <code>leaf wait --ack &lt;delivery-id&gt;</code> confirms the complete
+            envelope, records its moves as picked up in the current turn, and waits for
+            the next delivery. Printing alone cannot establish that: output may be lost
+            or truncated before the agent reads it. Until confirmation, those events
+            remain available to the next wait.
+          </p>
+          <p id="work-evidence">
+            Work says what the agent is doing. Leaf derives overall activity from
+            delivery entering the current turn. A meaningful
+            <code>leaf status</code> describes the operation in progress; an optional
+            <code
+              >leaf delivery claim &lt;id&gt; --event &lt;event-id&gt; --detail
+              "…"</code
+            >
+            identifies the particular move being worked on. Receiving a batch requires
+            no separate work claim.
+          </p>
+          <p id="response-evidence">
+            Response says what satisfied the reader's move: a reply in its thread, a
+            page revision and resolution, or the outcome of a request. Each delivered
+            obligation names that operation. Acknowledging receipt or declaring work
+            leaves the obligation open. Once it is answered, the agent names the
+            reader's next move with a waiting status.
+          </p>
+          <p id="receipt-hosts">
+            The host owns the receipt boundary. A Codex adapter confirms acceptance by
+            its receiver and records pickup when it observes the delivery entering a
+            turn. A queued pointer resolves through <code>leaf delivery read</code>;
+            reading the file alone supplies no receipt evidence. The agent follows the
+            host's route instead of starting a competing wait. All routes use the same
+            delivery, activity, and response readings.
+          </p>
+        </section>
         <p id="wait-stateless">
           The page directory keeps the document and its history between sessions. A
           session-lifetime server retires when no live session claims the page. A server

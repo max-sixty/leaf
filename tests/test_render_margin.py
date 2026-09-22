@@ -7,6 +7,7 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -3586,7 +3587,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, roots)
+        delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
     picked_up = marker.evaluate("""node => {
@@ -3853,7 +3854,7 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         if event["kind"] == "comment"
     ]
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, roots)
+        delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(marker).to_have_attribute("data-lf-turn", "reader")
@@ -3902,7 +3903,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     ]
     assert len(moves) == 2
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, moves)
+        delivery_model.record_pickup(transaction, moves)
     told(page)
     page.keyboard.press("Escape")
     page.keyboard.press("g")
@@ -4211,7 +4212,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert_status("Waiting for pickup", "3m ago")
 
     with service_model.PageTransaction(page_dir) as transaction:
-        session_model.record_pickup(transaction, [logged_action])
+        delivery_model.record_pickup(transaction, [logged_action])
     told(page)
     assert_status("Picked up", "just now")
 

@@ -73,12 +73,10 @@ has tried; settle that before building it.
   and revision a visible tab reports to the presence reading, and document them.
   **Unconfirmed:** no agent failure yet shows the agent needs them; the
   agent-usability baseline above should.
-- **Cut the Claude Code loop to one command per batch.** Advance the cursor when
-  `leaf wait` prints, mark a delivered move Working when it enters the turn, and
-  default the handoff banner to the page's open Ask, so `ack`, `delivery claim` and
-  `status waiting` leave the ordinary batch. **Unconfirmed:** advancing on print
-  gives up what `ack` guards today: a `leaf wait` output that was truncated or
-  lost before it reached the agent is delivered again (`event-batches.md`).
+- **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
+  words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
+  several open Asks and an informational page before choosing how the banner
+  explains who owes the next move.
 
 ## Etc
 

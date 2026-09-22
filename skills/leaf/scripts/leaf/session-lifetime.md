@@ -15,9 +15,9 @@ and requests another reading at its next deadline; it does not run a second fold
 | live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
-| wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
-| acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait` delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
+| wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` process, held open for its life | process exit |
+| acknowledgement cursor | `cursor.json` | `leaf wait --ack`, after the complete delivery reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
+| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
@@ -135,8 +135,8 @@ say when it is not, rather than comparing the name itself. There are three
 shapes:
 
 - A sequence of direct watchers the model itself runs, which Claude Code uses:
-  `leaf wait` exits to put a batch in model context, then `leaf ack` advances
-  its cursor and becomes the next watcher.
+  `leaf wait` exits to put a batch in model context, then `leaf wait --ack <delivery-id>` advances
+  the captured cursors and becomes the next watcher.
 - One detached process, which Codex uses: it holds the same task-wide wait lease
   plus an adapter lease of its own, and stores exact batches from every page in
   one task-wide delivery.

@@ -741,12 +741,17 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     and the reader gets a live script link out of ordinary message prose. Reading the
     destination as the document will refuses that link, and the same reading is what
     keeps an ordinary `&amp;` reaching the query it names rather than landing in it.
+
+    The destination is not the only attribute Leaf now writes from that source text: a
+    title and an image's alt arrive the same way, so the message carries one of each.
+    Escaping them without the decode would put `&amp;` in front of the reader.
     """
     url = serve(LONG_PAGE)
     panel_comment(
         serve.page_dir,
         "[press me](javascript&#58;window.leaked=true)"
-        " beside [the page](https://example.com/?a=1&amp;b=2)",
+        " beside [the page](https://example.com/?a=1&amp;b=2)"
+        ' and ![Q&amp;A](/icon.svg "Sales &amp; revenue")',
         {"section": "p0"},
     )
     page = open_page(browser, url)
@@ -761,3 +766,6 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
         """node => [...node.querySelectorAll('a')].map(link => link.href)"""
     )
     assert admitted == ["https://example.com/?a=1&b=2"], admitted
+    image = prose.locator("img")
+    expect(image).to_have_attribute("alt", "Q&A")
+    expect(image).to_have_attribute("title", "Sales & revenue")

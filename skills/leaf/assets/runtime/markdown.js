@@ -28,16 +28,17 @@ function safeUrl(href) {
   }
 }
 
-// A Markdown destination is attribute source text: Marked hands it over with its
-// character references undecoded, because its own emission writes them where the HTML
-// parser decodes them. Leaf writes the attribute itself, so it takes that decoding
-// here, in the one place a destination is read. `escapeAttribute` puts this reading
-// back unchanged, so `javascript&#58;` is refused rather than resolved and an ordinary
-// `&amp;` still reaches the query it names.
+// What Marked hands a renderer is attribute source text: a destination, a title and an
+// image's alt arrive with their character references undecoded, because Marked's own
+// emission writes them where the HTML parser decodes them. Leaf writes those attributes
+// itself, so it takes that decoding here, in the one place each is read.
+// `escapeAttribute` puts the reading back unchanged, so `javascript&#58;` is refused
+// rather than resolved, and an ordinary `&amp;` still reaches the query, the alt or the
+// title it was written into.
 const probe = document.createElement("template");
-const readHref = (href) => {
-  probe.innerHTML = `<i data-href="${href.replace(/"/g, "&quot;")}"></i>`;
-  return probe.content.firstElementChild.dataset.href;
+const decoded = (source) => {
+  probe.innerHTML = `<i data-source="${source.replace(/"/g, "&quot;")}"></i>`;
+  return probe.content.firstElementChild.dataset.source;
 };
 
 // Page media keeps its canonical text in the log, and an MCP capability route needs
@@ -58,24 +59,27 @@ export function loadMarkdown(onError = null) {
         // attribute it lands in. Handing the destination back to Marked's own
         // renderer would write `javascript&#58;` unescaped and let the document
         // resolve as a script URL what this guard read as a relative path. Every link
-        // and image is therefore written here, from the one reading `readHref` takes
-        // and escaped back into the attribute it was checked as; image inspection has
-        // its own button renderer below.
+        // and image is therefore written here, from the reading `decoded` takes and
+        // escaped back into the attribute it was checked as; image inspection has its
+        // own button renderer below.
         link(token) {
-          const href = readHref(token.href);
+          const href = decoded(token.href);
           if (!safeUrl(href)) return this.parser.parseInline(token.tokens);
           let link = `<a href="${escapeAttribute(destination(href))}"`;
-          if (token.title) link += ` title="${escapeAttribute(token.title)}"`;
+          if (token.title) link += ` title="${escapeAttribute(decoded(token.title))}"`;
           return link + `>${this.parser.parseInline(token.tokens)}</a>`;
         },
         image(token) {
-          const href = readHref(token.href);
-          if (!safeUrl(href)) return escapeHtml(token.text);
+          const href = decoded(token.href);
+          const text = decoded(token.text);
+          if (!safeUrl(href)) return escapeHtml(text);
           const source = escapeAttribute(destination(href));
-          const title = token.title ? ` title="${escapeAttribute(token.title)}"` : "";
-          const image = `<img src="${source}" alt="${escapeAttribute(token.text)}"${title}>`;
+          const title = token.title
+            ? ` title="${escapeAttribute(decoded(token.title))}"`
+            : "";
+          const image = `<img src="${source}" alt="${escapeAttribute(text)}"${title}>`;
           if (!isCanonicalMediaUrl(href)) return image;
-          const label = escapeAttribute(token.text || "Image");
+          const label = escapeAttribute(text || "Image");
           return (
             `<button type="button" class="lf-media-open lf-message-media"` +
             ` data-lf-offer="button" data-lf-said data-lf-media-url="${source}"` +

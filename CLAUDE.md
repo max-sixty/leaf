@@ -310,13 +310,14 @@ answers in under a second against the modules under `skills/leaf/assets/runtime/
 without a browser. `wt merge` runs it beside the suite in its second pre-merge block,
 and a pull request runs it in `test`.
 
-Treat website performance as a phase profile, not one score. For a change that can
-alter browser startup, compare the base and candidate readings from
-`scripts/verify-site-local.sh`: document receipt, widget upgrade, authoritative
-presentation, and the requests and bytes loaded by presentation. Compare request counts
-and bytes directly; elapsed time is diagnostic because it varies with the machine and
-network. If a change adds work before presentation, state the user-visible benefit and
-why that work cannot wait until after presentation.
+For a change that can alter browser startup, compare base and candidate at the
+boundary the change affects: locally served previews for browser runtime changes;
+`scripts/verify-site-local.sh` for changes to built-site delivery, Worker routing,
+or containers. Treat performance as a phase profile: document receipt, widget
+upgrade, authoritative presentation, and requests and bytes loaded by presentation.
+Compare request counts and bytes directly; elapsed time is diagnostic because it
+varies with the machine and network. If a change adds work before presentation,
+state the user-visible benefit and why that work cannot wait until after presentation.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
 `main`. Landing requires the user's authorization. For a local merge, if a newer

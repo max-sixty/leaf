@@ -340,7 +340,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     activity = page_state(page_dir)["activity"]
-    assert activity["kind"] == "handling"
+    assert activity["kind"] == "working"
     assert activity["dropped"] is False
     assert activity["counts"]["handling"] == 1
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
@@ -1042,11 +1042,9 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert "no active widget work claim" in unearned.output
 
 
-def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, capsys):
-    """A fresh delivery into Claude's open turn outranks stale or later waiting
-    status until the delivered reader move is answered. The receipt, banner input,
-    agent state, and hook therefore consume one projection rather than reconciling
-    independent stories in the browser."""
+def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys):
+    """Delivery stays exact interaction evidence while page activity continues to
+    describe the claimant's availability and independently declared work."""
     serving(claimed, 1)
     session_model.cmd_status(claimed, "working", "an old task")
     status = files_model.read_json(claimed / "status.json")
@@ -1061,7 +1059,7 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     assert session_model.cmd_wait(claimed) == 0
     capsys.readouterr()
     activity = page_state(claimed)["activity"]
-    assert activity["kind"] == "handling"
+    assert activity["kind"] == "working"
     assert [item["phase"] for item in activity["obligations"]] == ["picked_up"]
     agent_activity = state_json(claimed)["activity"]
     assert agent_activity["kind"] == activity["kind"]
@@ -1079,12 +1077,12 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     )
 
     session_model.cmd_status(claimed, "waiting", "review the answer")
-    assert page_state(claimed)["activity"]["kind"] == "handling"
+    assert page_state(claimed)["activity"]["kind"] == "working"
 
     with service_model.PageTransaction(claimed) as transaction:
         transaction.close_turn(claim["id"])
     ended = page_state(claimed)["activity"]
-    assert ended["kind"] == "picked_up"
+    assert ended["kind"] == "away"
     assert ended["obligations"][0]["dropped"] is True
 
     lease = leases_model.take_waiter_lease(
@@ -1125,6 +1123,23 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
     assert activity["obligations"][0]["phase"] == "queued"
 
 
+def test_newer_pending_input_does_not_reclassify_page_work(claimed):
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "working", "Revising the heading")
+
+    events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "Revising the heading",
+    )
+    assert activity["counts"]["pending"] == 1
+    assert activity["obligations"][0]["phase"] == "sent"
+
+
 def test_queued_input_does_not_hide_live_codex_activity(claimed):
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "Comment on the page")
@@ -1134,7 +1149,9 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     )
     assert lease
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity("s1", "turn-live", "Running the checks")
+        transaction.set_stream_activity(
+            "s1", "turn-live", {"kind": "tool", "detail": "Running the checks"}
+        )
 
     comment = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
@@ -1147,6 +1164,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
         "working",
         "Running the checks",
     )
+    assert activity["observed_kind"] == "tool"
     assert activity["counts"]["queued"] == 1
     lease.close()
 
@@ -1161,7 +1179,9 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     assert lease
 
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity("s1", "turn-live", "Running the tests")
+        transaction.set_stream_activity(
+            "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
+        )
 
     status = files_model.read_json(claimed / "status.json")
     assert (status["state"], status["detail"]) == ("waiting", "comment on the page")
@@ -1178,6 +1198,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
         "working",
         "Running the tests",
     )
+    assert activity["observed_kind"] == "tool"
 
     session_model.cmd_status(claimed, "waiting", "review the result")
     assert page_state(claimed)["activity"]["detail"] == "Running the tests"
@@ -1197,15 +1218,21 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
     session_model.cmd_status(claimed, "waiting", "comment on the page")
 
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity("s1", "turn-live", "Running the tests")
+        transaction.set_stream_activity(
+            "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
+        )
     unchanged = (claimed / "status.json").read_bytes()
 
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity("s1", "turn-live", "Running the tests")
+        transaction.set_stream_activity(
+            "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
+        )
     assert (claimed / "status.json").read_bytes() == unchanged
 
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity("s1", "turn-live", "Reviewing the result")
+        transaction.set_stream_activity(
+            "s1", "turn-live", {"kind": "thinking", "detail": "Reviewing the result"}
+        )
     changed = (claimed / "status.json").read_bytes()
     assert changed != unchanged
     standing = files_model.read_json(claimed / "status.json")["stream"]["activity"]
@@ -1217,7 +1244,11 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
     with monkeypatch.context() as patch:
         patch.setattr(service_model, "now_iso", lambda: renewed_at)
         with service_model.PageTransaction(claimed) as transaction:
-            transaction.set_stream_activity("s1", "turn-live", "Reviewing the result")
+            transaction.set_stream_activity(
+                "s1",
+                "turn-live",
+                {"kind": "thinking", "detail": "Reviewing the result"},
+            )
     assert (
         files_model.read_json(claimed / "status.json")["stream"]["activity"]["ts"]
         == renewed_at
@@ -1241,7 +1272,11 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
 
     session_model.cmd_status(claimed, "working", "Checking the rollout against staging")
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity(claim["id"], "turn-live", "Running the tests")
+        transaction.set_stream_activity(
+            claim["id"],
+            "turn-live",
+            {"kind": "tool", "detail": "Running the tests"},
+        )
 
     activity = page_state(claimed)["activity"]
     assert (activity["kind"], activity["detail"], activity["observed"]) == (
@@ -1273,18 +1308,24 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     )
     session_model.cmd_status(claimed, "waiting", "which store should own it")
 
-    # A step whose own floor is older than the reader's newest move says nothing about
-    # it, and the reading it would stand in is not work. Reported under `working` alone,
-    # so no step turns up beside "last checked in" under an amber dot.
+    # A newer reader move has its own pending delivery; it does not reclassify current
+    # page work or imply that the observed tool step belongs to that message.
     events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
     )
     quiet = page_state(claimed)["activity"]
-    assert (quiet["kind"], quiet["detail"], quiet["observed"]) == (
-        "listening",
-        "which store should own it",
-        "",
+    assert (
+        quiet["kind"],
+        quiet["detail"],
+        quiet["observed_kind"],
+        quiet["observed"],
+    ) == (
+        "working",
+        "Running the tests",
+        "tool",
+        "Running the tests",
     )
+    assert quiet["counts"]["pending"] == 1
     lease.close()
 
 
@@ -1306,7 +1347,11 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     delivery = freeze_events(claimed, [comment])
     session_model.cmd_delivery_claim(delivery["id"])
     with service_model.PageTransaction(claimed) as transaction:
-        transaction.set_stream_activity(claim["id"], "turn-live", "Editing index.html")
+        transaction.set_stream_activity(
+            claim["id"],
+            "turn-live",
+            {"kind": "tool", "detail": "Editing index.html"},
+        )
 
     activity = page_state(claimed)["activity"]
     assert (activity["kind"], activity["detail"], activity["observed"]) == (
@@ -1326,7 +1371,7 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     lease.close()
 
 
-def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
+def test_a_malformed_old_stream_record_is_ignored(claimed):
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
@@ -1359,6 +1404,53 @@ def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
         "working",
         "Handling the new work",
     )
+    session_model.cmd_status(claimed, "waiting", "Review the result")
+    without_old_stream = page_state(claimed)["activity"]
+    assert (without_old_stream["kind"], without_old_stream["observed_kind"]) == (
+        "listening",
+        None,
+    )
+    lease.close()
+
+
+def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
+    serving(claimed, 1)
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim["id"])
+    )
+    assert lease
+    session_model.cmd_status(claimed, "waiting", "Review the result")
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity(
+            claim["id"],
+            "provider-turn",
+            {"kind": "thinking", "detail": "Checking the result"},
+        )
+    assert page_state(claimed)["activity"]["observed_kind"] == "thinking"
+
+    status = files_model.read_json(claimed / "status.json")
+    activity = status["stream"]["activity"]
+    files_model.write_json(
+        claimed / "status.json",
+        {**status, "stream": {"activity": {**activity, "session": "other"}}},
+    )
+    assert page_state(claimed)["activity"]["observed_kind"] is None
+
+    files_model.write_json(
+        claimed / "status.json",
+        {
+            **status,
+            "stream": {
+                "activity": {
+                    **activity,
+                    "ts": "2020-01-01T00:00:00+00:00",
+                }
+            },
+        },
+    )
+    stale = page_state(claimed)["activity"]
+    assert (stale["kind"], stale["observed_kind"]) == ("listening", None)
     lease.close()
 
 
@@ -1494,7 +1586,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "method": "turn/started",
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
-    ) == {"turn": "turn-live", "activity": "Starting"}
+    ) == {"turn": "turn-live", "activity": {"kind": "working"}}
     assert events.read(
         {
             "method": "turn/plan/updated",
@@ -1507,7 +1599,10 @@ def test_app_server_events_report_semantic_codex_progress():
                 ],
             },
         }
-    ) == {"turn": "turn-live", "activity": "Run the browser checks"}
+    ) == {
+        "turn": "turn-live",
+        "activity": {"kind": "working", "detail": "Run the browser checks"},
+    }
     assert events.read(
         {
             "method": "item/started",
@@ -1530,7 +1625,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "state": "started",
             "atMs": 1_000,
         },
-        "activity": "Running uv run pytest tests",
+        "activity": {"kind": "tool", "detail": "Running uv run pytest tests"},
     }
     assert events.read(
         {
@@ -1542,7 +1637,10 @@ def test_app_server_events_report_semantic_codex_progress():
                 "delta": ".",
             },
         }
-    ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
+    ) == {
+        "turn": "turn-live",
+        "activity": {"kind": "tool", "detail": "Running uv run pytest tests"},
+    }
     assert events.read(
         {
             "method": "item/started",
@@ -1618,6 +1716,7 @@ def test_app_server_events_report_semantic_codex_progress():
         }
     ) == {
         "turn": "turn-live",
+        "activity": {"kind": "replying"},
         "message": {
             "item": "message-live",
             "phase": None,
@@ -1630,7 +1729,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "method": "item/tool/requestUserInput",
             "params": {"threadId": "codex-thread", "turnId": "turn-live"},
         }
-    ) == {"turn": "turn-live", "activity": "Waiting for input in Codex"}
+    ) == {"turn": "turn-live", "activity": {"kind": "awaiting_input"}}
     assert events.read(
         {
             "method": "item/completed",
@@ -1653,6 +1752,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "state": "completed",
             "atMs": 1_300,
         },
+        "activity": {"kind": "awaiting_input"},
         "message": {
             "item": "message-live",
             "phase": None,
@@ -1700,10 +1800,158 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
         )
 
     assert updates == [
-        ("codex-thread", "turn-live", "one"),
-        ("codex-thread", "turn-live", "one two three"),
+        ("codex-thread", "turn-live", {"kind": "replying"}),
+        ("codex-thread", "turn-live", {"kind": "replying"}),
     ]
     assert clears == []
+
+
+def test_app_server_activity_keeps_waiting_and_concurrent_item_evidence():
+    events = codex_model.AppServerEvents("codex-thread")
+    events.read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+        }
+    )
+
+    def item(method, item_id, item_type, at):
+        timing = "startedAtMs" if method == "item/started" else "completedAtMs"
+        return events.read(
+            {
+                "method": method,
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    timing: at,
+                    "item": {
+                        "id": item_id,
+                        "type": item_type,
+                        "command": f"run {item_id}",
+                    },
+                },
+            }
+        )
+
+    first = item("item/started", "first", "commandExecution", 1_000)
+    assert first["activity"] == {"kind": "tool", "detail": "Running run first"}
+    second = item("item/started", "second", "commandExecution", 1_100)
+    assert second["activity"] == {"kind": "tool", "detail": "Running run second"}
+
+    approval = events.read(
+        {
+            "method": "item/commandExecution/requestApproval",
+            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+        }
+    )
+    assert approval["activity"] == {"kind": "awaiting_approval"}
+    heartbeat = events.read(
+        {
+            "method": "item/commandExecution/outputDelta",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "first",
+                "delta": "still running",
+            },
+        }
+    )
+    assert heartbeat["activity"] == {"kind": "awaiting_approval"}
+
+    active = events.read(
+        {
+            "method": "thread/status/changed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "status": {"activeFlags": []},
+            },
+        }
+    )
+    assert active["activity"] == {"kind": "tool", "detail": "Running run first"}
+    completed = item("item/completed", "second", "commandExecution", 1_200)
+    assert completed["activity"] == {"kind": "tool", "detail": "Running run first"}
+    completed = item("item/completed", "first", "commandExecution", 1_300)
+    assert completed["activity"] == {"kind": "working"}
+
+    awaiting_input = events.read(
+        {
+            "method": "item/tool/requestUserInput",
+            "params": {"threadId": "codex-thread", "turnId": "turn-live"},
+        }
+    )
+    assert awaiting_input["activity"] == {"kind": "awaiting_input"}
+
+
+def test_app_server_activity_ignores_late_events_from_an_older_turn():
+    events = codex_model.AppServerEvents("codex-thread")
+    events.read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "turn-old"}},
+        }
+    )
+    events.read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
+        }
+    )
+
+    assert (
+        events.read(
+            {
+                "method": "item/reasoning/summaryTextDelta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-old",
+                    "itemId": "old-reasoning",
+                    "delta": "stale thought",
+                },
+            }
+        )
+        is None
+    )
+    assert (
+        events.read(
+            {
+                "method": "thread/status/changed",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-old",
+                    "status": {"activeFlags": ["waitingOnUserInput"]},
+                },
+            }
+        )
+        is None
+    )
+    assert events.turn_id == "turn-live"
+    assert events.active_items == {}
+    assert events.waiting_kind is None
+
+    events.read(
+        {
+            "method": "turn/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "turn-live", "status": "completed"},
+            },
+        }
+    )
+    assert (
+        events.read(
+            {
+                "method": "item/commandExecution/outputDelta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    "itemId": "late-command",
+                    "delta": "late output",
+                },
+            }
+        )
+        is None
+    )
 
 
 def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
@@ -1722,7 +1970,7 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     first_turn.set()
     wait_for(
         lambda: len(clears),
-        lambda count: count == 1,
+        lambda count: count == 2,
         failure="the first Codex turn did not clear its stream activity",
         timeout=5,
     )
@@ -1730,7 +1978,7 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     second_turn.set()
     wait_for(
         lambda: len(clears),
-        lambda count: count == 2,
+        lambda count: count == 3,
         failure="the second Codex turn did not clear its stream activity",
         timeout=5,
     )
@@ -1746,10 +1994,14 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
         "excludeTurns": False,
     }
     assert updates == [
-        ("codex-thread", "turn-live", "Starting"),
-        ("codex-thread", "turn-live", "Running uv run pytest tests"),
-        ("codex-thread", "turn-live", "Waiting for input in Codex"),
-        ("codex-thread", "turn-next", "Starting"),
+        ("codex-thread", "turn-live", {"kind": "working"}),
+        (
+            "codex-thread",
+            "turn-live",
+            {"kind": "tool", "detail": "Running uv run pytest tests"},
+        ),
+        ("codex-thread", "turn-live", {"kind": "awaiting_approval"}),
+        ("codex-thread", "turn-next", {"kind": "working"}),
     ]
     assert observer_replies == []
 
@@ -1787,13 +2039,17 @@ def test_app_server_observer_connects_over_a_private_unix_socket(
         release.wait(timeout=5)
 
     endpoint = app_server(handle, socket_path)
-    take_stream_activity(monkeypatch, [], [])
+    updates = []
+    clears = []
+    take_stream_activity(monkeypatch, updates, clears)
     observer = codex_adapter_model.TaskObserver(endpoint, "codex-thread")
     request.addfinalizer(observer.stop)
 
     # `start` returns only once the observer has resumed the task, and raises
     # otherwise, so reaching here is the readiness signal.
     observer.start()
+    assert updates == []
+    assert clears == [("codex-thread", None)]
     observer.stop()
     assert not observer.thread.is_alive()
     release.set()
@@ -1804,6 +2060,54 @@ def test_app_server_observer_connects_over_a_private_unix_socket(
         "thread/resume",
     ]
     assert "Sec-WebSocket-Extensions" not in request_headers[0]
+
+
+def test_app_server_observer_restores_the_resumed_turns_waiting_kind(
+    monkeypatch, request, app_server
+):
+    release = threading.Event()
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {
+                                "type": "active",
+                                "activeFlags": ["waitingOnApproval"],
+                            },
+                            "turns": [
+                                {
+                                    "id": "turn-live",
+                                    "status": "inProgress",
+                                    "items": [],
+                                }
+                            ],
+                        }
+                    },
+                }
+            )
+        )
+        release.wait(timeout=5)
+
+    updates = []
+    clears = []
+    take_stream_activity(monkeypatch, updates, clears)
+    observer = codex_adapter_model.TaskObserver(app_server(handle), "codex-thread")
+    request.addfinalizer(observer.stop)
+
+    observer.start()
+    assert updates == [("codex-thread", "turn-live", {"kind": "awaiting_approval"})]
+    assert clears == []
+    observer.stop()
+    release.set()
 
 
 def test_a_delivery_turn_streams_and_commits_its_reply_on_its_own_connection(
@@ -2868,7 +3172,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
         _CarriedDeliveries(), "codex-thread", None, "leaf-turn", payload["id"], target
     )
     codex_model.open_stream_turn("codex-thread", "leaf-turn")
-    codex_model.set_stream_activity("codex-thread", "leaf-turn", "Working")
+    codex_model.set_stream_activity("codex-thread", "leaf-turn", {"kind": "working"})
     turn.open_reply()
     monkeypatch.setattr(conversation_model.DeliveryReply, "_set_state", _unopenable)
 
@@ -3380,7 +3684,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     before_pickup = page_state(page_dir)["activity"]
     acknowledgments = before_pickup["interactions"]
     assert any(receipt["event"] == answer["id"] for receipt in acknowledgments)
-    assert before_pickup["kind"] == "away"
+    assert before_pickup["kind"] == "working"
     assert before_pickup["counts"]["total"] == 1
     assert before_pickup["obligations"] == []
 
@@ -3393,7 +3697,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
             turn=claim["turn"],
         )
     after_pickup = page_state(page_dir)["activity"]
-    assert after_pickup["kind"] == "handling"
+    assert after_pickup["kind"] == "working"
     assert after_pickup["counts"]["handling"] == 1
     assert after_pickup["obligations"] == []
 
@@ -6928,7 +7232,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
 
         assert service_model.page_claim(page)["turn_closed"] == closed
         queued = page_state(page)["activity"]
-        assert queued["kind"] == "queued"
+        assert queued["kind"] == "working"
         assert [item["phase"] for item in queued["obligations"]] == ["queued"]
 
         session_model.cmd_status(page, "idle", "")
@@ -9452,7 +9756,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert asked["id"] in prompt["hookSpecificOutput"]["additionalContext"]
     claim = service_model.page_claim(claimed)
     activity = page_state(claimed)["activity"]
-    assert activity["kind"] == "handling"
+    assert activity["kind"] == "working"
     assert activity["obligations"][0]["phase"] == "picked_up"
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
     assert activity["obligations"][0]["dropped"] is False

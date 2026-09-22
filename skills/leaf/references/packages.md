@@ -182,6 +182,11 @@ offline fallback, is safe for recorded interaction. Authored content is already 
 Leaf disables its arrival transitions and durable widget actions before that stamp.
 Package styles need no arrival guard. A package opens a dialog or popover only after that
 stamp or in response to a reader gesture; Leaf does not defer top-layer UI during startup.
+A widget that keeps part of its own upgrade off the presentation path — a heavy renderer
+it earns the right to load only once the reader has the page — runs that work through
+`afterPresentation(() => …)`, which is both the wait and the declaration. The page then
+answers for it: until every such arrival lands, the page reads as still arriving, so a
+reader outside it waits on the page rather than on a widget it would have to know about.
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`. A module must guard every optimistic mutation with the matching command
 entry in `widgetController(owner).read()`; `dispatch()` repeats the same check. Leaf's own anchored composer

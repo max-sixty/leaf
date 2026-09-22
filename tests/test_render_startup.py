@@ -2737,10 +2737,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                 "activity": {
                     "session": "s",
                     "turn": "turn-live",
-                    "detail": stream,
                     "ts": ts.isoformat(timespec="seconds"),
                     "after": status["after"],
                 }
+                | stream
             }
         if claimed:
             record_claim(
@@ -2760,18 +2760,22 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         told(page)
 
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan")
+    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — revising the plan \(.+\)$")
+        re.compile(
+            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\.$"
+        )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     # A claim still believed but minutes old is dated on the row itself, so a long step
     # and a quiet agent read differently without opening the disclosure.
     declare("working", "revising the plan", quiet_for=5 * 60)
-    expect(summary).to_have_text("Claude working · 5m ago — revising the plan")
+    expect(summary).to_have_text(
+        "Claude working · 5m ago — revising the plan · 1 waiting"
+    )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
     declare("working", "revising the plan")
-    expect(summary).to_have_text("Claude working — revising the plan")
+    expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
 
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -2782,7 +2786,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 more update is queued\.$"
+            r"1 update queued\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -2803,26 +2807,47 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             d, {"kind": "comment", "author": "user", "text": "A later update."}
         )
         told(page)
-        # Reader input supersedes a fresh work claim as the primary activity, but it
-        # does not erase what that same declaration says the listening session is doing.
+        # A newer reader input keeps its own pending delivery while the page's fresh
+        # work declaration continues to describe what the agent is doing overall.
         expect(text).to_have_text(
-            "1 update is saved. Claude is listening — revising the plan."
+            re.compile(
+                r"^Claude is working — revising the plan \(.+\)\. "
+                r"1 update waiting\.$"
+            )
         )
-        expect(dot).to_have_class(re.compile(r"\blistening\b"))
+        expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
-        expect(summary).to_have_text("Claude listening · 1 saved")
+        expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
 
         # A transport that can watch the session's own steps reports one, and the agent
         # says what the work is. The row keeps the sentence written for the reader; the
         # step stands beside it in the disclosure, proving the session is still moving.
-        declare("working", "revising the plan", stream="Running the tests")
-        expect(summary).to_have_text("Claude working — revising the plan")
+        declare(
+            "working",
+            "revising the plan",
+            stream={"kind": "tool", "detail": "Running the tests"},
+        )
+        expect(summary).to_have_text(
+            "Claude using a tool — revising the plan · 1 waiting"
+        )
         expect(text).to_have_text(
             re.compile(
-                r"^Claude is working — revising the plan \(.+\) · Running the tests$"
+                r"^Claude is using a tool — revising the plan \(.+\) · "
+                r"Running the tests\. 1 update waiting\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
+        for stream, words in [
+            ({"kind": "thinking"}, "thinking"),
+            ({"kind": "awaiting_input"}, "waiting for input"),
+            ({"kind": "awaiting_approval"}, "waiting for approval"),
+            ({"kind": "replying"}, "replying"),
+        ]:
+            declare("working", "revising the plan", stream=stream)
+            expect(summary).to_have_text(
+                f"Claude {words} — revising the plan · 1 waiting"
+            )
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
@@ -2890,10 +2915,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "1 update is saved. Claude is listening — pick a storage engine."
+            "Claude is listening — pick a storage engine. 1 update waiting."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
-            "title", "1 update is saved. Claude is listening — pick a storage engine."
+            "title", "Claude is listening — pick a storage engine. 1 update waiting."
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
@@ -3055,10 +3080,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is handling 1 update"
+        "Claude is working (just now). 1 update waiting."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Handling updates · 1 update waiting"
+        "Working · 1 update waiting"
     )
 
     latent_waiting = CliRunner().invoke(
@@ -3068,7 +3093,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is handling 1 update"
+        "Claude is working (just now). 1 update waiting."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3080,7 +3105,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up 1 update, but that turn ended. 2 updates are saved."
+        "Claude isn't watching right now. 2 updates are saved. "
+        "It picks them up next turn."
     )
     with service_model.PageTransaction(d) as transaction:
         transaction.open_turn("s")
@@ -3210,8 +3236,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
 def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve):
     """The gallery's injected-chrome case exercises the external state it cannot
-    author: exact delivery into a turn drives both the receipt and banner, and a
-    later waiting declaration cannot split them."""
+    author: exact delivery keeps its receipt while page work retains the independently
+    declared overall state, then falls back to generic work when that declaration waits."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
     comment = events_model.append_event(
@@ -3232,15 +3258,49 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
     expect(receipt).to_contain_text("✓ Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is handling 1 update"
+        "Claude is working — Writing the page (just now)"
     )
 
     session_model.cmd_status(page_dir, "waiting", "review the gallery")
     told(page)
     expect(receipt).to_contain_text("✓ Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is handling 1 update"
+        "Claude is working (just now)"
     )
+
+
+def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
+    browser, serve
+):
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
+    page_dir = serve.page_dir
+    [comment] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
+
+    with live_watcher(page_dir, page):
+        with service_model.PageTransaction(page_dir) as transaction:
+            session_model.record_pickup(transaction, [comment])
+            transaction.close_turn(claim["id"])
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["status", str(page_dir), "waiting", "pick a storage engine"],
+        )
+        assert result.exit_code == 0, result.output
+        told(page)
+
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Claude awaits — pick a storage engine"
+        )
+        expect(page.locator(".lf-status-detail")).to_have_text(
+            "Claude awaits — pick a storage engine"
+        )
+        expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+            "Awaits — pick a storage engine"
+        )
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):

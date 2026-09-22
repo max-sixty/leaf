@@ -971,6 +971,14 @@ def held_stale(context):
 # attribute is monotonic, so the coordinator must also say the current semantic epoch is
 # presented before a test can interact with or inspect the page.
 #
+# `lfPageArrived` is the last of them, and the one that says the page has stopped
+# arriving: a widget or developer surface may place work after presentation on purpose —
+# the screenshot's draggable comparison, the interaction gallery's contained documents —
+# and that work moves boxes when it lands. A fixture carrying one is not ready when it
+# presents, and a test that reads geometry or counts layouts in the interval reads a page
+# mid-upgrade. Three tests each waited for a widget of their own by hand; the page states
+# it once instead (`runtime/presentation.js`, `afterPresentation` and `pageArrived`).
+#
 # Keep one predicate for `open_page` and the navigations tests perform directly. The
 # version chooser, live-pages button, and thread count are drawn from the application
 # reading, so a document-only wait can return a page whose banner the reader would not
@@ -983,7 +991,8 @@ BOTH_STAMPS = """() => {
     document.body.dataset.lfPresented !== '1'
   ) return false;
   const entry = document.querySelector('script[data-lf-entry]');
-  return entry?.lfCurrentPresentationReady?.() ?? false;
+  if (!(entry?.lfCurrentPresentationReady?.() ?? false)) return false;
+  return entry.lfPageArrived?.() ?? false;
 }"""
 FIRST_PAINT = """() => performance
   .getEntriesByType('paint')

@@ -51,6 +51,7 @@ from .codex import (
     clear_stream_activity,
     close_stream_turn,
     delivery_lock_path,
+    delivery_queue_state,
     delivery_stream_reply_target,
     offer_delivery,
     open_stream_turn,
@@ -252,7 +253,23 @@ class TaskObserver:
                 # id, which no `turn/completed` matches, so both the reading below
                 # and the fold `working` reads stood until the next reconnect.
                 self.events.turn_id = active
-                set_stream_activity(self.thread_id, active, "Working in Codex")
+                restored = self.events.read(
+                    {
+                        "method": "thread/status/changed",
+                        "params": {
+                            "threadId": self.thread_id,
+                            "turnId": active,
+                            "status": resumed["status"],
+                        },
+                    }
+                )
+                set_stream_activity(self.thread_id, active, restored["activity"])
+            else:
+                # A previous observer may have died without its disconnect cleanup.
+                # This snapshot does not establish a current provider turn, so an
+                # old thinking, tool, waiting, or replying observation cannot prove
+                # one is still live.
+                clear_stream_activity(self.thread_id)
             if not self.started:
                 self.started = True
                 self.ready.put(None)
@@ -342,13 +359,23 @@ class TaskObserver:
 
     def _read(self, message: dict) -> None:
         """Fold one notification about a turn this task is running."""
+        delivery_id = app_server_delivery_id(message)
+        if (
+            self.events.turn_id is None
+            and delivery_id is not None
+            and delivery_queue_state(self.thread_id, delivery_id) == "offering"
+        ):
+            # The immutable offered delivery explicitly binds this provider turn.
+            # An ordinary late item cannot reopen an ended turn, but the observer
+            # must be able to adopt a delivery whose `turn/started` notification
+            # another connection consumed before this subscription saw it.
+            self.events.turn_id = (message.get("params") or {}).get("turnId")
         update = self.events.read(message)
         if update is None:
             return
         turn_id = update["turn"]
         if message.get("method") == "turn/started":
             open_stream_turn(self.thread_id, turn_id)
-        delivery_id = app_server_delivery_id(message)
         if (
             delivery_id is not None
             and turn_id not in self.bindings
@@ -556,7 +583,7 @@ class DeliveryTurn(CarriedTurn):
         open_stream_turn(self.session_id, self.turn_id)
         accept_offered_delivery(self.session_id, self.delivery_id, self.turn_id)
         self.open_reply()
-        set_stream_activity(self.session_id, self.turn_id, "Starting")
+        set_stream_activity(self.session_id, self.turn_id, {"kind": "working"})
 
     def ended(self, error: BaseException) -> dict | None:
         """Account for the turn the stream stopped carrying, unless it is not over.

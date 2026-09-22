@@ -24,6 +24,14 @@
    Keep them as named readings. A boolean passed to one ambiguous reader makes callers
    choose semantics at each call site.
 
+   `pageText` is the page's whole reading, and every caller shares one of it until the
+   page changes underneath. The document reports its own changes, so anything else the
+   reading is built out of has to say so here: `fencePassageParts` for the widget parts
+   the cell walk fences on, `watchPassageRoot` for a declared shadow stage the walk
+   crosses into, and the registry generation, which `pageText` reads each time. A new
+   input with no door is a reading that goes stale silently — the mark lands on the
+   words the page used to say.
+
    `GENERATED` is `.lf-ui, [data-lf-gen]`. It marks words that are not authored.
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
    chrome-looking structure is still one of the page's words. This lets a tab label or
@@ -87,8 +95,8 @@ import { inUi, overIn, pageShadowRoots, uiInside, upFrom } from "./shadow.js";
 import { elementDeclarations, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
-export const opaquePassageRoots = new WeakSet();
-export const opaquePassageParts = new WeakSet();
+const opaquePassageRoots = new WeakSet();
+const opaquePassageParts = new WeakSet();
 export const verbatimOwnerIdentity = new WeakMap();
 export const verbatimBoundaryIdentity = new WeakMap();
 
@@ -691,14 +699,96 @@ export function neighbourhood(origin, fences, at, want, before) {
     if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
   }
 }
+// The reading is a function of the document, so the document is what says when it may
+// change. Everything it is built out of is here: the page's words and their shape, the
+// markers those words are read through, the vocabulary the markers mean something
+// against, and the widget parts the cell walk fences on. The first two a MutationObserver
+// reports; the last two have one door each, below.
+//
+// `class` is in the filter for one class. `.lf-ui` is what `uiInside` reads and the rest
+// are the runtime's paint — `lf-mark-el` and its neighbours go on and off the page's own
+// elements between anchor passes, and a walk apiece for a class the reading never looks
+// at is the whole cost this exists to avoid.
+const READING_MARKERS = [
+  "class",
+  "data-lf-said",
+  "data-lf-gen",
+  PAGE_PAINT_ATTRIBUTE.retired,
+  "slot",
+  "name",
+];
+const WATCH_READING = {
+  subtree: true,
+  childList: true,
+  characterData: true,
+  attributes: true,
+  attributeOldValue: true,
+  attributeFilter: READING_MARKERS,
+};
+let reading = null;
+let readingVocabulary;
+let watcher = null;
+const changesTheReading = (record) => {
+  if (record.type !== "attributes" || record.attributeName !== "class") return true;
+  const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
+  return was !== record.target.classList.contains("lf-ui");
+};
+const forgetReading = () => {
+  reading = null;
+};
+function watchReading() {
+  if (watcher) return watcher;
+  watcher = new MutationObserver((records) => {
+    if (records.some(changesTheReading)) forgetReading();
+  });
+  watcher.observe(document, WATCH_READING);
+  return watcher;
+}
+// A declared shadow stage is part of the page's words — `textNodesUnder` walks into one
+// at its host's place in the string — and no observer crosses the boundary on its own.
+// shadow-stage.js, which is the only door an x-shadow root is built through, hands each
+// one here as it fills it.
+export function watchPassageRoot(root) {
+  watchReading().observe(root, WATCH_READING);
+  forgetReading();
+}
+// An opaque widget and its original direct children fence the cell walk. Marking them is
+// not a change to the document, so it is a change nothing else would report: a reading
+// taken before a widget was fenced reads its words as ordinary page prose, and a quote
+// from the paragraph above could run straight into them. The marking and the forgetting
+// are one door for that reason.
+export function fencePassageParts(root) {
+  opaquePassageRoots.add(root);
+  for (const child of root.children) opaquePassageParts.add(child);
+  forgetReading();
+}
 // What the page says, once, as one string with a way back to the nodes it came from. Built
-// per pass rather than per anchor: every anchor a pass places is asking about the same
-// document, and the pass is what fixes which document that is — resolving each against its
-// own fresh reading would let two marks in one pass answer for two different pages, since a
-// widget can upgrade between them. Forty threads on a 13k-character page also spent it
-// forty times: 9.3ms of index building per pass, besides the forty tree walks feeding
-// it, against 1.5ms for the one read that replaces them.
+// per document state rather than per caller: every anchor a pass places is asking about the
+// same document, and resolving each against its own fresh reading would let two marks in
+// one pass answer for two different pages, since a widget can upgrade between them. Forty
+// threads on a 13k-character page also spent it forty times: 9.3ms of index building per
+// pass, besides the forty tree walks feeding it, against 1.5ms for the one read that
+// replaces them.
+//
+// A pass is not the bound, though, because the passes are frequent and the walk grows with
+// the page: the painter, the capture, the target chooser and the selection surface each
+// take one, and a drag-select takes one per pointer move. At a few thousand elements that
+// is the better part of a second apiece, which is a page that stutters while it is only
+// being read. So the reading stands until something it is built out of moves.
+//
+// `takeRecords` is what makes that exact rather than a frame late. An observer's callback
+// runs in a microtask, so a caller that changed the page and read it back in the same task
+// would be handed the reading from before its own edit. Draining the queue at the read asks
+// the observer what it has seen instead of waiting to be told.
 export function pageText() {
+  const moved = watchReading().takeRecords().some(changesTheReading);
+  const vocabulary = registry.$layer?.generation;
+  if (moved || vocabulary !== readingVocabulary) forgetReading();
+  readingVocabulary = vocabulary;
+  return (reading ??= readPage());
+}
+// The walk itself.
+function readPage() {
   let raw = "";
   const origin = []; // origin[i] = {node, offset} for raw[i]; null for an edge
   const positions = new WeakMap(); // text node -> its offset-zero position in raw

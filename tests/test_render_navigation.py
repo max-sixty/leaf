@@ -14,6 +14,7 @@ from render_cases_interaction import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    executable_revision,
     live_url,
     panel_comment,
 )
@@ -65,6 +66,7 @@ from render_harness import (
     ask_actions_hint,
     consume_browser_errors,
     hold_selection,
+    holding,
     leaf_page,
     open_page,
     open_versions,
@@ -368,6 +370,103 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     page.keyboard.press("t")
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    ("install", "gesture"),
+    [
+        ("patch", gesture)
+        for gesture in ("wheel", "focus", "edit", "reveal", "hidden", "untouched")
+    ]
+    # A fresh document has no tab controls until its widgets have loaded.
+    + [
+        ("reload", gesture)
+        for gesture in ("wheel", "focus", "edit", "hidden", "untouched")
+    ],
+)
+def test_revision_restoration_yields_to_input_while_a_diagram_loads(
+    browser, serve, gesture, install
+):
+    """Hold the real diagram renderer's delivery while the reader uses the new pane."""
+    source = (
+        READING_REGIONS_PAGE.replace(
+            '<button id="left-head">',
+            '<label>Draft <input id="reading-draft"></label><button id="left-head">',
+        )
+        .replace(
+            "<main>",
+            '<main><lf-tabs id="reading-tabs"><lf-tab id="first-tab" label="First">',
+        )
+        .replace(
+            "</main>",
+            '</lf-tab><lf-tab id="second-tab" label="Second">'
+            '<lf-pane id="other-reading" label="Other reading">'
+            '<p id="other-start">Another reading with enough words to preserve its landmark.</p>'
+            '<div style="height: 1000px"></div></lf-pane></lf-tab></lf-tabs></main>',
+        )
+    )
+    page = open_page(browser, live_url(serve(source)))
+    if gesture == "hidden":
+        # A cached hidden reading must not select its tab over the active one.
+        page.get_by_role("tab", name="Second", exact=True).click()
+        page.get_by_role("tab", name="First", exact=True).click()
+    page.locator("#reading-draft").fill("kept draft")
+    left = page.locator("#left-reading .lf-pane-body")
+    left.evaluate("el => el.scrollTop = 300")
+    page.locator("#left-head").click()
+    held = []
+    page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
+    revised = source.replace(
+        '<p id="left-start">',
+        '<p>Added context.</p><p id="left-start">',
+    ).replace(
+        '<p id="left-end">',
+        '<lf-diagram id="late-diagram"><pre>graph LR; A --&gt; B</pre></lf-diagram><p id="left-end">',
+    )
+    before = page.locator("#left-landmark").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    if install == "reload":
+        revised = executable_revision(revised, "new renderer")
+    stamp_page(serve.page_dir, revised, "Add a diagram")
+    holding(page, held, 1, "the new diagram renderer")
+    try:
+        if gesture == "wheel":
+            left.hover()
+            page.mouse.wheel(0, 220)
+            page.wait_for_function(
+                "() => document.querySelector('#left-reading .lf-pane-body').scrollTop > 150"
+            )
+        elif gesture == "focus":
+            page.locator("#right-head").click()
+        elif gesture == "edit":
+            page.locator("#reading-draft").fill("new draft")
+        elif gesture == "reveal":
+            page.get_by_role("tab", name="Second", exact=True).click()
+        scroll = left.evaluate("el => el.scrollTop")
+        held.pop().continue_()
+        wait_for_revision(page, 2)
+        expect(page.locator("#late-diagram svg")).to_have_count(1)
+        expect(page.locator("#reading-draft")).to_have_value(
+            "new draft" if gesture == "edit" else "kept draft"
+        )
+        expect(
+            page.get_by_role(
+                "tab", name="Second" if gesture == "reveal" else "First", exact=True
+            )
+        ).to_have_attribute("aria-selected", "true")
+        if gesture == "wheel":
+            assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
+        elif gesture == "focus":
+            expect(page.locator("#right-head")).to_be_focused()
+        elif gesture == "untouched":
+            assert page.locator("#left-landmark").evaluate(
+                "el => el.getBoundingClientRect().top"
+            ) == pytest.approx(before, abs=2)
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute("**/vendor/agentic-mermaid.esm.js")
 
 
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):

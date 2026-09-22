@@ -6,7 +6,7 @@ import { focused } from "./keyboard/scopes.js";
 
 let intent = 0;
 const leave = () => intent++;
-for (const type of ["pointerdown", "keydown", "input", "wheel"])
+for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
   addEventListener(type, leave, { capture: true, passive: true });
 addEventListener("blur", leave);
 

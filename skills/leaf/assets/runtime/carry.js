@@ -91,14 +91,12 @@ export function captureCarry(root, authored) {
   return { records, held };
 }
 
-// Put it back, once the arriving document has been upgraded and presented.
-//
-// Only onto a node the install actually replaced. One the patch kept never lost any of
-// this, and writing over it would undo whatever the reader has done since — `held` is how
-// the in-place install says which is which, and the other install passes none, because a
-// fresh document kept nothing. An id the revision dropped, or gave to a different kind of
-// element, is not the same element and keeps nothing.
+// Restore values and disclosures in the same turn that replaces their nodes, before
+// the reader can edit the arrivals. Geometry and focus need the finished layout; the
+// returned landing runs after presentation, only while the install still owns intent.
+// Kept nodes never lost their state, and a changed tag is a different control.
 export function restoreCarry(records, held = new Map()) {
+  const positions = [];
   for (const record of records ?? []) {
     const arrived = document.getElementById(record.id);
     if (!arrived || arrived === held.get(record.id)) continue;
@@ -107,12 +105,14 @@ export function restoreCarry(records, held = new Map()) {
     if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
     if (record.checked !== undefined && holdsTick(arrived))
       arrived.checked = record.checked;
-    if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-    if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
-    if (!record.focus) continue;
-    // The element may have been focusable only through a tab stop the runtime lent it,
-    // which the arriving node has not been lent; `focusDestination` lends it again for
-    // as long as the reader holds it, and puts the caret back in the same act.
-    focusDestination(arrived, record.caret);
+    positions.push([arrived, record]);
   }
+  return () => {
+    for (const [arrived, record] of positions) {
+      if (!arrived.isConnected) continue;
+      if (record.scrollTop) arrived.scrollTop = record.scrollTop;
+      if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+      if (record.focus) focusDestination(arrived, record.caret);
+    }
+  };
 }

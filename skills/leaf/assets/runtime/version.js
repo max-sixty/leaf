@@ -129,6 +129,7 @@ import {
 } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
+import { retainReaderIntent } from "./reader-intent.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
 import { clippedContents, shownBox } from "./geometry.js";
@@ -1289,6 +1290,7 @@ export function createVersionController({
   // over, so the page keeps every node this revision did not rewrite and nothing has to
   // be carried across anything.
   async function activateRevision(doc, target) {
+    const currentIntent = retainReaderIntent();
     const view = captureView();
     const askStanding = captureAskStanding();
     // A pending selection is standing too: cancel its old-document request before the
@@ -1362,6 +1364,7 @@ export function createVersionController({
       return arriving;
     };
 
+    let landCarry;
     await patchDocument(live, () => {
       authoredHtmlAttributes = replaceAuthoredAttributes(
         document.documentElement,
@@ -1406,6 +1409,7 @@ export function createVersionController({
           if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
+      landCarry = restoreCarry(carry.records, carry.held);
       // After the patch, over the document the patch left: an owner's number is its
       // place among the document's preserving owners, and an insertion moves the ones
       // after it.
@@ -1428,17 +1432,14 @@ export function createVersionController({
       whenApplicationRegionsPresented(["page-interface"], () => true),
     );
     syncLayout();
-    restoreView(view);
-    // A control the revision kept is the same element, still holding the focus and the
-    // words the reader put in it, and needs nothing from here. One the revision replaced
-    // gets back whatever the author named: the exact element first, by its id, with the
-    // reader's own state on it, and then the Ask's own opening, for a reader whose
-    // control carried no name to be found again by. The standing restore reads focus, so
-    // a carry that has already put them back inside the Ask leaves it nothing to do, and
-    // a control the author left unnamed inside an Ask the revision dropped leaves them on
-    // `body`, where the page's own keys are live.
-    restoreCarry(carry.records, carry.held);
-    restoreAskStanding(askStanding);
+    // Presentation can wait on a renderer download while the reader uses the arrivals.
+    // Their newer input owns navigation; carried field values already crossed with the
+    // nodes, so yielding here cannot discard an unrelated draft.
+    if (currentIntent()) {
+      restoreView(view);
+      landCarry();
+      restoreAskStanding(askStanding);
+    }
     if (comparedFrom !== null) showComparison(comparedFrom);
     // The same words the fresh document says on arrival. The page changing under a
     // reader is the thing announced, and which install carried it is not their business.
@@ -1768,7 +1769,7 @@ export function createVersionController({
     }
     for (const [id, reading] of Object.entries(view.regions ?? {})) {
       const region = regions.get(id);
-      if (!region) continue;
+      if (!region || !shownRegionBounds(region)) continue;
       const box = effectiveScroller(region);
       if (restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
@@ -1782,7 +1783,6 @@ export function createVersionController({
   // shared page offset when it becomes bounded again. In flow, only the region the reader
   // is working represents the shared page scroller.
   const regionViews = new Map();
-  let navigationIntent = 0;
   let lastReadingRegionId = null;
 
   // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
@@ -1829,7 +1829,7 @@ export function createVersionController({
     }
     if (phase === "before") {
       if (retained && postureTransitions.has(owner)) {
-        postureTransitions.get(owner).intent = navigationIntent;
+        postureTransitions.get(owner).currentIntent = retainReaderIntent();
         return;
       }
       const blocks = textBlocks();
@@ -1840,7 +1840,7 @@ export function createVersionController({
         if (shownRegionBounds(region))
           regionViews.set(region.id, captureRegion(region, blocks));
       postureTransitions.set(owner, {
-        intent: navigationIntent,
+        currentIntent: retainReaderIntent(),
         to,
         regions: regions.map(({ id }) => id),
       });
@@ -1848,7 +1848,7 @@ export function createVersionController({
     }
     const transition = postureTransitions.get(owner);
     postureTransitions.delete(owner);
-    if (!transition || transition.intent !== navigationIntent) return;
+    if (!transition?.currentIntent()) return;
     const live = new Map(readingRegions().map((region) => [region.id, region]));
     // A posture can change because its owner was hidden. Keep that region's cached
     // reading for its return, but continuity must not reveal it over a newer choice.
@@ -1920,14 +1920,15 @@ export function createVersionController({
       if (!anchoringIsReady()) return;
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
+    const landCarry = handoff && restoreCarry(handoff.carry);
+    const currentIntent = retainReaderIntent();
     function landArrival() {
+      if (!currentIntent()) return;
       if (handoff) {
         restorePointer(handoff.pointer);
         restoreView(handoff.view);
         restoreRetainedStanding(handoff.retainedStanding);
-        // No held nodes: this document kept none of the last one's, so every record
-        // in the handoff names something the reader lost.
-        restoreCarry(handoff.carry);
+        landCarry();
         restoreAskStanding(handoff.askStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);
@@ -1989,7 +1990,6 @@ export function createVersionController({
       addEventListener(
         type,
         (event) => {
-          navigationIntent++;
           const region = readingRegionFor(event.composedPath()[0]);
           if (region) lastReadingRegionId = region.id;
         },

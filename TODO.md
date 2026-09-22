@@ -52,8 +52,6 @@ has tried; settle that before building it.
 
 ### Reader continuity and mobile access
 
-- **#11 — [Let newer navigation win over revision restoration](notes/workspace-followups.md#item-11).**
-  Preserve input made while a revision activates.
 - **Make a phone reading journey complete.** Give touch readers an element-target
   route and visible passage threads; supply the document viewport at delivery.
   Check the selection-menu collision and interactive-reply crash on a real iPhone

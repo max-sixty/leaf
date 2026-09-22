@@ -4,25 +4,11 @@ Research at merged commit `cb7915bb`, 8 September 2026. Research briefs for work
 
 I recommend keeping the current primitives and spending the next cycle on reliable shared contracts, convincing examples and a measured authoring advantage. The larger layout vocabulary should follow evidence from those tasks.
 
-The shared-contract and example items this note opened with have landed; what remains is verification and the product questions the implementation cannot settle. Begin the authoring baseline #19 before improving the recipes, and run the reader-continuity items #11 and #14 against the examples they protect.
+The shared-contract and example items this note opened with have landed; what remains is verification and the product questions the implementation cannot settle. Begin the authoring baseline #19 before improving the recipes, and run the keyboard journey #14 against the examples it protects.
 
 Items are ranked within each group. IDs are stable references, not a global priority score. Agent-owned work is distinguished from the repeated-use pilot, which needs Max’s purpose and participation. Evidence labels separate reproduced defects from code gaps and experiments.
 
 ## Keep the reader oriented
-
-<a id="item-11"></a>
-
-- **#11** **Let newer navigation win over revision restoration** — Use navigation intent to prevent an old reading capture from overwriting input made during revision activation.
-
-  **Evidence / confidence:** One-frame race reproduced; human timing unmeasured. In a real browser, scrolling the new pane to 700 one animation frame after replacement was restored to 340. The same intervention two frames later stayed at 700. The probe injected a wheel event; a human-scale window under a slow real widget still needs demonstration.
-
-  **Next task:** Build a deterministic delayed real-widget journey and extend the existing navigation-intent ownership rule to revision restore if the conflict remains reachable.
-
-  **Done when:** A newer scroll/reveal/focus wins while a revision settles; an untouched revision still restores its semantic landmark. Hidden-tab restoration must preserve the active tab, which passed the current probe.
-
-  **Owner / dependencies:** Astra sets lifecycle rule; Sol implements. Focused lifecycle work, separate from visual polish.
-
-  **Sources:** [version.js:1254](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/version.js#L1254), [version.js:1479](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/version.js#L1479), [version.js:1505](https://github.com/max-sixty/leaf/blob/cb7915bb924aa78fcbcf83439110794982bb3b86/skills/leaf/assets/runtime/version.js#L1505).
 
 <a id="item-14"></a>
 
@@ -102,19 +88,9 @@ The IDs describe work to retain, not separate agents to launch. The contract and
 
 | Package | Lead | Scope |
 | --- | --- | --- |
-| Reader continuity | Astra scopes; Sol verifies and implements | #11, with #14 as its acceptance journey |
+| Reader continuity | Astra scopes; Sol verifies and implements | #14 keyboard and accessibility journey |
 | Agent authoring | Astra designs; Sol agents execute | #19 baseline before #20 guidance changes |
 | Product boundary | Astra with Max’s real tasks | #23; run #22 when inline hosting is part of a selected task |
-
-## Reproduction record
-
-The scratch probes used the repository's real browser/render harness. Four of them —
-failed admission changing DOM, duplicate arrangements disagreeing about posture,
-dark-only prose replacement producing no render-gate finding, and a custom root
-retaining narrow/intrinsic geometry — belonged to briefs that have since landed. The
-revision probe behind #11 injected a wheel event one animation frame after
-replacement; its human-scale reachability remains unproven. Recreate that case as a
-failing regression in its owning suite before implementing the fix.
 
 ## Positioning research
 
@@ -130,7 +106,7 @@ A movable splitter introduces keyboard, naming and value semantics beyond a stat
 
 Already owned elsewhere: [real website agents, PR #460](https://github.com/max-sixty/leaf/pull/460), [navigation status, PR #461](https://github.com/max-sixty/leaf/pull/461), [screenshot caption controls, PR #464](https://github.com/max-sixty/leaf/pull/464), and the separately dispatched example-comment pickup investigation. Those are dependencies, not new backlog items.
 
-Equal splits, whole-workspace fallback and native header/footer slots remain deliberate first-slice choices. Resizable splits, docking, saved layout presets and a separate layout registry are not missing acceptance work. Revisit them only when a completed task demonstrates the need. The hidden-tab revision probe preserved the active tab, so it is not listed as a bug.
+Equal splits, whole-workspace fallback and native header/footer slots remain deliberate first-slice choices. Resizable splits, docking, saved layout presets and a separate layout registry are not missing acceptance work. Revisit them only when a completed task demonstrates the need.
 
 ## Browser evidence
 

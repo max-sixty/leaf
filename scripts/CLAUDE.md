@@ -140,7 +140,7 @@ dependencies and inherit its ranges, so a diff from one of those can be an upstr
 patch rather than drift.
 
 `webawesome` builds a chrome entry and an optional-widget entry with shared chunks.
-The chrome entry loads the standard search, filter, and copy controls; optional widgets
+The chrome entry loads the standard search and copy controls; optional widgets
 load their remaining controls on demand. Shared dependencies and scoped theme defaults
 are registered once in the document and declared shadow stages. The chrome entry and
 shared chunks live under `assets/vendor/`; the optional entry remains in the default

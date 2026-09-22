@@ -83,8 +83,8 @@ const conversationInputOf = (held) => {
 // Start a long direct arrival on the earliest complete content block that still leaves
 // its reply target in the list's landable band. Native nearest-edge scrolling guarantees
 // the target is visible, but it can put the sticky heading through the middle of a text
-// line. The message bodies already expose their authored block boundaries; use those
-// rather than attempting to infer line boxes from prose.
+// line. The thread header and message bodies expose complete block boundaries; use
+// those rather than attempting to infer line boxes from prose.
 const threadLandingStart = (held, target, threadsBox) => {
   const band = shownBand(threadsBox);
   if (!band) return target;
@@ -97,7 +97,7 @@ const threadLandingStart = (held, target, threadsBox) => {
   const targetBox = shownBox(target);
   const candidates = [
     ...held.querySelectorAll(
-      ":scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, " +
+      ":scope > *, :scope > .lf-msg .lf-msg-body > *, " +
         ":scope > .lf-msg .lf-msg-text > *",
     ),
     target,

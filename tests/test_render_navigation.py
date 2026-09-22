@@ -3455,9 +3455,11 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     )
 
 
-@pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
+@pytest.mark.parametrize(
+    "reply_paragraphs", [0, 10, 18, 30], ids=["short", "near-fit", "long", "very-long"]
+)
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
-    browser, serve, long_thread
+    browser, serve, reply_paragraphs
 ):
     """Pointer and keyboard arrival open one compact conversation card. Enter or c
     reveals its reply, and Escape returns through each layer. The Page Map fallback
@@ -3466,7 +3468,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
-    if long_thread:
+    if reply_paragraphs:
         root = next(
             event["id"]
             for event in events_model.read_events(serve.page_dir)
@@ -3481,11 +3483,12 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                 "revision": 1,
                 "text": "\n\n".join(
                     f"Consideration {i}: the response needs room for its explanation."
-                    for i in range(18)
+                    for i in range(reply_paragraphs)
                 ),
             },
         )
     page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
     threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
     first_id = threads.first.get_attribute("data-id")
     second_id = threads.nth(1).get_attribute("data-id")
@@ -3565,41 +3568,10 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     panel_settled(page)
     panel_thread = threads.first
     panel_reply = panel_thread.locator(":scope > .lf-compose textarea")
-    if long_thread:
-        # Opening the mark focuses its reply before native smooth placement finishes.
-        # Arm the list itself immediately before that gesture. A prior scrollend cannot
-        # pass without a causal move, and a preliminary one is withdrawn if a later frame
-        # continues the same arrival.
-        page.evaluate(
-            """() => {
-              const list = document.querySelector('.lf-threads');
-              const rest = window.__lfThreadScrollRest = {
-                at: null, event: 0, moved: false, start: list.scrollTop,
-              };
-              list.addEventListener('scroll', () => {
-                rest.at = null;
-                rest.moved ||= list.scrollTop !== rest.start;
-              }, {passive: true});
-              list.addEventListener('scrollend', () => {
-                const event = ++rest.event;
-                const at = list.scrollTop;
-                requestAnimationFrame(() => {
-                  if (rest.event === event && list.scrollTop === at) rest.at = at;
-                });
-              });
-            }"""
-        )
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(panel_reply).to_be_focused()
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
-    if long_thread:
-        page.wait_for_function(
-            """() => {
-              const list = document.querySelector('.lf-threads');
-              const rest = window.__lfThreadScrollRest;
-              return rest.moved && rest.at === list.scrollTop;
-            }"""
-        )
+    if reply_paragraphs:
         landing = page.evaluate(
             """() => {
               const list = document.querySelector('.lf-threads');
@@ -3611,7 +3583,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const start = view.top + clear;
               const head = list.querySelector('.lf-pinned').getBoundingClientRect();
               const blocks = [...thread.querySelectorAll(
-                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
+                ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
                 ':scope > .lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
@@ -3631,14 +3603,18 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                 }
               }
               return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
-                      crossedLines: lines};
+                      crossedLines: lines, scroll: list.scrollTop,
+                      maximumScroll: list.scrollHeight - list.clientHeight};
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        assert any(
-            block["top"] == pytest.approx(landing["start"], abs=2)
-            for block in landing["blocks"]
-        ), f"the long arrival cut through a content block: {landing}"
+        if landing["scroll"]:
+            assert any(
+                block["top"] == pytest.approx(landing["start"], abs=2)
+                for block in landing["blocks"]
+            ), f"the long arrival cut through a content block: {landing}"
+        else:
+            assert landing["blocks"][0]["top"] >= landing["start"] - 1
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
         )

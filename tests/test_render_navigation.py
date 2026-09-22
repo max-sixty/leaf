@@ -2474,11 +2474,13 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
-    expect(panel.locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
+        "neighbouring block"
+    )
 
-    # Return through the panel. The margin view stays dismissed.
+    # The panel keeps its narrowing; Escape clears it before leaving the panel.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
@@ -2594,6 +2596,32 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+@pytest.mark.parametrize("width", [1200, 600])
+def test_go_to_threads_selects_the_panel_from_a_page_thread(browser, serve, width):
+    """g T has one destination regardless of the selected page thread."""
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
+    )
+    resized(page, width, 844)
+    panel = page.locator(".lf-thread-panel")
+    for from_thread in (False, True):
+        if from_thread:
+            page.keyboard.press("t")
+            page.keyboard.press("t")
+            expect(
+                page.locator(".lf-margin-preview .lf-conversation-thread")
+            ).to_be_focused()
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        expect(panel).to_be_visible()
+        expect(page.locator(".lf-threads")).to_be_focused()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        page.keyboard.press("Escape")
+        expect(panel).to_be_hidden()
+        assert page.evaluate("document.activeElement === document.body")
 
 
 def test_a_panel_thread_releases_to_the_same_floor_as_go_to_threads(browser, serve):

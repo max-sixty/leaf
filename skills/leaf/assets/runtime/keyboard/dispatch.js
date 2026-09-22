@@ -27,12 +27,9 @@
    binding; the claims then stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
-   registers its Escape and Enter on the exact input element, so those rows stand before
-   `TYPING`, and the general text-entry claim stands before any ancestor widget. Escape
-   therefore lets a live query go, then leaves the box for the list it belongs to, then
-   leaves the panel. A plain composer with no control-specific Escape has no generic
-   “leave the textarea” step to pay, because it has nowhere of its own to hand the reader
-   back to.
+   registers Enter on the exact input to enter the first search result. Its Escape uses
+   the ordinary text-entry row to return to the panel, keeping the query. Exact input
+   rows stand before the general text-entry claim, which stands before ancestor widgets.
 
    A key may repeat across nesting scopes to mean the same intent in context. `c` reads
    that way: from the page it enters the nearest comment box; from the Threads list it

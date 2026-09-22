@@ -2595,16 +2595,29 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
 
-    # Escape spends one rung on the narrowing and the next on the box, rather than
-    # both on one press: the reader can see which of the two they are backing out of.
-    page.get_by_role("searchbox", name="Find in threads").click()
+    # Escape leaves typing first, so the search remains useful for keyboard navigation.
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.click()
     page.keyboard.type("megabytes")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
-    expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to list")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
+    expect(search).to_have_value("megabytes")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
+    page.keyboard.press("n")
+    expect(
+        page.locator(f'.lf-thread[data-id="{cap}"] > .lf-thread-summary')
+    ).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(search).to_have_value("megabytes")
+    page.keyboard.press("Escape")
+    expect(search).to_have_value("")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
 
 def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):

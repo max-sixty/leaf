@@ -9,7 +9,6 @@ Options:
   --help     Show this message and exit.
 
 Commands:
-  ack           Acknowledge one batch, then wait for the next.
   codex         Launch Codex and connect Leaf pages to its tasks.
   comment       Open an agent thread \u2014 on a passage, or on the page whole.
   conversation  Read, name, or summarize a Leaf conversation.

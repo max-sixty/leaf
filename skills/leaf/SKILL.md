@@ -68,8 +68,8 @@ directory explicitly; export or copy anything that must outlive the page directo
    page's status as the conversation reference defines, hand over by the host's
    route, name the gesture available to the reader, and finish the turn with the
    exact URL, or with what the host contract hands over instead.
-5. When a delivery arrives, run `leaf delivery claim <id>` first. Then read
-   `references/event-batches.md`, the host contract, and, for reader messages,
+5. When a delivery arrives, read `references/event-batches.md`, the host
+   contract, and, for reader messages,
    `references/conversation-threads.md`, and answer every event as they say.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 

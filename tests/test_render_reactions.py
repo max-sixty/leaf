@@ -5,6 +5,7 @@ import re
 
 import pytest
 from leaf import conversation as conversation_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from playwright.sync_api import expect
@@ -451,6 +452,12 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         reaction.hover()
         assert reaction.evaluate(read) == selected
         assert reaction.evaluate(PAINTS_STATE_MARK) is False
+        page.mouse.move(0, 0)
+        page.keyboard.press("Tab")
+        reaction.focus()
+        expect(reaction).to_be_focused()
+        assert reaction.evaluate("node => node.matches(':focus-visible')")
+        assert reaction.evaluate(read) == selected
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
@@ -472,7 +479,8 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     )
 
 
-def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, scheme):
     """Tab adds reactions after the compact field without moving or replacing it.
 
     Each declared emoji is its own margin entry, with its token in the accessible name.
@@ -480,7 +488,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
     in Threads.
     """
-    page = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -500,9 +508,22 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     )
     assert labels == ["keep", "change", "clarify", "shorten", "support", "prioritize"]
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
+    reaction = surface.locator('[data-token="keep"]')
+    face = """node => {
+      const style = getComputedStyle(node);
+      return {fill: style.backgroundColor, border: style.borderTopColor,
+              shadow: style.boxShadow};
+    }"""
+    page.mouse.move(0, 0)
+    resting_face = reaction.evaluate(face)
+    reaction.hover()
+    assert reaction.evaluate(face) != resting_face
+    page.mouse.move(0, 0)
     for token in ["keep", "change", "clarify", "shorten", "support", "prioritize"]:
         page.keyboard.press("ArrowRight")
-        expect(surface.locator(f'[data-token="{token}"]')).to_be_focused()
+        focused = surface.locator(f'[data-token="{token}"]')
+        expect(focused).to_be_focused()
+        assert focused.evaluate(face)["shadow"] != resting_face["shadow"]
     expect(page.locator(".lf-walk-position")).to_have_text("Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
@@ -2056,9 +2077,12 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         == "0"
     )
 
-    # The keyboard's route in is the focus the walk puts on the card; e opens the latest
-    # agent reply in that thread without disturbing the standing mark on an older reply.
-    card(first).focus()
+    # The keyboard's route in is the focus the walk puts on the card's native title; e
+    # opens the latest agent reply in that thread without disturbing the standing mark on
+    # an older reply. Opening this title closes the quiet card the measurements above
+    # needed open, which is the disclosure group doing its own work.
+    card(first).locator(":scope > .lf-thread-summary").click()
+    expect(card(first)).to_have_attribute("open", "")
     page.keyboard.press("e")
     expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
@@ -2095,6 +2119,90 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         "clarify",
         first,
     )
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("placement", ["panel", "inline"])
+def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
+    browser, serve, scheme, placement
+):
+    """Opening a picker changes its placement, not the paint saying a mark stands."""
+    url = serve(
+        leaf_page(
+            "Message reactions",
+            '<h1>Review</h1><lf-diff id="patch" source="patch"><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-old
++new
+""",
+    )
+    root = panel_comment(
+        serve.page_dir,
+        "Why this change?",
+        {
+            "section": "patch",
+            "datum": '["app.py","new",1]',
+            "source": "patch",
+            "data_revision": 1,
+        },
+    )
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "This covers the new case.",
+        },
+    )["id"]
+    page = open_page(browser, url, color_scheme=scheme)
+    if placement == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        page.locator(".lf-thread-summary").click()
+        message = page.locator(f'.lf-msg[data-mid="{reply}"]')
+    else:
+        message = page.locator(f'lf-diff [data-event="{reply}"]')
+    strip = message.locator(".lf-react-strip")
+    trigger = strip.get_by_role("button", name="Add reaction", exact=True)
+    trigger.click()
+    selected = strip.locator('.lf-react[data-token="keep"]')
+    idle = strip.locator('.lf-react[data-token="change"]')
+    with sending(page, "the selected message reaction"):
+        selected.click()
+    told(page)
+    expect(selected).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(0, 0)
+    fill = "node => getComputedStyle(node).backgroundColor"
+    closed_fill = selected.evaluate(fill)
+    trigger.click()
+    expect(idle).to_be_visible()
+    expect(idle).to_have_attribute("aria-pressed", "false")
+    expect(selected).to_be_visible()
+    page.mouse.move(0, 0)
+    assert selected.evaluate(fill) == closed_fill
+    assert selected.evaluate(fill) != idle.evaluate(fill)
+    selected.hover()
+    assert selected.evaluate(fill) == closed_fill
+    page.mouse.move(0, 0)
+    page.keyboard.press("Tab")
+    selected.focus()
+    expect(selected).to_be_focused()
+    assert selected.evaluate("node => node.matches(':focus-visible')")
+    assert selected.evaluate(fill) == closed_fill
+    assert selected.evaluate("""node => {
+      const style = getComputedStyle(node);
+      return style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+    }""")
 
 
 def _thread(page_dir):

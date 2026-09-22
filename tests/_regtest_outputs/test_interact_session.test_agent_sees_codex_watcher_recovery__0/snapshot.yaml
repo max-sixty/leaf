@@ -10,14 +10,14 @@ direct wait still running:
   decision: block
   reason: |-
     Leaf needs attention:
-    - <page>: the Codex page is still live. Keep this turn active and poll the existing shell session — `leaf wait` before the first batch or the rearmed `leaf ack` afterward — with `write_stdin`.
+    - <page>: the Codex page is still live. Keep this turn active and poll the existing shell session — `leaf wait` before the first batch or the rearmed `leaf wait --ack` afterward — with `write_stdin`.
 
 direct wait has input:
   decision: block
   reason: |-
     Leaf needs attention:
-    - <page>: 1 update you haven't picked up. Poll the existing shell session — `leaf wait` before the first batch or the rearmed `leaf ack` afterward — with `write_stdin`.
+    - <page>: 1 update you haven't picked up. Poll the existing shell session — `leaf wait` before the first batch or the rearmed `leaf wait --ack` afterward — with `write_stdin`.
 
-    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live. The agent handling the batch must address every event.
+    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
 
 adapter carries input: null

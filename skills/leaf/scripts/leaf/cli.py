@@ -746,31 +746,22 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)
-def wait(dir: str | None) -> None:
+@click.option(
+    "--ack",
+    metavar="DELIVERY_ID",
+    help="Confirm receipt of this complete delivery before waiting.",
+)
+def wait(dir: str | None, ack: str | None) -> None:
     """Print one page's unacknowledged events and reports, then exit."""
     from leaf.session import cmd_wait
 
-    sys.exit(cmd_wait(resolve_dir(dir) if dir else None))
-
-
-@cli.command(
-    short_help="Acknowledge one batch, then wait for the next.",
-    help=WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION,
-)
-@click.argument("dir", metavar="PAGE")
-@click.argument("seq", type=click.IntRange(min=1), metavar="SEQ")
-def ack(dir: str, seq: int) -> None:
-    """Acknowledge one complete batch and wait for the next one."""
-    from leaf.session import cmd_ack, cmd_wait
-
-    page_dir = resolve_dir(dir)
-    # A refused acknowledgement exits 1 here, with the cursor where it was. Past
-    # that the command is the wait it re-armed and answers as one does: 0 carries
-    # the next batch on stdout, 2 names an ending on stderr. The delivering wait
-    # established ownership, so the re-arm observes a successor rather than
-    # reclaiming the page.
-    cmd_ack(page_dir, seq)
-    sys.exit(cmd_wait(page_dir, claim_named=False))
+    if dir is not None and ack is not None:
+        raise click.UsageError("PAGE and --ack cannot be used together")
+    try:
+        outcome = cmd_wait(resolve_dir(dir) if dir else None, ack=ack)
+    except RuntimeError as error:
+        raise click.ClickException(str(error)) from error
+    sys.exit(outcome)
 
 
 @cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")

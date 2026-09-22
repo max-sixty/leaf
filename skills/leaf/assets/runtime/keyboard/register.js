@@ -1,50 +1,19 @@
-/* The page's keyboard register: the orders core's keyboard has, and the doors each feature
-   owner contributes through.
-
-   A command belongs to the layer that implements its result, so that layer declares it
-   where its code is: `pageScope` for a scope of the feature's own — a mode, a surface, an
-   interaction holding the keyboard — `pageCommand` for a row in the page's own scope, and
-   `pageRung` for a step of Escape's fallback ladder. Contribution runs as each owner is
-   constructed, before anything reads a scope. This module holds names, rows and order and
-   never a capability, so a feature adds a command without editing it. Widgets use the
-   element register (`keys`, `commandScope`) and are spliced in at ELEMENTS; these doors
-   are the same idea for a scope whose condition is the page's rather than where the
-   reader is standing.
-
-   The orders below are what no single owner can state. `STACK` is the order the
-   dispatcher walks, innermost first: element scopes splice in where ELEMENTS stands. For
-   Escape the dispatcher reads an explicit `escape: "inner"` on active modes and the exact
-   focused element, then the surface holding focus, then everything outside it, so a place
-   in this list grants no causal priority over those. Every reading starts from these
-   scopes, and the reference walks them backwards, so a mode this list leaves out is one
-   the reference never names.
-
-   `PAGE_COMMANDS` is the page's own scope, and table order is the line's priority order —
-   a total order every row has already, rather than a field one can forget — so the first
-   live rows are the short hints. Escape is the default promotion over this order, because
-   the way out of a current scene must survive beside its way in. A row can waive only that
-   promotion when two local actions on the current state belong together; the binding
-   remains live and stays in the reference.
-
-   `RUNG_LADDER` is Escape's ladder out of the state standing over the page: what the
-   reader put on out on the page, then the surfaces over it, then the chrome itself. It
-   is the order among siblings rather than the whole order: `rung` reads containment over
-   it, so a surface the reader is standing in comes off before one they are not, and a
-   selection left out on the page waits behind the panel they are reading a thread in.
-   Standing on something is not a rung but the "standing" scope ahead of it, since
-   letting go is the newest thing the reader can undo. Its rungs are contributed like
-   everything else, each by the owner of the state it takes off, and `rung` resolves them
-   into the one `navigation.back` row every surface reads. One row rather than one per
-   step, because the ladder is one capability whose sentence changes: a reference listing
-   each step whose own condition happens to hold would promise presses the innermost step
-   has already taken, and a guard on each step against the steps behind it would be this
-   list written out once per step.
-
-   Nothing here records how the reader arrived. Every step is read off what stands in
-   front of them, so one state has one way out however they reached it, and the canonical
-   keyboard route down to a state is matched step for step by the Escape route back out
-   of it. A pointer press or a Tab is an arbitrary jump into that order rather than a
-   descent through it, and gets the same way out. */
+/* Page command registration and ordering. Keyboard policy lives in CLAUDE.md.
+ *
+ * Owners contribute pageScope, pageCommand, and pageRung declarations during construction,
+ * before the first scope read. This module stores declarations and order; owners supply
+ * command behavior. Widget element scopes join STACK at ELEMENTS.
+ *
+ * STACK orders ordinary dispatch, innermost first; the command reference reads it in
+ * reverse. Escape additionally resolves inner claims and focused-surface containment.
+ * PAGE_COMMANDS orders shortcut-bar hints. Escape is promoted unless its row waives
+ * promotion; that waiver leaves its binding and reference entry available.
+ *
+ * RUNG_LADDER orders sibling fallback steps. `rung` selects the step inside the focused
+ * surface first and exposes it as one navigation.back command, so dispatch and every
+ * presentation describe the same available step. The standing scope handles letting go
+ * of a page destination before the fallback ladder.
+ */
 import { bindings, checked, word } from "./bindings.js";
 import { focused } from "./scopes.js";
 import { under } from "../shadow.js";
@@ -181,17 +150,8 @@ export function pageRung(name, reading) {
   return reading;
 }
 
-// The innermost step the reader can still take. Read fresh by every projection, so the
-// sentence the reference lists, the word the line paints, and the press the dispatcher
-// runs are one answer rather than three readings of the ladder.
-//
-// Containment before kind. Two steps stand at once with the reader inside only one of
-// their surfaces — a selection left out on the page while they read a thread in the panel
-// — and `RUNG_LADDER`'s order alone would take off the one they are not in. So the surface
-// holding the reader answers first, with whatever they put on inside it, and a step rooted
-// outside that surface waits behind it. `RUNG_LADDER` orders siblings: which of the
-// panel's own layers comes off first, and which of two surfaces the reader is in neither
-// of.
+// Resolve from current focus and state. The innermost containing surface takes priority;
+// RUNG_LADDER breaks ties within it and orders steps when focus is outside every surface.
 function rung() {
   const steps = [];
   for (const name of RUNG_LADDER) {

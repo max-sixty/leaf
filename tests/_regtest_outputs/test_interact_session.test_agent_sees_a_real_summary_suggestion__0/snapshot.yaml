@@ -7,7 +7,7 @@ delivery:
   created_at: <time>
   batches:
     - page: <page>
-      through_seq: 13
+      through_seq: 14
       conversations:
         - id: event-2
           title: null
@@ -85,22 +85,22 @@ delivery:
           parent: event-2
           text: >-
             What do you recommend now?
-          id: event-13
+          id: event-14
           ts: <time>
-          seq: 13
+          seq: 14
           subject:
             kind: conversation
             id: event-2
           conversations: [event-2]
           handling: [h1]
           obligation:
-            as_of_seq: 13
+            as_of_seq: 14
             response:
               kind: reply
-              to: event-13
-              for: event-13
+              to: event-14
+              for: event-14
 
 Codex task input: |-
   ```xml
-  <leaf-delivery id="&lt;delivery&gt;" operation="delivery claim"><summarize page="<page>" conversation="event-2" from="event-2" through="event-11" operation="conversation summarize">Consider summarizing this older exchange. Read the original messages in the suggested range first; keep the newer exchange outside the summary.</summarize></leaf-delivery>
+  <leaf-delivery id="&lt;delivery&gt;" operation="delivery read"><summarize page="<page>" conversation="event-2" from="event-2" through="event-11" operation="conversation summarize">Consider summarizing this older exchange. Read the original messages in the suggested range first; keep the newer exchange outside the summary.</summarize></leaf-delivery>
   ```

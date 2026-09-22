@@ -374,8 +374,8 @@ const listNode = (id) => {
 
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
-// focus at its own words so Tab reaches its controls. Sending a reply stays with its
-// editor through revealConversation instead.
+// focus at its own words so Tab reaches its controls. A reply send keeps the native
+// focus of its button or editor and only reveals the editor if needed.
 async function showThreadNow(id, focus, revealThread) {
   const mayArrive = retainReaderIntent({
     source: focused(),

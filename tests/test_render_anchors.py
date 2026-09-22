@@ -2688,6 +2688,8 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     with sending(page, "the comment on the ambiguous passage"):
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-preview textarea")).not_to_be_focused()
 
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
@@ -4619,6 +4621,8 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
         "Review this file as a whole."
     )
+    expect(outlet.locator(".lf-conversation-thread")).to_be_focused()
+    expect(outlet.locator(".lf-conversation-thread textarea")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()

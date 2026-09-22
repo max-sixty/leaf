@@ -7,7 +7,6 @@
    in, so its rows shadow these. Every page has this scope: the general box stands and
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. */
-import { landTyping, mayLandTyping } from "../composing/capture.js";
 import { validDrawing } from "../composing/drawing-record.js";
 import {
   loadDraft,
@@ -93,9 +92,7 @@ export function createPanelComposer({
           return createPageComment(event);
         });
         if (!sent) return;
-        const shouldLand = mayLandTyping(generalInput);
         showThread(sent.id, { focus: false });
-        if (shouldLand) landTyping(generalInput);
       },
     });
     sync();

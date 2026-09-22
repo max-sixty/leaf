@@ -28,13 +28,13 @@ import {
   watchDraft,
 } from "../drafts.js";
 
-import { threadsBox } from "../conversation/panel-elements.js";
-import { landTyping, mayLandTyping } from "./capture.js";
+import { pageSelection } from "./capture.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
+import { retainReaderIntent } from "../reader-intent.js";
 
 import { elementById, inChrome } from "../passages.js";
 
@@ -148,7 +148,7 @@ export function createSelectionComposer({
 }) {
   const closeReactions = () => setReact(false);
   const openInlineThread = (id, options) => {
-    const local = focusSurface(id);
+    const local = focusSurface(id, { focus: "thread" });
     return (
       local?.closest(".lf-conversation-thread") ?? marginOpenInlineThread(id, options)
     );
@@ -611,11 +611,10 @@ export function createSelectionComposer({
         const about = pendingAbout;
         const drawing = structuredClone(pendingDrawing);
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
-        // Threads is open. Keep the last box the reader was looking at so the inline card
-        // can carry that box into its new surface after the draft settlement has removed
-        // the composer from the page.
+        // Threads is open. Carry the submitted field's geometry into the new card.
         const transition = threadTransitionOrigin(composerInput, visible);
         const epoch = composerEpoch;
+        const currentIntent = retainReaderIntent();
         const sent = sendMessage(
           ctx,
           () => composerCtx(pendingAnchor) === ctx && owns(),
@@ -634,44 +633,21 @@ export function createSelectionComposer({
         // choosing the destination: otherwise an already-open panel can be asked to
         // focus a pending thread before the thread exists.
         await refreshConversation();
-        let reply = threadsBox.querySelector(
-          `.lf-thread[data-id="${sent.id}"] textarea`,
-        );
         // A later draft or selection keeps its focus. The accepted comment still belongs
         // in an open panel, including when revealing it must widen the panel's filter.
-        const shouldLand =
+        const shouldReveal =
           composerEpoch === epoch &&
           loadDraft(ctx) === null &&
-          mayLandTyping(reply, composerInput);
-        // Continue in the surface already in use. Closing an open panel here reflows the
-        // passage just as the reader's comment moves across it to a new floating card.
-        // Whichever surface that is, its own Escape step is the way back out of it.
-        const land = async () => {
-          const inlineThread =
-            shouldLand && !panelIsOpen()
-              ? openInlineThread(sent.id, {
-                  transition,
-                  onPositioned: (thread) =>
-                    landTyping(thread.querySelector("textarea"), composerInput),
-                })
-              : null;
-          const inlineReply = inlineThread?.querySelector("textarea") ?? null;
-          // Expand the destination before placement so Floating UI measures the final
-          // card. Focus still waits for that placement; it must not change the measured
-          // shape.
-          inlineReply?.lfRevealReply?.();
-          reply = inlineReply ?? reply;
-          if (!inlineReply && (shouldLand || panelIsOpen())) {
-            await showThread(sent.id, { focus: shouldLand ? "reply" : false });
-            reply ??= threadsBox.querySelector(
-              `.lf-thread[data-id="${sent.id}"] textarea`,
-            );
-          }
-          // The composer this was sent from is gone with the send; the thread it became
-          // carries the same conversation, so its reply box is where typing continues.
-          if (shouldLand && !inlineReply) landTyping(reply, composerInput);
-        };
-        await land();
+          currentIntent() &&
+          !pageSelection();
+        // Show the sent thread without moving into its reply box. A later gesture may
+        // already have moved the reader elsewhere while presentation was settling.
+        const inlineThread =
+          shouldReveal && !panelIsOpen()
+            ? openInlineThread(sent.id, { transition })
+            : null;
+        if (!inlineThread && (shouldReveal || panelIsOpen()))
+          await showThread(sent.id, { focus: false });
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

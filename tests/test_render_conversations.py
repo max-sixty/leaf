@@ -1237,8 +1237,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     click on a page mark does: the panel scrolls the new thread into its scrollport.
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Both send routes then end in the composer the words left, where
-    the rebuild sent a button click's focus somewhere else than ⌘⏎'s."""
+    sight, silently. Focus follows the input route: a button press stays on the
+    button, while the send key stays in the textarea."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1249,15 +1249,16 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
 
     box = page.locator(".lf-general textarea")
     box.fill("Where did my words go?")
+    send = page.locator(".lf-general button")
     with sending(page, "the first comment"):
-        page.locator(".lf-general button").click()  # the route that used to drop focus
+        send.click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
-    expect(box).to_be_focused()
+    expect(send).to_be_focused()
     expect(box).to_have_value("")
 
     box.fill("And the second thought lands the same way.")
@@ -3393,7 +3394,9 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         expect(later).to_have_value(
             "The reader is working here now." if destination == "other-thread" else ""
         )
-    elif kind in {"reply", "unresolve"}:
+    elif kind == "reply":
+        expect(thread.get_by_role("button", name="Send", exact=True)).to_be_focused()
+    elif kind == "unresolve":
         expect(thread.locator("textarea")).to_be_focused()
     else:
         expect(

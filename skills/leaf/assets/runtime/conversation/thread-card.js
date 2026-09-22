@@ -154,7 +154,6 @@ function navigationSummary(navigation, model) {
             : latest?.streamLabel || (model.awaitsReader ? "On you" : receiptLabel);
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary class="lf-thread-summary" title=${title}>
-    ${iconTemplate("next", "lf-thread-chevron")}
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
     <span

@@ -4,13 +4,10 @@
  * when focus was inside. Layout receives no surface commands, and refreshConversation is
  * supplied by the application so this owner never imports a presenter.
  *
- * This owner also declares what Escape takes off the panel, layer by layer, however the
- * reader reached it. A narrowing is a layer of the panel the way a tray is a layer of
- * the page: the reader put it on, and the list in front of them is not the whole of the
- * conversation until it comes off, so it unwinds first and from wherever they are
- * standing. The find box binds the same step for itself, being the one place the reader
- * can see what they are backing out of. The panel itself is last, and its parent is the
- * document, so that step lands the reader back on the page. */
+ * This owner declares the panel's Escape ladder. Once the reader releases a selected
+ * thread to the whole panel, narrowing unwinds before the panel closes. The find box
+ * binds that same narrowing step while it holds focus. Closing the panel lands the
+ * reader on the document. Thread selection and release belong to keyboard/page.js. */
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
 import { letGo } from "./focus.js";

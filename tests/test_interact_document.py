@@ -1571,7 +1571,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
                 '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
                 "</lf-suggestion><lf-options>"
             ),
-            "names no comment in the log",
+            "names no comment in this document",
         ),
     ]:
         (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))

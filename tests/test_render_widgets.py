@@ -4547,7 +4547,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
   <lf-targeting id="landing-targeting">
     <lf-target-preview id="landing-preview">
       <section id="hero" class="landing-card">
-        <h3 class="section-title"><span>Build the next release</span></h3>
+        <h3 class="section-title"><span>Build the next release with complete instructions that remain available even when the candidate display has less room</span></h3>
         <p>Keep the request path visible.</p>
       </section>
       <section id="evidence" class="landing-card">
@@ -4569,6 +4569,11 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     candidates.filter(has_text="<section#hero>").click()
 
     first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
+    expect(first.locator("wa-input")).to_have_js_property(
+        "value",
+        "Build the next release with complete instructions that remain available even "
+        "when the candidate display has less room",
+    )
     first.locator("wa-input").click()
     first.locator("wa-input").press("ControlOrMeta+A")
     first.locator("wa-input").press_sequentially("Hero cards")
@@ -4666,7 +4671,9 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
                 "className": "landing-card",
                 "reference": {"kind": "id", "id": "hero"},
                 "label": "<section#hero>",
-                "text": "Build the next release Keep the request path visible.",
+                "text": "Build the next release with complete instructions that remain "
+                "available even when the candidate display has less room "
+                "Keep the request path visible.",
             },
             {
                 "key": "target-2",
@@ -9637,11 +9644,11 @@ WEB_AWESOME_SHEET = """sheets => sheets.some(
 )"""
 
 
-def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
+def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
         plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is False
+        is True
     )
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
@@ -9649,6 +9656,9 @@ def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
             "() => performance.getEntriesByType('resource').map(entry => entry.name)"
         )
     )
+
+    assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
+    assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
 
     playground = open_page(browser, serve(PLAYGROUND_PAGE))
     assert (
@@ -10226,4 +10236,30 @@ def test_diff_export_keeps_native_soft_wrap_without_scripted_search(
     expect(line).to_have_css("white-space", "pre-wrap")
     switch.focus()
     copy.keyboard.press("Space")
+    expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
+    patch = (
+        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone diff",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    label = page.locator(".lf-diff-wrap-label")
+    line = page.locator("lf-diff [data-line]").last
+    expect(line).to_have_css("white-space", "pre")
+    assert label.bounding_box()["height"] >= 44
+    before = line.bounding_box()["height"]
+    label.tap()
+    expect(line).to_have_css("white-space", "pre-wrap")
+    assert line.bounding_box()["height"] > before
+    label.tap()
     expect(line).to_have_css("white-space", "pre")

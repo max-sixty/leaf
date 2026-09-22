@@ -455,8 +455,10 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
         for version in example_versions(example):
             markup = version.read_text()
             (d / "index.html").write_text(markup)
-            activated = revisioning_model.activate_source(d, [])
-            assert activated.error is None
+            activated = revisioning_model.activate_source(
+                d, events_model.read_events(d)
+            )
+            assert activated.error is None, f"{version.name}: {activated.error}"
             result = check(d)
             assert result.exit_code == 0, f"{version.name}: {result.output}"
 
@@ -577,6 +579,9 @@ def test_corpus_is_generated_from_the_examples():
     )
     assert corpus.build_data() == committed_data, (
         "example data changed — rerun scripts/corpus.py"
+    )
+    assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
+        "specimen conversations changed — rerun scripts/corpus.py"
     )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
@@ -1931,6 +1936,16 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     selection_args = [arg for package in packages for arg in ("--package", package)]
     read = 0
     for example in seeded:
+        # Only pages carrying message markup exercise this door. A page whose
+        # log holds plain conversations is covered by the complete fixture check.
+        # Use the log writer's separator: splitlines() also splits message U+2028.
+        fragments = [
+            event["markup"]
+            for line in example.with_suffix(".jsonl").read_text().split("\n")
+            if line.strip() and (event := json.loads(line)).get("markup")
+        ]
+        if not fragments:
+            continue
         d = tmp_path / f"door-{example.stem}"
         initialized = CliRunner().invoke(
             cli_model.cli, ["page", "init", *selection_args, str(d)]
@@ -1971,13 +1986,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         opened = comment(d, "--text", "what a reader would ask")
         assert opened.exit_code == 0, opened.output
         root = json.loads(opened.output)["id"]
-        # The writer's own separator, never splitlines(): its wider class reads a
-        # U+2028 inside a message's text as a break.
-        for line in (
-            example.with_suffix(".jsonl").read_text(encoding="utf-8").split("\n")
-        ):
-            if not line.strip() or not (markup := json.loads(line).get("markup")):
-                continue
+        for markup in fragments:
             read += 1
             posted = CliRunner().invoke(
                 cli_model.cli,

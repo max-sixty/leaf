@@ -226,7 +226,8 @@ textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(-
 .lf-composer-media-item { position: relative; flex: none; display: block; }
 .lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
   border: 0; border-radius: var(--r); background: transparent; color: inherit;
-  font: inherit; cursor: zoom-in; }
+  font: inherit; }
+button.lf-media-open { cursor: zoom-in; }
 .lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
   --lf-here-ring: media; outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
@@ -638,16 +639,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      does not state display: whether a control is drawn at all belongs to the control,
      and a rule here stating it for the whole menu would put a control the page has
      taken away — the map above 900, a chip with no news — into the list as a blank. */
-  .lf-banner-menu > .lf-btn { width: 100%; text-align: left; }
-  .lf-banner-menu > .lf-btn:where(:not(.primary)) { border-color: transparent;
+  .lf-banner-menu .lf-btn { width: 100%; text-align: left; }
+  .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
-  .lf-banner-menu > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
+  .lf-banner-menu .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
   /* The fold moves the row's own node, so a control folded while it is doing
      something has to go on saying so. The menu's resting rule clears the same two
      declarations the row's does, and for the same reason, so `.on` needs the same
      answer here: the treatment the open auxiliary surface already keeps in the menu on its
      own specificity. The menu reserves no width, so nothing is spent restating it. */
-  .lf-banner-menu > .lf-btn.on {
+  .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* The controls stay packed against the row's end. That decides who pays for a
      control changing size: it moves itself and the controls to its left, while
@@ -922,21 +923,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      criteria and result count visible even while the filter choices are folded. */
   leaf-thread-narrowing { display: contents; }
   .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px 6px; }
-  /* type=search, so the platform's own clear control does that work: an ✕ of the
-     runtime's own would be a second way to say the same thing, drawn worse. */
-  .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: 13px;
-    padding: 5px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
-    background: var(--paper); color: var(--ink); }
+  .lf-find-box { flex: 1; min-width: 0; }
   .lf-thread-filter-toggle { flex: none; color: var(--muted); font-size: 13px; }
   .lf-thread-filter-toggle[aria-expanded="true"] { color: var(--ink); background: var(--chip); }
+  .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
   .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
     padding: 0 16px 8px; color: var(--muted); font-size: var(--t-6); }
   .lf-thread-view-summary { flex: 1; min-width: 0; }
-  .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
-  .lf-find-box:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
   /* Lifecycle and optional refinements remain grouped in the disclosed controls.
      Groups wrap as units when the conditional placement filter appears, so the panel
-     never introduces a horizontal scroller. A facet with no pressed button means all
+     never introduces a horizontal scroller. A facet with no checked control means all
      of that facet. */
   .lf-thread-filters[hidden], .lf-thread-view[hidden] { display: none; }
   .lf-thread-filters { display: flex; flex: none; flex-direction: column;
@@ -951,7 +947,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-filter-group:not(:has(> .lf-thread-filter:not([hidden]))) { display: none; }
   .lf-thread-filter-group:has(> [data-filter-kind="gone"]) {
     flex-basis: 100%; border-left: 0; padding-left: 0; }
-  .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
+  .lf-thread-state { max-width: 100%; }
+  .lf-thread-filter { font-size: var(--t-6); }
   /* At the supported 320px floor, keep lifecycle and each facet pair on one line.
      Three short rows leave the list as the sheet's main surface without shrinking the
      controls' block size or bringing back a horizontal rail. */
@@ -961,7 +958,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-thread-filter-group { gap: 3px; }
     .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
       padding-left: 6px; }
-    .lf-thread-filter { padding-inline: 6px; }
   }
   /* contain: reaching the end of the thread list must not start scrolling the page
      behind it — one wheel gesture moves one region.
@@ -1021,7 +1017,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font: inherit; font-size: var(--t-6); font-weight: 600;
     text-align: left; color: var(--muted);
     overflow-wrap: anywhere; }
-  button.lf-group { cursor: pointer; }
+  button.lf-group { cursor: pointer; min-height: var(--aim-floor); }
   button.lf-group:hover { color: var(--ink-2); }
   /* Inset, because being pinned is where this heading spends its life and the pin
      puts its box top on the scrollport's own edge: a sticky offset is measured from
@@ -1046,19 +1042,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-block-end-color: transparent; margin-bottom: 0; }
   /* A single title row remains when the retained conversation is closed. Count
      has its own column, so titles and counts keep their keylines across rows. */
-  .lf-thread-compact { --lf-thread-pad: 0px; margin-bottom: 0; padding: 0; }
+  .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
+    background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
-  .lf-thread-summary { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 3ch 80px;
+  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 3ch 80px;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
-  .lf-thread[open] > .lf-thread-summary { background: var(--chip);
-    box-shadow: inset 2px 0 var(--accent); }
+  .lf-thread-summary::-webkit-details-marker { display: none; }
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
-  .lf-thread-chevron { width: 12px; height: 12px; color: var(--muted); }
-  .lf-thread[open] > .lf-thread-summary .lf-thread-chevron { transform: rotate(90deg); }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; }
   .lf-thread-status { min-width: 0; overflow: hidden; text-overflow: ellipsis;
@@ -1590,6 +1584,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-page-map-action-label { min-width: 0; }
   .lf-page-map-action-label-word, .lf-page-map-action-context { display: block; }
+  .lf-page-map-action-label-word, .lf-page-map-group h3 {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere; }
   .lf-page-map-action-context { margin-block-start: 2px; color: var(--muted);
     font-size: var(--t-6); line-height: 1.25; }
   /* Inset, because a row here fills the list to its own edge and the list is a
@@ -1613,11 +1610,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      dialog that is shut. */
   .lf-page-map-dialog[open] { display: flex; flex-direction: column; }
   .lf-page-map-dialog::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
-  .lf-page-map-search { width: 100%; box-sizing: border-box; margin-top: 10px;
-    padding: 7px 9px; border: 1px solid var(--border-2); border-radius: var(--r);
-    background: var(--paper); color: var(--ink); font: inherit; }
-  .lf-page-map-search:focus-visible { outline: var(--here-ring);
-    --lf-here-ring: page-map-search; outline-offset: 2px; }
+  .lf-page-map-search { width: 100%; margin-top: 10px; }
   .lf-page-map-list { margin-top: 6px; overflow: auto; min-height: 0; }
   .lf-page-map-empty { margin: 18px 8px 8px; color: var(--muted); text-align: center; }
   .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }

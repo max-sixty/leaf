@@ -121,7 +121,7 @@
  * mount binds chooser/intent listeners and paints the initial version reading.
  * installArrival remains the later geometry-ready continuity boundary.
  */
-import { revisionLabel, runtime } from "./context.js";
+import { pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -817,7 +817,7 @@ export function createVersionController({
       revision: String(baseRevision),
       through_seq: String(throughSeq),
     });
-    const res = await fetch(`/api/view?${params}`);
+    const res = await fetch(pageUrl(`api/view?${params}`));
     if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
     const answer = await res.json();
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);

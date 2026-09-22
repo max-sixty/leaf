@@ -1475,7 +1475,7 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
         (r'key: "(lf-tray-slot-width)"', trays),
     ):
         key = constant(pattern, source)
-        assert f'localStorage.getItem("{key}")' in bootstrap
+        assert f'localStorage.getItem(scope + "{key}")' in bootstrap
 
     for literal in (
         constant(r"^export const THREAD_PANEL_W = (\d+);", layout),

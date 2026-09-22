@@ -106,9 +106,6 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
     edge.dataset.lfSide = side;
     edge.setAttribute("role", "separator");
     edge.setAttribute("aria-orientation", "vertical");
-    // The name a listener hears, and the one design mode shows under the pointer, where
-    // it is cut at CONTROL_WORD_CAP — so the noun leads and the word for what is being
-    // measured follows it, which is what keeps the longer of the two inside the cut.
     edge.setAttribute("aria-label", `${noun[0].toUpperCase()}${noun.slice(1)} width`);
     edge.setAttribute("aria-valuemin", String(min));
     edge.tabIndex = 0;

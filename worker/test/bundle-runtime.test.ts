@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,7 +32,11 @@ describe("published runtime bundle", () => {
       }
       await writeFile(
         join(layer, "leaf.js"),
-        `import { state } from "${root}/page/state.js"; console.log(state);`,
+        `import { state } from "${root}/page/state.js"; import { moduleUrl } from "${root}/runtime/url.js"; console.log(state, moduleUrl, import.meta.url);`,
+      );
+      await writeFile(
+        join(layer, "runtime", "url.js"),
+        "export const moduleUrl = import.meta.url;",
       );
       for (const entry of [
         "interaction-gallery-frame",
@@ -65,6 +69,12 @@ describe("published runtime bundle", () => {
         expect(bundled).toContain(`from"${root}/page/state.js"`);
         expect(bundled).not.toContain("revision:");
       }
+      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
+        `new URL("${root}/leaf.js",location.origin).href`,
+      );
+      expect(await readFile(join(layer, "leaf.js"), "utf8")).toContain(
+        `new URL("${root}/runtime/url.js",location.origin).href`,
+      );
       expect(await readFile(join(layer, "page", "state.js"), "utf8")).toBe(
         `export const state = { revision: "${revision}" };`,
       );
@@ -74,24 +84,13 @@ describe("published runtime bundle", () => {
     }
   });
 
-  it("collapses static modules without changing their URL base", async () => {
+  it("collapses the production runtime's static modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-runtime-"));
     temporary.push(directory);
     const runtime = fileURLToPath(new URL("../../skills/leaf/assets", import.meta.url));
 
     await bundleLayer(runtime, "/published/layer", directory);
     const bundled = await readFile(join(directory, "leaf.js"), "utf8");
-    const chunks = (
-      await Promise.all(
-        (await readdir(join(directory, "runtime")))
-          .filter((file) => file.startsWith("bundle-"))
-          .map((file) => readFile(join(directory, "runtime", file), "utf8")),
-      )
-    ).join("\n");
-
-    expect(chunks).toContain(
-      'new URL("/published/layer/runtime/media.js",location.origin).href',
-    );
     expect(await readFile(join(directory, "runtime", "media.js"), "utf8")).toBeTruthy();
     expect(
       await readFile(join(directory, "runtime", "layer-client.js"), "utf8"),

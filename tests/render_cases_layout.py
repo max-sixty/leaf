@@ -1304,30 +1304,33 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 def serious_axe_violations(page):
     """WCAG A/AA violations at serious or critical, as (violations, report) — the
     one reading both the live sweep and the exported copy's gate assert on."""
-    result = Axe().run(
-        page,
-        options={
-            "runOnly": {
-                "type": "tag",
-                "values": [
-                    "wcag2a",
-                    "wcag2aa",
-                    "wcag21a",
-                    "wcag21aa",
-                    "wcag22a",
-                    "wcag22aa",
-                ],
-            },
-            "resultTypes": ["violations"],
+    # Inspect each document directly. Axe's cross-frame postMessage transport
+    # cannot address a standalone srcdoc's opaque origin, and the Python adapter
+    # only injects axe into the document it receives.
+    options = {
+        "iframes": False,
+        "runOnly": {
+            "type": "tag",
+            "values": [
+                "wcag2a",
+                "wcag2aa",
+                "wcag21a",
+                "wcag21aa",
+                "wcag22a",
+                "wcag22aa",
+            ],
         },
-    )
+        "resultTypes": ["violations"],
+    }
+    results = [(frame.url, Axe().run(frame, options=options)) for frame in page.frames]
     violations = [
-        violation
+        {**violation, "document": url}
+        for url, result in results
         for violation in result.response["violations"]
         if violation["impact"] in {"serious", "critical"}
     ]
     report = "\n\n".join(
-        f"{violation['id']} ({violation['impact']}): {violation['help']}\n"
+        f"{violation['document']}: {violation['id']} ({violation['impact']}): {violation['help']}\n"
         + "\n".join(
             "  {}: {}".format(
                 ", ".join(

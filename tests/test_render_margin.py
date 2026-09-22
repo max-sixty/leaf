@@ -2580,15 +2580,23 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
-          const section = document.querySelector('#bg-quoted-and-visual');
-          document.scrollingElement.scrollTo(0, section.offsetTop - 100);
+          const anchor = document.querySelector('#bg-shot');
+          const scroller = document.scrollingElement;
+          const top = anchor.getBoundingClientRect().top + scroller.scrollTop;
+          scroller.scrollTo(0, top - 100);
         })"""
     )
+    margins_laid_out(page)
     page.locator("body").focus()
     show_after = page.get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
-    expect(show_after).to_be_visible()
+    # The hint layer offers the locations on screen, so that is the premise, and the
+    # scroll reaches the location's own anchor rather than the section holding it.
+    # `to_be_visible` says a control is laid out, not that the reader can see it, so it
+    # passed while gallery content grew between the two and carried this entry out of
+    # the scrollport — leaving the case asking for a chip the page was right not to draw.
+    expect(show_after).to_be_in_viewport()
 
     page.keyboard.press("g")
     target = show_after.evaluate(
@@ -3461,7 +3469,13 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
     """Which location of how many, and how far down, is how a reader listening places a
     margin entry in the walk. Painted, the same words read as progress toward something, which
     is not what they say, so they belong to the accessible name alone."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    subject = (
+        "Which jobs should we start before the first frost reaches the garden, "
+        "while keeping the bird bath available and leaving enough time to replace "
+        "the mounts before the next storm arrives?"
+    )
+    source = ASK_PAGE.replace("Which jobs are worth starting?", subject)
+    page = open_page(browser, serve(source, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     buttons = page.evaluate(
         """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
@@ -3475,6 +3489,12 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         assert "percent down" in button["name"], button
     for button in buttons:
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
+    named = next(button["name"] for button in placed if "Which jobs" in button["name"])
+    assert named.index("percent down") < named.index("Which jobs"), named
+    assert subject not in named and named.endswith("…"), named
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(page.locator(".lf-page-map-group h3", has_text=subject)).to_have_count(1)
 
 
 def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
@@ -5874,6 +5894,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.keyboard.press("Escape")  # out of the reply box the send landed in
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
+        # A conversation in Threads releases to whole-panel selection first.
+        expect(page.locator(".lf-threads")).to_be_focused()
+        page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
@@ -5928,6 +5951,9 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     if panel_open:
+        # In Threads the thread releases to the whole panel, which closes on the next.
+        expect(page.locator(".lf-threads")).to_be_focused()
+        page.keyboard.press("Escape")
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
         expect(preview).to_be_hidden()
@@ -5979,7 +6005,10 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     ).to_be_focused()
 
     # The walk moved the reader laterally to a second conversation in Threads. Escape
-    # closes that surface; the note that took them there is not a landing.
+    # releases that conversation to the whole panel and then closes the panel; the note
+    # that took them there is not a landing.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => document.activeElement === document.body")
@@ -6883,14 +6912,19 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
 
 
-def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
+@pytest.mark.parametrize("height", [480, 760])
+def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, height):
     """The open dialog is a live projection, not a snapshot from its opening press."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
-    resized(page, 390, 760)
+    resized(page, 390, height)
     page.locator(".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
     expect(actions).to_have_count(5)
+    if height == 480:
+        assert dialog.locator(".lf-page-map-list").evaluate(
+            "list => list.scrollHeight > list.clientHeight"
+        ), "the short dialog must exercise focus through an overflowing list"
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 

@@ -13,8 +13,9 @@ thread/start:
 
     Reader input arrives inline as a structured `leaf_delivery` tool output or as a
     `leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
-    exact id. For a pointer, then run `$LEAF delivery read ID`. Process every delivered
-    event using its handling and `obligation.response`.
+    exact id. For a pointer, then run `$LEAF delivery read ID`. For every delivered
+    event, read its `handling` clause ids in order from that batch's `handling` object
+    and follow those instructions and `obligation.response`.
 
     When first handling a conversation whose title is null, name it with
     `$LEAF conversation title . CONVERSATION_ID --text "Short descriptive title"`.
@@ -51,12 +52,12 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v1","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"events":[{"kind":"request","author":"user","revision":1,"widget":"commands","action":"restart","detail":{"target":"goal","worker":"worker","worktree":"tree"},"meaning":{"document":{"kind":"page","revision":1}},"id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"widget","id":"commands"},"conversations":[],"says":{"commands":"Restart"},"handling":"The
+    output: '{"format":"leaf-delivery-v2","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"handling":{"h1":"The
       reader asked you to run an operation the page''s package defines, once. The
       request id, with the page, identifies it: after an interruption, check whether
       it already ran before acting. Run it at most once, then record the outcome
       with exactly one `leaf receipt <page> <request-id> succeeded|failed --text
       \"\u2026\"`. The receipt does not change the page: refresh any data the page
       shows, update `index.html` to reflect the result, and stamp it if it is worth
-      a note.","obligation":{"as_of_seq":1,"response":{"kind":"receipt","request":"reader-event"}}}]}]}'
+      a note."},"events":[{"kind":"request","author":"user","revision":1,"widget":"commands","action":"restart","detail":{"target":"goal","worker":"worker","worktree":"tree"},"meaning":{"document":{"kind":"page","revision":1}},"id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"widget","id":"commands"},"conversations":[],"says":{"commands":"Restart"},"handling":["h1"],"obligation":{"as_of_seq":1,"response":{"kind":"receipt","request":"reader-event"}}}]}]}'
   turnTrigger: leaf

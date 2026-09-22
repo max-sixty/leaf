@@ -14,15 +14,16 @@
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
    durable, compact `.lf-fab-input` followed by one response ellipsis. An explicit
    addressable target
-   opens and focuses that field. Selecting a passage leaves the field open but unfocused
-   without collapsing the browser selection; the reader can still copy
-   the selection or use its native context menu, then enter the field with Comment. The
+   opens and focuses that field. On desktop, selecting a passage leaves the field open
+   but unfocused. On touch screens, selection offers Comment on selection in the banner;
+   its press captures the passage, clears the native selection menu, and opens the field.
+   Until that press the native handles and menu have the passage to themselves. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
    80ch and then wraps. Without a horizontal rail, a quoted passage chooses the
-   vertical side with more reachable room; on a touch screen, whose own selection menu
-   stands above the words, it goes below whenever the page can make room there. The
-   field keeps that side and moves the reading region only enough to keep the passage
+   vertical side with more reachable room; on a touch screen it prefers below whenever
+   the page can make room there. The field keeps that side and moves the reading
+   region only enough to keep the passage
    and field visible together; it finally scrolls internally. Other targets grow toward
    the available viewport edge.
    The target chooses a placement from the field's minimum footprint once. Later
@@ -62,6 +63,11 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
+import {
+  BANNER_CONTROL_RANK,
+  registerBannerControl,
+  showBannerControl,
+} from "../banner-shelf.js";
 import { shellRight, shownBox, shownParts, shownRect } from "../geometry.js";
 import {
   targetElement,
@@ -179,10 +185,22 @@ export function createResponseSurface({
     return tops.length ? Math.min(...tops) : innerHeight - 8;
   };
   const floatBoundary = (bounds = null) => {
-    const left = (bounds?.left ?? 0) + 8;
-    const right = rightEdge(bounds);
-    const top = topEdge(bounds);
-    const bottom = bottomEdge(left, Math.max(0, right - left), bounds);
+    // Pinch zoom and a software keyboard change the visible viewport without resizing
+    // the document's layout viewport. Intersect the reading room with that visible band
+    // before choosing a side or sizing the field; autoUpdate follows its resize/scroll.
+    const viewport = window.visualViewport;
+    const visibleLeft = viewport?.offsetLeft ?? 0;
+    const visibleTop = viewport?.offsetTop ?? 0;
+    const left = Math.max(bounds?.left ?? 0, visibleLeft) + 8;
+    const right = Math.min(
+      rightEdge(bounds),
+      visibleLeft + (viewport?.width ?? innerWidth) - 8,
+    );
+    const top = Math.max(topEdge(bounds), visibleTop + 8);
+    const bottom = Math.min(
+      bottomEdge(left, Math.max(0, right - left), bounds),
+      visibleTop + (viewport?.height ?? innerHeight) - 8,
+    );
     return {
       x: left,
       y: top,
@@ -485,9 +503,8 @@ export function createResponseSurface({
       if (Math.ceil(sideRoom("left")) >= Math.ceil(minimum)) return "left-start";
       const below = verticalRoom("bottom");
       const above = verticalRoom("top");
-      // A touch selection wears the platform's own menu (Copy, Look Up) in the band above
-      // it, where that menu covers a bar standing over the block. So on a touch screen a
-      // bar the page can make room for below the block takes that side.
+      // Prefer below on touch screens. This keeps Leaf away from a native selection menu
+      // above the passage, but the browser does not expose that menu's actual bounds.
       if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-end";
       return below > above ||
         (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))
@@ -960,13 +977,52 @@ export function createResponseSurface({
     return hasQuote(anchor);
   };
 
+  // Touch selection belongs to the native handles and menu until Comment is pressed.
+  // That menu can stand on either side of the words; never compete with it by raising
+  // a second adjacent surface. Capture the passage for the banner's explicit action.
+  let touchSelectionAnchor = null;
+  const selectionComment = document.createElement("button");
+  selectionComment.className = "lf-btn";
+  selectionComment.type = "button";
+  selectionComment.textContent = "Comment on selection";
+  registerBannerControl({
+    key: "comment-selection",
+    control: selectionComment,
+    rank: BANNER_CONTROL_RANK.commentSelection,
+    present: false,
+  });
+  const offerTouchSelection = (anchor) => {
+    touchSelectionAnchor = anchor;
+    showBannerControl(selectionComment, Boolean(anchor));
+  };
+  const commentOnTouchSelection = () => {
+    const anchor = touchSelectionAnchor;
+    if (!anchor) return;
+    clearTimeout(selectionUpdate);
+    selectionUpdate = null;
+    getSelection()?.removeAllRanges();
+    offerTouchSelection(null);
+    openComment(anchor, "");
+  };
+
   function updateFab() {
     if (!anchoringIsReady()) {
+      offerTouchSelection(null);
       showFab(null);
       return;
     }
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
+    if (
+      coarsePointer.matches &&
+      hasQuote(anchor) &&
+      (!fabHoldsCapturedPassage() || !sameAnchor(anchor, fabAnchor))
+    ) {
+      showFab(null);
+      offerTouchSelection(anchor);
+      return;
+    }
+    offerTouchSelection(null);
     if (hasQuote(anchor)) {
       // A fast keyboard action can capture this completed native selection before the
       // pointer gesture's queued update arrives. That later update is the same target,
@@ -1208,6 +1264,11 @@ export function createResponseSurface({
   const fabAnchorAt = () => fabAnchor;
 
   function mount() {
+    // Keep the native selection through the button's press; focusing the actual
+    // comment field performs the handoff after the passage has been captured.
+    selectionComment.addEventListener("mousedown", (event) => event.preventDefault());
+    selectionComment.addEventListener("click", commentOnTouchSelection);
+    coarsePointer.addEventListener("change", scheduleSelectionUpdate);
     document.addEventListener(
       "pointerdown",
       (ev) => {
@@ -1229,7 +1290,9 @@ export function createResponseSurface({
         const selection = pointerSelecting ? stood : null;
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
-        actionPress = Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
+        actionPress =
+          ev.target === selectionComment ||
+          Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
       },
       true,
     );
@@ -1405,6 +1468,12 @@ export function createResponseSurface({
     line: `comment on the ${word}`,
   });
   function commentDestination() {
+    if (touchSelectionAnchor)
+      return {
+        ...commenting("selection"),
+        box: selectionComment,
+        go: commentOnTouchSelection,
+      };
     const anchor = fabAnchorAt();
     if (anchor)
       return {

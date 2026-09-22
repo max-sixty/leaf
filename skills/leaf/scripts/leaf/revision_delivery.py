@@ -16,7 +16,12 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 
 from .revision_artifact import Resource, resolve_dependency, rewrite_module
-from .structure import SourceDocument, rel_tokens, rewrite_resource_attribute
+from .structure import (
+    DELIVERY_ENCODING_META,
+    SourceDocument,
+    rel_tokens,
+    rewrite_resource_attribute,
+)
 
 
 def _resource_url(value: str, logical_path: str, asset_root: str) -> str:
@@ -245,3 +250,29 @@ def deliver_document(source: str, asset_root: str) -> str:
     for start, end, value in sorted(replacements, reverse=True):
         source = source[:start] + value + source[end:]
     return source
+
+
+def delivery_prelude(
+    document: SourceDocument,
+    revision: int,
+    version: int | None,
+    executable: str | None,
+    widgets: dict,
+) -> str:
+    """Declare encoding, a device-width viewport, and immutable Leaf identity.
+
+    Authors can supply their own viewport. Otherwise every delivery starts at the
+    device width, so a phone uses responsive layout instead of a scaled desktop page.
+    Edge-to-edge layout lets the chrome use the device's safe-area insets.
+    The rendered document carries this metadata into standalone exports too.
+    """
+    viewport = (
+        ""
+        if any(meta["name"].lower() == "viewport" for meta in document.named_metas)
+        else '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+    )
+    return (
+        DELIVERY_ENCODING_META
+        + delivery_identity(revision, version, executable, widgets)
+        + viewport
+    )

@@ -52,7 +52,7 @@ def package_vendor(package: str) -> Path:
 # payload, so it moves when a bundle needs it rather than on every release.
 PINS = {
     "highlight.js": "11.12.0",
-    "marked": "18.0.13",
+    "marked": "18.0.14",
     "diff": "9.0.0",
     "agentic-mermaid": "0.4.1",
     "elkjs": "0.11.1",
@@ -378,13 +378,10 @@ def build_floating_ui(work: Path) -> list[Path]:
 
 
 def build_webawesome(work: Path) -> list[Path]:
-    """Ship shared controls and their theme in one on-demand browser bundle.
+    """Split chrome controls from optional widgets, sharing their dependency graph.
 
-    Every runtime package consumed by this entry is pinned, including Lit and
-    Floating UI. Leaf's browser module intentionally exports only its own Lit
-    subset; Web Awesome needs additional directives and decorators, so this
-    shared bundle carries its own copy instead of widening the core API. Widget
-    imports load the JavaScript only when the page uses one of these controls.
+    Both entry points register the same components once. Optional controls remain
+    on demand; the shared chunks are core payload because chrome also reads them.
     """
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
@@ -415,21 +412,30 @@ def build_webawesome(work: Path) -> list[Path]:
         cwd=work,
     )
     source = ROOT / "scripts/vendor-src/webawesome"
-    for name in ("entry.mjs", "build.mjs", "leaf-theme.css"):
+    for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
         "build.mjs",
-        str(out),
+        str(work / "bundle"),
         PINS["@awesome.me/webawesome"],
         cwd=work,
     )
     consumed = tuple(json.loads((work / "packages.json").read_text()))
     if set(consumed) != set(packages):
         raise RuntimeError(f"Web Awesome runtime dependencies changed: {consumed}")
-    refuse_if_csp_forbids(out)
+    shared = ASSETS / "vendor/webawesome"
+    if shared.exists():
+        shutil.rmtree(shared)
+    shutil.copytree(work / "bundle/webawesome", shared)
+    shutil.copyfile(work / "bundle/webawesome.esm.js", out)
+    chrome = ASSETS / "vendor/webawesome-chrome.js"
+    shutil.copyfile(work / "bundle/webawesome-chrome.js", chrome)
+    outputs = [out, chrome, *sorted(shared.glob("*.js"))]
+    for output in outputs:
+        refuse_if_csp_forbids(output)
     notices.write_text(package_notices(work, consumed, out.name), encoding="utf-8")
-    return [out, notices]
+    return [*outputs, notices]
 
 
 def build_plot(work: Path) -> list[Path]:
@@ -660,20 +666,37 @@ REBUILDS = {
 }
 
 
-# Some pins are not Leaf's own choice of version. They are dependencies of the package
-# Leaf chose and are pinned here only because each bundle is self-contained: esbuild
-# resolves those bare imports itself, so the versions have to be named. A release
-# outside the range its dependant declares is therefore not a pin to take. npm would
-# install the declared version nested under it, esbuild would bundle that one, and the
-# table would say one thing while the bundle carried another. Their rows read against
-# the dependant's range, so what the report calls movement is movement that can
-# actually be taken.
+# Some pins cannot move to whatever upstream published last. A bundle is self-contained,
+# so esbuild resolves its bare imports itself and every package in the install has to be
+# named — and one of those packages may declare a range for another. A release outside
+# that range is not a pin to take: npm would install the declared version nested under
+# the dependant, esbuild would bundle that one, and the table would say one thing while
+# the bundle carried another. Those rows read against the dependant's range, so what the
+# report calls movement is movement that can actually be taken.
+#
+# The install decides, not the pin's provenance. `@floating-ui/dom` is Leaf's own choice
+# for the `floating-ui` bundle and still held, because the `webawesome` bundle installs
+# it beside Web Awesome, which declares a range of its own; Leaf's choice would land in
+# one bundle and nested under the other. `diff` is the case provenance reads backwards:
+# `@pierre/diffs` declares the version Leaf pins, but the `pierre` build installs
+# `@pierre/diffs` and Shiki rather than the `diff` pin, so the two never meet in one
+# install and a moved `diff` rebuilds `jsdiff` alone.
 HELD_BY = {
     "elkjs": "agentic-mermaid",
     "entities": "agentic-mermaid",
     "yaml": "agentic-mermaid",
+    "@floating-ui/dom": "@awesome.me/webawesome",
     "@floating-ui/core": "@floating-ui/dom",
     "@floating-ui/utils": "@floating-ui/dom",
+    "shiki": "@pierre/diffs",
+    "@ctrl/tinycolor": "@awesome.me/webawesome",
+    "@shoelace-style/localize": "@awesome.me/webawesome",
+    "composed-offset-position": "@awesome.me/webawesome",
+    "lit": "@awesome.me/webawesome",
+    "nanoid": "@awesome.me/webawesome",
+    "lit-element": "lit",
+    "lit-html": "lit",
+    "@lit/reactive-element": "lit",
 }
 
 

@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -59,6 +60,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import specimens as specimens_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
@@ -68,6 +70,311 @@ from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import service as served_service
 from page_fixtures import package_selection_args
+
+
+def test_specimens_use_captured_resources_and_independent_event_logs(server, page_dir):
+    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/specimen.js"></script></template>'
+    (page_dir / "page").mkdir(exist_ok=True)
+    module = b'document.getElementById("child-copy").dataset.module = "captured";'
+    (page_dir / "page/specimen.js").write_bytes(module)
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    parent_before = event_model.read_events(page_dir)
+    _, raw_state = fetch(f"{server}/api/state")
+    parent_state = json.loads(raw_state)
+    generation = parent_state["layer"]["generation"]
+    captured_theme = (
+        artifact_model.read_artifact(page_dir, 1).resources["/theme.css"].data
+    )
+    (page_dir / "theme.css").write_text("/* mutable bytes must not enter the child */")
+    (page_dir / "page/specimen.js").write_text('throw Error("mutable code");')
+    status, raw = fetch(
+        f"{server}/api/specimens",
+        data=json.dumps({"template": "practice"}).encode(),
+        layer=generation,
+        headers={"Leaf-View-Revision": "1"},
+    )
+    assert status == 200, raw
+    child = server + json.loads(raw)["url"].rstrip("/")
+    status, document = fetch(child + "/")
+    assert status == 200, document
+    assert b"Child text." in document
+    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
+    assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
+    assert b"data-lf-contained" in document and b" inert" in document
+    assert fetch(child + "/theme.css") == (200, captured_theme)
+    [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
+    assert module_path == f"{root}/page/specimen.js".encode()
+    assert fetch(server + module_path.decode()) == (200, module)
+    status, raw = fetch(child + "/api/state")
+    assert status == 200, raw
+    assert json.loads(raw)["events"] == []
+    status, answer = fetch(
+        child + "/api/event",
+        layer=generation,
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 1,
+                "text": "A child comment",
+                "anchor": {"section": "child-copy"},
+                "attempt": "specimen-comment",
+            }
+        ).encode(),
+    )
+    assert status == 200, answer
+    _, raw = fetch(child + "/api/state")
+    assert len(json.loads(raw)["events"]) == 1
+    assert event_model.read_events(page_dir) == parent_before
+    status, answer = fetch(
+        child + "/api/event",
+        layer=generation,
+        data=b'{"kind":"unknown","attempt":"refused"}',
+    )
+    assert status == 400, answer
+    assert fetch(child + "/api/release", layer=generation, data=b"{}")[0] == 200
+    assert fetch(child + "/api/state")[0] == 404
+
+
+def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
+    server, page_dir, monkeypatch
+):
+    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1></template>'
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "aabb0011",
+            "author": "user",
+            "revision": 1,
+            "text": "Before allocation",
+        },
+    )
+    files_model.write_json(page_dir / "data.json", {"revision": 7, "sources": {}})
+    publish(page_dir)
+    allocating = threading.Barrier(3)
+    release = threading.Event()
+    original = specimens_model.Specimens.create
+
+    def held_allocation(self, *args):
+        allocating.wait(timeout=5)
+        assert release.wait(5)
+        return original(self, *args)
+
+    monkeypatch.setattr(specimens_model.Specimens, "create", held_allocation)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        allocations = [
+            executor.submit(
+                fetch, server + "/api/specimens", data=b'{"template":"practice"}'
+            )
+            for _ in range(2)
+        ]
+        try:
+            # Both allocations reach the expensive stage while neither holds the
+            # parent's lease. A parent update can commit before they finish.
+            allocating.wait(timeout=5)
+            with service_model.PageTransaction(page_dir) as page:
+                page._append_record(
+                    {
+                        "kind": "reply",
+                        "author": "user",
+                        "revision": 1,
+                        "parent": "aabb0011",
+                        "text": "After capture",
+                    }
+                )
+                files_model.write_json(
+                    page_dir / "data.json", {"revision": 8, "sources": {}}
+                )
+        finally:
+            release.set()
+        children = []
+        for allocation in allocations:
+            status, raw = allocation.result(timeout=5)
+            assert status == 200, raw
+            children.append(server + json.loads(raw)["url"])
+    assert children[0] != children[1]
+    for child in children:
+        state = json.loads(fetch(child + "api/state")[1])
+        assert state["data"]["revision"] == 7
+        assert [event["text"] for event in state["events"]] == ["Before allocation"]
+
+
+def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
+    server, page_dir
+):
+    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
+    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the conversation.</p></template>'
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", template + unseeded + "</main>")
+    )
+    publish(page_dir)
+    # The declaration selects from the standing log rather than requiring it, so a
+    # page whose log holds none of it yet — a first version, or a copy made from the
+    # source alone — still opens its specimens. What a child may not do is name a
+    # conversation it does not have, and the ordinary child-document check says so
+    # about the element that names it.
+    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"unseeded"}')
+    assert status == 200, raw
+    assert (
+        json.loads(fetch(server + json.loads(raw)["url"] + "api/state")[1])["events"]
+        == []
+    )
+    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"practice"}')
+    assert (
+        status == 400
+        and "resolves='aabb0011' names no comment" in json.loads(raw)["error"]
+    )
+    for identity, text in (
+        ("aabb0011", "Selected conversation"),
+        ("aabb0022", "Outside conversation"),
+    ):
+        event_model.append_event(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "agent": "Example",
+                "revision": 1,
+                "anchor": {"section": "plan"},
+                "text": text,
+                "id": identity,
+            },
+        )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": "aabb0011",
+            "revision": 1,
+            "text": "Seeded reply",
+            "markup": '<lf-code id="seed-code" language="python"><pre>print("seed")</pre></lf-code>',
+        },
+    )
+    before = event_model.read_events(page_dir)
+    children = []
+    for _ in range(2):
+        status, raw = fetch(
+            f"{server}/api/specimens", data=b'{"template":"practice","passive":true}'
+        )
+        assert status == 200, raw
+        child = server + json.loads(raw)["url"].rstrip("/")
+        children.append(child)
+        status, raw = fetch(child + "/api/state")
+        assert status == 200, raw
+        assert [event["text"] for event in json.loads(raw)["events"]] == [
+            "Selected conversation",
+            "Seeded reply",
+        ]
+        assert b"data-lf-specimen-passive" in fetch(child + "/")[1]
+    assert children[0] != children[1]
+    assert event_model.read_events(page_dir) == before
+    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"missing"}')
+    assert status == 400 and "unknown specimen template" in json.loads(raw)["error"]
+    assert fetch(children[0] + "/api/state", token=None)[0] == 403
+
+
+def test_specimen_template_lookup_stays_within_the_requesting_page(server, page_dir):
+    templates = """<template id="outer" data-specimen><h1>Outer page</h1>
+      <template id="practice" data-specimen><h1>Nested practice</h1></template>
+      <template id="nested-only" data-specimen><h1>Nested only</h1></template>
+    </template>
+    <template id="practice" data-specimen><h1>Parent practice</h1></template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", templates + "</main>"))
+    publish(page_dir)
+
+    def create(parent, template):
+        status, body = fetch(
+            parent + "/api/specimens", data=json.dumps({"template": template}).encode()
+        )
+        assert status == 200, body
+        return server + json.loads(body)["url"].rstrip("/")
+
+    child = create(server, "practice")
+    assert b"Parent practice" in fetch(child + "/")[1]
+    outer = create(server, "outer")
+    nested = create(outer, "practice")
+    nested_document = fetch(nested + "/")[1]
+    assert b"Nested practice" in nested_document
+    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    assert f'data-lf-entry="{root}/leaf.js"'.encode() in nested_document
+    assert (
+        fetch(server + "/api/specimens", data=b'{"template":"nested-only"}')[0] == 400
+    )
+    assert fetch(outer + "/api/release", data=b"{}")[0] == 200
+    assert fetch(nested + "/")[0] == 404
+
+
+@pytest.mark.parametrize("explicit_revision", [False, True])
+def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
+    page_dir, explicit_revision
+):
+    publish(page_dir)
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "aabb0011",
+            "author": "user",
+            "revision": 1,
+            "text": "Frozen seed",
+        },
+    )
+    files_model.write_json(page_dir / "data.json", {"revision": 7, "sources": {}})
+    template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Frozen child</h1></template>'
+    document = structure_model.SourceDocument(
+        PAGE.replace("</main>", template + "</main>")
+    )
+    # The checked candidate is r2, absent from the mutable page's revision files.
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir, document, {"revision": 2, "version": None, "url": "/"}
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": "aabb0011",
+            "text": "Later reply",
+        },
+    )
+    files_model.write_json(page_dir / "data.json", {"revision": 8, "sources": {}})
+    parent_events = event_model.read_events(page_dir)
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
+    ) as preview:
+        status, raw = fetch(
+            preview.origin + "/api/specimens",
+            data=b'{"template":"practice"}',
+            layer=snapshot.layer["generation"],
+            headers={"Leaf-View-Revision": "2"} if explicit_revision else {},
+        )
+        assert status == 200, raw
+        child = preview.origin + json.loads(raw)["url"]
+        body = fetch(child)[1]
+        root = "/revisions/" + snapshot.revision_names[2].removesuffix(".html")
+        assert b"Frozen child" in body
+        assert f'data-lf-entry="{root}/leaf.js"'.encode() in body
+        assert fetch(preview.origin + root + "/leaf.js")[0] == 200
+        state = json.loads(fetch(child + "api/state")[1])
+        assert state["data"]["revision"] == 7
+        assert [event["text"] for event in state["events"]] == ["Frozen seed"]
+        for path in ("/api/event", "/api/media"):
+            assert fetch(preview.origin + path, data=b"{}")[0] == 403
+        assert (
+            fetch(
+                child + "api/event",
+                data=b'{"kind":"comment","revision":1,"text":"Child only"}',
+            )[0]
+            == 200
+        )
+    assert event_model.read_events(page_dir) == parent_events
+    assert data_model.read_data(page_dir)["revision"] == 8
+    assert files_model.list_revisions(page_dir) == [1]
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):

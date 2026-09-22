@@ -5,7 +5,7 @@
    textarea, then materializes the same Markdown again when its visible words change or
    Send reads the draft. Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
-   release URL; ordinary and MCP pages fall back to the module route. All three resolve
+   release URL shared with a specimen. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
    native dialog remains a direct chrome child while its light-DOM Lit face owns the
    generated title, control, and image. */
@@ -15,18 +15,9 @@
 // speaking the canonical text that drafts and events carry. MEDIA_PATH's escaped form
 // below dodges the same rewrite; neither may be spelled the obvious way.
 import { LitElement, html } from "../vendor/browser-runtime.js";
-import { offlineInteractive, runtimeResource } from "./context.js";
+import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 
 const CANONICAL_MEDIA_ROOT = "/" + "media/";
-const runtimeMarker = document.querySelector(
-  "script[data-lf-server], script[data-lf-runtime][data-lf-offline]",
-);
-const declaredPageRoot = runtimeMarker?.dataset.lfPageRoot;
-const MODULE_PAGE_ROOT = offlineInteractive
-  ? null
-  : declaredPageRoot === undefined
-    ? new URL("../", import.meta.url)
-    : new URL(`${declaredPageRoot || ""}/`, location.origin);
 const MEDIA_NAME = /^[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)$/;
 const MEDIA_PATH = String.raw`\/media\/[a-f0-9]{16}\.(?:png|jpe?g|gif|webp|svg)`;
 const PASTED_MEDIA = new RegExp(String.raw`!\[Pasted image\]\((${MEDIA_PATH})\)`, "g");
@@ -37,12 +28,7 @@ export const isCanonicalMediaUrl = (href) => {
 };
 
 export const scopedMediaUrl = (href) =>
-  offlineInteractive
-    ? runtimeResource(href)
-    : new URL(
-        href.slice(CANONICAL_MEDIA_ROOT.length),
-        new URL("media/", MODULE_PAGE_ROOT),
-      ).pathname;
+  offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
 export function readPastedMedia(value) {
   const paths = [];

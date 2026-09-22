@@ -91,7 +91,7 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map. The banner's
 // Select element opens this same chooser, and its Cancel selection closes it. While it
-// stands, pointer presses use aim's capture boundary to choose the innermost target
+// stands on a touch device, presses use aim's capture boundary to choose the innermost target
 // without activating authored controls.
 //
 // `keyboard/hints.js` owns the map itself: arming, codes, the typed prefix, the audible
@@ -788,7 +788,7 @@ export function createTargetChooser({
   return {
     visibleTargets,
     chooseTarget,
-    pointerChoosing: () => chooserOpen && !pageSearchOpen,
+    pointerChoosing: () => coarsePointer.matches && chooserOpen && !pageSearchOpen,
     paintTargetChooserHints,
     targetChooserOpen,
     openTargetChooser,

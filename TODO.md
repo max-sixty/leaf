@@ -55,8 +55,12 @@ has tried; settle that before building it.
 - **#11 — [Let newer navigation win over revision restoration](notes/workspace-followups.md#item-11).**
   Preserve input made while a revision activates.
 - **Verify the native phone reading journey.** Check the explicit selection-to-comment
-  handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation covers element targeting, commenting, passage geometry,
-  and viewport sizing, but cannot show the native selection menu or software keyboard.
+  handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
+  covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
+  show the native selection menu or software keyboard.
+- **Finish what a phone reader still cannot reach.** Give touch readers visible passage
+  threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
+  and remaining undersized touch targets.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 - **Keep wrapped inline code inside the column.** `theme.css` gives inline `code`

@@ -106,6 +106,23 @@ def test_touch_reader_selects_an_element_comments_and_finds_its_thread(browser, 
     )
 
 
+def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Desktop targets",
+                '<p id="link"><a href="#elsewhere">Follow this link</a></p><p id="elsewhere">Destination</p>',
+            )
+        ),
+    )
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+    page.get_by_role("link", name="Follow this link").click()
+    expect(page).to_have_url(re.compile(r"#elsewhere$"))
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(TARGETS_PAGE), context=context)

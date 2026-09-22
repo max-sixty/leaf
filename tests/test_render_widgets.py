@@ -8184,11 +8184,16 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+    inline_thread = page.locator(
+        "#cd-q .lf-conversation-thread:has("
+        f'.lf-conversation-msg[data-event="{message["id"]}"])'
+    )
     expect(inline.locator(".lf-conversation-body")).to_have_text(
         "The north bracket fit."
     )
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
+    panel_thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{message["id"]}"])')
     expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
     page.evaluate(
         """([message]) => {
@@ -8224,8 +8229,15 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     )
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
     expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
-    expect(inline.locator(".lf-edited")).to_have_text("edited")
-    expect(panel.locator(".lf-edited")).to_have_text("edited")
+    # The disclosure is on the head, and a thread's first message lends its head to the
+    # card, where the thread's own actions sit beside the author. So the mark belongs to
+    # the card holding the message rather than to the message node, on both surfaces.
+    expect(inline_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
+        "edited"
+    )
+    expect(panel_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
+        "edited"
+    )
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(

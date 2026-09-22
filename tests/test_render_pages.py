@@ -1256,9 +1256,9 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
 def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
     """Renderer output cannot import a web font or reuse one SVG's definition ids.
 
-    Beautiful Mermaid emits the same marker ids and a Google Fonts import in every
-    result. Leaf normalizes both at the widget boundary before the markup reaches the
-    document, so several diagrams remain independent and the page stays self-contained.
+    The renderer emits the same marker ids in every result unless it is given a prefix,
+    and names its own faces. Leaf passes each rendering a prefix and the page's faces,
+    so several diagrams remain independent and the page stays self-contained.
     """
     page = open_page(browser, serve(TYPED_PARTS_PAGE))
     readings = page.evaluate(
@@ -1303,7 +1303,11 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
         for style in readings["styles"]
     )
     assert len(readings["fonts"]) == readings["count"]
-    assert set(readings["fonts"]) == {readings["expectedFont"]}
+    # The renderer appends its own generic fallbacks after the face it is handed; the
+    # page's face resolves first, so they are never reached.
+    assert all(f.startswith(readings["expectedFont"]) for f in readings["fonts"]), (
+        readings["fonts"]
+    )
     assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
     assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
 

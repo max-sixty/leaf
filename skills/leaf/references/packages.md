@@ -5,9 +5,6 @@ theme, one widget, a family of widgets, helper modules, libraries, external-data
 contracts, or any combination of them. The layer is different: it is the checked
 result that `page init` vendors after composing the kernel and packages.
 
-Read this reference when a design comment arrives with `"about": "design"`, or
-when `/leaf` is invoked on a widget to build or a look to change.
-
 ## Package reach
 
 | Package                             | Included in                        |
@@ -15,9 +12,9 @@ when `/leaf` is invoked on a widget to build or a look to change.
 | a package selected with `--package` | pages that select its name or path |
 | Leaf's bundled default package      | every page                         |
 
-Presentation used by only one page stays in that version's `<style>`. Everything
-reusable belongs to a package. Leaf creates, checks, and installs the whole
-directory:
+Presentation or behavior used by only one page stays in that version, in its
+`<style>` and its inline modules or `page/`. Everything reusable belongs to a package.
+Leaf creates, checks, and installs the whole directory:
 
 ```bash
 leaf package init PACKAGE
@@ -41,10 +38,12 @@ leaf package check packages/callout
 leaf page init --package packages/callout PAGE
 ```
 
-Every package beyond the bundled default is selected explicitly. A directory such
-as `.leaf/` or `~/.config/leaf/` is an ordinary package path; select it with
-`--package ./.leaf` or `--package '~/.config/leaf'`. Inside a repository dedicated
-to one package, use `.` as the package path.
+Every package beyond the bundled default is selected explicitly, and the
+always-present `default` package cannot be. A bare name selects an installed or
+bundled package and never means a path. A path is project-relative or starts with
+`~`: `--package ./.leaf`, `--package '~/.config/leaf'`, or `.` inside a repository
+dedicated to one package. Absolute paths are refused because the vendored registry
+is public.
 
 `leaf package install SOURCE` checks that directory and copies it into
 `~/.local/state/leaf/packages/`, where `--package NAME` reaches it by its directory
@@ -62,7 +61,7 @@ directory to replace one. A page records the bare name, so re-vendoring it on an
 machine needs the same package installed there.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
-and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
+and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` coordinates declarative controls and page-owned
 structured contributors through one reset, restore, preview, output, and typed
@@ -75,19 +74,7 @@ request; `visual-review` adds an ordered website run, aligned before-and-after e
 automatic compare orientation, authored focus with full-frame context, local flip and
 overlay, fit and captured-size inspection, exact preview links, and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
-indicators used only by the developer feature gallery, so ordinary pages do not select it:
-
-```bash
-leaf page init --package diagram PAGE
-leaf page init --package diff PAGE
-leaf page init --package swipe PAGE
-leaf page init --package playground PAGE
-leaf page init --package targeting PAGE
-leaf page init --package command-hub PAGE
-leaf page init --package diff --package pr-review PAGE
-leaf page init --package monitoring PAGE
-leaf page init --package visual-review PAGE
-```
+indicators used only by the developer feature gallery, so ordinary pages do not select it.
 
 Those two renderers are about 3.2MB, and most pages draw neither, so they travel in
 packages rather than in the default one. A plain `page init` writes about 2.7MB; a page
@@ -97,9 +84,9 @@ that wants a diagram or a diff selects it explicitly.
 The analysis host owns that source; the widget keeps unchanged tree items beside
 additions and removals, folds the result by changed root, and projects every row as a
 commentable datum. Its required `diff` target turns source coordinates into navigation
-to matching lines in the exact patch — an `lf-diff`, which is why the command above
-selects `diff` beside `pr-review`. Packages declare no dependencies on each other; a
-page states the whole list it needs. For a large repository, capture one affected file
+to matching lines in the exact patch, an `lf-diff`, so a page selects `diff` beside
+`pr-review`. Packages declare no dependencies on each other; a page states the whole
+list it needs. For a large repository, capture one affected file
 or entry point per source rather than one unbounded call graph.
 
 ## Package contract
@@ -144,11 +131,8 @@ order. Later packages win collisions. `page init`
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
 
-A bare package name selects an installed or bundled package and never means a path;
-use `./name` for a same-shaped project directory. Other package paths are project-relative
-or start with `~`. Absolute paths are refused because the vendored registry is public.
-The always-present `default` package cannot be selected explicitly. A package may
-contain zero, one, or many widgets. Those cardinalities do not change its contract.
+A package may contain zero, one, or many widgets. Those cardinalities do not change
+its contract.
 
 A replacement `runtime/layer-client.js` must retain the quoted
 `"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
@@ -169,7 +153,6 @@ element or widget. A shape the project reuses across pages is an idiom — decla
 under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
-Presentation unique to one page stays in that version's `<style>`.
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
@@ -178,11 +161,10 @@ runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`, 
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
 tags. `x-space: wide` requests the shared capped evidence width; `x-space: available`
 requests all room left after enclosing frames, chrome, and actual margin residents.
-This is the package default. A page occurrence may choose `data-width="column"`,
-`data-width="wide"`, or `data-width="available"`; the authored value wins, including
-`column` when the page deliberately keeps a normally wide widget with its prose.
-Neither value chooses the widget's internal layout; the package arranges its own content
-inside the allocation. A package whose available surface preserves a drawing's natural
+That is the package default, and a page occurrence's `data-width` overrides it
+(`page-authoring.md`, "Document, page tabs, or workspace"). Neither chooses the
+widget's internal layout; the package arranges its own content inside the allocation.
+A package whose available surface preserves a drawing's natural
 inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
 distinguish honest source overflow from room withheld by the page; Leaf resets the fact
 on every declared surface, so it applies only to the element that states it. A box a
@@ -310,9 +292,8 @@ answers from the nearest ancestor container, and `body` is a container, so the r
 silently follows the page shell instead. Keep the host's own layout intrinsic, or put
 the properties that change on a descendant layout box.
 
-A package is for behavior, styling, or vocabulary reused across pages. Page-specific
-behavior belongs in an authored inline module or the page's captured `page/` graph and
-needs no package entry. A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a module.
+A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
+module.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
@@ -593,14 +574,6 @@ geometry change, including in-place attribute or style changes. The render gate 
 every record and requires each authored token to resolve. The package owns the stable
 mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
-A widget whose rendering can be wrong without failing registers a render check:
-`registerRenderCheck(source, check)`, once at upgrade. Only the render gate calls
-`check`, after presentation, so it may import what a reader's page cannot afford, such as
-a second library that reads the same source. `check` returns a promise; where it finds
-the rendering wrong it calls `failSoft` on the widget, and the gate reports that as it
-reports any failed widget. A rejected promise is reported as a check that could not run.
-`lf-diagram` compares its drawing with Mermaid's own reading of the source this way.
-
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through
@@ -821,9 +794,8 @@ neither orders the other.
 `data capture` reads a UTF-8 file without making the author copy it into markup.
 The default `text` format can select an inclusive `START:END` line range. The
 `unified-diff` format validates a Git patch and builds the file-fragmented manifest the
-diff widget consumes; binary, mode-only, empty added or deleted, copy, and malformed
-hunk entries are rejected rather than silently omitted. Both formats may attach a
-display label. A capture
+diff widget consumes; an entry the widget's declaration does not support is rejected
+rather than silently omitted. Both formats may attach a display label. A capture
 both replaces the source's current value and retains that value under the reported data
 revision. A widget without its snapshot attribute follows the current value; a widget with
 `snapshot="REVISION"` keeps reading that immutable capture. The captured source path is
@@ -989,7 +961,7 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 
 ## Seeing it
 
-After the main skill's re-vendoring route restores the recorded URL, run
+After the re-vendoring sequence in `serving-pages.md` restores the recorded URL, run
 `leaf version check <page> --render` on the version that uses the replacement
 layer. Note the re-vendor in the next stamped version's changelog.
 

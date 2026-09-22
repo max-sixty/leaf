@@ -1109,4 +1109,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        assert "failed soft" in run.stderr and "Invalid mermaid header" in run.stderr
+        # The report names the widget and gives the renderer's reason, not the source.
+        assert "<lf-diagram id='d-broken'> failed soft:" in run.stderr
+        assert "is unsupported" in run.stderr
+        assert "Ada,Review,3" not in run.stderr

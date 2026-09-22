@@ -39,7 +39,7 @@ def package_vendor(package: str) -> Path:
     """Where a bundle lands, which is the package whose widget imports it.
 
     A vendored library is payload of the package that draws with it, not of the
-    layer: Beautiful Mermaid and Pierre are about 3.2MB between them and reach a
+    layer: Agentic Mermaid and Pierre are about 4.6MB between them and reach a
     page only when it selects `diagram` or `diff`, so a page that draws neither
     carries neither.
     """
@@ -54,10 +54,10 @@ PINS = {
     "highlight.js": "11.12.0",
     "marked": "18.0.13",
     "diff": "9.0.0",
-    "beautiful-mermaid": "1.1.3",
-    "mermaid": "12.0.0",
+    "agentic-mermaid": "0.4.1",
     "elkjs": "0.11.1",
     "entities": "7.0.1",
+    "yaml": "2.9.1",
     "sortablejs": "1.15.7",
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.4.3",
@@ -268,16 +268,22 @@ def package_notices(work: Path, packages: tuple[str, ...], title: str) -> str:
     return f"Third-party licenses for {title}\n\n" + "\n\n".join(notices) + "\n"
 
 
-def build_beautiful_mermaid(work: Path) -> list[Path]:
-    """Bundle Beautiful Mermaid and ELK into one browser-native ESM file.
+def build_agentic_mermaid(work: Path) -> list[Path]:
+    """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
 
-    Upstream's ESM keeps `entities` and `elkjs` as bare imports. Leaf loads one
+    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf loads one
     self-contained file under its self-only CSP, so esbuild resolves the exact pinned
-    dependency set and leaves no runtime chunk or package lookup behind.
+    dependency set and leaves no runtime chunk or package lookup behind. The package
+    entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
+    keeps the native rasterizer and the code-mode parser out of the bundle.
+
+    The renderer carries Material Design Icons path data for architecture diagrams
+    under Apache-2.0. Its `THIRD_PARTY_NOTICES.md` says what that covers and its own
+    `LICENSES/` holds the text, so the notices take both.
     """
-    out = package_vendor("diagram") / "beautiful-mermaid.esm.js"
-    notices = package_vendor("diagram") / "beautiful-mermaid.LICENSES.txt"
-    packages = ("beautiful-mermaid", "elkjs", "entities")
+    out = package_vendor("diagram") / "agentic-mermaid.esm.js"
+    notices = package_vendor("diagram") / "agentic-mermaid.LICENSES.txt"
+    packages = ("agentic-mermaid", "elkjs", "entities", "yaml")
     run(
         "npm",
         "install",
@@ -289,7 +295,7 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
         cwd=work,
     )
     (work / "entry.mjs").write_text(
-        'export { renderMermaidSVG } from "beautiful-mermaid";\n',
+        'export { renderMermaidSVG } from "agentic-mermaid";\n',
         encoding="utf-8",
     )
     esbuild(
@@ -300,78 +306,26 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
         "--target=chrome105",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! beautiful-mermaid {PINS['beautiful-mermaid']} — MIT"
-        " — licenses: beautiful-mermaid.LICENSES.txt */",
+        f"--banner:js=/*! agentic-mermaid {PINS['agentic-mermaid']} — MIT"
+        " — licenses: agentic-mermaid.LICENSES.txt */",
         f"--outfile={out}",
         cwd=work,
     )
     refuse_if_csp_forbids(out)
+    renderer = work / "node_modules/agentic-mermaid"
+    bundled = [
+        renderer / "THIRD_PARTY_NOTICES.md",
+        *sorted(renderer.glob("LICENSES/*")),
+    ]
     notices.write_text(
-        package_notices(work, packages, out.name),
+        package_notices(work, packages, out.name)
+        + "".join(
+            f"\n===== agentic-mermaid: {path.relative_to(renderer)} =====\n"
+            f"{path.read_text(encoding='utf-8').strip()}\n"
+            for path in bundled
+        ),
         encoding="utf-8",
     )
-    return [out, notices]
-
-
-def build_mermaid_reader(work: Path) -> list[Path]:
-    """Bundle official Mermaid as a reader of diagram source, for the render gate alone.
-
-    Beautiful Mermaid draws `lf-diagram`, and its parsers give every statement they
-    cannot read a silent reading. Official Mermaid's grammars are strict, so the
-    diagram package's render check reads the same source with them and compares what
-    they found with what was drawn. Only that check imports this file: it travels in
-    the page directory beside the renderer it answers for, and no reader's browser
-    fetches it.
-
-    Mermaid is here to read, never to draw, so the libraries only its drawings reach
-    are replaced with an empty module: KaTeX, Cytoscape and its two layouts, and ELK
-    are 2.4MB of a 5.3MB bundle. Its remaining dependencies resolve through npm's
-    ranges, as Plot's do.
-    """
-    out = package_vendor("diagram") / "mermaid-reader.esm.js"
-    notices = package_vendor("diagram") / "mermaid-reader.LICENSES.txt"
-    run(
-        "npm",
-        "install",
-        "--silent",
-        "--no-audit",
-        "--no-fund",
-        spec("mermaid"),
-        spec("esbuild"),
-        cwd=work,
-        capture=True,
-    )
-    (work / "entry.mjs").write_text(
-        'import mermaid from "mermaid";\n'
-        "mermaid.initialize({ startOnLoad: false });\n"
-        "export const readMermaid = (source) =>\n"
-        "  mermaid.mermaidAPI.getDiagramFromText(source);\n",
-        encoding="utf-8",
-    )
-    (work / "undrawn.mjs").write_text("export default {};\n", encoding="utf-8")
-    undrawn = (
-        "katex",
-        "cytoscape",
-        "cytoscape-cose-bilkent",
-        "cytoscape-fcose",
-        "elkjs/lib/elk.bundled.js",
-    )
-    esbuild(
-        "entry.mjs",
-        "--bundle",
-        "--format=esm",
-        "--platform=browser",
-        "--target=chrome105",
-        "--minify",
-        "--legal-comments=inline",
-        *(f"--alias:{package}=./undrawn.mjs" for package in undrawn),
-        f"--banner:js=/*! mermaid {PINS['mermaid']} — MIT"
-        " — licenses: mermaid-reader.LICENSES.txt */",
-        f"--outfile={out}",
-        cwd=work,
-    )
-    refuse_if_csp_forbids(out)
-    notices.write_text(package_notices(work, ("mermaid",), out.name), encoding="utf-8")
     return [out, notices]
 
 
@@ -642,12 +596,11 @@ def build_mcp_app(work: Path) -> list[Path]:
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
-    "beautiful-mermaid": build_beautiful_mermaid,
+    "agentic-mermaid": build_agentic_mermaid,
     "floating-ui": build_floating_ui,
     "highlight": build_highlight,
     "jsdiff": build_jsdiff,
     "mcp-app": build_mcp_app,
-    "mermaid-reader": build_mermaid_reader,
     "plot": build_plot,
     "pierre": build_pierre,
     "webawesome": build_webawesome,
@@ -673,13 +626,13 @@ REBUILDS = {
     "@observablehq/plot": ("plot",),
     "@pierre/diffs": ("pierre",),
     "@modelcontextprotocol/ext-apps": ("mcp-app",),
-    "beautiful-mermaid": ("beautiful-mermaid",),
-    "mermaid": ("mermaid-reader",),
+    "agentic-mermaid": ("agentic-mermaid",),
     "@floating-ui/dom": ("floating-ui", "webawesome"),
     "@floating-ui/core": ("floating-ui", "webawesome"),
     "@floating-ui/utils": ("floating-ui", "webawesome"),
-    "elkjs": ("beautiful-mermaid",),
-    "entities": ("beautiful-mermaid",),
+    "elkjs": ("agentic-mermaid",),
+    "entities": ("agentic-mermaid",),
+    "yaml": ("agentic-mermaid",),
     "shiki": ("pierre",),
     **{
         package: ("webawesome",)
@@ -696,11 +649,10 @@ REBUILDS = {
         )
     },
     "esbuild": (
-        "beautiful-mermaid",
+        "agentic-mermaid",
         "floating-ui",
         "highlight",
         "mcp-app",
-        "mermaid-reader",
         "plot",
         "pierre",
         "webawesome",
@@ -717,8 +669,9 @@ REBUILDS = {
 # the dependant's range, so what the report calls movement is movement that can
 # actually be taken.
 HELD_BY = {
-    "elkjs": "beautiful-mermaid",
-    "entities": "beautiful-mermaid",
+    "elkjs": "agentic-mermaid",
+    "entities": "agentic-mermaid",
+    "yaml": "agentic-mermaid",
     "@floating-ui/core": "@floating-ui/dom",
     "@floating-ui/utils": "@floating-ui/dom",
 }

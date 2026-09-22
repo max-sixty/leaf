@@ -1508,8 +1508,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread]:popover-open { display: flex; flex-direction: column; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
+  /* Dismiss rides the conversation's own meta row, where the settlement action sits,
+     so it starts at the card's inset plus the thread's own padding rather than above
+     that row. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
-    position: absolute; z-index: 3; inset-block-start: 12px; inset-inline-end: 12px;
+    position: absolute; z-index: 3; inset-inline-end: 12px;
+    inset-block-start: calc(12px + var(--sp-1));
     align-items: flex-start; flex: none; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
       .lf-margin-preview-nav:not([hidden])) {
@@ -1526,7 +1530,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; }
   /* The subject and its actions stay outside the conversation's scrollport. The
-     retained settlement action is positioned against the card, alongside Dismiss. */
+     retained settlement action rides the conversation's meta row, which sticks to the
+     top of that scrollport, and Dismiss is positioned on that row beside it. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-list {
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     scroll-padding-block: var(--here-ring-room); }

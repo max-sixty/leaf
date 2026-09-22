@@ -1,10 +1,5 @@
 # Asks and sign-off
 
-Read this while authoring a new, unanswered ask or sign-off. Read the selected
-registry entries for the exact widget contracts.
-
-## Asks and sign-off
-
 On a quick-answer page, open with the Ask. Put its short shared premise inside
 the `lf-ask`, before the control, and put backing detail after it in a
 disclosure. The first viewport should show the objective, current state, and
@@ -73,5 +68,4 @@ A page whose approval unblocks work declares:
 ```
 
 An informational page omits it. Approval becomes available after every Ask on the
-page is answered. A `done` event approves the work and leaves the page live while
-that work proceeds.
+page is answered.

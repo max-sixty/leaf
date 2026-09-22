@@ -988,8 +988,8 @@ one composer node or renders retained messages, replies, reactions, settlement c
 and receipts into each outlet. A claimed thread does not
 also appear in the margin projection; the Threads panel remains the complete index. With
 Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
-fallback. Opening Threads from the focused surface carries the same thread into the
-panel.
+fallback. Clicking the Threads toggle from the focused surface carries the same thread
+into the panel.
 
 The consumer omits placements for data that is filtered, collapsed, or not yet hydrated.
 That keeps lazy widgets lazy and restores the margin-projection fallback. Deliberate thread

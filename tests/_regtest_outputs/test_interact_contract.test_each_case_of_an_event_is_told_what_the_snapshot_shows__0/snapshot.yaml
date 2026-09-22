@@ -80,11 +80,12 @@
 #    The delivery's event is the log line from step 2 less `attempt`, the
 #    browser's retry key, and with these fields added:
 #    `seq`, `subject`, `conversations`, `handling` and `obligation`.
-#    `handling` is the texts of the clauses that apply, in order, joined with
-#    spaces. The whole output, indented here (leaf prints it on one line):
+#    The batch's `handling` maps clause ids to their text, each distinct text
+#    appearing once. The event's `handling` names its applicable clauses in order.
+#    The whole output, indented here (leaf prints it on one line):
 #
 #      {
-#        "format": "leaf-delivery-v1",
+#        "format": "leaf-delivery-v2",
 #        "id": "e8417b8a-6e03-45ad-b7bd-c0f0eceb1a92",
 #        "created_at": 1790046750.29,
 #        "batches": [
@@ -92,6 +93,9 @@
 #            "page": "/path/to/page",
 #            "through_seq": 2,
 #            "conversations": [],
+#            "handling": {
+#              "h1": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."
+#            },
 #            "events": [
 #              {
 #                "kind": "comment",
@@ -112,7 +116,9 @@
 #                "conversations": [
 #                  "1946b466"
 #                ],
-#                "handling": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome.",
+#                "handling": [
+#                  "h1"
+#                ],
 #                "obligation": {
 #                  "as_of_seq": 2,
 #                  "response": {

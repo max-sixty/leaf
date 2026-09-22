@@ -4128,8 +4128,9 @@ How this text reaches the agent, by example
    The delivery's event is the log line from step 2 less @DROPPED@, the
    browser's retry key, and with these fields added:
    @ADDED@.
-   `handling` is the texts of the clauses that apply, in order, joined with
-   spaces. The whole output, indented here (leaf prints it on one line):
+   The batch's `handling` maps clause ids to their text, each distinct text
+   appearing once. The event's `handling` names its applicable clauses in order.
+   The whole output, indented here (leaf prints it on one line):
 
 @DELIVERY@
 
@@ -4277,7 +4278,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     applying = registry_contract.event_clauses(
         record, registry_storage.load_registry(page_dir)
     )
-    assert " ".join(clause["text"] for clause in applying) == delivered["handling"]
+    assert [clause["text"] for clause in applying] == [
+        batch["handling"][ref] for ref in delivered["handling"]
+    ]
     # The full line, anchor and all, gets exactly the `comment` case's clauses.
     assert applying == told["comment"]
 

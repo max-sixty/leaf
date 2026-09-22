@@ -5,6 +5,8 @@ each preserving the page's monotonic event order. Conversation membership is
 context, not a partition key, and response requirements are a snapshot of the
 standing projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
+Each batch carries distinct handling clause texts once, with ordered references
+on the events they apply to. Clause identities belong only to that batch.
 """
 
 import json
@@ -32,11 +34,12 @@ from .thread_context import (
     thread_widgets,
 )
 
-DELIVERY_FORMAT = "leaf-delivery-v1"
+DELIVERY_FORMAT = "leaf-delivery-v2"
 _BATCH_FIELDS = (
     "page",
     "through_seq",
     "conversations",
+    "handling",
     "events",
 )
 
@@ -218,6 +221,7 @@ def batch_data(
         return readings[revision]
 
     captured = []
+    clause_ids: dict[str, str] = {}
     for event in batch:
         conversations = memberships.get(event["id"], [])
         entry = {
@@ -233,7 +237,10 @@ def batch_data(
         if registry is not None and (says := _says(event, by_id, reading)):
             entry["says"] = says
         if clauses := event_clauses(event, registry):
-            entry["handling"] = " ".join(clause["text"] for clause in clauses)
+            entry["handling"] = [
+                clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
+                for clause in clauses
+            ]
         response = responses.get(event["id"])
         if response is not None:
             entry["obligation"] = {
@@ -245,6 +252,7 @@ def batch_data(
         "page": str(page_dir),
         "through_seq": through_seq,
         "conversations": batch_threads(events, batch, within),
+        "handling": {identity: text for text, identity in clause_ids.items()},
         "events": captured,
     }
 

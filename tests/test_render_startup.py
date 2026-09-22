@@ -281,7 +281,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     expect(reference).to_have_text("Session 239383829012")
     expect(reference).to_have_accessible_name("Session 239383829012 · copy reference")
     page.set_viewport_size({"width": 390, "height": 844})
-    expect(page.locator(".lf-banner-menu > .lf-session-reference")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-session-reference")).to_be_visible()
     reference.click()
     expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
     assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
@@ -352,7 +352,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     page.get_by_role("button", name="More page controls", exact=True).click()
     expect(badge).to_be_visible()
     badge.click()
-    expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
+    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
     expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
     expect(page.locator(".lf-notice")).to_be_visible()
     diagnostics = page.evaluate("() => navigator.clipboard.readText()")

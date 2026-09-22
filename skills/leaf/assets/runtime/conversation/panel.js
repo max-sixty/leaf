@@ -77,7 +77,7 @@ export function createPanelComposer({
     paintDrawings();
   }
 
-  function mount() {
+  async function mount() {
     closeBtn.onclick = () => setPanel(false);
     generalInput.value = loadDraft("general") ?? "";
     sync = wireInput(generalInput, {
@@ -109,6 +109,7 @@ export function createPanelComposer({
       sync();
       paintDrawings();
     });
+    await findInput.updateComplete;
     declareFindBoxKeys();
   }
 
@@ -190,7 +191,7 @@ export function createPanelComposer({
         when: () =>
           runtime.statePhase === "ready" &&
           (needsYou() || threadList().some((...args) => awaitsReader(...args))),
-        run: () => narrowingView.readerControl.click(),
+        run: () => narrowingView.toggleReader(),
       },
       {
         id: "thread.find",
@@ -221,7 +222,7 @@ export function createPanelComposer({
   // Escape — no listener of its own, no preventDefault written by hand.
   function declareFindBoxKeys() {
     keys(
-      findInput,
+      findInput.input,
       "In the find box",
       [
         {

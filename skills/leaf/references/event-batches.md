@@ -6,7 +6,7 @@ Every carrier presents the same immutable object:
 
 ```json
 {
-  "format": "leaf-delivery-v1",
+  "format": "leaf-delivery-v2",
   "id": "…",
   "created_at": 0,
   "batches": [
@@ -14,6 +14,7 @@ Every carrier presents the same immutable object:
       "page": "/absolute/page",
       "through_seq": 12,
       "conversations": [],
+      "handling": {},
       "events": []
     }
   ]
@@ -51,10 +52,13 @@ retry key `attempt`, then adds these delivery readings:
   current state before writing because later evidence may already have settled the
   requirement. A reply response carries both `to`, the conversation address to write
   under, and `for`, the exact event whose obligation the write must still satisfy.
-- `handling`, when present, is what the vendored layer asks of the agent for this
-  event: its kind's clauses whose condition the event meets, so a plain comment is
-  not told how to read a drawing and a page widget's pick is not told how a thread
-  answers. A missing or invalid registry leaves it out rather than substituting
+- `handling`, when present, lists clause ids in the batch's `handling` object,
+  in the order to read them. That object gives each distinct instruction's text
+  once; ids belong only to that batch. Follow every named clause for this event.
+  The vendored layer supplies its kind's clauses whose condition the event meets,
+  so a plain comment is not told how to read a drawing and a page widget's pick
+  is not told how a thread answers. A missing or invalid registry leaves the
+  event's `handling` out and the batch's object empty rather than substituting
   another layer's rules.
 
 The batch-level `conversations` carry each needed anchor, closure state, earlier

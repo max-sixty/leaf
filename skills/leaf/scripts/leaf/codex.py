@@ -966,6 +966,17 @@ def queue_records(session_id: str) -> list[tuple[Path, dict]]:
         for path in directory.glob("*.json")
         if (queue := read_json(path)) is not None
         and queue.get("format") == QUEUE_FORMAT
+        and (
+            queue["state"] != "collecting"
+            or all("handling" in batch for batch in queue["batches"])
+        )
+        and (
+            queue["state"] != "offering"
+            or (
+                (payload := read_json(delivery_path(path.stem))) is not None
+                and payload.get("format") == DELIVERY_FORMAT
+            )
+        )
     ]
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
@@ -1109,11 +1120,8 @@ def append_batch(
         as_of_seq=max(event["seq"] for event in fresh),
     )
     entry = {
-        "page": data["page"],
+        **data,
         "session": session_id,
-        "through_seq": data["through_seq"],
-        "conversations": data["conversations"],
-        "events": data["events"],
         "receipted": False,
     }
     queue["batches"].append(entry)

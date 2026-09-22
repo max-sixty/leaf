@@ -56,11 +56,15 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
 <a id="item-20"></a>
 
-- **#20** **Teach the few compositions that earn their place** — Put tested document, configuration and queue/detail recipes into the existing package guidance.
+- **#20** **Teach the few compositions that earn their place** — Put useful composition suggestions in the owning widget or package guidance, with worked examples where they help authors choose.
 
   **Evidence / confidence:** Guidance experiment after observed authoring failures. The current authoring reference explains the primitives and links examples. We have not tested whether an unfamiliar agent chooses the right shape, state owner or fallback order from that guidance.
 
-  **Next task:** Use failures from #19 to write short compositional recipes with one state owner, meaningful pane labels, purposeful furniture and authored-order flow. Validate with an agent that has not seen this design discussion.
+  The agent-loop review supplied current and proposed flowcharts in separate tabs; the reader then asked for a diagram showing the change itself. Its author had read the diagram reference and selected the package. The `pr-walkthrough` example's “Behavior diff” already shows changes in place. The optional `code-review` package now trials task-level authoring suggestions, including behavior comparisons; whether a cold author discovers and uses it remains unmeasured.
+
+  **Next task:** Use failures from #19 to test short suggestions for document, configuration, queue/detail and comparison tasks with an unfamiliar agent. Preserve one state owner, meaningful pane labels, purposeful furniture and authored-order flow. For comparisons, include process simplification, structural change, and an unchanged system as a control: judge whether the reader can identify the differences, not whether every page contains a diagram.
+
+  Check discovery both before package selection and through `page guidance PAGE author`. Keep widget-specific advice in `x-guidance`, cross-widget compositions in package guidance, and general selection principles in the authoring reference. Add a task-oriented discovery route only if authors miss relevant packages; compare it with the existing routes before building it.
 
   **Done when:** A fresh agent builds the task using the documented surfaces without copying runtime internals or inventing layout-specific state. Keep only guidance that changes the result.
 

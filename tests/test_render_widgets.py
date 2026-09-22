@@ -9574,11 +9574,13 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     720 pixels of nothing wide, and `once` refuses the second upgrade that would put it
     right, so the reader would open the panel onto an empty box for the life of the tab.
 
-    The reply is in the log before the page loads and the panel is shut, which is the
-    boxless arrangement in full: a shut panel is `display: none`, while the collapsed
-    card under an open one is a native disclosure whose skipped contents still lay out
-    against the panel's width. So the panel is what the chart waits for, and opening the
-    card's title is what puts the drawing on screen."""
+    The reply is in the log before the page loads and the panel is shut, and the card
+    inside it is shut too — two boxless arrangements rather than one, which read
+    differently and hold the drawing back the same way. A shut panel is `display: none`
+    and answers every query with zero. A shut card is a native disclosure: its skipped
+    contents answer a layout query against the panel's width and report no box at all to
+    the `ResizeObserver` the runtime measures on. So the chart waits through both, and
+    the card's title is what hands it the room it draws to."""
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -9608,7 +9610,17 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     ), "the panel must be shut, or there was a box all along"
 
     page.locator(".lf-threads-toggle").click()
-    assert page.locator("#msg-chart").evaluate("chart => chart.clientWidth") > 100
+    panel_settled(page)
+    # The second half of the same wait, and the reason it is not visible as one: a box is
+    # readable here, and the chart is still undrawn. Read together, because the pair is
+    # the claim — either alone reads as the arrangement the line above already denied.
+    room, drew = page.locator("#msg-chart").evaluate(
+        "chart => [chart.clientWidth, Boolean(chart.querySelector('svg'))]"
+    )
+    assert room > 100 and not drew, (
+        "a shut card answers a layout query with the panel's width and still holds the "
+        f"drawing back; here it did not: width {room}, drawn {drew}"
+    )
     page.locator(".lf-thread-summary").click()
     expect(page.locator("#msg-chart svg")).to_be_visible()
     page.wait_for_function(

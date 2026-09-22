@@ -1466,10 +1466,9 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
-    thread_panel = (assets / "runtime" / "thread-panel.js").read_text()
+    auxiliary_surfaces = (assets / "runtime" / "auxiliary-surfaces.js").read_text()
     for pattern, source in (
-        (r'^export const THREAD_PANEL_KEY = "([^"]+)";', thread_panel),
-        (r'^export const TRAY_SLOT_KEY = "([^"]+)";', trays),
+        (r'^export const AUXILIARY_SURFACE_KEY = "([^"]+)";', auxiliary_surfaces),
         (r'key: "(lf-thread-panel-width)"', layout),
         (r'key: "(lf-tray-slot-width)"', trays),
     ):

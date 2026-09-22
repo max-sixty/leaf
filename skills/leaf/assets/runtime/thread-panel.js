@@ -12,26 +12,14 @@ import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js"
 import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
 import { letGo } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
+import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 
-export const THREAD_PANEL_KEY = "lf-thread-panel-open";
-
-// Visibility is application state, while the dialog, class, and body attribute are its
-// rendering. Construct this reading before layout so every consumer can receive the same
-// query without recovering state from those rendered effects. Only setPanel receives the
-// writer.
-export function createPanelVisibility() {
-  let open = false;
-  return {
-    panelIsOpen: () => open,
-    setPanelOpen: (next) => (open = next),
-  };
-}
+export const panelIsOpen = () => currentAuxiliarySurface() === "threads";
 
 export function createThreadPanelController({
-  visibility: { panelIsOpen, setPanelOpen },
-  layout: { moveContentFrame, syncLayout },
-  elements: { panel, toggleBtn },
-  hideTray,
+  auxiliarySurfaces,
+  panelCovers,
+  elements: { panel, toggleBtn, threadsBox },
   widen,
   activeInlineThread,
   showThread,
@@ -39,10 +27,6 @@ export function createThreadPanelController({
   closeReactionMode,
   closePreview,
   syncGeneral,
-  refreshHover,
-  rememberOpen,
-  modality,
-  repaint,
 }) {
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
   // so the invoker has to be given its focus back: raising the panel is not a request to
@@ -61,26 +45,17 @@ export function createThreadPanelController({
     if (invoker?.isConnected && !panel.contains(invoker))
       invoker.focus({ preventScroll: true });
   }
-  function setPanel(open, { remember = true } = {}) {
-    if (open) hideTray({ remember });
-    else modality.sync(false);
+  function setPanel(open, options) {
+    if (open || panelIsOpen())
+      auxiliarySurfaces.select(open ? "threads" : null, options);
+  }
+  function paintPanel(open) {
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
     // the pointer already is. The Escape step below lands the reader on the page instead.
     if (!open && panel.contains(document.activeElement))
       toggleBtn.focus({ preventScroll: true });
-    // Twice, the two readers being on opposite sides of the chrome's own scope: the class
-    // shows the panel, from a rule inside it, and the attribute is what the page yields its
-    // strip to, from a rule outside. A document-level rule naming .lf-thread-panel would be a name
-    // a page could coin and take the strip with, which is the leak
-    // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
-    // body, where page CSS can see it without naming private chrome.
-    setPanelOpen(open);
     panel.classList.toggle("open", open);
-    moveContentFrame(() => {
-      if (open) document.body.dataset.lfAuxiliarySurface = "threads";
-      else delete document.body.dataset.lfAuxiliarySurface;
-    });
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {
       // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
@@ -92,20 +67,18 @@ export function createThreadPanelController({
       showPanelLayer();
       refreshConversation();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
-      modality.sync(true);
     } else if (panel.open) panel.close();
-    syncLayout();
     if (open) closePreview();
-    if (remember) rememberOpen(open);
-    repaint();
-    // The panel is one of the two surfaces the hover reads, so its arriving or going away
-    // is the pointer moving even when the pointer has not: closing it with the keyboard,
-    // from a hand resting on a card, took the card out from under the pointer and left the
-    // page lit about a comment with no panel to explain it. The open half comes free from
-    // the conversation paint, which reads :hover once the list it drew has laid out
-    // (thread-list.js's postPaint); this is the half that has no render.
-    refreshHover();
   }
+  auxiliarySurfaces.registerAuxiliarySurface({
+    key: "threads",
+    surface: panel,
+    scroller: () => threadsBox,
+    covers: panelCovers,
+    focus: () => threadsBox,
+    show: () => paintPanel(true),
+    hide: () => paintPanel(false),
+  });
   function mountThreadPanel() {
     let pressedInlineThread = null;
     toggleBtn.addEventListener("pointerdown", () => {

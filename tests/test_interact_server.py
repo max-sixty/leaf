@@ -3490,9 +3490,10 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     assert error["kind"] == "error" and error["author"] == "page"
     assert error in service_model.unacknowledged(events, 0)
     assert presence_model.presence(page_dir, events)["pending"] == 0
-    result = CliRunner().invoke(
-        cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
-    )
+    delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert delivered.exit_code == 0, delivered.output
+    delivery = json.loads(delivered.output)
+    result = CliRunner().invoke(cli_model.cli, ["wait", "--ack", delivery["id"]])
     # The page error was an acknowledgeable target, so the cursor moved and the
     # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
     assert result.exit_code == 2, result.output

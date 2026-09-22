@@ -19,7 +19,7 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
    ```text
    This Leaf batch was forwarded by a watcher task. Handle every event, but do not run
-   `leaf wait` or `leaf ack`: the watcher owns both and acknowledges only after this
+   `leaf wait`: the watcher owns both and acknowledges only after this
    follow-up is accepted. A page and event seq already handled is a retry, even when a
    later delivery also contains newer events.
    ```
@@ -28,9 +28,9 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    uncertain, acknowledge nothing and resend the same follow-up. If the wait output was
    lost or truncated, acknowledge nothing and rerun `leaf wait <page>`, as the batch
    reference says.
-4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
+4. After the host accepts the follow-up, run `leaf wait --ack <delivery-id>` in
    unified exec. Retain and poll that command's session id: after advancing the
-   cursor, ack stays active as the next wait. A batch on stdout is the next
+   cursor, it stays active as the next wait. A batch on stdout is the next
    delivery; return to step 3. An ending on stderr is one of those the batch
    reference lists, and each ends the watcher except a recovery, which resumes
    with an unnamed wait. Step 3's

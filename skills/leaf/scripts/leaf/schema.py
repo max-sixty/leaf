@@ -63,17 +63,16 @@ ANSWER_ASK_INSTRUCTION = (
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, conversation context, and response "
-    "requirements as an immutable delivery. Run `leaf delivery claim <id>` to mark "
-    "the outstanding move Working. `leaf delivery read <id>` reads that same delivery."
+    "requirements as an immutable delivery. `leaf delivery read <id>` reads that same delivery."
 )
 ACK_BATCH_INSTRUCTION = (
     "If output is truncated, acknowledge nothing; rerun with enough output capacity "
     "for the whole batch. If you handle the batch yourself, read it fully before "
     "acknowledging. If forwarding it, wait for durable delivery to its handler. "
-    "Then run `leaf ack <page> <through-seq>` in the background, using the batch's "
-    "page and sequence. Ack advances the cursor, then "
-    "waits for the next batch while the page remains live."
+    "Then run `leaf wait --ack <delivery-id>` in the background to acknowledge "
+    "its captured batches and wait for the next batch while the page remains live."
 )
+
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"

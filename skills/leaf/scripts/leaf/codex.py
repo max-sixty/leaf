@@ -40,6 +40,8 @@ from .delivery import (
     current_responses,
     delivery_path,
     freeze_delivery,
+    receive_batch,
+    record_pickup,
 )
 from .event_log import flocked
 from .files import read_json, write_json
@@ -51,7 +53,6 @@ from .service import (
     restore_page_claim,
     unacknowledged,
 )
-from .session import acknowledge, record_pickup
 
 START_TIMEOUT = 20
 QUEUE_FORMAT = "leaf-codex-queue-v1"
@@ -263,7 +264,7 @@ def app_server_delivery_id(message: dict) -> str | None:
             if (
                 pointer.tag == "leaf-delivery"
                 and set(pointer.attrib) == {"id", "operation"}
-                and pointer.attrib["operation"] == "delivery claim"
+                and pointer.attrib["operation"] == "delivery read"
             ):
                 found.add(pointer.attrib["id"])
     return next(iter(found)) if len(found) == 1 else None
@@ -999,7 +1000,7 @@ def _collecting_queue(
 
 def delivery_pointer_prompt(delivery_id: str, payload: dict | None = None) -> str:
     delivery = ElementTree.Element(
-        "leaf-delivery", {"id": delivery_id, "operation": "delivery claim"}
+        "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
     )
     if payload is not None:
         for batch in payload["batches"]:
@@ -1249,29 +1250,18 @@ def accept_codex_delivery(
     for batch in batches:
         page_dir = Path(batch["page"])
         expected = {event["seq"]: event["id"] for event in batch["events"]}
-        with PageTransaction(page_dir) as page:
-            claim = page.active_claim
-            if claim is None or claim["id"] != session_id:
-                raise RuntimeError("the Codex delivery no longer owns its page")
-            delivered = {
-                event["seq"]: event
-                for event in page.events
-                if min(expected) <= event["seq"] <= max(expected)
-            }
-            if not all(
-                delivered.get(seq, {}).get("id") == event_id
-                for seq, event_id in expected.items()
-            ):
-                raise RuntimeError("the Codex delivery no longer matches its page log")
+        with (
+            PageTransaction(page_dir) as page,
+            receive_batch(page, batch, session_id=session_id) as delivered,
+        ):
             claim_turn = page.open_turn(session_id, turn) if phase == "opened" else None
             record_pickup(
                 page,
-                [delivered[seq] for seq in expected],
+                delivered,
                 phase=phase,
                 session=session_id,
                 turn=claim_turn,
             )
-            acknowledge(page, max(expected))
             accepted.append(
                 {
                     "page": page_dir,

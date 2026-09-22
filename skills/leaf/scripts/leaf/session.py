@@ -8,9 +8,14 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .activity import unanswered
-from .delivery import batch_data, freeze_delivery, read_delivery
-from .event_contracts import append_admitted
-from .files import read_json, write_json
+from .delivery import (
+    batch_data,
+    freeze_delivery,
+    read_delivery,
+    receive_batch,
+    record_pickup,
+)
+from .files import read_json
 from .host import Harness, session_harness
 from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
@@ -19,7 +24,6 @@ from .revisioning import activate_source
 from .schema import (
     ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
-    CURSOR_FILE,
     SERVICE_FILE,
     STATUS_FILE,
 )
@@ -216,40 +220,44 @@ class Watch:
     down with no restart left to make.
     """
 
-    def __init__(self, harness: Harness | None, named: Path | None = None):
+    def __init__(self, harness: Harness | None, pages: tuple[Path, ...] = ()):
         self.harness = harness
         self.session_id = harness.session if harness else None
-        self.named = named
-        self.lease_path = waiter_lease_path(named, self.session_id)
-        self.lease = None
+        self.explicit_pages = pages
+        targets = (None,) if harness else pages
+        self.lease_paths = tuple(
+            waiter_lease_path(page, self.session_id) for page in targets
+        )
+        self.leases = []
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
 
     def acquire(self) -> bool:
-        """Take this carrier's exact liveness lease, idempotently."""
-        if self.lease is not None or self.lease_path is None:
+        """Hold the session lease, or every explicitly watched standalone page."""
+        if self.leases:
             return True
-        self.lease = take_waiter_lease(self.lease_path)
-        return self.lease is not None
+        for path in self.lease_paths:
+            lease = take_waiter_lease(path)
+            if lease is None:
+                self.release()
+                return False
+            self.leases.append(lease)
+        return True
 
     def pages(self) -> list:
-        """Every page this session holds, re-read each pass, so a page served
-        mid-watch joins it and a page another session picked up drops out.
-        Naming one holds it in the set whatever the registry says — how a
-        session picks up a leaf it didn't serve. A bare shell has no implicit
-        ownership set, so it watches only a page explicitly named."""
+        """Read the current ownership set and include explicitly named pages."""
         watched = owned_pages(self.session_id) if self.harness is not None else []
-        named_at = None if self.named is None else path_location(self.named)
-        if named_at is not None and not any(
-            path_location(d) == named_at for d in watched
-        ):
-            watched.append(self.named)
+        locations = {path_location(page) for page in watched}
+        for page in self.explicit_pages:
+            if path_location(page) not in locations:
+                watched.append(page)
+                locations.add(path_location(page))
         return watched
 
     def tick(self):
         """Yield each page while its ownership and delivery lock is held."""
-        if self.lease_path is not None and self.lease is None:
+        if len(self.leases) != len(self.lease_paths):
             return
         for page_dir in self.pages():
             # This is only the account returned if ownership is already gone.
@@ -339,9 +347,9 @@ class Watch:
 
     def release(self) -> None:
         """Release this carrier's liveness proof, however it ended."""
-        if self.lease is not None:
-            self.lease.close()
-            self.lease = None
+        for lease in self.leases:
+            lease.close()
+        self.leases.clear()
 
 
 class _WatchPass(NamedTuple):
@@ -360,73 +368,15 @@ def delivery_json(reading: PageTick) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def record_pickup(
-    page: PageTransaction,
-    events: list[dict],
-    *,
-    phase: str = "opened",
-    session: str | None = None,
-    turn: str | None = None,
-) -> dict | None:
-    """Durably record one delivery transition for exact reader moves.
-
-    ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn. Both are transport
-    evidence, not authored work claims. A queued transition may therefore be
-    followed by an opened transition for the same events, while a retry of the
-    same transition appends nothing.
-    """
-    if phase not in {"queued", "opened"}:
-        raise ValueError(f"unknown pickup phase {phase!r}")
-    claim = page.claim
-    if session is None and claim:
-        session = claim.get("id")
-    if phase == "opened" and turn is None and claim and claim.get("id") == session:
-        turn = claim.get("turn")
-    wanted = [event["id"] for event in events if event.get("author") == "user"]
-    picked = {
-        (event_id, event["phase"], event["session"], event["turn"])
-        for event in page.events
-        if event["kind"] == "pickup"
-        for event_id in event["events"]
-    }
-    fresh = list(
-        dict.fromkeys(
-            event_id
-            for event_id in wanted
-            if (event_id, phase, session, turn) not in picked
-        )
-    )
-    if not fresh:
-        return None
-    return append_admitted(
-        page,
-        {
-            "kind": "pickup",
-            "author": "page",
-            "events": fresh,
-            "phase": phase,
-            "session": session,
-            "turn": turn,
-        },
-    )
-
-
-def _deliver_batch(reading: PageTick) -> bool:
-    """Write one page's complete batch to its direct consumer.
-
-    Answers that a turn opened, because under this carrier the handoff is the
-    opening: `leaf wait` returns with the batch on stdout and the words are in
-    model context before anything else runs.
-    """
+def _deliver_batch(reading: PageTick) -> None:
+    """Print immutable input; only the consumer can confirm receipt."""
     print(delivery_json(reading), flush=True)
-    return True
 
 
 def read_watch_pass(
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], bool] = _deliver_batch,
+    deliver: Callable[[PageTick], None] = _deliver_batch,
 ) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
@@ -454,28 +404,7 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
-            # Whether handing the batch over opens a turn is the carrier's to
-            # answer rather than something read off it. A direct wait says yes:
-            # leaving the Stop hook's stamp standing through the turn it exits
-            # into is what had the page telling the reader the agent had left
-            # and to nudge it, two minutes into a turn spent answering them. The
-            # Codex adapter says no; its own docstring holds why. The prompt
-            # hook stamps the openings no delivery carries. The Stop hook closed
-            # the turn across the session's pages, so an opening here reopens
-            # the same set.
-            if deliver(reading):
-                turn = None
-                if watch.session_id:
-                    turn = reading.transaction.open_turn(watch.session_id)
-                record_pickup(
-                    reading.transaction,
-                    reading.batch,
-                    phase="opened",
-                    session=watch.session_id,
-                    turn=turn,
-                )
-                if watch.session_id:
-                    open_session_turn(watch.session_id, reading.transaction)
+            deliver(reading)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             # A session-wide carrier still serves its other leaves. Treat the
@@ -536,43 +465,51 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     return 2
 
 
-def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
-    """Hold until a user speaks or a worker reports, and deliver what was said.
+def receive_delivery(delivery_id: str) -> list[Path]:
+    """Confirm complete input and record its entry into this consumer's turn.
 
-    One watcher covers the session. The watch set is every page the session
-    holds, re-read each pass, so a page served mid-wait joins the running watch
-    without a second command, and a page another session has since picked up
-    drops out on its own. With `claim_named`, naming PAGE claims it first — how
-    a session picks up a leaf it didn't serve — and holds it in the set. Without
-    that flag, an ack re-arm uses PAGE only as the delivered batch's coordinate:
-    a host resumes the session-wide set it already owns, while outside a host
-    the named page remains the whole watch set. A batch is one page's events, so
-    its envelope names the page and carries the conversations they land in,
-    and `leaf ack` goes back to that page. The JSON envelope says nothing about
-    what consumes it. The wait owner advances the cursor only after the complete
-    batch reaches that next durable consumer.
+    Each page uses its own transaction. Interrupted multi-page receipt can be
+    retried against the same immutable bounds; no receipt transfers ownership.
+    Printing a delivery cannot call this: the next durable consumer confirms it.
+    """
+    payload = read_delivery(delivery_id)
+    harness = session_harness()
+    session_id = harness.session if harness else None
+    pages = []
+    for batch in payload["batches"]:
+        page_dir = Path(batch["page"])
+        with (
+            PageTransaction(page_dir) as page,
+            receive_batch(page, batch, session_id=session_id) as events,
+        ):
+            turn = page.open_turn(session_id) if session_id else None
+            record_pickup(page, events, session=session_id, turn=turn)
+            if session_id:
+                open_session_turn(session_id, page)
+        pages.append(page_dir)
+    return pages
 
-    A wait ends on someone speaking, on the last watched leaf ending, or on a
-    server being down with no restart to make — the named page's at once, an
-    unnamed sibling's only once no live watched leaf remains. It puts no clock
-    on how long a user takes, because there is no such measurement to take from
-    this side of the wire: a page whose address their browser can't route to and
-    one they simply haven't opened yet look identical at every length, so a
-    deadline over it announces the first while describing the second — and the
-    second is the ordinary case. Only their browser can tell them apart, and the
-    user holds the URL from the turn that handed it over, so the report comes
-    from them; references/serving-pages.md's "Unreachable URLs and `--host`"
-    carries the recourse."""
-    if page_dir is not None and claim_named:
+
+def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
+    """Confirm a complete delivery, if given, then watch for the next batch.
+
+    A named initial wait claims that page. A receipt resumes the session's
+    current ownership set without taking any page back from a successor. A
+    standalone consumer watches the pages its delivery names. Exit 0 carries
+    the next immutable delivery; exit 2 names why the watch ended. A refused
+    receipt raises before a watch starts, leaving that page's cursor unchanged.
+    """
+    if page_dir is not None and ack is not None:
+        raise ValueError("PAGE and --ack cannot be used together")
+    received = receive_delivery(ack) if ack is not None else []
+    if page_dir is not None:
         claim_page(page_dir)
     harness = session_harness()
-    # A host re-arm resumes its session-wide watch. The page stays named only
-    # for a public wait that claims it, or for the bare shell whose named page
-    # is its whole watch set.
-    named = page_dir if claim_named or harness is None else None
-    watch = Watch(harness, named=named)
+    explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
+    named = explicit[0] if len(explicit) == 1 else None
+    watch = Watch(harness, pages=explicit)
     if not watch.acquire():
-        target = "this session" if harness else str(page_dir)
+        target = "this session" if harness else ", ".join(map(str, explicit))
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
         return 2
     try:
@@ -580,38 +517,8 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
             reading = read_watch_pass(watch, named)
             if reading.outcome is not None:
                 return reading.outcome
-            # A leaf the agent idled has nobody left to carry a comment to, so it
-            # leaves the watch, and the last one gone ends the wait too.
             if not reading.live:
-                return _ended_watch(reading.readings, page_dir)
+                return _ended_watch(reading.readings, named)
             time.sleep(1)
     finally:
         watch.release()
-
-
-def acknowledge(page: PageTransaction, seq: int) -> None:
-    """Advance one locked page through a delivered batch target."""
-    events = page.events
-    # By the seq the event carries, never by its position in the list. A seq
-    # is a line number and read_events skips what it can't read, so the two
-    # coincide only on a log nothing tore.
-    target = next((e for e in events if e["seq"] == seq), None)
-    if target is None:
-        end = events[-1]["seq"] if events else 0
-        sys.exit(f"event {seq} does not exist; the log ends at {end}")
-    if target["author"] != "user" and target["kind"] not in ("report", "error"):
-        sys.exit(f"event {seq} is not a user event, a report, or a page error")
-    if seq > page.cursor:
-        write_json(page.page_dir / CURSOR_FILE, {"seq": seq})
-
-
-def cmd_ack(page_dir: Path, seq: int) -> None:
-    """Acknowledge through one event of a complete wait batch that reached delivery.
-
-    The target must be something `leaf wait` prints — a user event or a
-    worker's report. This catches a mistyped sequence and prevents an agent from
-    advancing the cursor to a trailing log entry it never saw. Writing only when
-    the cursor advances makes retries harmless.
-    """
-    with PageTransaction(page_dir) as page:
-        acknowledge(page, seq)

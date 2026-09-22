@@ -145,7 +145,7 @@ A page directory holds:
                          so this is reader attention rather than tab lifetime
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
-                         `leaf ack`; a page-owned pickup event separately names
+                         `leaf wait --ack`; a page-owned pickup event separately names
                          the exact reader events accepted by that consumer.
                          The seq is a position in this log: a fresh log starts
                          without the cursor of the log it replaced, and a seq past

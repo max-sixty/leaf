@@ -314,13 +314,13 @@ def check_source(
             )
             child = specimen["document"]
             selected = set(specimen["attrs"].get("data-specimen-threads", "").split())
-            # A template may precede its seed log. Check the history available now;
-            # allocation requires every declared root when it copies the child.
-            available = comment_ids(parent_events)
+            # A template may precede its seed log, and the selection reads against
+            # whatever the log holds — so the child checked here is the child
+            # allocation would build from this document and this history.
             child_events = [
                 {**event, "seq": index}
                 for index, event in enumerate(
-                    specimen_events(parent, parent_events, selected & available), 1
+                    specimen_events(parent, parent_events, selected), 1
                 )
             ]
             documents.append((child, child_events, name))

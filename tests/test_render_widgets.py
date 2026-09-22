@@ -2409,15 +2409,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.wait_for_function("() => document.scrollingElement.scrollTop >= 750")
     assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
 
-    # Map travel keeps the reader oriented rather than teleporting. This records the
-    # browser's actual scroll sequence; it does not make a duration claim.
-    page.evaluate(
-        "() => { document.scrollingElement.scrollTo({top: 0, behavior: 'instant'}); "
-        "window.lfTocFrames = []; "
-        "const sample = () => { window.lfTocFrames.push(document.scrollingElement.scrollTop); "
-        "if (window.lfTocFrames.length < 90) requestAnimationFrame(sample); }; "
-        "requestAnimationFrame(sample); }"
-    )
+    # Map travel keeps the reader oriented rather than teleporting. Start recording
+    # on the click so preparing the gesture cannot exhaust the frame sequence.
+    verify.evaluate("""link => {
+      document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
+      window.lfTocFrames = [];
+      link.addEventListener('click', () => {
+        const sample = () => {
+          window.lfTocFrames.push(document.scrollingElement.scrollTop);
+          if (window.lfTocFrames.length < 90) requestAnimationFrame(sample);
+        };
+        sample();
+      }, {once: true});
+    }""")
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)

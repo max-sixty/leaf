@@ -2139,20 +2139,19 @@ def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
     }
 
 
-def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, serve):
+def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serve):
     """A key on screen is a key that works, and its inversion costs just as much: the
     press is real, the reader can make it, and no surface says so.
 
-    A widget may still declare the meaning of a native press when that meaning is worth
-    naming in Leaf's command reference. The row describes the platform fact without
+    A widget may still declare the meaning of an owned press when that meaning is worth
+    naming in Leaf's command reference. The row describes the control's behavior without
     reimplementing it.
 
-    The two differ in what they answer, and saying so is the point: a <summary> is
-    button-like and takes both keys, while a checkbox takes Space alone, Enter being
-    the form's key and a leaf page having no form. Neither row binds a `run`: the
-    checkbox's press is the platform's, and the summary's is the disclosure scope's,
-    which has to reach a staged control the same way this declaration does. A row
-    consuming a press it does not make would be the same lie from the other side.
+    The comparison handle's arrows and endpoints are the component's own keyboard
+    pattern, while a <summary> answers Enter and Space itself and leaves its horizontal
+    arrow to the disclosure scope. The component and browser rows bind no `run`; the
+    summary's arrow does. A row consuming a press it does not make would be the same lie
+    from the other side.
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
@@ -2164,18 +2163,16 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page = open_page(browser, url)
     line = page.locator(".lf-shortcut-bar")
 
-    box = page.locator("lf-shot input[type=checkbox]")
-    box.scroll_into_view_if_needed()
-    box.focus()
-    expect(line).to_contain_text("show after")
-    page.keyboard.press(" ")
-    expect(box).to_be_checked()
-    # The word is read where it is painted, so it names the frame this press brings up
-    # rather than covering both with one that is never wrong and never says anything.
-    expect(line).to_contain_text("show before")
-    # Enter is not on the row and not the control's: it must leave the box alone.
-    page.keyboard.press("Enter")
-    expect(box).to_be_checked()
+    comparison = page.locator("lf-shot wa-comparison")
+    handle = comparison.get_by_role("scrollbar")
+    handle.scroll_into_view_if_needed()
+    handle.focus()
+    expect(line).to_contain_text("adjust the comparison")
+    expect(line).to_contain_text("jump to an endpoint")
+    page.keyboard.press("ArrowRight")
+    expect(comparison).to_have_attribute("position", "51")
+    page.keyboard.press("End")
+    expect(comparison).to_have_attribute("position", "100")
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first

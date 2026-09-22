@@ -33,9 +33,9 @@ The main owners are:
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, conversation writes, and the host-neutral delivery-bound reply
   lifecycle;
-- `acknowledgments`: unsettled reader moves and their strongest delivery or
+- `workflows`: unsettled reader moves and their strongest delivery or
   subject-work evidence;
-- `activity`: the canonical page-level fold over acknowledgments, status, claim,
+- `activity`: the canonical page-level fold over workflows, status, claim,
   turn, and watcher evidence;
 - `work`: transient subject claims and widget work seats;
 - `asks`: the declaration-driven page and thread Ask projections, and the one

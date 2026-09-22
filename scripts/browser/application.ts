@@ -552,10 +552,11 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
+    const pendingMessages = unreadMessages(unresolved, receipts);
     const folded = ready
       ? foldThreads(
           state?.browser.conversation.threads ?? [],
-          unreadMessages(unresolved, receipts),
+          pendingMessages,
           pendingReactions(unresolved, receipts),
           pendingSettlements(unresolved, receipts),
         )
@@ -573,21 +574,27 @@ export function createSemanticApplication({
         ? { ...thread, awaits_reader: true }
         : thread,
     );
-    const workflows = [
-      ...(state?.workflows ?? []),
-      ...unreadMessages(unresolved, receipts).map((message: any) => ({
-        id: `pending:${message.attempt}`,
-        seq:
-          unresolved.find((entry: any) => entry.message?.id === message.id)?.order ?? 0,
-        input: message.id,
-        subject: {
-          kind: "thread",
-          id: message.kind === "reply" ? message.parent : message.id,
-        },
-        coordinate: null,
-        requires_response: true,
+    const entriesByMessage = new Map(
+      unresolved
+        .filter((entry: any) => entry.message)
+        .map((entry: any) => [entry.message.id, entry]),
+    );
+    const localWorkflow = (entry: any, rejected: boolean) => {
+      const message = entry.message;
+      return {
+        id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
+        seq: entry.order,
+        input: message?.id ?? entry.localId,
+        subject: message
+          ? {
+              kind: "thread",
+              id: message.kind === "reply" ? message.parent : message.id,
+            }
+          : { kind: "widget", id: entry.event.widget },
+        coordinate: entry.projection?.coordinate ?? null,
+        requires_response: !rejected,
         stage: "sending",
-        ts: message.ts,
+        ts: message?.ts ?? null,
         detail: "",
         agent: null,
         session: null,
@@ -596,46 +603,20 @@ export function createSemanticApplication({
         delivery_turn: null,
         response: null,
         activity: [],
-        condition: null,
-        next_actor: "agent",
-      })),
+        condition: rejected ? { kind: "failed", operation: "delivery" } : null,
+        next_actor: rejected ? "reader" : "agent",
+      };
+    };
+    const workflows = [
+      ...(state ? state.workflows : []),
+      ...pendingMessages.map((message: any) =>
+        localWorkflow(entriesByMessage.get(message.id), false),
+      ),
       ...unresolved
         .filter((entry: any) => entry.rejected)
-        .map((entry: any) => {
-          const message = entry.message;
-          return {
-            id: `rejected:${entry.event.attempt}`,
-            seq: entry.order,
-            input: message?.id ?? entry.localId,
-            subject: message
-              ? {
-                  kind: "thread",
-                  id: message.kind === "reply" ? message.parent : message.id,
-                }
-              : { kind: "widget", id: entry.event.widget },
-            coordinate: entry.projection?.coordinate ?? null,
-            requires_response: false,
-            stage: "sending",
-            ts: message?.ts ?? null,
-            detail: "",
-            agent: null,
-            session: null,
-            delivery_seq: null,
-            delivery_session: null,
-            delivery_turn: null,
-            response: null,
-            activity: [],
-            condition: { kind: "failed", operation: "delivery" },
-            next_actor: "reader",
-          };
-        }),
+        .map((entry: any) => localWorkflow(entry, true)),
     ];
-    const threads = readThreadRecords(
-      obligated,
-      document,
-      widgets,
-      workflows,
-    );
+    const threads = readThreadRecords(obligated, document, widgets, workflows);
     return {
       hostAvailable,
       projection,

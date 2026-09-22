@@ -400,25 +400,25 @@
         <h1>What is happening, and who needs to act?</h1>
         <p>
           Message workflows now combine delivery, sending and failure, and response
-          progress into one reading for messages, thread rows, and the margin. The
-          implementation is local; overall page activity remains separate.
+          progress into one reading for messages, thread rows, and the margin. Overall
+          page activity remains separate.
         </p>
       </header>
       <section id="activity-ontology">
         <h2>One message workflow, distinct page state</h2>
         <p id="current-review">
-          The combined workflow is ready for local review. No PR or merge has been made
-          for this change. The comparisons below show the visible changes; no design
-          decision is waiting on you. Exact input and response bindings preserve newer
-          unanswered messages. Independent jobs and notification subscriptions remain
-          later work.
+          Messages, thread rows, and margin entries share one workflow reading. Exact
+          input and response bindings preserve newer unanswered messages; standing
+          reader questions survive later informational updates. The comparisons below
+          show the visible changes. Independent jobs and notification subscriptions
+          remain later work.
         </p>
         <p id="workflow-validation">
-          Validation covers 1,255 everyday tests, 272 conversation, margin, and options
-          browser cases, 97 browser model tests, and 63 Worker tests. Build and lint
-          checks pass. Matched browser checks exercised keyboard submission, Escape
-          navigation, and standing questions after later updates. Startup loads the same
-          181 requests, with slightly fewer bytes; both browser consoles are clean.
+          Backend and browser coverage exercises sending, refusal, response progress,
+          standing questions, stale work, and recovery. Matched browser checks also
+          cover keyboard submission and Escape navigation. The implementation uses one
+          local-send producer, one-pass workflow selection, and indexed widget
+          membership; the owning contracts live beside the code.
         </p>
         <table id="proposed-status-model">
           <thead>
@@ -597,7 +597,7 @@
           </p>
         </section>
         <details>
-          <summary>Existing implementation inventory</summary>
+          <summary>Earlier inventory — before consolidation</summary>
           <table id="activity-inventory">
             <thead>
               <tr>
@@ -640,8 +640,8 @@
             </tbody>
           </table>
           <p>
-            The full source and storage map is in
-            <code>notes/activity-ontology.md</code>.
+            This earlier inventory motivated the consolidation. The current contract is
+            in <code>skills/leaf/scripts/leaf/session-lifetime.md</code>.
           </p>
         </details>
       </section>

@@ -4,7 +4,6 @@ import copy
 import time
 from pathlib import Path
 
-from ..acknowledgments import canonical_workflows
 from ..activity import canonical_activity, canonical_stream_reply
 from ..data import browser_data, browser_data_from
 from ..event_log import now_iso
@@ -16,6 +15,7 @@ from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
+from ..workflows import canonical_workflows
 from .browser import project_browser_state
 
 

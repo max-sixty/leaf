@@ -126,7 +126,7 @@ const authoredMessage = (message) => {
   return prepared;
 };
 const FAILURE_LABEL = "Not answered";
-export function messageReading(message, { panel, reactions, workflows = [] }) {
+export function messageReading(message, { panel, reactions, workflows }) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
@@ -147,7 +147,6 @@ export function messageReading(message, { panel, reactions, workflows = [] }) {
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
     workflow,
-    workflows,
     workflowLabel: workflowLabel(workflow),
     workflowTitle: workflowTitle(workflow),
     body: Object.freeze({

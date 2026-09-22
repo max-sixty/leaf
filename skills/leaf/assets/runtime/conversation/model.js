@@ -134,11 +134,18 @@ export const threadSummary = (thread) => ({
    captured words, registry identities and current unit state cross this boundary. */
 export function readThreadRecords(threads, document, widgets, workflows) {
   const workflowsByInput = new Map();
+  const workflowsByWidget = new Map();
   for (const workflow of workflows) {
-    if (!workflow.input) continue;
-    const current = workflowsByInput.get(workflow.input) ?? [];
-    current.push(workflow);
-    workflowsByInput.set(workflow.input, current);
+    if (workflow.input) {
+      const current = workflowsByInput.get(workflow.input) ?? [];
+      current.push(workflow);
+      workflowsByInput.set(workflow.input, current);
+    }
+    if (workflow.subject.kind === "widget") {
+      const current = workflowsByWidget.get(workflow.subject.id) ?? [];
+      current.push(workflow);
+      workflowsByWidget.set(workflow.subject.id, current);
+    }
   }
   const unitsByMessage = new Map();
   for (const descriptor of document.descriptors.values()) {
@@ -203,14 +210,13 @@ export function readThreadRecords(threads, document, widgets, workflows) {
         body,
         workflows: [
           ...(workflowsByInput.get(message.id) ?? []),
-          ...workflows.filter(
-            (workflow) =>
-              workflow.subject?.kind === "widget" &&
-              units.some((unit) => unit.id === workflow.subject.id),
-          ),
+          ...units.flatMap((unit) => workflowsByWidget.get(unit.id) ?? []),
         ],
       };
     });
+    const widgetIds = new Set(
+      msgs.flatMap((message) => message.body.units?.map((unit) => unit.id) ?? []),
+    );
     return {
       key: threadKey(thread),
       root: msgs.find((message) => message.id === thread.root.id),
@@ -224,12 +230,9 @@ export function readThreadRecords(threads, document, widgets, workflows) {
       attention: thread.attention ?? null,
       workflows: workflows.filter(
         (workflow) =>
-          (workflow.subject?.kind === "thread" &&
+          (workflow.subject.kind === "thread" &&
             workflow.subject.id === thread.root.id) ||
-          (workflow.subject?.kind === "widget" &&
-            msgs.some((message) =>
-              message.body.units?.some((unit) => unit.id === workflow.subject.id),
-            )),
+          (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
       ),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

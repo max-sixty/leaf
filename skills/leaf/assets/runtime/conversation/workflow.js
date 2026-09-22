@@ -55,25 +55,34 @@ const stageRank = Object.freeze({
   replying: 6,
 });
 
+export const isLiveWorkflow = (workflow) =>
+  !workflow.condition && ["working", "replying"].includes(workflow.stage);
+
+export const isWorkflowProgress = (workflow) =>
+  !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
+
+function compareWorkflows(left, right) {
+  const nextActor =
+    Number(right.next_actor === "reader") - Number(left.next_actor === "reader");
+  if (nextActor) return nextActor;
+  const liveDifference = Number(isLiveWorkflow(right)) - Number(isLiveWorkflow(left));
+  if (liveDifference) return liveDifference;
+  const condition = Number(Boolean(right.condition)) - Number(Boolean(left.condition));
+  if (condition) return condition;
+  const stage = (stageRank[right.stage] ?? -2) - (stageRank[left.stage] ?? -2);
+  if (stage) return stage;
+  const sequence = (right.seq ?? -1) - (left.seq ?? -1);
+  if (sequence) return sequence;
+  return String(right.id).localeCompare(String(left.id));
+}
+
 export function strongestWorkflow(workflows) {
-  return (
-    [...workflows].sort((left, right) => {
-      const nextActor =
-        Number(right.next_actor === "reader") - Number(left.next_actor === "reader");
-      if (nextActor) return nextActor;
-      const live = (workflow) =>
-        !workflow.condition && ["working", "replying"].includes(workflow.stage);
-      const liveDifference = Number(live(right)) - Number(live(left));
-      if (liveDifference) return liveDifference;
-      const condition =
-        Number(Boolean(right.condition)) - Number(Boolean(left.condition));
-      if (condition) return condition;
-      const stage = (stageRank[right.stage] ?? -2) - (stageRank[left.stage] ?? -2);
-      if (stage) return stage;
-      const sequence = (right.seq ?? -1) - (left.seq ?? -1);
-      if (sequence) return sequence;
-      return String(right.id).localeCompare(String(left.id));
-    })[0] ?? null
+  return workflows.reduce(
+    (strongest, candidate) =>
+      strongest === null || compareWorkflows(candidate, strongest) < 0
+        ? candidate
+        : strongest,
+    null,
   );
 }
 

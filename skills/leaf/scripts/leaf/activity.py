@@ -251,9 +251,8 @@ def canonical_activity(
     # Page work is scoped to the live claimant, not to one reader input. A newer
     # delivery may remain queued or pending while the agent continues other work on
     # the page; its exact progress stays in `workflows` below.
-    stream_work = stream_current
     declared_work = status["state"] == "working" and not status_quiet
-    current_work = stream_work or declared_work
+    current_work = stream_current or declared_work
     opened = [item for item in outstanding if item["stage"] == "picked_up"]
     handling = [
         item
@@ -307,7 +306,7 @@ def canonical_activity(
         # declaration with no words at all, which `leaf status <page> working` writes.
         if declared_work and status.get("stated", True) and status.get("detail"):
             detail = status.get("detail", "")
-        elif stream_work:
+        elif stream_current:
             detail, ts, quiet, dropped = (
                 stream.get("detail", ""),
                 stream.get("ts"),

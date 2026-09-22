@@ -134,6 +134,8 @@ import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
 import {
+  isLiveWorkflow,
+  isWorkflowProgress,
   strongestWorkflow,
   workflowLabel,
   workflowTitle,
@@ -266,7 +268,7 @@ export function createMarginProjection({
     return snapshot;
   }
 
-  const acknowledgments = () => runtime.workflows ?? [];
+  const workflows = () => runtime.workflows;
   const renderMargin = clocked(document.body, renderNow);
   const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
@@ -501,10 +503,7 @@ export function createMarginProjection({
     strongestWorkflow(
       items
         .map((item) => item.workflowReceipt)
-        .filter(
-          (workflow) =>
-            workflow && ["picked_up", "working", "replying"].includes(workflow.stage),
-        ),
+        .filter((workflow) => workflow && isWorkflowProgress(workflow)),
     );
   const rows = new Map();
   const rowTops = new WeakMap();
@@ -790,8 +789,8 @@ export function createMarginProjection({
     group.items.push(item);
   }
 
-  function visibleAcknowledgments() {
-    return acknowledgments().filter(
+  function visibleWidgetWorkflows() {
+    return workflows().filter(
       (workflow) => workflow.subject?.kind === "widget" && workflow.coordinate,
     );
   }
@@ -819,7 +818,7 @@ export function createMarginProjection({
   function collectEntries() {
     const groups = new Map();
     const receiptByCoordinate = new Map();
-    for (const receipt of visibleAcknowledgments()) {
+    for (const receipt of visibleWidgetWorkflows()) {
       const coordinate =
         typeof receipt.coordinate === "string"
           ? receipt.coordinate
@@ -902,8 +901,8 @@ export function createMarginProjection({
       });
     }
     const claimActivity = new Map(
-      acknowledgments()
-        .filter((item) => item.stage === "working")
+      workflows()
+        .filter(isLiveWorkflow)
         .map((item) => [`${item.subject.kind}:${item.subject.id}`, item]),
     );
     const activityAlreadyShown = new Set();

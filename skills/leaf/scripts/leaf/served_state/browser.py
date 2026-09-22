@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from ..acknowledgments import canonical_workflows
 from ..activity import canonical_activity, canonical_stream_reply
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
@@ -11,6 +10,7 @@ from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
+from ..workflows import canonical_workflows
 from .conversation import browser_conversation
 from .document import browser_document, browser_undo_candidates
 

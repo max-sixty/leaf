@@ -128,10 +128,9 @@ def canonical_workflows(
     interaction_claims = {
         claim["event"]: claim for claim in claims if claim.get("scope") == "interaction"
     }
-    used_claims = set()
     used_targets = set()
 
-    def receipt(
+    def workflow(
         source: dict,
         target: dict,
         coordinate: list[str],
@@ -161,7 +160,6 @@ def canonical_workflows(
             claim.get("event") == source["id"] or claim["log_floor"] >= delivery_seq
         ):
             stage, evidence = "working", claim
-            used_claims.add(claim["id"])
             used_targets.add((target["kind"], target["id"]))
         elif opened:
             stage, evidence = "picked_up", opened
@@ -232,7 +230,7 @@ def canonical_workflows(
                 for message in turns
             ):
                 continue
-            failed = receipt(
+            failed = workflow(
                 source,
                 target,
                 coordinate,
@@ -271,7 +269,7 @@ def canonical_workflows(
         # address, so only that workflow is a stop obligation.
         for source in unanswered_inputs:
             workflows.append(
-                receipt(
+                workflow(
                     source,
                     target,
                     coordinate,
@@ -350,7 +348,7 @@ def canonical_workflows(
     for source, target, coordinate, requires_response, unsettled in moves:
         if unsettled and newest[(target["id"], coordinate[1])] is source:
             workflows.append(
-                receipt(
+                workflow(
                     source,
                     target,
                     coordinate,
@@ -363,7 +361,7 @@ def canonical_workflows(
     # without inventing pickup evidence.
     for claim in effective_claims.values():
         target = claim["target"]
-        if claim["id"] in used_claims or (target["kind"], target["id"]) in used_targets:
+        if (target["kind"], target["id"]) in used_targets:
             continue
         workflows.append(
             {

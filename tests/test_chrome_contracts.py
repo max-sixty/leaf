@@ -548,7 +548,7 @@ PHONE_PAGE = leaf_page(
     "viewport", [None, "width=device-width, initial-scale=1, viewport-fit=cover"]
 )
 def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, viewport):
-    """The runtime starts in WebKit, and a selection alone opens the comment field.
+    """The runtime starts in WebKit; selection offers an explicit Comment action.
 
     A module feature WebKit lacks fails the whole module graph before the runtime runs:
     CSS module scripts did, and an iPhone reader saw only that Leaf could not start. A
@@ -574,8 +574,9 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
       getSelection().addRange(range);
     }""")
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible()
-    field.tap()
+    expect(field).to_be_hidden()
+    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    expect(field).to_be_focused()
     field.fill("From a phone")
     with sending(page, "the comment"):
         page.locator(".lf-fab-bar").get_by_role("button", name="Comment").tap()
@@ -640,7 +641,9 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    expect(page.locator(".lf-fab-input")).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     placed = page.evaluate("""() => {
       const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
       const paragraph = document.getElementById('p6').getBoundingClientRect();

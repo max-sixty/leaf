@@ -2927,7 +2927,7 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
             leaf_page(
                 "Tall phone passage",
                 '<div style="height: 100vh"></div><p id="passage">'
-                + "A long paragraph keeps its words readable. " * 70
+                + " ".join(f"Sentence {n} keeps its words readable." for n in range(90))
                 + '</p><div style="height: 100vh"></div>',
             )
         ),
@@ -2946,10 +2946,13 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
         edge,
     )
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible()
+    expect(field).to_be_hidden()
+    page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
+    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    expect(field).to_be_focused()
     page.evaluate(RENDERED)
     geometry = page.evaluate("""() => {
-      const quote = getSelection().getRangeAt(0).getBoundingClientRect();
+      const quote = window.phoneQuote.getBoundingClientRect();
       const field = document.querySelector('.lf-fab-bar').getBoundingClientRect();
       return {quote: quote.toJSON(), field: field.toJSON(), height: innerHeight};
     }""")
@@ -2985,7 +2988,8 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})
     page.wait_for_function("visualViewport.scale === 1.25")

@@ -107,7 +107,8 @@ def test_touch_reader_selects_an_element_comments_and_finds_its_thread(browser, 
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
-    page = open_page(browser, serve(TARGETS_PAGE))
+    context = browser.new_context(has_touch=True)
+    page = open_page(browser, serve(TARGETS_PAGE), context=context)
     select = page.get_by_role(
         "button", name="Select element", exact=True, include_hidden=True
     )
@@ -123,6 +124,36 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
     page.set_viewport_size({"width": 390, "height": 844})
     page.locator(".lf-threads-toggle").click()
     expect(select).to_be_disabled()
+
+
+def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
+    """Touch selection controls retire when a fine pointer takes over; keyboard aim stays."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    select = page.get_by_role("button", name="Select element", exact=True)
+    cancel = page.get_by_role("button", name="Cancel selecting an element")
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(select).to_be_hidden()
+    page.keyboard.press("Escape")
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-chooser-hint")).to_have_count(3)
+    expect(cancel).to_be_hidden()
+
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
+    expect(cancel).to_be_visible()
+    cancel.click()
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(select).to_be_visible()
+    select.click()
+    expect(cancel).to_be_visible()
+    cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
+    expect(cancel).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(select).to_be_hidden()
 
 
 def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):

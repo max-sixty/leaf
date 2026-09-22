@@ -52,6 +52,7 @@ import {
 // the platform's rather than a keyboard interaction's imitation of one.
 export const targetChooserHintLayer = el("div", "lf-ui lf-target-chooser-hints");
 targetChooserHintLayer.setAttribute("aria-hidden", "true");
+const coarsePointer = matchMedia("(pointer: coarse)");
 const targetChooserCancel = el("button", "lf-btn", "Cancel selection");
 targetChooserCancel.type = "button";
 targetChooserCancel.setAttribute("aria-label", "Cancel selecting an element");
@@ -68,6 +69,7 @@ registerBannerControl({
   control: selectElement,
   rank: BANNER_CONTROL_RANK.select,
   alwaysFolded: true,
+  present: coarsePointer.matches,
 });
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
@@ -227,7 +229,7 @@ export function createTargetChooser({
     if (on) opener = focused();
     const returnTo = !on && restore ? opener : null;
     chooserOpen = on;
-    showBannerControl(targetChooserCancel, on && withHints);
+    showBannerControl(targetChooserCancel, coarsePointer.matches && on && withHints);
     pageSearchOpen = false;
     searchReturnsToHints = false;
     matches = [];
@@ -251,7 +253,7 @@ export function createTargetChooser({
 
   function setPageSearch(on) {
     pageSearchOpen = on;
-    showBannerControl(targetChooserCancel, !on);
+    showBannerControl(targetChooserCancel, coarsePointer.matches && !on);
     pageSearchSurface.hidden = !on;
     if (on) {
       pageSearchInput.focus({ preventScroll: true });
@@ -733,6 +735,14 @@ export function createTargetChooser({
   const closeTargetChooser = () => setTargetChooser(false);
 
   function mount() {
+    coarsePointer.addEventListener("change", () => {
+      showBannerControl(selectElement, coarsePointer.matches);
+      showBannerControl(
+        targetChooserCancel,
+        coarsePointer.matches && chooserOpen && !pageSearchOpen,
+      );
+      repaint();
+    });
     selectElement.addEventListener("click", () => {
       dismissBannerControls();
       bannerControlDoor(selectElement)?.focus({ preventScroll: true });

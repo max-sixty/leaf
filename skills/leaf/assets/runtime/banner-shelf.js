@@ -35,6 +35,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   approval: 100,
   threads: 110,
   cancelSelection: 120,
+  commentSelection: 130,
 });
 
 export const bannerActions = el("div", "lf-banner-actions");

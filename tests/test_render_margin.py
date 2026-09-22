@@ -2576,15 +2576,23 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
-          const section = document.querySelector('#bg-quoted-and-visual');
-          document.scrollingElement.scrollTo(0, section.offsetTop - 100);
+          const anchor = document.querySelector('#bg-shot');
+          const scroller = document.scrollingElement;
+          const top = anchor.getBoundingClientRect().top + scroller.scrollTop;
+          scroller.scrollTo(0, top - 100);
         })"""
     )
+    margins_laid_out(page)
     page.locator("body").focus()
     show_after = page.get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
-    expect(show_after).to_be_visible()
+    # The hint layer offers the locations on screen, so that is the premise, and the
+    # scroll reaches the location's own anchor rather than the section holding it.
+    # `to_be_visible` says a control is laid out, not that the reader can see it, so it
+    # passed while gallery content grew between the two and carried this entry out of
+    # the scrollport — leaving the case asking for a chip the page was right not to draw.
+    expect(show_after).to_be_in_viewport()
 
     page.keyboard.press("g")
     target = show_after.evaluate(
@@ -5860,12 +5868,13 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.keyboard.press("Escape")  # out of the reply box the send landed in
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
-        expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-        expect(page.locator("leaf-thread-list")).to_be_focused()
+        # A conversation in Threads releases to whole-panel selection first.
+        expect(page.locator(".lf-threads")).to_be_focused()
         page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
+        assert page.evaluate("() => document.activeElement === document.body")
     else:
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
@@ -5916,8 +5925,8 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     if panel_open:
-        expect(threads).to_have_class(re.compile(r"\bopen\b"))
-        expect(page.locator("leaf-thread-list")).to_be_focused()
+        # In Threads the thread releases to the whole panel, which closes on the next.
+        expect(page.locator(".lf-threads")).to_be_focused()
         page.keyboard.press("Escape")
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
@@ -5970,11 +5979,10 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     ).to_be_focused()
 
     # The walk moved the reader laterally to a second conversation in Threads. Escape
-    # returns to the list, then closes that surface; the note that took them there is
-    # not a landing.
+    # releases that conversation to the whole panel and then closes the panel; the note
+    # that took them there is not a landing.
     page.keyboard.press("Escape")
-    expect(threads).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator("leaf-thread-list")).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => document.activeElement === document.body")

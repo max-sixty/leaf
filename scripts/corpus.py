@@ -16,7 +16,7 @@ from pathlib import Path
 
 from example_data import regression_sources
 from leaf.structure import SourceDocument
-from leaf.thread_context import specimen_events
+from leaf.thread_context import comment_ids, specimen_events
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -224,6 +224,15 @@ def build_events() -> str:
             for line in source.with_suffix(".jsonl").read_text().splitlines()
             if line.strip()
         ]
+        # A declaration naming nothing is a typo here and nothing else: the history
+        # is the example's own shipped log, so a root absent from it will be absent
+        # from every page built from this source. `specimen_events` seeds what a log
+        # holds, because a served page may legitimately hold none of it yet.
+        if unknown := selected - comment_ids(events):
+            sys.exit(
+                f"{source.name} declares specimen conversations its log does not "
+                f"hold: {', '.join(sorted(unknown))}"
+            )
         for event in specimen_events(document, events, selected):
             if event["id"] in combined and combined[event["id"]] != event:
                 sys.exit(

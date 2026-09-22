@@ -14,6 +14,7 @@ Every page is reached over HTTP through its page-scoped vendored layer and the c
 server.
 """
 
+import functools
 import html as html_module
 import importlib.util
 import json
@@ -145,13 +146,62 @@ def site(tmp_path_factory):
     return out
 
 
+class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
+    """The container adapter with the edge's release namespace in front of it.
+
+    One public origin is two servers in production: `worker/src/index.ts` answers
+    `/_leaf-release/<release>/<key>/…` out of the build's sibling asset tree and
+    hands every other route to this adapter, inside the reader's own container.
+    A specimen captures that release namespace as its asset root, so a child page
+    this adapter serves names dependencies only the edge holds; a fixture standing
+    the adapter up alone serves a document whose runtime nothing answers for.
+
+    The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
+    and what follows it is that page's own published path under the asset tree.
+    """
+
+    def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
+        super().__init__(request, server, **bound)
+        self.asset_tree = asset_tree
+
+    def _select_page(self):
+        released = self._released_asset()
+        return released if released is not None else super()._select_page()
+
+    def _released_asset(self):
+        for public_root, page in self.pages.items():
+            prefix = f"{page['assets']}/"
+            if not self.path.startswith(prefix):
+                continue
+            root = "" if public_root == "/" else public_root
+            file = (
+                self.asset_tree / root.lstrip("/") / self.path[len(prefix) :]
+            ).resolve()
+            if not file.is_relative_to(self.asset_tree) or not file.is_file():
+                return self._not_found()
+            ctype = schema_model.CONTENT_TYPES[file.suffix]
+            if ctype not in schema_model.BINARY_TYPES:
+                ctype += "; charset=utf-8"
+            return self._content(200, ctype, file.read_bytes())
+        return None
+
+
+def released_site_endpoint(session_site: Path, asset_tree: Path):
+    """The adapter's own binding, plus the asset tree the edge would answer from."""
+    bound = website_server.site_endpoint(session_site)
+    return functools.partial(
+        ReleasedAssetEndpoint, asset_tree=asset_tree.resolve(), **bound.keywords
+    )
+
+
 @pytest.fixture(scope="module")
 def hosted(site, tmp_path_factory):
     """One reader's private copy, matching the container boundary in production."""
     session_site = tmp_path_factory.mktemp("website-session") / "site"
     shutil.copytree(site, session_site)
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(session_site)
+        ("127.0.0.1", 0),
+        released_site_endpoint(session_site, site_build.asset_site(site)),
     )
     with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -168,7 +218,8 @@ def served_example(site, tmp_path):
     manifest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(session_site)
+        ("127.0.0.1", 0),
+        released_site_endpoint(session_site, site_build.asset_site(site)),
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 

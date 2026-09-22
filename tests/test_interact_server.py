@@ -206,12 +206,26 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
     server, page_dir
 ):
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
-    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    unseeded = '<template id="unseeded" data-specimen data-specimen-threads="aabb0011"><h1>Unseeded</h1><p id="note">Nothing here names the conversation.</p></template>'
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", template + unseeded + "</main>")
+    )
     publish(page_dir)
+    # The declaration selects from the standing log rather than requiring it, so a
+    # page whose log holds none of it yet — a first version, or a copy made from the
+    # source alone — still opens its specimens. What a child may not do is name a
+    # conversation it does not have, and the ordinary child-document check says so
+    # about the element that names it.
+    status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"unseeded"}')
+    assert status == 200, raw
+    assert (
+        json.loads(fetch(server + json.loads(raw)["url"] + "api/state")[1])["events"]
+        == []
+    )
     status, raw = fetch(f"{server}/api/specimens", data=b'{"template":"practice"}')
     assert (
         status == 400
-        and "unknown specimen conversations: aabb0011" in json.loads(raw)["error"]
+        and "resolves='aabb0011' names no comment" in json.loads(raw)["error"]
     )
     for identity, text in (
         ("aabb0011", "Selected conversation"),

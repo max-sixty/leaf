@@ -1050,7 +1050,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact { --lf-thread-pad: 0px; margin-bottom: 0; padding: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
   .lf-thread-summary { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 3ch 80px;
-    align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
+    align-items: center; gap: 8px; box-sizing: border-box; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }

@@ -14,6 +14,7 @@ from render_cases_interaction import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    executable_revision,
     live_url,
     panel_comment,
 )
@@ -65,6 +66,7 @@ from render_harness import (
     ask_actions_hint,
     consume_browser_errors,
     hold_selection,
+    holding,
     leaf_page,
     navigate,
     open_page,
@@ -369,6 +371,162 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     page.keyboard.press("t")
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    ("install", "gesture"),
+    [
+        ("patch", gesture)
+        for gesture in (
+            "wheel",
+            "focus",
+            "edit",
+            "blank",
+            "reveal",
+            "hidden",
+            "untouched",
+        )
+    ]
+    # A fresh document has no tab controls until its widgets have loaded.
+    + [
+        ("reload", gesture)
+        for gesture in ("wheel", "focus", "edit", "blank", "hidden", "untouched")
+    ],
+)
+def test_revision_restoration_yields_to_input_while_a_diagram_loads(
+    browser, serve, gesture, install
+):
+    """Hold the real diagram renderer's delivery while the reader uses the new pane."""
+    source = (
+        READING_REGIONS_PAGE.replace(
+            '<button id="left-head">',
+            '<label>Draft <input id="reading-draft"></label><button id="left-head">',
+        )
+        .replace(
+            "<main>",
+            '<main><lf-tabs id="reading-tabs"><lf-tab id="first-tab" label="First">',
+        )
+        .replace(
+            "</main>",
+            '</lf-tab><lf-tab id="second-tab" label="Second">'
+            '<lf-pane id="other-reading" label="Other reading">'
+            '<p id="other-start">Another reading with enough words to preserve its landmark.</p>'
+            '<div style="height: 1000px"></div></lf-pane></lf-tab></lf-tabs></main>',
+        )
+    )
+    page = open_page(browser, live_url(serve(source)))
+    if gesture == "hidden":
+        # A cached hidden reading must not select its tab over the active one.
+        page.get_by_role("tab", name="Second", exact=True).click()
+        page.get_by_role("tab", name="First", exact=True).click()
+    page.locator("#reading-draft").fill("kept draft")
+    left = page.locator("#left-reading .lf-pane-body")
+    left.evaluate("el => el.scrollTop = 300")
+    page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
+    held = []
+    page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
+    revised = source.replace(
+        '<p id="left-start">',
+        '<p>Added context.</p><p id="left-start">',
+    ).replace(
+        '<p id="left-end">',
+        '<lf-diagram id="late-diagram"><pre>graph LR; A --&gt; B</pre></lf-diagram><p id="left-end">',
+    )
+    before = page.locator("#left-landmark").evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+    if install == "reload":
+        revised = executable_revision(revised, "new renderer")
+    stamp_page(serve.page_dir, revised, "Add a diagram")
+    holding(page, held, 1, "the new diagram renderer")
+    try:
+        # Typing must remain possible throughout replacement, without a click to
+        # recover the field while an unrelated renderer finishes downloading.
+        draft = page.locator("#reading-draft")
+        expect(draft).to_be_focused()
+        assert draft.evaluate("el => el.selectionStart") == 4
+        if gesture == "wheel":
+            left.hover()
+            page.mouse.wheel(0, 220)
+            page.wait_for_function(
+                "() => document.querySelector('#left-reading .lf-pane-body').scrollTop > 150"
+            )
+        elif gesture == "focus":
+            page.locator("#right-head").click()
+        elif gesture == "edit":
+            page.keyboard.type(" fresh")
+        elif gesture == "blank":
+            page.mouse.click(2, 200)
+            expect(page.locator("body")).to_be_focused()
+        elif gesture == "reveal":
+            page.get_by_role("tab", name="Second", exact=True).click()
+        scroll = left.evaluate("el => el.scrollTop")
+        held.pop().continue_()
+        wait_for_revision(page, 2)
+        expect(page.locator("#late-diagram svg")).to_have_count(1)
+        expect(page.locator("#reading-draft")).to_have_value(
+            "kept fresh draft" if gesture == "edit" else "kept draft"
+        )
+        expect(
+            page.get_by_role(
+                "tab", name="Second" if gesture == "reveal" else "First", exact=True
+            )
+        ).to_have_attribute("aria-selected", "true")
+        if gesture == "wheel":
+            assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
+        elif gesture == "focus":
+            expect(page.locator("#right-head")).to_be_focused()
+        elif gesture == "blank":
+            expect(page.locator("body")).to_be_focused()
+        elif gesture == "untouched":
+            assert page.locator("#left-landmark").evaluate(
+                "el => el.getBoundingClientRect().top"
+            ) == pytest.approx(before, abs=2)
+        if gesture in ("wheel", "edit", "hidden", "untouched"):
+            expect(draft).to_be_focused()
+            assert draft.evaluate("el => el.selectionStart") == (
+                10 if gesture == "edit" else 4
+            )
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute("**/vendor/agentic-mermaid.esm.js")
+
+
+def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
+    browser, serve
+):
+    """A synchronous widget focus handoff cannot discard unrelated carried state."""
+    source = READING_REGIONS_PAGE.replace(
+        '<button id="left-head">',
+        '<label>Draft <input id="reading-draft"></label>'
+        '<label>Flag <input id="reading-flag" type="checkbox"></label>'
+        '<details id="reading-detail"><summary>Context</summary>Kept open</details>'
+        '<div id="reading-inner" style="height: 60px; overflow: auto">'
+        '<div style="height: 600px">Scrollable evidence</div></div>'
+        '<button id="left-head">',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    page.locator("#reading-flag").check()
+    page.locator("#reading-detail summary").click()
+    page.locator("#reading-draft").fill("kept draft")
+    page.locator("#reading-inner").evaluate("el => el.scrollTop = 220")
+    page.evaluate("""() => {
+      customElements.define('page-focus-transfer', class extends HTMLElement {
+        connectedCallback() { document.getElementById('right-head').focus(); }
+      });
+    }""")
+    revised = source.replace(
+        '<p id="left-start">', '<p>Added context.</p><p id="left-start">'
+    ).replace("</main>", "<page-focus-transfer></page-focus-transfer></main>")
+    stamp_page(serve.page_dir, revised, "Update reading with a focus handoff")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#right-head")).to_be_focused()
+    expect(page.locator("#reading-draft")).to_have_value("kept draft")
+    expect(page.locator("#reading-flag")).to_be_checked()
+    expect(page.locator("#reading-detail")).to_have_attribute("open", "")
+    assert page.locator("#reading-inner").evaluate("el => el.scrollTop") == 220
 
 
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
@@ -1501,6 +1659,48 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(
             "aria-selected", "true"
         )
+
+
+@pytest.mark.parametrize("intervene", [False, True])
+def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, intervene):
+    source = leaf_page(
+        "Tab readings",
+        '<lf-tabs id="views">'
+        + "".join(
+            f'<lf-tab id="view-{name.lower()}" label="{name}"><h1>{name}</h1>'
+            '<div style="height: 1800px"></div></lf-tab>'
+            for name in ("First", "Second")
+        )
+        + "</lf-tabs>",
+    )
+    page = open_page(browser, serve(source))
+    page.get_by_role("tab", name="Second", exact=True).focus()
+    page.evaluate("scrollTo(0, 400)")
+    page.keyboard.press("Enter")
+    page.evaluate(RENDERED)
+    page.evaluate("""() => {
+      const held = new Promise(resolve => { window.releaseTabLayout = resolve; });
+      document.querySelector('#views').addEventListener('lf-layout', event => {
+        event.detail.present(held);
+        window.tabLayoutStarted = true;
+      }, {once: true});
+    }""")
+    try:
+        page.get_by_role("tab", name="First", exact=True).click()
+        page.wait_for_function("window.tabLayoutStarted === true")
+        assert page.evaluate("location.hash") == "#view-first"
+        native_arrival = page.evaluate("scrollY")
+        expected = native_arrival + (200 if intervene else 0)
+        if intervene:
+            page.mouse.move(500, 450)
+            page.mouse.wheel(0, 200)
+            page.wait_for_function(
+                "expected => Math.abs(scrollY - expected) < 1", arg=expected
+            )
+    finally:
+        page.evaluate("releaseTabLayout()")
+    page.evaluate(RENDERED)
+    assert page.evaluate("scrollY") == pytest.approx(expected, abs=1)
 
 
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
@@ -2884,6 +3084,47 @@ def test_what_the_reader_put_on_after_the_panel_comes_off_before_it(browser, ser
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
+
+
+@pytest.mark.parametrize("intervene", [False, True])
+@pytest.mark.parametrize("from_tray", [False, True])
+def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
+    browser, serve, intervene, from_tray
+):
+    """A newer reader move owns focus even before the requested Ask has a live node."""
+    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    if from_tray:
+        resized(page, 390, 844)
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+a")
+        expect(page.locator("button.lf-asks-row").first).to_be_focused()
+    if from_tray:
+        page.locator("button.lf-asks-row").filter(
+            has_text="If their next release"
+        ).focus()
+    page.evaluate("""() => {
+      const list = document.querySelector('.lf-threads');
+      const present = list.present.bind(list);
+      const held = new Promise(resolve => { window.releaseAskMaterialization = resolve; });
+      list.present = async (...args) => {
+        const result = await present(...args);
+        window.askMaterializationStarted = true;
+        await held;
+        return result;
+      };
+    }""")
+    try:
+        page.keyboard.press("Enter" if from_tray else "a")
+        page.wait_for_function("window.askMaterializationStarted === true")
+        if intervene:
+            page.locator(".lf-general textarea").focus()
+    finally:
+        page.evaluate("releaseAskMaterialization()")
+    page.evaluate(RENDERED)
+    if intervene:
+        expect(page.locator(".lf-general textarea")).to_be_focused()
+    else:
+        expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
 
 
 def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
@@ -5160,8 +5401,9 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
     expect(asks.first).to_be_focused()
 
 
+@pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
-    browser, serve
+    browser, serve, width
 ):
     """An answered tray can close and reopen through its banner control."""
     page = open_page(
@@ -5177,6 +5419,8 @@ def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
         ),
     )
 
+    resized(page, width, 844)
+
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-asks-row")).to_be_focused()
@@ -5186,6 +5430,12 @@ def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
+    if width == 390:
+        expect(page.locator(".lf-asks-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-asks-row")).to_have_count(1)
     expect(page.locator(".lf-asks-answer")).to_have_text("First")
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))

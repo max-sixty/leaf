@@ -53,9 +53,16 @@ export function captureCarry(root, authored) {
   return { records, held };
 }
 
-// Restore after upgrade and presentation. Omit held for a fresh document; an in-place
-// patch passes its retained nodes so newer reader edits on them are not overwritten.
-export function restoreCarry(records, held = new Map()) {
+// Restore values, disclosures, focus and caret in the turn that replaces their nodes,
+// so the reader can keep typing while renderers settle. Only scroll needs the finished
+// layout; the returned correction runs while the install still owns navigation.
+// Kept nodes never lost their state, and a changed tag is a different control.
+export function restoreCarry(
+  records,
+  held = new Map(),
+  handoffFocus = (move) => move(),
+) {
+  const positions = [];
   for (const record of records ?? []) {
     const arrived = document.getElementById(record.id);
     if (!arrived || arrived === held.get(record.id)) continue;
@@ -64,12 +71,20 @@ export function restoreCarry(records, held = new Map()) {
     if (record.value !== undefined && holdsValue(arrived)) arrived.value = record.value;
     if (record.checked !== undefined && holdsTick(arrived))
       arrived.checked = record.checked;
-    if (record.scrollTop) arrived.scrollTop = record.scrollTop;
-    if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
-    if (!record.focus) continue;
-    // The element may have been focusable only through a tab stop the runtime lent it,
-    // which the arriving node has not been lent; `focusDestination` lends it again for
-    // as long as the reader holds it, and puts the caret back in the same act.
-    focusDestination(arrived, record.caret);
+    positions.push([arrived, record]);
   }
+  // Values and disclosures are owed even when a connected widget took focus during
+  // replacement. Only focus yields to that newer owner; its handoff keeps the same
+  // input generation and adopts the synchronous transfer when still permitted.
+  handoffFocus(() => {
+    for (const [arrived, record] of positions)
+      if (record.focus) focusDestination(arrived, record.caret);
+  });
+  return () => {
+    for (const [arrived, record] of positions) {
+      if (!arrived.isConnected) continue;
+      if (record.scrollTop) arrived.scrollTop = record.scrollTop;
+      if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
+    }
+  };
 }

@@ -51,8 +51,6 @@ has tried; settle that before building it.
 
 ### Reader continuity and mobile access
 
-- **#11 — [Let newer navigation win over revision restoration](notes/workspace-followups.md#item-11).**
-  Preserve input made while a revision activates.
 - **Verify the native phone reading journey.** Check the explicit selection-to-comment
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot

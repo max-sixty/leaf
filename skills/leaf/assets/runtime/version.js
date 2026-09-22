@@ -58,6 +58,7 @@ import {
 } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
+import { retainReaderIntent } from "./reader-intent.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
 import { clippedContents, shownBox } from "./geometry.js";
@@ -1216,6 +1217,7 @@ export function createVersionController({
   // Patch against the authored baselines. Retained nodes keep their live state;
   // replacement nodes recover eligible state through carry and Ask restoration.
   async function activateRevision(doc, target) {
+    const currentIntent = retainReaderIntent();
     const view = captureView();
     const askStanding = captureAskStanding();
     // A pending selection is standing too: cancel its old-document request before the
@@ -1286,6 +1288,7 @@ export function createVersionController({
       return arriving;
     };
 
+    let restoreCarryScroll;
     await patchDocument(live, () => {
       authoredHtmlAttributes = replaceAuthoredAttributes(
         document.documentElement,
@@ -1330,6 +1333,11 @@ export function createVersionController({
           if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
+      restoreCarryScroll = restoreCarry(
+        carry.records,
+        carry.held,
+        currentIntent.handoff,
+      );
       // After the patch, over the document the patch left: an owner's number is its
       // place among the document's preserving owners, and an insertion moves the ones
       // after it.
@@ -1352,11 +1360,14 @@ export function createVersionController({
       whenApplicationRegionsPresented(["page-interface"], () => true),
     );
     syncLayout();
-    restoreView(view);
-    // Restore named controls first. Ask restoration leaves focus alone if carry already
-    // placed it inside the Ask; otherwise it can recover an unnamed control's Ask.
-    restoreCarry(carry.records, carry.held);
-    restoreAskStanding(askStanding);
+    // Presentation can wait on a renderer download while the reader uses the arrivals.
+    // Their newer input owns navigation; values, focus and caret crossed with the nodes
+    // synchronously, so yielding here leaves their ongoing editing intact.
+    if (currentIntent()) {
+      restoreView(view, currentIntent);
+      restoreCarryScroll();
+      restoreAskStanding(askStanding);
+    }
     if (comparedFrom !== null) showComparison(comparedFrom);
     // Use the arriving descriptor: the current label still names the previous revision.
     notice(`Updated to ${target.label}`, { background: true });
@@ -1616,7 +1627,7 @@ export function createVersionController({
     return readingRegions().find(({ body }) => body === scroller)?.id;
   }
 
-  function restoreRegion(view, region = null) {
+  function restoreRegion(view, region, currentIntent) {
     if (!view) return;
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
@@ -1624,7 +1635,7 @@ export function createVersionController({
     const found = view.quote && resolveAnchor(view, text);
     const segments = targetSegments(found);
     if (segments.length) {
-      reveal(segments[0].node.parentElement); // the passage may sit behind a tab
+      reveal(segments[0].node.parentElement, currentIntent); // the passage may sit behind a tab
       moveScrollerBy(
         box,
         rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
@@ -1633,7 +1644,7 @@ export function createVersionController({
     }
     const section = targetElement(resolveAnchor({ section: view.section }, text));
     if (section) {
-      reveal(section);
+      reveal(section, currentIntent);
       // The shown reading on both sides of the subtraction, because the landmark is
       // whatever id stands nearest the block the reader was on, and a section that
       // generates no box of its own is one a suggestion wrapping whole sections leaves
@@ -1644,14 +1655,14 @@ export function createVersionController({
       box.scrollTo({ top: view.y, behavior: "instant" });
   }
 
-  function restoreView(view) {
+  function restoreView(view, currentIntent) {
     setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
       containingReadingRegionFor(focused()) ??
       readingRegionFor(readingBlock());
-    if (active) reveal(active.host);
+    if (active) reveal(active.host, currentIntent);
     const restored = new Set();
     const activeReading = active && view.regions?.[active.id];
     const activeScroller = active && effectiveScroller(regions.get(active.id));
@@ -1664,19 +1675,19 @@ export function createVersionController({
         (rawOffsetFits(activeReading, activeScroller) &&
           activeScroller !== pageScroller))
     ) {
-      restoreRegion(activeReading, regions.get(active.id));
+      restoreRegion(activeReading, regions.get(active.id), currentIntent);
       restored.add(activeScroller);
     } else {
-      restoreRegion(view);
+      restoreRegion(view, null, currentIntent);
       restored.add(pageScroller);
     }
     for (const [id, reading] of Object.entries(view.regions ?? {})) {
       const region = regions.get(id);
-      if (!region) continue;
+      if (!region || !shownRegionBounds(region)) continue;
       const box = effectiveScroller(region);
       if (restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region);
+      restoreRegion(reading, region, currentIntent);
       restored.add(box);
     }
   }
@@ -1686,7 +1697,6 @@ export function createVersionController({
   // shared page offset when it becomes bounded again. In flow, only the region the reader
   // is working represents the shared page scroller.
   const regionViews = new Map();
-  let navigationIntent = 0;
   let lastReadingRegionId = null;
 
   // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
@@ -1733,7 +1743,7 @@ export function createVersionController({
     }
     if (phase === "before") {
       if (retained && postureTransitions.has(owner)) {
-        postureTransitions.get(owner).intent = navigationIntent;
+        postureTransitions.get(owner).currentIntent = retainReaderIntent();
         return;
       }
       const blocks = textBlocks();
@@ -1744,7 +1754,7 @@ export function createVersionController({
         if (shownRegionBounds(region))
           regionViews.set(region.id, captureRegion(region, blocks));
       postureTransitions.set(owner, {
-        intent: navigationIntent,
+        currentIntent: retainReaderIntent(),
         to,
         regions: regions.map(({ id }) => id),
       });
@@ -1752,7 +1762,7 @@ export function createVersionController({
     }
     const transition = postureTransitions.get(owner);
     postureTransitions.delete(owner);
-    if (!transition || transition.intent !== navigationIntent) return;
+    if (!transition?.currentIntent()) return;
     const live = new Map(readingRegions().map((region) => [region.id, region]));
     // A posture can change because its owner was hidden. Keep that region's cached
     // reading for its return, but continuity must not reveal it over a newer choice.
@@ -1773,7 +1783,7 @@ export function createVersionController({
       if (transition.to === null && !containsAcross(owner, box)) continue;
       if (!reading || restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region);
+      restoreRegion(reading, region, transition.currentIntent);
       restored.add(box);
     }
   }
@@ -1824,14 +1834,15 @@ export function createVersionController({
       if (!anchoringIsReady()) return;
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
+    const restoreCarryScroll = handoff && restoreCarry(handoff.carry);
+    const currentIntent = retainReaderIntent();
     function landArrival() {
+      if (!currentIntent()) return;
       if (handoff) {
         restorePointer(handoff.pointer);
-        restoreView(handoff.view);
+        restoreView(handoff.view, currentIntent);
         restoreRetainedStanding(handoff.retainedStanding);
-        // No held nodes: this document kept none of the last one's, so every record
-        // in the handoff names something the reader lost.
-        restoreCarry(handoff.carry);
+        restoreCarryScroll();
         restoreAskStanding(handoff.askStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);
@@ -1852,7 +1863,7 @@ export function createVersionController({
         savedView &&
         savedView.revision !== runtime.currentRevision
       )
-        restoreView(savedView);
+        restoreView(savedView, currentIntent);
     }
     return { landArrival, savedView };
   }
@@ -1893,7 +1904,6 @@ export function createVersionController({
       addEventListener(
         type,
         (event) => {
-          navigationIntent++;
           const region = readingRegionFor(event.composedPath()[0]);
           if (region) lastReadingRegionId = region.id;
         },

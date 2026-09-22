@@ -6,17 +6,19 @@ import { focused } from "./keyboard/scopes.js";
 
 let intent = 0;
 const leave = () => intent++;
-for (const type of ["pointerdown", "keydown", "input", "wheel"])
+for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
   addEventListener(type, leave, { capture: true, passive: true });
 addEventListener("blur", leave);
 
+// Capture before the first asynchronous step. Pass this same predicate into nested
+// reveals; capturing again after a wait gives stale work a newer gesture's authority.
 export function retainReaderIntent({
   source = focused(),
   available = () => true,
   fallback = null,
 } = {}) {
   const retained = intent;
-  return () => {
+  const current = () => {
     const at = focused();
     const withinSource =
       source === document.body ? at === document.body : source?.contains(at);
@@ -26,4 +28,16 @@ export function retainReaderIntent({
       (at === document.body || at === fallback || withinSource)
     );
   };
+  // Synchronous work may already have transferred focus, as a connected widget can
+  // during replacement. Keep that destination instead of running the old focus move,
+  // and adopt it for subsequent continuity without renewing the input generation.
+  // A delayed caller must check current() before beginning its synchronous handoff.
+  current.handoff = (move) => {
+    if (!available() || retained !== intent) return false;
+    const moved = current();
+    if (moved) move();
+    source = focused();
+    return moved && current();
+  };
+  return current;
 }

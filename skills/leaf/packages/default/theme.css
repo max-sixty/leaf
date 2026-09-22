@@ -1677,7 +1677,7 @@ lf-shot .lf-shotcomparison::part(divider) {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 72%, transparent);
     transition: background-color 120ms ease; }
 lf-shot .lf-shotcomparison::part(handle) { border: 1px solid var(--ink-2);
-    box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 20%, transparent);
+    box-shadow: 0 1px 3px var(--shade);
     opacity: .52; scale: .88;
     transition: opacity 120ms ease, scale 120ms ease; }
 lf-shot .lf-shot-handle { display: block; box-sizing: border-box;

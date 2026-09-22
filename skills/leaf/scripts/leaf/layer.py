@@ -237,22 +237,8 @@ class LayerComposition(NamedTuple):
     directory_files: dict[str, dict[str, bytes]]
 
 
-def layer_fingerprint(composition: LayerComposition) -> str:
-    """Identify the complete composed layer independently of its vendoring epoch."""
-    files = {
-        **composition.top_files,
-        "registry.json": json.dumps(
-            composition.registry,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode(),
-        **{
-            f"{directory}/{name}": data
-            for directory, entries in composition.directory_files.items()
-            for name, data in entries.items()
-        },
-    }
+def files_identity(files: dict[str, bytes]) -> str:
+    """Identify a set of named bytes, unambiguously across names and contents."""
     digest = hashlib.sha256()
     for name in sorted(files):
         encoded = name.encode()
@@ -262,6 +248,46 @@ def layer_fingerprint(composition: LayerComposition) -> str:
         digest.update(len(data).to_bytes(8, "big"))
         digest.update(data)
     return f"sha256:{digest.hexdigest()}"
+
+
+def layer_fingerprint(composition: LayerComposition) -> str:
+    """Identify the complete composed layer independently of its vendoring epoch."""
+    return files_identity(
+        {
+            **composition.top_files,
+            "registry.json": json.dumps(
+                composition.registry,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode(),
+            **{
+                f"{directory}/{name}": data
+                for directory, entries in composition.directory_files.items()
+                for name, data in entries.items()
+            },
+        }
+    )
+
+
+def payload_runtime_fingerprint() -> str:
+    """Identify the runtime modules this payload's own browser code is written against.
+
+    The kernel is the payload's own directory, so this reads the same from any working
+    directory and on any machine, and a page's selected packages cannot move it. That
+    is what the browser gates need: they serve probe modules out of the Leaf running
+    the command and the runtime those modules import out of the page, and a page's
+    recorded layer fingerprint cannot be recomposed away from the project its packages
+    were resolved in. `page init` records this reading under `$layer.runtime`.
+    """
+    runtime = ASSETS / "runtime"
+    return files_identity(
+        {
+            path.relative_to(runtime).as_posix(): path.read_bytes()
+            for path in runtime.rglob("*")
+            if path.is_file()
+        }
+    )
 
 
 def payload_provenance(*, include_path: bool = False) -> dict:

@@ -32,6 +32,7 @@ from .layer import (
     layer_fingerprint,
     layer_inputs,
     payload_provenance,
+    payload_runtime_fingerprint,
 )
 from .leases import lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
@@ -311,6 +312,12 @@ def _stamp_layer(
     incoming["$layer"] = {
         "generation": generation,
         "fingerprint": fingerprint,
+        # The kernel half of that composition, stamped on its own because it is the
+        # half another Leaf can read the page against anywhere: the selection beside
+        # it was resolved against the project `page init` ran in, so nothing away from
+        # that directory can recompose the fingerprint. The browser gates compare this
+        # to refuse a page whose runtime their probe modules cannot import from.
+        "runtime": payload_runtime_fingerprint(),
         "packages": list(selected),
         **({"producer": producer} if producer else {}),
     }

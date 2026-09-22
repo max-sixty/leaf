@@ -5948,8 +5948,10 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
         )
         == 0
     ), "the document tree already answers for this one, so the reading proves nothing"
+    # The mover is the widget's own box inside its root, and the reading names it
+    # under the nearest element the author can address it by (`render-checks/locate.js`).
     assert render_checks_model.evaluate_probe(page, "moving") == [
-        "<lf-drift id=drift-note>"
+        "<div> in <lf-drift id=drift-note>"
     ]
 
 

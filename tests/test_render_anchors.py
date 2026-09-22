@@ -3876,7 +3876,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(menu).to_be_hidden()
     page.keyboard.press("t")
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread").first).to_be_focused()
+    expect(page.locator(".lf-thread-summary").first).to_be_focused()
 
 
 def clearance_page(browser, serve):
@@ -5000,7 +5000,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread).to_be_focused()
+    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     # The card is content of the panel. The seat on the page is not put back, the reader
     # having left it to come here.
     page.keyboard.press("Escape")

@@ -45,9 +45,18 @@ import { at } from "./locate.js";
 export function clippedControls() {
   const out = [];
   for (const el of document.querySelectorAll("[data-lf-offer]")) {
+    // Chromium reports descendants of a closed details as visible even though only its
+    // summary participates in layout and focus navigation.
+    const closedDetails = el.closest("details:not([open])");
+    const visibleSummary = closedDetails?.querySelector(":scope > summary");
     // checkOpacity too: a control faded to nothing is as unreachable as one clipped
     // away, and reporting it against a box it is inside would name the wrong fault.
-    if (!el.checkVisibility({ checkOpacity: true }) || el.closest("[hidden]")) continue;
+    if (
+      !el.checkVisibility({ checkOpacity: true }) ||
+      el.closest("[hidden]") ||
+      (closedDetails && !visibleSummary?.contains(el))
+    )
+      continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1 && b.height < 1) continue;
     // Where the clip is escaped rather than suffered. An absolutely-positioned

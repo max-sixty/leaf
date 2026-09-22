@@ -5761,7 +5761,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(f'.lf-thread[data-id="{root_id}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-thread[data-id="{root_id}"] > .lf-thread-summary')
+    ).to_be_focused()
 
     preview.evaluate(
         """card => {
@@ -5834,9 +5836,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(preview).to_be_hidden()
         thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
         expect(thread).to_contain_text(sent["text"])
-        expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-            "aria-expanded", "true"
-        )
+        expect(thread).to_have_attribute("open", "")
     else:
         expect(preview).to_be_visible()
         thread = preview.locator(
@@ -5964,9 +5964,13 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     note = page.locator("#mounts-p .lf-mark-note")
     note.focus()
     page.keyboard.press("Enter")
-    expect(threads.locator(f'.lf-thread[data-id="{first["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{first["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
     page.keyboard.press("t")
-    expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{second["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
 
     # The walk moved the reader laterally to a second conversation in Threads. Escape
     # closes that surface; the note that took them there is not a landing.
@@ -6000,7 +6004,9 @@ def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve
     # The box hands the reader back to the thread it belongs to; the marker is Leaf's
     # own control beside the words it marks rather than a place they were standing.
     page.keyboard.press("Escape")
-    expect(threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
 
 

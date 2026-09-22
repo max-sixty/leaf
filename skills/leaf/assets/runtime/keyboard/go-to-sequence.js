@@ -71,7 +71,7 @@ import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
-import { focusedThread } from "../conversation/focus.js";
+import { focusedThreadTarget } from "../conversation/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
@@ -635,9 +635,9 @@ export function createGoToSequence({
           ],
           does: "Put the focused thread at the top / bottom of its list",
           line: "thread top / bottom",
-          when: () => atGoToTargets() && Boolean(focusedThread()),
+          when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
           run: (binding) => {
-            const thread = focusedThread();
+            const thread = focusedThreadTarget();
             setGoToSequence(false);
             placeThreadEdge(thread, binding === "k" ? "start" : "end");
           },

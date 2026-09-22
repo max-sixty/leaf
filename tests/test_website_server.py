@@ -3506,6 +3506,63 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     assert "widget module 404" in early
 
 
+def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
+    """A reply the container admitted and the panel never drew has one open question.
+
+    `publish-site` failed on a turn whose every server record was healthy — it published
+    its revision, replied, and went back to listening — while the reader's panel held an
+    agent bubble with no words in it. The gate reported the message nodes and nothing
+    else, and that snapshot is the same whether the page stopped asking, asked and never
+    got an answer, or took the answer in and drew nothing. The page paints the reading it
+    last applied, so the message says which.
+    """
+    drew_nothing = verify_site.undrawn_reply(
+        "https://leaf.page/examples/triage-board/",
+        {
+            "panel": True,
+            "visibility": "visible",
+            "presented": True,
+            "reading": "abc123.p1",
+            "traffic": '{"asked":9,"heard":9}',
+            "revision": "1",
+            "status": "Codex is listening",
+            "messages": [
+                {
+                    "classes": ["lf-msg", "agent"],
+                    "mid": "stream:leaf-turn",
+                    "attempt": "leaf-delivery-1",
+                    "stream": "active",
+                    "busy": True,
+                    "hasText": False,
+                    "visible": True,
+                }
+            ],
+        },
+        "abc123.p2",
+    )
+    assert "the answer reached it and was not drawn" in drew_nothing
+    # The identity the panel is standing on, which says a stream placeholder outlived
+    # the durable reply that was meant to complete it.
+    assert "stream:leaf-turn" in drew_nothing
+    assert "attempt=leaf-delivery-1" in drew_nothing
+    assert '{"asked":9,"heard":9}' in drew_nothing
+
+    behind = verify_site.undrawn_reply(
+        "https://leaf.page/examples/triage-board/",
+        {"reading": "older.p1", "messages": []},
+        "abc123.p1",
+    )
+    assert "never took the answer in" in behind
+    assert "older.p1" in behind and "abc123.p1" in behind
+
+    silent = verify_site.undrawn_reply(
+        "https://leaf.page/examples/triage-board/",
+        {"reading": None, "messages": []},
+        "abc123.p1",
+    )
+    assert "applied no state at all" in silent
+
+
 def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     """A hosted turn's pace is the model's, so the wait reads the page's own account.
 

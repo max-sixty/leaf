@@ -160,12 +160,11 @@ error anywhere. `test_a_shipped_log_replays_its_example_state` reads the
 shipped anchor back through the browser and names that failure. The corpus's own
 anchor sweep cannot catch it, because that sweep writes its own anchors.
 
-`resolves` is reachable and no example uses it, deliberately: the attribute goes
-in the markup, and `scripts/corpus.py` embeds each example's authored content into
-a corpus whose own directory has no seed, so `version check` would refuse the
-corpus over an id naming no comment in its log. Seeding a log costs the example
-nothing; hanging markup off that log couples the markup to every page built from
-it.
+The corpus carries only the conversations its embedded specimens declare in
+`data-specimen-threads`. `scripts/corpus.py` generates their complete histories in
+`corpus.jsonl`; unrelated reader decisions stay unset so the corpus can exercise
+them. Markup that depends on another conversation (such as `resolves`) needs that
+dependency carried into composed fixtures too.
 
 A widget with a live half (an `lf-agent` row rendering how long since its worker
 was heard from) is invisible to the corpus sweeps until a seed puts a report in

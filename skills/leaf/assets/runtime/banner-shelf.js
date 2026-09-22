@@ -26,6 +26,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
+  select: 35,
   leaves: 40,
   latest: 50,
   asks: 60,
@@ -34,6 +35,8 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   versions: 90,
   approval: 100,
   threads: 110,
+  cancelSelection: 120,
+  commentSelection: 130,
 });
 
 export const bannerActions = el("div", "lf-banner-actions");

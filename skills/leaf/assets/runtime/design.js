@@ -3,9 +3,9 @@ import { documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
-import { closestAcross, containsAcross, cut, inChrome } from "./passages.js";
+import { closestAcross, containsAcross, inChrome } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
-import { CONTROL_WORD_CAP, designName, DESIGN_MODE_KEY } from "./design-readings.js";
+import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
@@ -253,10 +253,7 @@ export function createDesignMode({
     const said =
       control.getAttribute("aria-label") ||
       control.textContent.replace(/\s+/g, " ").trim();
-    if (!said) return control.tagName.toLowerCase();
-    return [...said].length > CONTROL_WORD_CAP
-      ? cut(said, 0, CONTROL_WORD_CAP) + "…"
-      : said;
+    return said || control.tagName.toLowerCase();
   }
 
   // Which presses the mode takes at the press, ahead of the page: everything but prose and

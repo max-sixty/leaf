@@ -433,7 +433,7 @@ customElements.define(
         : classes.length
           ? `${element.localName}.${classes.join(".")}`
           : element.localName;
-      const text = normalizedWords(says(element)).slice(0, 100);
+      const text = normalizedWords(says(element));
       return {
         reference: captureTargetReference(this.#preview, element),
         label: `<${descriptor}>`,
@@ -453,7 +453,7 @@ customElements.define(
           element.id ||
           says(element),
       );
-      const base = words.slice(0, 36) || element.id || element.localName;
+      const base = words || element.id || element.localName;
       let name = base;
       let suffix = 2;
       const names = new Set(this.#configuration.targets.map((target) => target.name));

@@ -2056,9 +2056,12 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         == "0"
     )
 
-    # The keyboard's route in is the focus the walk puts on the card; e opens the latest
-    # agent reply in that thread without disturbing the standing mark on an older reply.
-    card(first).focus()
+    # The keyboard's route in is the focus the walk puts on the card's native title; e
+    # opens the latest agent reply in that thread without disturbing the standing mark on
+    # an older reply. Opening this title closes the quiet card the measurements above
+    # needed open, which is the disclosure group doing its own work.
+    card(first).locator(":scope > .lf-thread-summary").click()
+    expect(card(first)).to_have_attribute("open", "")
     page.keyboard.press("e")
     expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
@@ -2137,7 +2140,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()  # the waiting-on-you narrowing
-    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".lf-needs")).to_be_checked()
     expect(page.locator(".lf-thread")).to_have_count(1)
 
     strip.locator(".lf-react-trigger").click()

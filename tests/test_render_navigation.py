@@ -66,6 +66,7 @@ from render_harness import (
     consume_browser_errors,
     hold_selection,
     leaf_page,
+    navigate,
     open_page,
     open_versions,
     opened_tab,
@@ -6516,7 +6517,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
 def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
     browser, serve, live_leaf
 ):
-    """Desktop auxiliary surfaces toggle beside the page or in covering placement."""
+    """One auxiliary selection survives reload and toggles off without reviving another."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ASKS_PAGE, comments=1))
 
@@ -6551,6 +6552,10 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         expect(page.locator(surface)).to_be_visible()
         assert page.locator("main").evaluate("main => main.inert") is covering
 
+        navigate(page, page.url)
+        expect(page.locator(surface)).to_be_visible()
+        assert page.locator("main").evaluate("main => main.inert") is covering
+
         page.keyboard.press("g")
         expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
         close_hint = page.locator(
@@ -6561,6 +6566,11 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         page.keyboard.press(key)
         expect(page.locator(surface)).to_be_hidden()
         expect(page.locator(control)).to_have_attribute("aria-expanded", "false")
+        navigate(page, page.url)
+        expect(page.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", re.compile(".+")
+        )
+        assert not page.locator("main").evaluate("main => main.inert")
 
 
 def test_global_destinations_switch_from_a_covering_workspace(

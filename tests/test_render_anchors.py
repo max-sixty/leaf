@@ -5010,11 +5010,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
-    # The card releases to whole-panel selection, and the panel to the page. The seat on
-    # the page is not put back, the reader having left it to come here.
-    page.keyboard.press("Escape")
+    # go-to-threads has one destination, the whole panel, whichever thread the reader
+    # stood on to ask for it.
     expect(page.locator(".lf-threads")).to_be_focused()
+    # The panel releases to the page. The seat on the page is not put back, the reader
+    # having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -5228,9 +5228,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    # The state narrowing is one radio group, so the chosen member is what it says it is
-    # rather than a toggle's pressed attribute.
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    # The status narrowing is a group of toggles, so the standing member wears its own
+    # pressed state.
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()

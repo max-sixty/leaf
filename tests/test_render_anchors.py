@@ -4035,17 +4035,28 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-shortcut-bar")).to_contain_text("leave forward")
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
     # The reference reads the same declaration, but it is a modal and global chrome: its
-    # entry dismisses the menu the way the platform dismisses any auto popover, so a row
-    # that describes standing inside the menu goes with the context it describes rather
-    # than being offered over a scene that no longer has it. The bar is the surface that
-    # speaks for the live one, and it named the direction above.
+    # entry dismisses the menu the way the platform dismisses any auto popover. The bar
+    # speaks for the live scene and names only the direction the reader can take; the
+    # reference is a catalogue and names both, each marked as reachable in the menu
+    # rather than here. Which is the whole of what the pair is for: a reader who cannot
+    # read the second direction anywhere cannot learn that the row has one.
     compared.keyboard.press("?")
     compared.keyboard.press("?")
     reference = compared.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
-    expect(reference).not_to_contain_text("Leave the versions menu forward")
-    expect(reference).not_to_contain_text("Leave the versions menu backward")
+    expect(reference).to_contain_text("Leave the versions menu forward")
+    expect(reference).to_contain_text("Leave the versions menu backward")
+    assert compared.evaluate(
+        """() => Object.fromEntries(
+          ['version.leave-forward', 'version.leave-backward'].map(command => [
+            command,
+            document.querySelector(
+              `.lf-command-reference-command[data-lf-command="${command}"]`
+            )?.dataset.lfAvailable ?? null,
+          ])
+        )"""
+    ) == {"version.leave-forward": "false", "version.leave-backward": "false"}
     compared.keyboard.press("Escape")
     expect(reference).to_be_hidden()
 

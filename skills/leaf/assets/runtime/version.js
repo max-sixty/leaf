@@ -493,6 +493,14 @@ export function createVersionController({
       // once — and while they shared a word it printed it twice, leaving the reader to
       // tell them apart by their keycaps. The direction is the whole difference between
       // them and it is what each says.
+      //
+      // Their `when` reads where focus stands, which is a dispatch question: the press
+      // closes the menu only from the end it is held to. The reference asks a different
+      // one — does this scene offer the capability — and it asks it of a menu the modal
+      // has just dismissed, so a position predicate answers no for both and the pair
+      // would be the only rows in this scope the reference can never name. They say so
+      // themselves, and the reference marks them unreachable the way it marks the
+      // numbered destinations beside them.
       {
         id: "version.leave-forward",
         keys: ["Tab"],
@@ -504,6 +512,7 @@ export function createVersionController({
         // fresh Tab; only the platform's focus move remains native.
         repeat: true,
         when: () => atVersionBoundary(-1),
+        commandReferenceWhen: () => true,
         run: closeVersionMenu,
       },
       {
@@ -514,6 +523,7 @@ export function createVersionController({
         native: true,
         repeat: true,
         when: () => atVersionBoundary(0),
+        commandReferenceWhen: () => true,
         run: closeVersionMenu,
       },
       // The menu is a layer over the page and its parent is the page, so the one press

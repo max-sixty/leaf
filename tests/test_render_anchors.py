@@ -163,13 +163,19 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // tidily on a boundary, and spanning two blocks is where the joins show.
             for (const end of [blocks[i], blocks[i + 1]].filter(Boolean)) {
                 attempted++;
+                // A mouse selection starts in page words and ends with the native
+                // pointer/mouse release pair; selectionchange alone does not snap.
+                const pointer = {bubbles: true, composed: true, isPrimary: true,
+                                 pointerType: 'mouse', button: 0};
+                blocks[i].dispatchEvent(new PointerEvent('pointerdown', pointer));
                 const range = document.createRange();
                 range.setStart(blocks[i], 0);
                 range.setEnd(end, end.childNodes.length);
                 const sel = getSelection();
                 sel.removeAllRanges();
                 sel.addRange(range);
-                document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+                end.dispatchEvent(new PointerEvent('pointerup', pointer));
+                end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
                 await tick();
                 // Counted, not shrugged off: a selection the button declines to offer is
                 // a passage silently outside this sweep, and the sweep is the coverage.
@@ -4821,13 +4827,17 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
             const index = starts.findLastIndex(value => value <= offset);
             return [nodes[index], offset - starts[index]];
           };
+          const pointer = {bubbles: true, composed: true, isPrimary: true,
+                           pointerType: 'mouse', button: 0};
+          line.dispatchEvent(new PointerEvent('pointerdown', pointer));
           const range = document.createRange();
           range.setStart(...at(start));
           range.setEnd(...at(start + phrase.length));
           const selection = getSelection();
           selection.removeAllRanges();
           selection.addRange(range);
-          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+          line.dispatchEvent(new PointerEvent('pointerup', pointer));
+          line.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, composed: true}));
           return {
             text: selection.toString(),
             crossesTokens: range.startContainer !== range.endContainer,

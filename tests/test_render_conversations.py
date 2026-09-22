@@ -1510,6 +1510,74 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     ), "mouseup did not complete the Resolve press"
 
 
+def test_opening_a_thread_leaves_its_title_where_the_reader_pressed_it(browser, serve):
+    """The list's named disclosure closes the card that was open, and when that card is
+    above the one being opened every title below it comes up by its whole open height.
+    The reader pressed a title, so the title is what must stay put: let it travel and the
+    thread they just opened is somewhere else, and from the first visible row it leaves
+    the scrollport entirely — the panel answers a press with the middle of a message and
+    no title over it. Native anchoring holds whichever node it picked, which is the
+    pressed card only when it happened to pick it, so the list holds the card itself.
+
+    Press with a real pointer: the hold reads the card under it, and that is the route
+    the geometry breaks on."""
+    page = open_page(browser, serve(LONG_PAGE, comments=30))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    above, target = roots[10:12]
+    page.locator(f'.lf-thread[data-id="{above}"] > .lf-thread-summary').click()
+    page.evaluate(RENDERED)
+    page.locator(f'.lf-thread[data-id="{target}"]').evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    page.evaluate(RENDERED)
+    scroll = page.locator(".lf-threads").evaluate(
+        "el => ({at: el.scrollTop, max: el.scrollHeight - el.clientHeight})"
+    )
+    assert 0 < scroll["at"] < scroll["max"], (
+        f"the pressed title is at a scroll limit, so the list has no room to hold it "
+        f"and the reading below would be about the limit instead: {scroll}"
+    )
+
+    title = page.locator(f'.lf-thread[data-id="{target}"] > .lf-thread-summary')
+    before = title.evaluate("el => el.getBoundingClientRect().top")
+    # The room has to close above the title, or nothing below it moves and this reading
+    # would pass on a list that never held anything.
+    standing = page.locator(f'.lf-thread[data-id="{above}"]').evaluate(
+        "el => el.getBoundingClientRect().toJSON()"
+    )
+    assert standing["bottom"] <= before, (
+        f"the open card is not above the title being pressed, so closing it takes no "
+        f"room out from under it: {standing} against {before:.1f}px"
+    )
+    opened = standing["height"]
+    box = title.bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(page.locator(f'.lf-thread[data-id="{target}"][open]')).to_have_count(1)
+    page.evaluate(RENDERED)
+
+    closed = page.locator(f'.lf-thread[data-id="{above}"]').evaluate(
+        "el => el.getBoundingClientRect().height"
+    )
+    assert opened - closed > 100, (
+        f"the card above gave back {opened - closed:.0f}px, which is too little room "
+        f"for this reading to say anything about holding the title still"
+    )
+    after = title.evaluate("el => el.getBoundingClientRect().top")
+    # A few pixels are the browser's own: pressing a title focuses it, and a focus the
+    # run heading stands over is revealed out from under it by the list's scroll-padding.
+    assert after == pytest.approx(before, abs=8), (
+        f"opening the thread carried its title from {before:.1f}px to {after:.1f}px, "
+        f"{opened - closed:.0f}px of room having closed above it"
+    )
+    in_threads_scrollport(page, f'.lf-thread[data-id="{target}"] > .lf-thread-summary')
+
+
 def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, serve):
     """A claim-only poll grows one card without reconciling the thread list itself.
 

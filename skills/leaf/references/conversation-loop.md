@@ -36,10 +36,10 @@ leaf status <page> working "running the browser suite against the new banner" &&
 Name the operation and its subject in one sentence. "Working on it" tells the reader
 nothing the banner's dot does not already say.
 
-Reader input takes priority over the work in hand. Claim it first, so the receipt
-beside the reader's own words says you have it, and answer it or say on the thread what
-you are doing about it. Then write the page status again, so the banner describes the
-work that continues rather than the last step before the interruption.
+Reader input takes priority over the work in hand. Follow the host's receipt route,
+and answer it or say on the thread what you are doing about it. Then write the page
+status again, so the banner describes the work that continues rather than the last
+step before the interruption.
 
 ## Status and handoff
 
@@ -76,9 +76,9 @@ Stamping accepts only widget ids with standing work. `status --on` refuses a
 widget with neither an unsettled action receipt nor an active `x-work` seat; use
 the page-wide detail when neither admits a local claim.
 
-Use `status --on` for proactive subject work that did not begin with a delivery. A
-delivery claims its own subject (`references/event-batches.md`, "Delivery and
-acknowledgement").
+Use `status --on` for proactive subject work that did not begin with a delivery. An
+optional delivery claim names an exact delivered event (`references/event-batches.md`,
+"Delivery and acknowledgement").
 
 ## Long-running work
 

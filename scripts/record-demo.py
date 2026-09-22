@@ -243,7 +243,7 @@ def select_text(page: Page, selector: str, text: str) -> None:
 
 
 class DemoWaiter:
-    """Own the one waiting process as wait delivery hands off to ack."""
+    """Own one background wait, confirming each complete delivery when rearming."""
 
     def __init__(self, page_dir: Path) -> None:
         self.page_dir = page_dir
@@ -282,7 +282,7 @@ class DemoWaiter:
                 f"{stderr}".rstrip()
             )
         self.process = subprocess.Popen(
-            [str(LEAF), "ack", str(self.page_dir), str(batch["through_seq"])],
+            [str(LEAF), "wait", "--ack", payload["id"]],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

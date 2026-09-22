@@ -298,7 +298,7 @@ class PageTransaction:
         including the reader who did the thing the banner told them to and
         nudged in the terminal, leaving no batch for any delivery to carry. A
         delivery is the other, and whether it is belongs to the carrier that
-        makes it: the direct watcher exits into model context, so its handoff is
+        makes it: the direct consumer confirms a complete delivery, so its receipt opens
         the turn; the Codex adapter hands a pointer to a durable queue an
         unloaded task leaves standing, so its handoff is not, and it declines
         this.

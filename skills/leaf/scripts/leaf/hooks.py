@@ -3,6 +3,7 @@
 import json
 
 from .activity import unanswered
+from .delivery import record_pickup
 from .event_log import read_events
 from .files import read_json
 from .host import claim_harness
@@ -21,7 +22,6 @@ from .service import (
     page_claim,
     unacknowledged,
 )
-from .session import record_pickup
 
 
 def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:

@@ -893,7 +893,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
         str(page_dir): "/page",
         event["id"]: "reader-event",
         event["ts"]: "2026-09-22T10:00:00-07:00",
-        payload["id"]: "00000000-0000-4000-8000-000000000001",
+        payload["id"]: "00000001",
         str(payload["created_at"]): "1790096400.0",
     }
     serialized = json.dumps(outgoing)

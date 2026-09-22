@@ -205,7 +205,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 
     The pages narrate the agent's half of the loop and `how-it-works.html` now shows
     it, and a renamed subcommand is what quietly breaks that: the transcript is prose
-    to every other gate here, so a stale `leaf ack` would go on being published
+    to every other gate here, so a stale command would go on being published
     indefinitely. The names are resolved against click's own tree rather than listed
     in this file, because a list here is a second copy of the command surface and goes
     stale the same way the page does.

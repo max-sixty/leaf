@@ -14,7 +14,7 @@ an area subtree, or project-wide coordination. Give it:
 - the required outcome and constraints
 - the instruction to read `"$LEAF" page guidance "$PAGE" worker`
 
-The coordinator alone runs `leaf wait` and `leaf ack`, changes page status,
+The coordinator alone runs `leaf wait`, changes page status,
 updates the source, stamps versions, and records `done` after accepting or
 landing the work.
 

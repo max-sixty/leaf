@@ -11,10 +11,10 @@ from click.testing import CliRunner
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from PIL import Image
@@ -4953,7 +4953,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     inline_receipt.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_receipt.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, [root])
+        delivery_model.record_pickup(transaction, [root])
     told(page)
     expect(inline_receipt).to_contain_text("✓ Picked up")
     expect(panel_receipt).to_contain_text("✓ Picked up")

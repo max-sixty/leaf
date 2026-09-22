@@ -7,7 +7,7 @@ Every carrier presents the same immutable object:
 ```json
 {
   "format": "leaf-delivery-v2",
-  "id": "…",
+  "id": "a1b2c3d4",
   "created_at": 0,
   "batches": [
     {
@@ -20,6 +20,9 @@ Every carrier presents the same immutable object:
   ]
 }
 ```
+
+The id is eight lowercase hexadecimal characters and addresses this envelope in the
+machine's immutable delivery store.
 
 Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your host contract names which. These differ only in
@@ -80,38 +83,43 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-Run `leaf delivery claim <delivery-id>` before anything else, including the
-`delivery read` a pointer needs. It atomically selects the first delivered reader move
-that is still outstanding, writes `working` with "Reading your feedback", and
-strengthens that move's receipt to **Working**; a retry with no outstanding move
-changes nothing. After reading the feedback, a more specific claim can name the exact
-event in hand:
+Printing is not receipt. The wait owner acknowledges only after the complete
+envelope reaches its next durable consumer, which in the direct loop is model
+context. Follow the host contract's acknowledgement route. In a direct loop,
+start the next background wait with the envelope's id:
+
+```bash
+leaf wait --ack <delivery-id>
+```
+
+This acknowledges every batch in that delivery and waits for the next envelope.
+Process the received events while it waits. If output is truncated or lost,
+acknowledge nothing and rerun with enough output capacity for the whole envelope;
+a scalar cursor cannot represent a missing event in the middle. Acknowledgement
+is monotonic and idempotent; an event posted after capture has a higher sequence
+and stays pending. Until ack, wait repeats the events. `leaf events` reads the
+full log without acking it.
+
+Receipt and work have separate evidence. Confirming a direct delivery records its
+moves as **Picked up** in the current turn. Other hosts record that opening when
+they observe the delivery entering a turn. Leaf derives overall page activity from
+that evidence. When useful, name the exact delivered event whose work you are
+starting and describe that work:
 
 ```bash
 leaf delivery claim <delivery-id> --event <event-id> --detail "checking the rollout"
 ```
 
-Printing is not receipt. The wait owner acknowledges only after the complete
-batch reaches its next durable consumer, which in the direct loop is model context.
-Acknowledge with `leaf ack <page> <through_seq>` for the page the batch names, by the
-route the host contract gives, and address every event while ack waits for the next
-batch. If wait
-output is truncated or lost, acknowledge nothing and rerun with enough output
-capacity for the whole batch;
-a scalar cursor cannot represent a missing event in the middle. Acknowledgement
-is monotonic and idempotent; an event posted between wait and ack has a higher
-sequence and stays pending. Until ack, wait repeats the batch. `leaf events`
-reads the full log without acking it.
+This optional claim strengthens that move's receipt to **Working** while it
+remains outstanding. It does not acknowledge the delivery or answer the move.
 
 Whatever the host, treat a page-and-sequence pair already handled in this task as a
 retry, even if a later delivery also includes newer events; your host contract owns
 the wait and acknowledgement route.
 
-`leaf wait`, and `leaf ack` once its cursor has advanced, ends one of two ways: exit 0
-with one JSON envelope on stdout, the next input, or exit 2 with the ending named on
-stderr. Exit 1 from `leaf ack` means the acknowledgement was refused and the cursor
-did not move. The initial wait says on stderr when it revived a dead server. The
-endings:
+`leaf wait` ends one of two ways: exit 0 with one JSON envelope on stdout, the next input, or exit 2 with the ending named on
+stderr. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. The
+initial wait says on stderr when it revived a dead server. The endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.

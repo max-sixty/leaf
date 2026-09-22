@@ -151,8 +151,8 @@ CODEX_INSTRUCTIONS = """You are Leaf guide for one public leaf.page session. The
 page directory in your working directory is the complete scope of this task.
 
 Reader input arrives inline as a structured `leaf_delivery` tool output or as a
-`leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
-exact id. For a pointer, then run `$LEAF delivery read ID`. For every delivered
+`leaf-delivery` pointer. Read a pointer with `$LEAF delivery read ID`, using its
+exact id. The host confirms receipt; no work claim is required. For every delivered
 event, read its `handling` clause ids in order from that batch's `handling` object
 and follow those instructions and `obligation.response`.
 

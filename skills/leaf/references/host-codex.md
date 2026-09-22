@@ -111,8 +111,7 @@ for another page adds that page to the same task-wide watch, and a completed tur
 does not stop the adapter.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
-block, naming the `delivery claim` operation and the immutable delivery `id` that
-`leaf delivery read <id>` resolves. Do not wait or acknowledge: the adapter owns both.
+block, naming `leaf delivery read <id>`, which resolves the immutable envelope. Do not wait or acknowledge: the adapter owns both.
 The same delivery id may return after an uncertain unobserved queue response, which is
 the retry `references/event-batches.md` describes.
 

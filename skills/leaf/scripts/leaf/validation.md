@@ -2,17 +2,10 @@
 
 ## Event admission
 
-Every event is validated where it enters the log, at the one append door every
-writer shares, and not at the writer that happens to send it. The door runs under
-the page transaction's lease, so the standing log a gate reads, the meaning derived
-from it, and the write are one transaction, and two tabs cannot both validate
-against the same standing target. It ends by checking the finished record against
-the stored-record contract of its kind, which is what `page init` re-checks over
-the whole log before a layer may replace another: a record no writer could produce
-is a record no re-vendor has to carry. `events.md` owns the order and the per-kind
-gates. What stays with a transport is what only that transport knows — which kinds
-a browser may post, which fields it may send, how a retry is answered, and whether
-it resolved its own anchors.
+Every writer uses the shared append transaction described in
+[events.md, "Admission"](events.md#admission). `page init` also checks the
+standing log against the replacement layer's stored-record contracts before
+re-vendoring.
 
 ## Static validation
 
@@ -89,12 +82,9 @@ end-to-end render-check tests run the launches used here — the installed Chrom
 channel, and the headless shell handed over under each variable that names one —
 and a unit reading covers the PATH search, which is only reached where the channel
 misses. `version export` launches through the same helper, so the two move together.
-Under every one of those launches sits Playwright's driver, a Node process the
-wheel bundles and `PLAYWRIGHT_NODEJS_PATH` replaces. Where that process ends at
-startup, or never runs at all, no launch is reached, so both gates report it as
-one line of their own — why the driver stopped, the Node that ran, and the
-variable that chooses one — rather than letting Playwright's context entry, or
-its cleanup after one, raise a private attribute.
+Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` when
+set. Driver startup failures report the cause, the Node executable, and that
+variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 
 The browser's authored-state conflict check considers only surviving reader actions
 made before the revision being checked. Actions made on that revision already saw
@@ -144,18 +134,12 @@ reader body rewrites replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
 authored version and uses the conversation's whole action window.
-The event door repeats that semantic check under the append transaction, but only
-for a transport that reaches it with nothing resolved — the MCP app, which renders
-the authored source with no runtime behind it. A runtime's own anchor is already
-answered against the rendered page, which holds words this reading cannot produce —
-a widget's label, a module's rendering — so re-reading it off the file would refuse a
-passage the page shows. Whitespace is the other refusal, and it is not the
-current runtime's doing: `quoteFrom` in assets/runtime/passages.js collapses a live
-selection to the same class this reading does, spelled to passages.py's
-COLLAPSE_CHARS, so those two agree. The spellings that arrive uncollapsed are the
-ones earlier runtimes write — test_a_quote_finds_its_passage_whatever_its_whitespace
-names them — and they name the same words, so a comparison against the canonical
-quote would turn a passage down for its whitespace alone.
+Event admission repeats file-side capture only when the transport requests it,
+as the MCP snapshot does. Runtime anchors are already resolved against rendered
+words, including widget labels and module output unavailable to the file reading,
+so admission does not recapture them. Browser `quoteFrom` and Python's
+`COLLAPSE_CHARS` define matching whitespace collapse. A recaptured quote must
+match the canonical quote exactly.
 Where the capture does run, a transport may omit optional context for a quote that
 is unique in its declared section; when a quote repeats, its supplied prefix and
 suffix must resolve exactly one current occurrence. Widget source, retired text,

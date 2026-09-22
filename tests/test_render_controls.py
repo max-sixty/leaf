@@ -10,6 +10,7 @@ from interact_support import (
     append_command,
     record_claim,
 )
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import leases as leases_model
@@ -3215,7 +3216,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         # Pickup into the claimant's current turn proves generic page work while the
         # exact delivery phase remains on the interaction receipt and in the account.
         with service_model.PageTransaction(other_dir) as transaction:
-            session_model.record_pickup(transaction, [comment])
+            delivery_model.record_pickup(transaction, [comment])
         told(page)
         expect(row.locator(".lf-others-line")).to_have_text("Working")
         expect(row).to_have_attribute(

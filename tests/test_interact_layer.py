@@ -41,6 +41,7 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
+from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import reactions as registry_reactions
@@ -100,11 +101,10 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
     regtest.write("\n".join(outputs))
 
 
-@pytest.mark.parametrize("command", ["wait", "ack"])
-def test_wait_and_ack_help_require_a_complete_batch(command):
+def test_wait_help_requires_a_complete_batch():
     result = CliRunner().invoke(
         cli_model.cli,
-        [command, "--help"],
+        ["wait", "--help"],
         terminal_width=200,
     )
 
@@ -128,7 +128,6 @@ def test_agent_interaction_command_help(regtest):
     outputs = []
     for command in (
         "wait",
-        "ack",
         "delivery claim",
         "delivery read",
         "page state",
@@ -181,6 +180,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     delivery = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert delivery.exit_code == 0, delivery.output
     assert len(json.loads(delivery.output)["batches"][0]["events"]) == 2
+    session_model.receive_delivery(json.loads(delivery.output)["id"])
     record(["reply", str(page), "--text", "Answer"], 1)
     record(["reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
     record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 0)

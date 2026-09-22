@@ -29,8 +29,10 @@ policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
-comment); ids are unique, and ids needed by anchored unresolved threads, standing
-reader actions, or effective standing reports survive from the previous revision. A
+comment); ids are unique, no authored id, class, or attribute sits in the runtime's
+`lf-` and `data-lf-` namespaces, named today or not, and ids needed by anchored
+unresolved threads, standing reader actions, or effective standing reports survive
+from the previous revision. A
 declared visual part survives on the same terms as an id: while a live
 conversation's current anchor names it, and no longer once every thread on it
 has moved, detached, or closed. That release is final — a revision the part has

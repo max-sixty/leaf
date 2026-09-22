@@ -5949,7 +5949,7 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
         == 0
     ), "the document tree already answers for this one, so the reading proves nothing"
     assert render_checks_model.evaluate_probe(page, "moving") == [
-        "<lf-drift id=drift-note>"
+        "<div> in <lf-drift id=drift-note>"
     ]
 
 

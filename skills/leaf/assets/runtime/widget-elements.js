@@ -47,6 +47,7 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the reader operates nested evidence. */
+import { retainReaderIntent } from "./reader-intent.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
@@ -55,19 +56,22 @@ import { iconElement } from "./icons.js";
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
 // widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
-// target geometry before the scroll. Called before every scroll-to-content.
-export function reveal(el) {
+// target geometry before the scroll. A delayed caller passes its original intent;
+// asynchronous listeners inherit that permission through event.detail.mayReveal.
+export function reveal(el, mayReveal = retainReaderIntent()) {
   const chain = [];
   const pending = [];
   for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
     chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
+    if (!mayReveal()) break;
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
     a.dispatchEvent(
       new CustomEvent("lf-reveal", {
         detail: {
           target: el,
+          mayReveal,
           present: (ready) => ready?.then && pending.push(ready),
         },
       }),

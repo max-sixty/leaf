@@ -1599,6 +1599,45 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         )
 
 
+@pytest.mark.parametrize("intervene", [False, True])
+def test_a_tab_scroll_restore_yields_while_its_layout_settles(
+    browser, serve, intervene
+):
+    source = leaf_page(
+        "Tab readings",
+        '<lf-tabs id="views">'
+        + "".join(
+            f'<lf-tab id="view-{name.lower()}" label="{name}"><h1>{name}</h1>'
+            '<div style="height: 1800px"></div></lf-tab>'
+            for name in ("First", "Second")
+        )
+        + "</lf-tabs>",
+    )
+    page = open_page(browser, serve(source))
+    page.get_by_role("tab", name="Second", exact=True).focus()
+    page.evaluate("scrollTo(0, 400)")
+    page.keyboard.press("Enter")
+    page.evaluate(RENDERED)
+    page.evaluate("""() => {
+      const held = new Promise(resolve => { window.releaseTabLayout = resolve; });
+      document.querySelector('#views').addEventListener('lf-layout', event => {
+        event.detail.present(held);
+        window.tabLayoutStarted = true;
+      }, {once: true});
+    }""")
+    try:
+        page.get_by_role("tab", name="First", exact=True).click()
+        page.wait_for_function("window.tabLayoutStarted === true")
+        if intervene:
+            page.mouse.move(500, 450)
+            page.mouse.wheel(0, 200)
+            page.wait_for_function("scrollY === 200")
+    finally:
+        page.evaluate("releaseTabLayout()")
+    page.evaluate(RENDERED)
+    assert page.evaluate("scrollY") == pytest.approx(200 if intervene else 400, abs=1)
+
+
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
     """The strip reads as an index inside the one frame that bounds its views.
 
@@ -2899,6 +2938,47 @@ def test_what_the_reader_put_on_after_the_panel_comes_off_before_it(browser, ser
     expect(page.locator(".lf-find-box")).to_have_value("")
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
+
+
+@pytest.mark.parametrize("intervene", [False, True])
+@pytest.mark.parametrize("from_tray", [False, True])
+def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
+    browser, serve, intervene, from_tray
+):
+    """A newer reader move owns focus even before the requested Ask has a live node."""
+    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    if from_tray:
+        resized(page, 390, 844)
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+a")
+        expect(page.locator("button.lf-asks-row").first).to_be_focused()
+    if from_tray:
+        page.locator("button.lf-asks-row").filter(
+            has_text="If their next release"
+        ).focus()
+    page.evaluate("""() => {
+      const list = document.querySelector('.lf-threads');
+      const present = list.present.bind(list);
+      const held = new Promise(resolve => { window.releaseAskMaterialization = resolve; });
+      list.present = async (...args) => {
+        const result = await present(...args);
+        window.askMaterializationStarted = true;
+        await held;
+        return result;
+      };
+    }""")
+    try:
+        page.keyboard.press("Enter" if from_tray else "a")
+        page.wait_for_function("window.askMaterializationStarted === true")
+        if intervene:
+            page.locator(".lf-general textarea").focus()
+    finally:
+        page.evaluate("releaseAskMaterialization()")
+    page.evaluate(RENDERED)
+    if intervene:
+        expect(page.locator(".lf-general textarea")).to_be_focused()
+    else:
+        expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
 
 
 def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
@@ -5161,8 +5241,9 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
     expect(asks.first).to_be_focused()
 
 
+@pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
-    browser, serve
+    browser, serve, width
 ):
     """An answered tray can close and reopen through its banner control."""
     page = open_page(
@@ -5178,6 +5259,8 @@ def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
         ),
     )
 
+    resized(page, width, 844)
+
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-asks-row")).to_be_focused()
@@ -5187,6 +5270,12 @@ def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
+    if width == 390:
+        expect(page.locator(".lf-asks-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+a")
     expect(page.locator("button.lf-asks-row")).to_have_count(1)
     expect(page.locator(".lf-asks-answer")).to_have_text("First")
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))

@@ -183,11 +183,15 @@ export function createAskView({
   // live panel node. Navigation and activation are the two boundaries that need that
   // node, so materialize the existing conversation projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
-  async function materializeAsk(ask) {
+  async function materializeAsk(ask, intent = null) {
     let target = askNode(ask);
     let source = sourceNode(ask);
     if ((!target || !source) && ask.thread) {
-      if (!panelIsOpen()) setPanel(true);
+      if (!panelIsOpen()) {
+        if (intent) {
+          if (!intent.handoff(() => setPanel(true))) return {};
+        } else setPanel(true);
+      }
       await refreshConversation();
       target = askNode(ask);
       source = sourceNode(ask);
@@ -1113,13 +1117,17 @@ export function createAskView({
   // The list comes with the ask, because the announcement names a place in it and the caller
   // is the one that knows which list it walked: the walk's own or the tray's.
   async function goToAskNow(next, asks) {
+    const mayArrive = retainReaderIntent({
+      available: () => hasAsk(allAsks(), next),
+    });
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
-    let { target, source } = await materializeAsk(next);
-    if (!target) return false;
+    let { target, source } = await materializeAsk(next, mayArrive);
+    if (!mayArrive() || !target) return false;
     if (inChrome(target) && !panelIsOpen()) {
-      setPanel(true);
+      if (!mayArrive.handoff(() => setPanel(true))) return false;
       await refreshConversation();
+      if (!mayArrive()) return false;
       target = askNode(next);
       source = sourceNode(next);
       if (!target) return false;
@@ -1128,17 +1136,14 @@ export function createAskView({
     // become the whole visible surface, so selecting a page destination closes it
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
-    if (!inChrome(target) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
-    const mayArrive = retainReaderIntent({
-      source: focused(),
-      available: () => hasAsk(allAsks(), next) && Boolean(askNode(next)?.isConnected),
-    });
-    await reveal(target); // a settled group or an inactive tab has no geometry until it opens
+    if (!inChrome(target) && trayIsOpen("asks") && trayCovers())
+      if (!mayArrive.handoff(() => setOpenTray(null))) return false;
+    await reveal(target, mayArrive); // a settled group or an inactive tab has no geometry until it opens
     if (!mayArrive()) return false;
     target = askNode(next);
     source = sourceNode(next);
     if (!target || !source) return false;
-    if (next.sourceId !== next.id) await reveal(source); // let the answering widget settle its own chrome
+    if (next.sourceId !== next.id) await reveal(source, mayArrive); // let the answering widget settle its own chrome
     if (!mayArrive() || !source.isConnected) return false;
     target = askNode(next);
     if (!target) return false;

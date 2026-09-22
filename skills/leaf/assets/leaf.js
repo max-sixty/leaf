@@ -301,7 +301,6 @@ const anchorTravel = createAnchorTravel({
   currentThreads: allThreads,
   refreshConversation: () => app.refreshConversation(),
   announce,
-  focused,
 });
 landing = createConversationLanding({
   setPanel: (...args) => threadPanelController.setPanel(...args),
@@ -778,7 +777,6 @@ if (!offlineInteractive) {
   targetPaint.mountTargetPaint();
   anchorPaint.mount();
   anchorControls.mount();
-  anchorTravel.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();

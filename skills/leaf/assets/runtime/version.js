@@ -1436,7 +1436,7 @@ export function createVersionController({
     // Their newer input owns navigation; carried field values already crossed with the
     // nodes, so yielding here cannot discard an unrelated draft.
     if (currentIntent()) {
-      restoreView(view);
+      restoreView(view, currentIntent);
       landCarry();
       restoreAskStanding(askStanding);
     }
@@ -1713,7 +1713,7 @@ export function createVersionController({
     return readingRegions().find(({ body }) => body === scroller)?.id;
   }
 
-  function restoreRegion(view, region = null) {
+  function restoreRegion(view, region, currentIntent) {
     if (!view) return;
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
@@ -1721,7 +1721,7 @@ export function createVersionController({
     const found = view.quote && resolveAnchor(view, text);
     const segments = targetSegments(found);
     if (segments.length) {
-      reveal(segments[0].node.parentElement); // the passage may sit behind a tab
+      reveal(segments[0].node.parentElement, currentIntent); // the passage may sit behind a tab
       moveScrollerBy(
         box,
         rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
@@ -1730,7 +1730,7 @@ export function createVersionController({
     }
     const section = targetElement(resolveAnchor({ section: view.section }, text));
     if (section) {
-      reveal(section);
+      reveal(section, currentIntent);
       // The shown reading on both sides of the subtraction, because the landmark is
       // whatever id stands nearest the block the reader was on, and a section that
       // generates no box of its own is one a suggestion wrapping whole sections leaves
@@ -1741,14 +1741,14 @@ export function createVersionController({
       box.scrollTo({ top: view.y, behavior: "instant" });
   }
 
-  function restoreView(view) {
+  function restoreView(view, currentIntent) {
     setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
       containingReadingRegionFor(focused()) ??
       readingRegionFor(readingBlock());
-    if (active) reveal(active.host);
+    if (active) reveal(active.host, currentIntent);
     const restored = new Set();
     const activeReading = active && view.regions?.[active.id];
     const activeScroller = active && effectiveScroller(regions.get(active.id));
@@ -1761,10 +1761,10 @@ export function createVersionController({
         (rawOffsetFits(activeReading, activeScroller) &&
           activeScroller !== pageScroller))
     ) {
-      restoreRegion(activeReading, regions.get(active.id));
+      restoreRegion(activeReading, regions.get(active.id), currentIntent);
       restored.add(activeScroller);
     } else {
-      restoreRegion(view);
+      restoreRegion(view, null, currentIntent);
       restored.add(pageScroller);
     }
     for (const [id, reading] of Object.entries(view.regions ?? {})) {
@@ -1773,7 +1773,7 @@ export function createVersionController({
       const box = effectiveScroller(region);
       if (restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region);
+      restoreRegion(reading, region, currentIntent);
       restored.add(box);
     }
   }
@@ -1865,7 +1865,7 @@ export function createVersionController({
       const box = effectiveScroller(region);
       if (!reading || restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region);
+      restoreRegion(reading, region, transition.currentIntent);
       restored.add(box);
     }
   }
@@ -1926,7 +1926,7 @@ export function createVersionController({
       if (!currentIntent()) return;
       if (handoff) {
         restorePointer(handoff.pointer);
-        restoreView(handoff.view);
+        restoreView(handoff.view, currentIntent);
         restoreRetainedStanding(handoff.retainedStanding);
         landCarry();
         restoreAskStanding(handoff.askStanding);
@@ -1949,7 +1949,7 @@ export function createVersionController({
         savedView &&
         savedView.revision !== runtime.currentRevision
       )
-        restoreView(savedView);
+        restoreView(savedView, currentIntent);
     }
     return { landArrival, savedView };
   }

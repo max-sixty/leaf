@@ -10,13 +10,15 @@ for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
   addEventListener(type, leave, { capture: true, passive: true });
 addEventListener("blur", leave);
 
+// Capture before the first asynchronous step. Pass this same predicate into nested
+// reveals; capturing again after a wait gives stale work a newer gesture's authority.
 export function retainReaderIntent({
   source = focused(),
   available = () => true,
   fallback = null,
 } = {}) {
   const retained = intent;
-  return () => {
+  const current = () => {
     const at = focused();
     const withinSource =
       source === document.body ? at === document.body : source?.contains(at);
@@ -26,4 +28,13 @@ export function retainReaderIntent({
       (at === document.body || at === fallback || withinSource)
     );
   };
+  // A navigation may itself close a tray or open a panel and move focus. Adopt only
+  // that synchronous handoff, retaining the original input generation throughout.
+  current.handoff = (move) => {
+    if (!current()) return false;
+    move();
+    source = focused();
+    return current();
+  };
+  return current;
 }

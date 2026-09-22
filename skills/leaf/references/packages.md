@@ -405,6 +405,13 @@ authority. The declaration applies equally to recordless verbs.
 Worker reports supply the same map with `leaf report --references '<JSON-object>'`.
 Omit the option only for a verb that declares no reference roles.
 
+An asynchronous navigation captures `retainReaderIntent()` before its first wait and
+checks the returned predicate before moving focus or scroll. Pass that same predicate to
+`reveal(target, currentIntent)`; asynchronous `lf-reveal` listeners receive it as
+`event.detail.mayReveal`. If the navigation itself opens or closes a surface that moves
+focus, `currentIntent.handoff(() => changeSurface())` preserves that synchronous focus
+transfer without renewing the original input generation.
+
 What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and

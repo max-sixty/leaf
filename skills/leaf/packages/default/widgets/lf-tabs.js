@@ -26,6 +26,7 @@ import {
   once,
   pageScroller,
   preserveReadingRegions,
+  retainReaderIntent,
   relabel,
   removeRuntimeRootStyle,
   selectableOffer,
@@ -203,6 +204,10 @@ customElements.define(
 
     #activate(active, remember, reason) {
       if (!this.#buttons.has(active)) return;
+      // History navigation can focus its fragment target after popstate returns.
+      const mayRestore = retainReaderIntent({
+        fallback: reason === "history" ? active : null,
+      });
       const activation = ++this.#activation;
       if (active === this.#active) {
         if (this.#root && reason === "ordinary") this.#pushLocation(active);
@@ -252,7 +257,11 @@ customElements.define(
           tabStore.get(`${TAB_SCROLL_KEY}${this.id}:${active.id}`),
         );
         void ready.then(() => {
-          if (activation === this.#activation && active === this.#active)
+          if (
+            mayRestore() &&
+            activation === this.#activation &&
+            active === this.#active
+          )
             pageScroller.scrollTop = Number.isFinite(saved) ? saved : 0;
         });
       }

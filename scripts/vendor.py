@@ -666,20 +666,37 @@ REBUILDS = {
 }
 
 
-# Some pins are not Leaf's own choice of version. They are dependencies of the package
-# Leaf chose and are pinned here only because each bundle is self-contained: esbuild
-# resolves those bare imports itself, so the versions have to be named. A release
-# outside the range its dependant declares is therefore not a pin to take. npm would
-# install the declared version nested under it, esbuild would bundle that one, and the
-# table would say one thing while the bundle carried another. Their rows read against
-# the dependant's range, so what the report calls movement is movement that can
-# actually be taken.
+# Some pins cannot move to whatever upstream published last. A bundle is self-contained,
+# so esbuild resolves its bare imports itself and every package in the install has to be
+# named — and one of those packages may declare a range for another. A release outside
+# that range is not a pin to take: npm would install the declared version nested under
+# the dependant, esbuild would bundle that one, and the table would say one thing while
+# the bundle carried another. Those rows read against the dependant's range, so what the
+# report calls movement is movement that can actually be taken.
+#
+# The install decides, not the pin's provenance. `@floating-ui/dom` is Leaf's own choice
+# for the `floating-ui` bundle and still held, because the `webawesome` bundle installs
+# it beside Web Awesome, which declares a range of its own; Leaf's choice would land in
+# one bundle and nested under the other. `diff` is the case provenance reads backwards:
+# `@pierre/diffs` declares the version Leaf pins, but the `pierre` build installs
+# `@pierre/diffs` and Shiki rather than the `diff` pin, so the two never meet in one
+# install and a moved `diff` rebuilds `jsdiff` alone.
 HELD_BY = {
     "elkjs": "agentic-mermaid",
     "entities": "agentic-mermaid",
     "yaml": "agentic-mermaid",
+    "@floating-ui/dom": "@awesome.me/webawesome",
     "@floating-ui/core": "@floating-ui/dom",
     "@floating-ui/utils": "@floating-ui/dom",
+    "shiki": "@pierre/diffs",
+    "@ctrl/tinycolor": "@awesome.me/webawesome",
+    "@shoelace-style/localize": "@awesome.me/webawesome",
+    "composed-offset-position": "@awesome.me/webawesome",
+    "lit": "@awesome.me/webawesome",
+    "nanoid": "@awesome.me/webawesome",
+    "lit-element": "lit",
+    "lit-html": "lit",
+    "@lit/reactive-element": "lit",
 }
 
 

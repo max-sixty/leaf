@@ -203,16 +203,24 @@ export function readingState(choice) {
 
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
-// An aggregated reading takes its most urgent member's turn, as it already takes the
-// most urgent member's workflow stage: one seat cannot say two things, and the reading
-// a cluster is compact enough to hide is the one the reader most needs to see.
-export const awaitingReader = (items) => items.some((item) => item.awaitsReader);
-// The word beside the colour. Colour alone cannot carry a state, and the panel already
-// calls this one "On you", so the margin says it the same way.
-export const TURN_WORD = "On you";
+// Each member already carries canonical Thread attention. An aggregate keeps a concrete
+// Ask ahead of another reader recovery; it never re-derives attention from turns or
+// workflow stages.
+const readerAttention = (items) => {
+  let first = null;
+  for (const item of items) {
+    const attention = item.readerAttention;
+    if (!attention) continue;
+    if (attention.reason === "ask") return attention;
+    first ??= attention;
+  }
+  return first;
+};
+export const awaitingReader = (items) => Boolean(readerAttention(items));
 
 export function readingContext(choice) {
-  if (awaitingReader(choice?.items ?? [])) return TURN_WORD;
+  const attention = readerAttention(choice?.items ?? []);
+  if (attention) return attention.label;
   if (choice?.items.length !== 1) return null;
   return choice.items[0].context ?? null;
 }

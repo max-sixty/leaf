@@ -86,7 +86,6 @@ import {
   readingState,
   readingBehavior,
   awaitingReader,
-  TURN_WORD,
   readingContext,
   clusterProjection,
   marginInventory,
@@ -119,7 +118,7 @@ import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
 import { threadList } from "./conversation/state.js";
-import { awaitsReader, threadKey } from "./conversation/model.js";
+import { threadKey } from "./conversation/model.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -138,6 +137,7 @@ import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
+  threadAttention,
   workflowLabel,
 } from "./conversation/workflow.js";
 
@@ -833,8 +833,8 @@ export function createMarginProjection({
       const id = thread.root.id;
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
-      const onReader = awaitsReader(thread);
-      const workflow = strongestWorkflow(thread.workflows ?? []);
+      const attention = threadAttention(thread);
+      const onReader = attention?.kind === "needs_reader";
       add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
@@ -846,17 +846,21 @@ export function createMarginProjection({
           thread.root.text || anchorLabel(thread.anchor, thread.root.about),
         ),
         thread,
-        // Whose word this conversation waits on, read from the server's projection
-        // rather than derived again here: the banner's count, the panel's On-you facet
-        // and this margin entry are one question, and a second reading of it in the
-        // margin would be a second answer.
-        awaitsReader: onReader,
+        // The Thread record already combines server attention with the local workflow
+        // overlay. Margin and Page Map carry that reading rather than deriving another
+        // answer from raw turn or workflow fields.
+        readerAttention: onReader
+          ? {
+              label: attention.label,
+              reason: thread.attention?.reason ?? "workflow",
+            }
+          : null,
         // Page Map lists each conversation on its own row, so the word goes on the row
         // rather than on an aggregate.
-        ...(onReader ? { mapContext: TURN_WORD } : {}),
+        ...(onReader ? { mapContext: attention.label } : {}),
         // Work decorates the conversation control; it never replaces the control's
         // comment face or its disclosure action.
-        workflowReceipt: onReader ? null : workflow,
+        workflowReceipt: onReader ? null : attention?.workflow,
         activate: () => showThread(id),
       });
     }
@@ -1162,7 +1166,10 @@ export function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${awaitingReader(choice?.items ?? []) ? `, ${TURN_WORD}` : ""}`;
+    const readerContext = awaitingReader(choice?.items ?? [])
+      ? readingContext(choice)
+      : null;
+    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${readerContext ? `, ${readerContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
@@ -1569,13 +1576,14 @@ export function createMarginProjection({
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
+    const readerContext = awaitingReader(choice.items) ? readingContext(choice) : null;
     presentMarginEntry(
       node,
       marginEntry({
         key: `reading:${choice.key}`,
         icon: face.icon,
         label,
-        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${awaitingReader(choice.items) ? `, ${TURN_WORD}` : ""}`,
+        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${readerContext ? `, ${readerContext}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",

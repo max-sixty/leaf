@@ -268,7 +268,7 @@ export function createPageMapDialog({
       const action = control.lfMapAction;
       if (action.kind === "item") {
         syncMarginAgentWorkflow(control, action.item.workflowReceipt);
-        syncMarginTurn(control, action.item.awaitsReader);
+        syncMarginTurn(control, Boolean(action.item.readerAttention));
       } else
         presentSheetControl(control, action, groupsByKey.get(action.entry.key).actions);
     }

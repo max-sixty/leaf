@@ -89,7 +89,6 @@ export function threadReading(
       ? quoteReading(thread, commands.anchors, outline ?? pageOutline())
       : null,
     resolved,
-    awaitsReader: thread.awaits_reader,
     attention: threadAttention(thread),
     resolvedBy:
       thread.resolved?.author === "agent"

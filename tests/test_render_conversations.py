@@ -3060,6 +3060,12 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     real = page.locator(f'#cd-q .lf-conversation-msg[data-event="{answer["id"]}"]')
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
+    # The server settled its turn, so raw awaits_reader is false. Canonical recovery
+    # attention still owns the aggregated margin reading and keeps its exact label.
+    margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
+    expect(margin).to_have_attribute("data-lf-turn", "reader")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Not answered")
+
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')

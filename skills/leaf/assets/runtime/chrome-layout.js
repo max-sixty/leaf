@@ -234,6 +234,15 @@ export function createChromeLayout({
   // placed off the column's box, which a resize observer cannot report — it hears a box
   // change size, not place. The observers still run on the frame after, and re-placing
   // what is already placed is a no-op.
+  //
+  // `change` carries the shell write, and chrome reconciliation rides with it: `landEdge`
+  // passes `syncLayout` through this call and the reader stays on the same words across
+  // the reflow. What may not go inside is a surface's own rendering. The hold the browser
+  // carries rests on an ordering (theme.css, at the body strip): nothing may move the
+  // reading column except the container-query recalc that runs inside layout, and showing
+  // the panel's dialog in the same batch as the shell write switches that hold off —
+  // measured at 900px, the reader landed three paragraphs back. So a caller with a surface
+  // to render does it either side of this call.
   function moveContentFrame(change) {
     change();
     pageShifted();

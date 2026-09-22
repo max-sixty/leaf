@@ -1,5 +1,6 @@
 """Interaction-scoped acknowledgment lifecycle projection."""
 
+from .asks import thread_completion
 from .events import awaits_agent, seat_root, spoken_turns
 from .projection import (
     NO_RECORD,
@@ -216,7 +217,8 @@ def canonical_acknowledgments(
             )
 
     # Frozen widget actions are answered by the next agent turn in their
-    # conversation. They have no later authored document to absorb them into.
+    # conversation, once the reader's declared completion gesture stands. They
+    # have no later authored document to absorb them into.
     if conversation is not None:
         for coordinate, (source, _spec) in conversation.projection.actions.items():
             if source["author"] != "user":
@@ -225,6 +227,10 @@ def canonical_acknowledgments(
             thread = threads.get(thread_id)
             if not thread or thread["resolved"]:
                 continue
+            record = conversation.by_id[source["widget"]]
+            completed = thread_completion(
+                record, page.registry[record["tag"]], conversation.projection
+            )
             settled = any(
                 message["kind"] == "reply"
                 and message["author"] == "agent"
@@ -236,7 +242,7 @@ def canonical_acknowledgments(
                     source,
                     {"kind": "widget", "id": source["widget"]},
                     list(coordinate),
-                    True,
+                    completed is not False,
                     not settled,
                 )
             )

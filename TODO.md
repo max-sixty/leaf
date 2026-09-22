@@ -66,22 +66,11 @@ has tried; settle that before building it.
 
 ### The agent's text interface
 
-- **Tell a thread widget's multi-pick toggles apart from its Done.** Leaf holds two
-  readings of one rule. `asks.py` honours the registry's `x-awaits.until`, so a
-  `multiple` group inside a thread is answered only by its `answer` action; the
-  frozen-widget loop in `acknowledgments.py` owes a reply to every toggle until an
-  agent reply responds to it. The `handling` text follows `until`. Make
-  acknowledgments read `until` too. **Unconfirmed:** found by reading both
-  modules; no run has shown an agent held on a toggle.
 - **Send each `handling` clause once per batch.** Each delivered event carries its
   clauses' full text, so ten plain comments repeat one 493-character instruction
   ten times. List each distinct clause once per batch and have each event name the
   ones that apply. **Unconfirmed:** no agent run shows a clause named by reference
   is followed as reliably as one printed on its event.
-- **Say what an agent without a browser does instead of looking.** Two places in
-  the guidance ask the agent to look at the rendered page: the pre-handover review
-  ("read the page as the user will") and diagrams ("look at each flowchart once").
-  Name what an agent with only the Leaf skill does in their place.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it.

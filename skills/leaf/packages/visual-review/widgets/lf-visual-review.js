@@ -20,7 +20,7 @@ import {
   projectData,
   registerReadingElement,
   registerReadingRegion,
-  registerThreadSurface,
+  consumeThreads,
   relabel,
   scopedMediaUrl,
   widgetController,
@@ -135,10 +135,15 @@ customElements.define(
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
       this.#controller.present(this.#fitting.update());
-      this.#threadSurface ??= registerThreadSurface(this, {
-        begin: () => {},
-        outletFor: (entry) => this.#threadOutlet(entry),
-        end: () => {},
+      this.#threadSurface ??= consumeThreads(this, (collection, surfaces) => {
+        for (const thread of collection.threads) {
+          if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
+          const target = surfaces.target(thread.key);
+          const outlet = target && this.#threadOutlet(target);
+          if (outlet) surfaces.place(thread.key, outlet);
+        }
+        const outlet = surfaces.composition && this.#threadOutlet(surfaces.composition);
+        if (outlet) surfaces.placeComposition(outlet);
       });
       this.stopActions ??= this.#controller.subscribe(() => this.#paintAvailability());
       this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));

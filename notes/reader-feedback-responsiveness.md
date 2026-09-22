@@ -45,7 +45,7 @@ disappear unless stronger evidence replaces it.
 | Gesture | Browser pending ledger | The semantic result appears immediately | Same rendering turn as the gesture, before the POST completes |
 | Admission | Leaf event door | The accepted subject says **Sent**; refusal restores authoritative state and explains the failure | Before any delivery attempt |
 | Queue acceptance | Carrier `pickup` event | The subject says **Queued**; the banner includes the queued count | On acceptance, independent of whether the task is loaded |
-| Turn entry | Direct delivery or App Server observer records `opened` | The subject says **Picked up** and page activity says the agent is handling it | As part of opening the turn, without waiting for model output |
+| Turn entry | Direct delivery or App Server observer records `opened` | The subject says **Picked up**; the banner retains overall page activity and separate delivery counts | As part of opening the turn, without waiting for model output |
 | Work selection | Agent work claim | The selected subject says **Active**; the banner says what the agent is doing and retains any queued count | The agent's first operation for an actionable delivery, after address resolution and before substantive work |
 | Progress | Agent status or observed host activity | The banner replaces the work detail when the operation materially changes; queued and active receipts remain visible | Publish the new phase before starting it |
 | Result | Append-only event, revision, or terminal request receipt | The page or thread shows the durable outcome; the triggering obligation leaves the outstanding count | Before claiming completion or asking the reader for another move |

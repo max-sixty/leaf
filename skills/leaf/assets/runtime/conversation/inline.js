@@ -8,7 +8,6 @@ import { focused } from "../keyboard/scopes.js";
 import { focusDestination, readCaret } from "../focus.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
-import { runtime } from "../context.js";
 
 const seats = new WeakMap();
 const activeSeats = new Set();
@@ -112,12 +111,7 @@ function seatFor(host, commands, response = () => null) {
 function seatReading(threads, surface, commands, response) {
   return Object.freeze({
     threads: Object.freeze(
-      threads.map((thread) =>
-        threadReading(thread, surface, commands, {
-          interactions: runtime.activity?.interactions ?? [],
-          revision: runtime.currentRevision,
-        }),
-      ),
+      threads.map((thread) => threadReading(thread, surface, commands, {})),
     ),
     response: Boolean(response),
   });

@@ -71,6 +71,14 @@ function proseReading(message) {
   return reading;
 }
 
+export function messageText(message) {
+  if (message.token) {
+    const token = tokenEntry(message.token);
+    return `${token?.glyph ?? ""} ${message.token}`.trim();
+  }
+  return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
+}
+
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
 const authoredMessages = new Map();
@@ -81,9 +89,6 @@ export function prepareAuthoredMessage(message, thread) {
   if (!authoredMessages.has(key)) {
     const template = document.createElement("template");
     template.innerHTML = message.markup ?? "";
-    const widgets = Object.freeze(
-      [...template.content.querySelectorAll("[id]")].map((node) => node.id),
-    );
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",
@@ -94,11 +99,15 @@ export function prepareAuthoredMessage(message, thread) {
     rememberPassageParts(template.content, ["event", message.id]);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
+      message: message.id,
+      body: {
+        text: template.content.textContent,
+        document: { thread, message: message.id },
+      },
       authored,
       descriptors,
       nodes,
       root: template.content,
-      widgets,
     });
   }
   const prepared = authoredMessages.get(key);
@@ -116,9 +125,6 @@ const authoredMessage = (message) => {
     throw new Error("authored message presentation preceded semantic preparation");
   return prepared;
 };
-export const messageWidgetIds = (message) =>
-  message.markup ? authoredMessage(message).widgets : Object.freeze([]);
-
 // One word for every host failure receipt. The codes behind them differ — a rate
 // limiter, a dispatch that threw, a turn followed to nothing (worker/server.py,
 // FAILURE_RECEIPTS) — but the difference is diagnostic, and what they share is the
@@ -168,7 +174,7 @@ export function messageReading(message, { panel, receipts, reactions }) {
       token: message.token ?? null,
       glyph: token?.glyph ?? "",
       meaning: token?.means ?? null,
-      markup: message.markup ?? null,
+      authored: message.body.kind === "authored",
     }),
     panel,
     receipts,
@@ -212,11 +218,10 @@ export class MessageView {
     else delete this.node.dataset.streamState;
     if (model.failure) this.node.dataset.failure = model.failure;
     else delete this.node.dataset.failure;
-    if (panel && model.body.markup && !this.#authored)
+    if (panel && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({
         id: model.id,
         attempt: model.attempt,
-        markup: model.body.markup,
       }).nodes;
     const sending = model.pending && model.author === "user";
     const receipts = model.receipts.map((receipt) => {
@@ -287,12 +292,12 @@ export class MessageView {
                     ? html`<span class="lf-drawing-reference">Drawing comment</span>`
                     : nothing
                 }
-                ${model.body.markup ? this.#authored : nothing}
+                ${model.body.authored ? this.#authored : nothing}
               </div>`
             : this.#inlineBody(model.body)
         }
         ${
-          !panel && model.body.markup
+          !panel && model.body.authored
             ? html`<button
                 type="button"
                 class="lf-btn lf-conversation-open lf-ui"

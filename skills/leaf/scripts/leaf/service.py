@@ -419,7 +419,9 @@ class PageTransaction:
             "session": identity.get("session") or (claim["id"] if claim else None),
         }
 
-    def set_stream_activity(self, session_id: str, turn_id: str, detail: str) -> None:
+    def set_stream_activity(
+        self, session_id: str, turn_id: str, activity: dict
+    ) -> None:
         """Record activity observed directly from the task's live event stream."""
         status = dict(self.status)
         if status["state"] == "idle":
@@ -428,26 +430,35 @@ class PageTransaction:
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
         standing = stream.get("activity")
+        observed = {
+            "session": session_id,
+            "turn": turn_id,
+            "kind": activity["kind"],
+            **({"detail": activity["detail"]} if activity.get("detail") else {}),
+            "ts": now,
+            "after": after,
+        }
         if (
             standing
             and (
                 standing["session"],
                 standing["turn"],
-                standing["detail"],
+                standing.get("kind"),
+                standing.get("detail"),
                 standing["after"],
             )
-            == (session_id, turn_id, detail, after)
+            == (
+                observed["session"],
+                observed["turn"],
+                observed["kind"],
+                observed.get("detail"),
+                observed["after"],
+            )
             and datetime.fromisoformat(now) - datetime.fromisoformat(standing["ts"])
             < STREAM_ACTIVITY_RENEWAL
         ):
             return
-        stream["activity"] = {
-            "session": session_id,
-            "turn": turn_id,
-            "detail": detail,
-            "ts": now,
-            "after": after,
-        }
+        stream["activity"] = observed
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
 

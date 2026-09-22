@@ -1,0 +1,8 @@
+# An already-running acknowledgment wait loses its page to another session.
+
+exit: 2
+
+stdout: ''
+
+stderr: |
+  stopped watching <page>: this session no longer owns it

@@ -3269,6 +3269,40 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     )
 
 
+def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
+    browser, serve
+):
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
+    page_dir = serve.page_dir
+    [comment] = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
+
+    with live_watcher(page_dir, page):
+        with service_model.PageTransaction(page_dir) as transaction:
+            session_model.record_pickup(transaction, [comment])
+            transaction.close_turn(claim["id"])
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["status", str(page_dir), "waiting", "pick a storage engine"],
+        )
+        assert result.exit_code == 0, result.output
+        told(page)
+
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Claude awaits — pick a storage engine"
+        )
+        expect(page.locator(".lf-status-detail")).to_have_text(
+            "Claude awaits — pick a storage engine"
+        )
+        expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+            "Awaits — pick a storage engine"
+        )
+
+
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
     """Silence changes the wording, not the durable phase or the interaction seat."""
     url = serve(LONG_PAGE)

@@ -518,7 +518,7 @@ function renderStatusNow(state) {
     detail,
     kind,
     total: activity.counts.total,
-    pending: activity.counts.total,
+    pending: activity.counts.pending || activity.counts.queued,
     progressSummary,
     quiet,
     saved,

@@ -1192,7 +1192,7 @@ export function createResponseSurface({
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the already-captured touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (touchSelectionAnchor && ev.target.closest?.(".lf-chrome")) {
+    if (touchSelectionAnchor && inChrome(ev.target)) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -1303,7 +1303,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
         actionPress =
-          (touchSelectionAnchor && Boolean(ev.target.closest?.(".lf-chrome"))) ||
+          (touchSelectionAnchor && inChrome(ev.target)) ||
           ev.target === selectionComment ||
           Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
       },

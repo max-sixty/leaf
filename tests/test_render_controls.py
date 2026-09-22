@@ -1713,6 +1713,15 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
         f"the phone menu left the viewport: {phone}"
     )
 
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    open_versions(page)
+    shortcut = menu.evaluate(
+        "menu => ({top: menu.getBoundingClientRect().top, "
+        "banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom})"
+    )
+    assert shortcut["top"] == pytest.approx(shortcut["banner"] + 6, abs=2), shortcut
+
 
 def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other_leaf):
     """A phone gets fixed primary seats and one keyboard-reachable secondary menu."""

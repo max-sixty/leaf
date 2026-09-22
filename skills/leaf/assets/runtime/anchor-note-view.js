@@ -8,7 +8,9 @@
 import { LitElement, html, nothing } from "../vendor/browser-runtime.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime apparatus.
-const TAG = "leaf-anchor-note";
+// Exported because this is the one control the runtime hangs inside a block it does
+// not own, so a reading of what a block holds has to be able to name it (reach.js).
+export const ANCHOR_NOTE_TAG = "leaf-anchor-note";
 
 class AnchorNoteView extends LitElement {
   static properties = {
@@ -56,7 +58,8 @@ class AnchorNoteView extends LitElement {
   }
 }
 
-if (!customElements.get(TAG)) customElements.define(TAG, AnchorNoteView);
+if (!customElements.get(ANCHOR_NOTE_TAG))
+  customElements.define(ANCHOR_NOTE_TAG, AnchorNoteView);
 
 const noteModel = (threadIds) => {
   const count = threadIds.length;
@@ -75,7 +78,7 @@ export function createAnchorNoteProjection({ openThread }) {
     for (const [holder, threadIds] of notes) {
       let host = hosts.get(holder);
       if (!host?.isConnected) {
-        host = document.createElement(TAG);
+        host = document.createElement(ANCHOR_NOTE_TAG);
         host.className = "lf-anchor-note-host lf-ui";
         host.dataset.lfGen = "1";
         host.configure({ openThread });

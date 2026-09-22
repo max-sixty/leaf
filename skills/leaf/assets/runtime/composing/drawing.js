@@ -27,6 +27,7 @@ import {
   textNodesUnder,
 } from "../passages.js";
 import { anchoringIsReady } from "../anchor-resolution.js";
+import { pressIsKeyboardActivation } from "../pointer.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
@@ -397,8 +398,14 @@ export function createDrawingController({
     announce("Stroke canceled. Draw mode is still on.");
   }
 
+  // The presses a claimed pointer's own sequence still owes the page, swallowed so a
+  // stroke that ended over a control does not also activate it. The claim stands over
+  // the whole document until the stroke's compatibility events have passed, so it has to
+  // say which presses it is for: a keyboard activation is not one of them (pointer.js).
+  // Eating it silently lost the reader's press — Ctrl+Enter on the composer the stroke
+  // had just opened sent nothing, and nothing said so.
   const compatibilityPress = (event) => {
-    if (claimThroughClick) claim(event);
+    if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);
   };
 
   // The drawing as it will stand when this stroke lifts, earlier strokes included, so the

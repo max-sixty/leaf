@@ -51,6 +51,7 @@ import { retainReaderIntent } from "./reader-intent.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
@@ -427,7 +428,9 @@ export function reachedForWords(el) {
 document.addEventListener(
   "click",
   (ev) => {
-    if (ev.detail === 0) return;
+    // A drag is a pointer's; the keyboard's own activation of the control is not one and
+    // is read the one way every press claim reads it (pointer.js).
+    if (pressIsKeyboardActivation(ev)) return;
     const control = ev.target.closest?.("[data-lf-offer]");
     if (control && reachedForWords(control)) {
       ev.stopPropagation();

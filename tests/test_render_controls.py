@@ -63,6 +63,7 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     SCROLLED,
+    WIDE_DIAGRAM_PAGE,
 )
 from render_harness import (
     BOARD_PAGE,
@@ -4416,6 +4417,43 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     assert all(item["tab"] == -1 for item in fitted), (
         "a diff that fits added a keyboard stop with nowhere to scroll"
     )
+
+
+def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
+    """A box already holding a control of its own needs no stop of the sweep's: the
+    reader reaches what is out of sight through the control. The note the runtime hangs
+    in every commented block is not such a control. It is a one-pixel transparent button
+    that leaves the flow for `position: fixed` the moment it takes focus, so standing on
+    it scrolls nothing, and counting it took the stop off any box a reader had commented
+    on — one comment on a flowchart wider than the window, and the keyboard lost the half
+    of the graph hanging off the right of it.
+
+    Read with the note on and off the same box, because the assertion says nothing unless
+    the box would otherwise have the stop."""
+    url = serve(WIDE_DIAGRAM_PAGE)
+    page = open_page(browser, url)
+    resized(page, 760, 900)
+    diagram = page.locator("#flow")
+    assert diagram.evaluate("el => el.scrollWidth > el.clientWidth"), (
+        "this diagram fits its room, so it proves nothing"
+    )
+    expect(diagram).to_have_attribute("tabindex", "0")
+    expect(page.locator("#flow .lf-mark-note")).to_have_count(0)
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "on-the-flow",
+            "author": "user",
+            "revision": 1,
+            "text": "Where does the fallback go?",
+            "anchor": {"section": "flow"},
+        },
+    )
+    told(page)
+    expect(page.locator("#flow .lf-mark-note")).to_have_count(1)
+    expect(diagram).to_have_attribute("tabindex", "0")
 
 
 def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):

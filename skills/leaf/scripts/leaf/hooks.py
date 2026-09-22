@@ -115,8 +115,8 @@ def unattended_pages(
                         "picked up. "
                         + harness.input_unpicked(page_dir, listening=listening),
                         (
-                            f"{ACK_BATCH_INSTRUCTION} If this task is the consumer, "
-                            "then address every event."
+                            f"{ACK_BATCH_INSTRUCTION} The agent handling the batch "
+                            "must address every event."
                         ),
                     )
                 )
@@ -208,7 +208,7 @@ def cmd_hook(payload: dict) -> None:
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
     message = "\n".join(
         [
-            "leaf — a page of this session's has something outstanding:",
+            "Leaf needs attention:",
             *(f"- {line}" for line, _ in reasons),
             *(f"\n{protocol}" for protocol in protocols),
         ]

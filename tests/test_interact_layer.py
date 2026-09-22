@@ -26,6 +26,7 @@ from interact_support import (
     case_alias,
     check,
     element_declaration,
+    fetch,
     install_payload,
     publish,
     record_claim,
@@ -113,6 +114,88 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
         schema_model.ACK_BATCH_INSTRUCTION,
     ):
         assert " ".join(instruction.split()) in normalized
+
+
+def test_agent_interaction_command_help(regtest):
+    """The complete help an agent follows between receiving and answering input.
+
+    Keep the full CLI output, including options, beside the dynamic interaction
+    snapshots in test_interact_session. A prose review can then follow a command
+    named by a reminder without reconstructing its help from source docstrings.
+    """
+    outputs = []
+    for command in (
+        "wait",
+        "ack",
+        "delivery claim",
+        "delivery read",
+        "page state",
+        "conversation read",
+        "conversation summarize",
+        "status",
+        "comment",
+        "reply",
+        "resolve",
+        "receipt",
+        "version check",
+        "version stamp",
+    ):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [*command.split(), "--help"],
+            prog_name="leaf",
+            terminal_width=80,
+        )
+        assert result.exit_code == 0, result.output
+        outputs.append(f"## leaf {command} --help\n{result.output}")
+    regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
+
+
+def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
+    """Actual CLI recovery after two reader messages arrive in one delivery."""
+    page = claimed
+    publish(page)
+    runner = CliRunner()
+    ids = []
+    outputs = []
+
+    def record(args, code):
+        result = runner.invoke(cli_model.cli, args, prog_name="leaf")
+        assert result.exit_code == code, result.output
+        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{result.output}"
+        text = text.replace(str(page), "/page")
+        for number, event_id in enumerate(ids, 1):
+            text = text.replace(event_id, f"reader-{number}")
+        outputs.append(text)
+
+    record(["reply", str(page), "--text", "Answer"], 1)
+    for text in ("Why this plan?", "What will it cost?"):
+        code, response = fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "revision": 1, "text": text}).encode(),
+        )
+        assert code == 200, response
+        ids.append(events_model.read_events(page)[-1]["id"])
+    delivery = runner.invoke(cli_model.cli, ["wait", str(page)])
+    assert delivery.exit_code == 0, delivery.output
+    assert len(json.loads(delivery.output)["batches"][0]["events"]) == 2
+    record(["reply", str(page), "--text", "Answer"], 1)
+    record(["reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
+    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
+    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
+    record(
+        ["reply", str(page), "--to", ids[0], "--initiates", "--text", "Follow-up"], 0
+    )
+    # A page reaction can close without an answer: it never owed a reply.
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "token": "keep"}).encode(),
+    )
+    assert code == 200, response
+    ids.append(events_model.read_events(page)[-1]["id"])
+    record(["reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
+    record(["resolve", str(page), "--to", ids[-1]], 0)
+    regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
 def test_the_skill_routes_every_reference_it_ships():

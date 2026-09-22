@@ -66,6 +66,22 @@ def _thread_awaits_reader(
     return False
 
 
+def _answers_live_reply(event: dict, live_reply: dict) -> bool:
+    """Whether one logged event is the durable answer a provisional reply stands in for.
+
+    A provisional reply is reserved under a delivery attempt and addressed to a
+    response, and the durable answer names itself by either. Reading only the response
+    address let an answer whose address had moved stand beside its own placeholder — and
+    since every consumer keys a message on its attempt, the two collided on one key and
+    the panel drew the empty draft rather than the answer the log held. A draft this
+    reading finds no identity on is one nothing in the log can answer, and it stands.
+    """
+    return any(
+        live_reply.get(named) is not None and event.get(named) == live_reply[named]
+        for named in ("attempt", "responds")
+    )
+
+
 def browser_conversation(
     events: list,
     registry: dict,
@@ -130,7 +146,7 @@ def browser_conversation(
             }
         )
     if live_reply is not None and not any(
-        event.get("responds") == live_reply.get("responds") for event in events
+        _answers_live_reply(event, live_reply) for event in events
     ):
         target = next(
             (

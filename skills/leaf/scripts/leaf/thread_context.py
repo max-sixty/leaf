@@ -136,7 +136,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
         named = [roots.get(event["id"])]
     elif kind == "edit":
         named = [roots.get(event["message"])]
-    elif kind == "summary":
+    elif kind in {"summary", "conversation_title"}:
         named = [event["conversation"]]
     elif kind in {"resolve", "unresolve"}:
         parent = event["parent"]
@@ -267,6 +267,7 @@ def thread_digest(
     shown = ends_kept(kept, pin)
     return {
         "id": thread["root"]["id"],
+        "title": thread["title"],
         "anchor": thread["anchor"],
         "detached_from": thread["detached_from"],
         # Who closed it, or null for a thread still open — a thread an agent
@@ -282,8 +283,9 @@ def thread_digest(
 def batch_threads(events: list, batch: list, within: dict) -> list:
     """The conversations a delivered batch lands in, with what was said before it.
 
-    A root comment states its own anchor and needs no history, and that is the
-    whole of what a delivered event carries: a reply names the message it
+    Every named conversation carries its current metadata, even when the batch
+    contains all of its messages. An event alone does not carry its title.
+    A reply names the message it
     answers, an action its widget and whatever it settles, an undo an event.
     Those ids are the session's own memory of the exchange, and a session that
     has compacted, or one picking the page up, no longer holds it — so the news
@@ -391,6 +393,5 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             }
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
-        if digest["messages"] or digest["actions"]:
-            carried.append(digest)
+        carried.append(digest)
     return carried

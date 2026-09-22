@@ -188,6 +188,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             messages[e["id"]] = message
             thread = {
                 "root": message,
+                "title": None,
                 "anchor": message.get("anchor"),
                 "detached_from": None,
                 "msgs": [message],
@@ -202,6 +203,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             answered = threads.get(e["meaning"].get("answer"))
             if answered and winners.get(tuple(e["meaning"]["coordinate"])) is e:
                 answered["resolved"] = e
+            continue
+        if e["kind"] == "conversation_title":
+            if thread := threads.get(e["conversation"]):
+                thread["title"] = e["title"]
             continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
@@ -225,6 +230,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if thread is None:
                 thread = {
                     "root": e,
+                    "title": None,
                     "anchor": e.get("anchor"),
                     "detached_from": None,
                     "msgs": [],

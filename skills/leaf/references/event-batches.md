@@ -64,8 +64,10 @@ retry key `attempt`, then adds these delivery readings:
   event's `handling` out and the batch's object empty rather than substituting
   another layer's rules.
 
-The batch-level `conversations` carry each needed anchor, closure state, earlier
-messages, and standing gestures on sent widgets. A long conversation includes
+The batch-level `conversations` carry each conversation's title (null until named),
+anchor, closure state, earlier messages, and standing gestures on sent widgets.
+A newly opened conversation still carries its metadata; messages already in the
+batch are omitted from its history. A long conversation includes
 its opening and most recent messages, with `elided` counting omitted records.
 Use `leaf conversation read <page> <conversation-id>` for an exact, bounded
 current reading and paginate with `--after`; use `leaf events <page>

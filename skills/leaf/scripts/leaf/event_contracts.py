@@ -777,13 +777,15 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
-def _summary_error(view, event: dict, events: list) -> str | None:
-    if event["kind"] != "summary":
+def _conversation_presentation_error(view, event: dict, events: list) -> str | None:
+    if event["kind"] not in {"summary", "conversation_title"}:
         return None
     threads = build_threads(events, view.within, withdrawn=taken_back(events))
     thread = threads.get(event["conversation"])
     if thread is None:
         return f"unknown conversation {event['conversation']!r}"
+    if event["kind"] == "conversation_title":
+        return None
     messages = [message["id"] for message in spoken_turns(thread)]
     try:
         start = messages.index(event["from"])
@@ -822,7 +824,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
-        or _summary_error(view, event, events)
+        or _conversation_presentation_error(view, event, events)
         or _withdrawal_error(view, event, events)
     )
 

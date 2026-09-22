@@ -37,7 +37,18 @@ delivered:
   batches:
     - page: <page>
       through_seq: 2
-      conversations: []
+      conversations:
+        - id: event-2
+          title: null
+          anchor: null
+          detached_from: null
+          resolved: null
+          elided:
+            messages: 0
+            actions: 0
+          messages: []
+          summaries: []
+          actions: []
       handling:
         h1: >-
           Reply in the thread with `leaf reply <page> --for <event-id>`, or with

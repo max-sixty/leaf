@@ -57,6 +57,15 @@ TURN_PRESENTATION = 120_000
 # `TURN_PATIENCE` rather than running out the limit.
 ANSWERING = frozenset({"working"})
 TURN_ASKS = 2
+# How long the reader's own panel gets to draw a reply the container has already
+# admitted. Everything slow is behind this: the turn has ended, the gate has read the
+# answer, and what is left is one word on the page's news stream and the state read it
+# prompts, which is sub-second on a healthy page. `SILENCE_MS` in
+# `skills/leaf/assets/runtime/state-feed.js` is the runtime's own bound on a stream that
+# went quiet without erroring, and it is this same 30 s, so a page that recovers only
+# that way cannot beat this wait. Widening one number over both readings would hide
+# which of them happened; `undrawn_reply` says so instead.
+VISIBLE_REPLY_PATIENCE = 30_000
 
 
 class AgentSession(NamedTuple):
@@ -88,6 +97,72 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
     milestones = ", ".join(reached) if reached else "no startup milestone"
     reported = f"; browser errors: {failures}" if failures else ""
     return f"{url} never presented, reaching {milestones}{reported}"
+
+
+def _stamped(reading: str) -> str:
+    """A reading without its presence fingerprint.
+
+    `/api/state` names a reading as the page's own content stamp followed by a
+    fingerprint of who is present, and presence moves on its own clock. Two readings
+    that agree on the stamp were taken over the same page.
+    """
+    return reading.rsplit(".", 1)[0]
+
+
+def undrawn_reply(url: str, debug: dict, served: str) -> str:
+    """What a reply the container holds and the panel never drew has to say for itself.
+
+    The server half of this failure is settled before it can fire: `check_turn_answered`
+    has already passed, so the container admitted the answer and the only question left
+    is why the reader's page does not show it. A snapshot of the message nodes fits
+    every answer to that question equally — a page that stopped asking, one whose read
+    never landed, and one that took the answer in and drew nothing all leave an agent
+    bubble with no words in it.
+
+    The page separates them itself. `data-lf-reading` is the reading of the last state
+    it applied completely, and the gate holds the reading of the state it read the
+    answer out of; a page standing on the same one took the answer in, and a page
+    standing behind it never did. `data-lf-traffic` says whether it is still asking.
+    """
+    applied = debug.get("reading")
+    if applied is None:
+        account = "the page has applied no state at all"
+    elif _stamped(applied) == _stamped(served):
+        account = (
+            f"the page has applied the reading the answer was read out of ({applied}), "
+            "so the answer reached it and was not drawn"
+        )
+    else:
+        account = (
+            f"the page last applied {applied} while the answer was read out of "
+            f"{served}, so the page never took the answer in"
+        )
+    messages = (
+        "; ".join(
+            " ".join(
+                [
+                    "/".join(name for name in message["classes"] if name != "lf-msg"),
+                    f"mid={message['mid']}",
+                    f"attempt={message['attempt']}",
+                    f"stream={message['stream']}",
+                    f"text={'yes' if message['hasText'] else 'no'}",
+                    f"visible={'yes' if message['visible'] else 'no'}",
+                    f"busy={'yes' if message['busy'] else 'no'}",
+                ]
+            )
+            for message in debug.get("messages") or ()
+        )
+        or "none"
+    )
+    return (
+        f"{url} reply never became visible in Threads within "
+        f"{VISIBLE_REPLY_PATIENCE // 1000} s: {account}.\n"
+        f"  panel visible: {debug.get('panel')}; document {debug.get('visibility')}; "
+        f"presented: {debug.get('presented')}; revision {debug.get('revision')}\n"
+        f"  traffic {debug.get('traffic')}\n"
+        f"  banner: {debug.get('status')!r}\n"
+        f"  messages: {messages}"
+    )
 
 
 def observe_startup(page: Page) -> list[str]:
@@ -885,7 +960,8 @@ def verify_agent_turn(
     turn, asks, revision, profile = asked
     try:
         page.wait_for_function(
-            "window.__leafVerifier.visibleReplyRecorded", timeout=30_000
+            "window.__leafVerifier.visibleReplyRecorded",
+            timeout=VISIBLE_REPLY_PATIENCE,
         )
     except PlaywrightTimeout:
         pass
@@ -906,9 +982,12 @@ def verify_agent_turn(
     check_turn_answered(url, heading, turn, asks, revision)
     published, answer = turn.published, turn.answer
     if visible_reply_at is None:
-        visible_reply_debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
-            f"{url} reply never became visible in Threads: {visible_reply_debug}"
+            undrawn_reply(
+                url,
+                page.evaluate("window.__leafVerifier.visibleReplyDebug"),
+                turn.state["reading"],
+            )
         )
     reloaded = page.reload(wait_until="load", timeout=120_000)
     check(

@@ -92,7 +92,25 @@
 #          {
 #            "page": "/path/to/page",
 #            "through_seq": 2,
-#            "conversations": [],
+#            "conversations": [
+#              {
+#                "id": "1946b466",
+#                "title": null,
+#                "anchor": {
+#                  "section": "plan",
+#                  "quote": "moves to Tuesdays"
+#                },
+#                "detached_from": null,
+#                "resolved": null,
+#                "elided": {
+#                  "messages": 0,
+#                  "actions": 0
+#                },
+#                "messages": [],
+#                "summaries": [],
+#                "actions": []
+#              }
+#            ],
 #            "handling": {
 #              "h1": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."
 #            },

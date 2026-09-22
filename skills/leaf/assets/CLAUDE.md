@@ -683,11 +683,15 @@ sibling's visible surface.
 
 During startup, generated interface first appears in its settled upgrade position, from
 authored and tab-local state. An asynchronous producer joins the applicable widget, data,
-or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus
-that also depends on authoritative replay takes one synchronous reading on `PRESENTATION`,
-then uses `ResizeObserver` or the shared layout signal for later changes. An asynchronous
-producer's default may reserve space without painting; a box-derived reading taken before
-replay does paint, and `PRESENTATION` replaces it.
+or page-interface settlement before `data-lf-upgraded` releases that interface. A producer
+that stays off the presentation path on purpose goes through `afterPresentation`, which
+waits and declares the arrival in one call, so `pageArrived` still answers for it and
+nothing outside the page has to name the widget that deferred; `deferredArrival` is that
+declaration on its own, for runtime work that defers without waiting for presentation.
+Apparatus that also depends on authoritative replay takes one synchronous reading on
+`PRESENTATION`, then uses `ResizeObserver` or the shared layout signal for later changes.
+An asynchronous producer's default may reserve space without painting; a box-derived
+reading taken before replay does paint, and `PRESENTATION` replaces it.
 
 An action awaiting confirmation dims its existing control after the shared delay; it
 does not gain another mark or change geometry. Durable workflow state uses the control's

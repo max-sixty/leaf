@@ -4,7 +4,9 @@
  * Enter, Space, and clicks flip that projection between the endpoints without moving it.
  * Each rail label chooses its endpoint. Once the page has presented the static flip,
  * Web Awesome progressively upgrades it with pointer dragging and Arrow, Home, and End
- * adjustment; its bundle is not on the presentation path. A click on either image keeps
+ * adjustment; its bundle is not on the presentation path, and `afterPresentation` is
+ * what holds it there, so the page still answers for the upgrade as an arrival of its
+ * own. A click on either image keeps
  * the quick endpoint toggle, while a click on the handle only puts the reader on it.
  * Export unwinds that live comparison and reveals the transparent native checkbox over
  * the image, so a standalone copy still flips with a click or Space.
@@ -19,6 +21,7 @@
  * Commentary about the change belongs in authored prose around the widget. */
 import {
   PRESS,
+  afterPresentation,
   commandScope,
   once,
   offer,
@@ -31,7 +34,6 @@ import {
   registerMarginContribution,
   scopedMediaUrl,
   selectableOffer,
-  whenPagePresented,
   widgetController,
 } from "/runtime/widget-api.js";
 
@@ -240,7 +242,6 @@ customElements.define(
     }
 
     async #upgradeComparison() {
-      await whenPagePresented();
       if (
         !this.isConnected ||
         this.#box.parentNode !== this ||
@@ -260,7 +261,9 @@ customElements.define(
         document.documentElement.classList.contains("lf-copy")
       )
         return;
-      void this.#upgradeComparison().catch((reason) => failSoft(this, reason));
+      void afterPresentation(() => this.#upgradeComparison()).catch((reason) =>
+        failSoft(this, reason),
+      );
     }
 
     #show(state) {

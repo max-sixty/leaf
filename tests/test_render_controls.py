@@ -75,6 +75,7 @@ from render_harness import (
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SHELL_BOX,
+    Traffic,
     _traffic,
     _until,
     consume_browser_errors,
@@ -106,6 +107,301 @@ TARGETING_GALLERY = next(
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
+
+
+LIVE_SPECIMENS_PAGE = leaf_page(
+    "Independent practice pages",
+    """
+<h1 id="host-heading">Practice without changing this page</h1>
+<lf-specimen id="first-practice" label="First practice">
+  <template id="first-source" data-specimen>
+    <h1 id="child-heading">A practice decision</h1>
+    <lf-ask id="child-ask"><h2>Which approach?</h2>
+      <lf-options id="child-options" choose>
+        <lf-option id="child-a">First approach</lf-option>
+        <lf-option id="child-b">Second approach</lf-option>
+      </lf-options>
+    </lf-ask>
+  </template>
+</lf-specimen>
+<lf-specimen id="second-practice" label="Second practice">
+  <template id="second-source" data-specimen>
+    <h1 id="child-heading">Another practice decision</h1>
+    <lf-ask id="child-ask"><h2>Which approach?</h2>
+      <lf-options id="child-options" choose>
+        <lf-option id="child-a">First approach</lf-option>
+        <lf-option id="child-b">Second approach</lf-option>
+      </lf-options>
+    </lf-ask>
+  </template>
+</lf-specimen>
+""",
+)
+
+
+def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
+    """A specimen is a full page: its choices and comments reach only its own log."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    parent_before = events_model.read_events(serve.page_dir)
+    first = page.locator("#first-practice")
+    second = page.locator("#second-practice")
+    enter = first.get_by_role("button", name="Enter specimen")
+    expect(enter).to_be_enabled()
+    expect(second.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    # The host's controls stand with its label, outside the indented child page.
+    controls = first.locator(".lf-specimen-controls").bounding_box()
+    frame = first.locator("iframe").bounding_box()
+    assert abs(controls["x"] - first.bounding_box()["x"]) < 1
+    assert controls["x"] < frame["x"]
+    assert controls["y"] + controls["height"] <= frame["y"]
+    child = first.locator("iframe").element_handle().content_frame()
+    other = second.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    child_url = child.url
+    assert child.url != other.url
+    assert child.locator("body").evaluate("body => body.inert")
+    assert other.locator("body").evaluate("body => body.inert")
+
+    enter.press("Enter")
+    expect(first.get_by_role("button", name="Return to page")).to_be_visible()
+    with sending(child, "the specimen choice"):
+        child.locator("#child-a .lf-pick").click()
+    expect(child.locator("#child-a .lf-pick")).to_have_attribute("aria-checked", "true")
+    expect(other.locator("#child-a .lf-pick")).to_have_attribute(
+        "aria-checked", "false"
+    )
+
+    child.locator(".lf-threads-toggle").click()
+    draft = child.locator(".lf-general textarea")
+    draft.fill("Keep this draft while I resize the page.")
+    width_before = child.evaluate("innerWidth")
+    page.set_viewport_size({"width": 720, "height": 900})
+    child.wait_for_function("before => innerWidth < before", arg=width_before)
+    expect(draft).to_have_value("Keep this draft while I resize the page.")
+    expect(draft).to_be_focused()
+    assert child.url == child_url
+    with sending(child, "the specimen comment"):
+        draft.press("ControlOrMeta+Enter")
+    expect(
+        child.locator(".lf-thread").filter(has_text="Keep this draft")
+    ).to_be_visible()
+    state_response = page.request.get(child_url + "api/state")
+    assert state_response.ok, state_response.text()
+    state = state_response.json()
+    assert [event["kind"] for event in state["events"]] == ["action", "comment"]
+    assert state["events"][-1]["text"] == "Keep this draft while I resize the page."
+    assert page.request.get(other.url + "api/state").json()["events"] == []
+    assert events_model.read_events(serve.page_dir) == parent_before
+
+    draft.fill("Discard this unsent practice draft on reset.")
+    page.evaluate("""() => {
+        localStorage.setItem('parent-draft', 'retain');
+        sessionStorage.setItem('parent-tab', 'retain');
+    }""")
+    old_scope = child.evaluate("location.pathname")
+    assert page.evaluate(
+        "scope => Object.keys(localStorage).some(key => key.startsWith(scope))",
+        old_scope,
+    )
+    first.get_by_role("button", name="Return to page").click()
+    expect(enter).to_be_focused()
+    second.get_by_role("button", name="Enter specimen").click()
+    other.locator(".lf-threads-toggle").click()
+    other.locator(".lf-general textarea").fill("Keep the other specimen's draft.")
+    other_scope = other.evaluate("location.pathname")
+    second.get_by_role("button", name="Return to page").click()
+    first.get_by_role("button", name="Reset", exact=True).click()
+    expect(enter).to_be_enabled()
+    reset_child = first.locator("iframe").element_handle().content_frame()
+    assert reset_child.url != child_url
+    expect(reset_child.locator("#child-a .lf-pick")).to_have_attribute(
+        "aria-checked", "false"
+    )
+    expect(reset_child.locator(".lf-thread")).to_have_count(0)
+    expect(reset_child.locator(".lf-general textarea")).to_have_value("")
+    assert page.request.get(child_url + "api/state").status == 404
+    assert events_model.read_events(serve.page_dir) == parent_before
+    assert page.evaluate(
+        """scope => [localStorage, sessionStorage].every(store =>
+        Object.keys(store).every(key => !key.startsWith(scope)))""",
+        old_scope,
+    )
+    assert page.evaluate(
+        """scope =>
+        localStorage.getItem('parent-draft') === 'retain' &&
+        sessionStorage.getItem('parent-tab') === 'retain' &&
+        Object.keys(localStorage).some(key => key.startsWith(scope))""",
+        other_scope,
+    )
+    expect(other.locator(".lf-general textarea")).to_have_value(
+        "Keep the other specimen's draft."
+    )
+
+
+def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, serve):
+    """A held replacement navigation cannot keep a released child alive."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.practiceFrame = document.createElement('iframe');
+        document.body.append(practiceFrame);
+        window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
+        await practiceHost.ready;
+    }""")
+    previous = page.evaluate("practiceFrame.src")
+    held = []
+    released = []
+    page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
+    page.on(
+        "request",
+        lambda request: (
+            released.append(request.url)
+            if request.url.endswith("/api/release")
+            else None
+        ),
+    )
+    page.evaluate("""() => {
+        window.oldPracticeWindow = practiceFrame.contentWindow;
+        const first = practiceHost.reset();
+        const second = practiceHost.reset();
+        window.samePracticeReset = first === second;
+        window.practiceResult = Promise.allSettled([first, second]);
+    }""")
+    holding(page, held, 1, "the replacement specimen document")
+    assert page.evaluate("samePracticeReset && oldPracticeWindow.closed")
+    assert page.request.get(previous + "api/state").status == 404
+    replacement = held[0].request.url
+    page.evaluate("practiceHost.destroy()")
+    assert page.evaluate(
+        "practiceResult.then(results => results.map(r => r.reason.name))"
+    ) == ["AbortError", "AbortError"]
+    assert page.evaluate(
+        "practiceFrame.isConnected && !practiceFrame.hasAttribute('src')"
+    )
+    assert page.request.get(replacement + "api/state").status == 404
+    assert released.count(previous + "api/release") == 1
+    assert released.count(replacement + "api/release") == 1
+    held[0].abort()
+    page.unroute(re.compile(r"/api/specimens/[^/]+/$"))
+
+    # A failed presentation is retired too; Reset can then start a healthy child.
+    page.route(
+        re.compile(r"/api/specimens/[^/]+/$"),
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body='<html data-lf-startup-error="Practice could not start"><body></body></html>',
+        ),
+    )
+    assert (
+        page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
+        return practiceHost.ready.catch(error => error.message);
+    }""")
+        == "Practice could not start"
+    )
+    assert page.evaluate("!practiceFrame.hasAttribute('src')")
+    page.unroute(re.compile(r"/api/specimens/[^/]+/$"))
+    page.evaluate("practiceHost.reset().then(() => {})")
+    assert page.evaluate(
+        "practiceFrame.contentDocument.body.hasAttribute('data-lf-presented')"
+    )
+    page.evaluate("practiceHost.destroy()")
+
+
+def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, serve):
+    """Destroy awaits allocation; a detached widget can create a fresh child later."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    specimen = page.locator("#first-practice")
+    expect(specimen.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    previous = specimen.locator("iframe").get_attribute("src")
+    page.evaluate("""() => {
+        window.detachedPractice = document.querySelector('#first-practice');
+        detachedPractice.remove();
+    }""")
+    page.wait_for_function(
+        "!detachedPractice.querySelector('iframe').hasAttribute('src')"
+    )
+    page.evaluate("document.querySelector('main').append(detachedPractice)")
+    expect(specimen.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    assert specimen.locator("iframe").get_attribute("src") != previous
+    assert page.request.get(previous + "api/state").status == 404
+
+    held = []
+    page.route("**/api/specimens", lambda route: held.append(route))
+    page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.pendingFrame = document.createElement('iframe');
+        document.body.append(pendingFrame);
+        window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
+        window.pendingResult = pendingHost.ready.catch(error => error.name);
+    }""")
+    holding(page, held, 1, "the child allocation")
+    page.evaluate("() => { window.pendingDestroy = pendingHost.destroy(); }")
+    response = held[0].fetch()
+    allocated = response.json()["url"]
+    held[0].fulfill(response=response)
+    page.evaluate("pendingDestroy")
+    assert page.evaluate("pendingResult") == "AbortError"
+    allocated_url = page.evaluate("url => new URL(url, location.href).href", allocated)
+    assert page.request.get(allocated_url + "api/state").status == 404
+    page.unroute("**/api/specimens")
+
+    held.clear()
+    page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
+    page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
+        window.pendingResult = pendingHost.ready.catch(error => error.name);
+    }""")
+    holding(page, held, 1, "a child detached before its document arrives")
+    page.evaluate("pendingFrame.remove()")
+    assert page.evaluate("pendingResult") == "AbortError"
+    assert page.request.get(held[0].request.url + "api/state").status == 404
+    held[0].abort()
+    page.evaluate("pendingHost.destroy()")
+
+
+def test_live_specimens_preserve_optimistic_refusal_and_child_escape(browser, serve):
+    """Delivery rollback and nested Escape remain the ordinary child's behavior."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    specimen = page.locator("#first-practice")
+    enter = specimen.get_by_role("button", name="Enter specimen")
+    expect(enter).to_be_enabled()
+    enter.press("Enter")
+    child = specimen.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    held = []
+    page.route(child.url + "api/event", lambda route: held.append(route))
+    choice = child.locator("#child-a .lf-pick")
+    choice.click()
+    holding(page, held, 1, "the child's held choice")
+    expect(choice).to_have_attribute("aria-checked", "true")
+    held[0].fulfill(
+        json={
+            "ok": False,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "This practice choice was refused.",
+            "final": True,
+        }
+    )
+    round_trip(child)
+    expect(choice).to_have_attribute("aria-checked", "false")
+    assert page.request.get(child.url + "api/state").json()["events"] == []
+    page.unroute(child.url + "api/event")
+
+    child.locator(".lf-threads-toggle").click()
+    expect(child.locator(".lf-threads-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    page.keyboard.press("Escape")
+    expect(child.locator(".lf-threads-toggle")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(specimen.get_by_role("button", name="Return to page")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(enter).to_be_focused()
+    assert child.locator("body").evaluate("body => body.inert")
 
 
 CONTROL_STABILITY_PAGE = leaf_page(
@@ -456,7 +752,10 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-banner").evaluate("element => element.localName") == (
         "header"
     )
-    expect(page.locator(".lf-banner-actions > *").last).to_have_class(
+    # Read the run that stands, not the shelf's whole inventory: a control registered
+    # for another device is in the row's markup with no presence, and the fact here is
+    # that nothing the reader can press follows Threads.
+    expect(page.locator(".lf-banner-actions > *:visible").last).to_have_class(
         re.compile(r"\blf-threads-toggle\b")
     )
     approval = page.locator(".lf-signoff")
@@ -697,9 +996,18 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
-    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_have_count(1)
-    expect(page.locator(".lf-banner-menu > *")).to_have_count(2)
+    # Open the door and read what stands behind it rather than counting the menu's
+    # markup: the shelf keeps a control registered for another device in that list with
+    # no presence, so inventory and what the reader meets are different readings.
+    page.locator(".lf-banner-more").click()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(1)
     expect(page.locator(".lf-permanent-destination")).to_be_attached()
+    # The door freezes the partition while it stands open, so close it before the row
+    # takes another contribution.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
 
     reserved = page.evaluate(
         """async () => {
@@ -3612,7 +3920,10 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
-    # The card is content of Threads, so Escape closes the panel directly.
+    # The card releases to whole-panel selection, and the press after that closes the
+    # sheet.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as

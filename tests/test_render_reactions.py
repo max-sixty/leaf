@@ -2137,7 +2137,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()  # the waiting-on-you narrowing
-    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".lf-needs")).to_be_checked()
     expect(page.locator(".lf-thread")).to_have_count(1)
 
     strip.locator(".lf-react-trigger").click()
@@ -2161,7 +2161,10 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         0
     )  # out of "waiting on you"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
-    page.locator(".lf-needs").click()  # every comment again, so the strip is on screen
+    # State narrowing is one exclusive group, so widening is choosing its open member
+    # rather than pressing the standing one again.
+    page.locator('[data-filter-value="open"]').click()
+    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
     expect(page.locator(".lf-thread")).to_have_count(1)
     page.locator(".lf-thread-summary").click()
     with sending(page, "the take-back of the ok"):

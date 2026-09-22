@@ -470,17 +470,34 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ),
     ],
 )
+@pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, root_attribute, body_attribute
+    browser, serve, saved, root_attribute, body_attribute, contained
 ):
     """Returning readers do not watch saved auxiliary chrome move the document."""
-    url = serve(leaf_page("Restored surface", "<h1>Restored surface</h1>"))
+    content = "<h1>Restored surface</h1>"
+    if contained:
+        content = (
+            '<lf-specimen id="practice" label="Practice">'
+            '<template id="practice-source" data-specimen>'
+            + content
+            + "</template></lf-specimen>"
+        )
+    url = serve(leaf_page("Restored surface", content))
     context = browser.new_context(viewport={"width": 1600, "height": 900})
+    if contained:
+        host = context.new_page()
+        host.goto(url, wait_until="load")
+        expect(host.get_by_role("button", name="Enter specimen")).to_be_enabled()
+        url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.evaluate(
-        "saved => { for (const [key, value] of Object.entries(saved)) "
-        "localStorage.setItem(key, value); }",
+        """async saved => {
+            const entry = document.querySelector('script[type="module"][src]');
+            const {readerStore} = await import(new URL('runtime/storage.js', entry.src));
+            for (const [key, value] of Object.entries(saved)) readerStore.set(key, value);
+        }""",
         saved,
     )
     priming.close()
@@ -1140,14 +1157,23 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     watched(page)
     page.add_init_script(
         """
-        document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => {
-            window.releaseHeldPageInterface = resolve;
-          }));
-        });
+        if (window === window.top) {
+          document.addEventListener('lf-page-interface', event => {
+            event.detail.present(new Promise(resolve => {
+              window.releaseHeldPageInterface = resolve;
+            }));
+          });
+        }
         """
     )
-    page.route("**/api/state*", lambda route: held.append(route))
+
+    def hold_parent_state(route):
+        if route.request.frame == page.main_frame:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/state*", hold_parent_state)
     page.goto(url, wait_until="load")
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")

@@ -14,6 +14,7 @@ Every page is reached over HTTP through its page-scoped vendored layer and the c
 server.
 """
 
+import functools
 import html as html_module
 import importlib.util
 import json
@@ -145,13 +146,62 @@ def site(tmp_path_factory):
     return out
 
 
+class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
+    """The container adapter with the edge's release namespace in front of it.
+
+    One public origin is two servers in production: `worker/src/index.ts` answers
+    `/_leaf-release/<release>/<key>/…` out of the build's sibling asset tree and
+    hands every other route to this adapter, inside the reader's own container.
+    A specimen captures that release namespace as its asset root, so a child page
+    this adapter serves names dependencies only the edge holds; a fixture standing
+    the adapter up alone serves a document whose runtime nothing answers for.
+
+    The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
+    and what follows it is that page's own published path under the asset tree.
+    """
+
+    def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
+        super().__init__(request, server, **bound)
+        self.asset_tree = asset_tree
+
+    def _select_page(self):
+        released = self._released_asset()
+        return released if released is not None else super()._select_page()
+
+    def _released_asset(self):
+        for public_root, page in self.pages.items():
+            prefix = f"{page['assets']}/"
+            if not self.path.startswith(prefix):
+                continue
+            root = "" if public_root == "/" else public_root
+            file = (
+                self.asset_tree / root.lstrip("/") / self.path[len(prefix) :]
+            ).resolve()
+            if not file.is_relative_to(self.asset_tree) or not file.is_file():
+                return self._not_found()
+            ctype = schema_model.CONTENT_TYPES[file.suffix]
+            if ctype not in schema_model.BINARY_TYPES:
+                ctype += "; charset=utf-8"
+            return self._content(200, ctype, file.read_bytes())
+        return None
+
+
+def released_site_endpoint(session_site: Path, asset_tree: Path):
+    """The adapter's own binding, plus the asset tree the edge would answer from."""
+    bound = website_server.site_endpoint(session_site)
+    return functools.partial(
+        ReleasedAssetEndpoint, asset_tree=asset_tree.resolve(), **bound.keywords
+    )
+
+
 @pytest.fixture(scope="module")
 def hosted(site, tmp_path_factory):
     """One reader's private copy, matching the container boundary in production."""
     session_site = tmp_path_factory.mktemp("website-session") / "site"
     shutil.copytree(site, session_site)
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(session_site)
+        ("127.0.0.1", 0),
+        released_site_endpoint(session_site, site_build.asset_site(site)),
     )
     with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -168,7 +218,8 @@ def served_example(site, tmp_path):
     manifest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(site / website_server.SITE_MANIFEST, manifest)
     httpd = hosting_model.LeafHTTPServer(
-        ("127.0.0.1", 0), website_server.site_endpoint(session_site)
+        ("127.0.0.1", 0),
+        released_site_endpoint(session_site, site_build.asset_site(site)),
     )
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
@@ -1170,7 +1221,10 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     """
     url = serve(FEATURE_GALLERY)
     page_dir = serve.page_dir
-    page = open_page(browser, f"{url}#bg-interactions")
+    # Let every child present before starting the timed sequence. Otherwise the
+    # first replay can finish while open_page still waits for another specimen.
+    context = browser.new_context(reduced_motion="reduce")
+    page = open_page(browser, f"{url}#bg-interactions", context=context)
     before = read_events(page_dir)
     gallery = page.locator("#bg-interactions")
     status = gallery.locator("[data-interaction-status]")
@@ -1186,6 +1240,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     ).content_frame
     card = move_frame.locator("#bg-motion-card")
 
+    page.emulate_media(reduced_motion="no-preference")
     expect(status).to_have_text("Playing")
     expect(gallery.locator(".interaction-pointer").first).to_be_visible()
     expect(accept_frame_element).to_have_attribute("data-interaction-ready", "")
@@ -1395,7 +1450,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     context.on(
         "request",
         lambda request: (
-            news_frames.append(request.frame.parent_frame is not None)
+            news_frames.append(request.frame.name)
             if request.url.endswith("/api/news")
             else None
         ),
@@ -1420,9 +1475,11 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
     # The positive ready edge is where each inner page would open its own news
     # stream and two-second heartbeat. Hold through that interval: only the outer
-    # page owns a live reader lease, while every specimen stops after its first read.
+    # page and operable specimen own live leases; the passive replays stop after one read.
     page.wait_for_timeout(2_200)
-    assert news_frames and not any(news_frames)
+    assert news_frames and not any(
+        name.startswith("interaction-") for name in news_frames
+    )
     assert page.evaluate(
         """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
                 frame => {
@@ -1682,7 +1739,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
 
     def hold_first_contained_state(route):
         nonlocal held_once
-        if route.request.frame.parent_frame and not held_once:
+        if route.request.frame.name == "interaction-accept" and not held_once:
             held_once = True
             held.append(route)
             return
@@ -1692,7 +1749,8 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     try:
         with page.expect_request(
             lambda request: (
-                request.frame.parent_frame is not None and "/api/state" in request.url
+                request.frame.name == "interaction-accept"
+                and "/api/state" in request.url
             )
         ):
             page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
@@ -1721,18 +1779,26 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
             "iframe[data-interaction-ready]"
         ).first.content_frame
         contained_document = contained.locator("html")
-        assert contained_document.evaluate(
+        storage = contained_document.evaluate(
             """async (_document, storageUrl) => {
                 const {LIVE_ROOT, PAGE_SCOPE} = await import(storageUrl);
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
             }""",
             storage_url,
-        ) == {"liveRoot": False, "pageScope": "srcdoc"}
+        )
+        assert storage["liveRoot"] is True
+        assert "/api/specimens/" in storage["pageScope"]
         contained_document.evaluate(
             "dispatchEvent(new PageTransitionEvent('pagehide'))"
         )
         assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
-        assert page.evaluate("sessionStorage.getItem('srcdoclf-view')") is not None
+        assert (
+            page.evaluate(
+                "scope => sessionStorage.getItem(scope + 'lf-view')",
+                storage["pageScope"],
+            )
+            is not None
+        )
     finally:
         for route in held:
             route.abort()
@@ -1748,7 +1814,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
     context.on(
         "request",
         lambda request: (
-            news_frames.append(request.frame.parent_frame is not None)
+            news_frames.append(request.frame.name)
             if request.url.endswith("/api/news")
             else None
         ),
@@ -1778,7 +1844,9 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
             }"""
     ) == {"asked": 3, "heard": 3}
     assert len(failed) == 2
-    assert news_frames and not any(news_frames)
+    assert news_frames and not any(
+        name.startswith("interaction-") for name in news_frames
+    )
     errors = consume_browser_errors(page, "leaf: read failed:")
     assert len(errors) == 2
 
@@ -1814,11 +1882,9 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
     expect(toggle).to_have_text("Replay")
     expect(toggle).to_be_enabled()
     errors = consume_browser_errors(
-        page, "contained Leaf page did not load Leaf", "net::ERR_FAILED"
+        page, "entry module did not load", "net::ERR_FAILED"
     )
-    assert any("contained Leaf page did not load Leaf" in error for error in errors), (
-        errors
-    )
+    assert any("entry module did not load" in error for error in errors), errors
 
 
 def test_every_published_page_stands_as_a_live_page(served_example, browser):

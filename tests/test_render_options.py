@@ -2266,9 +2266,9 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
     where the next one gets caught."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
-    # The examples by path, so each is served with the data its markup selects; their
-    # conversations are left off, since the bar is drawn around what the markup exhibits.
-    page = open_page(browser, serve(source, seed_log=False))
+    # Serve each example with its data and history: live specimens can select
+    # authored conversations as part of the exhibit.
+    page = open_page(browser, serve(source))
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A specimen inside a tab panel the page is not
     # showing sits in skipped content, which still reports its last laid-out rect — a

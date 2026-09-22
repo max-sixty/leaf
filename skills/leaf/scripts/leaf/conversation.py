@@ -167,6 +167,11 @@ class DeliveryReply:
     ) -> BaseException | None:
         """Commit only a completed final, retaining rejected or partial text.
 
+        A completed answer is written whatever became of the move it answers: the
+        reader watched it arrive, so `when_settled="post"` puts it in the thread as
+        the agent's own message where something else — a resolution, the reader's
+        own ✓, an authored state — settled that move first.
+
         The binding is given up on every way out but a commit, which clears it in
         the transaction that appends the reply. That includes the ways out that
         raise: recording the draft's last state re-reads a page the turn's own work
@@ -223,7 +228,7 @@ class DeliveryReply:
                 "",
                 for_event=self.target["responds"],
                 attempt=self.attempt,
-                skip_if_settled=True,
+                when_settled="post",
                 identity={"session": self.session_id},
                 validate_source=True,
                 claimed_session=self.session_id,
@@ -415,7 +420,7 @@ def cmd_reply(
     detach: bool = False,
     attempt: str | None = None,
     initiates: bool = False,
-    skip_if_settled: bool = False,
+    when_settled: str = "refuse",
     only_if_unclaimed: bool = False,
     failure: str | None = None,
     identity: dict | None = None,
@@ -427,9 +432,20 @@ def cmd_reply(
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
     conversation. One unambiguous delivered reply supplies both values. ``initiates``
-    explicitly posts when the conversation currently owes no reply. Durable hosts may
-    make an already-settled retry a no-op. ``failure`` records a host-owned failure
-    code alongside its presentation text; ordinary agent answers omit it.
+    explicitly posts when the conversation currently owes no reply.
+
+    ``when_settled`` says what a durable host's write is for, and so what becomes of
+    it when the move it names no longer owes a reply — a resolution, the reader's own
+    ✓, or authored state having honored it first. ``skip`` is for a writer with
+    nothing to say once something else has answered, which is every giving-up
+    receipt. ``post`` is for a writer holding the agent's own completed words: those
+    reach the thread either way, as its response where the move still owes one and as
+    a message of their own where it does not. Every other value refuses, the default
+    among them, because an agent naming an obligation that is gone has read stale
+    state and a writer that names neither disposition has no answer to drop silently.
+
+    ``failure`` records a host-owned failure code alongside its presentation text;
+    ordinary agent answers omit it.
     """
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
@@ -448,11 +464,18 @@ def cmd_reply(
             )
             if existing:
                 same_scope = (
-                    existing.get("responds") == for_event
-                    if for_event is not None
-                    else existing.get("initiates") is True
-                    if initiates
-                    else True
+                    # A `post` writer's answer lands as the response it names or,
+                    # where that move was settled first, as its own message in the
+                    # same thread. Both are this attempt's own event, so a repeat of
+                    # it recognises either.
+                    when_settled == "post"
+                    or (
+                        existing.get("responds") == for_event
+                        if for_event is not None
+                        else existing.get("initiates") is True
+                        if initiates
+                        else True
+                    )
                 )
                 if (
                     existing["kind"] != "reply"
@@ -462,6 +485,10 @@ def cmd_reply(
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
                 return existing
         responses = current_responses(page_dir, events)
+        # Set where a `post` writer's move turned out to owe it nothing, so the rest
+        # of this reads the write as the message it has become rather than as the
+        # response it was addressed as.
+        posting_settled = False
         if initiates:
             if for_event is not None:
                 sys.exit("reply accepts --for or --initiates, not both")
@@ -507,32 +534,36 @@ def cmd_reply(
             to = expected["to"]
         else:
             expected = responses.get(for_event)
-            if expected is not None and expected["kind"] == "version":
-                root_id, _ = _thread_root(
-                    page_dir, events, to or expected["conversation"]
-                )
-                if skip_if_settled:
-                    return None
-                sys.exit(
-                    f"thread {root_id!r} requires a page version and cannot take a "
-                    f"reply; {VERSION_THREAD_RECOURSE}"
-                )
             if expected is None or expected["kind"] != "reply":
-                if skip_if_settled:
+                if expected is not None and expected["kind"] == "version":
+                    root_id, _ = _thread_root(
+                        page_dir, events, to or expected["conversation"]
+                    )
+                    refusal = (
+                        f"thread {root_id!r} requires a page version and cannot "
+                        f"take a reply; {VERSION_THREAD_RECOURSE}"
+                    )
+                else:
+                    held = logged_id(events, for_event, responses)
+                    refusal = f"event {for_event!r} takes no reply; " + (
+                        held or f"this page's log holds no event {for_event!r}"
+                    )
+                if when_settled == "post" and to is not None:
+                    posting_settled, for_event = True, None
+                elif when_settled == "skip":
                     return None
-                held = logged_id(events, for_event, responses)
-                sys.exit(
-                    f"event {for_event!r} takes no reply; "
-                    + (held or f"this page's log holds no event {for_event!r}")
-                )
-            if to is None:
+                else:
+                    sys.exit(refusal)
+            elif to is None:
                 to = expected["to"]
         assert to is not None
         root_id, root = _thread_root(page_dir, events, to)
-        if (thread_obligation(events, responses, root_id) or {}).get("kind") == (
-            "version"
+        if (
+            not posting_settled
+            and (thread_obligation(events, responses, root_id) or {}).get("kind")
+            == "version"
         ):
-            if skip_if_settled:
+            if when_settled == "skip":
                 return None
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
@@ -541,12 +572,16 @@ def cmd_reply(
         if for_event is not None:
             expected = responses.get(for_event)
             if expected != {"kind": "reply", "to": to, "for": for_event}:
-                if skip_if_settled:
+                if when_settled == "post":
+                    posting_settled, for_event = True, None
+                elif when_settled == "skip":
                     return None
-                sys.exit(
-                    f"event {for_event!r} no longer requires a reply to {to!r}; "
-                    "read the current delivery or conversation state"
-                )
+                else:
+                    sys.exit(
+                        f"event {for_event!r} no longer requires a reply to {to!r}; "
+                        "read the current delivery or conversation state"
+                    )
+        if for_event is not None:
             stream = page.status.get("stream") or {}
             binding = (stream.get("reply_bindings") or {}).get(for_event) or {}
             claim = page.active_claim
@@ -558,7 +593,7 @@ def cmd_reply(
                 sys.exit(
                     f"event {for_event!r} is bound to this delivery's final message"
                 )
-        else:
+        elif not posting_settled:
             standing = thread_obligation(events, responses, root_id)
             if standing is not None and standing["kind"] == "reply":
                 sys.exit(

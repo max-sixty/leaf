@@ -34,6 +34,7 @@ from leaf import codex as leaf_codex
 from leaf.cli import cli
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
+from leaf.conversation import cmd_resolve
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -2686,6 +2687,67 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     assert socket.closed
 
 
+def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(page_dir):
+    """The reader keeps the answer they watched arrive, whatever settled the move.
+
+    The host binds the reply seat before the turn and commits the completed text at
+    the end of it, so anything that settles the move in between — the agent's own
+    `$LEAF resolve`, the reader's ✓, an authored state that honors it — used to make
+    that commit a no-op and clear the streamed text with it. Nothing recorded the
+    loss: the turn answered, so it wrote no failure receipt either, and the page went
+    back to listening with the agent's words gone. The answer is posted in the thread
+    as the agent's own message instead; what it no longer does is settle anything.
+    """
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        website_server.website_harness("hosted-thread", os.getpid()),
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    turn = hosted_follower(host, page_dir, prepared)
+    turn.begin()
+    cmd_resolve(page_dir, comment["id"])
+
+    turn.commit(
+        {
+            "id": "app-server-turn",
+            "status": "completed",
+            "items": [
+                {
+                    "type": "agentMessage",
+                    "phase": "final_answer",
+                    "id": "msg-1",
+                    "text": "deployment verified",
+                }
+            ],
+        }
+    )
+
+    [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert answer["parent"] == comment["id"]
+    assert answer["text"] == "deployment verified"
+    assert answer["initiates"] is True
+    assert "responds" not in answer
+    # The same delivery committing again recognises the message as its own rather
+    # than reading an initiating answer as another event's.
+    assert (
+        website_server.cmd_reply(
+            page_dir,
+            comment["id"],
+            "deployment verified",
+            "",
+            for_event=comment["id"],
+            attempt=answer["attempt"],
+            when_settled="post",
+            identity={"session": "hosted-thread"},
+        )
+        == answer
+    )
+
+
 def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     page_dir, monkeypatch
 ):
@@ -2773,7 +2835,7 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
         "",
         for_event=comment["id"],
         attempt=website_server.agent_attempt(comment["id"]),
-        skip_if_settled=True,
+        when_settled="skip",
         only_if_unclaimed=True,
         identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
     )

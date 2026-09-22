@@ -44,8 +44,11 @@ a receipt belongs to the open turn; ending a turn does not settle its input.
 A delivery's completed final answer is written whatever settled its move first:
 as that move's response where it still owes one, and as the agent's own message
 in the same thread where a resolution, the reader's ✓, or authored state got
-there first. The reader watched it arrive, so it is never dropped for having
-nothing left to settle.
+there first. Having nothing left to settle is not a reason to drop words the
+reader watched arrive. An answer reaching a thread that is already closed reads
+as a late reply there, above the thread's Reopen action and under the panel's
+resolved narrowing rather than its open default; whether a closed thread should
+carry it further than that is not settled here.
 
 The App Server observer retains typed `working`, `thinking`, `tool`, `replying`,
 `awaiting_approval`, and `awaiting_input` activity with the observed session and

@@ -119,7 +119,6 @@ function navigationSummary(navigation, model) {
   const status = model.resolved ? "Resolved" : model.attention?.label || "";
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary class="lf-thread-summary" title=${title}>
-    ${iconTemplate("next", "lf-thread-chevron")}
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
     <span

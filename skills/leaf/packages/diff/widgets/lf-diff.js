@@ -577,20 +577,9 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const source = snapshot?.value ?? null;
-        const stamp = snapshot
-          ? `${snapshot.snapshot ? "snapshot" : "current"}:${snapshot.revision}`
-          : null;
-        if (this.boundStamp === stamp) return this.boundRendering ?? Promise.resolve();
-        this.boundStamp = stamp;
-        const rendering = this.render(source, snapshot);
-        this.boundRendering = rendering;
-        rendering.finally(() => {
-          if (this.boundRendering === rendering) this.boundRendering = null;
-        });
-        return rendering;
-      });
+      this.stopWatching = watchData(this, "document", (snapshot) =>
+        this.render(snapshot?.value ?? null, snapshot),
+      );
     }
 
     disconnectedCallback() {
@@ -601,8 +590,6 @@ customElements.define(
       this.stopWatching = null;
       this.headRoom?.disconnect();
       this.headRoom = null;
-      this.boundStamp = undefined;
-      this.boundRendering = null;
       this.manifestEntries = null;
       this.manifestSnapshot = null;
       this.sharedStyles = null;

@@ -1,21 +1,14 @@
 # The page in the browser
 
-This file holds the contracts that cross the browser runtime's modules: what boots in
-which order, what the server and the page each own, the registry's grains, the
-layer-wide UI laws, what a copy or print keeps, the render gates, and how to work on
-the runtime. Everything one module owns is stated in that module's header comment, and
-the map below names the owner of each concern, so read the header before changing the
-module. Page-authoring commands and markup rules live in
-`../references/page-authoring.md`; package authoring lives in
-`../references/packages.md`. The repository-level `CLAUDE.md` owns the rules that cross
-the JavaScript and Python runtimes, under "Cross-runtime invariants": the document
-starts state and the log changes it, each input is validated once and its reading
-shared, and the widget vocabulary stays open.
+This file owns browser-wide contracts: module boundaries, startup, state authority,
+layout, export, and validation. Read each module's header for its local contract.
+Page-authoring rules live in `../references/page-authoring.md`; package contracts live
+in `../references/packages.md`. Repository `CLAUDE.md`, "Cross-runtime invariants", owns
+rules shared by Python and JavaScript.
 
-Keep this file about the boundaries between modules. Put an invariant beside the code
-it constrains when that code is the only consumer. Put a cross-runtime invariant in the
-repository instructions. Do not record the sequence of implementations that led to the
-current one.
+Keep each rule with the modules it constrains: local contracts in module headers,
+browser-wide contracts here, and cross-runtime contracts in repository instructions.
+Describe current behavior, without retaining implementation history.
 
 ## Runtime ownership
 
@@ -45,331 +38,71 @@ the first repaint after mounting evaluates them.
 cycles, forbidden transitive dependencies, and a declaration naming a module that no
 longer exists. Runtime imports use literal paths so the gate can read their edges. Only the authored interaction loader and registry widget loader use
 computed imports; those load content modules rather than runtime owners.
-`runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
-mounts them, and wires behavior that needs them in the document;
-`runtime/auxiliary-modality.js` owns the shared inert, scrim, focus, semantic, and
-reading-scroll boundary while an auxiliary surface covers the document;
-`runtime/repaint.js` owns the shared frame, whose fixed phases are wired at boot:
-first keyboard-scope reflection, standing content, chrome layout, requested page
-movement, then standing geometry. Work requested during a phase belongs to the next
-frame. Synchronous input layout, ResizeObserver height-only placement, and the shell's
-animation frames retain their own timing contracts;
-`runtime/standing.js` owns the standing content and geometry phases;
-`runtime/dom-children.js` reconciles retained children without moving nodes already in
-place, and applies the difference between two authored revisions to the live page
-through a source-to-live map, so that what a reader, the runtime, or a page module has
-done to the page — a selection, an open disclosure, a lent tab stop, a tokenizer's
-spans, a module's own output — is written over only where the author wrote; every
-judgement it cannot make from the DOM alone is its caller's; conversation owners supply
-reaction teardown when removing their surfaces;
-`runtime/focus.js` puts the reader on an element — the focus, lending a tab stop only
-when needed, and the caret inside it, which an arrival that is a return reads before its
-element goes away and hands back in the same act;
-`runtime/carry.js` owns the mechanical reader state an install carries between two
-nodes the author gave the same id — a control's value and caret, a tick, a disclosure,
-an inner scroll, and focus — reading each against what the author wrote for the revision
-the reader is standing in, so that what crosses is what the author did not write; it
-carries nothing for an element the author left unnamed;
-`runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
-document roots so authored revision replacement can leave that live state in place;
-`runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
-`runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
-shown in the useful status at the page foot, and the brief boundary state when another
-press stays at the same destination; clamped and cyclic owners use the same reading, while
-native focus traversal and gestures that rearrange state keep their local feedback;
-`runtime/icons.js` owns the layer's icon table;
-`runtime/context.js` owns the mutable facts shared across the browser layers and their
-direct readers;
-`runtime/document-identity.js` reads the server-delivered revision, stamp, executable,
-and authored-widget markers once; the composition root initializes the existing
-application publisher from that reading before it constructs browser owners, while
-version travel and contained gallery documents consume the executable and widget
-readings;
-`runtime/layer-client.js` owns the vendored-generation gate, shared event and media
-POSTs, and page-error channel;
-`runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
-ended, and the pending ledger's unresolved attempts — painted on the root element as
-`data-lf-traffic` for whatever waits on the page from outside it;
-`runtime/widget-controller.js` owns the public, publisher-backed action and request
-reading, document-bound target-reference capture, declared-role dispatch validation,
-subscription lifetime, total state rendering before auxiliary subscribers, generic
-settlement paint, and the widget presentation ticket through `updateComplete`;
-`runtime/widget-descriptors.js` captures each revision-bound widget's declaration,
-authored ancestry, exhibit fence, request offers and bindings, and stable target
-boundary before content modules upgrade or move its node;
-`runtime/target-references.js` owns stable id and structural target records, exact
-resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
-keyboard candidate walk;
-`runtime/reader-intent.js` owns the gesture generation a delayed navigation must still
-match before it may move focus or scroll the reader;
-`runtime/application.js` composes delivery, state application, projection, conversation,
-and the pending ledger, and owns typed action, undo, and one-shot request transport;
-its command path enqueues, stages, and paints a gesture before starting delivery;
-`runtime/request-elements.js` owns the controller-backed request-control adapter while
-each package supplies its words and bound detail;
-`runtime/asks/model.js` exposes immutable Ask selectors and the semantic subscription
-from the application publisher; inventory, answer state, retirement, and thread
-obligations are folded by Python and carried on the wire the publisher adopts;
-`runtime/asks/view.js` owns Ask chrome, marking, the Ask walk,
-Ask-local contextual command projection, and the reader's standing on an Ask as a
-declared id a replacing document can be asked for; `asks/view-elements.js` owns its
-passive paint host and control selector;
-`runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
-by the public semantic projection watchers;
-`runtime/composing/capture.js` owns selection capture and snapping;
-`runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
-page-click routing, and the one Comment command every route into it shares — which box the
-press enters, the word each surface says over it, and the composer's own keys;
-`runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text
-search: the scene, chip, and activation it declares over the shared hint session in
-`runtime/keyboard/hints.js`, and the synchronous keyed Lit overlay and mechanical
-geometry of the search marks that share its layer;
-`runtime/composing/aim.js` owns modifier aim and captured presses;
-`runtime/composing/drawing.js` owns Draw mode's stroke capture, the reading of the page's
-words a drawing stands over, and drawing commands;
-`composing/drawing-record.js` owns drawing payload shape and validation;
-`composing/drawing-paint.js` owns their projection into the page;
-`runtime/composing/input.js` owns shared text input and pasted-media draft state, while
-its retained Lit shelf owns the thumbnail projection; `runtime/composing/selection.js`
-owns selection-composer state;
-`runtime/media.js` owns generated image blocks, delivery-route scoping, and the shared
-full-image viewer;
-`runtime/drawn-edge.js` owns the shared resizable boundary used by the thread panel
-and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
-`runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
-shared tray furniture;
-`runtime/live-leaves.js` derives the machine's Leaves reading and owns its walk;
-`runtime/live-leaves-list.js` presents that reading through one banner face and keyed
-tray list under one application-presentation ticket;
-`runtime/margin-entry-model.js` owns the immutable public margin-entry grammar,
-normalization, ranking, and labels without browser dependencies;
-`runtime/margin-entries.js` owns the contribution registry, publishes its immutable
-model reading once per update, and keeps command scopes and activation capabilities
-outside that reading; its native control adapter creates each projection;
-`runtime/page-map-dialog.js` owns the complete searchable Page Map dialog, its retained
-projected actions, filtering, modal lifecycle, and focus return;
-`runtime/margin-model.js` derives the immutable page inventory and cluster selection
-from those contributions and captured page facts. The inventory derives control order,
-thread aggregation, interaction state, and placement counts once; cluster selection
-consumes that reading for expansion and overflow; `runtime/margin-map-model.js`
-derives the complete searchable Page Map from that same inventory; neither reaches DOM
-or application services. `runtime/margin-projection.js` captures their inputs and keeps
-target nodes, generated-reading callbacks, focus, and placement outside the model. It projects that reading into the page margin and Page Map, and owns anchored margin threads, the design-mode
-exclusion of its top-layer preview, and one aggregated cluster for each page target;
-`runtime/margin-cluster-view.js` consumes each frozen page or conversation margin model,
-materializes its retained native controls, and exclusively Lit-renders their direct,
-disclosed, and inline child order;
-`runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
-vertical packing, collision bands for wide page content, and transient margin-entry
-label placement;
-`runtime/thread-card-geometry.js` states, as arithmetic over client rectangles, where
-the inline thread card stands relative to the cluster that opened it and the visible
-boundary the margin projection supplies;
-`runtime/reactions.js` owns reaction vocabulary, composer choices, sending, keyboard
-mode, registered conversation-control mechanics, and reaction-specific undo wording;
-`runtime/design.js` owns layer-review mode, targets, and legend geometry;
-`runtime/design-readings.js` owns its passive names and constants;
-`runtime/data.js` owns external-data acceptance, readiness, and source-contract
-subscriptions;
-`runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
-`runtime/keyboard/CLAUDE.md` owns keyboard binding vocabulary, scope resolution, page
-grammar, and the map of keyboard modules;
-`runtime/notifications.js` owns notice scheduling and its immutable visual reading, plus
-the independent assistive announcement channel; `runtime/keyboard/shortcut-bar.js`
-Lit-renders the complete bottom-status surface from that reading;
-`runtime/restore-state.js` owns the browser-state arrangements the arrival gate exercises;
-`runtime/reading-regions.js` owns reading-region identities, effective scrollers,
-allocation and bounded/flow posture transitions;
-`runtime/reading-layout.js` owns shared arrangement construction and furniture slots
-used by structural and compound widgets, plus the page-room observation lifecycle that
-root workspaces apply to their own minimum-size policy; it reads the available room and
-minimum inside the bounded candidate while holding current document geometry, so the
-same window cannot settle differently based on the posture it arrived from;
-`runtime/pending/model.js` owns pending-record readings; `pending/state.js` owns the
-ordered gesture ledger, with no network or rendering dependencies;
-`runtime/delivery.js` owns serialized event delivery and retry, independently of whether
-an accepted answer can be rendered;
-`runtime/presence.js` owns the calibrated server clock, relative-time wording,
-and the deadline at which canonical activity asks for another server read;
-`runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
-event-stream wakeups, and first-read presentation scheduling and retry;
-`runtime/state-application.js` owns stale-answer ordering, application serialization,
-accepted-state publication, notification, presentation-failure reporting,
-and pending accounting after presentation proof;
-`runtime/semantic-state.js` owns the single application publisher, its read-only
-semantic selectors, the document-wide presentation coordinator, and the one pass its
-epoch presenters paint on, including the order they paint in;
-`runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a status
-kind that has changed; `runtime/banner-status-view.js` owns the Lit-rendered status
-surface, its tone paint, native disclosure, and publication layout;
-`runtime/banner-approval.js` owns the Lit-rendered face inside the banner shelf's
-stable approval button;
-`runtime/banner-shelf.js` consumes explicit ranked control contributions and owns the
-complete synchronous Lit inventory, order, presence, reservation, focus continuity,
-overflow door, and row-versus-menu partition; native controls remain retained islands;
-`runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
-Web Animations playback;
-`runtime/specimen.js` owns the browser lifetime of an isolated child Leaf page:
-creation from an authored template, presentation readiness, reset,
-release, and explicit focus entry and return. The server serves its captured layer
-and independent event log through the ordinary page endpoint. A specimen starts inert;
-entry releases it, and Escape returns after the child's own unwind has finished.
-Browser storage, including chrome preferences, is scoped to the child address.
-`runtime/interaction-gallery.js` owns the Product Gallery's opt-in choreography and
-playback controls using that shared host. Its passive children stay inert and take one
-initial state reading without a continuing feed. `runtime/interaction-gallery-frame.js`
-exposes only the production transitions those replays illustrate without posting
-gestures; it loads during passive child startup. Operable `lf-specimen` children use
-the normal event door and state feed. Standalone export embeds their rendered static
-documents; passive replay frames leave with the scripts;
-`runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
-`runtime/updates.js` owns the accepted claim snapshot and canonical action,
-report, and work-claim feeds;
-`runtime/version.js` owns version travel whole: the chooser's `g V` destination row and
-the menu's local `v` scope, forced live activation, version-comparison state, its marks,
-the inline text diff a
-marked block discloses, version document loading, the one activation door and the two
-installs behind it — the authored page patched in place, or a fresh document — which
-the arriving revision's executable identity decides, the per-widget digests each
-revision's delivery states that decide which widgets a patch may keep, the persisted
-semantic reading landmarks, the carried mechanical state and the Ask standing that cross
-either of them, and the page-block reading directional walks start from;
-`runtime/version-chooser.js` consumes one frozen version presentation reading and owns
-the retained native chooser button, versions popover, and latest-version chip in their
-separate chrome seats: their synchronous Lit paint, keyed rows, disclosure focus and
-walk mechanics, stable command calls, and width reservation;
-`runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
-rendering, and async settlement;
-`runtime/validation.js` is the private adapter through which render checks inspect
-publisher state and current presentation readiness;
-`runtime/widget-elements.js` owns widget-element construction, the response control's
-anatomy (`responseAction`), labels, gesture guards, deferred measurement, layout-change signalling, and control sizing;
-`runtime/registry.js` owns vocabulary queries;
-`runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
-fixed-surface wheel forwarding, and the gutter its bar takes;
-`runtime/stylesheets.js` constructs the layer's adopted sheets synchronously from the
-text every delivery carries in the document (`delivery_sheets`); runtime CSS never
-arrives as a CSS module script, which WebKit lacks, nor through a module-scope await,
-which would move page modules after `DOMContentLoaded`;
-`runtime/chrome.css` is the comment layer's private stylesheet, which the boot module
-adopts, and keeps the chrome's paint hosts out of the containing-block chain for
-document-positioned chrome. It also keeps page-attached paint below covering auxiliary surfaces
-and paint for chrome targets above them. Being adopted, it cascades after `theme.css`
-and after every package theme concatenated onto it, so a face stated there at ordinary
-specificity beats each component's own rule and nothing renders to gate the loser: the
-shared vocabulary's faces belong in the page-side sheets, and what stays here is what
-has to beat the page. A test relocates these rules to the front of the head and reads
-the corpus again, so anything winning on position rather than on its selectors is a
-failure.
-`runtime/marks.css` is the marks' sheet, adopted by the document and by every shadow
-stage;
-`theme.css` is the render-blocking default theme: the live shell's final page claims,
-tokens, element styles, class idioms, and the element-widgets CSS alone renders; a
-package's `theme.css` is appended after it. `shadow.css` holds the rules a declared shadow
-tree needs as well as the document: every root's copy is composed into `/shadow.css` for
-the stage, and into `/theme.css` just ahead of that root's `theme.css`. The layer's
-`.lf-ui` control face opens the assets root's `shadow.css`, so it stands before every
-component rule that overrides it, and holds a class's rank so the page's own element
-rules do not. Its selector, `:where(:root) .lf-ui`, matches nothing in a declared tree,
-where a widget's own `lf-ui` nodes keep their host's face;
-`runtime/resolved-target.js` owns the canonical result of resolving a durable anchor
-into the current document;
-`runtime/target-paint.js` owns element-target paint in the chrome layer;
-`runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
-visual;
-`runtime/chrome-layout.js` owns chrome geometry, the document room left after the panel
-and trays, and page repaint caused by shell motion or reflow. It does not own the reader's
-place across that reflow: the shell yields its strip as a transparent border rather than a
-margin, which keeps the change off the scroll-anchoring suppression list, so the browser
-holds the place and nothing here may take that back (theme.css, at the body strip);
-`runtime/thread-panel.js` owns panel visibility, workspace transitions, and the two
-Escape steps the panel offers however the reader reached it: the narrowing, then the
-panel itself, which lands them back on the page;
-`runtime/presentation.js` owns runtime paint, optional page-interface settlement, and
-the words it projects;
-`runtime/reach.js` owns keyboard access to overflow, the containing block a
-scroller owes what it scrolls, and the mark a box wears while it shows less
-than it holds across;
-`runtime/shadow.js` owns declared shadow roots, their `shadow.css` rules, shared
-highlight rules, the parent walk that crosses a root, and the chrome question
-(`uiInside`, `inUi`: which layer a node stands in); `runtime/shadow-stage.js`
-owns the stage an x-shadow widget renders into and the constructed styles a widget
-bundle registers on demand. One registered sheet is adopted by the document and every
-current or future stage; stages are retained weakly across live-version replacement;
-`runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
-dynamic widget imports, initial settlement, and the settlement of markup a live
-revision patches into the page;
-`runtime/storage.js` owns page addressing and browser-backed stores;
-`runtime/syntax.js` owns code tokenization and highlighting;
-`runtime/passages.js` owns the DOM reading and quote resolver;
-`runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
-`runtime/pointer.js` owns the shared unrounded pointer position;
-`runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
-conversion from viewport boxes to document-positioned chrome;
-`runtime/keyboard/key-badge-placement.js` adds the readings that account for the room
-chrome leaves and for a member covered without being clipped, which every target hint
-and Ask binding badge is admitted and seated by;
-`runtime/navigation.js` owns reader travel and its keys — the reading-page step, the small
-scroll, and the open-thread walk; `reading-regions.js` selects its scroller;
-`runtime/anchor-resolution.js` resolves anchors without importing paint or travel;
-`runtime/anchor-paint.js` owns their placed readings and marks;
-`runtime/anchor-note-view.js` Lit-renders the native accessibility control beside each
-authored block carrying comments; `runtime/anchor-controls.js` routes presses on marks
-and owns the remaining visual and reaction controls;
-`runtime/anchor-travel.js` owns anchor and projected-datum travel, revealing a destination
-before resolving its current node and scrolling to it;
-`runtime/page-geometry.js` coordinates page movement and anchor, drawing, and aim paint;
-`runtime/conversation/model.js` folds supplied server threads and unresolved messages
-as values; it reads no runtime store or DOM. `conversation/identity.js` owns pending
-message identity. `conversation/state.js` selects the publisher's canonical Thread
-collection shared by the panel and packages;
-`runtime/conversation/workflow.js` owns the one browser vocabulary for exact-input
-workflow stages, conditions, activity labels, next actor, and thread attention. The
-application publisher overlays unresolved Sending before messages, compact rows, and
-the margin read that same immutable projection;
-`runtime/conversation/messages.js` owns immutable message readings and their synchronous
-Lit presentation, including retained frozen authored islands;
-`runtime/conversation/replies.js` owns reply drafts, retained editor subscription
-lifetimes, and its supplied reply command;
-`runtime/conversation/inline.js` owns keyed Lit conversation seats outside the panel
-and their presentation-batch checkpoints;
-`runtime/conversation/box.js` owns page-seated first-message boxes;
-`runtime/conversation/folding.js` owns settlement continuations and mechanical
-resolution-fold state and motion;
-`runtime/conversation/landing.js` owns conversation input discovery, focus travel,
-panel arrival, and the two scopes standing over that relation: a text box's way back out,
-and a thread's own reply and resolution keys;
-`runtime/conversation/narrowing.js` owns the immutable comment-panel search and lifecycle,
-scope, subject, and detached-placement intent and derives one complete narrowing reading;
-`runtime/conversation/narrowing-view.js` synchronously Lit-renders that reading as the
-complete search, disclosure, summary, Reset, and facet surface while retaining the native
-search input and local disclosure state;
-`runtime/conversation/placement.js` owns document-order grouping;
-`runtime/conversation/reaction-strips.js` projects and Lit-renders complete message
-reaction surfaces, retiring their registered keyboard mode before removal;
-`runtime/conversation/surfaces.js` owns Thread consumer lifetimes, their presentation
-completion, registry-declared outlets, and the Threads they claim from the margin;
-`runtime/conversation/thread-card.js` owns the shared immutable thread descriptor and
-complete synchronous Lit tree across retained native panel, page, widget-outlet, and
-margin cards; native editors remain opaque mechanical islands;
-`runtime/conversation/thread-list-view.js` owns keyed panel placement and committed
-descriptor restoration; `conversation/thread-list.js` owns its grouping, scroll holds,
-and connected presentation proof for already-admitted frozen widgets;
-`runtime/conversation/presentation.js` composes retained conversation rendering;
-`runtime/conversation/panel.js` owns the panel composer and the Threads list's own keys —
-its search, waiting filter, match walk, and local route into the page-comment box — and
-`panel-elements.js` owns the passive panel elements, its one narrowing-view seat, and
-geometry readings;
-`runtime/projection/authored.js` decodes typed authored initial values from validated
-source markup before upgrade and owns authored parentage;
-`runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
-`runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
-`runtime/projection/state.js` selects the publisher's desired semantic reading, holds
-only deferred projection-chrome state, and tells its watchers when that deferral moves;
-`runtime/projection/presentation.js` records
-coordinate commit proof, paints provenance and coverage, and defers that global work
-while a drag owns the document;
-`runtime/projection/commands.js` owns action eligibility and undo commands.
+
+The map names entry points for each concern. Their headers own module-local contracts;
+subdirectories keep related models, controllers, and views together. Paths below are
+relative to `runtime/` unless stated otherwise.
+
+| Concern | Owners |
+| --- | --- |
+| Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
+| Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
+| State models, selectors, and projection | `projection/`, `conversation/model.js`, `conversation/workflow.js`, `conversation/state.js`, `pending/`, `asks/model.js` |
+| Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
+| Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
+| External data and authored projections | `data.js`, `projection/data.js`, `projection/authored.js` |
+| Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
+| Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
+| Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-modality.js`, `drawn-edge.js` |
+| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js` |
+| Keyboard commands and their projections | `keyboard/CLAUDE.md` |
+| Focus and navigation | `focus.js`, `navigation.js`, `reader-intent.js`, `walk-position.js` |
+| Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
+| Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
+| Threads and reply surfaces | `conversation/`, `thread-panel.js` |
+| Margin inventory, controls, and Page Map | `margin-entries.js`, `margin-entry-model.js`, `margin-model.js`, `margin-map-model.js`, `margin-projection.js`, `margin-cluster-view.js`, `page-map-dialog.js` |
+| Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
+| Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
+| Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js` |
+| Banner, approvals, and control allocation | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
+| Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
+| Activity timing and updates | `presence.js`, `updates.js` |
+| Notices and announcements | `notifications.js`, `keyboard/shortcut-bar.js` |
+| Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
+| Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
+| Child pages and gallery playback | `specimen.js`, `interaction-gallery.js`, `interaction-gallery-frame.js` |
+| Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js` |
+| Rendering utilities | `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `storage.js` |
+
+`leaf.js` assembles chrome and mounts the shared repaint phases in order: keyboard-scope
+reflection, standing content, chrome layout, requested page movement, and standing
+geometry. Work requested during a phase belongs to the next frame. Synchronous input
+layout, ResizeObserver height-only placement, and shell animation frames keep their own
+timing contracts.
+
+The stylesheet boundary follows where rules apply:
+
+- `theme.css` holds page tokens, element styles, idioms, and CSS-only widgets. Each
+  package theme follows it. Shared shadow rules are composed into `/shadow.css` and into
+  `/theme.css` before the corresponding root's theme.
+- `runtime/chrome.css` is adopted after page and package sheets. Shared control faces
+  belong in page-side sheets; chrome rules must win by their selectors when moved ahead
+  of those sheets. Its paint hosts stay outside the containing-block chain, with
+  page-attached paint below covering auxiliary surfaces and chrome-target paint above.
+- `runtime/marks.css` is adopted by both the document and shadow stages.
+- `stylesheets.js` reads delivered `delivery_sheets` synchronously. CSS module scripts
+  are unavailable in WebKit, and a module-scope await would delay page modules past
+  `DOMContentLoaded`.
+
+The shared `.lf-ui` face starts in the assets root's `shadow.css`, before component
+rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
+shadow trees, where the host's control face applies.
+
+Chrome reserves its strip with a transparent body border (`theme.css`), preserving native
+scroll anchoring during reflow. `chrome-layout.js` must not override the reader's position.
+Reading arrangements measure available room and minimum size in the bounded candidate
+without changing current geometry, so responsive posture does not depend on the posture
+from which the measurement began.
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
@@ -391,15 +124,15 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | the publisher adopts `reading`; state presentation paints `data-lf-reading` only after every required view succeeds |
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
-| rendered conversation | the server's thread and exact-input workflow projections, then pending messages and Sending workflows | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
+| rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
+| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels and reader-Ask precedence |
 | which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `CLAUDE.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
-| canonical agent activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and leaves tray paint page-wide activity; the browser only asks for a fresh server reading at `next_transition_at` |
-| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels and reader-Ask precedence |
+| canonical agent activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner, receipts, margin, and leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | thread-panel visibility | the panel controller's constructed visibility reading | `setPanel` writes the reading and projects it to the panel class and body attribute |
@@ -502,51 +235,36 @@ event schema refuses it.
 
 ## Authoritative projection
 
-`runtime/projection/model.js` owns the record fold; `projection/presentation.js`
-combines it with authored DOM readings for coverage and provenance. Each widget controller
-keeps desired state separate from proof that its current owner has rendered it. Python derives the durable side (below). What both must honor: an `x-state` verb may
-declare `requires`, a prerequisite over the standing Ask projection that
-`x-awaits` defines. Its target is the sender or its
-declared parent, and `awaiting` states whether that Ask must be open or closed.
-The controller's action entry paints and guards the action, `dispatch()` checks at the common
-browser door, and POST evaluates the same declaration from the authoritative log
-under the append lock. No eligibility cache sits beside the ordinary Ask and state
-projections. `x-awaits.answers` says which actions actually close the Ask;
-orthogonal actions do not, and neither does a conversation standing in the widget's
-declared `x-conversation` seat — that takes the Ask off the reader's list without
-answering it, which is why this gate reads the projection with no seats in
-it. A position answer's `completion` predicate (`../references/packages.md`, "A
-widget") is one reading for the POST and the standing record alike. An answer or
-thread-completion verb cannot require its own awaiting value, or
-an aggregate parent's awaiting value, to be false: either prerequisite is circular
-while the Ask stands. `x-awaits.rollup` carries the logical OR of its nearest
-local Asks and child roll-ups; the aggregate owner never originates or
-surfaces an Ask. Quoted, retired, and resolved-thread sources are absent from the
-inventory and the rollup through the same existence reading.
+Python owns the durable Ask and conversation projections. The browser publisher adopts
+those readings and combines them with authored state and unresolved gestures;
+`runtime/projection/model.js` folds widget state, and `projection/presentation.js` records
+coverage and provenance. Widget controllers keep desired state separate from proof of
+rendering.
 
-The server's one Ask fold (root `CLAUDE.md`, Cross-runtime invariants; `leaf/asks.py`)
-reaches the browser through `browser_state`, which serializes each view's
-`document.asks` and the conversation's `asks`, as `{all, reader, unanswered, awaiting,
-unanswered_awaiting}`. Each listed Ask names the surface the reader is sent to and the
-`source` that answers it. The browser concatenates the two, page before thread.
+Action prerequisites use the registry's `x-state.requires` declaration. The controller
+paints eligibility, the common browser dispatch checks it, and POST checks the same
+prerequisite against the log under the append lock. Eligibility uses the ordinary Ask
+projection without conversation seats: handing an Ask to the agent does not answer it.
+The registry's `$keys` entries own `requires`, `x-awaits.answers`, and `x-awaits.rollup`;
+`../references/packages.md`, "A widget", owns position-answer completion. Keep those
+readings shared rather than adding an eligibility cache or a browser Ask fold.
 
-Every state read is served at one `through_seq`. A normal response projects the
-revision the tab shows and the active revision it may install next. A version
-comparison requests its older base from `/api/view` at the exact `through_seq` already
-applied to the live DOM, so every view used together has the same sequence basis
-without every state read parsing all historical revisions.
+The server supplies page and conversation Ask collections through each view's
+`document.asks` and the conversation's `asks`. The publisher combines them page first;
+`runtime/asks/model.js` exposes their immutable selections. Each Ask identifies the
+surface to visit and the source that answers it.
 
-`awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
-Ask carried anywhere in the unresolved thread; a later plain turn does not hide
-an earlier structural Ask. Python derives that obligation beside the Ask reading it
-shares a fold with, and ships it as each thread's `awaits_reader`; the browser reads
-it. The reader's own unsent reply hands its thread to the agent through `foldThreads`,
-and a thread still named in the reader's Ask list keeps the obligation over that, so an
-Ask the reply does not answer stays theirs while it travels rather than turning over
-and back. With no such Ask, the obligation reads the latest spoken turn:
-an agent comment is a question and an agent reply's explicit `awaits` field marks a
-prose request. A `settles` token standing on that latest prose request answers it
-without closing the thread.
+Every state read has one `through_seq`. Its normal response projects the displayed
+revision and the active revision it may install. Version comparison requests its base
+from `/api/view` at the sequence already applied to the DOM, keeping related views on
+one log snapshot without projecting all historical revisions on every read.
+
+Python also supplies each thread's `awaits_reader`; `awaitsReader` reads that field.
+`runtime/conversation/model.js` overlays unresolved replies, handing the thread to the
+agent. The application publisher preserves the reader obligation while the thread still
+has a reader Ask that reply cannot answer.
+The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
+"Threads".
 
 ### Version and conversation windows
 
@@ -569,11 +287,8 @@ later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
 
-An Ask the reader answers with a request for change is answered by a version, not a
-reply; `runtime/asks/model.js` reads the seat, and `../scripts/leaf/events.md`,
-"Threads", says when the door then accepts a resolve. Threads owns the reader-facing
-clarification; the page's Ask remains the proposal with the agent rather than counting
-both.
+Version-response conversations and their resolution rules are defined in
+`../scripts/leaf/events.md`, "Threads".
 
 ## The widget vocabulary stays open
 
@@ -715,18 +430,18 @@ the selection distinct without adding another line inside it.
 Message workflow stays on the existing semantic margin control whenever one survives:
 pickup uses a green icon, moving any positive or negative tone to the existing contour;
 working keeps the green icon, colors the interior green, and pulses once on arrival. A
-generated status carries the same workflow when no semantic control exists. Messages
-carry the shared exact-input label beside their timestamp; thread cards do not repeat it as a
-colored edge. Quiet or ended work releases the control. Reduced motion suppresses
-arrival, and repainting or replacing a carrier cannot replay it.
+generated status carries the same workflow when no semantic control exists. Message
+metadata carries it beside the triggering message; thread cards do not repeat it as a
+colored edge. Quiet or ended work releases the control. Reduced motion suppresses arrival,
+and repainting or replacing a carrier cannot replay it.
 
-A thread reading whose attention belongs to the reader wears the same two channels in blue —
-icon and interior — in Margin and in Page Map. It reads `awaitsReader` (Authoritative
-projection, above). A concrete reader Ask outranks concurrent agent workflow; that work
-remains secondary detail, and one interior carries one wash. Colour is never the only
-channel, so the reading also says "On you" in its label and accessible name. An
-aggregated thread control reads the Thread's canonical attention rather than deriving
-another precedence from its messages.
+Each Thread's canonical `attention` is its aggregate reader obligation or waiting
+workflow. A concrete reader Ask outranks concurrent agent work; that work remains the
+secondary status. Local failure or recovery may add reader-owned attention beyond the
+server's raw `awaits_reader` value. Margin, Page Map, and compact thread rows consume
+that same attention instead of deriving another aggregate from member turns or workflow
+stages. Reader attention wears the same two channels in blue — icon and interior — and
+says "On you" for an Ask or the exact recovery label in its visible and accessible name.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

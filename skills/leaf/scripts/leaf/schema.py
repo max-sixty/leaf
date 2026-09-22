@@ -7,47 +7,15 @@ from pathlib import Path
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
-# How long a page whose claim carries no liveness of its own (`activity`, for a
-# host that multiplexes every session into one process) stays owned after the
-# last thing touched it.
-#
-# Sized by the longest ordinary gap between touches, which is the reader's, not
-# the agent's. A visible tab renews the page every thirty seconds, but only a
-# visible one: `state-feed.js` closes the news stream on `visibilitychange`, so a
-# reader who opens the handover link and switches away stops touching the page
-# until they come back. The gap to survive is therefore however long a page sits
-# in a background tab during a working session, and minutes is the wrong unit for
-# that — half an hour would take the page down under the ordinary handover.
-#
-# Four hours covers that and still drains: the run of stale pages this was found
-# on had gone 6 to 28 hours untouched, so the throwaway previews of an afternoon
-# clear overnight rather than surviving to the next app restart. A page that does
-# expire is re-served by the next command that reaches it, and one meant to
-# outlive its session is `--standing`.
+# Activity-backed claims must survive time in a background tab, which stops
+# renewing viewed.json. Four hours permits those gaps while retiring abandoned
+# session pages. Claim renewal and service lifetime: session-lifetime.md.
 ACTIVITY_GRACE_SECS = 4 * 60 * 60
-# What the page calls the agent before anything has claimed it. A claim always
-# carries a name, so this stands only where there is no claimant to ask, and it
-# is deliberately the harness-neutral word: a page served from a bare shell
-# belongs to whoever picks it up next, and guessing at a product name there
-# would be the page saying something it does not know. A served state carries
-# this word already; `context.js` says the same one where the browser has no
-# authoritative reading at all, as on an exported page.
+# Harness-neutral label when no claimant supplies a name. context.js uses the
+# same label before a browser has an authoritative state, including exports.
 UNCLAIMED_AGENT = "Agent"
-# The kinds a reader can take back. A message is not among them: a comment is
-# speech, and the agent may already have read it — what a reader regrets there
-# they say, rather than unsay. A reaction is the exception the message kinds
-# carry (`undo_error`): a token is a mark rather than speech, and while nothing
-# has answered it the mark is one press from off the page, which is what makes
-# it cheap. Nor is an undo itself, which would be a redo.
-#
-# `done` joins them because approval is the one press on the page with no second
-# step and the heaviest meaning: a reader who meant to press Threads and hit the
-# button beside it had signed the work off, and nothing on the page or in the log
-# would take it back. It is a mark rather than speech by the same reading a
-# reaction is — the agent is told the version is approved, not told something,
-# and the withdrawal is the whole of the correction. A request is still not
-# undoable, and for the reason it never was: its effect may be out of the page
-# before the receipt is.
+# Non-message gesture kinds eligible for withdrawal; events.undo_error handles
+# reactions. The complete eligibility contract is events.md, "Undo".
 UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.

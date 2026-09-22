@@ -5,9 +5,9 @@
  * supplied by the application so this owner never imports a presenter.
  *
  * This owner declares the panel's Escape ladder. Once the reader releases a selected
- * thread to the whole panel, narrowing unwinds before the panel closes. The find box
- * binds that same narrowing step while it holds focus. Closing the panel lands the
- * reader on the document. Thread selection and release belong to keyboard/page.js. */
+ * thread to the whole panel, narrowing unwinds before the panel closes. Closing the
+ * panel lands the reader on the document. Thread selection and release belong to
+ * keyboard/page.js; leaving text entry belongs to conversation/landing.js. */
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
 import { letGo } from "./focus.js";

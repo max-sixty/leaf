@@ -18,7 +18,9 @@ def specimen_events(
 ) -> list[dict]:
     """Copy selected conversation closures into a fresh page's first revision."""
     roots = thread_roots(events)
-    if unknown := selected - set(roots.values()):
+    if unknown := selected - {
+        event["id"] for event in events if event["kind"] == "comment"
+    }:
         raise ValueError(
             f"unknown specimen conversations: {', '.join(sorted(unknown))}"
         )

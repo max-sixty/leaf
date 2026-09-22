@@ -173,6 +173,7 @@ def _instance_errors(
     events: list,
     parser,
     registry: dict | None,
+    comment_ids: set[str],
 ) -> list[str]:
     """Validate authored instances against their document's event and id namespace."""
     errors = []
@@ -190,23 +191,19 @@ def _instance_errors(
     errors.extend(language_class_errors(parser.language_blocks, registry))
     errors.extend(declared_word_errors(parser.lf_elements, registry))
     errors.extend(line_ref_errors(parser.lf_elements, registry))
-    errors.extend(
-        suggestion_errors(
-            parser.lf_elements,
-            registry,
-            {event["id"] for event in events if event["kind"] == "comment"},
-        )
-    )
+    errors.extend(suggestion_errors(parser.lf_elements, registry, comment_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
     return errors
 
 
-def _authored_document_checks(page_dir, document, events, registry, stored, readings):
+def _authored_document_checks(
+    page_dir, document, events, registry, stored, readings, comment_ids
+):
     """The same authored-page gate for the root and each isolated child document."""
     errors = _document_errors(page_dir, document)
-    errors.extend(_instance_errors(events, document, registry))
+    errors.extend(_instance_errors(events, document, registry, comment_ids))
     if registry is not None:
         errors.extend(data_document_errors(readings, stored))
     errors.extend(media_errors(document, page_dir))
@@ -300,7 +297,13 @@ def check_source(
         else []
     )
     column, document_errors = _authored_document_checks(
-        page_dir, document, events, registry, stored_data, readings
+        page_dir,
+        document,
+        events,
+        registry,
+        stored_data,
+        readings,
+        {event["id"] for event in events if event["kind"] == "comment"},
     )
     errors.extend(document_errors)
     documents = [(document, events, "")]
@@ -311,21 +314,29 @@ def check_source(
             )
             child = specimen["document"]
             selected = set(specimen["attrs"].get("data-specimen-threads", "").split())
-            try:
-                child_events = specimen_events(parent, parent_events, selected)
-                child_events = [
-                    {**event, "seq": index}
-                    for index, event in enumerate(child_events, 1)
-                ]
-            except ValueError as error:
-                errors.append(name + str(error))
-                child_events = []
+            # A template may precede its seed log. Check the history available now;
+            # allocation requires every declared root when it copies the child.
+            available = {
+                event["id"] for event in parent_events if event["kind"] == "comment"
+            }
+            child_events = [
+                {**event, "seq": index}
+                for index, event in enumerate(
+                    specimen_events(parent, parent_events, selected & available), 1
+                )
+            ]
             documents.append((child, child_events, name))
             child_readings = initial_data_document_readings(
                 child.lf_elements, child_events, registry
             )
             _, child_errors = _authored_document_checks(
-                page_dir, child, child_events, registry, stored_data, child_readings
+                page_dir,
+                child,
+                child_events,
+                registry,
+                stored_data,
+                child_readings,
+                selected,
             )
             initial = RevisionReading(0, False, 0, SourceDocument(""), {}, {})
             transition = transition_reading(child, child_events, registry, initial)

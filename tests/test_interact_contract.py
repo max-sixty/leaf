@@ -4905,13 +4905,25 @@ def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir)
 
 
 @pytest.mark.parametrize("seeded", [False, True])
-def test_specimen_references_see_only_selected_conversations(page_dir, seeded):
-    events_model.append_event(
-        page_dir,
-        {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
-    )
+@pytest.mark.parametrize("available", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+def test_specimen_references_see_only_selected_conversations(
+    page_dir, seeded, available, nested
+):
+    if available:
+        events_model.append_event(
+            page_dir,
+            {
+                "kind": "comment",
+                "id": "aabb0011",
+                "author": "user",
+                "text": "A question",
+            },
+        )
     selection = ' data-specimen-threads="aabb0011"' if seeded else ""
     child = '<lf-suggestion id="answer" resolves="aabb0011"><lf-new>Answer</lf-new></lf-suggestion>'
+    if nested:
+        child = f'<template id="nested" data-specimen{selection}>{child}</template>'
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>",
@@ -4921,7 +4933,38 @@ def test_specimen_references_see_only_selected_conversations(page_dir, seeded):
     result = check(page_dir)
     assert (result.exit_code == 0) == seeded, result.output
     if not seeded:
-        assert "names no comment in the log" in result.output
+        assert "names no comment in this document" in result.output
+
+
+def test_specimen_checks_available_history_beside_forward_conversation_references(
+    page_dir,
+):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "parent": "aabb0011",
+            "author": "agent",
+            "text": "An answer",
+            "markup": '<lf-code id="duplicate" language="python"><pre>1</pre></lf-code>',
+        },
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<template id="practice" data-specimen data-specimen-threads="aabb0011 aabb0022">'
+            '<h1 id="duplicate">Child</h1></template></main>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert (
+        "ids already taken by widget markup in a reply: ['duplicate']" in result.output
+    )
 
 
 def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):

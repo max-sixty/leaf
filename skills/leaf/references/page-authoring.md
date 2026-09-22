@@ -252,10 +252,11 @@ isolated static document; native links and disclosures remain usable.
 Live specimens require a server, so pages declaring them cannot be exported with
 `--interactive`; use the static copy instead.
 
-To begin with existing conversations, set `data-specimen-threads` on the template
-to their space-separated root event ids. Their anchored content must exist in
-the child. Reset copies those conversations again from the parent; subsequent
-child replies remain independent.
+To begin with conversations from the parent, set `data-specimen-threads` on the
+template to their space-separated root event ids. A first version can declare
+these ids before its seed log is written; the conversations must exist before
+the specimen opens. Their anchored content must exist in the child. Reset copies
+those conversations again from the parent; subsequent child replies remain independent.
 
 A page module can await the element's `ready` promise to receive the child
 `Document`, and await `reset()` to replace it. Author child content in the

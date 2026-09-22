@@ -121,9 +121,12 @@ An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply
 always hands the thread back to the agent, so it needs no parallel declaration.
-An agent reply records the delivery event it answers as `responds`; a proactive
-`--initiates` reply records `initiates: true`. Settlement consumes this durable
-scope rather than log order, so answering older work cannot erase newer reader input.
+An agent reply records the delivery event it answers as `responds`; one that
+settles nothing records `initiates: true` instead, whether it opens an
+agent-initiated turn in a thread that owes no reply or carries a delivery's
+completed answer whose move something else settled first. Settlement consumes
+this durable scope rather than log order, so answering older work cannot erase
+newer reader input.
 A host that settles an ask because it cannot start work records `failure`, a nonempty
 host-owned code, on its reply; only the host reply writer can supply it, and the panel
 draws such a reply as a receipt whose head says the message answers nothing, since

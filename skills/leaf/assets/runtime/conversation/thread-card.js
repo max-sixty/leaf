@@ -323,7 +323,7 @@ export class ThreadView {
                         <span class="lf-quote-label">${model.quote.label}</span>
                         ${
                           model.quote.outdated
-                            ? html`<span class="lf-anchor-status">Outdated</span>`
+                            ? html`<span class="lf-anchor-status">Earlier data</span>`
                             : nothing
                         }
                       </blockquote>`

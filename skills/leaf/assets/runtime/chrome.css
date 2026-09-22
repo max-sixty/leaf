@@ -1104,10 +1104,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--mark-hover, var(--mark-strong));
   }
   .lf-quote-label { min-width: 0; }
-  .lf-anchor-status { display: inline-block; margin-left: 7px; padding: 1px 5px;
-    border: 1px solid var(--warn); border-radius: var(--chip-r); color: var(--warn-ink);
-    background: var(--warn-tint); font: 600 var(--t-6)/1.25 var(--sans);
-    vertical-align: baseline; }
+  .lf-anchor-status { margin-inline-start: 7px; color: var(--muted-2);
+    font: 500 var(--t-6)/1.25 var(--sans); }
   .lf-going { overflow: hidden; box-sizing: border-box; }
   .lf-going .lf-thread-meta-actions { position: absolute; z-index: 2;
     inset-block-start: 8px; inset-inline-end: 8px; }
@@ -1165,14 +1163,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
-  /* The one mark in a message head that is not muted metadata. Everything else there
-     — the clock, `edited`, a stream's last state — is about a message the reader can
-     read anyway; this says the message in front of them answers nothing, and it is
-     the only thing in the head they have to act on. */
-  .lf-msg-head .lf-msg-failure { padding: 1px 5px;
-    border: 1px solid var(--warn); border-radius: var(--chip-r);
-    color: var(--warn-ink); background: var(--warn-tint);
-    font: 600 var(--t-6)/1.25 var(--sans); }
+  /* A failed answer needs to stand apart from the clock without becoming a control. */
+  .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
   /* A message body is rendered Markdown, which is why this dresses a box and not a
      paragraph. The theme's element rules are at document level and reach in here, so a
      reply's lists, code, quotes and tables already read as the page's do; what is left
@@ -1495,6 +1487,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
       .lf-margin-preview-nav:not([hidden])) {
     position: static; justify-content: flex-end; margin-bottom: 8px; }
+  /* Navigation takes its own row. Keep Dismiss beside Resolve below it, with the
+     same control floor setting the navigation row's height in pointer and touch UI. */
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
+      .lf-margin-preview-nav:not([hidden])) .lf-margin-preview-close {
+    position: absolute; inset-inline-end: 12px;
+    inset-block-start: calc(12px + max(28px, var(--aim-floor)) + 8px + var(--sp-1)); }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;

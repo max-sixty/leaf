@@ -1553,7 +1553,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     if quote_anchor:
         expected_anchor["quote"] = "Original source words."
     assert comment["anchor"] == expected_anchor
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
+    assert (
+        page.locator(".lf-thread .lf-anchor-status").evaluate(
+            "el => getComputedStyle(el).borderTopWidth"
+        )
+        == "0px"
+    )
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(

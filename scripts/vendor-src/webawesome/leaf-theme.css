@@ -1,6 +1,5 @@
 /* Leaf tokens keep every third-party control in the active page theme. */
 :is(
-  wa-checkbox,
   wa-color-picker,
   wa-copy-button,
   wa-comparison,

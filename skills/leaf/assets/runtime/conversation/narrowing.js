@@ -1,13 +1,16 @@
 /* Search and faceted narrowing for the thread panel.
 
-   State is one exclusive question: Open, On you, On agent, or Resolved. Scope and
-   subject are optional refinements, so a reader cannot construct the impossible old
-   combination "waiting on you and resolved". The conditional placement chip appears
-   only when this page has a detached anchored thread to find.
+   Status, waiting party, location and subject are independent questions. Each has one
+   optional selection; pressing the active choice clears that restriction. Resolved clears waiting
+   because a resolved thread cannot owe a turn. Counts describe the named subset under the
+   other filters, including the waiting reset when selecting Resolved. The
+   conditional placement refinement finds detached anchored threads. Waiting choices
+   select predicates, not exclusive ownership: a thread can await both parties, so
+   their counts can overlap and an unrestricted view includes threads awaiting neither.
 
    The panel title stays fixed. The search row discloses the controls; a narrowed
    view states its result and active facets even while those controls are closed.
-   Reset clears every facet and the search together.
+   Reset restores Open and clears the other refinements and search together.
 
    These are the panel's own view. The page's marks, inline conversation seats and
    banner counts keep reading the whole log. No narrowing is stored: returning to a
@@ -29,17 +32,19 @@ const group = (kind, label, choices) =>
 
 // Labels and choices are declarations, not facts recovered from rendered buttons.
 const FACETS = Object.freeze([
-  group("state", "Thread state", [
-    choice("state", "open", "Open"),
-    choice("state", "reader", "On you", "lf-needs"),
-    choice("state", "agent", "On agent"),
-    choice("state", "resolved", "Resolved"),
+  group("status", "Status", [
+    choice("status", "open", "Open"),
+    choice("status", "resolved", "Resolved"),
   ]),
-  group("scope", "Thread scope", [
+  group("waiting", "Waiting on", [
+    choice("waiting", "reader", "You", "lf-needs"),
+    choice("waiting", "agent", "Agent"),
+  ]),
+  group("scope", "Location", [
     choice("scope", "page", "Page"),
     choice("scope", "local", "Anchored"),
   ]),
-  group("subject", "Thread subject", [
+  group("subject", "Subject", [
     choice("subject", "content", "Content"),
     choice("subject", "design", "Design"),
   ]),
@@ -49,20 +54,24 @@ const FACETS = Object.freeze([
 const DEFAULT_INTENT = Object.freeze({
   words: "",
   finding: "",
-  state: "open",
-  scope: null,
-  subject: null,
+  status: "open",
+  waiting: "all",
+  scope: "all",
+  subject: "all",
   onlyGone: false,
 });
 // The narrowing as a value, replaced whole on every change, so a holder can ask whether
 // the reader has changed it since by identity, as `retainNarrowing` does.
 let intent = DEFAULT_INTENT;
 export const threadSearchActive = () => Boolean(intent.finding);
-export const needsYou = () => intent.state === "reader";
+export const needsYou = () => intent.waiting === "reader";
 export const narrowed = () =>
   Boolean(intent.finding) ||
-  intent.state !== "open" ||
-  Boolean(intent.scope || intent.subject || intent.onlyGone);
+  intent.status !== "open" ||
+  intent.waiting !== "all" ||
+  intent.scope !== "all" ||
+  intent.subject !== "all" ||
+  intent.onlyGone;
 
 const labelFor = (kind, value) =>
   FACETS.find((facet) => facet.kind === kind)?.choices.find(
@@ -103,28 +112,37 @@ export const threadSearchReading = (thread, finding) =>
 
 const matchesSearch = (reading, thread, threadGroup) =>
   !reading.finding || threadWords(thread, threadGroup).includes(reading.finding);
-const matchesState = (reading, thread, value = reading.state) =>
-  value === "resolved"
-    ? Boolean(thread.resolved)
-    : !thread.resolved &&
-      (value === "reader"
-        ? awaitsReader(thread)
-        : value === "agent"
-          ? awaitsAgent(thread)
-          : true);
-const matchesScope = (reading, thread, value = reading.scope) =>
-  !value ||
-  (value === "page"
+const matchesStatus = (reading, thread) =>
+  reading.status === "all" ||
+  Boolean(thread.resolved) === (reading.status === "resolved");
+const matchesWaiting = (reading, thread) =>
+  reading.waiting === "all" ||
+  (reading.waiting === "reader" ? awaitsReader(thread) : awaitsAgent(thread));
+const matchesScope = (reading, thread) =>
+  reading.scope === "all" ||
+  (reading.scope === "page"
     ? !thread.anchor && !thread.detached_from
     : Boolean(thread.anchor) || Boolean(thread.detached_from));
-const matchesSubject = (reading, thread, value = reading.subject) =>
-  !value || (value === "design") === (thread.root.about === "design");
-const matchesGone = (reading, _thread, threadGroup, value = reading.onlyGone) =>
-  !value || threadGroup.key === "gone";
+const matchesSubject = (reading, thread) =>
+  reading.subject === "all" ||
+  (reading.subject === "design") === (thread.root.about === "design");
+const matchesGone = (reading, _thread, threadGroup) =>
+  !reading.onlyGone || threadGroup.key === "gone";
+
+// Set one predicate. Counts describe that named subset, while a press on its active
+// control clears it. Both paths share status transitions and their waiting reset.
+function transition(reading, kind, value) {
+  const changes = kind === "gone" ? { onlyGone: value } : { [kind]: value };
+  if (kind === "status" && value === "resolved") changes.waiting = "all";
+  if (Object.entries(changes).every(([key, next]) => reading[key] === next))
+    return reading;
+  return Object.freeze({ ...reading, ...changes });
+}
 
 const includesThread = (reading, thread, threadGroup) =>
   matchesSearch(reading, thread, threadGroup) &&
-  matchesState(reading, thread) &&
+  matchesStatus(reading, thread) &&
+  matchesWaiting(reading, thread) &&
   matchesScope(reading, thread) &&
   matchesSubject(reading, thread) &&
   matchesGone(reading, thread, threadGroup);
@@ -133,119 +151,100 @@ const count = (rows, predicate) => rows.filter(predicate).length;
 const entryReading = (declaration, selected, amount, disabled, hidden = false) =>
   Object.freeze({ ...declaration, selected, amount, disabled, hidden });
 
-// Counts are faceted: each chip answers how many results switching that facet to its
-// value would show while every other standing filter remains. A static all-page count
-// on "Page" would promise threads the selected Open/Resolved state then hid.
+// Counts describe each named subset under the other standing filters, including
+// Status clearing Waiting on. An active choice keeps its subset count; clearing it
+// broadens the results rather than changing what its label counts.
 function presentationReading(reading, threads, shown, groups) {
   const rows = threads.map((thread) => ({ thread, group: groups.get(thread) }));
-  const baseline = threads.filter((thread) =>
-    reading.state === "resolved" ? thread.resolved : !thread.resolved,
-  ).length;
-  const lifecycle = reading.state === "resolved" ? "resolved" : "open";
+  const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
+  const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
     shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
   const summary = [
-    `${amount} ${lifecycle} ${baseline === 1 ? "thread" : "threads"}`,
-    reading.state === "reader" || reading.state === "agent"
-      ? labelFor("state", reading.state)
-      : null,
-    reading.scope ? labelFor("scope", reading.scope) : null,
-    reading.subject ? labelFor("subject", reading.subject) : null,
+    `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
+    reading.waiting === "all"
+      ? null
+      : `On ${reading.waiting === "reader" ? "you" : "agent"}`,
+    reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
+    reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
     reading.onlyGone ? labelFor("gone", "gone") : null,
   ]
     .filter(Boolean)
     .join(" · ");
 
-  const stateAmounts = new Map();
-  for (const declaration of FACETS[0].choices) {
-    const switched = count(
-      rows,
-      ({ thread, group }) =>
-        matchesSearch(reading, thread, group) &&
-        matchesState(reading, thread, declaration.value) &&
-        matchesScope(reading, thread) &&
-        matchesSubject(reading, thread) &&
-        matchesGone(reading, thread, group),
-    );
-    stateAmounts.set(declaration.value, switched);
-  }
-  const facetAmount = (kind, value) =>
-    count(rows, ({ thread, group }) => {
-      if (!matchesSearch(reading, thread, group) || !matchesState(reading, thread))
-        return false;
-      if (kind !== "scope" && !matchesScope(reading, thread)) return false;
-      if (kind !== "subject" && !matchesSubject(reading, thread)) return false;
-      if (kind !== "gone" && !matchesGone(reading, thread, group)) return false;
-      if (kind === "scope") return matchesScope(reading, thread, value);
-      if (kind === "subject") return matchesSubject(reading, thread, value);
-      return matchesGone(reading, thread, group, true);
-    });
-
   const renderedGroups = FACETS.map((facet) =>
     Object.freeze({
       kind: facet.kind,
       label: facet.label,
+      hidden: facet.kind === "waiting" && reading.status === "resolved",
       choices: Object.freeze(
         facet.choices.map((declaration) => {
-          if (facet.kind === "state") {
-            const switched = stateAmounts.get(declaration.value);
-            const selected = reading.state === declaration.value;
-            return entryReading(
-              declaration,
-              selected,
-              switched,
-              !selected && !switched,
-            );
-          }
-          const switched = facetAmount(facet.kind, declaration.value);
           const selected =
             facet.kind === "gone"
               ? reading.onlyGone
               : reading[facet.kind] === declaration.value;
+          const destination = transition(
+            reading,
+            facet.kind,
+            facet.kind === "gone" ? true : declaration.value,
+          );
+          const switched = count(rows, ({ thread, group }) =>
+            includesThread(destination, thread, group),
+          );
+          const recovery = facet.kind === "status" && declaration.value === "open";
           return entryReading(
             declaration,
             selected,
             switched,
-            !selected && !switched,
+            !selected && !recovery && !switched,
             facet.kind === "gone" && !switched && !selected,
           );
         }),
       ),
     }),
   );
-  const reader = renderedGroups[0].choices.find(
-    (candidate) => candidate.value === "reader",
+  const readerDestination = transition(
+    transition(reading, "status", "open"),
+    "waiting",
+    "reader",
   );
+  const readerAvailable =
+    reading.waiting === "reader" ||
+    rows.some(({ thread, group }) => includesThread(readerDestination, thread, group));
   return Object.freeze({
     summary,
     hidden:
       !reading.finding &&
-      reading.state === "open" &&
-      !reading.scope &&
-      !reading.subject &&
+      reading.status === "open" &&
+      reading.waiting === "all" &&
+      reading.scope === "all" &&
+      reading.subject === "all" &&
       !reading.onlyGone,
     groups: Object.freeze(renderedGroups),
+    readerAvailable,
     readerTitle:
-      reading.state === "reader"
-        ? "Show open threads"
-        : reader.disabled
-          ? "Nothing is waiting on you"
-          : "Show threads waiting on you",
+      reading.waiting === "reader"
+        ? "Clear waiting filter"
+        : readerAvailable
+          ? "Show threads waiting on you"
+          : "Nothing shown is waiting on you",
   });
 }
 
 function emptyReading(reading) {
   return reading.finding
-    ? `No shown thread matches “${reading.finding}”.`
-    : reading.scope || reading.subject || reading.onlyGone
+    ? `No ${reading.status === "all" ? "" : `${reading.status} `}threads match “${reading.finding}”.`
+    : reading.scope !== "all" || reading.subject !== "all" || reading.onlyGone
       ? "No threads match these filters."
-      : reading.state === "reader"
+      : reading.waiting === "reader"
         ? "Nothing is waiting on you."
-        : reading.state === "agent"
+        : reading.waiting === "agent"
           ? "Nothing is waiting on the agent."
-          : reading.state === "resolved"
+          : reading.status === "resolved"
             ? "No resolved threads."
-            : "No open threads.";
+            : reading.status === "open"
+              ? "No open threads."
+              : "No threads.";
 }
 
 // Capture reader intent once for the list candidate. Its rows, empty state, summary,
@@ -281,16 +280,14 @@ function replaceIntent(changes) {
 }
 
 const chooseFacet = (kind, value, repaintConversation) => {
-  if (kind === "state")
-    replaceIntent({
-      state: intent.state === value && value !== "open" ? "open" : value,
-    });
-  else if (kind === "scope")
-    replaceIntent({ scope: intent.scope === value ? null : value });
-  else if (kind === "subject")
-    replaceIntent({ subject: intent.subject === value ? null : value });
-  else if (kind === "gone") replaceIntent({ onlyGone: !intent.onlyGone });
-  renarrow(repaintConversation);
+  const next = transition(
+    intent,
+    kind,
+    kind !== "gone" && intent[kind] === value ? "all" : value,
+  );
+  if (next === intent) return;
+  intent = next;
+  return renarrow(repaintConversation);
 };
 
 export function mountNarrowing(repaintConversation) {
@@ -301,16 +298,21 @@ export function mountNarrowing(repaintConversation) {
       renarrow(repaintConversation);
     },
     chooseFacet: (kind, value) => chooseFacet(kind, value, repaintConversation),
+    toggleReader: () => {
+      intent = transition(
+        transition(intent, "status", "open"),
+        "waiting",
+        needsYou() ? "all" : "reader",
+      );
+      return renarrow(repaintConversation);
+    },
     reset: () => widen(repaintConversation),
   });
 }
 
-function clearNarrowing(nextState = "open") {
-  const changed =
-    Boolean(intent.finding) ||
-    intent.state !== nextState ||
-    Boolean(intent.scope || intent.subject || intent.onlyGone);
-  intent = Object.freeze({ ...DEFAULT_INTENT, state: nextState });
+function clearNarrowing(nextStatus = "open") {
+  const changed = narrowed() || intent.status !== nextStatus;
+  intent = Object.freeze({ ...DEFAULT_INTENT, status: nextStatus });
   narrowingView.setSearchWords("");
   return changed;
 }

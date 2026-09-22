@@ -1018,15 +1018,15 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
-    selected_state = page.get_by_role("radio", name=re.compile(r"^Open(?: \(|$)"))
-    expect(selected_state).to_be_checked()
+    selected_state = page.get_by_role("button", name=re.compile(r"^Open(?: \(|$)"))
+    expect(selected_state).to_have_attribute("aria-pressed", "true")
     reached_state = False
     for _ in range(20):
         if selected_state.evaluate("el => el.matches(':focus-within')"):
             reached_state = True
             break
         page.keyboard.press("Tab")
-    assert reached_state, "native Tab never reached the selected thread-state radio"
+    assert reached_state, "native Tab never reached the selected thread-status toggle"
     expect(selected_state).to_be_focused()
     expect(menu).to_be_hidden()
     expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")

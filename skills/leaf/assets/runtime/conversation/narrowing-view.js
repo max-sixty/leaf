@@ -17,6 +17,7 @@ class ThreadNarrowingView extends HTMLElement {
   #disclosed = false;
   #model = null;
   #reset = null;
+  #toggleReader = null;
   #searchInput = offer("wa-input", "lf-find-box lf-label-hidden");
 
   constructor() {
@@ -32,21 +33,28 @@ class ThreadNarrowingView extends HTMLElement {
     );
   }
 
-  configure({ changeWords, chooseFacet, initial, reset }) {
+  configure({ changeWords, chooseFacet, initial, reset, toggleReader }) {
     if (this.#changeWords)
       throw new Error("The thread narrowing view is already configured");
     this.#changeWords = changeWords;
     this.#chooseFacet = chooseFacet;
     this.#reset = reset;
+    this.#toggleReader = toggleReader;
     this.present(initial);
   }
 
   get readerControl() {
-    return this.querySelector('[data-filter-kind="state"][data-filter-value="reader"]');
+    return this.querySelector(
+      '[data-filter-kind="waiting"][data-filter-value="reader"]',
+    );
   }
 
   toggleReader() {
-    this.#chooseFacet("state", "reader");
+    this.#toggleReader();
+  }
+
+  get canToggleReader() {
+    return this.#model?.readerAvailable ?? false;
   }
 
   get searchInput() {
@@ -77,69 +85,52 @@ class ThreadNarrowingView extends HTMLElement {
   }
 
   #choice(choice) {
-    const keyTitle = choice.kind === "state" && choice.value === "reader";
-    const classes = ["lf-thread-filter", choice.className].filter(Boolean).join(" ");
-    const label = html`${choice.label}${choice.amount ? ` (${choice.amount})` : nothing}`;
-    if (choice.kind === "state")
-      return html`<wa-radio
-        data-lf-gen="1"
-        class=${classes}
-        value=${choice.value}
-        data-filter-kind=${choice.kind}
-        data-filter-value=${choice.value}
-        data-lf-key-title=${keyTitle ? this.#model.readerTitle : nothing}
-        title=${keyTitle ? this.#model.readerTitle : nothing}
-        .disabled=${choice.disabled}
-        >${label}</wa-radio
-      >`;
-    return html`<wa-checkbox
+    const keyTitle = choice.kind === "waiting" && choice.value === "reader";
+    const classes = [
+      "lf-btn",
+      "lf-thread-filter",
+      choice.className,
+      choice.selected ? "on" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return html`<button
+      type="button"
       data-lf-gen="1"
-      name=${`thread-${choice.kind}-${choice.value}`}
-      size="s"
-      .checked=${choice.selected}
       class=${classes}
       data-filter-kind=${choice.kind}
       data-filter-value=${choice.value}
+      aria-pressed=${String(choice.selected)}
+      data-lf-key-title=${keyTitle ? this.#model.readerTitle : nothing}
+      title=${keyTitle ? this.#model.readerTitle : nothing}
       ?hidden=${choice.hidden}
-      .disabled=${choice.disabled}
-      @change=${() => this.#chooseFacet(choice.kind, choice.value)}
-      >${label}</wa-checkbox
-    >`;
+      ?disabled=${choice.disabled}
+      @click=${() => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}
+    >
+      ${choice.label} (${choice.amount})
+    </button>`;
   }
 
   #group(group) {
-    if (group.kind === "state")
-      return html`<wa-radio-group
-        data-lf-gen="1"
-        name="thread-state"
-        class="lf-thread-state lf-label-hidden"
-        label=${group.label}
-        orientation="horizontal"
-        size="s"
-        .value=${group.choices.find((choice) => choice.selected).value}
-        @change=${(event) => this.#chooseFacet("state", event.currentTarget.value)}
-        >${repeat(
-          group.choices,
-          (choice) => choice.value,
-          (choice) => this.#choice(choice),
-        )}</wa-radio-group
-      >`;
     return html`<div
       class="lf-thread-filter-group"
       role="group"
       aria-label=${group.label}
+      ?hidden=${group.hidden}
     >
-      ${repeat(
-        group.choices,
-        (choice) => `${choice.kind}:${choice.value}`,
-        (choice) => this.#choice(choice),
-      )}
+      <span class="lf-thread-filter-label" aria-hidden="true">${group.label}</span>
+      <div class="lf-thread-filter-choices">
+        ${repeat(
+          group.choices,
+          (choice) => choice.value,
+          (choice) => this.#choice(choice),
+        )}
+      </div>
     </div>`;
   }
 
   #template() {
     if (!this.#model) return nothing;
-    const [state, ...facets] = this.#model.groups;
     return html`
       <div class="lf-find">
         ${this.#searchInput}
@@ -170,14 +161,11 @@ class ThreadNarrowingView extends HTMLElement {
         aria-label="Filter threads"
         ?hidden=${!this.#disclosed}
       >
-        ${this.#group(state)}
-        <div class="lf-thread-filter-facets">
-          ${repeat(
-            facets,
-            (group) => group.kind,
-            (group) => this.#group(group),
-          )}
-        </div>
+        ${repeat(
+          this.#model.groups,
+          (group) => group.kind,
+          (group) => this.#group(group),
+        )}
       </div>
     `;
   }

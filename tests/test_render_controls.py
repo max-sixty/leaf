@@ -752,7 +752,10 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     assert page.locator(".lf-banner").evaluate("element => element.localName") == (
         "header"
     )
-    expect(page.locator(".lf-banner-actions > *").last).to_have_class(
+    # Read the run that stands, not the shelf's whole inventory: a control registered
+    # for another device is in the row's markup with no presence, and the fact here is
+    # that nothing the reader can press follows Threads.
+    expect(page.locator(".lf-banner-actions > *:visible").last).to_have_class(
         re.compile(r"\blf-threads-toggle\b")
     )
     approval = page.locator(".lf-signoff")
@@ -993,9 +996,18 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
-    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_have_count(1)
-    expect(page.locator(".lf-banner-menu > *")).to_have_count(2)
+    # Open the door and read what stands behind it rather than counting the menu's
+    # markup: the shelf keeps a control registered for another device in that list with
+    # no presence, so inventory and what the reader meets are different readings.
+    page.locator(".lf-banner-more").click()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(1)
     expect(page.locator(".lf-permanent-destination")).to_be_attached()
+    # The door freezes the partition while it stands open, so close it before the row
+    # takes another contribution.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
 
     reserved = page.evaluate(
         """async () => {
@@ -3908,7 +3920,10 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
-    # The card is content of Threads, so Escape closes the panel directly.
+    # The card releases to whole-panel selection, and the press after that closes the
+    # sheet.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     closing_at = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("Escape")
     # A covering sheet holds no strip, so the document it uncovers is laid out exactly as

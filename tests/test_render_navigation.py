@@ -7015,9 +7015,9 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     wait_for_revision(page, 2)
     # Narrowing is interaction-local heap state, and nothing executable changed, so the
     # reader keeps this document and the Resolved narrowing they chose stands in it.
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
-        "aria-pressed", "true"
-    )
+    # The state narrowing is one radio group, so the chosen member is what it says it is
+    # rather than a toggle's pressed attribute.
+    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
@@ -8387,7 +8387,12 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     help_el = page.locator(".lf-command-reference")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
-    expect(help_el).to_contain_text("Comment on a visible target by hint")
+    # Read the capability by the command the reference lists it under. Its words belong
+    # to `target.chooser.open` and are pinned where a pull request reads them, in
+    # `test_render_semantic_selection.py`; a second copy here only drifts.
+    expect(help_el.locator('tr[data-lf-command="target.chooser.open"]')).to_have_count(
+        1
+    )
     expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
     expect(help_el).to_contain_text("Move 60% of a page up")

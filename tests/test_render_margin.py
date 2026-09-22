@@ -5874,6 +5874,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
     page.keyboard.press("Escape")  # out of the reply box the send landed in
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
+        # A conversation in Threads releases to whole-panel selection first.
+        expect(page.locator(".lf-threads")).to_be_focused()
+        page.keyboard.press("Escape")
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
@@ -5928,6 +5931,9 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     if panel_open:
+        # In Threads the thread releases to the whole panel, which closes on the next.
+        expect(page.locator(".lf-threads")).to_be_focused()
+        page.keyboard.press("Escape")
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
         expect(preview).to_be_hidden()
@@ -5979,7 +5985,10 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     ).to_be_focused()
 
     # The walk moved the reader laterally to a second conversation in Threads. Escape
-    # closes that surface; the note that took them there is not a landing.
+    # releases that conversation to the whole panel and then closes the panel; the note
+    # that took them there is not a landing.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => document.activeElement === document.body")

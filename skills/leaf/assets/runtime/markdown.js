@@ -28,6 +28,18 @@ function safeUrl(href) {
   }
 }
 
+// A Markdown destination is attribute source text: Marked hands it over with its
+// character references undecoded, because its own emission writes them where the HTML
+// parser decodes them. Leaf writes the attribute itself, so it takes that decoding
+// here, in the one place a destination is read. `escapeAttribute` puts this reading
+// back unchanged, so `javascript&#58;` is refused rather than resolved and an ordinary
+// `&amp;` still reaches the query it names.
+const probe = document.createElement("template");
+const readHref = (href) => {
+  probe.innerHTML = `<i data-href="${href.replace(/"/g, "&quot;")}"></i>`;
+  return probe.content.firstElementChild.dataset.href;
+};
+
 // Page media keeps its canonical text in the log, and an MCP capability route needs
 // that href scoped to reach the same bytes. Scope only those; every other destination
 // stands as the reader wrote it.
@@ -43,32 +55,32 @@ export function loadMarkdown(onError = null) {
       renderer: {
         html: (token) => escapeHtml(token.text),
         // One reading of a destination, shared by the protocol check and the
-        // attribute it lands in. Marked hands a renderer the authored text, and an
-        // href attribute decodes character references when that markup lands, so
-        // handing the destination back to Marked's own renderer would write
-        // `javascript&#58;` unescaped and let the document resolve as a script URL
-        // what this guard read as a relative path. Every link and image is therefore
-        // written here, with the destination escaped into the attribute it was
-        // checked as; image inspection has its own button renderer below.
+        // attribute it lands in. Handing the destination back to Marked's own
+        // renderer would write `javascript&#58;` unescaped and let the document
+        // resolve as a script URL what this guard read as a relative path. Every link
+        // and image is therefore written here, from the one reading `readHref` takes
+        // and escaped back into the attribute it was checked as; image inspection has
+        // its own button renderer below.
         link(token) {
-          if (!safeUrl(token.href)) return this.parser.parseInline(token.tokens);
-          let link = `<a href="${escapeAttribute(destination(token.href))}"`;
+          const href = readHref(token.href);
+          if (!safeUrl(href)) return this.parser.parseInline(token.tokens);
+          let link = `<a href="${escapeAttribute(destination(href))}"`;
           if (token.title) link += ` title="${escapeAttribute(token.title)}"`;
           return link + `>${this.parser.parseInline(token.tokens)}</a>`;
         },
         image(token) {
-          if (!safeUrl(token.href)) return escapeHtml(token.text);
-          const source = destination(token.href);
-          if (!isCanonicalMediaUrl(token.href)) {
-            let image = `<img src="${escapeAttribute(source)}"`;
-            image += ` alt="${escapeAttribute(token.text)}"`;
-            if (token.title) image += ` title="${escapeAttribute(token.title)}"`;
-            return image + ">";
-          }
-          const label = token.text || "Image";
-          let image = `<button type="button" class="lf-media-open lf-message-media" data-lf-offer="button" data-lf-said data-lf-media-url="${escapeAttribute(source)}" aria-label="View ${escapeAttribute(label)}"><img src="${escapeAttribute(source)}" alt="${escapeAttribute(token.text)}"`;
-          if (token.title) image += ` title="${escapeAttribute(token.title)}"`;
-          return image + "></button>";
+          const href = readHref(token.href);
+          if (!safeUrl(href)) return escapeHtml(token.text);
+          const source = escapeAttribute(destination(href));
+          const title = token.title ? ` title="${escapeAttribute(token.title)}"` : "";
+          const image = `<img src="${source}" alt="${escapeAttribute(token.text)}"${title}>`;
+          if (!isCanonicalMediaUrl(href)) return image;
+          const label = escapeAttribute(token.text || "Image");
+          return (
+            `<button type="button" class="lf-media-open lf-message-media"` +
+            ` data-lf-offer="button" data-lf-said data-lf-media-url="${source}"` +
+            ` aria-label="View ${label}">${image}</button>`
+          );
         },
       },
     });

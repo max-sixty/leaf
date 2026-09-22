@@ -735,16 +735,18 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
 ):
     """The web-protocol guard reads the href the document will resolve, not its source.
 
-    marked hands a renderer the authored destination, and an href attribute still
-    decodes character references when that markup lands, so `javascript&#58;` reaches
-    the reader as a `javascript:` URL. A guard reading the authored text sees a
-    relative path, admits it, and the reader gets a live script link out of ordinary
-    message prose.
+    marked hands a renderer the authored destination with its character references
+    undecoded, and an href attribute decodes them when that markup lands. A guard
+    reading the authored text sees `javascript&#58;` as a relative path, admits it,
+    and the reader gets a live script link out of ordinary message prose. Reading the
+    destination as the document will refuses that link, and the same reading is what
+    keeps an ordinary `&amp;` reaching the query it names rather than landing in it.
     """
     url = serve(LONG_PAGE)
     panel_comment(
         serve.page_dir,
-        "[press me](javascript&#58;window.leaked=true)",
+        "[press me](javascript&#58;window.leaked=true)"
+        " beside [the page](https://example.com/?a=1&amp;b=2)",
         {"section": "p0"},
     )
     page = open_page(browser, url)
@@ -752,10 +754,10 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     panel_settled(page)
 
     prose = page.locator(".lf-msg-text").first
-    expect(prose).to_have_text("press me")
+    # The surviving link carries the chrome's external-link note, so the words are read
+    # as a run inside the prose rather than as the whole of its text.
+    expect(prose).to_contain_text("press me beside the page")
     admitted = prose.evaluate(
-        """node => [...node.querySelectorAll('a')].map(link => link.protocol)"""
+        """node => [...node.querySelectorAll('a')].map(link => link.href)"""
     )
-    assert all(protocol in ("http:", "https:", "mailto:") for protocol in admitted), (
-        admitted
-    )
+    assert admitted == ["https://example.com/?a=1&b=2"], admitted

@@ -67,7 +67,8 @@ through it: it gets the same unwind, and is owed no return to the control it lan
 The levels, from the floor up:
 
 1. **The document** — the reader's position in the authored page, and the destinations
-   they can stand on. This is the floor; Escape's job ends here.
+   they can stand on. This is the floor. In an entered live specimen, one further
+   Escape returns to its containing page through the specimen host.
 2. **A page mode**: Draw, Design. A mode is the stance the whole page is in rather than
    something standing on part of it, so everything else the reader puts up while one
    holds is put up inside it, and the mode is the last thing off before the document.

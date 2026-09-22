@@ -158,8 +158,21 @@ export function declareStanding({ askHeld, pageState }) {
 // modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
 // CLAUDE.md's "The reader has to be standing somewhere" holds the rest.
-pageRung("page", () =>
-  holding() && !standingFloor() && !nativeLayers().length
-    ? { says: "back to the page", does: "Back out onto the page", out: letGo }
-    : null,
-);
+pageRung("page", () => {
+  if (nativeLayers().length) return null;
+  if (holding())
+    return standingFloor()
+      ? null
+      : { says: "back to the page", does: "Back out onto the page", out: letGo };
+  // An entered specimen has one more containing page. Its own controls and
+  // standing unwind first; the host owns the final focus handoff, not another
+  // keyboard listener competing with this register.
+  const frame = window.frameElement;
+  return frame?.hasAttribute("data-lf-contained") && !document.body.inert
+    ? {
+        says: "return to containing page",
+        does: "Leave this specimen and return to its containing page",
+        out: () => frame.dispatchEvent(new Event("lf-specimen-return")),
+      }
+    : null;
+});

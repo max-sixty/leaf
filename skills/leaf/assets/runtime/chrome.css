@@ -226,7 +226,8 @@ textarea.lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) { outline: var(-
 .lf-composer-media-item { position: relative; flex: none; display: block; }
 .lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
   border: 0; border-radius: var(--r); background: transparent; color: inherit;
-  font: inherit; cursor: zoom-in; }
+  font: inherit; }
+button.lf-media-open { cursor: zoom-in; }
 .lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
   --lf-here-ring: media; outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
@@ -1016,7 +1017,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font: inherit; font-size: var(--t-6); font-weight: 600;
     text-align: left; color: var(--muted);
     overflow-wrap: anywhere; }
-  button.lf-group { cursor: pointer; }
+  button.lf-group { cursor: pointer; min-height: var(--aim-floor); }
   button.lf-group:hover { color: var(--ink-2); }
   /* Inset, because being pinned is where this heading spends its life and the pin
      puts its box top on the scrollport's own edge: a sticky offset is measured from

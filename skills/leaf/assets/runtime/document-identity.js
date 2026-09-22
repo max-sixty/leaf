@@ -3,8 +3,8 @@
  * The server's runtime markers say which revision and public stamp the document is,
  * whether its executable graph can take a revision in place, and which authored widget
  * bodies may be retained. The composition root initializes the single semantic publisher
- * from this reading before it constructs browser owners; version travel and contained
- * gallery documents consume the same executable and widget readings.
+ * from this reading before it constructs browser owners. Each specimen receives its
+ * own served identity through the same document delivery as an ordinary page.
  */
 import { applicationState } from "./semantic-state.js";
 import { LIVE_ROOT, PAGE_PATH, VERSION_PATH } from "./storage.js";

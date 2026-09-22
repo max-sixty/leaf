@@ -152,10 +152,12 @@ scripts/vendor.py --pins
 ```
 
 Each row is a package, its pin, the bundle to rebuild if it has moved, and the
-newest release that pin could take where that differs. `elkjs`, `entities` and `yaml`
-are agentic-mermaid's imports rather than Leaf's own choices, so their rows read
-against the range it declares: a release outside it is not a pin to take, because
-npm would install the declared version nested and the bundle would carry that one.
+newest release that pin could take where that differs. A pin that is there because
+something Leaf chose imports it is not Leaf's to move, and `HELD_BY` in that script
+names its dependant, so its row already reads against the range that dependant
+declares and what the report calls movement is movement that can be taken. A pin
+whose holder the table is missing is the one that reads wrong: check a surprising
+offer against the declaring package before taking it, and add the row.
 `esbuild` is the tool the builds share rather than payload, so it moves when
 a bundle needs it rather than on every release.
 

@@ -351,6 +351,11 @@ def interactive_export_page(
     makes network absence a document guarantee rather than a convention each module
     must remember.
     """
+    if SourceDocument(artifact.html.decode("utf-8")).specimens:
+        sys.exit(
+            "Live specimens need a server; export without --interactive "
+            "to keep their rendered contents in a static copy."
+        )
     modules = _interactive_module_urls(artifact)
     html = inline_assets(
         artifact.html.decode("utf-8"),
@@ -447,9 +452,6 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
     ends in needs one younger than some of the browsers a host can hand over, and
     the render gate — which never bakes — passes them. Refusing here says that in
     one sentence, where the alternative is a TypeError from inside the probe."""
-    from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import TimeoutError as PlaywrightTimeout
-
     if old := below_export_floor(browser):
         sys.exit(
             f"{name} needs Chromium {EXPORT_FLOOR} or later to copy, and this "
@@ -463,122 +465,148 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         # See the gate: a page listening for news is never network-idle. The
         # stamps below are the arrival signal, and they are the precise one.
         page.goto(url, wait_until="load")
-        try:
-            wait_for_probe(page, "upgraded")
-            # Read expectations through the same server the browser is applying. A
-            # preview freezes that server at one PageSnapshot; rereading page files
-            # here could otherwise wait for state the browser cannot receive.
-            response = page.request.get(
-                _state_url(page, url),
-                timeout=render_checks_model.SERVED_TIMEOUT_MS,
-            )
-            try:
-                if not response.ok:
-                    raise PlaywrightError(f"state returned {response.status}")
-                try:
-                    state = response.json()
-                except ValueError as error:
-                    raise PlaywrightError("state returned invalid JSON") from error
-                readiness = {
-                    "pageRoot": _document_url(
-                        page,
-                        url,
-                        'link[rel="canonical"][data-lf-runtime]',
-                        "document has no canonical page root",
-                    ),
-                    "theme": _document_url(
-                        page,
-                        url,
-                        'link[rel="stylesheet"][data-lf-runtime]',
-                        "document has no runtime theme",
-                    ),
-                    "dataRevision": state["data"]["revision"],
-                    "replayedEvents": sum(
-                        event["kind"] in ("action", "report")
-                        for event in state["events"]
-                    ),
-                }
-            except (KeyError, TypeError) as error:
-                raise PlaywrightError("state returned an invalid reading") from error
-            finally:
-                response.dispose()
-            failed_stage = wait_for_presentation(
-                page, readiness["dataRevision"], readiness["replayedEvents"]
-            )
-            if failed_stage:
-                raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
-            # A live fragmented widget deliberately keeps unopened payloads out of the
-            # DOM. A standalone copy has no fragment door after scripts are removed, so
-            # let any renderer that owns such payloads materialize them before baking.
-            evaluate_probe(page, "prepareExport")
-            wait_for_probe(page, "exportPrepared", timeout_ms=PREPARE_TIMEOUT_MS)
-            # Materializing a live fragment can mount required descendants or overlap a
-            # newer semantic publication. Re-read the coordinator immediately before
-            # baking rather than treating the initial arrival latch as permanent.
-            wait_for_probe(page, "currentPresented")
-            asset_root = readiness["theme"].removesuffix("theme.css")
-            origin = urlsplit(asset_root)
-            page_root = urlsplit(readiness["pageRoot"]).path
-
-            def read_resource(resource_url: str) -> Resource:
-                parsed = urlsplit(resource_url)
-                if (parsed.scheme, parsed.netloc) != (origin.scheme, origin.netloc):
-                    raise ValueError(
-                        f"export resource is outside the page: {resource_url}"
-                    )
-                path = parsed.path
-                logical = path.removeprefix(page_root).lstrip("/")
-                message_media = re.fullmatch(
-                    rf"{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}", logical
-                )
-                if not path.startswith(origin.path):
-                    # Runtime-produced markup (including the bake's adopted sheets)
-                    # can still name logical page routes. Read those only through
-                    # the document's captured namespace, never the mutable alias.
-                    # Media added by later conversation events is page-owned and
-                    # content-addressed, not an input of the authored revision.
-                    resource_url = urljoin(
-                        readiness["pageRoot"] if message_media else asset_root,
-                        logical,
-                    )
-                if not message_media and not urlsplit(resource_url).path.startswith(
-                    origin.path
-                ):
-                    raise ValueError(
-                        f"export resource escapes its revision: {resource_url}"
-                    )
-                response = page.request.get(resource_url, max_redirects=0)
-                try:
-                    if not response.ok:
-                        raise ValueError(
-                            f"export resource returned {response.status}: {resource_url}"
-                        )
-                    mime = response.headers["content-type"].split(";", 1)[0].strip()
-                    return Resource(response.body(), mime)
-                finally:
-                    response.dispose()
-
-            return UTF8_BOM + inline_assets(
-                evaluate_probe(page, "bake"),
-                read_resource=read_resource,
-                document_url=urljoin(asset_root, "index.html"),
-            )
-        except PlaywrightTimeout:
-            sys.exit(
-                f"{name} never finished applying its live state in "
-                "the browser, so a copy would be half-drawn. `leaf version check "
-                "<page> --render` says what is wrong with it."
-            )
-        except PlaywrightError as error:
-            sys.exit(
-                f"{name} could not read its browser state or probe module "
-                f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
-                "trustworthy copy."
-            )
-        except ValueError as error:
-            sys.exit(f"{name} could not embed its captured assets: {error}")
+        return _export_document(page, page.request, url, name)
     finally:
         page.close()
+
+
+def _export_document(page, request, url: str, name: str) -> str:
+    """Bake one loaded document and its embedded documents through their own scopes."""
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    try:
+        wait_for_probe(page, "upgraded")
+        # Read expectations through the same server the browser is applying. A
+        # preview freezes that server at one PageSnapshot; rereading page files
+        # here could otherwise wait for state the browser cannot receive.
+        response = request.get(
+            _state_url(page, url),
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        )
+        try:
+            if not response.ok:
+                raise PlaywrightError(f"state returned {response.status}")
+            try:
+                state = response.json()
+            except ValueError as error:
+                raise PlaywrightError("state returned invalid JSON") from error
+            readiness = {
+                "pageRoot": _document_url(
+                    page,
+                    url,
+                    'link[rel="canonical"][data-lf-runtime]',
+                    "document has no canonical page root",
+                ),
+                "theme": _document_url(
+                    page,
+                    url,
+                    'link[rel="stylesheet"][data-lf-runtime]',
+                    "document has no runtime theme",
+                ),
+                "dataRevision": state["data"]["revision"],
+                "replayedEvents": sum(
+                    event["kind"] in ("action", "report") for event in state["events"]
+                ),
+            }
+        except (KeyError, TypeError) as error:
+            raise PlaywrightError("state returned an invalid reading") from error
+        finally:
+            response.dispose()
+        failed_stage = wait_for_presentation(
+            page, readiness["dataRevision"], readiness["replayedEvents"]
+        )
+        if failed_stage:
+            raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
+        # A live fragmented widget deliberately keeps unopened payloads out of the
+        # DOM. A standalone copy has no fragment door after scripts are removed, so
+        # let any renderer that owns such payloads materialize them before baking.
+        evaluate_probe(page, "prepareExport")
+        wait_for_probe(page, "exportPrepared", timeout_ms=PREPARE_TIMEOUT_MS)
+        # Materializing a live fragment can mount required descendants or overlap a
+        # newer semantic publication. Re-read the coordinator immediately before
+        # baking rather than treating the initial arrival latch as permanent.
+        wait_for_probe(page, "currentPresented")
+        asset_root = readiness["theme"].removesuffix("theme.css")
+        origin = urlsplit(asset_root)
+        page_root = urlsplit(readiness["pageRoot"]).path
+
+        def read_resource(resource_url: str) -> Resource:
+            parsed = urlsplit(resource_url)
+            if (parsed.scheme, parsed.netloc) != (origin.scheme, origin.netloc):
+                raise ValueError(f"export resource is outside the page: {resource_url}")
+            path = parsed.path
+            logical = path.removeprefix(page_root).lstrip("/")
+            message_media = re.fullmatch(
+                rf"{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}", logical
+            )
+            if not path.startswith(origin.path):
+                # Runtime-produced markup (including the bake's adopted sheets)
+                # can still name logical page routes. Read those only through
+                # the document's captured namespace, never the mutable alias.
+                # Media added by later conversation events is page-owned and
+                # content-addressed, not an input of the authored revision.
+                resource_url = urljoin(
+                    readiness["pageRoot"] if message_media else asset_root,
+                    logical,
+                )
+            if not message_media and not urlsplit(resource_url).path.startswith(
+                origin.path
+            ):
+                raise ValueError(
+                    f"export resource escapes its revision: {resource_url}"
+                )
+            response = request.get(resource_url, max_redirects=0)
+            try:
+                if not response.ok:
+                    raise ValueError(
+                        f"export resource returned {response.status}: {resource_url}"
+                    )
+                mime = response.headers["content-type"].split(";", 1)[0].strip()
+                return Resource(response.body(), mime)
+            finally:
+                response.dispose()
+
+        # Each embedded document keeps its own DOM and stylesheet scope. Export
+        # it through the same captured-resource path, then embed the result;
+        # importing its custom elements into the parent would upgrade them twice.
+        for frame in page.locator('iframe[data-lf-export="document"]').all():
+            child = frame.element_handle().content_frame()
+            if child is None:
+                raise ValueError("an embedded document has no loaded frame")
+            copied = _export_document(
+                child, request, child.url, frame.get_attribute("title") or name
+            )
+            frame.evaluate(
+                """(frame, source) => {
+                  frame.srcdoc = source;
+                  frame.removeAttribute('src');
+                  frame.removeAttribute('data-lf-contained');
+                  frame.removeAttribute('inert');
+                  frame.dataset.lfExported = '';
+                }""",
+                copied,
+            )
+
+        return UTF8_BOM + inline_assets(
+            evaluate_probe(page, "bake"),
+            read_resource=read_resource,
+            document_url=urljoin(asset_root, "index.html"),
+        )
+    except PlaywrightTimeout:
+        sys.exit(
+            f"{name} never finished applying its live state in "
+            "the browser, so a copy would be half-drawn. `leaf version check "
+            "<page> --render` says what is wrong with it."
+        )
+    except PlaywrightError as error:
+        sys.exit(
+            f"{name} could not read its browser state or probe module "
+            f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
+            "trustworthy copy."
+        )
+    except ValueError as error:
+        sys.exit(f"{name} could not embed its captured assets: {error}")
 
 
 def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False) -> int:

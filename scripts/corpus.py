@@ -12,15 +12,16 @@ Usage: corpus.py  (no arguments; writes examples/corpus.html)
 import json
 import re
 import sys
-from html.parser import HTMLParser
 from pathlib import Path
 
 from example_data import regression_sources
 from leaf.structure import SourceDocument
+from leaf.thread_context import comment_ids, specimen_events
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
 CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
+CORPUS_EVENTS = EXAMPLES_DIR / "corpus.jsonl"
 # Keep the short core pages first; specialist and regression surfaces follow.
 PUBLIC_TABS = [
     ("review-a-plan", "Plan review"),
@@ -48,8 +49,7 @@ DEVELOPER_TABS = [
     ),
 ]
 CONTENTS_SIDEBAR = re.compile(
-    r'\s*<aside class="sidebar" id="[^"]+">\s*'
-    r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
+    r'\s*<aside class="sidebar" id="[^"]+">\s*' r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
 )
 TABS = [
     *((EXAMPLES_DIR / f"{stem}.html", label) for stem, label in PUBLIC_TABS),
@@ -85,19 +85,6 @@ FOOT = """\
 </body>
 </html>
 """
-
-
-class _Scan(HTMLParser):
-    """Collect element ids from one example."""
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.ids = []
-
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
-        if attrs.get("id"):
-            self.ids.append(attrs["id"])
 
 
 SNAPSHOTTED_TAG = re.compile(r'<lf-[a-z-]+\b[^>]*\bsnapshot="[1-9][0-9]*"[^>]*>')
@@ -173,8 +160,6 @@ def build() -> str:
     for source, label in TABS:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
-        scan = _Scan()
-        scan.feed(text)
         parsed = SourceDocument(text)
         if parsed.css.strip():
             authored_assets.append(
@@ -185,7 +170,7 @@ def build() -> str:
             f"{script['body']}</script>"
             for script in parsed.inline_scripts
         )
-        for i in ["corpus-" + stem] + scan.ids:
+        for i in ["corpus-" + stem] + parsed.all_ids:
             if i in owner:
                 sys.exit(
                     f"id '{i}' is in both {owner[i]} and {source.name}; rename one"
@@ -218,14 +203,57 @@ def build_data() -> dict:
     return data
 
 
+def build_events() -> str:
+    """Carry the conversations embedded specimens explicitly depend on.
+
+    The corpus otherwise starts undecided; composing every example's history would
+    settle unrelated controls before the corpus can exercise them.
+    """
+    combined = {}
+    for source, _ in TABS:
+        document = SourceDocument(source.read_text(encoding="utf-8"))
+        selected = {
+            root
+            for specimen in document.specimens
+            for root in specimen["attrs"].get("data-specimen-threads", "").split()
+        }
+        if not selected:
+            continue
+        events = [
+            json.loads(line)
+            for line in source.with_suffix(".jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        # A declaration naming nothing is a typo here and nothing else: the history
+        # is the example's own shipped log, so a root absent from it will be absent
+        # from every page built from this source. `specimen_events` seeds what a log
+        # holds, because a served page may legitimately hold none of it yet.
+        if unknown := selected - comment_ids(events):
+            sys.exit(
+                f"{source.name} declares specimen conversations its log does not "
+                f"hold: {', '.join(sorted(unknown))}"
+            )
+        for event in specimen_events(document, events, selected):
+            if event["id"] in combined and combined[event["id"]] != event:
+                sys.exit(
+                    f"corpus examples contribute conflicting event {event['id']!r}"
+                )
+            combined[event["id"]] = event
+    return "".join(
+        json.dumps(event, ensure_ascii=False) + "\n" for event in combined.values()
+    )
+
+
 def main() -> None:
     CORPUS.write_text(build(), encoding="utf-8")
     CORPUS_DATA.write_text(
         json.dumps(build_data(), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    CORPUS_EVENTS.write_text(build_events(), encoding="utf-8")
     print(CORPUS)
     print(CORPUS_DATA)
+    print(CORPUS_EVENTS)
 
 
 if __name__ == "__main__":

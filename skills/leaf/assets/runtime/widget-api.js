@@ -1,9 +1,14 @@
-/* The one helper surface behavior modules import. Every capability is reexported from
-   its domain owner; owners import one another, and leaf.js only boots. */
+/* The one helper surface behavior modules import. Capabilities come from their
+   domain owners; optional hosts load when requested. Owners import one another,
+   and leaf.js only boots. */
 import { defineRequestElement } from "./request-elements.js";
 
 export { LitElement, html } from "../vendor/browser-runtime.js";
 export { widgetController } from "./widget-controller.js";
+export async function mountSpecimen(frame, options) {
+  const owner = await import("./specimen.js");
+  return owner.mountSpecimen(frame, options);
+}
 
 export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {

@@ -1871,6 +1871,106 @@ def test_export_state_route_follows_the_canonical_page_root(browser):
     )
 
 
+def test_accessibility_probe_inspects_standalone_child_documents(browser, tmp_path):
+    output = tmp_path / "framed.html"
+    output.write_text(
+        '<!doctype html><html lang="en"><title>Parent</title><main>'
+        '<iframe title="Child" srcdoc="&lt;!doctype html&gt;&lt;html lang=en&gt;'
+        "&lt;title&gt;Child&lt;/title&gt;&lt;main&gt;&lt;input type=text&gt;"
+        '&lt;/main&gt;&lt;/html&gt;"></iframe></main></html>'
+    )
+    page = browser.new_page()
+    page.goto(output.as_uri(), wait_until="load")
+    violations, report = serious_axe_violations(page)
+    assert any(
+        violation["id"] == "label" and violation["document"] == "about:srcdoc"
+        for violation in violations
+    ), report
+
+
+def test_interactive_export_refuses_server_dependent_specimens(serve, tmp_path):
+    serve(
+        leaf_page(
+            "Live specimen",
+            '<lf-specimen id="practice" label="practice">'
+            '<template id="practice-source" data-specimen><h1>Child</h1></template>'
+            "</lf-specimen>",
+        )
+    )
+    output = tmp_path / "offline.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(output),
+            "--interactive",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Live specimens need a server; export without --interactive" in result.output
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("concealed", [False, True])
+def test_a_live_specimen_exports_as_an_isolated_rendered_document(
+    browser, serve, tmp_path, concealed
+):
+    """A copy retains child rendering and assets, with native controls but no server."""
+    source = leaf_page(
+        "Specimen copy",
+        """
+<h1>Specimen copy</h1>
+<p id="shared-name">Parent content</p>
+<lf-specimen id="practice" label="practice code">
+  <template id="practice-source" data-specimen>
+    <h1>Child content</h1>
+    <lf-code id="shared-name" language="python"><pre>print("hello")</pre></lf-code>
+    <img src="/page/badge.svg" alt="Practice badge">
+    <details><summary>More context</summary><p>Native disclosure survives.</p></details>
+  </template>
+</lf-specimen>
+""",
+    )
+    if concealed:
+        source = source.replace(
+            '<lf-specimen id="practice"',
+            '<details id="practice-disclosure"><summary>Show practice</summary>'
+            '<lf-specimen id="practice"',
+        ).replace("</lf-specimen>", "</lf-specimen></details>")
+    url = serve(
+        source,
+        page_files={
+            "badge.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="24" '
+            'height="24"><rect width="24" height="24" fill="navy"/></svg>'
+        },
+    )
+    copied = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    out = tmp_path / "specimen-copy.html"
+    out.write_text(copied, encoding="utf-8")
+    page = browser.new_page()
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    page.goto(out.as_uri(), wait_until="load")
+    if concealed:
+        expect(page.locator("#practice-disclosure")).not_to_have_attribute("open", "")
+        page.get_by_text("Show practice", exact=True).click()
+    child = page.frame_locator("#practice iframe")
+    expect(page.locator("#shared-name")).to_have_text("Parent content")
+    expect(child.get_by_role("heading", name="Child content")).to_be_visible()
+    expect(child.locator("#shared-name .lf-code-line")).to_have_text('print("hello")')
+    expect(child.get_by_role("img", name="Practice badge")).to_have_js_property(
+        "naturalWidth", 24
+    )
+    child.get_by_text("More context", exact=True).click()
+    expect(child.get_by_text("Native disclosure survives.")).to_be_visible()
+    expect(child.locator("script")).to_have_count(0)
+    expect(page.get_by_role("button", name="Enter specimen")).to_have_count(0)
+    assert requests == [out.as_uri()]
+
+
 def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tmp_path):
     source = leaf_page("Café handoff", "<h1>Café handoff</h1>").replace(
         '<html lang="en">', '<html data-padding="' + "&" * 300 + '">'

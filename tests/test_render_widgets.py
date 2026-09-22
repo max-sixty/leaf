@@ -2322,6 +2322,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(verify).to_have_css("pointer-events", "auto")
     verify.click()
     expect(page).to_have_url(re.compile(r"#verify$"))
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     frames = page.evaluate("window.lfTocFrames")
     travelled = [position for position in frames if position > 0]
@@ -6284,7 +6285,10 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
         f"settled text still wears a pending mark: {settled}"
     )
     # The banner's count follows the page: three pending, one decided.
-    expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (2)")
+    expect(page.locator(".lf-answer-all")).to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
 
     # The boundary before reading the shared log: what the press sent has to have a
     # definitive outcome first. The fetch this replaced proved nothing —
@@ -6582,7 +6586,7 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     ).to_be_enabled()
     expect(answer_all).to_have_text("Accept all (2)")
     assert answer_all.evaluate("button => button === window.__lfAnswerAll")
-    answer_all.click()
+    banner_control(page, ".lf-answer-all").click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
@@ -6668,7 +6672,10 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     )
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
-    expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (3)")
+    expect(page.locator(".lf-answer-all")).to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -6818,7 +6825,10 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # Its pair leaves; the surviving content and Undo carry the settled state.
     rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
     expect(rejected).to_be_hidden()
-    expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
+    expect(second.locator(".lf-answer-all")).to_have_text("Accept all (2)")
+    expect(second.locator(".lf-answer-all")).to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -6830,7 +6840,10 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
-    expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
+    expect(second.locator(".lf-answer-all")).to_have_text("Accept all (1)")
+    expect(second.locator(".lf-answer-all")).to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
     unfolded_button(
         third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
     ).click()
@@ -6872,7 +6885,9 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
     expect(decisions).to_have_text("Asks 2/5")
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect(decisions).to_have_text("Asks 3/5")
-    expect(page.locator(".lf-answer-all")).to_be_hidden()
+    expect(page.locator(".lf-answer-all")).not_to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
@@ -8414,7 +8429,7 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray holds no rows"
 
-    decisions_control = page.locator(".lf-asks")
+    decisions_control = banner_control(page, ".lf-asks")
     decisions_control.focus()
     page.keyboard.press("Enter")
     expect(tray).to_be_visible()
@@ -8457,7 +8472,7 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
 
     # And closing takes the rest with it, for the reason the docstring gives: a tray
     # that is down is not a list, so it holds nothing to reach and nothing to press.
-    decisions_control.focus()
+    banner_control(page, ".lf-asks").focus()
     page.keyboard.press("Enter")
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
@@ -8685,7 +8700,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     answer_all = page.locator(".lf-answer-all")
     expect(progress).to_have_text("Asks 1/5")
     expect(answer_all).to_have_text("Accept all (1)")
-    progress.click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
     held = []

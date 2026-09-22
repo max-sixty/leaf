@@ -154,7 +154,8 @@ def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
     page.keyboard.press("Escape")
     page.keyboard.press("s")
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(3)
-    expect(cancel).to_be_hidden()
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(cancel).to_have_count(0)
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -163,14 +164,13 @@ def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
     page.get_by_role("button", name="More page controls", exact=True).click()
     expect(select).to_be_visible()
     select.click()
+    page.get_by_role("button", name="More page controls", exact=True).click()
     expect(cancel).to_be_visible()
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
-    expect(cancel).to_be_hidden()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(cancel).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(select).to_be_hidden()
 
 
 def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):

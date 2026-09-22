@@ -709,6 +709,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-version-row[aria-current] .lf-version-num { color: var(--accent); font-weight: 600; }
   .lf-version-num { white-space: nowrap; }
   .lf-version-note { color: var(--muted); font-size: var(--t-6); }
+  .lf-version-row:hover .lf-version-note { color: var(--ink-2); }
   /* The comparison a row offers: mark what changed between that version and the one
      being read. It draws its own box rather than waiting for a hover to draw one,
      which is the same rule a group taking a pick keeps: a form may decide how it

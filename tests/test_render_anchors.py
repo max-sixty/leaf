@@ -3593,14 +3593,15 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
 
 
-def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
     """The chooser is a press and a menu rather than a select, which buys the notes
     somewhere they can be read whole and costs the platform's own popup: opening,
     closing, and the keys between. A select came with all of that, so what this
-    asserts is the part that had to be written back — the press toggles rather than
-    only opens, focus lands on the version being read so the walk starts where the
-    reader is, ↑/↓ clamp at the ends, Escape hands focus back to the press it came
-    from, and a click anywhere else closes without navigating.
+    asserts is the part that had to be written back — the pointer route opens through
+    More, focus lands on the version being read so the walk starts where the reader is,
+    ↑/↓ clamp at the ends, Escape closes the nested panels in order, and a click anywhere
+    else closes without navigating.
 
     The note is the reason the menu exists at all: a select's closed label is its
     selected option's whole text, so the note had to be on the bar or nowhere, and on
@@ -3613,7 +3614,9 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     _publish(serve.page_dir, 2, INLINE_PAGE, long_note)
     _publish(serve.page_dir, 3, INLINE_PAGE, "third")
     # Pinned to v2, so there is a version either side of the one being read.
-    page = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
+    page = open_page(
+        browser, url.replace("v1.html", "v2.html"), pin=True, color_scheme=color_scheme
+    )
 
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
@@ -3621,9 +3624,22 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
 
-    btn.click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
+    # Escape closes the child panel and leaves its door visible in More; a second Escape
+    # closes the parent. The nested panel deliberately shares the banner's viewport
+    # edge rather than growing a second adaptive placement contract.
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    expect(btn).to_be_visible()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+
+    open_versions(page)
+    expect(menu).to_be_visible()
     # The walk starts on the version being read, not at the top of the list.
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     # The note is the whole note, on its own lines under the version it belongs to.
@@ -3647,11 +3663,12 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
             "resultTypes": ["violations"],
         },
     )
-    assert [
+    serious = [
         v["id"]
         for v in result.response["violations"]
         if v["impact"] in {"serious", "critical"}
-    ] == []
+    ]
+    assert serious == [], json.dumps(result.response["violations"], indent=2)
     # The visible word is part of the accessible name too. This rule is not included by
     # axe's WCAG-tag selection above, so ask for it directly where Compare exists.
     label_result = Axe().run(
@@ -3685,6 +3702,11 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-shelf-open", "false"
+    )
+    assert page.evaluate("() => document.activeElement === document.body")
 
     open_versions(page)
     expect(menu).to_be_visible()
@@ -3752,15 +3774,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
 
-    # A second press is a close, not a re-open: without that the outside-click
-    # handler and the toggle would both run and the menu could never stand.
-    btn.click()
-    expect(menu).to_be_visible()
-    btn.click()
-    expect(menu).to_be_hidden()
-
     # A click on the page closes it and leaves the reader where they were.
-    btn.click()
+    open_versions(page)
     expect(menu).to_be_visible()
     # A point in the page's left margin: outside the column, and well clear of a menu
     # that hangs from the right of the bar over whatever the column has at the top.
@@ -3781,7 +3796,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 
     # A number is the corresponding row's press even when travel is unnecessary: the
     # current row closes the menu just as clicking it does.
-    btn.click()
+    open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("2")
     expect(menu).to_be_hidden()
@@ -3789,7 +3804,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 
     # Choosing another number is exact historical navigation, including for the newest
     # stamp.
-    btn.click()
+    open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("3")
     page.wait_for_url(re.compile(r"/versions/v3\.html"))
@@ -4245,7 +4260,9 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
     help_el = page.locator(".lf-command-reference")
+    page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-latest-chip")).to_be_visible()
+    page.keyboard.press("Escape")
 
     # The menu's keys are one declaration, so the reference names this one beside the
     # walk it saves.

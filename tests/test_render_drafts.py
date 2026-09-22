@@ -544,7 +544,9 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
     told(page)
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-latest-chip")).to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
@@ -1589,7 +1591,9 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     stamp_page(d, v3, "v3")
     told(page)
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect(page.locator(".lf-latest-chip")).to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
     expect(page.locator(".lf-version")).to_contain_text("v2")
     expect(reply).to_have_value("")
     expect(reply).to_be_focused()

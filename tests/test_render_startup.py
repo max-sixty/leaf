@@ -1362,9 +1362,11 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect(page.locator(".lf-asks")).not_to_have_class(re.compile(r"\blf-news-shown\b"))
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    expect(page.locator(".lf-answer-all")).to_be_hidden()
+    expect(page.locator(".lf-answer-all")).not_to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
 
     comments = page.get_by_role("button", name=re.compile("^Threads"))
     expect(comments).to_be_enabled()
@@ -1376,14 +1378,16 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     page.wait_for_function(BOTH_STAMPS)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-asks")
-    expect(decisions).to_be_visible()
+    expect(decisions).to_have_class(re.compile(r"\blf-news-shown\b"))
     expect(decisions).to_have_text("Asks 1/1")
     expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(0)
-    expect(page.locator(".lf-answer-all")).to_be_hidden()
+    expect(page.locator(".lf-answer-all")).not_to_have_class(
+        re.compile(r"\blf-news-shown\b")
+    )
 
 
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
@@ -1733,9 +1737,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
     compare_with(page)
-    page.wait_for_function(
-        "() => document.querySelector('.lf-banner .lf-btn.on') !== null"
-    )
+    page.wait_for_function("() => document.querySelector('.lf-version.on') !== null")
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"

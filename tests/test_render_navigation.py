@@ -5062,21 +5062,16 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
 
     page.keyboard.press("g")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Leaves tray")
-    leaves_hint = page.locator(
-        '.lf-go-to-hints > [data-lf-go-to-command="navigation.tray.leaves"]'
-    )
-    expect(leaves_hint).to_have_attribute("data-lf-go-to-address", "g L")
-    assert leaves_hint.locator("kbd").evaluate_all(
-        "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
-    ) == [["g", "pressed"], ["L", "neutral"]]
-    # A live control label may change while the sequence stands. The detached overlay is
-    # owned by the Go-to hint layer, so a routine poll cannot erase it.
+    expect(
+        page.locator(
+            '.lf-go-to-hints > [data-lf-go-to-command="navigation.tray.leaves"]'
+        )
+    ).to_have_count(0)
+    # A live secondary-control label may change while the sequence stands. Its keyboard
+    # destination remains operable even though the fixed More seat has no target overlay.
     live_leaf("third", "A third leaf")
     round_trip(page)
     expect(page.locator(".lf-others")).to_contain_text("All leaves (3)")
-    assert leaves_hint.locator("kbd").evaluate_all(
-        "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
-    ) == [["g", "pressed"], ["L", "neutral"]]
     page.keyboard.press("Shift+l")
 
     expect(page.locator(".lf-others-panel")).to_be_visible()
@@ -7640,7 +7635,7 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
 
 
 def test_banner_destinations_use_transient_target_overlays(browser, serve):
-    """The g sequence labels visible banner controls without changing their layout."""
+    """The g sequence labels visible primary controls without changing their layout."""
     url = serve(ASKS_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -7658,11 +7653,8 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
           })"""
     )
     assert key_faces[0] == key_faces[1], key_faces
-    version = page.locator(".lf-version")
     banner_destinations = {
         "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
-        "navigation.tray.asks": (page.locator(".lf-asks"), "A"),
-        "version.open": (version, "V"),
     }
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
@@ -7693,6 +7685,10 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     before = page.locator(".lf-banner").bounding_box()
     page.keyboard.press("g")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("visible target")
+    for command in ("navigation.tray.asks", "version.open"):
+        expect(
+            page.locator(f'.lf-go-to-hints > [data-lf-go-to-command="{command}"]')
+        ).to_have_count(0)
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="hint-collision-probe"]')
     ).to_be_visible()
@@ -7748,7 +7744,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     resized(page, 390, 800)
     for command, control in (
         ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
-        ("version.open", page.locator(".lf-version")),
     ):
         hint = page.locator(
             f'.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-command="{command}"]'
@@ -9961,7 +9956,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # The completion count includes every active Ask: the authored pick is complete;
     # the seated Ask and suggestion are not.
     expect(decisions).to_have_text("Asks 1/3")
-    decisions.click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator("button.lf-asks-row")).to_have_count(3)
     expect(page.locator('.lf-asks-row[data-lf-at="shape-decision"]')).to_have_count(1)
     expect(page.locator('.lf-asks-row[data-lf-at="picked-decision"]')).to_have_count(1)
@@ -9976,7 +9971,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
         "data-lf-ask", "1"
     )
     page.evaluate("() => document.activeElement?.blur()")
-    decisions.click()
+    banner_control(page, ".lf-asks").click()
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()

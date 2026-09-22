@@ -671,11 +671,11 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     expect(row).to_have_class(re.compile(r"lf-docked"))
 
 
-def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
+def test_a_held_marker_hands_the_reader_to_the_banner_door_when_the_rail_falls(
     browser, serve
 ):
     """A marker the keyboard is on stops being drawn when the shell loses its rail, so
-    the reader is put on the control that still reaches what the marker held.
+    the reader is put on the banner door that still reaches what the marker held.
 
     The browser takes focus off an element it hides, onto body, and whether it does so
     before or after the owner hears that the shell moved is not ordered: a handoff that
@@ -699,7 +699,9 @@ def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
 
     resized(page, 700, 900)
     expect(marker).to_be_hidden()
-    expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+    expect(
+        page.get_by_role("button", name="More page controls", exact=True)
+    ).to_be_focused()
 
 
 def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
@@ -6798,13 +6800,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     resized(page, 390, 760)
     expect(page.locator(".lf-margin-projection")).to_be_hidden()
     toggle = page.locator(".lf-page-map-toggle")
-    expect(toggle).to_be_visible()
     expect(toggle).to_have_text(re.compile(r"Map \(\d+\)"))
-    # The row keeps one order at every width and folds what it cannot fit into its menu;
-    # the index stays on the row itself, one press away, rather than behind the door.
-    assert toggle.evaluate(
-        "button => button.parentElement.matches('.lf-banner-actions')"
-    ), "the small-screen map was folded behind the banner's door"
+    toggle = banner_control(page, ".lf-page-map-toggle")
+    expect(toggle).to_be_visible()
     text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
         """buttons => buttons.map(button => {
           const box = button.getBoundingClientRect();
@@ -6892,7 +6890,7 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
 
     resized(page, 390, 760)
     expect(page.locator(".lf-margin-projection")).to_be_hidden()
-    expect(page.locator(".lf-page-map-toggle")).to_be_visible()
+    expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
@@ -7204,11 +7202,12 @@ def test_closing_a_tray_places_the_margin_against_the_released_column(browser, s
     assert page.locator(marker).bounding_box()["x"] != pytest.approx(resting, abs=1)
     # The listener reads after the control's handler, before a repaint can mask a stale
     # margin. The real click is necessary: it exercises focus return and the tray's close.
+    asks = banner_control(page, ".lf-asks")
     page.evaluate(
         """selector => document.addEventListener('click', () => {
           window.trayClosedMargin = document.querySelector(selector).getBoundingClientRect().x;
         }, {once: true})""",
         marker,
     )
-    banner_control(page, ".lf-asks").click()
+    asks.click()
     assert page.evaluate("window.trayClosedMargin") == pytest.approx(resting, abs=1)

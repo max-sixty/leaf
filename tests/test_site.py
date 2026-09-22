@@ -1901,7 +1901,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             _, url = served_example(source.stem)
             opened(page, url)
         newest = len(example_versions(source))
-        expect(page.locator(".lf-banner .lf-version")).to_have_text(f"v{newest}")
+        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(f"v{newest}")
         expect(page.locator(".lf-status-text")).to_have_text(
             "This is an example on the Leaf website. Leaf guide replies and "
             "revises this private copy. Install Leaf"
@@ -2143,8 +2143,8 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
     _, url = served_example("command-hub")
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
-    expect(decisions).to_be_visible()
     expect(decisions).to_have_text("Asks 0/5")
+    expect(decisions).to_have_class(re.compile(r"\blf-news-shown\b"))
 
 
 def test_a_published_decision_survives_reload(served_example, browser):
@@ -2152,8 +2152,8 @@ def test_a_published_decision_survives_reload(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
-    expect(decisions).to_be_visible()
     expect(decisions).to_have_text("Asks 0/1")
+    expect(decisions).to_have_class(re.compile(r"\blf-news-shown\b"))
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()

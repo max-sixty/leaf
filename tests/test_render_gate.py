@@ -687,7 +687,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     monkeypatch.setattr(http_model.PageEndpoint, "_json", hold_first_event_answer)
     page.on("framenavigated", release_after_reload)
     try:
-        page.locator(".lf-answer-all").first.click()
+        banner_control(page, ".lf-answer-all").click()
         assert answer_ready.wait(10), "the first event reached no server answer"
         page.goto(url, wait_until="load")
         assert reload_committed.is_set(), "the replacement document did not commit"
@@ -706,7 +706,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     # between the cascade's trips, which paint-to-paint sampling steps over. One
     # attempt leaving is bounded by one trip and stays true once it holds.
     sends = _traffic(page).sends
-    page.locator(".lf-answer-all").first.click()
+    banner_control(page, ".lf-answer-all").click()
     first = []
 
     def first_trip_home(reading):

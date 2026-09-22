@@ -363,7 +363,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 card = page.locator(".lf-thread").filter(has=shown)
                 carried_threads.add(card.get_attribute("data-id"))
                 summary = card.locator(".lf-thread-summary")
-                if summary.get_attribute("aria-expanded") == "false":
+                if card.get_attribute("open") is None:
                     summary.click()
                 expect(shown).to_be_visible()
                 # Where the registry says the element holds a request for the
@@ -390,11 +390,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 "two readings below were handed nothing of the panel's to look at"
             )
             for thread_id in sorted(carried_threads):
-                summary = page.locator(
-                    f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary'
-                )
-                if summary.get_attribute("aria-expanded") == "false":
-                    summary.click()
+                card = page.locator(f'.lf-thread[data-id="{thread_id}"]')
+                if card.get_attribute("open") is None:
+                    card.locator(".lf-thread-summary").click()
                 for finding, probe, arg in (
                     (
                         "draws a box of no size",
@@ -461,13 +459,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
                 shown = undecided.locator(f"#{wid}")
-                summary = (
-                    undecided.locator(".lf-thread")
-                    .filter(has=shown)
-                    .locator(".lf-thread-summary")
-                )
-                if summary.get_attribute("aria-expanded") == "false":
-                    summary.click()
+                card = undecided.locator(".lf-thread").filter(has=shown)
+                if card.get_attribute("open") is None:
+                    card.locator(".lf-thread-summary").click()
                 expect(shown).to_be_visible()
                 assert shown.inner_text() != read_as[wid], (
                     f"{example.stem}: #{wid} reads the same with the log's decision "

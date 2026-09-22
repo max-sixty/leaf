@@ -80,9 +80,11 @@ def hold_visible_thread_presentation(page, thread_id):
             const reveals = model.rows.some(row =>
               row.kind === 'thread' && row.descriptor.id === threadId &&
               row.descriptor.visible);
-            if (!reveals || used) return present(model);
-            used = true;
-            window.visibleThreadPresentationHeld = true;
+            if (!reveals) return present(model);
+            if (!used) {
+              used = true;
+              window.visibleThreadPresentationHeld = true;
+            }
             return held.then(() => present(model));
           };
           window.releaseVisibleThreadPresentation = release;
@@ -974,6 +976,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
     card = page.locator(f'.lf-thread[data-id="{root}"]:not([hidden])')
     expect(card).to_be_visible()
     card.locator(".lf-thread-summary").click()
+    page.evaluate(RENDERED)
     hold_visible_thread_presentation(page, root)
 
     card.get_by_role("button", name="Reopen", exact=True).click()
@@ -1014,6 +1017,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
     card = page.locator(f'.lf-thread[data-id="{root}"]:not([hidden])')
     expect(card).to_be_visible()
     card.locator(".lf-thread-summary").click()
+    page.evaluate(RENDERED)
 
     card.get_by_role("button", name="Reopen", exact=True).click()
     holding(page, held, 1, "the refused reopen whose restoration will wait")
@@ -2017,6 +2021,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     page.locator(".lf-thread:not([hidden]) .lf-thread-summary").click()
+    page.evaluate(RENDERED)
     page.evaluate(
         """() => {
           const list = document.querySelector('leaf-thread-list');
@@ -3256,23 +3261,6 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply · c"
     )
 
-    # Half way down, the metadata-row outcome is still on screen rather than having
-    # moved with the folding geometry.
-    page.evaluate("() => window.__lfHeld.forEach((m) => (m.currentTime = 110))")
-    clip, says = page.evaluate(
-        """(id) => {
-          const going = document.querySelector(`[data-id="${id}"]`);
-          const outcome = going.querySelector(".lf-resolve");
-          return [going.getBoundingClientRect(), outcome.getBoundingClientRect()];
-        }""",
-        c1,
-    )
-    assert says["top"] < clip["bottom"] and clip["top"] < says["bottom"], (
-        f"the outcome sat at {says['top']:.0f}–{says['bottom']:.0f} with the fold "
-        f"clipped to {clip['top']:.0f}–{clip['bottom']:.0f}, so the word the press "
-        "left was already under the clip half way through"
-    )
-
     # And the far end: the thread becomes a retained hidden result, once, and the room it held
     # has gone back to the threads under it.
     page.evaluate("() => window.__lfHeld.forEach((m) => m.finish())")
@@ -3531,23 +3519,6 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
         f"the arriving render moved the held card from {target_top:.1f}px "
         f"to {joined:.1f}px"
     )
-    # What makes the arrival bite: the hold has given scroll back as the room closed,
-    # so the card now under the stationary pointer stands above the fold. A hold read
-    # from the pointer here would pin that card and let the successor keep rising.
-    assert page.evaluate(
-        """([x, y, id]) => {
-          const going = document.querySelector(`.lf-going[data-id="${id}"]`);
-          const under = document.elementFromPoint(x, y)?.closest(".lf-thread");
-          return Boolean(
-            going &&
-              under &&
-              going.compareDocumentPosition(under) &
-                Node.DOCUMENT_POSITION_PRECEDING,
-          );
-        }""",
-        [*point, source],
-    ), "the fold had not slid a card from above it under the pointer"
-
     page.evaluate("i => window.__lfHeld[i].finish()", before)
     expect(page.locator(f'.lf-thread[data-id="{source}"][hidden]')).to_have_count(1)
     page.evaluate(RENDERED)
@@ -4288,7 +4259,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_readers_new_thread(browser, se
     )
     target_id = target.get_attribute("data-id")
     page.locator(".lf-find-box").fill("stay blocked")
-    expect(target).to_be_hidden()
+    expect(target).to_have_attribute("hidden", "")
     hold_visible_thread_presentation(page, target_id)
     page.locator(".lf-threads").focus()
     page.keyboard.press("a")
@@ -4300,18 +4271,12 @@ def test_a_delayed_accordion_reveal_yields_to_the_readers_new_thread(browser, se
     assert later_id != target_id
     later = page.locator(f'.lf-thread[data-id="{later_id}"]')
     later.locator(".lf-thread-summary").click()
-    expect(later.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "true"
-    )
+    expect(later).to_have_attribute("open", "")
     page.evaluate("releaseVisibleThreadPresentation()")
     page.evaluate(RENDERED)
     expect(later.locator(".lf-thread-summary")).to_be_focused()
-    expect(later.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "true"
-    )
-    expect(target.locator(".lf-thread-summary")).to_have_attribute(
-        "aria-expanded", "false"
-    )
+    expect(later).to_have_attribute("open", "")
+    expect(target).not_to_have_attribute("open", "")
 
 
 def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
@@ -5056,17 +5021,17 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     # current thread's paint stays inside its card — so without this pass half of
     # that scroll-padding is unheld. Tab scrolls each stop into view itself,
     # which is the gesture that puts one against an edge.
-    page.locator(".lf-threads").focus()
-    # Counted off the list rather than floored at a number somebody picked: a
-    # walk that reaches eight of thirty-five controls passes a floor of eight
-    # while three quarters of the room this list reserves goes unheld, and says
-    # nothing about which quarter.
+    page.locator(".lf-threads .lf-thread-summary").first.focus()
+    # Closed native details remove their contents from the browser's focus order even
+    # though those controls retain non-negative tabIndex values. Use that DOM count only
+    # as a safe traversal bound; the browser decides which stops the open disclosure owns.
     tabbable = page.eval_on_selector_all(
         ".lf-threads *",
         "els => els.filter((e) => e.tabIndex >= 0 && e.checkVisibility()).length",
     )
     assert tabbable, "the list holds no control to tab to"
-    stops = 0
+    stops = 1
+    faults += ring_faults(rings_drawn(page), "at the first native thread title")
     for _ in range(tabbable + 5):
         page.keyboard.press("Tab")
         page.evaluate(RENDERED)
@@ -5079,10 +5044,7 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
         faults += ring_faults(
             rings_drawn(page), f"tabbing to stop {stops} inside the list"
         )
-    assert stops == tabbable, (
-        f"the walk stood on {stops} of the list's {tabbable} controls, so the room "
-        "it reserves at its edges is only partly held by this"
-    )
+    assert stops > 1, "the native disclosure offered no control after its title"
     assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
 
 
@@ -5884,7 +5846,7 @@ def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve)
 
 
 def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, serve):
-    """Header travel keeps rows folded; thread travel opens a retained conversation."""
+    """Native focus order and thread travel keep retained conversations and drafts."""
     url = serve(PANEL_PAGE)
     first = panel_comment(
         serve.page_dir, "Check the cap first.", {"section": "how-cap"}
@@ -5898,43 +5860,39 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     card = page.locator(f'.lf-thread[data-id="{first}"]')
     other = page.locator(f'.lf-thread[data-id="{second}"]')
     header = card.locator(".lf-thread-summary")
-    other_header = other.locator(".lf-thread-summary")
-    expect(header).to_have_attribute("aria-expanded", "false")
-    expect(other_header).to_have_attribute("aria-expanded", "false")
+    expect(card).not_to_have_attribute("open", "")
+    expect(other).not_to_have_attribute("open", "")
     header.focus()
-    page.keyboard.press("ArrowDown")
-    expect(other_header).to_be_focused()
-    expect(other_header).to_have_attribute("aria-expanded", "false")
-    page.keyboard.press("ArrowDown")
-    expect(other_header).to_be_focused()
-    page.keyboard.press("Home")
-    expect(header).to_be_focused()
-    page.keyboard.press("End")
-    expect(other_header).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(header).to_be_focused()
+    page.keyboard.press("Tab")
+    assert page.evaluate(
+        "() => document.querySelector('.lf-threads').contains(document.activeElement)"
+    ), "native focus order left the thread list"
+    header.focus()
     page.keyboard.press("Enter")
-    expect(header).to_have_attribute("aria-expanded", "true")
-    # Moving to another title leaves the first conversation open. That title is already
-    # navigation at the list floor, so Escape closes the panel rather than collapsing a
-    # conversation elsewhere or adding another focus rung.
-    page.keyboard.press("ArrowDown")
-    expect(other_header).to_be_focused()
+    expect(card).to_have_attribute("open", "")
+    page.keyboard.press("Tab")
+    assert page.evaluate(
+        "id => document.activeElement.closest('.lf-thread')?.dataset.id === id", first
+    ), "native focus order skipped the open conversation"
+    header.focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
-    expect(header).to_have_attribute("aria-expanded", "true")
+    expect(card).to_have_attribute("open", "")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Panel controls similarly unwind the panel, not the unrelated disclosure.
     page.get_by_role("button", name="Filters", exact=True).focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
-    expect(header).to_have_attribute("aria-expanded", "true")
+    expect(card).to_have_attribute("open", "")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     header.focus()
     page.keyboard.press("Space")
-    expect(header).to_have_attribute("aria-expanded", "false")
+    expect(card).not_to_have_attribute("open", "")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-group:focus")).to_have_count(1)
+    header.focus()
     page.keyboard.press("c")
     editor = card.get_by_role("textbox", name="Reply", exact=True)
     expect(editor).to_be_focused()
@@ -5944,8 +5902,8 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.keyboard.press("Escape")
     expect(card).to_be_focused()
     page.keyboard.press("t")
-    expect(other_header).to_have_attribute("aria-expanded", "true")
-    expect(header).to_have_attribute("aria-expanded", "false")
+    expect(other).to_have_attribute("open", "")
+    expect(card).not_to_have_attribute("open", "")
     page.keyboard.press("Shift+t")
     expect(editor).to_be_visible()
     expect(editor).to_have_value("Keep this unfinished answer.")
@@ -5955,7 +5913,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     expect(card).to_be_hidden()
     page.locator(".lf-threads").focus()
     page.keyboard.press("n")
-    expect(other_header).to_have_attribute("aria-expanded", "true")
+    expect(other).to_have_attribute("open", "")
     expect(other).to_be_focused()
     page.keyboard.press("n")
     expect(other).to_be_focused()

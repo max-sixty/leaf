@@ -5817,9 +5817,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(preview).to_be_hidden()
         thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
         expect(thread).to_contain_text(sent["text"])
-        expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-            "aria-expanded", "true"
-        )
+        expect(thread).to_have_attribute("open", "")
     else:
         expect(preview).to_be_visible()
         thread = preview.locator(

@@ -5894,11 +5894,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             "node.closest('.lf-thread')?.dataset.id"
         )
         if thread_id:
-            header = target.page.locator(
-                f'.lf-thread[data-id="{thread_id}"] > .lf-thread-summary'
-            )
-            if header.get_attribute("aria-expanded") != "true":
-                header.click()
+            card = target.page.locator(f'.lf-thread[data-id="{thread_id}"]')
+            if card.get_attribute("open") is None:
+                card.locator(":scope > .lf-thread-summary").click()
 
     live_leaf("other", "The other leaf")
     # No ring moves under the default motion setting, so a settled specimen reads the

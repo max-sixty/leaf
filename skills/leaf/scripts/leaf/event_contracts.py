@@ -1,27 +1,12 @@
-"""Event admission: the one door every writer appends a page event through.
+"""Shared event admission; the contract is events.md, "Admission".
 
-`append_admitted` is that door. The browser endpoint, each CLI writer, the
-delivery carrier, and `version stamp` all reach the log through it, so a rule
-stated here holds for every writer rather than for whichever one remembered it.
-`service.PageTransaction` holds the append lease and makes the write; nothing
-else appends.
+`admitted_event` validates and derives a record from `page_view.PageView`, the
+standing log, and a command. `append_admitted` performs that reading and write
+under `service.PageTransaction`'s lease.
 
-Admission runs in one order for every kind: an accepted retry short-circuits;
-the event's own document supplies the vocabulary that admits it; that vocabulary
-has to declare the kind; the kind's gates run against the page and the standing
-log under the append lease; server-owned meaning is derived; and the finished
-record is validated against its stored-record contract. Downstream code reads
-those fields directly.
-
-`admitted_event` is all of that but the write. It reads the page through the
-readings `page_view.PageView` answers and nothing else, so an event's admission
-or refusal follows from the markup, the log, and the event alone.
-
-The gates themselves stay with the domains that own them — request lifecycles in
-`requests`, undo in `events`, widget meaning in `event_meaning`. What lives here
-is the one statement of which gates an event of each kind passes, so a new kind
-is an entry in `admission_error` rather than a check in the writer that happens
-to send it.
+This module selects each kind's gates. Their implementations stay with their
+domains: request lifecycles in `requests`, undo in `events`, and widget meaning
+in `event_meaning`.
 """
 
 from leaf.anchor_capture import capture_anchor

@@ -294,26 +294,32 @@ leaf-anchor-note { display: contents; }
 }
 .lf-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
           --lf-here-ring: chip; outline-offset: 1px; }
-/* A reaction surface offers one quiet trigger. It disappears when its list opens;
-   a standing token remains visible in a closed message strip as the reader's receipt
-   and eraser. */
+/* Reaction controls own their resting, selected and interactive appearance together.
+   A surface places and reveals them without restating their ink, border or fill.
+   Margin reactions wear the margin-entry family (theme.css); response actions keep
+   an opaque resting surface because they float over page content. */
 .lf-react-trigger { color: var(--muted); border: 1px solid transparent;
           background: transparent; }
 .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
+.lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+          min-width: max(26px, var(--aim-floor)); }
+.lf-react:not(.lf-margin-entry) { color: var(--muted);
+          border-color: transparent; background: transparent; }
+.lf-react:not(.lf-margin-entry):is([aria-pressed="true"], :hover, :focus-visible,
+          .lf-focus-visible, [aria-busy="true"]) {
+          color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
+.lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
+.lf-react[aria-busy="true"] { opacity: .55; }
+/* A reaction surface offers one quiet trigger. It disappears when its list opens;
+   a standing token remains visible in a closed message strip as the reader's receipt
+   and eraser. */
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
 .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
           display: none; }
 .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
           display: none; }
-/* A standing token keeps a neutral fill. The floating response bar names choices in
-   words through its own response-control anatomy; a message strip stays emoji-sized
-   and carries the full meaning through its accessible name and hover title. */
-.lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-          min-width: max(26px, var(--aim-floor)); }
-.lf-react[aria-pressed="true"] { background: var(--chip); }
-.lf-react[aria-busy="true"] { opacity: .55; }
 /* A reply with no feedback keeps no row. Its add control sits over the unused
    top-right corner and appears only for the message under pointer or keyboard focus.
    The picker is an overlaid menu below that control; opening it never moves this
@@ -345,18 +351,12 @@ leaf-anchor-note { display: contents; }
           padding: 4px;
           border: 1px solid var(--border-2); border-radius: var(--r);
           background: var(--card); box-shadow: 0 4px 12px var(--shade); }
-.lf-react-strip.lf-react-open > .lf-react-palette > .lf-react {
+:where(.lf-react-strip.lf-react-open > .lf-react-palette) > .lf-react {
           box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
-          border-color: transparent; background: transparent; font-size: 16px; }
+          font-size: 16px; }
 @media (hover: none) {
   .lf-react-strip > .lf-react-trigger { opacity: 1; }
 }
-.lf-react-palette > .lf-react:not(.lf-margin-entry, [aria-pressed="true"]) { color: var(--muted);
-          border-color: transparent; background: transparent; }
-.lf-react-palette > .lf-react:not(.lf-margin-entry, [aria-pressed="true"]):is(:hover, :focus-visible,
-          .lf-focus-visible, [aria-busy="true"]) {
-          color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
-.lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt follows the reader move it
    acknowledges: Sent, Picked up, then Working when an explicit work claim names that
    subject. A conversation receipt always uses a message's metadata row; an eventless

@@ -10,8 +10,8 @@
    and after the next animation frame, when new geometry can be read. Superseded after
    notifications are dropped. Continuity owners subscribe here; this module stores no
    landmarks or scroll offsets. `preserveReadingRegions` brackets a composition change
-   and its layout completion with the same notifications, including when regions become
-   hidden or visible without changing posture. The enclosing transition owns continuity
+   and its layout completion with the same notifications, retaining only scrollers inside
+   that composition when regions become hidden or visible without changing posture. The enclosing transition owns continuity
    over any nested posture changes.
    Hidden connected regions remain registered and return
    null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an id. */

@@ -4,9 +4,9 @@
 import { el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { motion } from "./motion.js";
-import { readerStore } from "./storage.js";
+import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 import { letGo } from "./focus.js";
-import { keys, paintKeys } from "./keyboard/scopes.js";
+import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
@@ -16,15 +16,14 @@ import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { dismissBannerControls, focusBannerControl } from "./banner-shelf.js";
 import { createAskTrayList } from "./asks/tray-list.js";
-// The left side holds one tray at a time. `setOpenTray` owns `openTrayKey` and renders the
-// complete outcome for leaves and asks. The leaves tray overlays the document because its
+// The left side holds one tray at a time, selected by the shared auxiliary-surface owner.
+// The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
 // page and the reader must keep the target visible. Both entry controls call the same
 // tray setter.
 //
-// `restoreTray` runs after all declarations exist and after the first projection can
-// populate state-dependent rows. It calls its supplied `beforeOpen` policy to retire
-// Threads, then presents the remembered tray directly without replaying opening motion.
+// Trays declare presentation-time arrival: their first paint needs the state-dependent
+// rows, while their remembered selection reserves the shell geometry during startup.
 //
 // A handle lives inside the region it draws, so a drawn region must not be its own scroll
 // container: a scroller clips a handle straddling its border and carries it away with the
@@ -51,7 +50,6 @@ const TRAY_COVERING = `(width <= ${TRAY_SLOT_W * 2}px)`;
 // spells the same name and the same covering width, and the layer test holds the two
 // spellings equal, since a stylesheet cannot read a constant.
 export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
-export const TRAY_SLOT_KEY = "lf-tray-slot-open";
 const trayCovering = matchMedia(TRAY_COVERING);
 export const trayCovers = () => trayCovering.matches;
 
@@ -118,24 +116,11 @@ asksPanel.tabIndex = -1;
 const asksFurniture = trayFurniture(asksPanel, "Asks", createAskTrayList());
 export const asksList = asksFurniture.list;
 
-// The left edge holds one tray at a time. Leaves and asks are the same furniture asking
-// at two scopes — which page needs me, and what this page needs of me — and each has to
-// stand while the reader works, which is the whole reason either is a fixed edge rather
-// than a menu over the page. So which one is up is one fact held in one place. A boolean
-// per tray would be one guarantee written twice, and the two would first disagree on the
-// day a third surface opened one without closing the other; the reader would then have
-// two trays over one edge with the lower one unreachable.
-//
-// Registered rather than listed, for the same reason the widgets are: the toggle, the
-// press, the reload and the Escape rung all read this map, so a third tray joins by
-// registering and none of them names a tray to do its job.
-// A reader gesture writes through setOpenTray. A reload writes saved intent later through
-// restoreTrays, after registration and the late Asks painter have been initialized. An
-// ephemeral developer replay may restore this visible state without replacing the saved
-// intent.
-let openTrayKey = null;
-export const currentTray = () => openTrayKey;
-export const trayIsOpen = (key) => openTrayKey === key;
+// Furniture is local to this edge; selection belongs to the auxiliary-surface owner.
+const trays = new Map();
+export const currentTray = () =>
+  trays.has(currentAuxiliarySurface()) ? currentAuxiliarySurface() : null;
+export const trayIsOpen = (key) => currentTray() === key;
 // Each tray's one offer: something to show, or the tray already standing so its button
 // can still close it. An Asks tray of none is the same.
 export const asksOffered = () =>
@@ -144,22 +129,12 @@ export const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row"
 
 export function createTrays({
   landEdge,
-  moveContentFrame,
-  panelIsOpen,
-  setPanel,
-  syncLayout,
+  auxiliarySurfaces,
   closePreview,
   leavesOffered,
   presentLeaves,
   syncAsks,
-  renderMargin,
-  registerAuxiliarySurface,
 }) {
-  const trays = new Map();
-  const beforeOpen = ({ remember = true } = {}) => {
-    if (panelIsOpen()) setPanel(false, { remember });
-    closePreview();
-  };
   const traysEdge = drawnEdge({
     side: "left",
     noun: "tray panel",
@@ -172,34 +147,40 @@ export function createTrays({
     land: landEdge,
   });
 
-  function setOpenTray(key, { remember = true, returnFocus = true } = {}) {
-    if (openTrayKey === key) return;
-    // Threads and trays are alternate auxiliary surfaces. Retire the standing one before another
-    // opens so layout, focus, and persisted state never have to reconcile two of them.
-    if (key) {
-      dismissBannerControls();
-      beforeOpen({ remember });
-    }
-    trays.get(openTrayKey)?.modality.sync(false);
-    openTrayKey = key;
-    for (const [name, { panel, btn, paint, modality }] of trays) {
-      const open = name === key;
-      btn.setAttribute("aria-expanded", String(open));
-      if (open) {
+  function setOpenTray(key, options) {
+    if (key || currentTray()) auxiliarySurfaces.select(key, options);
+  }
+  function registerTray(key, panel, btn, close, paint) {
+    auxiliarySurfaces.registerAuxiliarySurface({
+      key,
+      surface: panel,
+      scroller: () => panel.querySelector(".lf-tray-list"),
+      // Asks needs the document beside it because its rows lead to controls there.
+      // Other trays cover it unless they declare their own beside-page geometry.
+      covers: () => key !== "asks" || trayCovers(),
+      focus: () =>
+        panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
+      arrival: "presentation",
+      show({ phase }) {
+        dismissBannerControls();
+        closePreview();
+        btn.setAttribute("aria-expanded", "true");
         // Filled before it is shown, so the tray is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
         // is the mirror of it, below: emptied once it is hidden, never before, or the
         // reader watches the list they just closed blank out and an empty card slide away.
         paint?.();
         panel.classList.add("open");
-        modality.sync(true);
-        motion(
-          panel,
-          [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
-          200,
-        );
-      } else if (panel.classList.contains("open")) {
-        modality.sync(false);
+        if (phase === "gesture")
+          motion(
+            panel,
+            [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
+            200,
+          );
+      },
+      hide({ returnFocus }) {
+        btn.setAttribute("aria-expanded", "false");
+        if (!panel.classList.contains("open")) return;
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = motion(
@@ -208,7 +189,7 @@ export function createTrays({
           160,
         );
         const hide = () => {
-          if (openTrayKey === name) return; // reopened mid-slide; it stays up, list and all
+          if (trayIsOpen(key)) return; // reopened mid-slide; it stays up, list and all
           panel.classList.remove("open");
           paint?.();
         };
@@ -216,67 +197,15 @@ export function createTrays({
         else hide();
         if (returnFocus && panel.contains(document.activeElement))
           focusBannerControl(btn);
-      }
-    }
-    if (remember) readerStore.set(TRAY_SLOT_KEY, key ?? "");
-    // Publish the tray through the shared shell boundary so responsive postures settle
-    // once and only the reading column's route to them is motion.
-    moveContentFrame(() => {
-      if (key) document.body.dataset.lfAuxiliarySurface = key;
-      else delete document.body.dataset.lfAuxiliarySurface;
+      },
     });
-    syncLayout();
-    renderMargin();
-    paintKeys();
-  }
-  // Registration only. No tray opens while this module evaluates: setOpenTray runs from a
-  // press, and restoreTrays from the arrangement restore at boot, after every owner has
-  // evaluated.
-  function registerTray(key, panel, btn, close, paint) {
-    const modality = registerAuxiliarySurface({
-      surface: panel,
-      scroller: () => panel.querySelector(".lf-tray-list"),
-      // Asks needs the document beside it because its rows lead to controls there.
-      // Every other tray covers the current page unless the viewport makes all trays
-      // cover, so a new tray does not silently claim a strip the stylesheet lacks.
-      covers: () => key !== "asks" || trayCovers(),
-      focus: () =>
-        panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
-      dismiss: () => setOpenTray(null),
-    });
-    trays.set(key, { panel, btn, close, paint, modality });
+    trays.set(key, { panel, btn, close });
   }
   // The painters are thunks: each tray's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
   registerTray("leaves", othersPanel, othersBtn, leavesFurniture.close, presentLeaves);
   registerTray("asks", asksPanel, asksBtn, asksFurniture.close, syncAsks);
   const trayNames = Object.freeze([...trays.keys()]);
-
-  // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
-  // the first state response. Keep the remembered intent in openTrayKey, but restore its pixels
-  // only once that response has produced the page's presentation. Unlike setOpenTray, this
-  // first paint does not animate — it is part of the page arriving, not a reader gesture.
-  function restoreTray() {
-    if (!openTrayKey) return;
-    const tray = trays.get(openTrayKey);
-    if (!tray) return;
-    beforeOpen();
-    tray.btn.setAttribute("aria-expanded", "true");
-    tray.paint?.();
-    tray.panel.classList.add("open");
-    tray.modality.sync(true);
-    document.body.dataset.lfAuxiliarySurface = openTrayKey;
-  }
-  function restoreTrays() {
-    // Remembered tray intent is staged here, after every declaration exists. Its strip is
-    // part of the arrival geometry, but its state-dependent rows stay hidden until the first
-    // replay presents the page and restoreTray paints them. An already-presented document
-    // (an exported or pre-presented DOM) can restore immediately through the same function.
-    openTrayKey = readerStore.get(TRAY_SLOT_KEY) || null;
-    if (openTrayKey) document.body.dataset.lfAuxiliarySurface = openTrayKey;
-    renderMargin();
-    if (pagePresented()) restoreTray();
-  }
 
   // The Asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
   // scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
@@ -324,12 +253,11 @@ export function createTrays({
   // reader is told what the press will take rather than being told "close the tray" over
   // two of them; the tray's key is the runtime's, and the reader knows the strip by the
   // banner's word. Rooted at the open tray, so the step survives the width at which that
-  // tray covers the page and becomes the floor — and a remembered key that no longer names
-  // a tray, which `restoreTrays` can leave standing, roots at the document instead.
+  // tray covers the page and becomes the floor.
   pageRung("tray", () =>
     currentTray()
       ? {
-          root: trays.get(openTrayKey)?.panel ?? document,
+          root: trays.get(currentTray()).panel,
           says: `close ${currentTray()}`,
           does: `Close the ${currentTray()} tray`,
           // A tray's parent is the document, so its step lands the reader there rather
@@ -342,5 +270,5 @@ export function createTrays({
       : null,
   );
 
-  return { setOpenTray, restoreTray, restoreTrays, traysEdge, trayNames, mountTrays };
+  return { setOpenTray, traysEdge, trayNames, mountTrays };
 }

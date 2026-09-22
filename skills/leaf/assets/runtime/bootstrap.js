@@ -98,10 +98,10 @@
   // these provisional root facts; restoreReaderView replaces them with live state.
   try {
     const scope = root.dataset.lfReaderScope ?? "";
-    const tray = localStorage.getItem(scope + "lf-tray-slot-open");
-    if (tray) root.dataset.lfRestoreTray = tray;
-    else if (localStorage.getItem(scope + "lf-thread-panel-open") === "1")
+    const auxiliarySurface = localStorage.getItem(scope + "lf-auxiliary-surface");
+    if (auxiliarySurface === "threads")
       root.toggleAttribute("data-lf-restore-panel", true);
+    else if (auxiliarySurface) root.dataset.lfRestoreTray = auxiliarySurface;
 
     const panelWidth = parseFloat(
       localStorage.getItem(scope + "lf-thread-panel-width"),

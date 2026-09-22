@@ -5266,11 +5266,9 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     reader watches their question reopen while the agent is told, in the same
     breath as their follow-up, that they had already answered it.
 
-    The floor lands on the option rather than on the group, which is the whole
-    arrangement — a floor on `picks` itself is in the action's own name and needs
-    no page to be seen. Both arms assert the two readings agree; the arms differ
-    in what they agree on, so neither can be passing on a delivery that never
-    settles anything."""
+    The floor lands on the option rather than the group. Before a new reply,
+    only a rewritten answer reopens the thread; the reader's subsequent question
+    resumes either conversation, and delivery agrees with page state."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
     let_a_pick_settle_a_thread(page_dir)
     serving(page_dir, 1)
@@ -5311,6 +5309,8 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     # and a seq is the line the log gave it.
     logged_seq = {e["id"]: e["seq"] for e in events_model.read_events(page_dir)}
     receive_through(page_dir, logged_seq[answered["id"]])
+    [before_reply] = state_json(page_dir)["conversations"]
+    assert (before_reply["resolved"] is None) is rewritten
     events_model.append_event(
         page_dir,
         {
@@ -5327,7 +5327,8 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     assert delivered_conversation["id"] == opened["id"]
     [standing] = state_json(page_dir)["conversations"]
     assert delivered_conversation["resolved"] == standing["resolved"]
-    assert (delivered_conversation["resolved"] is None) is rewritten
+    # The new spoken turn resumes either conversation, regardless of its old answer.
+    assert delivered_conversation["resolved"] is None
 
 
 def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):

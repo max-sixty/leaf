@@ -941,11 +941,15 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     pending_reply = first_card.locator(":scope > .lf-compose textarea")
     expect(pending_reply).to_be_focused()
     pending_reply.fill("Keep this draft through the refusal.")
-    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     round_trip(page)
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
         "first thread"
     )
@@ -999,7 +1003,9 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
 
     expect(find).to_have_value("newer reader search")
     expect(find).to_be_focused()
-    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
 
 
 def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
@@ -1026,7 +1032,9 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
 
     card.get_by_role("button", name="Reopen", exact=True).click()
     holding(page, held, 1, "the refused reopen whose restoration will wait")
-    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(find).to_have_value("")
 
     hold_visible_thread_presentation(page, root)
@@ -1041,7 +1049,9 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
 
     expect(find).to_have_value("newer reader search")
     expect(find).to_be_focused()
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
 
 
 def test_settlement_controls_share_one_request_across_page_and_panel(
@@ -2157,7 +2167,9 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
           return !readApplicationPresentation().pending.includes('conversation');
         }"""
     )
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_be_visible()
     expect(
         page.get_by_role("button", name="Reopen", exact=True, include_hidden=True)
@@ -2654,7 +2666,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("You (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
     # `c` from that list enters the general box, and there `w` is a character like any other —
@@ -2685,7 +2697,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
         "1 of 2 open threads · On you"
     )
-    expect(page.locator(".lf-needs")).to_be_checked()
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
     # Closing the owning surface retires both its narrowing frame and the g T frame below
     # it. The narrowing itself stays set for a later reopen, but Escape on the page must
@@ -2694,7 +2706,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     panel_settled(page, False)
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("show all")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-needs")).to_be_checked()
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -2710,7 +2722,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     reply.type("Forty is plenty.")
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("On you")
+    expect(page.locator(".lf-needs")).to_have_text("You (0)")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     expect(page.locator(".lf-empty")).to_have_text("Nothing is waiting on you.")
     # The reader was standing in the thread that just left. Focus lands on the list
@@ -2727,14 +2739,14 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
-        "title", "Nothing is waiting on you"
+        "title", "Nothing shown is waiting on you"
     )
 
 
 def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, serve):
-    """The controls form one query over structured thread facts. State is exclusive
-    while scope, subject and the conditional detached-placement facet compose with it;
-    each button's count predicts the result under the other standing facets."""
+    """Optional status, waiting, scope, subject and placement refinements compose.
+    Counts describe named subsets, and pointer and keyboard toggles clear the same
+    restrictions without restoring a status the reader already cleared."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     pagewide = panel_comment(d, "A page-wide content note.")
@@ -2758,149 +2770,166 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
         d, {"kind": "resolve", "author": "user", "parent": resolved}
     )
 
+    # One open thread awaits neither party after a complete agent answer.
+    settled_turn = panel_comment(d, "A complete answer is available.")
+    conversation_model.cmd_reply(
+        d, settled_turn, "Done; nothing more is needed.", None, for_event=settled_turn
+    )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
     visible = page.locator(".lf-threads > .lf-thread:not([hidden])")
-    page.evaluate(
-        """() => {
-          const view = document.querySelector('leaf-thread-narrowing');
-          window.__lfNarrowingIdentity = {
-            view,
-            input: view.querySelector('.lf-find-box'),
-            toggle: view.querySelector('.lf-thread-filter-toggle'),
-            reset: view.querySelector('.lf-thread-filter-reset'),
-            choices: [...view.querySelectorAll('.lf-thread-filter')],
-          };
-        }"""
-    )
 
-    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
-    expect(page.locator('[data-filter-value="open"]')).to_have_text("Open (4)")
-    expect(page.locator('[data-filter-value="reader"]')).to_have_text("On you (1)")
-    expect(page.locator('[data-filter-value="agent"]')).to_have_text("On agent (3)")
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(page.locator('[data-filter-value="page"]')).to_have_text("Page (1)")
-    expect(page.locator('[data-filter-value="local"]')).to_have_text("Anchored (3)")
-    expect(page.locator('[data-filter-value="content"]')).to_have_text("Content (3)")
-    expect(page.locator('[data-filter-value="design"]')).to_have_text("Design (1)")
-    expect(page.locator('[data-filter-value="gone"]')).to_have_text(
-        "No longer here (1)"
-    )
-    expect(visible).to_have_count(4)
+    def pick(kind, value):
+        return page.locator(f'[data-filter-kind="{kind}"][data-filter-value="{value}"]')
 
-    expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
-        "aria-expanded", "false"
+    waiting_group = page.get_by_role("group", name="Waiting on", exact=True)
+    waiting_group.evaluate("node => window.__waitingGroup = node")
+    for label in ("Status", "Waiting on", "Location", "Subject"):
+        expect(page.get_by_role("group", name=label, exact=True)).to_be_visible()
+    expect(visible).to_have_count(5)
+    expect(pick("status", "open")).to_have_text("Open (5)")
+    expect(pick("status", "resolved")).to_have_text("Resolved (1)")
+    expect(pick("waiting", "reader")).to_have_text("You (1)")
+    expect(pick("waiting", "agent")).to_have_text("Agent (3)")
+    expect(pick("scope", "page")).to_have_text("Page (2)")
+    expect(pick("scope", "local")).to_have_text("Anchored (3)")
+    expect(pick("subject", "content")).to_have_text("Content (4)")
+    expect(pick("subject", "design")).to_have_text("Design (1)")
+
+    # Status predicts its transition: Resolved clears Waiting on, so its count is
+    # still one while the current reader-only selection has no resolved result.
+    pick("waiting", "reader").click()
+    expect(visible).to_have_count(1)
+    expect(pick("status", "resolved")).to_have_text("Resolved (1)")
+    pick("status", "open").click()
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "true")
+    expect(visible).to_have_count(1)
+    pick("status", "resolved").click()
+    expect(waiting_group).to_be_hidden()
+    expect(visible).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{resolved}"]')).to_be_visible()
+    pick("status", "resolved").click()
+    expect(visible).to_have_count(6)
+    expect(waiting_group).to_be_visible()
+    expect(pick("status", "resolved")).to_have_attribute("aria-pressed", "false")
+    pick("status", "open").click()
+    expect(waiting_group).to_be_visible()
+    assert waiting_group.evaluate("node => node === window.__waitingGroup"), (
+        "changing status replaced the retained Waiting on group"
     )
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("4 open threads")
-    page.locator(".lf-thread-filter-toggle").focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
-        "aria-expanded", "true"
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    expect(pick("waiting", "agent")).to_have_attribute("aria-pressed", "false")
+    expect(visible).to_have_count(5)
+
+    # No selected status means both open and resolved threads. The same active
+    # box clears with either a pointer click or Space, without an All control.
+    expect(page.get_by_role("button", name=re.compile(r"^All(?: \(|$)"))).to_have_count(
+        0
     )
-    on_you = page.locator('[data-filter-value="reader"]')
-    content_sized = """async el => {
-      const probe = el.cloneNode(true);
-      probe.style.position = "absolute";
-      probe.style.width = "max-content";
-      el.parentNode.append(probe);
-      await probe.updateComplete;
-      const box = probe.getBoundingClientRect().width;
-      probe.remove();
-      return Math.abs(box - el.getBoundingClientRect().width) < 0.5;
-    }"""
-    assert on_you.evaluate(content_sized)
+    pick("status", "open").click()
+    expect(visible).to_have_count(6)
+    expect(pick("status", "open")).to_have_attribute("aria-pressed", "false")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("6 threads")
+    pick("waiting", "reader").focus()
+    page.keyboard.press("Space")
+    expect(visible).to_have_count(1)
+    page.keyboard.press("Space")
+    expect(visible).to_have_count(6)
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    # The shortcut follows the same toggle as Space, including leaving status
+    # unrestricted rather than silently restoring Open when it clears waiting.
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("w")
+    expect(visible).to_have_count(1)
+    expect(pick("status", "open")).to_have_attribute("aria-pressed", "false")
+    page.keyboard.press("w")
+    expect(visible).to_have_count(6)
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    expect(pick("status", "open")).to_have_attribute("aria-pressed", "false")
+    pick("status", "open").click()
+    expect(visible).to_have_count(5)
+    pick("scope", "local").click()
+    expect(visible).to_have_count(3)
+    pick("scope", "local").click()
+    expect(visible).to_have_count(5)
+    pick("scope", "local").click()
+    pick("scope", "page").click()
+    expect(visible).to_have_count(2)
+    expect(pick("scope", "local")).to_have_attribute("aria-pressed", "false")
+    expect(pick("waiting", "reader")).to_be_disabled()
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("w")
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    expect(visible).to_have_count(2)
+    pick("scope", "page").click()
+    expect(visible).to_have_count(5)
+
+    pick("waiting", "agent").click()
+    pick("scope", "local").click()
+    expect(visible).to_have_count(2)
+    expect(page.locator(f'.lf-thread[data-id="{pagewide}"]')).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{waiting}"]')).to_be_hidden()
+    pick("subject", "content").click()
+    expect(visible).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{gone}"]')).to_be_visible()
+    expect(page.locator(f'.lf-thread[data-id="{design}"]')).to_be_hidden()
+    pick("gone", "gone").click()
+    expect(visible).to_have_count(1)
+    expect(pick("gone", "gone")).to_have_text("No longer here (1)")
+    page.locator(".lf-thread-filter-toggle").click()
+    expect(page.locator(".lf-thread-view-summary")).to_have_text(
+        "1 of 5 open threads · On agent · Anchored · Content · No longer here"
+    )
+    page.get_by_role("button", name="Reset thread filters").click()
+    expect(visible).to_have_count(5)
+    expect(page.locator(".lf-thread-filter-toggle")).to_be_focused()
+    page.keyboard.press("Space")
+
+    # A search may empty the selected choice. It stays enabled so the reader can
+    # clear it, even though only clearing the search can recover matching results.
+    pick("scope", "local").click()
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.fill("no thread contains these words")
+    expect(visible).to_have_count(0)
+    expect(pick("scope", "local")).to_have_attribute("aria-pressed", "true")
+    expect(pick("scope", "local")).to_be_enabled()
+    pick("scope", "local").click()
+    expect(pick("scope", "local")).to_have_attribute("aria-pressed", "false")
+    expect(pick("status", "open")).to_be_enabled()
+    expect(page.locator(".lf-empty")).to_have_text(
+        "No open threads match “no thread contains these words”."
+    )
+    search.fill("")
+    expect(visible).to_have_count(5)
+    pick("scope", "local").click()
+    expect(visible).to_have_count(3)
+
+    # The shortcut toggles only Waiting on and retains Location across both presses.
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("w")
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "true")
+    expect(pick("scope", "local")).to_have_attribute("aria-pressed", "true")
+    expect(visible).to_have_count(1)
+    page.keyboard.press("w")
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "false")
+    expect(pick("waiting", "agent")).to_have_attribute("aria-pressed", "false")
+    expect(visible).to_have_count(3)
+    pick("status", "resolved").click()
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("w")
+    expect(pick("status", "open")).to_have_attribute("aria-pressed", "true")
+    expect(pick("waiting", "reader")).to_have_attribute("aria-pressed", "true")
+    expect(pick("scope", "local")).to_have_attribute("aria-pressed", "true")
+    expect(visible).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(visible).to_have_count(5)
     resized(page, 320, 720)
-    assert on_you.evaluate(content_sized)
     rail_size = page.locator(".lf-thread-filters").evaluate(
         "el => ({client: el.clientWidth, scroll: el.scrollWidth})"
     )
     assert rail_size["scroll"] == rail_size["client"], rail_size
-
-    # State follows radio navigation; optional refinements toggle off with Space.
-    page.get_by_role("radio", name="Open (4)", exact=True).click()
-    expect(page.get_by_role("radio", name="Open (4)", exact=True)).to_be_checked()
-    page.keyboard.press("ArrowRight")
-    expect(page.get_by_role("radio", name="On you (1)", exact=True)).to_be_checked()
-    expect(visible).to_have_count(1)
-    page.keyboard.press("ArrowLeft")
-    expect(page.get_by_role("radio", name="Open (4)", exact=True)).to_be_checked()
-    expect(visible).to_have_count(4)
-    anchored = page.get_by_role("checkbox", name="Anchored (3)", exact=True)
-    anchored.focus()
-    page.keyboard.press("Space")
-    expect(visible).to_have_count(3)
-    expect(anchored).to_be_checked()
-    page.keyboard.press("Space")
-    expect(visible).to_have_count(4)
-    expect(anchored).not_to_be_checked()
-    expect(anchored).to_be_focused()
-
-    page.locator('[data-filter-value="agent"]').click()
-    expect(visible).to_have_count(3)
-    expect(page.locator(f'.lf-thread[data-id="{waiting}"]')).to_be_hidden()
-    page.locator('[data-filter-value="local"]').click()
-    expect(visible).to_have_count(2)
-    expect(page.locator(f'.lf-thread[data-id="{pagewide}"]')).to_be_hidden()
-    page.locator('[data-filter-value="content"]').click()
-    expect(visible).to_have_count(1)
-    expect(page.locator(f'.lf-thread[data-id="{gone}"]')).to_be_visible()
-    expect(page.locator(f'.lf-thread[data-id="{design}"]')).to_be_hidden()
-    page.locator('[data-filter-value="gone"]').click()
-    expect(visible).to_have_count(1)
-
-    # Closing the controls retains the query and results. Reset preserves focus.
-    page.locator(".lf-thread-filter-toggle").click()
-    expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 4 open threads · On agent · Anchored · Content · No longer here"
-    )
-    expect(page.locator('[data-filter-value="agent"]')).not_to_be_visible()
-    page.get_by_role("button", name="Reset thread filters").click()
-    expect(visible).to_have_count(4)
-    expect(page.locator(".lf-thread-filter-toggle")).to_be_focused()
-    expect(page.get_by_role("button", name="Reset thread filters")).to_be_hidden()
-    page.keyboard.press("Space")
-    page.locator('[data-filter-value="agent"]').click()
-    # Escape still clears the query from the list. The click that opened the panel left a
-    # frame, and the narrowing is the newer layer inside it: the frame's words say the
-    # press will show every thread rather than promising a close, the press does that,
-    # and the panel is still standing for the next one.
-    page.locator(".lf-threads").focus()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show all")
-    page.keyboard.press("Escape")
-    expect(visible).to_have_count(4)
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
-    for value in ("page", "local", "content", "design", "gone"):
-        expect(
-            page.locator(f'[data-filter-value="{value}"]').locator("input")
-        ).not_to_be_checked()
-    assert page.evaluate(
-        """() => {
-          const before = window.__lfNarrowingIdentity;
-          const view = document.querySelector('leaf-thread-narrowing');
-          const choices = [...view.querySelectorAll('.lf-thread-filter')];
-          return before.view === view &&
-            before.input === view.querySelector('.lf-find-box') &&
-            before.toggle === view.querySelector('.lf-thread-filter-toggle') &&
-            before.reset === view.querySelector('.lf-thread-filter-reset') &&
-            before.choices.length === choices.length &&
-            before.choices.every((choice, index) => choice === choices[index]);
-        }"""
-    ), "the narrowing owner replaced a retained native control during presentation"
-
-    # Resolved is a state in the same ordered list, not a second list at its foot.
-    page.locator('[data-filter-value="resolved"]').click()
-    expect(visible).to_have_count(1)
-    expect(
-        page.locator(f'.lf-threads > .lf-thread[data-id="{resolved}"]')
-    ).to_be_visible()
-    page.locator(f'.lf-thread[data-id="{resolved}"] .lf-thread-summary').click()
-    expect(page.locator(f'.lf-thread[data-id="{resolved}"] .lf-reopen')).to_be_visible()
-    expect(page.locator(".lf-details")).to_have_count(0)
-    expect(page.locator('[data-filter-value="gone"]')).to_be_hidden()
 
 
 def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
@@ -2958,7 +2987,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("You (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
@@ -3000,7 +3029,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         initiates=True,
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("On you (2)")
+    expect(page.locator(".lf-needs")).to_have_text("You (2)")
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
     assert page.evaluate("() => window.__backendContext") == {
         "message": True,
@@ -3011,7 +3040,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{answered}"]'))
     page.locator("#backend-sqlite").click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("You (1)")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
     ).to_have_count(0)
@@ -3021,7 +3050,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     reply.fill("SQLite should own it.")
     page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("On you")
+    expect(page.locator(".lf-needs")).to_have_text("You (0)")
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
 
 
@@ -3169,7 +3198,9 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(reopened.locator("textarea")).to_be_focused()
     expect(reopened.locator("textarea")).to_have_count(1)
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
-    expect(page.locator('[data-filter-value="open"]')).to_be_checked()
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 
@@ -3213,8 +3244,10 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     later = page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"] textarea')
     changes = page.locator("#bg-history summary")
     if kind == "unresolve" and destination in {"other-thread", "other-focus"}:
-        page.locator('[data-filter-value="open"]').click()
-        expect(page.locator('[data-filter-value="open"]')).to_be_checked()
+        # Reopen has already selected Open while its delivery is held.
+        expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+            "aria-pressed", "true"
+        )
         expect(
             page.locator(f'.lf-thread[data-id="{roots["bg-crowded"]}"]')
         ).to_be_visible()
@@ -3255,10 +3288,8 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         ).to_be_focused()
 
 
-def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
-    browser, serve
-):
-    """New messages reconcile before the resolved thread's persistent actions."""
+def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
+    """New spoken content returns to Open Threads, including after a reload."""
     url = serve(LONG_PAGE, comments=1)
     root = next(
         event
@@ -3270,8 +3301,8 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
+    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    expect(thread).to_be_hidden()
     events_model.append_event(
         serve.page_dir,
         {
@@ -3279,18 +3310,19 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
             "author": "agent",
             "revision": 1,
             "parent": root["id"],
+            "responds": root["id"],
             "text": "This arrived after resolution.",
         },
     )
     told(page)
-
-    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]:not([hidden])')
-    expect(thread.locator(":scope > .lf-msg")).to_have_count(2)
-    assert thread.evaluate(
-        """node => [...node.querySelectorAll(':scope > .lf-msg')].every(message =>
-          message.compareDocumentPosition(node.querySelector('.lf-thread-actions'))
-            & Node.DOCUMENT_POSITION_FOLLOWING)"""
-    ), "the late reply landed below Reopen"
+    expect(thread).to_be_visible()
+    thread.locator(".lf-thread-summary").press("Enter")
+    expect(thread.locator(".lf-msg.agent")).to_be_visible()
+    expect(thread.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
+    page.reload()
+    told(page)
+    expect(thread).to_be_visible()
+    expect(thread).to_have_attribute("data-resolved", "false")
 
 
 def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
@@ -4828,7 +4860,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
     expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
-    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("You (1)")
 
 
 THREAD_STANDING = """() => {
@@ -5972,7 +6004,7 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
     panel_settled(page)
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
-    expect(page.locator(".lf-needs")).to_be_checked()
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     card = page.locator(f'.lf-thread[data-id="{theirs}"]')
     card.locator(".lf-thread-summary").click()
     card.locator("textarea").click()

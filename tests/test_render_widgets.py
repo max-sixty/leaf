@@ -219,10 +219,98 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
 
 
+def test_root_tabs_reach_the_chosen_contents_and_follow_browser_history(browser, serve):
+    """Explicit selection reaches the panel start; history selects its named panel."""
+    page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
+    resized(page, 1280, 720)
+    tabs = page.locator("#root-tabs")
+    plan = tabs.get_by_role("tab", name="Plan", exact=True)
+    evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+
+    def arrival(tab, heading):
+        expect(tab).to_have_attribute("aria-selected", "true")
+        scroll_settled(page)
+        geometry = page.evaluate(
+            """selector => ({
+          heading: document.querySelector(selector).getBoundingClientRect().top,
+          strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
+        })""",
+            heading,
+        )
+        assert geometry["heading"] >= geometry["strip"] - 1, geometry
+        expect(page.locator(heading)).to_be_in_viewport()
+        return page.evaluate("scrollY")
+
+    def read_at(y):
+        page.evaluate("y => scrollTo({top: y, behavior: 'instant'})", y)
+        scroll_settled(page)
+        assert page.evaluate("scrollY") > 100
+
+    def click_painted(tab):
+        # Locator.click would scroll a sticky tab back to its static-flow box.
+        box = tab.bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+    plan_start = arrival(plan, "#plan-return h2")
+    read_at(400)
+    click_painted(evidence)
+    evidence_start = arrival(evidence, "#evidence-summary h2")
+    read_at(450)
+    page.go_back()
+    expect(plan).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#plan-tab")
+    scroll_settled(page)
+    page.go_forward()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#evidence-tab")
+    scroll_settled(page)
+
+    read_at(400)
+    click_painted(plan)
+    assert arrival(plan, "#plan-return h2") == pytest.approx(plan_start, abs=2)
+    read_at(450)
+    expect(plan).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert arrival(evidence, "#evidence-summary h2") == pytest.approx(
+        evidence_start, abs=2
+    )
+    expect(evidence).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    assert arrival(plan, "#plan-return h2") == pytest.approx(plan_start, abs=2)
+    expect(plan).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert arrival(evidence, "#evidence-summary h2") == pytest.approx(
+        evidence_start, abs=2
+    )
+    expect(evidence).to_be_focused()
+
+
+def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
+    source = (
+        ROOT_TABS_PAGE.read_text()
+        .replace('<lf-tabs id="root-tabs">', '<section><lf-tabs id="root-tabs">')
+        .replace("</lf-tabs>", "</lf-tabs></section>")
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 720)
+    tabs = page.locator("#root-tabs")
+    expect(tabs).to_have_attribute("data-lf-tabs-context", "embedded")
+    evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
+    scroll_settled(page)
+    before = page.evaluate("scrollY")
+    assert before > 0, "The embedded tabs must be below the document origin"
+    box = evidence.bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(before, abs=2)
+
+
 @pytest.mark.parametrize(
     "with_header", [True, False], ids=["shared-header", "tabs-only"]
 )
-def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
+def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     browser, serve, with_header
 ):
     """Hidden workspaces cannot capture the document; active ones fit below its tabs."""
@@ -253,9 +341,8 @@ def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
     page.mouse.wheel(0, 450)
     page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
     scroll_settled(page)
-    plan_scroll = page.evaluate("document.scrollingElement.scrollTop")
     # Locator.click scrolls this sticky descendant back to its static-flow position.
-    # A reader clicks the strip where it is painted, preserving the reading above.
+    # A reader clicks the strip where it is painted.
     work_box = work.bounding_box()
     page.mouse.click(
         work_box["x"] + work_box["width"] / 2,
@@ -285,10 +372,8 @@ def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
     detail_scroll = detail.evaluate("element => element.scrollTop")
     plan.click()
     expect(plan).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(
-        "expected => Math.abs(document.scrollingElement.scrollTop - expected) < 2",
-        arg=plan_scroll,
-    )
+    scroll_settled(page)
+    expect(page.locator("#plan-return h2")).to_be_in_viewport()
     work_box = work.bounding_box()
     page.mouse.click(
         work_box["x"] + work_box["width"] / 2,
@@ -301,10 +386,8 @@ def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
     )
     page.go_back()
     expect(plan).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(
-        "expected => Math.abs(document.scrollingElement.scrollTop - expected) < 2",
-        arg=plan_scroll,
-    )
+    scroll_settled(page)
+    assert page.url.endswith("#plan-tab")
     page.go_forward()
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     page.wait_for_function(
@@ -320,6 +403,27 @@ def test_root_tabs_allocate_the_active_workspace_and_restore_each_reading_place(
     })""")
     assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
     assert flow["width"] <= flow["viewport"], flow
+    plan.click()
+    expect(plan).to_have_attribute("aria-selected", "true")
+    work.click()
+    expect(work).to_have_attribute("aria-selected", "true")
+    scroll_settled(page)
+    workspace_start = page.evaluate("scrollY")
+    page.evaluate("scrollTo({top: 550, behavior: 'instant'})")
+    scroll_settled(page)
+    assert page.evaluate("scrollY") > 100
+    plan_box = plan.bounding_box()
+    page.mouse.click(
+        plan_box["x"] + plan_box["width"] / 2,
+        plan_box["y"] + plan_box["height"] / 2,
+    )
+    expect(plan).to_have_attribute("aria-selected", "true")
+    scroll_settled(page)
+    expect(page.locator("#plan-return h2")).to_be_in_viewport()
+    work.click()
+    expect(work).to_have_attribute("aria-selected", "true")
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(workspace_start, abs=2)
     resized(page, 1440, 900)
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
@@ -2307,15 +2411,19 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.wait_for_function("() => document.scrollingElement.scrollTop >= 750")
     assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
 
-    # Map travel keeps the reader oriented rather than teleporting. This records the
-    # browser's actual scroll sequence; it does not make a duration claim.
-    page.evaluate(
-        "() => { document.scrollingElement.scrollTo({top: 0, behavior: 'instant'}); "
-        "window.lfTocFrames = []; "
-        "const sample = () => { window.lfTocFrames.push(document.scrollingElement.scrollTop); "
-        "if (window.lfTocFrames.length < 90) requestAnimationFrame(sample); }; "
-        "requestAnimationFrame(sample); }"
-    )
+    # Map travel keeps the reader oriented rather than teleporting. Start recording
+    # on the click so preparing the gesture cannot exhaust the frame sequence.
+    verify.evaluate("""link => {
+      document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
+      window.lfTocFrames = [];
+      link.addEventListener('click', () => {
+        const sample = () => {
+          window.lfTocFrames.push(document.scrollingElement.scrollTop);
+          if (window.lfTocFrames.length < 90) requestAnimationFrame(sample);
+        };
+        sample();
+      }, {once: true});
+    }""")
     verify_box = verify.bounding_box()
     assert verify_box is not None
     page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)

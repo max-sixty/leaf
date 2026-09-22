@@ -460,12 +460,12 @@ def test_authored_html_paints_while_runtime_startup_is_held(
     ("saved", "root_attribute", "body_attribute"),
     [
         (
-            {"lf-thread-panel-open": "1", "lf-thread-panel-width": "500"},
+            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             "data-lf-restore-panel",
             "data-lf-auxiliary-surface",
         ),
         (
-            {"lf-tray-slot-open": "asks", "lf-tray-slot-width": "280"},
+            {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
             "data-lf-restore-tray",
             "data-lf-auxiliary-surface",
         ),
@@ -1350,7 +1350,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-tray-slot-open', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-auxiliary-surface', 'asks')")
     priming.close()
 
     held = []

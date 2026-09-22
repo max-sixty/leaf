@@ -41,6 +41,11 @@ resolution, or authored state that honors the move settles it; a later version
 note settles a page action whose verb has no authored record form. A note already
 standing when the move arrives cannot answer it. Turn identity decides whether
 a receipt belongs to the open turn; ending a turn does not settle its input.
+A delivery's completed final answer retains the exact delivered `responds` address,
+even when a resolution, the reader's ✓, or authored state settled that move during
+the turn. Its substantive reply reopens the conversation under the ordinary thread
+rule in `events.md`, so the answer returns to Open Threads without making the
+answered move owed again. Failure receipts are omitted once their move is settled.
 
 The App Server observer retains typed `working`, `thinking`, `tool`, `replying`,
 `awaiting_approval`, and `awaiting_input` activity with the observed session and

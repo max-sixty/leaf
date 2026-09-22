@@ -1215,7 +1215,7 @@ export function createResponseSurface({
   // the composer that press just opened. Hence one function, called from both.
   // The two side panels are absent from it on purpose. A float answers the press in front
   // of it and stands down behind it; the thread panel and the leaves tray are
-  // auxiliary surfaces the reader stood up, kept through a reload (THREAD_PANEL_KEY, TRAY_SLOT_KEY) and so
+  // auxiliary surfaces the reader stood up, kept through a reload (AUXILIARY_SURFACE_KEY) and so
   // through a click all the more — a tray any press removes cannot be watched while
   // working, which is the tray's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {

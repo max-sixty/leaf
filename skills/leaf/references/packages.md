@@ -60,7 +60,9 @@ installed package answers to is refused rather than replaced; remove the install
 directory to replace one. A page records the bare name, so re-vendoring it on another
 machine needs the same package installed there.
 
-Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
+Leaf also ships optional packages that select by bare name. `code-review` trials
+guidance-led review authoring without adding widgets; select it or your own review
+guidance package alongside the evidence packages the page needs. `diagram` adds `lf-diagram`
 and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` coordinates declarative controls and page-owned
@@ -284,7 +286,8 @@ is intact and an `after` reading on settled new geometry; a newer posture change
 the obsolete `after`. The continuity owner decides what to capture and restore.
 Use `preserveReadingRegions(owner, change)` when a composition hides or reveals regions.
 It invokes `change` immediately and awaits its returned layout promise before restoring
-the visible regions through the same continuity owner. Its notifications have null
+the visible regions in scrollers contained by the owner. The navigation changing the
+composition owns the surrounding document position. Its notifications have null
 `from` and `to`: visibility changed, not necessarily posture. A superseding change marks
 its `before` as `retained`; a failed or disconnected change marks its `after` as
 `cancelled`. Enclosing composition transitions own continuity over nested posture changes.

@@ -7329,7 +7329,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
                        && s.borderTopWidth === s.borderBottomWidth; }"""
     ), "the group's divider recolors the Done press's own frame"
 
-    # And it butts that hairline while filling its own row. This is the one
+    # And it butts that hairline, like every other cell of the control. This is the one
     # place the reading is asked at all: the joined-cell readings in the render gate see
     # a served version, and a thread group lives in the panel the runtime builds, so the
     # gate never reaches it. The press was written as a control floating inside the
@@ -7342,12 +7342,11 @@ def test_a_thread_question_asks_until_answered(browser, serve):
                    const last = done.parentElement.previousElementSibling;
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
-                   const owner = done.parentElement.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,
-                           fills: Math.abs(owner.width - b.width) < 1}; }"""
+                           stretched: Math.abs(a.width - b.width) < 1}; }"""
     )
-    assert seam["fills"], (
-        "the Done press no longer fills its row, so what follows is about a shape "
+    assert seam["stretched"], (
+        "the Done press no longer fills the column, so what follows is about a shape "
         "this test no longer describes"
     )
     assert seam["gap"] < 0.5, (

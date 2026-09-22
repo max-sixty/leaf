@@ -847,7 +847,7 @@ lf-options > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-i
 /* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
  * press, inside the cell rather than hung off its corner. */
 lf-options > lf-options-done { display: grid; padding: 0; }
-lf-options > lf-options-done > .lf-done { position: relative; width: 100%; box-sizing: border-box; }
+lf-options > lf-options-done > .lf-done { position: relative; width: 100%; }
 lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
                      inset-inline-start: var(--lf-key-badge-start);
                      top: 0; bottom: 0; margin: auto 0; }

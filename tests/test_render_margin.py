@@ -3469,7 +3469,13 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
     """Which location of how many, and how far down, is how a reader listening places a
     margin entry in the walk. Painted, the same words read as progress toward something, which
     is not what they say, so they belong to the accessible name alone."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    subject = (
+        "Which jobs should we start before the first frost reaches the garden, "
+        "while keeping the bird bath available and leaving enough time to replace "
+        "the mounts before the next storm arrives?"
+    )
+    source = ASK_PAGE.replace("Which jobs are worth starting?", subject)
+    page = open_page(browser, serve(source, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
     buttons = page.evaluate(
         """() => [...document.querySelectorAll('.lf-margin-entry')].map(control => ({
@@ -3483,6 +3489,12 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
         assert "percent down" in button["name"], button
     for button in buttons:
         assert not re.search(r"\d+ of \d+|percent down", button["word"]), button
+    named = next(button["name"] for button in placed if "Which jobs" in button["name"])
+    assert named.index("percent down") < named.index("Which jobs"), named
+    assert subject not in named and named.endswith("…"), named
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(page.locator(".lf-page-map-group h3", has_text=subject)).to_have_count(1)
 
 
 def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
@@ -6900,14 +6912,19 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
 
 
-def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
+@pytest.mark.parametrize("height", [480, 760])
+def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, height):
     """The open dialog is a live projection, not a snapshot from its opening press."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
-    resized(page, 390, 760)
+    resized(page, 390, height)
     page.locator(".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
     expect(actions).to_have_count(5)
+    if height == 480:
+        assert dialog.locator(".lf-page-map-list").evaluate(
+            "list => list.scrollHeight > list.clientHeight"
+        ), "the short dialog must exercise focus through an overflowing list"
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 

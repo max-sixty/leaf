@@ -209,6 +209,37 @@ test("Page Map uses opaque coordinates without delimiter collisions", () => {
   assert.ok(Object.isFrozen(actions[0]));
 });
 
+test("long subjects stay visible and searchable while spoken controls stay concise", () => {
+  for (const text of [
+    "An explanation with words to keep together. ".repeat(10),
+    `Paragraph · ${"説明文𠮷".repeat(90)}`,
+    `Link · https://example.com/${"long".repeat(90)}`,
+  ]) {
+    const entry = inventory({
+      title: text,
+      items: [marker("discussion", "comment", { text })],
+    });
+    const cluster = clusterProjection(entry);
+    const mapped = map([entry])[0];
+    assert.equal(entry.title, text);
+    assert.equal(mapped.actions[0].visibleLabel, text);
+    assert.ok(mapped.search.includes(text.toLocaleLowerCase()));
+    for (const [label, prefix] of [
+      [cluster.label, "Page actions for "],
+      [cluster.moreLabel, "More options for "],
+      [cluster.options.label, "More options for "],
+      [mapped.actions[0].label, "Open thread: "],
+    ]) {
+      assert.ok(label.startsWith(prefix));
+      const subject = label.slice(prefix.length);
+      assert.ok([...subject].length <= 120);
+      assert.ok([...subject].length >= 60);
+      assert.ok(subject.endsWith("…"));
+      assert.ok(text.startsWith(subject.slice(0, -1)));
+    }
+  }
+});
+
 test("placement counts claimed after controls while an unclaimed cluster keeps only readings", () => {
   for (const claimed of [false, true]) {
     const entry = inventory({

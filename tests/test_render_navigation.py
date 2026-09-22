@@ -2596,10 +2596,12 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_panel_only_thread_walk_opens_and_leaves_one_surface(browser, serve):
+def test_a_panel_thread_releases_to_the_same_floor_as_go_to_threads(browser, serve):
     """A thread with no page destination opens in Threads and Escape returns through the panel."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "This thread has no page anchor.")
+    second = panel_comment(serve.page_dir, "Another panel thread.")
+    last = panel_comment(serve.page_dir, "The last panel thread.")
     page = open_page(browser, url)
     panel = page.locator(".lf-thread-panel")
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -2622,6 +2624,42 @@ def test_a_panel_only_thread_walk_opens_and_leaves_one_surface(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
+
+    # Whole-panel selection has the same walk and native Tab entry after either route.
+    # Releasing thread 2 must not leave an invisible selection behind on that thread.
+    tab_landings = []
+    for release in ("Escape", "go-to"):
+        for next_key in ("t", "Shift+t", "Tab"):
+            page.keyboard.press("g")
+            page.keyboard.press("Shift+t")
+            page.keyboard.press("t")
+            page.keyboard.press("t")
+            expect(
+                page.locator(f'.lf-thread[data-id="{second}"] > .lf-thread-summary')
+            ).to_be_focused()
+            if release == "Escape":
+                page.keyboard.press("Escape")
+            else:
+                page.keyboard.press("g")
+                page.keyboard.press("Shift+t")
+                expect(panel).to_be_hidden()
+                page.keyboard.press("g")
+                page.keyboard.press("Shift+t")
+            expect(page.locator(".lf-threads")).to_be_focused()
+            page.keyboard.press(next_key)
+            if next_key == "Tab":
+                tab_landings.append(page.evaluate_handle("document.activeElement"))
+            else:
+                target = root if next_key == "t" else last
+                expect(
+                    page.locator(f'.lf-thread[data-id="{target}"] > .lf-thread-summary')
+                ).to_be_focused()
+            page.get_by_role("button", name="Close threads", exact=True).click()
+            expect(panel).to_be_hidden()
+    assert page.evaluate(
+        "([released, entered]) => released === entered && released !== document.body",
+        tab_landings,
+    ), "Tab must have the same destination after thread release and g T"
 
 
 def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):

@@ -60,7 +60,9 @@ installed package answers to is refused rather than replaced; remove the install
 directory to replace one. A page records the bare name, so re-vendoring it on another
 machine needs the same package installed there.
 
-Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
+Leaf also ships optional packages that select by bare name. `code-review` trials
+guidance-led review authoring without adding widgets; select it or your own review
+guidance package alongside the evidence packages the page needs. `diagram` adds `lf-diagram`
 and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` coordinates declarative controls and page-owned

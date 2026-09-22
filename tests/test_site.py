@@ -259,8 +259,11 @@ def test_product_pages_vendor_the_composed_theme(site):
         ROOT / "skills" / "leaf" / "assets" / "theme.css",
         ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
         *(
-            ROOT / "skills" / "leaf" / "packages" / name / "theme.css"
+            theme
             for name in json.loads((EXAMPLES / "layer.json").read_text())
+            for theme in (ROOT / "skills" / "leaf" / "packages" / name).glob(
+                "theme.css"
+            )
         ),
         DOCS / "package" / "theme.css",
     ]

@@ -176,17 +176,12 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
-    # The corpus carries the gallery's contained frames, and a frame still arriving lays
-    # itself out in this page's own process. Counted against five dispatches that touch
-    # nothing, that reads as the heartbeat forcing layout: what is measured has to have
-    # stopped arriving first.
-    page.wait_for_function(
-        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
-             (frame) => frame.hasAttribute('data-interaction-ready'))"""
-    )
-    # The first layout pass after those frames arrive reconciles them, and on the corpus
-    # it costs 4 layouts and 21 style recalculations against the 2 and 3 of every pass
-    # after it — a resize costs 3 as well, so the reconciliation is page startup rather
+    # The corpus carries the gallery's contained frames, which `open_page` has waited
+    # through: a frame still arriving lays itself out in this page's own process, and
+    # counted against five dispatches that touch nothing that reads as the heartbeat
+    # forcing layout. The first layout pass after they arrive reconciles them, and on the
+    # corpus it costs 4 layouts and 21 style recalculations against the 2 and 3 of every
+    # pass after it — a resize costs 3 as well, so the reconciliation is page startup rather
     # than the price of a changed pass. Spend it before the count starts: what this test
     # bounds is the five passes below, which touch nothing.
     page.evaluate(
@@ -336,14 +331,6 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
     resized(page, 1440, 900)
     margins_laid_out(page)
     assert page.locator(".lf-margin-cluster").count() >= 15
-    # The corpus carries the gallery's contained frames, and a frame still arriving lays
-    # itself out in this page's own process. Counted against five viewport refreshes that
-    # change no dimensions, that reads as the refresh forcing layout: what is measured
-    # has to have stopped arriving first.
-    page.wait_for_function(
-        """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
-             (frame) => frame.hasAttribute('data-interaction-ready'))"""
-    )
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -4618,12 +4605,15 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     browser, serve
 ):
     """A walked thread uses the free strip without covering its whole control cluster."""
+    # The gallery's thread on the crowded suggestion, which is where this walk is going.
+    crowded_thread = "a554d5e884abffdb6494a2fb90b0634f"
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1838, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
 
+    walked = page.locator(".lf-margin-preview .lf-conversation-thread")
     page.keyboard.press("t")
     expect(
         page.locator(
@@ -4631,7 +4621,23 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
             '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
         )
     ).to_be_focused()
-    page.keyboard.press("t")
+    # The walk steps one thread at a time in page order, so the presses between the
+    # gallery's first thread and this cluster's are however many threads the gallery
+    # carries between them. #886 added one, and this test — which counted two presses —
+    # arrived at that one instead and measured a card three thousand pixels from the
+    # cluster it names. The walk is taken to the thread it is for instead, and gives up
+    # when it comes back round to one it has already stood on rather than pressing
+    # forever. Each press waits for its own arrival before the next
+    # (`tests/CLAUDE.md`, "A repeated gesture has to let the repaint it causes land").
+    stood_on = []
+    while (standing := walked.get_attribute("data-thread")) != crowded_thread:
+        assert standing not in stood_on, (
+            f"the walk came back to {standing} without reaching the crowded cluster's "
+            f"thread; it stood on {stood_on}"
+        )
+        stood_on.append(standing)
+        page.keyboard.press("t")
+        expect(walked).not_to_have_attribute("data-thread", standing)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(page.locator("#bg-crowded")).to_be_in_viewport()

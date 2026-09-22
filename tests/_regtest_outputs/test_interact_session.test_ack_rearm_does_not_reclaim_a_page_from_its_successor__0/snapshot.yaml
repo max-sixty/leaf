@@ -1,0 +1,8 @@
+# Full CLI output after acknowledgment succeeds but its next wait cannot start.
+
+exit: 2
+
+stdout: ''
+
+stderr: |
+  nothing to watch: <page> is not claimed by this session

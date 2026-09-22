@@ -327,8 +327,8 @@ deterministic markup check; this review adds the browser gate and a reading:
 leaf version check <page> --render
 ```
 
-It runs the browser gate in both color schemes. Fix every failure; a screenshot is
-not a substitute.
+It runs the browser gate in both color schemes, including when the host gives you
+no separate browser tool. Fix every failure; a screenshot is not a substitute.
 
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
@@ -341,3 +341,10 @@ arrival, confirm that the question, shared premise, alternatives, and evidence
 that distinguishes them are visible together, the displayed numbers match the
 available actions, and the next press of `a` reaches the next open Ask while the
 complete page remains visible.
+
+Without a way to inspect the rendered page, read `leaf page state <page>`'s
+`content` and `asks` alongside the source to review the words, evidence, and
+available choices. Report the render command's result separately from the visual
+and keyboard review you could not perform. If the command cannot launch a browser,
+run `leaf version check <page>` for the markup and report the render check as
+unfinished. A text reading does not establish layout or interaction quality.

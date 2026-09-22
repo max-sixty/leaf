@@ -62,8 +62,16 @@ uv run pytest --lf --lfnf=none -x -n0
 Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
 change, reset only the affected test, then inspect the recorded diff before committing:
 
-TODO(2026-09-12): Move more stable multiline CLI output contracts from partial
-string assertions to regtest snapshots.
+Agent-facing interaction specimens cover the complete outputs at their delivery
+boundaries: `test_interact_contract.py` records event handling and a browser POST
+through delivery; `test_interact_session.py` records hooks, watcher recovery,
+reply/version/receipt lifecycles, and summary suggestions; `test_interact_layer.py`
+records command help and reply selection errors; `test_interact_mcp.py` records
+the stdio server's tool descriptions and metadata; `test_website_server.py` records
+the hosted agent's outgoing start messages and serialized tool output. Review
+these together when changing interaction guidance. The specimens normalize
+temporary paths and generated identities, not instruction text. Multiline prompts
+use literal YAML blocks so their actual line breaks remain readable.
 
 ```sh
 uv run pytest --regtest-reset -n0 <node-id>
@@ -477,6 +485,11 @@ event, and then waits on `BOTH_STAMPS`:
 - The current presentation probe says every required renderer for the active semantic
   epoch has settled. A later publication or same-epoch replacement can make it false
   while `data-lf-presented` remains set.
+- The page-arrived probe says the page has stopped arriving: an owner may put work after
+  presentation deliberately — a widget's progressive upgrade, the gallery's contained
+  documents — and it declares that work to the runtime, so a fixture carrying one is not
+  ready the moment it presents. Never wait for a fixture's own deferred widget by name;
+  the page already states it, and a wait written at one test leaves the next one racing.
 
 These are independent facts. Network quiet implies neither. A browser action
 sent before replay has landed may be ignored without a later assertion revealing

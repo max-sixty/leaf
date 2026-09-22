@@ -151,9 +151,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
         return (
-            "no watcher. Start `leaf wait` as a background task — one wait "
-            "covers every page this session holds — or run `leaf status <page> "
-            "idle` if the page is done."
+            "no watcher. Start `leaf wait` in the background for all this session's "
+            "pages, or run `leaf status <page> idle` if this page is done."
         )
 
     def nudge(self, page_dir: Path) -> bool:
@@ -169,7 +168,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
 # wait` already running in the task's shell tool, which the model reads by
 # writing to that session rather than by starting a second watcher.
 _POLL_UNIFIED_EXEC = (
-    "the existing unified-exec session — `leaf wait` before the first batch or "
+    "the existing shell session — `leaf wait` before the first batch or "
     "the rearmed `leaf ack` afterward — with `write_stdin`"
 )
 

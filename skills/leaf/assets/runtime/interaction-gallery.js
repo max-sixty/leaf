@@ -9,6 +9,7 @@
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSpecimen } from "./specimen.js";
+import { deferredArrival } from "./presentation.js";
 import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
@@ -666,17 +667,22 @@ export function installInteractionGallery() {
   };
 
   for (const demo of demos.values()) {
-    void demo
-      .load()
-      .catch((error) => {
-        if (!demo.figure.isConnected && error.name === "AbortError") return;
-        console.error(error);
-        demo.loadState = "error";
-        demo.setState("error");
-      })
-      .finally(() => {
-        if (gallery === installedGallery) syncActive();
-      });
+    // A contained document lays itself out in this page's process when it arrives, and
+    // it arrives after the page has presented. The page carries that as its own
+    // unfinished arrival, so nothing outside it has to know the gallery is here.
+    void deferredArrival(
+      demo
+        .load()
+        .catch((error) => {
+          if (!demo.figure.isConnected && error.name === "AbortError") return;
+          console.error(error);
+          demo.loadState = "error";
+          demo.setState("error");
+        })
+        .finally(() => {
+          if (gallery === installedGallery) syncActive();
+        }),
+    );
   }
   syncActive();
 }

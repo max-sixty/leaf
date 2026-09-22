@@ -83,9 +83,6 @@ registerBannerControl({
 // ---------- banner ----------
 const TONE = {
   working: "working",
-  handling: "working",
-  queued: "away",
-  picked_up: "away",
   listening: "listening",
   stalled: "away",
   away: "away",
@@ -94,6 +91,14 @@ const TONE = {
   closed: "",
 };
 export const toneFor = (kind) => TONE[kind];
+const WORK_WORDS = {
+  thinking: "thinking",
+  tool: "using a tool",
+  awaiting_approval: "waiting for approval",
+  awaiting_input: "waiting for input",
+  replying: "replying",
+};
+export const workWords = (kind) => WORK_WORDS[kind] || "working";
 // The judgment's third seat. A reader keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
@@ -179,9 +184,18 @@ function paintTab() {
 }
 // Summary and explanation share the canonical activity reading. The complete wording
 // remains available to pointer, keyboard, and touch through the native disclosure;
-// announcements report that explanation only when the kind changes, not on every poll.
+// announcements report that explanation when the page kind changes or current work
+// begins waiting for reader input or approval, not on every observed work step or poll.
 let saidKind;
-const presentStatus = ({ kind, tone, summary, explanation, publication = null }) => {
+let saidActionableWork;
+const presentStatus = ({
+  kind,
+  tone,
+  summary,
+  explanation,
+  publication = null,
+  actionableWork = null,
+}) => {
   let publicationModel = null;
   if (publication) {
     // A publication's introduction and install link remain an ordinary reading row.
@@ -203,8 +217,12 @@ const presentStatus = ({ kind, tone, summary, explanation, publication = null })
     }),
   );
   paintTab();
-  const changed = saidKind !== undefined && saidKind !== kind;
+  const changed =
+    saidKind !== undefined &&
+    (saidKind !== kind ||
+      (actionableWork !== null && actionableWork !== saidActionableWork));
   saidKind = kind;
+  saidActionableWork = actionableWork;
   if (changed) announce(explanation);
 };
 // The developer preview's identity: which checkout is serving this page, and a press to
@@ -347,14 +365,14 @@ function statusWords({
   shortDate,
   detail,
   kind,
-  obligations,
   pending,
+  progressSummary,
   quiet,
   saved,
   total,
+  workKind,
 }) {
   const savedSummary = total ? ` · ${total} saved` : "";
-  const updates = `${obligations} update${obligations === 1 ? "" : "s"}`;
   if (kind === "closed") return ["Leaf closed", "Leaf closed"];
   if (kind === "unattended")
     return [
@@ -372,32 +390,21 @@ function statusWords({
   // is what the ellipsis eats first and a stale sentence with its date cut off is the one
   // reading this row must not give.
   if (kind === "working") {
+    const work = workWords(workKind);
     const said = detail ? " — " + detail : "";
     return [
-      `${agent} working${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
-      `${agent} is working${said}`,
+      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}${progressSummary}`,
+      `${agent} is ${work}${said}`,
     ];
   }
-  if (kind === "handling")
-    return [`${agent} handling ${updates}`, `${agent} is handling ${updates}`];
-  if (kind === "queued")
-    return [
-      `${updates} queued for ${agent}`,
-      `${updates}${obligations === 1 ? " is" : " are"} queued for ${agent}`,
-    ];
-  if (kind === "picked_up")
-    return [
-      `${agent}’s turn ended${savedSummary}`,
-      `${agent} picked up ${updates}, but that turn ended. ${saved}`,
-    ];
   // A declared request tells the reader what to do. Preserve it on the row when
   // no pending input supersedes it; a generic attendance label would lose that cue.
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
     return pending
       ? [
-          `${agent} listening${savedSummary}`,
-          `${saved} ${agent} is listening${detail ? " — " + detail : ""}.`,
+          `${agent} listening${progressSummary}`,
+          `${agent} is listening${detail ? " — " + detail : ""}.`,
         ]
       : [awaits, awaits];
   }
@@ -497,6 +504,10 @@ function renderStatusNow(state) {
     ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
     : `${agentName()} last checked in ${ago(activity.ts)}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
+  const progress = [];
+  if (activity.counts.queued) progress.push(`${activity.counts.queued} queued`);
+  if (activity.counts.pending) progress.push(`${activity.counts.pending} waiting`);
+  const progressSummary = progress.length ? ` · ${progress.join(" · ")}` : "";
   const [summary, text] = statusWords({
     age,
     agent: agentName(),
@@ -506,11 +517,12 @@ function renderStatusNow(state) {
       : `${agentName()} last checked in ${ago(activity.ts)}`,
     detail,
     kind,
-    obligations: activity.count,
     total: activity.counts.total,
-    pending: activity.counts.pending,
+    pending: activity.counts.pending || activity.counts.queued,
+    progressSummary,
     quiet,
     saved,
+    workKind: activity.observed_kind,
   });
   let explanation = age ? `${text} (${age})` : text;
   // What a transport can watch for itself, when the sentence beside it was written by
@@ -518,9 +530,23 @@ function renderStatusNow(state) {
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
     explanation += ` · ${activity.observed}`;
-  if (kind === "working" && activity.counts.queued)
-    explanation += `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`;
-  presentStatus({ kind, tone: TONE[kind], summary, explanation });
+  const waiting = [];
+  if (activity.counts.queued)
+    waiting.push(
+      `${activity.counts.queued} update${activity.counts.queued === 1 ? "" : "s"} queued`,
+    );
+  if (activity.counts.pending)
+    waiting.push(
+      `${activity.counts.pending} update${activity.counts.pending === 1 ? "" : "s"} waiting`,
+    );
+  if (waiting.length && ["working", "listening"].includes(kind))
+    explanation += `${explanation.endsWith(".") ? "" : "."} ${waiting.join(" · ")}.`;
+  const actionableWork = ["awaiting_approval", "awaiting_input"].includes(
+    activity.observed_kind,
+  )
+    ? activity.observed_kind
+    : null;
+  presentStatus({ kind, tone: TONE[kind], summary, explanation, actionableWork });
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);

@@ -1,0 +1,8 @@
+# A deliberately stopped server is not revived; wait supplies its restart command.
+
+exit: 2
+
+stdout: ''
+
+stderr: |
+  <page>: server is not running; restart it with `leaf server start <page>`

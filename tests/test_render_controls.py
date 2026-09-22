@@ -1,6 +1,7 @@
 """Control stability, browser shell, accessibility, and ring tests."""
 
 import json
+import os
 import re
 
 import pytest
@@ -11,6 +12,7 @@ from interact_support import (
 )
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import leases as leases_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -2009,6 +2011,34 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         f"the banner announced its first reading: {live.text_content()!r}"
     )
 
+    claim = record_claim(serve.page_dir, id="s", pid=os.getpid())
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    )
+    assert lease
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_stream_activity(
+            claim["id"], "provider-turn", {"kind": "awaiting_input"}
+        )
+    told(page)
+    expect(live).to_contain_text("Claude is waiting for input")
+    announced_wait = live.text_content()
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_stream_activity(
+            claim["id"], "provider-turn", {"kind": "tool", "detail": "Checking"}
+        )
+    told(page)
+    assert live.text_content() == announced_wait
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_stream_activity(
+            claim["id"], "provider-turn", {"kind": "awaiting_approval"}
+        )
+    told(page)
+    expect(live).to_contain_text("Claude is waiting for approval")
+    lease.close()
+
     held = []
 
     def refuse_state(route):
@@ -3158,16 +3188,15 @@ def test_a_panel_row_follows_its_pages_status_live(
             "Listening — pick a storage engine · 1 update waiting"
             "\n1 update waiting",
         )
-        # Pickup advances the same canonical activity row that the thread receipt
-        # reads. A latent page-wide waiting declaration cannot contradict exact
-        # delivery into the current turn.
+        # Pickup into the claimant's current turn proves generic page work while the
+        # exact delivery phase remains on the interaction receipt and in the account.
         with service_model.PageTransaction(other_dir) as transaction:
             session_model.record_pickup(transaction, [comment])
         told(page)
-        expect(row.locator(".lf-others-line")).to_have_text("Handling updates")
+        expect(row.locator(".lf-others-line")).to_have_text("Working")
         expect(row).to_have_attribute(
             "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nHandling updates"
+            f"The other leaf\n{tmp_path / 'other-work'}\nWorking"
             "\n1 update being handled",
         )
         events_model.append_event(

@@ -52,11 +52,15 @@ test("reaction ids inside canonical coverage do not break the visible range", ()
 test("thread search identifies matching originals independently of summary prose", () => {
   const thread = {
     msgs: [
-      { id: "a", text: "opening words" },
+      {
+        id: "a",
+        text: "opening words",
+        body: { kind: "prose", text: "opening words" },
+      },
       {
         id: "b",
         text: "original camera detail",
-        markup: "<p>Measured in 18 minutes</p>",
+        body: { kind: "authored", text: "Measured in 18 minutes" },
       },
     ],
     summaries: [{ id: "s1", text: "checkpoint about the schedule" }],

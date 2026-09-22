@@ -122,3 +122,110 @@ export const reactionsAt = (threads, anchor) =>
 export const awaitsAgent = (thread) => thread.awaits_agent;
 export const awaitsReader = (thread) => thread.awaits_reader;
 export const seatRoot = (thread) => thread.seat;
+
+export const threadSummary = (thread) => ({
+  topic: thread.root.body.text.trim(),
+  count: turns(thread).length,
+  latest: turns(thread).at(-1)?.ts ?? null,
+});
+
+/* Public conversation values. The publisher calls this after folding local gestures
+   and admitted obligations. Authored source stays with its prepared document; only
+   captured words, registry identities and current unit state cross this boundary. */
+export function readThreadRecords(threads, document, widgets, interactions) {
+  const unitsByMessage = new Map();
+  for (const descriptor of document.descriptors.values()) {
+    if (descriptor.document.kind !== "thread") continue;
+    const units = unitsByMessage.get(descriptor.document.message) ?? [];
+    units.push({
+      id: descriptor.id,
+      tag: descriptor.tag,
+      state: widgets.get(descriptor.id)?.state ?? {},
+    });
+    unitsByMessage.set(descriptor.document.message, units);
+  }
+  return threads.map((thread) => {
+    const turnIds = new Set(turns(thread).map((message) => message.id));
+    const msgs = thread.msgs.map((message) => {
+      const record = {};
+      for (const field of [
+        "id",
+        "attempt",
+        "kind",
+        "author",
+        "agent",
+        "ts",
+        "parent",
+        "pending",
+        "anchor",
+        "about",
+        "drawing",
+        "holds",
+        "response",
+        "token",
+        "text",
+        "edited",
+        "failure",
+        "stream_state",
+        "addressable",
+        "revision",
+        "awaits",
+        "suggestion",
+      ])
+        if (message[field] !== undefined) record[field] = message[field];
+      const units = unitsByMessage.get(message.id) ?? [];
+      const authored = document.messageBodies?.get(message.id);
+      const body = message.markup
+        ? { kind: "authored", ...authored, units }
+        : {
+            kind: message.token
+              ? "reaction"
+              : message.suggestion
+                ? "suggestion"
+                : "prose",
+            text:
+              authored?.text ??
+              message.plainText ??
+              message.text ??
+              message.token ??
+              "",
+          };
+      if (message.markup && !authored)
+        throw new Error(`Authored message ${message.id} has no captured body`);
+      return {
+        ...record,
+        key: message.attempt ?? message.id,
+        body,
+        receipts: interactions.filter((receipt) => {
+          if (receipt.target.kind === "thread") {
+            if (thread.resolved || receipt.target.id !== thread.root.id) return false;
+            return (
+              (turnIds.has(receipt.event) ? receipt.event : thread.root.id) ===
+              message.id
+            );
+          }
+          return (
+            receipt.target.kind === "widget" &&
+            receipt.event &&
+            receipt.revision <= document.revision &&
+            units.some((unit) => unit.id === receipt.target.id)
+          );
+        }),
+      };
+    });
+    return {
+      key: threadKey(thread),
+      root: msgs.find((message) => message.id === thread.root.id),
+      msgs,
+      anchor: thread.anchor ?? null,
+      detached_from: thread.detached_from ?? null,
+      resolved: thread.resolved ?? null,
+      settling: thread.settling ?? null,
+      awaits_agent: thread.awaits_agent,
+      awaits_reader: thread.awaits_reader,
+      bare_reaction: thread.bare_reaction,
+      seat: thread.seat,
+      summaries: thread.summaries ?? [],
+    };
+  });
+}

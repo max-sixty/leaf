@@ -341,8 +341,8 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
                 "through": candidate[-1]["id"],
                 "operation": "conversation summarize",
                 "instruction": (
-                    "This thread has become long and could benefit from a summary. "
-                    "Read the original messages and consider summarizing this range; "
+                    "Consider summarizing this older exchange. Read the original messages "
+                    "in the suggested range first; "
                     "keep the newer exchange outside the summary."
                 ),
             }

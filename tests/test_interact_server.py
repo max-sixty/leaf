@@ -4925,7 +4925,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "dropped": False,
             "detail": "",
             "observed": "",
-            "count": 0,
+            "observed_kind": None,
             "counts": {
                 "active": 0,
                 "handling": 0,
@@ -4984,7 +4984,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
                 "dropped": False,
                 "detail": "measuring",
                 "observed": "",
-                "count": 0,
+                "observed_kind": None,
                 "counts": {
                     "active": 0,
                     "handling": 0,

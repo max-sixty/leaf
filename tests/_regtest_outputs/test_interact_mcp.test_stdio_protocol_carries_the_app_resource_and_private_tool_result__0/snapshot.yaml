@@ -1,0 +1,122 @@
+# Complete tools/list response received through the bundled stdio server.
+# Model-visible presentation tools and app-only controls retain their metadata.
+
+ttlMs: 0
+
+cacheScope: private
+
+tools:
+  - name: leaf_present
+    title: Present Leaf page (experimental)
+    description: Present the complete canonical interface for an initialized Leaf
+      page. Use the absolute page directory created by `leaf page init`. The text
+      result remains useful when this client cannot render MCP Apps UI.
+    inputSchema:
+      properties:
+        page:
+          title: Page
+          type: string
+      required: [page]
+      type: object
+      title: leaf_presentArguments
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: false
+    _meta:
+      ui:
+        resourceUri: ui://leaf/page/v1.html
+        visibility: [model]
+  - name: leaf_refresh
+    title: Refresh Leaf page
+    description: Read the current canonical Leaf page address and summary.
+    inputSchema:
+      properties:
+        page:
+          title: Page
+          type: string
+      required: [page]
+      type: object
+      title: leaf_refreshArguments
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: false
+    _meta:
+      ui:
+        resourceUri: ui://leaf/page/v1.html
+        visibility: [app]
+  - name: leaf_present_snapshot
+    title: Present Leaf snapshot (fallback)
+    description: Present an authored, comments-only Leaf snapshot when the complete
+      page cannot be framed by this host. Prefer leaf_present.
+    inputSchema:
+      properties:
+        page:
+          title: Page
+          type: string
+      required: [page]
+      type: object
+      title: leaf_present_snapshotArguments
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: false
+    _meta:
+      ui:
+        resourceUri: ui://leaf/page/v1.html
+        visibility: [model]
+  - name: leaf_snapshot_apply_event
+    title: Apply Leaf snapshot comment
+    description: Validate and durably append one reader comment from the snapshot.
+    inputSchema:
+      properties:
+        page:
+          title: Page
+          type: string
+        event:
+          additionalProperties: true
+          title: Event
+          type: object
+        view_revision:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          default: null
+          title: View Revision
+      required: [page, event]
+      type: object
+      title: leaf_snapshot_apply_eventArguments
+    annotations:
+      readOnlyHint: false
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: false
+    _meta:
+      ui:
+        resourceUri: ui://leaf/page/v1.html
+        visibility: [app]
+  - name: leaf_snapshot_refresh
+    title: Refresh Leaf snapshot
+    description: Read the current authored Leaf snapshot.
+    inputSchema:
+      properties:
+        page:
+          title: Page
+          type: string
+      required: [page]
+      type: object
+      title: leaf_snapshot_refreshArguments
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      openWorldHint: false
+    _meta:
+      ui:
+        resourceUri: ui://leaf/page/v1.html
+        visibility: [app]
+
+resultType: complete

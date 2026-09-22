@@ -26,6 +26,7 @@ from interact_support import (
     case_alias,
     check,
     element_declaration,
+    fetch,
     install_payload,
     publish,
     record_claim,
@@ -40,10 +41,12 @@ from leaf import locations as interact_locations
 from leaf import machine as machine_model
 from leaf import packages as packages_model
 from leaf import schema as schema_model
+from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import browser as browser_model
+from leaf.render_gate.preview import preview_server
 from page_fixtures import package_selection_args
 
 EXPECTED_PAGE_STATE_FILES = (
@@ -113,6 +116,88 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
         schema_model.ACK_BATCH_INSTRUCTION,
     ):
         assert " ".join(instruction.split()) in normalized
+
+
+def test_agent_interaction_command_help(regtest):
+    """The complete help an agent follows between receiving and answering input.
+
+    Keep the full CLI output, including options, beside the dynamic interaction
+    snapshots in test_interact_session. A prose review can then follow a command
+    named by a reminder without reconstructing its help from source docstrings.
+    """
+    outputs = []
+    for command in (
+        "wait",
+        "ack",
+        "delivery claim",
+        "delivery read",
+        "page state",
+        "conversation read",
+        "conversation summarize",
+        "status",
+        "comment",
+        "reply",
+        "resolve",
+        "receipt",
+        "version check",
+        "version stamp",
+    ):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [*command.split(), "--help"],
+            prog_name="leaf",
+            terminal_width=80,
+        )
+        assert result.exit_code == 0, result.output
+        outputs.append(f"## leaf {command} --help\n{result.output}")
+    regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
+
+
+def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
+    """Actual CLI recovery after two reader messages arrive in one delivery."""
+    page = claimed
+    publish(page)
+    runner = CliRunner()
+    ids = []
+    outputs = []
+
+    def record(args, code):
+        result = runner.invoke(cli_model.cli, args, prog_name="leaf")
+        assert result.exit_code == code, result.output
+        text = f"$ leaf {' '.join(args)}\nexit: {code}\n{result.output}"
+        text = text.replace(str(page), "/page")
+        for number, event_id in enumerate(ids, 1):
+            text = text.replace(event_id, f"reader-{number}")
+        outputs.append(text)
+
+    record(["reply", str(page), "--text", "Answer"], 1)
+    for text in ("Why this plan?", "What will it cost?"):
+        code, response = fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "revision": 1, "text": text}).encode(),
+        )
+        assert code == 200, response
+        ids.append(events_model.read_events(page)[-1]["id"])
+    delivery = runner.invoke(cli_model.cli, ["wait", str(page)])
+    assert delivery.exit_code == 0, delivery.output
+    assert len(json.loads(delivery.output)["batches"][0]["events"]) == 2
+    record(["reply", str(page), "--text", "Answer"], 1)
+    record(["reply", str(page), "--to", ids[0], "--text", "Answer"], 1)
+    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
+    record(["reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
+    record(
+        ["reply", str(page), "--to", ids[0], "--initiates", "--text", "Follow-up"], 0
+    )
+    # A page reaction can close without an answer: it never owed a reply.
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "token": "keep"}).encode(),
+    )
+    assert code == 200, response
+    ids.append(events_model.read_events(page)[-1]["id"])
+    record(["reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
+    record(["resolve", str(page), "--to", ids[-1]], 0)
+    regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -1420,6 +1505,89 @@ def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["fingerprint"] == first["fingerprint"]
     assert second["generation"] != first["generation"]
+
+
+PLAIN_PAGE = (
+    '<!doctype html><html lang="en"><head><title>t</title></head>'
+    "<body><main><h1>Title</h1><p>words</p></main></body></html>"
+)
+
+
+def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeypatch):
+    """A page whose runtime moved under it names the re-vendor, not a missing export.
+
+    The gate's probe modules come from the running Leaf and the runtime they import
+    comes from the page, so a page vendored by another one breaks in the browser.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    assert (
+        interact_files.read_json(page / "registry.json")["$layer"]["runtime"]
+        == layer_model.payload_runtime_fingerprint()
+    )
+
+    # The page keeps the runtime the Leaf that vendored it had, which is the state a
+    # plugin update leaves behind.
+    stamp = page / "registry.json"
+    vendored = interact_files.read_json(stamp)
+    before = "sha256:" + "b" * 64
+    vendored["$layer"]["runtime"] = before
+    stamp.write_text(json.dumps(vendored), encoding="utf-8")
+
+    result = runner.invoke(cli_model.cli, ["version", "check", "--render", str(page)])
+
+    assert result.exit_code != 0, result.output
+    assert before in result.output
+    assert f"leaf page init {page}" in result.output
+
+    # A page from before the identity was recorded reads as carrying no runtime, which
+    # the gate cannot confirm either.
+    del vendored["$layer"]["runtime"]
+    stamp.write_text(json.dumps(vendored), encoding="utf-8")
+
+    unstamped = runner.invoke(
+        cli_model.cli, ["version", "check", "--render", str(page)]
+    )
+
+    assert unstamped.exit_code != 0, unstamped.output
+    assert f"leaf page init {page}" in unstamped.output
+
+
+def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
+    tmp_path, monkeypatch
+):
+    """The gate confirms the runtime it serves probes against from the payload alone.
+
+    `$layer.packages` records a project-relative selection, resolved against the
+    directory `page init` ran in, so a reading composed from the page's packages would
+    refuse this page everywhere else. The gate takes an explicit page path.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "theme.css").write_text(
+        ":root { --test-accent: red }\n", encoding="utf-8"
+    )
+    page = tmp_path / "page"
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    with pytest.raises(SystemExit):
+        layer_model.resolve_packages(("./.leaf",))
+
+    with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
+        assert url.startswith("http://127.0.0.1:")
 
 
 def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index(

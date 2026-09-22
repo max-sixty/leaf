@@ -22,8 +22,16 @@ from types import SimpleNamespace
 import pytest
 import verify_site
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, append_command, running_http_server
+from interact_support import (
+    COMMAND_SUBJECTS,
+    STATED_TIMEOUT,
+    Prose,
+    append_command,
+    running_http_server,
+    yaml_document,
+)
 from leaf import codex as leaf_codex
+from leaf.cli import cli
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
 from leaf.event_log import append_event, read_events
@@ -32,6 +40,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
 from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
+from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
 from render_harness import consume_browser_errors
 from websockets.exceptions import ConnectionClosedError
@@ -800,6 +809,131 @@ def test_a_start_that_fails_on_its_connection_is_recorded_like_any_other(
     )
 
 
+@pytest.mark.parametrize("response_kind", ["reply", "version", "receipt"])
+def test_hosted_agent_receives_the_response_instructions_and_delivery(
+    page_dir, monkeypatch, snapshot, response_kind
+):
+    """Capture real instructions and deliveries at the App Server wire boundary.
+
+    Only the external App Server connection is replaced. Event admission, delivery
+    preparation, response addressing, and both request builders run normally.
+    """
+    command = {"kind": "comment", "author": "user", "text": "Use backfill first."}
+    if response_kind == "version":
+        registry_path = page_dir / "registry.json"
+        registry = json.loads(registry_path.read_text())
+        registry["lf-options"]["x-conversation"] = {
+            "when": {"choose": [True]},
+            "response": {"kind": "version", "verb": "choose"},
+        }
+        registry_path.write_text(json.dumps(registry))
+        source = page_dir / "index.html"
+        source.write_text(
+            source.read_text().replace(
+                "<lf-options>", '<lf-options id="choice" choose>'
+            )
+        )
+        command.update(
+            anchor={"section": "choice"},
+            response={"kind": "version", "verb": "choose"},
+        )
+    if response_kind == "receipt":
+        source = page_dir / "index.html"
+        controls = (
+            '<lf-command id="hub"><lf-task id="goal" status="active">'
+            "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+            '<lf-ask id="recovery"><h3>Restart the worker?</h3>'
+            '<lf-operations id="commands" target="goal" worker="worker" '
+            'worktree="tree">'
+            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+            "</lf-operations></lf-ask>"
+        )
+        source.write_text(
+            source.read_text().replace("</section>", controls + "</section>")
+        )
+        activated = activate_source(page_dir, [])
+        assert activated.error is None
+        command = {
+            "kind": "request",
+            "author": "user",
+            "revision": activated.revision,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        }
+        event = append_command(page_dir, command)
+    else:
+        event = append_event(page_dir, command)
+    host = website_server.WebsiteCodexHost("codex")
+    outgoing = {}
+
+    def request(method, params, before_close=None):
+        outgoing[method] = params
+        result = {"thread": {"id": "hosted-thread"}}
+        before_close("socket", result, [])
+        return result
+
+    def send(socket, method, params, pending=None):
+        outgoing[method] = params
+        return {"turn": {"id": "initial-turn"}}
+
+    monkeypatch.setattr(host, "_request", request)
+    monkeypatch.setattr(host, "_send", send)
+    assert (
+        host._start_thread(page_dir, SimpleNamespace(pid=os.getpid()), event["id"])
+        == "hosted-thread"
+    )
+    payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
+    [delivered] = payload["batches"][0]["events"]
+    assert delivered["obligation"]["response"]["kind"] == response_kind
+    replacements = {
+        str(page_dir): "/page",
+        event["id"]: "reader-event",
+        event["ts"]: "2026-09-22T10:00:00-07:00",
+        payload["id"]: "00000000-0000-4000-8000-000000000001",
+        str(payload["created_at"]): "1790096400.0",
+    }
+    serialized = json.dumps(outgoing)
+    for actual, stable in replacements.items():
+        serialized = serialized.replace(actual, stable)
+    recorded = json.loads(serialized)
+    recorded["thread/start"]["developerInstructions"] = Prose(
+        recorded["thread/start"]["developerInstructions"]
+    )
+    snapshot.check(
+        yaml_document(
+            "Actual outgoing App Server requests for an admitted reader event.\n"
+            "Only the page path, event/delivery identities, and timestamps are pinned.\n"
+            "toolOutput.output is the complete serialized delivery the agent receives.",
+            recorded,
+        )
+    )
+    if response_kind == "receipt":
+        # The host's scope forbids restarting a worker outside this page. Its
+        # command route must still let it report failure and reopen the request.
+        result = CliRunner().invoke(
+            cli,
+            [
+                "receipt",
+                str(page_dir),
+                event["id"],
+                "failed",
+                "--text",
+                "The worker is outside this hosted page's scope.",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        receipt = json.loads(result.output)
+        assert (receipt["request"], receipt["status"]) == (event["id"], "failed")
+        assert (
+            website_server.full_state(page_dir, read_events(page_dir))["activity"][
+                "obligations"
+            ]
+            == []
+        )
+
+
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     host = website_server.WebsiteCodexHost("codex")
     requests = []
@@ -1022,23 +1156,13 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "--listen",
         host.endpoint,
     ]
-    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "$LEAF" in instructions
-    assert "structured `leaf_delivery` tool output" in instructions
-    assert "$LEAF delivery claim ID" in instructions
-    assert "$LEAF delivery read ID" in instructions
-    assert "at most one response whose kind is `reply`" in instructions
-    assert "normal final message is that reply's only writer" in instructions
-    assert "Do not run `$LEAF reply`" in instructions
-    assert "no separate `leaf publish` command" in instructions
-    assert "$LEAF version check" not in instructions
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
     # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
     # activity fold prefers over Leaf's own claim wording for exactly this reason.
+    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "$LEAF status" not in instructions
-    assert "$LEAF resolve . --to RESPONSE_CONVERSATION" in instructions
-    assert "binds its destination before" in instructions
+    assert "$LEAF version check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1453,10 +1577,10 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
     assert interrupts == [("hosted-thread", "")]
     assert codex_queues("hosted-thread") == []
     assert competing_writer_rejected == [True]
-    assert (
-        website_server.full_state(page_dir, read_events(page_dir))["activity"]["kind"]
-        != "working"
-    )
+    assert website_server.page_claim(page_dir) is None
+    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert activity["observed_kind"] is None
+    assert [item["phase"] for item in activity["obligations"]] == ["sent"]
     # The seat is free, so the Worker's own receipt reaches the reader.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
@@ -2035,15 +2159,18 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
 
         assert state["listening"] is True
         assert state["activity"]["kind"] == "working"
-        assert state["activity"]["detail"] == "Starting"
+        assert state["activity"]["observed_kind"] == "working"
         assert state["activity"]["obligations"][0]["event"] == comment["id"]
 
         website_server.set_stream_activity(
-            "hosted-thread", "app-server-turn", "Editing index.html"
+            "hosted-thread",
+            "app-server-turn",
+            {"kind": "tool", "detail": "Editing index.html"},
         )
         working = website_server.full_state(page_dir, read_events(page_dir))
         assert working["activity"]["kind"] == "working"
-        assert working["activity"]["detail"] == "Editing index.html"
+        assert working["activity"]["observed_kind"] == "tool"
+        assert working["activity"]["observed"] == "Editing index.html"
     finally:
         host.close()
 
@@ -2188,9 +2315,15 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     hosted_follower(host, page_dir, prepared, socket, turn_id="initial-turn").follow()
 
     assert updates == [
-        ("hosted-thread", "initial-turn", "Starting"),
-        ("hosted-thread", "initial-turn", "Running leaf version check ."),
-        ("hosted-thread", "initial-turn", "Deployment verified."),
+        ("hosted-thread", "initial-turn", {"kind": "working"}),
+        (
+            "hosted-thread",
+            "initial-turn",
+            {"kind": "tool", "detail": "Running leaf version check ."},
+        ),
+        ("hosted-thread", "initial-turn", {"kind": "working"}),
+        ("hosted-thread", "initial-turn", {"kind": "replying"}),
+        ("hosted-thread", "initial-turn", {"kind": "working"}),
     ]
     # The turn's own reading and no other. A completed turn's reading is released
     # both as its completion is folded and again when the follower accounts for the
@@ -3393,7 +3526,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     [delivery] = accept_codex_delivery("hosted-thread")
 
     handling = website_server.full_state(page_dir, read_events(page_dir))
-    assert handling["activity"]["kind"] == "handling"
+    assert handling["activity"]["kind"] == "working"
     assert verify_site.still_answering(handling, comment["id"])
     # Another page's comment is not this gate's turn, whatever this page is doing.
     assert not verify_site.still_answering(handling, "another-event")

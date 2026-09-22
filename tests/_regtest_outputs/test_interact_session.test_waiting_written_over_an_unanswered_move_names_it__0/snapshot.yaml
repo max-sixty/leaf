@@ -1,0 +1,12 @@
+# The waiting status command names unanswered work until the reply settles it.
+
+before reply:
+  exit: 0
+  output: |
+    waiting — pick one
+    1 reader move with no answer (event-1); the page reads waiting once each has one
+
+after reply:
+  exit: 0
+  output: |
+    waiting — pick one

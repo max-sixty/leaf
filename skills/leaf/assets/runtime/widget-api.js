@@ -26,7 +26,9 @@ export { inUi, uiInside, upFrom } from "./shadow.js";
 export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
-export { conversationBox, registerThreadSurface } from "./application.js";
+export { conversationBox, consumeThreads } from "./application.js";
+export { readThreads } from "./conversation/state.js";
+export { turns as threadTurns, threadSummary } from "./conversation/model.js";
 export { conversationInput } from "./conversation/landing.js";
 export { landInConversation } from "./application.js";
 export { wireInput } from "./application.js";
@@ -98,7 +100,9 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-export { PRESENTATION, quietWord, whenPagePresented } from "./presentation.js";
+// `afterPresentation` is the package's whole route past presentation: it waits and
+// declares the arrival in one call, so a widget cannot defer without the page knowing.
+export { PRESENTATION, afterPresentation, quietWord } from "./presentation.js";
 export {
   captureTargetReference,
   resolveTargetReference,

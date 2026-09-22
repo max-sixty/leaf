@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 import pytest
-from interact_support import PAGE, run_async
+from interact_support import PAGE, run_async, yaml_document
 from leaf import event_log as events_model
 from leaf.files import replace_files, revision_path
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
@@ -249,7 +249,9 @@ def test_codex_manifest_launches_the_bundled_server(page_server):
     }
 
 
-def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_dir):
+def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(
+    page_dir, snapshot
+):
     async def exchange():
         parameters = StdioServerParameters(
             command=sys.executable,
@@ -272,6 +274,13 @@ def test_stdio_protocol_carries_the_app_resource_and_private_tool_result(page_di
             return initialized, tools, resources, resource, result
 
     initialized, tools, resources, resource, result = run_async(exchange)
+    snapshot.check(
+        yaml_document(
+            "Complete tools/list response received through the bundled stdio server.\n"
+            "Model-visible presentation tools and app-only controls retain their metadata.",
+            tools.model_dump(mode="json", by_alias=True, exclude_none=True),
+        )
+    )
     by_name = {tool.name: tool for tool in tools.tools}
 
     assert initialized.protocol_version == "2025-11-25"

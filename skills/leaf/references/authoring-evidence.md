@@ -38,8 +38,12 @@ accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. The renderer also
 honors `stroke-width`; other properties are ignored. `version check --render` reports
-a diagram the renderer refuses or draws empty, not one it draws only in part, so look
-at each diagram once. Quote a label that holds its shape's closing bracket:
+a diagram the renderer refuses or draws empty, not one it draws only in part, so inspect
+each rendered diagram. Without visual access, check the source's labels and relations
+against the claims it supports, and state those claims in prose or a table beside it
+so the reader need not rely on an uninspected picture. Follow `page-authoring.md`,
+"Pre-handover review", for the checks and what remains unverified.
+Quote a label that holds its shape's closing bracket:
 `A["names: list[str]"]`, not `A[names: list[str]]`. The renderer parts from Mermaid in
 places the gate does not see: it draws no `click` or `link` target and no frontmatter
 or sequence `title`, drops a state statement that ends in `;`, labels a state with its

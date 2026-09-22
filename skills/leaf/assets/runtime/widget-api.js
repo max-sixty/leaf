@@ -11,12 +11,7 @@ export async function mountSpecimen(frame, options) {
 }
 
 export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export {
-  arrangeReadingElement,
-  defineReadingPaneElement,
-  fitRootReadingElement,
-  registerReadingElement,
-} from "./reading-layout.js";
+export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
 export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";

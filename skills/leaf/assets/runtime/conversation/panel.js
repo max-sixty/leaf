@@ -24,13 +24,10 @@ import {
   generalSend,
   inPanel as panelFocusIsInside,
   narrowingView,
-  threadsBox,
 } from "./panel-elements.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { narrowed, needsYou, threadSearchActive } from "./narrowing.js";
-import { awaitsReader } from "./model.js";
-import { threadList } from "./state.js";
+import { needsYou, threadSearchActive } from "./narrowing.js";
 import { openThreads } from "./thread-list.js";
 import { standingConversation } from "./landing.js";
 import { runtime } from "../context.js";
@@ -47,7 +44,6 @@ export function createPanelComposer({
   setPanel,
   panelIsOpen,
   stepThread,
-  widen,
   fabAnchorAt,
   paintDrawings,
 }) {
@@ -174,23 +170,14 @@ export function createPanelComposer({
         // so the reader learns one idea and reaches it two ways rather than learning
         // "needs you" beside it.
         //
-        // A narrowing is a mode, so the row states it as one: the sentence and line turn
-        // on whether it stands, and a successful keyboard activation pushes its return
-        // frame. Dead while there is nothing waiting and nothing hidden, which is the same
-        // fact that greys the control — and dead before the log arrives, which is the one
-        // part of that the standing narrowing cannot say for itself: `needsYou` is a flag
-        // the reader set, and it outlives a list that has gone back to empty. `/` needs no
-        // such clause, `renderPanel` emptying `threadList` at every phase but ready.
+        // The shortcut uses the visible control's toggle, including leaving Resolved
+        // when requesting waiting threads and preserving every other restriction.
         keys: ["w"],
         does: () =>
-          needsYou()
-            ? "Show every thread again"
-            : "Show only the threads waiting on you",
-        line: () => (needsYou() ? "all threads" : "waiting on you"),
+          needsYou() ? "Clear waiting filter" : "Show only the threads waiting on you",
+        line: () => (needsYou() ? "clear waiting filter" : "waiting on you"),
         control: () => narrowingView.readerControl,
-        when: () =>
-          runtime.statePhase === "ready" &&
-          (needsYou() || threadList().some((...args) => awaitsReader(...args))),
+        when: () => runtime.statePhase === "ready" && narrowingView.canToggleReader,
         run: () => narrowingView.toggleReader(),
       },
       {
@@ -215,32 +202,13 @@ export function createPanelComposer({
     ],
   });
 
-  // The find box is a text box and takes the letters like any other, so it stands inside
-  // the typing scope and states only what it does differently: Escape lets the narrowing go
-  // rather than merely leaving the box, and Enter walks into the list the words just found.
-  // Registered on the exact input, which is the whole of how it shadows that scope's own
-  // Escape — no listener of its own, no preventDefault written by hand.
+  // Search shares the text-entry scope's Escape: leave typing and keep the query.
+  // Only Enter differs, walking into the first result of the narrowed list.
   function declareFindBoxKeys() {
     keys(
       findInput.input,
       "In the find box",
       [
-        {
-          id: "thread.find.close",
-          keys: ["Escape"],
-          does: () =>
-            narrowed()
-              ? "Show every thread again"
-              : "Leave the box, keeping what is typed",
-          line: () => (narrowed() ? "show all" : "back to list"),
-          // One press, one step, like every other Escape in the register: the narrowing
-          // goes first and the box is left on the next press, rather than both at once.
-          run: () => {
-            if (widen()) return;
-            findInput.blur();
-            threadsBox.focus();
-          },
-        },
         {
           id: "thread.find.first",
           keys: ["Enter"],

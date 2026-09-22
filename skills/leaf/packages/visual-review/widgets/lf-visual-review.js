@@ -10,7 +10,6 @@ import {
   commands,
   compoundReadingRegionId,
   failSoft,
-  fitRootReadingElement,
   layoutChanged,
   notice,
   offer,
@@ -18,7 +17,6 @@ import {
   paintKeys,
   PRESS,
   projectData,
-  registerReadingElement,
   registerReadingRegion,
   consumeThreads,
   relabel,
@@ -96,12 +94,11 @@ customElements.define(
   "lf-visual-review",
   class extends HTMLElement {
     #controller = widgetController(this);
-    #arrangements = [];
+    #layouts = [];
     #caseEntries = new Map();
     #casesBody = null;
     #commands = null;
     #evidenceHost = null;
-    #fitting = null;
     #inspector = null;
     #layoutFrame = null;
     #mode = "compare";
@@ -122,19 +119,13 @@ customElements.define(
 
     connectedCallback() {
       if (once(this)) this.#buildLayout();
-      else this.#registerLayout();
-      this.#fitting = fitRootReadingElement({
-        owner: this,
-        readingArrangement: this.#arrangements.at(-1),
-        minimumSize: () => ({ width: 720, height: 600 }),
-      });
+      for (const layout of this.#layouts) this.#controller.present(layout.connect());
       for (const [id, entry] of this.#caseEntries) this.#registerCaseRegion(id, entry);
       this.#sizes = new ResizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      this.#controller.present(this.#fitting.update());
       this.#threadSurface ??= consumeThreads(this, (collection, surfaces) => {
         for (const thread of collection.threads) {
           if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
@@ -160,8 +151,6 @@ customElements.define(
         entry.stopReading?.();
         entry.stopReading = null;
       }
-      this.#fitting?.cleanup();
-      this.#fitting = null;
       this.#sizes?.disconnect();
       this.#sizes = null;
       window.removeEventListener("resize", this.#onResize);
@@ -230,78 +219,9 @@ customElements.define(
         owner: this,
         role: "workspace",
         header,
+        minimumSize: () => ({ width: 720, height: 600 }),
       });
-      this.#arrangements = [
-        queue.readingArrangement,
-        evidence.readingArrangement,
-        partition.readingArrangement,
-        workspace.readingArrangement,
-      ];
-      this.#registerCommands();
-      this.#paintInspector();
-    }
-
-    #registerLayout() {
-      const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
-      this.#partition = workspaceContent?.querySelector(":scope > .lf-vr-partition");
-      const partitionContent = this.#partition?.querySelector(
-        ":scope > .lf-partition-content",
-      );
-      this.#queueHost = partitionContent?.querySelector(":scope > .lf-vr-queue-region");
-      this.#evidenceHost = partitionContent?.querySelector(
-        ":scope > .lf-vr-evidence-region",
-      );
-      this.#queue = this.#queueHost?.querySelector(".lf-vr-case-select");
-      this.#inspector = this.#evidenceHost?.querySelector(".lf-vr-inspector");
-      this.#casesBody = this.#evidenceHost?.querySelector(".lf-vr-cases");
-      this.#title = this.querySelector(".lf-vr-title");
-      this.#progress = this.querySelector(".lf-vr-progress");
-      if (
-        !workspaceContent ||
-        !this.#partition ||
-        !partitionContent ||
-        !this.#queueHost ||
-        !this.#evidenceHost ||
-        !this.#queue ||
-        !this.#inspector ||
-        !this.#casesBody ||
-        !this.#title ||
-        !this.#progress
-      )
-        throw new Error("visual review lost its reading regions");
-      this.#arrangements = [
-        registerReadingElement({
-          owner: this.#queueHost,
-          content: this.#queueHost.querySelector(":scope > .lf-pane-content"),
-          body: this.#queueHost.querySelector(
-            ":scope > .lf-pane-content > .lf-pane-body",
-          ),
-          regions: [
-            {
-              id: compoundReadingRegionId(this, "cases"),
-              host: this.#queueHost,
-            },
-          ],
-        }),
-        registerReadingElement({
-          owner: this.#evidenceHost,
-          content: this.#evidenceHost.querySelector(":scope > .lf-pane-content"),
-          body: this.#evidenceHost.querySelector(
-            ":scope > .lf-pane-content > .lf-pane-body",
-          ),
-          regions: [
-            {
-              id: compoundReadingRegionId(this, "evidence"),
-              host: this.#evidenceHost,
-            },
-          ],
-        }),
-        registerReadingElement({
-          owner: this.#partition,
-          content: partitionContent,
-        }),
-        registerReadingElement({ owner: this, content: workspaceContent }),
-      ];
+      this.#layouts = [queue, evidence, partition, workspace];
       this.#registerCommands();
       this.#paintInspector();
     }
@@ -595,8 +515,7 @@ customElements.define(
     }
 
     #cleanupLayout() {
-      for (const arrangement of this.#arrangements) arrangement.cleanup();
-      this.#arrangements = [];
+      for (const layout of this.#layouts) layout.disconnect();
     }
 
     #registerCommands() {
@@ -645,7 +564,7 @@ customElements.define(
           this.#selected = fallback?.id ?? ids[0];
         this.#select(this.#selected);
         this.#paintInspector();
-        this.#controller.present(this.#fitting?.update());
+        this.#controller.present(this.#layouts.at(-1)?.update());
       } catch (error) {
         failSoft(this, error);
       } finally {

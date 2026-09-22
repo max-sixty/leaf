@@ -1777,6 +1777,10 @@ export function createVersionController({
     for (const region of ordered) {
       const reading = regionViews.get(region.id);
       const box = effectiveScroller(region);
+      // A composition retains its own scrollers. Document travel belongs to the
+      // navigation that changed the composition, including native history. A posture
+      // change can still carry a region between its inner scroller and the document.
+      if (transition.to === null && !containsAcross(owner, box)) continue;
       if (!reading || restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
       restoreRegion(reading, region, transition.currentIntent);

@@ -4135,7 +4135,7 @@ How this text reaches the agent, by example
 @DELIVERY@
 
 5. The agent follows `handling`: it replies in the thread with `leaf reply`, edits
-   the page if warranted, and runs `leaf ack` to mark the event handled and wait
+   the page if warranted, and runs `leaf wait --ack <delivery-id>` to confirm receipt and wait
    for the next one.
 
 What this file records

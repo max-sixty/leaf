@@ -259,8 +259,11 @@ def test_product_pages_vendor_the_composed_theme(site):
         ROOT / "skills" / "leaf" / "assets" / "theme.css",
         ROOT / "skills" / "leaf" / "packages" / "default" / "theme.css",
         *(
-            ROOT / "skills" / "leaf" / "packages" / name / "theme.css"
+            theme
             for name in json.loads((EXAMPLES / "layer.json").read_text())
+            for theme in (ROOT / "skills" / "leaf" / "packages" / name).glob(
+                "theme.css"
+            )
         ),
         DOCS / "package" / "theme.css",
     ]
@@ -1642,7 +1645,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     expect(page.locator("body")).to_have_attribute(
         "data-lf-auxiliary-surface", "threads"
     )
-    assert page.evaluate("localStorage.getItem('lf-thread-panel-open')") == "1"
+    assert page.evaluate("localStorage.getItem('lf-auxiliary-surface')") == "threads"
     threads_tab.evaluate("tab => tab.click()")
     toggle.click()
     threads_frame = gallery.locator(
@@ -1661,7 +1664,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     expect(page.locator("body")).to_have_attribute(
         "data-lf-auxiliary-surface", "threads"
     )
-    assert page.evaluate("localStorage.getItem('lf-thread-panel-open')") == "1"
+    assert page.evaluate("localStorage.getItem('lf-auxiliary-surface')") == "threads"
 
     # Remember this demo beside the reader's open outer workspace, reload, and play
     # as soon as the frame declares itself ready. The contained thread surface may

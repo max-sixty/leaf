@@ -7,6 +7,7 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -3587,7 +3588,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, roots)
+        delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
     picked_up = marker.evaluate("""node => {
@@ -3867,7 +3868,7 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         if event["kind"] == "comment"
     ]
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, roots)
+        delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(marker).to_have_attribute("data-lf-turn", "reader")
@@ -3916,7 +3917,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     ]
     assert len(moves) == 2
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, moves)
+        delivery_model.record_pickup(transaction, moves)
     told(page)
     page.keyboard.press("Escape")
     page.keyboard.press("g")
@@ -4225,7 +4226,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert_status("Waiting for pickup", "Sent 3m ago")
 
     with service_model.PageTransaction(page_dir) as transaction:
-        session_model.record_pickup(transaction, [logged_action])
+        delivery_model.record_pickup(transaction, [logged_action])
     told(page)
     assert_status("Picked up", "just now")
 
@@ -7176,3 +7177,37 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         f"after Escape: in the closing task the thread margin entry stands at {landed}, "
         f"but the column's rest is {rest}"
     )
+
+
+def test_closing_a_tray_places_the_margin_against_the_released_column(browser, serve):
+    """Tray closure finishes its margin projection in the gesture, after releasing room."""
+    url = serve(ASK_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "mounts-p"},
+            "text": "Check the mounts.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    marker = '.lf-margin-marker[data-lf-kinds="comment"]'
+    resting = page.locator(marker).bounding_box()["x"]
+    page.locator(".lf-asks").click()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    margins_laid_out(page)
+    assert page.locator(marker).bounding_box()["x"] != pytest.approx(resting, abs=1)
+    # The listener reads after the control's handler, before a repaint can mask a stale
+    # margin. The real click is necessary: it exercises focus return and the tray's close.
+    page.evaluate(
+        """selector => document.addEventListener('click', () => {
+          window.trayClosedMargin = document.querySelector(selector).getBoundingClientRect().x;
+        }, {once: true})""",
+        marker,
+    )
+    page.locator(".lf-asks").click()
+    assert page.evaluate("window.trayClosedMargin") == pytest.approx(resting, abs=1)

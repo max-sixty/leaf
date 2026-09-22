@@ -37,7 +37,8 @@ has tried; settle that before building it.
   [cold-authoring, reading-parity, and resume cases](notes/agent-usability-evals.md#first-executable-slice).
   Compare authoring and a feedback cycle with plain HTML before improving Leaf's
   authoring guidance. Use observed failures to choose new reading interfaces;
-  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20).
+  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
+  including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/reader-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -75,12 +76,10 @@ has tried; settle that before building it.
   and revision a visible tab reports to the presence reading, and document them.
   **Unconfirmed:** no agent failure yet shows the agent needs them; the
   agent-usability baseline above should.
-- **Cut the Claude Code loop to one command per batch.** Advance the cursor when
-  `leaf wait` prints, mark a delivered move Working when it enters the turn, and
-  default the handoff banner to the page's open Ask, so `ack`, `delivery claim` and
-  `status waiting` leave the ordinary batch. **Unconfirmed:** advancing on print
-  gives up what `ack` guards today: a `leaf wait` output that was truncated or
-  lost before it reached the agent is delivered again (`event-batches.md`).
+- **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
+  words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
+  several open Asks and an informational page before choosing how the banner
+  explains who owes the next move.
 
 ## Etc
 

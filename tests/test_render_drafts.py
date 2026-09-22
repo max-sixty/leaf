@@ -9,8 +9,9 @@ import pytest
 from click.testing import CliRunner
 from interact_support import append_command
 from leaf import cli as cli_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import session as session_model
+from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -2979,7 +2980,12 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
-    session_model.cmd_ack(d, events_model.read_events(d)[-1]["seq"])
+    with service_model.PageTransaction(d) as transaction:
+        batch = {"events": transaction.events}
+        with delivery_model.receive_batch(
+            transaction, batch, session_id=None
+        ) as events:
+            delivery_model.record_pickup(transaction, events)
     # And the agent answers with a version that carries neither — the page generator
     # emitting its own idea of the board and the draft, as one did for five
     # versions running.

@@ -30,7 +30,6 @@ import {
   paintKeys,
   quoted,
   reserve,
-  registerReadingElement,
   says,
   tabStore,
   widgetController,
@@ -104,12 +103,12 @@ customElements.define(
     #projected = undefined;
     #ready = false;
     #interactive = false;
-    #readingArrangements = [];
+    #layouts = [];
     #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
-        if (this.#interactive && this.#ready) this.#registerLayout();
+        for (const layout of this.#layouts) layout.connect();
         if (this.#interactive)
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#paintAvailability();
@@ -575,64 +574,11 @@ customElements.define(
         role: "workspace",
         footer: actions,
       });
-      this.#readingArrangements = [
-        controls.readingArrangement,
-        previewRegion.readingArrangement,
-        splitRegion.readingArrangement,
-        workspace.readingArrangement,
-      ];
-    }
-
-    #registerLayout() {
-      const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
-      const split = workspaceContent?.querySelector(":scope > .lf-playground-split");
-      const splitContent = split?.querySelector(":scope > .lf-partition-content");
-      const controlsHost = splitContent?.querySelector(
-        ":scope > .lf-playground-controls-region",
-      );
-      const previewHost = splitContent?.querySelector(
-        ":scope > .lf-playground-preview-region",
-      );
-      if (!workspaceContent || !split || !splitContent || !controlsHost || !previewHost)
-        throw new Error("lost its arranged regions");
-      const controlsBody = controlsHost.querySelector(
-        ":scope > .lf-pane-content > .lf-pane-body",
-      );
-      const previewBody = previewHost.querySelector(
-        ":scope > .lf-pane-content > .lf-pane-body",
-      );
-      this.#readingArrangements = [
-        registerReadingElement({
-          owner: controlsHost,
-          content: controlsHost.querySelector(":scope > .lf-pane-content"),
-          body: controlsBody,
-          regions: [
-            {
-              id: compoundReadingRegionId(this, "controls"),
-              host: controlsHost,
-            },
-          ],
-        }),
-        registerReadingElement({
-          owner: previewHost,
-          content: previewHost.querySelector(":scope > .lf-pane-content"),
-          body: previewBody,
-          regions: [
-            {
-              id: compoundReadingRegionId(this, "preview"),
-              host: previewHost,
-            },
-          ],
-        }),
-        registerReadingElement({ owner: split, content: splitContent }),
-        registerReadingElement({ owner: this, content: workspaceContent }),
-      ];
+      this.#layouts = [controls, previewRegion, splitRegion, workspace];
     }
 
     #cleanupLayout() {
-      for (const readingArrangement of this.#readingArrangements)
-        readingArrangement.cleanup();
-      this.#readingArrangements = [];
+      for (const layout of this.#layouts) layout.disconnect();
     }
 
     #commands() {

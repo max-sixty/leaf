@@ -1,7 +1,12 @@
-/* The shared modal boundary for an auxiliary surface that covers the document.
+/* One selected auxiliary surface, its remembered selection, and its covering boundary.
 
-   Visibility owners keep their ordinary surfaces and scrollports while responsive
-   layout decides whether they stand beside the page or over it. In the covering
+   Registered surfaces retain their own rendering and scrollports. Selecting one closes
+   the previous surface before opening it; there is no per-surface visibility state.
+   Restoration reserves the selected surface's room immediately. A surface whose rows
+   need the first server reading declares presentation-time arrival, so its rendering
+   and covering boundary wait for that reading without postponing the shell geometry.
+
+   Responsive layout decides whether surfaces stand beside the page or over it. In the covering
    posture this owner makes every sibling reading surface inert, dims that entire
    background, gives the surface modal semantics, and moves focus in only when it was
    outside. It re-derives those siblings when the live version replaces the authored
@@ -16,9 +21,21 @@
 import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { under } from "./shadow.js";
+import { readerStore } from "./storage.js";
+import { pagePresented } from "./presentation.js";
 
-export function createAuxiliaryModality({ chromeRoot, focusable }) {
-  const controllers = new Set();
+export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
+let selectedKey = null;
+export const currentAuxiliarySurface = () => selectedKey;
+
+export function createAuxiliarySurfaces({
+  chromeRoot,
+  focusable,
+  moveContentFrame,
+  syncLayout,
+  afterChange,
+}) {
+  const controllers = new Map();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
   scrim.hidden = true;
@@ -26,6 +43,7 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
   let active = null;
   let placingFocus = false;
   let mounted = false;
+  let arriving = null;
 
   const deepestFocus = () => {
     let node = document.activeElement;
@@ -123,39 +141,95 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
     active = null;
   }
 
-  function registerAuxiliarySurface({ surface, scroller, covers, focus, dismiss }) {
-    if (!surface?.id || !scroller || !covers || !focus || !dismiss)
+  function registerAuxiliarySurface({
+    key,
+    surface,
+    scroller,
+    covers,
+    focus,
+    show,
+    hide,
+    arrival = "mount",
+  }) {
+    if (!key || !surface?.id || !scroller || !covers || !focus || !show || !hide)
       throw new Error(
-        "leaf: a covering auxiliary surface needs a named surface, scroller, covering reading, focus destination, and dismissal",
+        "leaf: an auxiliary surface needs a key, named surface, scroller, covering reading, focus destination, and visibility callbacks",
       );
+    if (controllers.has(key))
+      throw new Error(`leaf: duplicate auxiliary surface ${key}`);
     const controller = {
+      key,
       surface,
       scroller,
       covers,
       focus,
-      dismiss,
-      open: false,
+      show,
+      hide,
+      arrival,
       role: null,
       suspended: new Map(),
-      sync(open) {
-        controller.open = open;
-        if (open && covers()) enter(controller);
-        else leave(controller);
-      },
     };
-    controllers.add(controller);
-    return controller;
+    controllers.set(key, controller);
   }
 
   function sync() {
-    for (const controller of controllers) controller.sync(controller.open);
+    const selected = controllers.get(selectedKey);
+    if (active && (active !== selected || !active.covers())) leave(active);
+    if (selected && selected !== arriving && selected.covers()) enter(selected);
+  }
+
+  function select(
+    key,
+    { remember = true, returnFocus = true, phase = "gesture" } = {},
+  ) {
+    if (key !== null && !controllers.has(key))
+      throw new Error(`leaf: unknown auxiliary surface ${key}`);
+    if (selectedKey === key) return;
+    const previous = controllers.get(selectedKey);
+    if (active) leave(active);
+    selectedKey = key;
+    arriving = null;
+    moveContentFrame(() => {
+      previous?.hide({ returnFocus });
+      if (key) document.body.dataset.lfAuxiliarySurface = key;
+      else delete document.body.dataset.lfAuxiliarySurface;
+      const selected = controllers.get(key);
+      if (selected) {
+        if (
+          phase === "arrival" &&
+          selected.arrival === "presentation" &&
+          !pagePresented()
+        )
+          arriving = selected;
+        else selected.show({ phase });
+      }
+    });
+    sync();
+    syncLayout();
+    afterChange();
+    if (remember) readerStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
+  }
+
+  function restore() {
+    const key = readerStore.get(AUXILIARY_SURFACE_KEY);
+    select(controllers.has(key) ? key : null, { remember: false, phase: "arrival" });
+  }
+
+  function present() {
+    if (!arriving) return;
+    const surface = arriving;
+    arriving = null;
+    surface.show({ phase: "arrival" });
+    sync();
+    syncLayout();
+    afterChange();
   }
 
   function mount() {
     if (mounted) return;
     mounted = true;
     scrim.addEventListener("pointerdown", (event) => event.preventDefault());
-    scrim.addEventListener("click", () => active?.dismiss());
+    scrim.addEventListener("click", () => select(null));
     document.addEventListener(
       "keydown",
       (event) => {
@@ -206,6 +280,9 @@ export function createAuxiliaryModality({ chromeRoot, focusable }) {
   return {
     scrim,
     registerAuxiliarySurface,
+    select,
+    restore,
+    present,
     sync,
     mount,
     coveringSurface,

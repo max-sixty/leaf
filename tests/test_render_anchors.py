@@ -11,10 +11,10 @@ from click.testing import CliRunner
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from PIL import Image
@@ -163,13 +163,19 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // tidily on a boundary, and spanning two blocks is where the joins show.
             for (const end of [blocks[i], blocks[i + 1]].filter(Boolean)) {
                 attempted++;
+                // A mouse selection starts in page words and ends with the native
+                // pointer/mouse release pair; selectionchange alone does not snap.
+                const pointer = {bubbles: true, composed: true, isPrimary: true,
+                                 pointerType: 'mouse', button: 0};
+                blocks[i].dispatchEvent(new PointerEvent('pointerdown', pointer));
                 const range = document.createRange();
                 range.setStart(blocks[i], 0);
                 range.setEnd(end, end.childNodes.length);
                 const sel = getSelection();
                 sel.removeAllRanges();
                 sel.addRange(range);
-                document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+                end.dispatchEvent(new PointerEvent('pointerup', pointer));
+                end.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
                 await tick();
                 // Counted, not shrugged off: a selection the button declines to offer is
                 // a passage silently outside this sweep, and the sweep is the coverage.
@@ -4821,13 +4827,17 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
             const index = starts.findLastIndex(value => value <= offset);
             return [nodes[index], offset - starts[index]];
           };
+          const pointer = {bubbles: true, composed: true, isPrimary: true,
+                           pointerType: 'mouse', button: 0};
+          line.dispatchEvent(new PointerEvent('pointerdown', pointer));
           const range = document.createRange();
           range.setStart(...at(start));
           range.setEnd(...at(start + phrase.length));
           const selection = getSelection();
           selection.removeAllRanges();
           selection.addRange(range);
-          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+          line.dispatchEvent(new PointerEvent('pointerup', pointer));
+          line.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, composed: true}));
           return {
             text: selection.toString(),
             crossesTokens: range.startContainer !== range.endContainer,
@@ -4953,7 +4963,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     inline_receipt.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_receipt.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        session_model.record_pickup(transaction, [root])
+        delivery_model.record_pickup(transaction, [root])
     told(page)
     expect(inline_receipt).to_contain_text("✓ Picked up")
     expect(panel_receipt).to_contain_text("✓ Picked up")

@@ -1099,6 +1099,16 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget = page.locator("#visual-review-run")
     selector = widget.locator(".lf-vr-case-select")
     initial = selector.evaluate("node => node.value")
+    assert widget.evaluate(
+        """owner => {
+          const parent = owner.parentNode;
+          const next = owner.nextSibling;
+          const nodes = [...owner.querySelectorAll('*')];
+          owner.remove();
+          parent.insertBefore(owner, next);
+          return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
+        }"""
+    )
     widget.get_by_role("radio", name="Compare").click()
     page.keyboard.press("ArrowDown")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")
@@ -8135,12 +8145,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("You (1)")
     operations = page.locator("#thread-commands")
     with sending(page, "the restart request"):
         operations.get_by_role("button", name="Restart").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/6")
-    expect(page.locator(".lf-needs")).to_have_text("On you")
+    expect(page.locator(".lf-needs")).to_have_text("You (0)")
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -8160,12 +8170,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
     assert result.exit_code == 0, result.output
     told(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/6")
-    expect(page.locator(".lf-needs")).to_have_text("On you (1)")
+    expect(page.locator(".lf-needs")).to_have_text("You (1)")
     expect(operations).to_contain_text("restart failed")
 
     with sending(page, "the retried restart request"):
         operations.get_by_role("button", name="Restart").click()
-    expect(page.locator(".lf-needs")).to_have_text("On you")
+    expect(page.locator(".lf-needs")).to_have_text("You (0)")
     request = [
         event
         for event in events_model.read_events(serve.page_dir)

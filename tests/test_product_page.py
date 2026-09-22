@@ -142,10 +142,10 @@ def test_extension_references_follow_the_concepts_they_explain():
     assert 'href="/extending/"' in registry
 
 
-def test_package_catalog_routes_every_optional_package_to_a_focused_page():
+def test_package_catalog_routes_every_optional_package_to_inspectable_content():
     extending = (DOCS / "extending.html").read_text()
     catalog = re.findall(
-        r'<a class="package-card" href="([^"]+)">\s*<strong>([^<]+)</strong>',
+        r'<a\s+class="package-card"\s+href="([^"]+)"\s*>\s*<strong>([^<]+)</strong>',
         extending,
     )
     declared = json.loads((EXAMPLES / "layer.json").read_text())
@@ -155,9 +155,13 @@ def test_package_catalog_routes_every_optional_package_to_a_focused_page():
     assert [name.casefold().replace(" ", "-") for _, name in catalog] == [
         name for name in declared if name != "gallery"
     ]
-    assert all(
-        href.startswith("/examples/") and href.endswith("/") for href, _ in catalog
-    )
+    for href, _ in catalog:
+        if href.startswith("/examples/"):
+            assert href.endswith("/")
+        else:
+            source_prefix = "https://github.com/max-sixty/leaf/blob/main/"
+            assert href.startswith(source_prefix)
+            assert (ROOT / href.removeprefix(source_prefix)).is_file()
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
@@ -205,7 +209,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 
     The pages narrate the agent's half of the loop and `how-it-works.html` now shows
     it, and a renamed subcommand is what quietly breaks that: the transcript is prose
-    to every other gate here, so a stale `leaf ack` would go on being published
+    to every other gate here, so a stale command would go on being published
     indefinitely. The names are resolved against click's own tree rather than listed
     in this file, because a list here is a second copy of the command surface and goes
     stale the same way the page does.

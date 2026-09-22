@@ -930,34 +930,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
     padding: 0 16px 8px; color: var(--muted); font-size: var(--t-6); }
   .lf-thread-view-summary { flex: 1; min-width: 0; }
-  /* Lifecycle and optional refinements remain grouped in the disclosed controls.
-     Groups wrap as units when the conditional placement filter appears, so the panel
-     never introduces a horizontal scroller. A facet with no checked control means all
-     of that facet. */
-  .lf-thread-filters[hidden], .lf-thread-view[hidden] { display: none; }
+  /* A selected box applies one refinement; pressing it again removes it. */
+  .lf-thread-filters[hidden], .lf-thread-view[hidden], .lf-thread-filter-group[hidden] { display: none; }
   .lf-thread-filters { display: flex; flex: none; flex-direction: column;
-    align-items: flex-start; gap: 8px; padding: 0 16px 12px;
-    border-bottom: 1px solid var(--rule); }
-  .lf-thread-filter-facets { display: flex; flex-wrap: wrap; align-items: center;
-    gap: 6px 10px; max-width: 100%; }
-  .lf-thread-filter-group { display: flex; flex: none; flex-wrap: wrap;
-    align-items: center; gap: 5px; max-width: 100%; }
-  .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
-    border-left: 1px solid var(--rule); padding-left: 10px; }
-  .lf-thread-filter-group:not(:has(> .lf-thread-filter:not([hidden]))) { display: none; }
-  .lf-thread-filter-group:has(> [data-filter-kind="gone"]) {
-    flex-basis: 100%; border-left: 0; padding-left: 0; }
-  .lf-thread-state { max-width: 100%; }
-  .lf-thread-filter { font-size: var(--t-6); }
-  /* At the supported 320px floor, keep lifecycle and each facet pair on one line.
-     Three short rows leave the list as the sheet's main surface without shrinking the
-     controls' block size or bringing back a horizontal rail. */
+    gap: 6px; padding: 0 16px 12px; border-bottom: 1px solid var(--rule); }
+  .lf-thread-filter-group { display: grid; width: 100%; min-width: 0;
+    grid-template-columns: 76px minmax(0, 1fr); align-items: center; column-gap: 8px; }
+  .lf-thread-filter-label { color: var(--muted); font: var(--t-6) var(--sans); }
+  .lf-thread-filter-choices { display: flex; flex-wrap: wrap; gap: 5px; }
+  .lf-thread-filter { padding: 2px 8px; font-size: var(--t-6); }
+  .lf-thread-filter-group:not(:has(.lf-thread-filter:not([hidden]))) { display: none; }
   @media (max-width: 360px) {
-    .lf-thread-filters { gap: 4px; padding-inline: 8px; }
-    .lf-thread-filter-facets { gap: 4px 6px; }
-    .lf-thread-filter-group { gap: 3px; }
-    .lf-thread-filter-facets > .lf-thread-filter-group + .lf-thread-filter-group {
-      padding-left: 6px; }
+    .lf-thread-filters { padding-inline: 8px; }
+    .lf-thread-filter-group { grid-template-columns: 66px minmax(0, 1fr); column-gap: 6px; }
   }
   /* contain: reaching the end of the thread list must not start scrolling the page
      behind it — one wheel gesture moves one region.
@@ -1330,8 +1315,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg.agent:is(:hover, :focus-within) > .lf-react-strip > .lf-react-trigger {
     opacity: 1; }
   .lf-msg.agent:has(> .lf-react-strip.lf-react-open) { z-index: 4; }
-  .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
-    background: var(--card); }
   /* A thread whose root is a mark: the glyph and its word where the comment's words
      would stand, in the chrome's face. */
   .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }

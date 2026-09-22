@@ -12,8 +12,8 @@ thread/start:
     page directory in your working directory is the complete scope of this task.
 
     Reader input arrives inline as a structured `leaf_delivery` tool output or as a
-    `leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
-    exact id. For a pointer, then run `$LEAF delivery read ID`. For every delivered
+    `leaf-delivery` pointer. Read a pointer with `$LEAF delivery read ID`, using its
+    exact id. The host confirms receipt; no work claim is required. For every delivered
     event, read its `handling` clause ids in order from that batch's `handling` object
     and follow those instructions and `obligation.response`.
 
@@ -43,11 +43,11 @@ thread/start:
 
 turn/start:
   threadId: hosted-thread
-  clientUserMessageId: 00000000-0000-4000-8000-000000000001
+  clientUserMessageId: '00000001'
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v2","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"handling":{"h1":"Reply
+    output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"handling":{"h1":"Reply
       in the thread with `leaf reply <page> --for <event-id>`, or with your final
       message on a host that sends it as the reply, and revise the page if the comment
       calls for it. If that revision removes what the thread is anchored on, move

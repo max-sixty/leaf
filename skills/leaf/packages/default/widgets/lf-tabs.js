@@ -9,7 +9,8 @@
  * version carries it — this widget doesn't ride the action channel at all.
  * A tab set that is the main element's sole substantive child, below an optional
  * header, becomes the page composition: its panel id is the URL fragment, history
- * follows those panel entries, and each panel keeps its own document reading place.
+ * follows those panel entries. Switching views and browser history use native
+ * fragment navigation to the chosen panel.
  * Embedded tab sets retain the ordinary framed-widget behavior.
  * While the version diff is on, a tab whose panel holds marked passages wears
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
@@ -24,9 +25,7 @@ import {
   listWalkPosition,
   offer,
   once,
-  pageScroller,
   preserveReadingRegions,
-  retainReaderIntent,
   relabel,
   removeRuntimeRootStyle,
   selectableOffer,
@@ -35,7 +34,6 @@ import {
 } from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
-const TAB_SCROLL_KEY = "lf-tabs-scroll:";
 const substantiveChildren = (owner) =>
   [...owner.childNodes].filter(
     (child) =>
@@ -56,7 +54,6 @@ customElements.define(
     #historyEvents = null;
     #active = null;
     #root = false;
-    #activation = 0;
     #contextObserver = null;
     #strip = null;
     #stripResize = null;
@@ -191,7 +188,6 @@ customElements.define(
       this.#stripResize?.disconnect();
       this.#stripResize = null;
       this.#clearStickyClearance();
-      this.#activation += 1;
     }
 
     #listenForDiff() {
@@ -204,35 +200,12 @@ customElements.define(
 
     #activate(active, remember, reason) {
       if (!this.#buttons.has(active)) return;
-      // History navigation can focus its fragment target after popstate returns.
-      const mayRestore = retainReaderIntent({
-        fallback: reason === "history" ? active : null,
-      });
-      const activation = ++this.#activation;
       if (active === this.#active) {
-        if (this.#root && reason === "ordinary") this.#pushLocation(active);
+        if (this.#root && reason === "ordinary") this.#navigateTo(active);
         return Promise.resolve();
       }
       const previous = this.#active;
-      if (this.#root && previous) {
-        tabStore.set(
-          `${TAB_SCROLL_KEY}${this.id}:${previous.id}`,
-          String(pageScroller.scrollTop),
-        );
-      }
       const change = () => {
-        if (this.#root && reason === "ordinary") {
-          // Push while the outgoing document still occupies its reading place, so the
-          // browser records that offset on the history entry it is leaving.
-          this.#pushLocation(active);
-          pageScroller.scrollTop = 0;
-        }
-        if (
-          this.#root &&
-          reason === "reveal" &&
-          soleSubstantiveElement(active)?.classList.contains("lf-workspace-reading")
-        )
-          pageScroller.scrollTop = 0;
         for (const [panel, btn] of this.#buttons) {
           if (panel === active) panel.removeAttribute("hidden");
           else panel.setAttribute("hidden", HIDDEN);
@@ -248,24 +221,10 @@ customElements.define(
           if (child) presentation.push(layoutChanged(child));
         }
         presentation.push(layoutChanged(this));
+        if (this.#root && reason === "ordinary") this.#navigateTo(active);
         return Promise.all(presentation);
       };
-      const ready =
-        this.#root && previous ? preserveReadingRegions(this, change) : change();
-      if (this.#root && ["ordinary", "history"].includes(reason)) {
-        const saved = Number.parseFloat(
-          tabStore.get(`${TAB_SCROLL_KEY}${this.id}:${active.id}`),
-        );
-        void ready.then(() => {
-          if (
-            mayRestore() &&
-            activation === this.#activation &&
-            active === this.#active
-          )
-            pageScroller.scrollTop = Number.isFinite(saved) ? saved : 0;
-        });
-      }
-      return ready;
+      return this.#root && previous ? preserveReadingRegions(this, change) : change();
     }
 
     #panelForLocation(panels) {
@@ -365,22 +324,14 @@ customElements.define(
     #listenForHistory() {
       if (!this.#root || this.#historyEvents) return;
       this.#historyEvents = new AbortController();
-      const followLocation = (preferredReason) => {
+      const followLocation = () => {
         const panel = this.#panelForLocation([...this.#buttons.keys()]);
-        const reason =
-          preferredReason === "history" && this.#targetForLocation() === panel
-            ? "history"
-            : "reveal";
-        // A traversal owns tab reading restoration. Its following hashchange names the
-        // same panel and must not cancel that pending restoration; a direct fragment
-        // change still activates an inactive owner as an explicit reveal.
-        if (panel && (reason === "history" || panel !== this.#active))
-          this.#activate(panel, true, reason);
+        if (panel && panel !== this.#active) this.#activate(panel, true, "reveal");
       };
-      window.addEventListener("popstate", () => followLocation("history"), {
+      window.addEventListener("popstate", followLocation, {
         signal: this.#historyEvents.signal,
       });
-      window.addEventListener("hashchange", () => followLocation("reveal"), {
+      window.addEventListener("hashchange", followLocation, {
         signal: this.#historyEvents.signal,
       });
     }
@@ -396,9 +347,12 @@ customElements.define(
       history.replaceState(history.state, "", this.#locationFor(panel));
     }
 
-    #pushLocation(panel) {
+    #navigateTo(panel) {
       if (location.hash === `#${panel.id}`) return;
-      history.pushState(history.state, "", this.#locationFor(panel));
+      location.hash = panel.id;
+      // Fragment travel focuses its target; a tab press keeps the roving strip
+      // focused so another arrow can continue the same walk.
+      this.#buttons.get(panel).focus({ preventScroll: true });
     }
 
     // One Δn chip per tab holding marked passages, so the notice's count is

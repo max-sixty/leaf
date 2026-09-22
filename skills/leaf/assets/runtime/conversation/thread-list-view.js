@@ -169,6 +169,7 @@ class ThreadListView extends LitElement {
         });
         if (view.node.contains(focused())) this.focus({ preventScroll: true });
       }
+      view.node.name = folding ? "" : "threads";
       if (!descriptor.visible && !folding) view.node.open = false;
       view.setNavigation({
         draftChanged: () => view.present(view.model),

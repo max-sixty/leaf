@@ -12,9 +12,9 @@
    clean boundary instead of leaving an arbitrary partial message line below the pinned
    heading. The transient arrival flash belongs to the revealed target — short card,
    reply area, message, or oversized editor — rather than to a long card spanning
-   beyond the scrollport. The explicit `t`/`T` walk remains on card roots—inline while
-   Threads is closed, in the panel while it is open; Enter starts a reply and Escape
-   returns to the card. An accepted anchored comment continues in the open Threads panel,
+   beyond the scrollport. The explicit `t`/`T` walk remains on a thread's native title
+   in the panel and on the card root inline; Enter and Space therefore keep their native
+   disclosure meaning. An accepted anchored comment continues in the open Threads panel,
    widening a filter that would hide it.
 
    `backFromBox` and `standingConversation` climb the same conversation relation, so
@@ -38,7 +38,7 @@ import { focusDestination, readCaret } from "../focus.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { threadList } from "./state.js";
-import { focusedThread } from "./focus.js";
+import { focusedThread, focusThread } from "./focus.js";
 import { threadSearchActive } from "./narrowing.js";
 
 export { SAY_BOX } from "./selectors.js";
@@ -142,7 +142,8 @@ export const backFromConversation = (box) => conversationReturns.get(box) ?? nul
 // editing this: the question is the same one, and the answer moved.
 function backFromBox() {
   const held = heldConversation();
-  if (held?.hasAttribute("tabindex")) return { target: held, line: "back to thread" };
+  if (held?.matches(".lf-thread, .lf-conversation-thread"))
+    return { target: held, line: "back to thread" };
   const route = backFromConversation(focused());
   return route?.target?.isConnected ? route : null;
 }
@@ -180,7 +181,10 @@ pageScope("text entry", {
       run: () => {
         const back = backFromBox();
         document.activeElement.blur();
-        (back?.target ?? threadsBox).focus();
+        const target = back?.target ?? threadsBox;
+        if (target.matches?.(".lf-thread, .lf-conversation-thread"))
+          focusThread(target);
+        else target.focus();
       },
     },
   ],
@@ -323,18 +327,26 @@ const land = (thread) => {
 // cancellation means the browser took it for something else — commonly a touch scroll —
 // so release the hold without undoing the gesture by landing the thread.
 const finishPress = (event, shouldLand) => {
-  if (event.pointerId !== pressedPointer) return;
+  if (event.pointerId !== pressedPointer?.id) return;
+  const pressedThread = pressedPointer.thread;
   pressedPointer = null;
   if (!shouldLand) return;
-  const thread = standing();
-  if (thread && !reachedForWords(thread)) land(thread);
+  const thread = standing() ?? pressedThread;
+  if (thread && !reachedForWords(thread)) {
+    if (!thread.contains(focused())) focusThread(thread, { preventScroll: true });
+    land(thread);
+  }
 };
 addEventListener("pointerup", (event) => finishPress(event, true), true);
 addEventListener("pointercancel", (event) => finishPress(event, false), true);
 // Mounted from leaf.js.
 export function wireThreadLanding() {
   threadsBox.addEventListener("pointerdown", (event) => {
-    if (event.isPrimary) pressedPointer = event.pointerId;
+    if (event.isPrimary)
+      pressedPointer = {
+        id: event.pointerId,
+        thread: event.target.closest?.(".lf-thread") ?? null,
+      };
   });
   threadsBox.addEventListener("focusin", () => {
     if (pressedPointer === null) land(standing());
@@ -399,7 +411,8 @@ async function showThreadNow(id, focus, revealThread) {
         : node === thread
           ? (conversationInputOf(thread) ?? thread)
           : node;
-    destination.focus({ preventScroll: true });
+    if (destination === thread) focusThread(thread, { preventScroll: true });
+    else destination.focus({ preventScroll: true });
   }
   const directThread = node === thread && thread.contains(focused());
   const target = directThread ? landingTarget(thread, focused()) : node;

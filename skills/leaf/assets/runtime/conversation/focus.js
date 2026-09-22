@@ -1,6 +1,12 @@
 /* Focus readings shared by conversation paint and commands. */
 import { focused, documentFocused } from "../keyboard/scopes.js";
 
+// Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
+// so their established root remains the destination.
+export function focusThread(thread, options) {
+  (thread.querySelector(":scope > summary") ?? thread).focus(options);
+}
+
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
 // takes ask the same question, so they cannot disagree about which thread this is. Not a
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
@@ -8,6 +14,15 @@ import { focused, documentFocused } from "../keyboard/scopes.js";
 export function focusedThread() {
   const active = focused();
   return active?.matches?.(".lf-thread, .lf-conversation-thread") ? active : null;
+}
+
+// A native panel summary stands for its details in commands that move the whole
+// thread. Controls deeper in the conversation keep their own command scope.
+export function focusedThreadTarget() {
+  const active = focused();
+  return active?.matches?.(".lf-thread-summary")
+    ? active.closest(".lf-thread")
+    : focusedThread();
 }
 
 // The panel thread the reader is in, asked by class because that is the anchors module's

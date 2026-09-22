@@ -23,6 +23,7 @@ import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
+import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges } from "./summary-ranges.js";
 
@@ -203,7 +204,7 @@ export class ThreadView {
       surface === "outlet" || surface === "panel" ? "details" : "div",
     );
     if (surface === "panel") this.node.name = "threads";
-    this.node.tabIndex = -1;
+    else this.node.tabIndex = -1;
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
       this.node.classList.remove("grow");
@@ -643,12 +644,17 @@ export class ThreadView {
           if (!mayLand()) return false;
           const kept = openThreads();
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
-          destination.focus({ preventScroll: true });
+          if (destination.matches?.(".lf-thread"))
+            focusThread(destination, { preventScroll: true });
+          else destination.focus({ preventScroll: true });
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
         refused: () => {
-          if (mayRestore()) shownCard()?.focus({ preventScroll: true });
+          if (mayRestore()) {
+            const card = shownCard();
+            if (card) focusThread(card, { preventScroll: true });
+          }
         },
       };
     }

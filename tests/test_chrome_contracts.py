@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 import pytest
 from interact_support import append_command
 from leaf import event_log as events_model
+from leaf.media import store_uploaded_media
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -754,16 +755,22 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     destination as the document will refuses that link, and the same reading is what
     keeps an ordinary `&amp;` reaching the query it names rather than landing in it.
 
-    The destination is not the only attribute Leaf now writes from that source text: a
-    title and an image's alt arrive the same way, so the message carries one of each.
-    Escaping them without the decode would put `&amp;` in front of the reader.
+    Marked owns each field's rendering, including flattened inline alt text, titles,
+    and the literal character references in autolinks. Page-media inspection must use
+    that same image alt for its accessible name.
     """
     url = serve(LONG_PAGE)
+    pixels = io.BytesIO()
+    Image.new("RGB", (8, 8), "red").save(pixels, format="PNG")
+    media = store_uploaded_media(serve.page_dir, pixels.getvalue(), "image/png")
     panel_comment(
         serve.page_dir,
         "[press me](javascript&#58;window.leaked=true)"
+        " ![blocked *image*](javascript&#58;window.leaked=true)"
         " beside [the page](https://example.com/?a=1&amp;b=2)"
-        ' and ![Q&amp;A](/icon.svg "Sales &amp; revenue")',
+        " and <https://example.com/?a=1&amp;b=2>"
+        ' and ![Q&amp;A *chart* with [details](https://example.com/)](/icon.svg "Sales &amp; revenue")'
+        f" and ![A **media** chart]({media})",
         {"section": "p0"},
     )
     page = open_page(browser, url)
@@ -773,11 +780,26 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     prose = page.locator(".lf-msg-text").first
     # The surviving link carries the chrome's external-link note, so the words are read
     # as a run inside the prose rather than as the whole of its text.
-    expect(prose).to_contain_text("press me beside the page")
+    expect(prose).to_contain_text("press me blocked image beside the page")
     admitted = prose.evaluate(
         """node => [...node.querySelectorAll('a')].map(link => link.href)"""
     )
-    assert admitted == ["https://example.com/?a=1&b=2"], admitted
-    image = prose.locator("img")
-    expect(image).to_have_attribute("alt", "Q&A")
+    assert admitted == [
+        "https://example.com/?a=1&b=2",
+        "https://example.com/?a=1&amp;b=2",
+    ], admitted
+    expect(prose.locator("img")).to_have_count(2)
+    image = prose.locator("img").first
+    expect(image).to_have_attribute("alt", "Q&A chart with details")
     expect(image).to_have_attribute("title", "Sales & revenue")
+
+    page.locator(".lf-thread-summary").first.click()
+    media_button = prose.get_by_role("button", name="View A media chart", exact=True)
+    expect(media_button.locator("img")).to_have_attribute("alt", "A media chart")
+    media_button.focus()
+    page.keyboard.press("Enter")
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    expect(viewer.locator("img")).to_have_attribute("alt", "A media chart")
+    page.keyboard.press("Escape")
+    expect(media_button).to_be_focused()

@@ -5,7 +5,6 @@ import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 
 const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const escapeAttribute = (text) => escapeHtml(text).replace(/"/g, "&quot;");
 
 const escapedSource = (text) => escapeHtml(text);
 let render = escapedSource;
@@ -28,23 +27,15 @@ function safeUrl(href) {
   }
 }
 
-// What Marked hands a renderer is attribute source text: a destination, a title and an
-// image's alt arrive with their character references undecoded, because Marked's own
-// emission writes them where the HTML parser decodes them. Leaf writes those attributes
-// itself, so it takes that decoding here, in the one place each is read.
-// `escapeAttribute` puts the reading back unchanged, so `javascript&#58;` is refused
-// rather than resolved, and an ordinary `&amp;` still reaches the query, the alt or the
-// title it was written into.
+// Read the attributes from Marked's inert output. Its renderer owns inline-text
+// flattening, entity encoding and URL normalization; the document parser supplies
+// the destination that the scheme guard must judge before this markup is published.
 const probe = document.createElement("template");
-const decoded = (source) => {
-  probe.innerHTML = `<i data-source="${source.replace(/"/g, "&quot;")}"></i>`;
-  return probe.content.firstElementChild.dataset.source;
-};
-
-// Page media keeps its canonical text in the log, and an MCP capability route needs
-// that href scoped to reach the same bytes. Scope only those; every other destination
-// stands as the reader wrote it.
-const destination = (href) => (isCanonicalMediaUrl(href) ? scopedMediaUrl(href) : href);
+function renderedElement(markup, tag) {
+  probe.innerHTML = markup;
+  const element = probe.content.firstElementChild;
+  return element?.localName === tag ? element : null;
+}
 
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/marked.esm.js").then((module) => {
@@ -55,36 +46,34 @@ export function loadMarkdown(onError = null) {
       // markup fields.
       renderer: {
         html: (token) => escapeHtml(token.text),
-        // One reading of a destination, shared by the protocol check and the
-        // attribute it lands in. Handing the destination back to Marked's own
-        // renderer would write `javascript&#58;` unescaped and let the document
-        // resolve as a script URL what this guard read as a relative path. Every link
-        // and image is therefore written here, from the reading `decoded` takes and
-        // escaped back into the attribute it was checked as; image inspection has its
-        // own button renderer below.
         link(token) {
-          const href = decoded(token.href);
+          const markup = module.Renderer.prototype.link.call(this, token);
+          const link = renderedElement(markup, "a");
+          if (!link) return markup;
+          const href = link.getAttribute("href");
           if (!safeUrl(href)) return this.parser.parseInline(token.tokens);
-          let link = `<a href="${escapeAttribute(destination(href))}"`;
-          if (token.title) link += ` title="${escapeAttribute(decoded(token.title))}"`;
-          return link + `>${this.parser.parseInline(token.tokens)}</a>`;
+          if (isCanonicalMediaUrl(href))
+            link.setAttribute("href", scopedMediaUrl(href));
+          return link.outerHTML;
         },
         image(token) {
-          const href = decoded(token.href);
-          const text = decoded(token.text);
-          if (!safeUrl(href)) return escapeHtml(text);
-          const source = escapeAttribute(destination(href));
-          const title = token.title
-            ? ` title="${escapeAttribute(decoded(token.title))}"`
-            : "";
-          const image = `<img src="${source}" alt="${escapeAttribute(text)}"${title}>`;
-          if (!isCanonicalMediaUrl(href)) return image;
-          const label = escapeAttribute(text || "Image");
-          return (
-            `<button type="button" class="lf-media-open lf-message-media"` +
-            ` data-lf-offer="button" data-lf-said data-lf-media-url="${source}"` +
-            ` aria-label="View ${label}">${image}</button>`
-          );
+          const markup = module.Renderer.prototype.image.call(this, token);
+          const image = renderedElement(markup, "img");
+          if (!image) return markup;
+          const href = image.getAttribute("src");
+          if (!safeUrl(href)) return escapeHtml(image.alt);
+          if (!isCanonicalMediaUrl(href)) return image.outerHTML;
+          const source = scopedMediaUrl(href);
+          image.setAttribute("src", source);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "lf-media-open lf-message-media";
+          button.setAttribute("data-lf-offer", "button");
+          button.setAttribute("data-lf-said", "");
+          button.setAttribute("data-lf-media-url", source);
+          button.setAttribute("aria-label", `View ${image.alt || "Image"}`);
+          button.append(image);
+          return button.outerHTML;
         },
       },
     });

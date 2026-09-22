@@ -4086,7 +4086,16 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
     }
 
 
-def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_dir):
+def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
+    claimed, capsys
+):
+    page_dir = claimed
+    session_model.cmd_status(page_dir, "waiting", "")
+    session = service_model.page_claim(page_dir)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, session["id"])
+    )
+    assert lease
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
     asked = events_model.append_event(
@@ -4102,7 +4111,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
             "</lf-options>",
         },
     )
-    append_command(
+    chose = append_command(
         page_dir,
         {
             "kind": "action",
@@ -4113,6 +4122,16 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
             "detail": {"options": ["east"]},
         },
     )
+    selecting = state_json(page_dir)
+    assert [ask["source"] for ask in selecting["asks"]] == ["regions"]
+    assert selecting["activity"]["obligations"] == []
+    [receipt] = selecting["activity"]["interactions"]
+    assert receipt["event"] == chose["id"]
+    assert receipt["requires_response"] is False
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
     answered = append_command(
         page_dir,
         {
@@ -4124,8 +4143,35 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(page_
             "detail": {},
         },
     )
-    before = state_json(page_dir)["activity"]["obligations"]
-    assert before == [answered["id"]]
+    completed = state_json(page_dir)
+    assert completed["asks"] == []
+    assert completed["activity"]["obligations"] == [answered["id"]]
+    session_model.cmd_ack(page_dir, last_deliverable_seq(page_dir))
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    blocked = json.loads(capsys.readouterr().out)
+    assert blocked["decision"] == "block"
+    assert "1 acknowledged reader move with no answer" in blocked["reason"]
+    assert answered["id"] in blocked["reason"]
+
+    events_model.append_event(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": answered["id"]},
+    )
+    resumed = state_json(page_dir)
+    assert [ask["source"] for ask in resumed["asks"]] == ["regions"]
+    assert resumed["activity"]["obligations"] == []
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "regions",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    assert state_json(page_dir)["activity"]["obligations"] == [answered["id"]]
 
     conversation_model.cmd_reply(
         page_dir,

@@ -130,7 +130,11 @@ draws such a reply as a receipt whose head says the message answers nothing, sin
 otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
-instead; the CLI refuses a parallel `--awaits` flag on that markup.
+instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
+whose `x-awaits.until` applies keeps the reader's Ask open until its declared
+completion verb stands. Interim actions still receive delivery receipts, but
+require no agent reply; completion hands the turn to the agent. Undoing that
+completion returns the Ask to the reader and removes the reply obligation.
 
 What each conversation command does for its reader, and when an agent uses it, is
 `../../references/conversation-threads.md`. The door and the fold hold these rules behind

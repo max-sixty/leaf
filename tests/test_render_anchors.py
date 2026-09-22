@@ -3660,9 +3660,15 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     assert label_result.response["violations"] == []
 
     # The keys are one declaration, so the "?" reference names them too — a page with
-    # a second version is the first that has a list to walk.
+    # a second version is the first that has a list to walk. The shelf stands beside the
+    # menu; the reference is a modal and global chrome, so entering it dismisses the menu
+    # the way the platform dismisses any auto popover, and leaves it dismissed. The rows
+    # are read off the declaration rather than off the standing mode, which is why they
+    # are there to read at all once the menu has gone.
     page.keyboard.press("?")
+    expect(menu).to_be_visible()
     page.keyboard.press("?")
+    expect(menu).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
@@ -3671,8 +3677,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(menu).to_be_visible()
+    expect(menu).to_be_hidden()
 
+    open_versions(page)
+    expect(menu).to_be_visible()
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     position = page.locator(".lf-walk-position")
     page.keyboard.press("ArrowUp")
@@ -3696,10 +3704,9 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
     # Escape closes the menu and lands the reader on the page it stood over, whatever
-    # door they came through and whatever the reference did on the way. A popover
-    # restores focus to whatever had it when it showed, which after a reference round
-    # trip is the body; Leaf performs the whole step instead, so the landing is the same
-    # one every time.
+    # door they came through. A popover restores focus to whatever had it when it
+    # showed, which for a menu opened from the page is the body; Leaf performs the whole
+    # step instead, so the landing is the same one every time.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3834,18 +3841,24 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the
-    # page, and Escape there returns through the shelf with the menu where it was — with the
-    # reader on the row they left, since a scope is where focus is and the overlay takes the
-    # focus. Landing on the body instead put the walk it had just described out of reach.
+    # page. The shelf stands beside the menu, and the reference is a modal, so entering
+    # it dismisses the menu as the platform dismisses any auto popover and does not
+    # rebuild it. Reopening is what stands the mode up again, and the reader is back on
+    # the row they left, since a scope is where focus is and the overlay takes the focus.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
+    expect(menu).to_be_visible()
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
+    expect(menu).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
+    expect(menu).to_be_hidden()
+
+    open_versions(page)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
@@ -4021,16 +4034,23 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-version-menu")).to_be_visible()
     expect(compared.locator(".lf-shortcut-bar")).to_contain_text("leave forward")
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
+    # The reference reads the same declaration, but it is a modal and global chrome: its
+    # entry dismisses the menu the way the platform dismisses any auto popover, so a row
+    # that describes standing inside the menu goes with the context it describes rather
+    # than being offered over a scene that no longer has it. The bar is the surface that
+    # speaks for the live one, and it named the direction above.
     compared.keyboard.press("?")
     compared.keyboard.press("?")
-    expect(compared.locator(".lf-command-reference")).to_contain_text(
-        "Leave the versions menu forward"
-    )
-    expect(compared.locator(".lf-command-reference")).not_to_contain_text(
-        "Leave the versions menu backward"
-    )
+    reference = compared.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(reference).not_to_contain_text("Leave the versions menu forward")
+    expect(reference).not_to_contain_text("Leave the versions menu backward")
     compared.keyboard.press("Escape")
-    expect(comparison).to_be_focused()
+    expect(reference).to_be_hidden()
+
+    open_versions(compared)
+    expect(compared.locator(".lf-version-menu")).to_be_visible()
 
     # Holding Tab sends repeated keydowns after the first stop. The boundary action must
     # repeat too: leaving the browser's focus move native does not mean leaving the menu
@@ -4071,7 +4091,10 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
-    # And the key the row had been leaving unnamed does what the row now says it does.
+    # And the key the row had been leaving unnamed does what the row now says it does,
+    # on the menu stood up again after the reference dismissed it.
+    open_versions(page)
+    expect(page.locator(".lf-version-menu")).to_be_visible()
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     page.keyboard.press("Space")
     page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))

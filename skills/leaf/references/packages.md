@@ -62,7 +62,7 @@ directory to replace one. A page records the bare name, so re-vendoring it on an
 machine needs the same package installed there.
 
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
-and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
+and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` coordinates declarative controls and page-owned
 structured contributors through one reset, restore, preview, output, and typed
@@ -592,14 +592,6 @@ other element, uses the shown box. Call the returned `update()` after any render
 geometry change, including in-place attribute or style changes. The render gate validates
 every record and requires each authored token to resolve. The package owns the stable
 mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
-
-A widget whose rendering can be wrong without failing registers a render check:
-`registerRenderCheck(source, check)`, once at upgrade. Only the render gate calls
-`check`, after presentation, so it may import what a reader's page cannot afford, such as
-a second library that reads the same source. `check` returns a promise; where it finds
-the rendering wrong it calls `failSoft` on the widget, and the gate reports that as it
-reports any failed widget. A rejected promise is reported as a check that could not run.
-`lf-diagram` compares its drawing with Mermaid's own reading of the source this way.
 
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical

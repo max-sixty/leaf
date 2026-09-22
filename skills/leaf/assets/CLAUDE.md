@@ -277,7 +277,6 @@ into the current document;
 `runtime/target-paint.js` owns element-target paint in the chrome layer;
 `runtime/visual-parts.js` owns the package-declared semantic parts of a rendered
 visual;
-`runtime/render-check.js` owns the checks a widget registers for the render gate alone;
 `runtime/chrome-layout.js` owns chrome geometry, the document room left after the panel
 and trays, and page repaint caused by shell motion or reflow. It does not own the reader's
 place across that reflow: the shell yields its strip as a transparent border rather than a

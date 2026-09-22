@@ -1461,14 +1461,11 @@ BADGE_CHROME = """      const row = document.createElement("div");
       row.className = "lf-ui";
       row.textContent = "Sent by the reviewer";
       this.append(row);"""
-# A diagram body the renderer refuses, which is the only shape of bad notation the
-# browser half of the gate can report. Beautiful Mermaid reads a malformed node line
-# leniently — it will draw whatever part of it parses — so a broken statement leaves no
-# error to find; a family outside the six it implements is refused at the header, which
-# is where the widget fails soft.
+# A diagram body the renderer refuses outright: a family it does not implement is
+# refused at the header, which is where the widget fails soft on any page, gated or not.
 UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
-    "<lf-diagram id='d-broken'><pre>\npie title Reviewers\n  \"Ada\" : 3\n</pre></lf-diagram>\n</main>",
+    "<lf-diagram id='d-broken'><pre>\nsankey-beta\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
 # The thread list is reconciled, not rebuilt, and the tests below are its faces: a
 # send is a gesture and reveals what it made; an arrival is news and moves nothing; a

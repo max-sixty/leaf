@@ -1966,7 +1966,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
     assert modules == ["/widgets/lf-board.js"], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
-    assert not [p for p in asked if "beautiful-mermaid" in p], asked
+    assert not [p for p in asked if "agentic-mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
@@ -1977,17 +1977,13 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
 
 def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
-    """All six renderer paths share one lazy module import and one vendored file.
-
-    Mermaid's own reader travels beside that file for the render gate's check, and a
-    reader's page never asks for it.
-    """
+    """The page's six diagram types share one lazy module import and one vendored file."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
-    assert [p for p in asked if "mermaid" in p] == ["/vendor/beautiful-mermaid.esm.js"]
+    assert [p for p in asked if "mermaid" in p] == ["/vendor/agentic-mermaid.esm.js"]
 
 
 def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):

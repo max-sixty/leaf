@@ -70,7 +70,7 @@ import {
 } from "./margin-entries.js";
 import {
   KINDS,
-  trimmed,
+  labelWords,
   secondaryCount,
   entryEngaged,
   choosePrimary,
@@ -854,7 +854,7 @@ export function createMarginProjection({
         // whose identity changed there would be rebuilt — taking with it the reply box
         // the send had just put them in.
         id: marginThreadItem(thread),
-        text: trimmed(
+        text: labelWords(
           thread.root.text || anchorLabel(thread.anchor, thread.root.about),
         ),
         thread,
@@ -879,7 +879,9 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "ask",
         id: `ask:${id}`,
-        text: trimmed(`${addressableWord(target)} · ${addressableSays(target) || id}`),
+        text: labelWords(
+          `${addressableWord(target)} · ${addressableSays(target) || id}`,
+        ),
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -899,7 +901,7 @@ export function createMarginProjection({
         // Durable provenance belongs in Page Map rather than another target margin entry:
         // it remains explicit without changing the page's action density or geometry.
         marker: false,
-        text: trimmed(
+        text: labelWords(
           [face.label, addressableWord(target), addressableSays(target)]
             .filter(Boolean)
             .join(" · "),
@@ -937,7 +939,7 @@ export function createMarginProjection({
       add(groups, target, {
         kind: face.kind,
         id: `acknowledgment:${receipt.id}`,
-        text: trimmed(`${face.text} · ${account}`),
+        text: labelWords(`${face.text} · ${account}`),
         workflowFace: KINDS[face.kind],
         workflowReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
@@ -954,7 +956,7 @@ export function createMarginProjection({
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
-        text: trimmed(`${mapAccount} · ${addressableSays(target)}`),
+        text: labelWords(`${mapAccount} · ${addressableSays(target)}`),
         // A disclosure has to say what it holds, or its one word reports a fact and
         // promises nothing. The margin entry's quieter line carries it, and a block the
         // comparison holds nothing for has none, so no margin entry offers a press it has
@@ -1005,7 +1007,7 @@ export function createMarginProjection({
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,
-          text: trimmed(account),
+          text: labelWords(account),
           workflowFace: KINDS.activity,
           workflowReceipt: claimActivity.get(
             `${update.target.kind}:${update.target.id}`,
@@ -1057,7 +1059,7 @@ export function createMarginProjection({
           return Object.freeze({
             key: group.key,
             targetId: group.target.id,
-            title: trimmed(
+            title: labelWords(
               [
                 group.subject ? null : subject.context,
                 group.word,
@@ -1065,7 +1067,6 @@ export function createMarginProjection({
               ]
                 .filter(Boolean)
                 .join(" · "),
-              72,
             ),
             offers: Object.freeze(group.offers.map((offered) => offered.model)),
             items: Object.freeze(group.items.map(captureItem)),
@@ -2096,7 +2097,7 @@ export function createMarginProjection({
           sourceItem(selected).thread.root.about,
         )
       : null;
-    const title = trimmed(targetHeading || quoted || entry.title, 72);
+    const title = labelWords(targetHeading || quoted || entry.title);
     keeps(preview, "data-lf-thread", "");
     keeps(preview, "aria-label", `Conversation for ${title}`);
     previewNav.hidden = threadItems.length < 2;

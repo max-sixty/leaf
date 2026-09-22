@@ -19,7 +19,6 @@ import {
   blockAt,
   closestAcross,
   containsAcross,
-  cut,
   DATUM,
   elementById,
   findQuote,
@@ -223,9 +222,9 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-const ADDRESSABLE_SAYS_CAP = 52;
 // The label is rooted at the addressable and reads its authored words. Generated annotation
-// chrome is excluded by the same passage reader used for anchor resolution.
+// chrome is excluded by the same passage reader used for anchor resolution. Display
+// surfaces constrain these complete words to their available space.
 export function addressableSays(addressable, omitted = null) {
   if (!addressable) return "";
   const subtracts = Boolean(omitted && addressable.contains(omitted));
@@ -233,17 +232,14 @@ export function addressableSays(addressable, omitted = null) {
     !subtracts && registry[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
-  const whole =
+  return (
     own ||
     quoteFrom(
       textNodesUnder(addressable).filter(
         (segment) => !subtracts || !omitted.contains(segment.node),
       ),
-    );
-  if ([...whole].length <= ADDRESSABLE_SAYS_CAP) return whole;
-  const short = cut(whole, 0, ADDRESSABLE_SAYS_CAP);
-  const at = short.lastIndexOf(" ");
-  return (at > ADDRESSABLE_SAYS_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
+    )
+  );
 }
 
 const aimLabel = (

@@ -8,7 +8,6 @@ import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 import {
   blockAt,
   contextAround,
-  cut,
   findText,
   inChrome,
   pageText,
@@ -382,11 +381,7 @@ export function createTargetChooser({
   function matchDescription(segments) {
     const { before, after } = contextAround(pageText(), segments);
     const phrase = quoteFrom(segments);
-    return cut(
-      `${before ? `…${before} ` : ""}${phrase}${after ? ` ${after}…` : ""}`,
-      0,
-      96,
-    );
+    return `${before ? `…${before} ` : ""}${phrase}${after ? ` ${after}…` : ""}`;
   }
 
   function chooseTarget(target) {
@@ -404,7 +399,7 @@ export function createTargetChooser({
     setTargetChooser(false);
     selectMatch(segments);
     announce(
-      `Selected match: ${cut(quote, 0, 72)}. Press n for next, Shift+n for previous, or c to comment.`,
+      `Selected match: ${quote}. Press n for next, Shift+n for previous, or c to comment.`,
     );
   }
 
@@ -495,7 +490,7 @@ export function createTargetChooser({
     template: hintTemplate,
     take: chooseTarget,
     words: {
-      describe: (target) => cut(target.label, 0, 72),
+      describe: (target) => target.label,
       take: "choose",
       all: "All target hints.",
     },

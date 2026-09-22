@@ -71,12 +71,10 @@ export const KINDS = Object.freeze(
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 
-export const trimmed = (value, limit = 110) => {
-  const text = String(value ?? "")
+export const labelWords = (value) =>
+  String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
-  return text.length > limit ? text.slice(0, limit - 1) + "…" : text;
-};
 
 const noticeItems = (entry) =>
   entry.offers.flatMap((offered) => {

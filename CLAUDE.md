@@ -274,9 +274,11 @@ Before finishing a feature:
 - Follow `examples/CLAUDE.md`'s page-fixture rules when adding or changing a feature,
   and regenerate the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
-  `skills/leaf/SKILL.md` or the routed reference that owns the workflow. Shipped
-  guidance sets goals for the reader's experience and names the surface they read
-  on; it leaves format and phrasing to the agent's judgment.
+  `skills/leaf/SKILL.md` or the routed reference that owns the workflow, and only
+  that one: another reference whose reader meets the mechanism points at that
+  section by name rather than restating it, since each copy drifts on the next
+  change. Shipped guidance sets goals for the reader's experience and names the
+  surface they read on; it leaves format and phrasing to the agent's judgment.
 - Update any public docs or generated outputs the feature affects.
 
 `tests/CLAUDE.md` owns environment setup, focused runs, nightly selection, and

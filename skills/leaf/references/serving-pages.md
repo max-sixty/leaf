@@ -1,9 +1,5 @@
 # Serving pages
 
-Read this for the first handoff, an exported deliverable, an unreachable URL,
-`--host`, a standing page, re-vendoring, or a page previously owned by another
-session.
-
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, initialize, query the page registry,
@@ -99,8 +95,9 @@ service.
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime. Its process ignores session claims and remains live between
 sessions. Tell the user when starting one because they inherit a process only
-`server stop` ends. A wait watching any enabled page revives its server under the
-recorded lifetime if the process dies.
+`server stop` ends, and do not stop it because a session's work is over: ending
+the session releases the claim and leaves the service enabled. A wait watching any
+enabled page revives its server under the recorded lifetime if the process dies.
 
 `server run --temporary` is the browser-harness boundary. It serves on loopback
 until that foreground command exits, with a per-server access key and no claim or
@@ -126,7 +123,3 @@ host ends that watcher before continuing. The
 successor then runs `leaf wait <page>`, whose named wait claims the page for that
 session. Starting a server when the standing one is already live prints its URL
 without changing its lifetime.
-
-Do not stop a standing server when the session ends. Use `leaf status <page>
-idle` only when the page itself is finished; simply ending the session releases
-the claim and leaves enabled service available for the next selected successor.

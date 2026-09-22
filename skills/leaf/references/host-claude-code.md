@@ -1,8 +1,5 @@
 # Claude Code handoff and wait loop
 
-Read this immediately before handing a page over in Claude Code, and when
-recovering its wait process.
-
 ## Launcher
 
 The skill directory's `../../bin/leaf` launcher resolves to
@@ -42,29 +39,12 @@ carries that obligation back into context and records it as opened in the new
 turn. The page therefore resumes **handling** from that exact prompt delivery;
 the agent does not need a status write to repair the banner.
 
-The initial `leaf wait` revives a dead server under its recorded lifetime and
-reports that on stderr. Exit 2 means stderr names an ending rather than a batch.
-`leaf ack` answers the same way once the cursor has advanced; its exit 1 means
-the acknowledgement was refused and the cursor did not move. The streams say
-which ending arrived:
-
-- One JSON delivery envelope on stdout is the next input.
-- `the leaf ended` or `the leaves ended` on stderr means every page left in the
-  watch is idle; `nothing to watch` means the session holds none. End the loop.
-- `server is not running` gives the recovery command. After recovery, resume
-  the session-wide loop with an unnamed `leaf wait`.
-- `this session no longer owns` means a successor has the page. Do not name or
-  reclaim it. A rearm keeps watching any other live page; when the observed
-  transfer empties that set, it exits with this line.
-- Stderr saying another `leaf wait` is already active means the existing
-  process still owns the session lease. Leave that watcher running rather than
-  starting another.
-
-Empty stdout alone is not evidence that the host stopped the process. Start a
-replacement unnamed wait only when the host itself reports that it canceled or
-killed the command, or when a message from Leaf says a page has new input and no
-`leaf wait` is running for this session. That message comes through Claude
-Code's session messaging, so it is presented as coming from another session.
+How `leaf wait` and `leaf ack` end, and what each ending asks of the loop, is in
+`references/event-batches.md` under "Delivery and acknowledgement". The signal that
+reference leaves to the host is a message from Leaf saying a page has new input and
+no `leaf wait` is running for this session: start a replacement unnamed wait. It
+comes through Claude Code's session messaging, so it is presented as coming from
+another session.
 
 ## Session list
 

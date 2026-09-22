@@ -1,8 +1,5 @@
 # Interactive and external evidence
 
-Read the selected element declarations first. Read this reference when the page uses
-measured facts, diagrams, charts, source files, images, or before/after captures.
-
 ## Measured facts
 
 When one measured scalar belongs inside a sentence, freeze it with its provenance:

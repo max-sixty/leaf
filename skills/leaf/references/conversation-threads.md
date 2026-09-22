@@ -1,7 +1,5 @@
 # Conversation threads
 
-Read this before opening, replying to, editing, or resolving a thread.
-
 Open a thread when the answer depends on the reader. Use a quote for a passage, a
 section id for a diagram or image, a declared part for one box within a visual,
 and no anchor for the page as a whole:
@@ -180,8 +178,3 @@ As the discussion grows, write another summary with the desired endpoints.
 An overlapping summary replaces the earlier summary; disjoint ranges can retain
 separate summaries. New messages outside the endpoints remain visible. Editing a
 covered message invalidates its summary so stale prose cannot hide the correction.
-
-An acknowledged reader message still requires a reply: acknowledgement only removes it
-from future deliveries. When the active host binds the delivery's reply to its turn,
-the normal assistant final message is that reply; otherwise write the explicit Leaf
-operation. Version and request responses always use their explicit Leaf operations.

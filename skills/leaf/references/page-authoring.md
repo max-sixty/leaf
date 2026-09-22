@@ -1,12 +1,8 @@
 # Page authoring
 
-Read this before writing or revising any version. It owns the rules every page
-needs; the main skill routes Asks, live revisions, and evidence to separate
-references.
-
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
-- [Document or workspace](#document-or-workspace)
+- [Document, page tabs, or workspace](#document-page-tabs-or-workspace)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Stable anchors](#stable-anchors)

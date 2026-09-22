@@ -1,8 +1,5 @@
 # Live revisions and reader state
 
-Read this before changing a page that has already been handed over, proposing a
-rewrite, or using a reader-owned draft.
-
 ## Read before editing
 
 Run `leaf page state <page>` and read its `content` tree. Each node joins its

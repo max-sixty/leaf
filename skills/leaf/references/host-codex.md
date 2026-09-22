@@ -1,7 +1,5 @@
 # Codex handoff and delivery
 
-Read this immediately before handing a page to Codex.
-
 ## Full Leaf handoff
 
 Use the canonical browser page by default. Run `leaf server start <page>` and
@@ -82,12 +80,10 @@ receipt obligations in the current slice still use their explicit `resolve` and
 
 A `leaf-delivery` pointer may instead arrive through Codex's durable local queue with no
 App Server observer left to bind or stream its turn. Claiming its first outstanding move
-updates the page immediately; reading the immutable envelope does not. Follow the
-UI-first delivery claim in `conversation-loop.md`, then use the explicit `reply`,
-`resolve`, or `receipt` operation for every obligation, including one plain reply. A
-later observer skips an obligation that an explicit operation already settled.
-Keep the CLI open because it is still the interactive client for approvals and
-user input.
+updates the page immediately; reading the immutable envelope does not. With nothing to
+bind the turn, every obligation takes its explicit operation, the plain reply included,
+and a later observer skips one already settled that way. Keep the CLI open because it
+is still the interactive client for approvals and user input.
 
 Only private absolute Unix sockets and unauthenticated loopback `ws://` endpoints
 are accepted. The loopback WebSocket listener is experimental; do not expose it
@@ -118,10 +114,6 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 
 ## Same-task delivery
 
-Treat a `leaf_delivery` tool output or `leaf-delivery` pointer as input from a
-page that has already been presented. Process every batch and event; do not call
-`leaf_present` or repeat the first-handoff ceremony.
-
 One detached adapter watches every page this task owns. It collects available
 input into one delivery and freezes it. Input collected after the freeze belongs
 to the next delivery. Starting the command again for another page adds that page
@@ -135,12 +127,11 @@ becomes idle. The connected Codex client remains the interactive client for appr
 and user input. A completed turn does not stop the adapter.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
-block. It names the canonical `delivery claim` operation and an immutable delivery
-`id`; run it before `leaf delivery read <id>`, then process the envelope's `batches`
-with explicit Leaf operations. Do not wait or acknowledge: the adapter owns both. The
-same delivery id may return after an uncertain unobserved queue response, so treat a
-page-and-sequence pair already handled in this task as a retry. Queue acceptance records
-**Queued** activity.
+block, naming the `delivery claim` operation and the immutable delivery `id` that
+`leaf delivery read <id>` resolves. Do not wait or acknowledge: the adapter owns both.
+The same delivery id may return after an uncertain unobserved queue response, which is
+the retry `references/event-batches.md` describes. Queue acceptance records **Queued**
+activity.
 
 The immutable delivery and mutable adapter queue record are separate. Once a
 delivery is accepted and every page batch is acknowledged, the adapter archives
@@ -150,7 +141,3 @@ If `leaf codex start` refuses to start, do not finish over a live page. Follow i
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
 can take the task's single wait lease, and an unavailable Codex queue command
 cannot receive later turns.
-
-An optional separate Codex watcher remains a fallback that requires the user's
-explicit authorization because it creates a visible task. Its route is in the main
-skill.

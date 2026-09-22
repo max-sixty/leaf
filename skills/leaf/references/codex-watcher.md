@@ -1,13 +1,13 @@
 # Codex watcher task
 
 A Codex watcher keeps a Leaf wait active after the page's task ends its turn. It
-forwards each complete batch into that task through a background follow-up. Creating the
-watcher adds a visible task to the user's sidebar, so this path requires the user's
-explicit authorization and a host that offers both task creation and background
-follow-ups.
+forwards each complete batch into that task through a background follow-up. It needs
+a host that offers both task creation and background follow-ups, and it adds a
+visible task to the user's sidebar.
 
 Create one watcher per page in the same saved project. Give it the exact page task id,
-page path, and resolved Leaf launcher. Its job is:
+page path, resolved Leaf launcher, and the path of `references/event-batches.md`,
+whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
 1. Confirm that `send_message_to_thread` is available before claiming the page. If it is
    missing, finish with that reason and do not run `leaf wait`.
@@ -31,24 +31,13 @@ page path, and resolved Leaf launcher. Its job is:
    cursor has not moved.
 4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
    unified exec. Retain and poll that command's session id: after advancing the
-   cursor, ack stays active as the next wait and answers as one: 0 carries a batch,
-   2 names an ending on stderr, and 1 means the acknowledgement was refused and the
-   cursor did not move. The streams say which ending arrived:
-
-   - A batch on stdout is the next delivery; return to step 3.
-   - Empty stdout with `the leaf ended` or `nothing to watch` on stderr ends the
-     watcher normally.
-   - `server is not running` gives the recovery command. After recovery, resume
-     with an unnamed `leaf wait`, which cannot reclaim a page transferred meanwhile.
-   - `this session no longer owns` means a successor has the page. End without
-     starting a named wait.
-   - Stderr saying another `leaf wait` is already active means that existing
-     process owns the lease. Do not start a second watcher.
-
-   Empty stdout alone is not permission to rerun the named wait. If the host itself
-   canceled the command, resume with an unnamed wait. Step 3's named-wait retry is
-   only for a batch lost or truncated before its cursor advanced. The watcher does
-   not author, reply, resolve, stamp, change status, or handle an event itself.
+   cursor, ack stays active as the next wait. A batch on stdout is the next
+   delivery; return to step 3. An ending on stderr is one of those the batch
+   reference lists, and each ends the watcher except a recovery, which resumes
+   with an unnamed wait. Step 3's
+   named-wait retry is only for a batch lost or truncated before its cursor
+   advanced. The watcher does not author, reply, resolve, stamp, change status, or
+   handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
 that `leaf page state <page>` reports `listening: true` before ending the page task's

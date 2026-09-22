@@ -6,20 +6,12 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-If the input is a named `leaf_delivery` tool output or a `leaf-delivery` element,
-first run `leaf delivery claim <id>`. A pointer then needs `leaf delivery read <id>`;
-the named tool output already carries the same envelope. The claim immediately marks
-the first delivered reader move that still needs work as Working; a stale delivery
-changes nothing. Then read
+If the input is a delivery, whether a named `leaf_delivery` tool output, a
+`leaf-delivery` element, or the envelope a `leaf wait` printed, the page is already
+handed over. Run `leaf delivery claim <id>` first, then read
 `references/event-batches.md`, the current host contract, and, for reader
-messages, `references/conversation-threads.md`. Process every batch and every
-event. Each event's `obligation.response`, when present, names the Leaf operation
-it required when captured: a reply, a page revision closed with `leaf resolve`,
-or `leaf receipt`. Recheck current page or conversation state before writing because a
-later event may already have settled it. The current host contract names whether it
-binds a plain reply to the turn's normal final message; otherwise use the explicit Leaf
-command. Version and request responses use their explicit Leaf commands. Do not
-initialize or hand the page over again in response to an existing delivery.
+messages, `references/conversation-threads.md`, and answer every event as they
+say. Do not initialize or hand the page over again.
 
 Otherwise, present the session's subject as a live HTML page. The user comments
 on exact passages, acts through the page's widgets, and follows revisions in
@@ -34,8 +26,7 @@ $ARGUMENTS
 
 After first handing over a browser page's URL, repeat that exact URL every time
 you return to the user in chat, including interim updates, questions, and the
-final handoff. An inline MCP App has no durable URL to invent; refer to the review
-and its observed mode instead. If you open its browser page, the URL rule begins then.
+final handoff.
 
 ## Keep the reader current
 
@@ -113,18 +104,12 @@ incomplete. A checkout keeps the launcher at `bin/leaf`.
 4. Read `references/conversation-loop.md` and exactly one host contract:
    `references/host-claude-code.md` or `references/host-codex.md`. Set the page's
    status as the conversation reference defines, and hand over by the route the
-   host contract defines. Both hosts use the full browser page by default; retain
-   the exact keyed URL. Inline MCP Apps are an explicit experimental route with a
-   reduced fallback.
-5. Name the available gesture and finish the turn. Send the exact URL for a
-   browser handoff; for an MCP App, name the review and report the observed mode
-   or that rendering remains unverified.
+   host contract defines.
+5. Name the available gesture and finish the turn with the exact URL, or with
+   what the host contract hands over instead.
 
-When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a conversation needs work. Every host
-delivers the same `leaf-delivery-v1` envelope; your host contract names whether it
-arrives inline or as a pointer to resolve. Read
-`references/page-checkpoints.md` before stamping or ending. Edit only
+Later input from the page arrives as a delivery, which the top of this skill
+handles. Read `references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 
 ## Page contract

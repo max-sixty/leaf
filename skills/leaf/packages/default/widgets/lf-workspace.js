@@ -121,7 +121,6 @@ customElements.define(
 
     connectedCallback() {
       if (!this.#layout) {
-        once(this);
         this.#layout = arrangeReadingElement({
           owner: this,
           role: "workspace",
@@ -137,6 +136,7 @@ customElements.define(
             );
           },
         });
+        once(this);
       }
       widgetController(this).present(this.#layout.connect());
     }

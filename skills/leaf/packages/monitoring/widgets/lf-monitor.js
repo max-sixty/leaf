@@ -49,7 +49,6 @@ customElements.define(
 
     connectedCallback() {
       if (!this.#layout) {
-        once(this);
         this.#layout = arrangeReadingElement({
           owner: this,
           role: "workspace",
@@ -57,6 +56,7 @@ customElements.define(
           footer: direct(this, "footer"),
           minimumSize: () => minimumSize(this, this.#layout.content),
         });
+        once(this);
       }
       widgetController(this).present(this.#layout.connect());
     }

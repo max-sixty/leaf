@@ -11,14 +11,15 @@ customElements.define(
     #layout = null;
 
     connectedCallback() {
-      if (once(this)) {
+      if (!this.#layout) {
         const children = [...this.children];
-        if (children.length !== 2 || !heading(children[0])) return;
-        this.#layout = arrangeReadingElement({
-          owner: this,
-          role: "workspace",
-          header: children[0],
-        });
+        if (children.length === 2 && heading(children[0]))
+          this.#layout = arrangeReadingElement({
+            owner: this,
+            role: "workspace",
+            header: children[0],
+          });
+        once(this);
       }
       this.#layout?.connect();
     }

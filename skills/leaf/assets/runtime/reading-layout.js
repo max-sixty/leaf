@@ -128,7 +128,6 @@ export function defineReadingPaneElement(tagName) {
 
       connectedCallback() {
         if (!this.#layout) {
-          once(this);
           this.setAttribute("role", "region");
           this.setAttribute("aria-label", this.getAttribute("label"));
           this.#layout = arrangeReadingElement({
@@ -138,6 +137,7 @@ export function defineReadingPaneElement(tagName) {
             footer: directChild(this, "footer"),
             regions: [{ id: this.id }],
           });
+          once(this);
         }
         this.#layout.connect();
       }

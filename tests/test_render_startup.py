@@ -987,6 +987,56 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     }
 
 
+def test_a_pane_retries_refused_admission_before_retaining_its_layout(browser, serve):
+    page = open_page(browser, serve(SHORT_SUGGESTION))
+    result = page.evaluate(
+        """async () => {
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          leaf.defineReadingPaneElement('test-retry-pane');
+          const main = document.querySelector('main');
+          const occupiedHost = document.createElement('div');
+          main.append(occupiedHost);
+          const release = leaf.registerReadingRegion({
+            id: 'retry-pane', host: occupiedHost, body: occupiedHost,
+          });
+          const pane = document.createElement('test-retry-pane');
+          pane.id = 'retry-pane';
+          pane.setAttribute('label', 'Retry pane');
+          pane.innerHTML = '<header>Heading</header><input value="Authored">';
+          const authored = [...pane.childNodes];
+          main.append(pane);
+          const refusedWithoutWrapping = authored.every(
+            (node, index) => node === pane.childNodes[index]);
+          const refusedWithoutUpgrade = !pane.hasAttribute('data-lf-done');
+          pane.remove();
+          release();
+          main.append(pane);
+          const body = leaf.readingRegion(pane.id)?.body;
+          const nodes = [...pane.querySelectorAll('*')];
+          pane.querySelector('input').value = 'Reader draft';
+          pane.remove();
+          const retired = !leaf.readingRegion(pane.id);
+          main.append(pane);
+          const retained = leaf.readingRegion(pane.id)?.body === body
+            && nodes.every((node, index) => node === pane.querySelectorAll('*')[index]);
+          const value = pane.querySelector('input').value;
+          pane.remove();
+          occupiedHost.remove();
+          return {refusedWithoutWrapping, refusedWithoutUpgrade, retired, retained, value,
+                  registered: !!body && body.contains(authored[1])};
+        }"""
+    )
+    consume_browser_errors(page, "reading region retry-pane is already live")
+    assert result == {
+        "refusedWithoutWrapping": True,
+        "refusedWithoutUpgrade": True,
+        "registered": True,
+        "retired": True,
+        "retained": True,
+        "value": "Reader draft",
+    }
+
+
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     """Acquiring web storage can itself throw before any method is called.
 

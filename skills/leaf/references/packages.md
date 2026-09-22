@@ -235,7 +235,13 @@ children into the content body and registers any declared reading regions. Keep 
 layout for the element's lifetime. Call `connect()` from `connectedCallback` and
 `disconnect()` from `disconnectedCallback`: disconnect retires registrations and
 observers, and connect restores them from the retained nodes and declarations.
-Neither rebuilds DOM. The helper marks a workspace owner `data-lf-workspace-context="root"` when it is the only
+Neither rebuilds DOM. For a widget whose build is a single arrangement, construct it
+only while its retained layout is absent, then call `once(owner)` to mark the successful
+upgrade. Admission failure leaves the authored nodes untouched, so a later connection
+can retry. This is not a transaction around a compound widget's whole build: use
+`once(owner)` to guard generated controls and listeners, retain the layouts it creates,
+and reconnect those layouts without rerunning that build.
+The helper marks a workspace owner `data-lf-workspace-context="root"` when it is the only
 non-metadata element directly inside `body > main`; other workspaces receive `embedded`.
 Packages read that context to choose
 bounded posture. The shared theme gives only a marked `.lf-workspace-reading` owner the

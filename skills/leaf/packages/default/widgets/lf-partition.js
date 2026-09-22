@@ -9,9 +9,9 @@ customElements.define(
 
     connectedCallback() {
       if (!this.#layout) {
-        once(this);
         this.dataset.lfDirection = this.getAttribute("direction");
         this.#layout = arrangeReadingElement({ owner: this, role: "partition" });
+        once(this);
       }
       this.#layout.connect();
     }

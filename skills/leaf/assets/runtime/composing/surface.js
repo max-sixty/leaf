@@ -1334,6 +1334,7 @@ export function createResponseSurface({
     });
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
+      const selectedOnPage = pointerSelecting;
       primaryPointerPressed = false;
       pointerSelecting = false;
       const gestureClaimed = selectionGestureClaimed;
@@ -1343,8 +1344,9 @@ export function createResponseSurface({
         scheduleSelectionUpdate();
         return;
       }
-      if (actionPress) return;
-      if (!pageWords(ev.target) && !pageSelection()) return;
+      // Only a gesture begun in page words owns their selection. A release from
+      // chrome (such as resizing a panel) must not snap an existing passage.
+      if (actionPress || !selectedOnPage) return;
       const selection = pageSelection();
       const selected = selection ? selectionAnchor(selection) : null;
       // A drag whose far end left the document is the same release as one that ended holding

@@ -1,5 +1,5 @@
-/* This module owns modifier aim and captured presses: the Alt key's state, the target
- * it promises under the pointer, and the click it claims. */
+/* This module owns captured presses for modifier aim, Design mode, and the target
+ * chooser. Each claims a complete press before authored controls can act on it. */
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
 import { pointerAt } from "../pointer.js";
@@ -20,6 +20,7 @@ export function createAim({
   standDown,
   drawModeActive,
   designMode,
+  targetChooser,
 }) {
   let aiming = false;
   // Design is the active input mode, so the sequence is unavailable while it stands. Keep
@@ -132,11 +133,14 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
-      claimedPress = designTarget
-        ? { designMode: designMode.target(ev.target) }
-        : aim
-          ? { aim: aimedTarget() }
-          : null;
+      const choosing = targetChooser.active() && !inChrome(ev.target);
+      claimedPress = choosing
+        ? { chooser: aimTargetAt(ev.composedPath()[0]) }
+        : designTarget
+          ? { designMode: designMode.target(ev.target) }
+          : aim
+            ? { aim: aimedTarget() }
+            : null;
       if (claimedPress) standDown(ev.target);
     }
     if (!claimedPress) return;
@@ -149,7 +153,8 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.aim) commentOnTarget(claimedPress.aim);
+    if (claimedPress.chooser) targetChooser.choose(claimedPress.chooser);
+    else if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }
   function mount() {

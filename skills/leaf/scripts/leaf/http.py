@@ -46,7 +46,7 @@ from .revision_artifact import Resource, RevisionArtifact, read_artifact
 from .revision_delivery import (
     deliver_document,
     deliver_resource,
-    delivery_identity,
+    delivery_prelude,
     delivery_sheets,
 )
 from .revisioning import activate_source
@@ -65,7 +65,6 @@ from .server import preview_metadata
 from .service import PageTransaction
 from .specimens import Specimens
 from .structure import (
-    DELIVERY_ENCODING_META,
     FRAME_ANCESTORS_CSP,
     PAGE_CSP,
     UTF8_BOM,
@@ -281,15 +280,6 @@ def head_open_end_offset(document: SourceDocument) -> int:
     return document.head_open_end
 
 
-def _delivery_prelude(
-    revision: int, version: int | None, executable: str | None, widgets: dict
-) -> str:
-    """Declare the delivery's encoding, then the immutable Leaf identity behind it."""
-    return DELIVERY_ENCODING_META + delivery_identity(
-        revision, version, executable, widgets
-    )
-
-
 def _runtime_assets(asset_root: str = "") -> tuple[str, str]:
     root = asset_root.rstrip("/")
     return (
@@ -332,7 +322,7 @@ def runtime_document(
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
     runtime = (
-        _delivery_prelude(revision, version, executable, widgets)
+        delivery_prelude(document, revision, version, executable, widgets)
         + theme_head
         + entry_head
     )
@@ -408,7 +398,7 @@ def supervised_document(
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
     supervised = (
-        _delivery_prelude(revision, version, executable, widgets)
+        delivery_prelude(parsed, revision, version, executable, widgets)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head

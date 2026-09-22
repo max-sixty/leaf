@@ -15,7 +15,9 @@ import { letGo, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
-import { standingThreadOf } from "../conversation/focus.js";
+import { focusedThreadOf, standingThreadOf } from "../conversation/focus.js";
+import { threadsBox } from "../conversation/panel-elements.js";
+import { threadSearchActive } from "../conversation/narrowing.js";
 import { boxHandsBack } from "../conversation/landing.js";
 import { claimsEsc, documentFocused, focused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -99,57 +101,30 @@ pageCommand({
   does: "Caret browsing (the browser's): select text by keyboard, then c",
 });
 
-// What the reader is standing on, and the one press that lets go of it. Standing is
-// holding a destination — an Ask, conversation, or heading out on the page — as against
-// content of a chrome surface or a chrome control such as the panel's toggle. Chrome is
-// answered by the ladder below once its inner boxes and layers are down. Letting go puts
-// the reader on the page's floor.
+// Standing is a destination on the page or a thread in the panel, including its
+// title and controls. Releasing it lands at its floor: the document or the whole
+// panel. Disclosure is independent; neither expanding nor collapsing a thread adds
+// another selection level.
 //
-// It is the innermost step, because standing is the newest thing the reader did: a Tab,
-// a hint, a pointer press. Everything the ladder takes off — a selection, an unfolded
-// margin cluster, a mode, a tray, the panel — is state they put on before they came to
-// rest here, so it waits behind this press. What stands nearer still answers first: a
-// widget's own Escape declared over the control, and a text box with a place to go back
-// to, whose own scope hands them there. A native layer standing over the page is the
-// browser's mode, and its own Escape is not ours to pre-empt with a let-go beneath it.
-//
-// Out on the page — chrome surfaces hold nothing to let go of — what is held is a destination
-// when it is a thread or an Ask, or anything inside one: a seat on the page, an Ask's
-// own picks. The Ask is the asks view's reading, handed in like the modes, so a control
-// hoisted into the margin holds the Ask it serves and an answered Ask is still one. It
-// is the page's own content otherwise, unless it is Leaf's apparatus, and `inUi` is the
-// one reading of that, the layer a node stands in, asked of the deepest focus so a
-// control staged in a shadow tree answers for itself: a margin marker and a mark note
-// are placed in the document beside the words they mark, outside the container and
-// controls all the same, so the container alone answered them wrong and the ladder's
-// page rung, which backs out of a control, is what they get. The walk destinations
-// above ask `inChrome` alone, because their question is only whether an Ask or a
-// heading is the page's own or a copy standing in the panel's frozen markup.
-//
-// The scope's `at` is the cheap half, whether anything is held at all; the row's `when`
-// is the dear one, asked only of a reader who is holding something. The Ask and the
-// page's own state are other owners' readings, handed in by the boot entry once those
-// owners stand.
+// Inner controls, reply boxes, and native layers answer first. A panel thread then
+// releases before the panel's narrowing; page-side state waits while focus is in
+// the panel. On the page, a selection or mode unwinds before the destination does.
+// Chrome controls outside a thread belong to the surface's own Escape ladder.
 const holding = () => {
   const active = documentFocused();
   return Boolean(active) && active !== document.body;
 };
-let standingOnPage = () => false;
+let standingFloor = () => null;
 export function declareStanding({ askHeld, pageState }) {
-  standingOnPage = () => {
-    if (!holding()) return false;
-    if (nativeLayers().length) return false;
-    if (takesLetters(focused()) && boxHandsBack()) return false;
-    if (claimsEsc(focused())) return false;
-    if (inChrome(documentFocused())) return false;
-    // Out on the page, where state the reader put on here is inside the page they are
-    // standing in and comes off before they let go of anything: the drag that takes
-    // words out of a label is answered on its first glyph, while the control it started
-    // from is still theirs. A reader inside a surface is past all of it — a mode left
-    // standing out on the page waits behind the panel they are reading a thread in —
-    // which is why this asks after the branches above rather than before them.
-    if (pageSelection() || pageState()) return false;
-    return Boolean(standingThreadOf() || askHeld() || !inUi(focused()));
+  standingFloor = () => {
+    if (!holding()) return null;
+    if (nativeLayers().length) return null;
+    if (takesLetters(focused()) && boxHandsBack()) return null;
+    if (claimsEsc(focused())) return null;
+    if (focusedThreadOf()) return threadsBox;
+    if (inChrome(documentFocused())) return null;
+    if (pageSelection() || pageState()) return null;
+    return standingThreadOf() || askHeld() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -161,9 +136,14 @@ export function declareStanding({ askHeld, pageState }) {
         id: "navigation.release",
         keys: ["Escape"],
         does: "Let go of what you are standing on",
-        line: "let go",
-        when: standingOnPage,
-        run: letGo,
+        line: () => (standingFloor() === threadsBox ? "back to panel" : "let go"),
+        lineWhen: () => !threadSearchActive() || standingFloor() !== threadsBox,
+        when: () => Boolean(standingFloor()),
+        run: () => {
+          const floor = standingFloor();
+          if (floor === document.body) letGo();
+          else floor.focus({ preventScroll: true });
+        },
       },
     ],
   });
@@ -181,7 +161,7 @@ export function declareStanding({ askHeld, pageState }) {
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())
-    return standingOnPage()
+    return standingFloor()
       ? null
       : { says: "back to the page", does: "Back out onto the page", out: letGo };
   // An entered specimen has one more containing page. Its own controls and

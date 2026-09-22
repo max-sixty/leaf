@@ -115,13 +115,20 @@ Standing on a destination on the page â€” a conversation, an Ask or a heading â€
 step of its own, whatever put the reader there: letting go lands them on the document,
 and it is an inner step because standing is the newest thing they did.
 
-The thread panel is one surface. Its titles and open conversations are content of that
-surface, so accordion disclosure does not add an Escape level: after a reply box or
-narrowing is gone, Escape closes Threads from either a title or a conversation. Native
-focus order moves from a title through its open conversation; Enter/Space toggles it. The
-semantic thread walk opens its conversation directly, whether that conversation is on
-the page or requires Threads. `g T` is the route to the list itself. Comment enters the
-reply box even from a collapsed title.
+The thread panel has two selection levels: the whole panel, reached by `g T`, and
+one thread, reached by the semantic thread walk or by focus inside that thread.
+Escape from a thread returns to the whole panel, preserving disclosure and drafts;
+a reply box first returns to its thread. There is no separate title-selection level:
+a title and its conversation select the same thread. At the whole-panel level,
+Escape removes narrowing, then closes the panel. Native focus order moves from a
+title through its open conversation; Enter/Space toggles disclosure. Comment enters
+the reply box even from a collapsed title.
+
+TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy. It can jump
+directly to a page thread, bypassing both panel selection levels. Keep this aberration
+for now; find a route that avoids the skipped levels without making page threads
+harder to reach. A thread that requires the panel also opens directly with `t`, but
+unwinds through whole-panel selection regardless of how it was reached.
 
 What this gives up, each a rule the reader can learn: a surface they already had open
 closes on the way out, because no state distinguishes one this press opened from one it

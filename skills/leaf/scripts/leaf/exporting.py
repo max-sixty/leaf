@@ -48,7 +48,7 @@ from leaf.revision_artifact import (
     rewrite_captured_module,
     rewrite_module,
 )
-from leaf.revision_delivery import delivery_identity, delivery_sheets, json_script
+from leaf.revision_delivery import delivery_prelude, delivery_sheets, json_script
 from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
 from leaf.structure import (
@@ -393,8 +393,11 @@ def interactive_export_page(
         f"style-src 'unsafe-inline' data:; script-src data: 'nonce-{nonce}'"
     )
     escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
+    document = SourceDocument(html)
     runtime_head = (
-        delivery_identity(revision, version, artifact.executable, artifact.widgets)
+        delivery_prelude(
+            document, revision, version, artifact.executable, artifact.widgets
+        )
         + f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
         f'<script type="importmap" nonce="{nonce}">{import_map}</script>'
         '<script type="application/json" data-lf-runtime data-lf-offline '
@@ -407,7 +410,7 @@ def interactive_export_page(
         f'<script type="module" src="{escape(modules["/leaf.js"], quote=True)}" '
         "data-lf-runtime></script>"
     )
-    offset = head_open_end_offset(SourceDocument(html))
+    offset = head_open_end_offset(document)
     return UTF8_BOM + html[:offset] + runtime_head + html[offset:]
 
 

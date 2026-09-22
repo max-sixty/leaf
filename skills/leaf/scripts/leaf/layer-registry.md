@@ -27,7 +27,7 @@ from it, because that document has no revision boundary. Page events whose sende
 candidate removes are historical-only and remain interpretable through the registry
 captured with their immutable revisions. Re-vendoring composes page-owned declarations
 over the prospective layer before running this same candidate check. Each successful
-init records two deliberately different identities under `$layer`:
+init records three deliberately different identities under `$layer`:
 
 - `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
@@ -43,6 +43,17 @@ init records two deliberately different identities under `$layer`:
   Claude Code's Git-versioned plugin cache. The page exposes that identity in its
   low-frequency banner controls; a press copies the full layer diagnostics. A host can
   ask its running payload for the same source identity with `leaf --version`.
+- `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
+  from, read from its own `assets/runtime/` rather than recomposed from the page's
+  selections. It is the half the browser gates' probe modules import: both gates serve
+  those probes from the Leaf running the command and the runtime those probes import
+  from the page, so the ephemeral server compares this identity and refuses a page
+  carrying another Leaf's runtime, rather than letting the mismatch arrive in the
+  browser as an export the page's runtime does not have. `fingerprint` cannot answer
+  that question, because a package selection recorded beside it resolves against the
+  project `page init` ran in and cannot be recomposed anywhere else. A page vendored
+  before this identity existed records none and is refused the same way; `page init`
+  records it again.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. A served
 page's inline, nonce-authorized bootstrap supervises startup before the module graph

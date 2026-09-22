@@ -785,9 +785,8 @@ export default [
   {
     files: ["skills/leaf/scripts/leaf/render-checks/widgets.js"],
     rules: {
-      // This core probe validates the visual-part registry itself and runs the render
-      // checks widgets registered. Keep those diagnostics out of the package facade while
-      // leaving every other probe on the public API.
+      // This core probe validates the visual-part registry itself. Keep that diagnostic
+      // out of the package facade while leaving every other probe on the public API.
       "no-restricted-imports": [
         "error",
         {
@@ -799,8 +798,7 @@ export default [
           ],
           patterns: [
             {
-              regex:
-                "^/runtime/(?!widget-api\\.js$|visual-parts\\.js$|render-check\\.js$)",
+              regex: "^/runtime/(?!widget-api\\.js$|visual-parts\\.js$)",
               message: "Behavior and probe modules use /runtime/widget-api.js.",
             },
             {

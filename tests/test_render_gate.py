@@ -1296,102 +1296,31 @@ classDiagram
     assert render_gate_model.render_version(browser, serve(page)) == []
 
 
-MISDRAWN_DIAGRAMS = {
-    # A link the source asks for is drawn as a node that goes nowhere.
-    "click-directive": 'flowchart LR\n  A[Alpha] --&gt; B[Beta]\n  click A href "https://example.com" "Open"',
-    # A sequence title is not drawn.
-    "sequence-title": "sequenceDiagram\n  title Hello\n  A-&gt;&gt;B: hi",
-    # The renderer drops a state statement that ends in a semicolon.
-    "state-semicolon": "stateDiagram-v2\n  [*] --&gt; A;",
-    # A state used before `state "…" as S0` labels it is drawn labelled `S0`;
-    # `declared-label` below is the control.
-    "late-label": 'stateDiagram-v2\n  [*] --&gt; S0\n  state "Gate passed" as S0',
-    # The renderer reads a line opening with `accTitle` or `accDescr` as that statement,
-    # where Mermaid reads a node of that name; `click-node` below is the control.
-    "keyword-id": "flowchart LR\n  accTitle --&gt; done\n  accDescr --&gt; done",
-    # An entity code is drawn as written; Mermaid draws the character it names.
-    "entity-code": 'flowchart LR\n  A["price #36;5"] --&gt; B',
-    # Mermaid's word cardinalities draw nothing at all.
-    "er-word-cardinality": "erDiagram\n  USER one to many POST : writes",
-    # A label split across two lines, which Mermaid reads and the renderer refuses.
-    "split-label": 'flowchart LR\n  A["first line\n  second line"] --&gt; B[plain]',
-    # A family the renderer draws and Leaf does not document.
-    "pie": 'pie title Pets\n  "Dogs" : 386',
-    # Mermaid refuses these, whatever the renderer makes of them.
-    "er-statement": "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ~~bogus~~ SHIPMENT : ships",
-    "sequence-arrow": "sequenceDiagram\n  Alice-&gt;&gt;Bob: hello\n  Bob ~&gt; Dave: what",
-    "unparsed": "flowchart LR\n  A[call foo(bar)] --&gt; B",
-}
-
-FAITHFUL_DIAGRAMS = {
-    "line-break": 'flowchart LR\n  A["first line&lt;br/&gt;second line"] --&gt; B[plain]',
-    "doubled-closer": 'flowchart LR\n  A[["names: list[str]"]] --&gt; B[plain]',
-    "cut-label": 'flowchart LR\n  A["names: list[str]"] --&gt; B[plain]',
-    "edge-label": 'flowchart LR\n  A --&gt;|"list[str]"| B',
-    "subgraph-title": 'flowchart LR\n  subgraph S["Stage [1]"]\n    A[x] --&gt; B[y]\n  end',
-    "commented-out": 'flowchart LR\n  %% A["names: list[str]"] --&gt; B[plain]\n  A[x] --&gt; B[y]',
-    "fan-out": "flowchart LR\n  A &amp; B --&gt; C &amp; D",
-    "statement-end": "flowchart LR\n  A[Start] --&gt; B[End];",
-    "spaceless-arrow": "flowchart LR\n  A--&gt;B",
-    "circle-arrowhead": "flowchart LR\n  A --o B",
-    "slanted-shapes": "flowchart LR\n  A[/a/] --&gt; B[\\b\\]",
-    "invisible-link": "flowchart LR\n  A --&gt; B\n  A ~~~ E",
-    # Mermaid and the renderer both read a line opening with `click` as that directive,
-    # so neither draws a node.
-    "click-node": "flowchart LR\n  click --&gt; done",
-    # An authored class named for one of the renderer's own classes.
-    "class-named-edge": "flowchart LR\n  a --&gt; b\n  classDef edge fill:#f00\n  class a edge",
-    "acc-title": "flowchart LR\n  accTitle: Checkout flow\n  Cart[Cart] --&gt; Pay[Pay]",
-    "leaf-tokens": "flowchart LR\n  A[Start] --&gt; B[End]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class B done\n  linkStyle 0 stroke:var(--ok)",
-    "composite-state": "stateDiagram-v2\n  [*] --&gt; Working\n  state Working {\n    [*] --&gt; Build\n    Build --&gt; Test\n  }\n  Working --&gt; [*]",
-    "concurrency": "stateDiagram-v2\n  state Active {\n    [*] --&gt; A\n    --\n    [*] --&gt; B\n  }",
-    "state-choice": "stateDiagram-v2\n  state pick &lt;&lt;choice&gt;&gt;\n  [*] --&gt; pick\n  pick --&gt; Done",
-    "declared-label": 'stateDiagram-v2\n  state "Gate passed" as S0\n  [*] --&gt; S0',
-    "state-note": "stateDiagram-v2\n  [*] --&gt; A\n  note right of A : careful",
-    "class-note": 'classDiagram\n  Order --&gt; Item\n  note for Order "hello"',
-    "namespace": "classDiagram\n  namespace Shapes {\n    class Circle\n    class Square\n  }\n  Circle --&gt; Square",
-    "autonumber": "sequenceDiagram\n  autonumber 10 5\n  A-&gt;&gt;B: hi\n  B--&gt;&gt;A: ok\n  autonumber off\n  A-&gt;&gt;B: three",
-    "configured-numbering": '%%{init: {"sequence": {"showSequenceNumbers": true}}}%%\nsequenceDiagram\n  A-&gt;&gt;B: hi\n  B--&gt;&gt;A: ok',
-    "sequence-box": "sequenceDiagram\n  box Aqua Front\n    participant A\n  end\n  participant B\n  A-&gt;&gt;B: hi",
-    "er-alias": "erDiagram\n  p[Person] {\n    string name\n  }\n  p ||--o{ CAR : drives",
-    # A name no `parts` token can spell, which the drawing still has to hold.
-    "er-quoted-name": 'erDiagram\n  "Line Item" ||--o{ ORDER : in',
+DIAGRAM_FAMILIES = {
+    "pie": 'pie title Pets\n  "Dogs" : 386\n  "Cats" : 85',
+    "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
+    "mindmap": "mindmap\n  root((Leaf))\n    Pages\n    Threads",
+    "timeline": "timeline\n  2025 : Draft\n  2026 : Ship",
 }
 
 
-def test_the_gate_refuses_a_diagram_that_does_not_draw_its_source(browser, serve):
-    """A wrong diagram renders as confidently as a right one, so the gate compares.
+def test_the_gate_passes_every_family_the_renderer_draws(browser, serve):
+    """Leaf draws what Agentic Mermaid draws, beyond the families it documents.
 
-    The renderer draws the first seven misdrawn sources without raising, each as a drawing
-    that lacks what the source asks for. `lf-diagram` registers a render check that reads
-    the same source with official Mermaid and compares that reading with the drawing; the
-    split label is the renderer refusing outright, pie is a family Leaf does not document,
-    and the last three are Mermaid refusing. The faithful diagrams are the control: each
-    is a source an earlier renderer or hand-written guard misdrew or refused wrongly, or
-    one that exercises a name the check maps between the two vocabularies.
+    The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
+    family it can draw is no failure, whether or not Leaf's guidance names it.
     """
-    diagrams = MISDRAWN_DIAGRAMS | FAITHFUL_DIAGRAMS
     url = serve(
         leaf_page(
-            "diagram fidelity",
-            '<h1 id="title">Diagram fidelity</h1>\n'
+            "diagram families",
+            '<h1 id="title">Diagram families</h1>\n'
             + "\n".join(
                 f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
-                for name, source in diagrams.items()
+                for name, source in DIAGRAM_FAMILIES.items()
             ),
         )
     )
-
-    failures = render_gate_model.render_version(browser.unwatched, url)
-    refused = {
-        name
-        for name in diagrams
-        for failure in failures
-        if f"<lf-diagram id={name!r}> failed soft: <lf-diagram> failed" in failure
-    }
-
-    assert refused == set(MISDRAWN_DIAGRAMS), failures
-    assert not [f for f in failures if "could not run its render check" in f], failures
+    assert render_gate_model.render_version(browser.unwatched, url) == []
 
 
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):

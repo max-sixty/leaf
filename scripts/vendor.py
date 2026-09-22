@@ -55,7 +55,6 @@ PINS = {
     "marked": "18.0.13",
     "diff": "9.0.0",
     "agentic-mermaid": "0.4.1",
-    "mermaid": "12.0.0",
     "elkjs": "0.11.1",
     "entities": "7.0.1",
     "yaml": "2.9.1",
@@ -327,78 +326,6 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
         ),
         encoding="utf-8",
     )
-    return [out, notices]
-
-
-def build_mermaid_reader(work: Path) -> list[Path]:
-    """Bundle official Mermaid as a reader of diagram source, for the render gate alone.
-
-    Agentic Mermaid draws `lf-diagram`, and its parsers can give a statement they
-    read differently a silent reading. Official Mermaid's grammars are strict, so the
-    diagram package's render check reads the same source with them and compares what
-    they found with what was drawn. Only that check imports this file: it travels in
-    the page directory beside the renderer it answers for, and no reader's browser
-    fetches it.
-
-    The bundle answers two questions: which family a source is, asked before anything
-    reads it, since a family Leaf does not draw can fail its parse on a library this
-    bundle leaves out; and the diagram Mermaid reads, with the configuration its
-    frontmatter and directives set, which is where a setting such as
-    `showSequenceNumbers` lives.
-
-    Mermaid is here to read, never to draw, so the libraries only its drawings reach
-    are replaced with an empty module: KaTeX, Cytoscape and its two layouts, and ELK
-    are 2.4MB of a 5.3MB bundle. Its remaining dependencies resolve through npm's
-    ranges, as Plot's do.
-    """
-    out = package_vendor("diagram") / "mermaid-reader.esm.js"
-    notices = package_vendor("diagram") / "mermaid-reader.LICENSES.txt"
-    run(
-        "npm",
-        "install",
-        "--silent",
-        "--no-audit",
-        "--no-fund",
-        spec("mermaid"),
-        spec("esbuild"),
-        cwd=work,
-        capture=True,
-    )
-    (work / "entry.mjs").write_text(
-        'import mermaid from "mermaid";\n'
-        "mermaid.initialize({ startOnLoad: false });\n"
-        "export const mermaidFamily = (source) => mermaid.detectType(source);\n"
-        "export const readMermaid = async (source) => {\n"
-        "  const { config } = await mermaid.parse(source);\n"
-        "  const diagram = await mermaid.mermaidAPI.getDiagramFromText(source);\n"
-        "  return { diagram, config };\n"
-        "};\n",
-        encoding="utf-8",
-    )
-    (work / "undrawn.mjs").write_text("export default {};\n", encoding="utf-8")
-    undrawn = (
-        "katex",
-        "cytoscape",
-        "cytoscape-cose-bilkent",
-        "cytoscape-fcose",
-        "elkjs/lib/elk.bundled.js",
-    )
-    esbuild(
-        "entry.mjs",
-        "--bundle",
-        "--format=esm",
-        "--platform=browser",
-        "--target=chrome105",
-        "--minify",
-        "--legal-comments=inline",
-        *(f"--alias:{package}=./undrawn.mjs" for package in undrawn),
-        f"--banner:js=/*! mermaid {PINS['mermaid']} — MIT"
-        " — licenses: mermaid-reader.LICENSES.txt */",
-        f"--outfile={out}",
-        cwd=work,
-    )
-    refuse_if_csp_forbids(out)
-    notices.write_text(package_notices(work, ("mermaid",), out.name), encoding="utf-8")
     return [out, notices]
 
 
@@ -674,7 +601,6 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "highlight": build_highlight,
     "jsdiff": build_jsdiff,
     "mcp-app": build_mcp_app,
-    "mermaid-reader": build_mermaid_reader,
     "plot": build_plot,
     "pierre": build_pierre,
     "webawesome": build_webawesome,
@@ -701,7 +627,6 @@ REBUILDS = {
     "@pierre/diffs": ("pierre",),
     "@modelcontextprotocol/ext-apps": ("mcp-app",),
     "agentic-mermaid": ("agentic-mermaid",),
-    "mermaid": ("mermaid-reader",),
     "@floating-ui/dom": ("floating-ui", "webawesome"),
     "@floating-ui/core": ("floating-ui", "webawesome"),
     "@floating-ui/utils": ("floating-ui", "webawesome"),
@@ -728,7 +653,6 @@ REBUILDS = {
         "floating-ui",
         "highlight",
         "mcp-app",
-        "mermaid-reader",
         "plot",
         "pierre",
         "webawesome",

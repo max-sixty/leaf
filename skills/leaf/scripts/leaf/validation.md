@@ -65,10 +65,7 @@ caller supplies playwright, which
 `bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot
 reach run against it — no console warnings or errors, no page errors, no fail-soft
 error box, every visible widget occupies real space, code that reads against the block
-it is set on, no sideways scroll, in both color schemes. Before those readings it runs
-the render checks widgets registered (`registerRenderCheck`), the only place they run: a
-check reports what it finds by failing its widget soft, so `lf-diagram`'s comparison of
-a drawing with Mermaid's reading of its source arrives as a fail-soft finding.
+it is set on, no sideways scroll, in both color schemes.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

@@ -6,7 +6,6 @@ import {
   dataBody,
   once,
   failSoft,
-  registerRenderCheck,
   registerVisualParts,
   widgetController,
 } from "/runtime/widget-api.js";
@@ -47,33 +46,13 @@ customElements.define(
       this.visualPartRegistration = registerVisualParts(this, () =>
         [...this.visualParts].map(([id, part]) => ({ id, ...part })),
       );
-      // The rendering replaces the authored body, and the render check reads it again.
-      this.source = dataBody(this).trim();
       // Registered with the controller so the runtime holds view restore and the first
       // anchor pass until the SVG is in and the page's geometry is final.
-      const rendered = this.render();
-      widgetController(this).present(rendered);
-      registerRenderCheck(this, () => rendered.then(() => this.checkDrawing()));
-    }
-
-    /* The renderer draws something for most sources, including the statements it
-     * cannot read, so a wrong diagram renders as confidently as a right one. The render
-     * gate asks for the comparison that tells them apart (lf-diagram-fidelity.js); a
-     * reader's page never loads it. */
-    async checkDrawing() {
-      const drawn = this.querySelector(":scope > svg");
-      if (!drawn) return; // the rendering already failed soft
-      const { drawingFault } = await import("./lf-diagram-fidelity.js");
-      const fault = await drawingFault(this.source, drawn);
-      if (!fault) return;
-      this.visualParts.clear();
-      failSoft(this, new Error(fault), this.source);
-      this.classList.remove("lf-rendered");
-      this.visualPartRegistration.update();
+      widgetController(this).present(this.render());
     }
 
     async render() {
-      const source = this.source;
+      const source = dataBody(this).trim();
       const renderId = `lf-diagram-${++seq}`;
       try {
         const { renderMermaidSVG } = await loadRenderer();
@@ -88,8 +67,8 @@ customElements.define(
           border:
             "color-mix(in srgb, var(--lf-diagram-accent) 48%, var(--lf-diagram-paper))",
           transparent: true,
-          // A line series draws a dot per value, which is also the record the render
-          // check counts; without it only bars mark their values.
+          // A chart's values take a hover tooltip, and a line series draws a dot per
+          // value; without it the line alone carries them.
           interactive: true,
           font: "var(--sans)",
           // The renderer's arrowhead and gradient ids are fixed, and a repeated id

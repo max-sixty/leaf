@@ -592,14 +592,6 @@ geometry change, including in-place attribute or style changes. The render gate 
 every record and requires each authored token to resolve. The package owns the stable
 mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
-A widget whose rendering can be wrong without failing registers a render check:
-`registerRenderCheck(source, check)`, once at upgrade. Only the render gate calls
-`check`, after presentation, so it may import what a reader's page cannot afford, such as
-a second library that reads the same source. `check` returns a promise; where it finds
-the rendering wrong it calls `failSoft` on the widget, and the gate reports that as it
-reports any failed widget. A rejected promise is reported as a check that could not run.
-`lf-diagram` compares its drawing with Mermaid's own reading of the source this way.
-
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through

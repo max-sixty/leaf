@@ -135,16 +135,9 @@ language before bundling.
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
 which holds for `marked`, `sortable`, `agentic-mermaid`, `floating-ui`, `highlight`,
 `jsdiff`, and `webawesome`, so a clean `git status` after a run is the check that the
-bundle still matches the script. `plot`, `pierre`, `mcp-app`, and `mermaid-reader` reach
-npm's resolver for transitive dependencies and inherit its ranges, so a diff from one of
-those can be an upstream patch rather than drift.
-
-`mermaid-reader` is the one bundle no reader's browser runs: official Mermaid, cut to the
-parts that read a source, which `lf-diagram`'s render check imports inside
-`version check --render` to compare against what Agentic Mermaid drew. Moving either
-library's pin can break that comparison, since it reads Mermaid's diagram database and
-Agentic Mermaid's `data-*` attributes and neither is a documented API; the diagram
-cases in `tests/test_render_gate.py` are what reports it.
+bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
+dependencies and inherit its ranges, so a diff from one of those can be an upstream
+patch rather than drift.
 
 `webawesome` bundles its scoped theme defaults and Leaf token mappings with the
 shared JavaScript. Importing that bundle registers one constructed stylesheet in the

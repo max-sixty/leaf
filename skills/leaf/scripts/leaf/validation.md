@@ -89,10 +89,13 @@ The runtime keeps no event-to-DOM write history for this check.
 
 Both gates serve their probe modules from the Leaf running the command and the
 runtime those modules import from the page, so the ephemeral server they open refuses
-a page whose recorded `$layer.fingerprint` is not the one this payload composes for
-the page's packages. Without that reading the mismatch arrives as a missing export in
-the probe module, which reads as a defect in the page. The vendored layer is the
-page's to keep, so neither gate re-vendors on its behalf.
+a page whose recorded `$layer.runtime` is not the identity this payload's kernel
+runtime carries. The kernel is read for that comparison rather than the whole layer,
+because it is the half the probe modules import and the only half a payload can
+identify anywhere: `$layer.packages` was resolved against the project `page init` ran
+in. Without that reading the mismatch arrives as a missing export in the probe module,
+which reads as a defect in the page. The vendored layer is the page's to keep, so
+neither gate re-vendors on its behalf.
 
 The one thing export asks of a browser that the render gate does not is its age. The
 copy ends in `root.getHTML({ serializableShadowRoots: true })`, which Chromium grew

@@ -57,7 +57,8 @@ A page directory holds:
                          each x- key means), and the page's vocabulary stamp ($events,
                          x-state): the one statement of what this page's vendored
                          runtime speaks. $layer keeps the reload-safety generation,
-                         stable content fingerprint, selected packages, and optional
+                         stable content fingerprint, the identity of the kernel runtime
+                         it was vendored from, selected packages, and optional
                          producer commit/dirty provenance
     guidance/            package-owned guidance grouped by audience. Files with the
                          same name concatenate in package order; `page guidance` reads
@@ -197,7 +198,7 @@ A page directory holds:
 
 `leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
-fingerprint, packages, and producer;
+fingerprint, kernel runtime identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data.file` always names a readable JSON store.

@@ -119,6 +119,13 @@ def layer_metadata(page_dir: Path) -> dict:
         and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint)
     ):
         raise RegistryError(f"{path}: $layer.fingerprint must be a SHA-256 identity")
+    # A page vendored before this identity existed reads as having none, which is what
+    # the browser gates refuse on: nothing here can say which runtime it carries.
+    runtime = layer.get("runtime")
+    if runtime is not None and not (
+        isinstance(runtime, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", runtime)
+    ):
+        raise RegistryError(f"{path}: $layer.runtime must be a SHA-256 identity")
     producer = layer.get("producer")
     if producer is not None and not isinstance(producer, dict):
         raise RegistryError(f"{path}: $layer.producer must be an object")
@@ -140,6 +147,7 @@ def layer_metadata(page_dir: Path) -> dict:
     return {
         "generation": generation,
         "fingerprint": fingerprint,
+        **({"runtime": runtime} if runtime else {}),
         "packages": packages,
         **({"producer": producer} if producer else {}),
     }

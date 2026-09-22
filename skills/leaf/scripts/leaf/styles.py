@@ -320,9 +320,6 @@ def _overwide_elements(
 PRESENTATION_PROPERTIES = {
     "all",
     "display",
-    "interactivity",
-    "opacity",
-    "pointer-events",
     "visibility",
 }
 

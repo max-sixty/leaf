@@ -273,7 +273,6 @@ class ThreadListView extends LitElement {
         selected: folding ? view.expanded : this.#selected === descriptor.id,
         activate: () =>
           this.#select(this.#selected === descriptor.id ? null : descriptor.id),
-        collapse: () => this.#select(null),
         draftChanged: () => {
           this.navigationRevision = (this.navigationRevision ?? 0) + 1;
         },

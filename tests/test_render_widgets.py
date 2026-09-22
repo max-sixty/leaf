@@ -7540,9 +7540,18 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
 
     # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
     # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
+    #
+    # The walk arrives and then travels, in that order and in one task, so the arrival is
+    # the fact each stillness reading is taken behind. Stillness on its own answers the
+    # same for a page that has finished travelling and one whose asynchronous reveal has
+    # not started it, and the second answer is the one that loses this test: the geometry
+    # below is measured where the walk began, the scroll it computes is issued there, and
+    # the travel then lands on top of it with the badge back above the bar.
     page.keyboard.press("a")
+    expect(page.locator("#cards-decision")).to_be_focused()
     scroll_settled(page)
     page.keyboard.press("a")
+    expect(page.locator("#rows-decision")).to_be_focused()
     scroll_settled(page)
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")

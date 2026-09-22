@@ -1,6 +1,5 @@
 """Browser-gate, arrival, layout, and layer integration tests."""
 
-import html
 import itertools
 import json
 import re
@@ -1298,6 +1297,8 @@ MISDRAWN_DIAGRAMS = {
     "sequence-arrow": "sequenceDiagram\n  Alice-&gt;&gt;Bob: hello\n  Bob ~&gt; Dave: what",
     "class-note": 'classDiagram\n  Order --&gt; Item\n  note for Order "hello"',
     "state-choice": "stateDiagram-v2\n  state pick &lt;&lt;choice&gt;&gt;\n  [*] --&gt; pick\n  pick --&gt; Done",
+    # A state used before `state "…" as S0` labels it is drawn labelled `S0`.
+    "late-label": 'stateDiagram-v2\n  [*] --&gt; S0\n  state "Gate passed" as S0',
     # Mermaid refuses unquoted parentheses in a label, though this renderer draws them.
     "unparsed": "flowchart LR\n  A[call foo(bar)] --&gt; B",
 }
@@ -1313,6 +1314,7 @@ FAITHFUL_DIAGRAMS = {
     "keyword-id": "flowchart LR\n  accTitle --&gt; done\n  accDescr --&gt; done",
     "leaf-tokens": "flowchart LR\n  A[Start] --&gt; B[End]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class B done\n  linkStyle 0 stroke:var(--ok)",
     "composite-state": "stateDiagram-v2\n  [*] --&gt; Working\n  state Working {\n    [*] --&gt; Build\n    Build --&gt; Test\n  }\n  Working --&gt; [*]",
+    "declared-label": 'stateDiagram-v2\n  state "Gate passed" as S0\n  [*] --&gt; S0',
 }
 
 
@@ -1344,8 +1346,7 @@ def test_the_gate_refuses_a_diagram_that_does_not_draw_its_source(browser, serve
         name
         for name in diagrams
         for failure in failures
-        if "a widget failed soft: <lf-diagram> failed" in failure
-        and html.unescape(diagrams[name]) in failure
+        if f"<lf-diagram id={name!r}> failed soft: <lf-diagram> failed" in failure
     }
 
     assert refused == set(MISDRAWN_DIAGRAMS), failures

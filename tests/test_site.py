@@ -572,9 +572,10 @@ def test_the_published_notification_example_runs_its_authored_module(
     _, url = served_example("notification-playground")
     page = open_page(browser, url)
     pressure = page.get_by_role("slider", name="Concurrent release events")
-    expect(pressure).to_have_value("2")
+    expect(pressure).to_have_attribute("aria-valuenow", "2")
 
-    pressure.fill("4")
+    pressure.press("ArrowRight")
+    pressure.press("ArrowRight")
 
     expect(page.locator(".notification-demo-card-banner")).to_have_count(4)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
@@ -585,9 +586,11 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     _, url = served_example("visual-review-gallery")
     page = open_page(browser, url)
     review = page.locator("#visual-review-run")
-    case_select = review.get_by_role("combobox", name="Selected visual case")
+    case_select = review.locator(".lf-vr-case-select")
     for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        case_select.select_option(case_id)
+        case_select.click()
+        review.locator(f'wa-option[value="{case_id}"]').click()
+        expect(case_select).to_have_js_property("value", case_id)
         comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
         images = comparison.locator("img")

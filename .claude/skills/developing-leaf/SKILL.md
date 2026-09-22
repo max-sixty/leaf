@@ -54,8 +54,12 @@ owns that surface and preview its real output and styling. A Leaf interface ther
 implements candidates in its owning runtime and theme and presents them through a
 shipped example or fixture. When the user asks for sketches without implementation,
 keep the current surface as a baseline and derive each sketch from its actual controls,
-copy, and styling. Page-local HTML and CSS may frame it; a page-local recreation is a
-sketch.
+copy, and styling. Runtime-owned chrome is operable only in a normally served complete
+Leaf document; the developer feature gallery's contained documents are inert replays,
+not interactive previews. Page-local HTML and CSS may frame the comparison and build
+proposed sketches. Embedding an operable current surface beside them needs a new runtime
+boundary; when implementation is out of scope, serve that surface separately as the
+interactive baseline.
 
 ## Prove and hand off a visible change
 

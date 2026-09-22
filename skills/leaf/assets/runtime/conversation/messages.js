@@ -243,6 +243,11 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${
+            panel && sending
+              ? html`<span class="lf-msg-sending">Sending</span>`
+              : receiptTemplate
+          }
+          ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
               : nothing
@@ -263,8 +268,7 @@ export class MessageView {
                   >${model.streamLabel}</span
                 >`
               : nothing
-          }
-          ${panel ? nothing : receiptTemplate}</span
+          }</span
         >
       `,
       this.#header,
@@ -286,13 +290,6 @@ export class MessageView {
                 ${model.body.markup ? this.#authored : nothing}
               </div>`
             : this.#inlineBody(model.body)
-        }
-        ${
-          panel && (sending || receipts.length)
-            ? html`<div class="lf-msg-delivery">
-                ${sending ? html`<span>Sending</span>` : receiptTemplate}
-              </div>`
-            : nothing
         }
         ${
           !panel && model.body.markup

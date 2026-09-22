@@ -7268,7 +7268,10 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     resized(page, 390, 800)
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    page.locator(".lf-thread:not([hidden]) .lf-thread-summary").click()
+    # The reader read this card open, and narrowing to Resolved keeps the disclosure they
+    # left rather than folding the card away under them, so the card comes back open and
+    # a press on its summary here would shut it.
+    expect(page.locator(".lf-thread:not([hidden])")).to_have_attribute("open", "")
     page.evaluate(RENDERED)
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))

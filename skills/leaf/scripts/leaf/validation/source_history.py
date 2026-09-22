@@ -17,6 +17,34 @@ from leaf.revision_artifact import RevisionArtifact, read_artifact
 from leaf.structure import SourceDocument
 from leaf.validation.transitions import report_errors, restatement_errors
 
+# What a revision that dropped a protected id does instead, by each reason the id is
+# needed (`protected_ids`). A reason names the way out it leaves open, so the author
+# reads the route off the refusal instead of trying attributes against the gate.
+PROTECTED_REMEDIES = {
+    "thread": (
+        "an unresolved thread is anchored on each: keep the element, wherever on "
+        "the page it goes, or first move the thread to another passage, detach it, "
+        "or resolve it"
+    ),
+    "state": (
+        "the reader's standing state rests on each: keep the element inside its "
+        "widget, and the widget may go anywhere on the page, such as a collapsed "
+        "section of finished work. To drop it instead, put `restated` on the "
+        "rewritten element the state rests on, stamp that version, and drop it in "
+        "a later one"
+    ),
+    "report": (
+        "a worker's standing report rests on each: keep the element until a "
+        "stamped version absorbs the report into its markup or marks the element "
+        "`overruled`"
+    ),
+    "retirement": (
+        "a decision's markup holds each: keep it. A version may drop only what the "
+        "decision's outcome retires or, while the decision is unanswered and no "
+        "open thread is anchored inside it, what withdrawing it whole retires"
+    ),
+}
+
 
 class RevisionReading(NamedTuple):
     """The active and predecessor documents this exact source is checked against."""
@@ -117,8 +145,8 @@ def continuity_errors(
     if dropped_parts:
         errors.append(
             "visual parts an open conversation anchors on, present in revision "
-            f"r{revision.predecessor} but dropped in index.html (move, detach, or "
-            f"resolve those threads first): {dropped_parts}"
+            f"r{revision.predecessor} but dropped in index.html: {dropped_parts} — "
+            "move, detach, or resolve those threads first"
         )
     previous_projection = state_projection(
         events,
@@ -135,7 +163,7 @@ def continuity_errors(
         revision.previous_words,
         revision.previous_registry,
     )
-    dropped = sorted(gone & protected)
+    dropped = sorted(gone & protected.keys())
     generated = {
         (identity, event["widget"], spec["creates"]["child"])
         for event, spec in previous_projection.desired.values()
@@ -163,12 +191,15 @@ def continuity_errors(
         if identity in parser.ids
         and not carried_by_sender(identity, widget_id, child_tag)
     )
-    dropped_advice = sorted(gone - protected)
-    if dropped:
+    dropped_advice = sorted(gone - protected.keys())
+    held: dict = {}
+    for identity in dropped:
+        for why in protected[identity]:
+            held.setdefault(why, []).append(identity)
+    for why in sorted(held):
         errors.append(
-            f"protected ids present in revision r{revision.predecessor} but dropped in "
-            "index.html (unresolved threads, standing state, or widget "
-            f"retirement still need them): {dropped}"
+            f"protected ids present in revision r{revision.predecessor} but "
+            f"dropped in index.html: {held[why]} — {PROTECTED_REMEDIES[why]}"
         )
     if misplaced:
         errors.append(

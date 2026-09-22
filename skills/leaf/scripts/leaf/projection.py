@@ -1,6 +1,7 @@
 """Declaration-driven state and retirement projections."""
 
 from datetime import datetime
+from itertools import chain
 from typing import NamedTuple
 
 from leaf.events import (
@@ -234,8 +235,11 @@ def protected_ids(
     projection,
     spk: dict,
     registry: dict,
-) -> set:
-    """Ids the next version must retain.
+) -> dict:
+    """Ids the next version must retain, each with every reason it is needed:
+    `thread`, `state`, `report`, or `retirement`. Each reason leaves a different way
+    out, which the gate's refusal names, so an id held twice is refused for both at
+    once.
 
     Anchored unresolved threads keep their current target; an explicit detachment
     releases it while retaining the thread. Effective standing state keeps its owner
@@ -248,23 +252,18 @@ def protected_ids(
     the outcome or a complete unanswered withdrawal.
     """
     within = enclosing_of(spk)
-    state_ids = {
-        identity
-        for widget, unit, _facet in projection.desired
-        for identity in (widget, unit)
-    }
-    state_ids.update(
-        identity
-        for event, _spec in projection.desired.values()
-        for identity in action_rests_on(event, within)
-    )
-    retirement_ids = {holder["id"] for holder in holders}
-    retirement_ids.update(
-        identity
-        for holder in holders
-        for ids in holder["retires"].values()
-        for identity in ids
-    )
+    needed: dict = {}
+    for identity in anchored_ids(events, within):
+        needed.setdefault(identity, set()).add("thread")
+    for (widget, unit, _facet), (event, _spec) in projection.desired.items():
+        # A reader's action and a worker's report stand the same way and leave
+        # differently: one is retracted, the other absorbed or overruled.
+        why = "report" if event["kind"] == "report" else "state"
+        for identity in (widget, unit, *action_rests_on(event, within)):
+            needed.setdefault(identity, set()).add(why)
+    for holder in holders:
+        for identity in (holder["id"], *chain(*holder["retires"].values())):
+            needed.setdefault(identity, set()).add("retirement")
     licensed = retirable_ids(
         holders,
         events,
@@ -272,7 +271,11 @@ def protected_ids(
         retirement_outcomes(projection.actions, registry),
         spk,
     )
-    return (anchored_ids(events, within) | state_ids | retirement_ids) - licensed
+    return {
+        identity: reasons
+        for identity, reasons in needed.items()
+        if identity not in licensed
+    }
 
 
 def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> list:

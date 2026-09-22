@@ -1042,19 +1042,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-block-end-color: transparent; margin-bottom: 0; }
   /* A single title row remains when the retained conversation is closed. Count
      has its own column, so titles and counts keep their keylines across rows. */
-  .lf-thread-compact { --lf-thread-pad: 0px; margin-bottom: 0; padding: 0; }
+  .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
+    background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
-  .lf-thread-summary { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 3ch 80px;
+  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 3ch 80px;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
-  .lf-thread[open] > .lf-thread-summary { background: var(--chip);
-    box-shadow: inset 2px 0 var(--accent); }
+  .lf-thread-summary::-webkit-details-marker { display: none; }
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
-  .lf-thread-chevron { width: 12px; height: 12px; color: var(--muted); }
-  .lf-thread[open] > .lf-thread-summary .lf-thread-chevron { transform: rotate(90deg); }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; }
   .lf-thread-status { min-width: 0; overflow: hidden; text-overflow: ellipsis;
@@ -1586,6 +1584,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-page-map-action-label { min-width: 0; }
   .lf-page-map-action-label-word, .lf-page-map-action-context { display: block; }
+  .lf-page-map-action-label-word, .lf-page-map-group h3 {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere; }
   .lf-page-map-action-context { margin-block-start: 2px; color: var(--muted);
     font-size: var(--t-6); line-height: 1.25; }
   /* Inset, because a row here fills the list to its own edge and the list is a

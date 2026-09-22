@@ -265,3 +265,22 @@ export const visibleMarginEntryLabel = ({ behavior, label }) =>
 
 // A contribution owns its reading IDs; generated readings have no owner.
 export const marginItemKey = (item) => JSON.stringify([item.owner ?? null, item.id]);
+
+export const labelWords = (value) =>
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// Spoken names have a listening budget, independent of the space CSS gives the
+// visible label. Only accessibility presentations use this excerpt; inventory and
+// search retain the complete text. A long word or unspaced language keeps its prefix.
+const SPOKEN_SUBJECT_CAP = 120;
+export function spokenSubject(value) {
+  const words = labelWords(value);
+  const points = [...words];
+  if (points.length <= SPOKEN_SUBJECT_CAP) return words;
+  const excerpt = points.slice(0, SPOKEN_SUBJECT_CAP - 1);
+  const boundary = excerpt.lastIndexOf(" ");
+  const end = boundary >= SPOKEN_SUBJECT_CAP / 2 ? boundary : excerpt.length;
+  return `${excerpt.slice(0, end).join("")}…`;
+}

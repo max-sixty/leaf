@@ -275,16 +275,10 @@ export function createAskView({
   // these counts once the state its POST returns has been adopted.
   let shortcutsOffered = false;
   let rowWalkOffered = false;
-  const ANSWER_CAP = 120;
-  const answerWords = (value) => {
-    const whole = String(value ?? "")
+  const answerWords = (value) =>
+    String(value ?? "")
       .replace(/\s+/g, " ")
       .trim();
-    if ([...whole].length <= ANSWER_CAP) return whole;
-    const short = [...whole].slice(0, ANSWER_CAP).join("");
-    const at = short.lastIndexOf(" ");
-    return (at > ANSWER_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
-  };
   function currentAskAnswer(ask) {
     const source = sourceNode(ask);
     if (!source) return "";

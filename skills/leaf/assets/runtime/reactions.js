@@ -34,13 +34,12 @@
 
 import { registerMarginContribution } from "./margin-entries.js";
 import { runtime } from "./context.js";
-import { CONTROL_WORD_CAP } from "./design-readings.js";
 import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 
-import { cut, elementById } from "./passages.js";
+import { elementById } from "./passages.js";
 import {
   addressableWord,
   anchoringIsReady,
@@ -587,10 +586,7 @@ export async function sendReaction(event, chip, where, postReaction) {
 function reactionPlace(event) {
   if (event.kind === "reply") return "the reply";
   if (!event.anchor) return "the page";
-  const label = anchorLabel(event.anchor, event.about);
-  return [...label].length > CONTROL_WORD_CAP
-    ? cut(label, 0, CONTROL_WORD_CAP) + "…"
-    : label;
+  return anchorLabel(event.anchor, event.about);
 }
 export const undoSentence = (undoable) => {
   const event = undoable();

@@ -5069,17 +5069,11 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
     # that scroll-padding is unheld. Tab scrolls each stop into view itself,
     # which is the gesture that puts one against an edge.
     page.locator(".lf-threads").focus()
-    # Closed native details remove their contents from the browser's focus order even
-    # though Chromium reports those descendants as visible. Count summaries plus the
-    # controls in the one open disclosure: that is the focus order the browser owns.
+    # Chromium removes a closed details' contents from both the focus order and
+    # checkVisibility, so this is the focus order the browser owns.
     tabbable = page.eval_on_selector_all(
         ".lf-threads *",
-        """els => els.filter((e) => {
-          const closed = e.closest('details:not([open])');
-          const summary = closed?.querySelector(':scope > summary');
-          return e.tabIndex >= 0 && e.checkVisibility() &&
-            (!closed || summary?.contains(e));
-        }).length""",
+        "els => els.filter((e) => e.tabIndex >= 0 && e.checkVisibility()).length",
     )
     assert tabbable, "the list holds no control to tab to"
     stops = 0

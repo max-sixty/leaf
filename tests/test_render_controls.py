@@ -3479,7 +3479,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page.locator(".lf-general textarea").fill(draft)
     threads = page.locator(".lf-threads")
     thread = threads.locator(".lf-thread").nth(5)
-    thread.focus()
+    thread.locator(":scope > .lf-thread-summary").focus()
     thread.evaluate("el => el.scrollIntoView({block: 'start'})")
     list_at = threads.evaluate("el => el.scrollTop")
     identity = thread.get_attribute("data-id")
@@ -3489,14 +3489,17 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     panel_settled(page)
     assert page.locator("main").evaluate("el => el.inert")
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
-    expect(page.locator(f'.lf-thread[data-id="{identity}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
+    ).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(
         ".lf-thread-panel button:visible, .lf-thread-panel input:visible, "
-        ".lf-thread-panel textarea:visible, .lf-thread-panel [tabindex='0']:visible"
+        ".lf-thread-panel textarea:visible, .lf-thread-panel [tabindex='0']:visible, "
+        ".lf-thread-panel .lf-thread-summary:visible"
     )
     assert focus_stops.count() > 8, (
         "the panel has too few stops to expose a focus escape"
@@ -3553,18 +3556,19 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
 
     # Focus already inside the auxiliary surface is not a reason to move it at either crossing.
     thread = page.locator(f'.lf-thread[data-id="{identity}"]')
-    thread.focus()
+    summary = thread.locator(":scope > .lf-thread-summary")
+    summary.focus()
     list_at = threads.evaluate("el => el.scrollTop")
     resized(page, 1000, 640)
     panel_settled(page)
     assert not page.locator("main").evaluate("el => el.inert")
-    expect(thread).to_be_focused()
+    expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
     resized(page, 500, 640)
     panel_settled(page)
-    expect(thread).to_be_focused()
+    expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
     # The card is content of Threads, so Escape closes the panel directly.

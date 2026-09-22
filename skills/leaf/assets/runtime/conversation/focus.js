@@ -4,13 +4,11 @@ import { focused, documentFocused } from "../keyboard/scopes.js";
 // Native disclosure owns the panel thread's focus stop. Inline divs have no summary,
 // so their established root remains the destination.
 export function focusThread(thread, options) {
-  (thread.querySelector(":scope > summary") ?? thread).focus(options);
+  (thread.querySelector(":scope > summary:not([hidden])") ?? thread).focus(options);
 }
 
-// The focused thread, one predicate: the row the line paints and the press the dispatcher
-// takes ask the same question, so they cannot disagree about which thread this is. Not a
-// control inside it, whose own press is its own. Open and resolved threads both qualify:
-// each has a primary Enter action for its reply or Reopen path.
+// An inline conversation root may itself hold focus. A control inside it keeps its own
+// command scope, while panel summaries are mapped by focusedThreadTarget below.
 export function focusedThread() {
   const active = focused();
   return active?.matches?.(".lf-thread, .lf-conversation-thread") ? active : null;

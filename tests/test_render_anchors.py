@@ -3836,10 +3836,14 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     for word in ["threads", "page down / up", "design mode"]:
         expect(line).not_to_contain_text(word)
 
-    # The exemption: the progressive help route still lists the mode standing over the
-    # page, and Escape there returns through the shelf with the menu where it was — with the
-    # reader on the row they left, since a scope is where focus is and the overlay takes the
-    # focus. Landing on the body instead put the walk it had just described out of reach.
+    page.keyboard.press("t")  # would raise the panel and walk focus out of the menu
+    page.keyboard.press("c")  # would raise it and put focus in its box
+    expect(panel).to_be_hidden()
+    expect(row).to_be_focused()
+    expect(menu).to_be_visible(), "a page key closed the menu it was suspended by"
+
+    # The progressive help route still lists the mode standing over the page. Opening
+    # its modal dialog then lets the browser dismiss the auto-popover underneath it.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -3849,24 +3853,13 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(menu).to_be_visible()
-    expect(row).to_be_focused()
-    expect(line).to_contain_text("walk — marking changes")
-
-    page.keyboard.press("t")  # would raise the panel and walk focus out of the menu
-    page.keyboard.press("c")  # would raise it and put focus in its box
-    expect(panel).to_be_hidden()
-    expect(row).to_be_focused()
-    expect(menu).to_be_visible(), "a page key closed the menu it was suspended by"
-
-    # And with the mode down the same key reaches the page, so what stopped it was the menu
-    # standing over the page rather than the key being broken.
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
+
+    # With the mode down the same key reaches the page, so what stopped it was the menu
+    # standing over the page rather than the key being broken.
     page.keyboard.press("t")
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread").first).to_be_focused()
+    expect(page.locator(".lf-thread-summary").first).to_be_focused()
 
 
 def clearance_page(browser, serve):
@@ -4969,7 +4962,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread).to_be_focused()
+    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     # The card is content of the panel. The seat on the page is not put back, the reader
     # having left it to come here.
     page.keyboard.press("Escape")

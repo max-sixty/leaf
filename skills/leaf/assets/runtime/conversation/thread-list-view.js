@@ -56,10 +56,6 @@ class ThreadListView extends LitElement {
   constructor() {
     super();
     this.model = EMPTY_MODEL;
-    this.addEventListener("focusin", (event) => {
-      const card = event.target.closest?.(".lf-thread");
-      if (card && event.target === card) this.revealNavigation(card.dataset.id);
-    });
   }
   createRenderRoot() {
     return this;

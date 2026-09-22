@@ -7285,7 +7285,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     reach the agent live, so only its Done press closes it, as an `answer` action
     the decision stands until (x-awaits.until). The thread's own reply box is the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
-    Threads, while `t` and Enter reach a particular thread and its reply box.
+    Threads, while `t` reaches a particular thread and `c` reaches its reply box.
 
     The answer is said once, when the log takes it. The log is where it is recorded,
     and the group's own markup stays the author's: a module writes there only where the
@@ -7312,7 +7312,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # The box hands the reader back to the conversation it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
+    expect(page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")).to_be_focused()
 
     page.locator("#tq-redis").click()
     expect(decisions).to_have_text("Asks 1/2")
@@ -7329,7 +7329,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
                        && s.borderTopWidth === s.borderBottomWidth; }"""
     ), "the group's divider recolors the Done press's own frame"
 
-    # And it butts that hairline, like every other cell of the control. This is the one
+    # And it butts that hairline while filling its own row. This is the one
     # place the reading is asked at all: the joined-cell readings in the render gate see
     # a served version, and a thread group lives in the panel the runtime builds, so the
     # gate never reaches it. The press was written as a control floating inside the
@@ -7342,11 +7342,12 @@ def test_a_thread_question_asks_until_answered(browser, serve):
                    const last = done.parentElement.previousElementSibling;
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
+                   const owner = done.parentElement.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,
-                           stretched: Math.abs(a.width - b.width) < 1}; }"""
+                           fills: Math.abs(owner.width - b.width) < 1}; }"""
     )
-    assert seam["stretched"], (
-        "the Done press no longer fills the column, so what follows is about a shape "
+    assert seam["fills"], (
+        "the Done press no longer fills its row, so what follows is about a shape "
         "this test no longer describes"
     )
     assert seam["gap"] < 0.5, (
@@ -7413,8 +7414,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes
-    # the repeatable category walk and the thread-local landing explicit.
+    # reaches Threads. A stray digit there neither travels nor picks; t then c makes
+    # the repeatable category walk and the thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
     # The address toggles the panel it names, so from the panel `a` opened the first
@@ -7428,7 +7429,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("1")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("t")
-    page.keyboard.press("Enter")
+    page.keyboard.press("c")
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"

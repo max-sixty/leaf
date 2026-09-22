@@ -83,10 +83,6 @@ has tried; settle that before building it.
   `status waiting` leave the ordinary batch. **Unconfirmed:** advancing on print
   gives up what `ack` guards today: a `leaf wait` output that was truncated or
   lost before it reached the agent is delivered again (`event-batches.md`).
-- **Shorten the delivery id.** It is still a 36-character UUID, beside 8-character
-  event ids. Codex names its queue files with it and `delivery_path` requires the
-  UUID form, so both change together, with a collision check like event ids have.
-  **Unconfirmed:** it saves under 30 characters a batch, which may not be worth it.
 
 ## Etc
 

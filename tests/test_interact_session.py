@@ -179,6 +179,47 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
     return delivery_model.freeze_delivery([batch])
 
 
+def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
+    minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
+    widths = []
+    token_hex_real = delivery_model.secrets.token_hex
+
+    def token_hex(width):
+        if width != 4:
+            return token_hex_real(width)
+        widths.append(width)
+        return next(minted)
+
+    monkeypatch.setattr(delivery_model.secrets, "token_hex", token_hex)
+    first = delivery_model.freeze_delivery([], created_at=1)
+    second = delivery_model.freeze_delivery([], created_at=2)
+
+    assert widths == [4, 4, 4]
+    assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
+
+
+def test_codex_readdresses_a_collecting_queue_if_its_delivery_id_collides(
+    page_dir, monkeypatch
+):
+    minted = iter(["aaaaaaaa", "bbbbbbbb"])
+    monkeypatch.setattr(codex_model, "new_delivery_id", lambda: next(minted))
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        path, _, _ = codex_model.append_batch(
+            "collision-test", page_dir, transaction, transaction.events
+        )
+    assert path.stem == "aaaaaaaa"
+    delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
+
+    prepared = codex_model.offer_delivery(path, files_model.read_json(path))
+
+    assert prepared.payload["id"] == "bbbbbbbb"
+    assert path.with_name("bbbbbbbb.json").is_file()
+    assert not path.exists()
+
+
 def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     """The first feedback operation needs no subject reconstruction from the agent.
 
@@ -1457,10 +1498,11 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
-    pointer = codex_model.delivery_pointer_prompt("delivery-42")
+    pointer = codex_model.delivery_pointer_prompt("aaaaaaaa")
+    invalid_pointer = codex_model.delivery_pointer_prompt("../status")
     payload = {
         "format": delivery_model.DELIVERY_FORMAT,
-        "id": "delivery-43",
+        "id": "bbbbbbbb",
         "batches": [],
     }
 
@@ -1480,7 +1522,21 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
                 },
             }
         )
-        == "delivery-42"
+        == "aaaaaaaa"
+    )
+    assert (
+        codex_model.app_server_delivery_id(
+            {
+                "method": "item/started",
+                "params": {
+                    "item": {
+                        "type": "userMessage",
+                        "content": [{"type": "text", "text": invalid_pointer}],
+                    }
+                },
+            }
+        )
+        is None
     )
     assert (
         codex_model.app_server_delivery_id(
@@ -1499,7 +1555,7 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
                 },
             }
         )
-        == "delivery-43"
+        == "bbbbbbbb"
     )
     assert (
         codex_model.app_server_delivery_id(
@@ -1513,7 +1569,7 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
                 },
             }
         )
-        == "delivery-42"
+        == "aaaaaaaa"
     )
     assert (
         codex_model.app_server_delivery_id(

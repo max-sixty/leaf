@@ -777,7 +777,8 @@ def _offer_queued_delivery(
         queued = None
         if unoffered is not None:
             path, queue = unoffered
-            queued = path, queue, offer_delivery(path, queue)
+            prepared = offer_delivery(path, queue)
+            queued = queue_path(session_id, prepared.payload["id"]), queue, prepared
     if queued is None:
         return False
     path, _offered, prepared = queued

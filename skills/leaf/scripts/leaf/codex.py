@@ -24,7 +24,6 @@ import hashlib
 import json
 import subprocess
 import time
-import uuid
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,10 +35,13 @@ from websockets.sync.client import connect, unix_connect
 from .conversation import DeliveryReply, release_delivery_reply
 from .delivery import (
     DELIVERY_FORMAT,
+    DeliveryIdConflict,
     batch_data,
     current_responses,
     delivery_path,
     freeze_delivery,
+    new_delivery_id,
+    validate_delivery_id,
 )
 from .event_log import flocked
 from .files import read_json, write_json
@@ -231,6 +233,13 @@ def app_server_delivery_id(message: dict) -> str | None:
         return None
 
     found = set()
+
+    def add(identity) -> None:
+        try:
+            found.add(validate_delivery_id(identity))
+        except ValueError:
+            pass
+
     for item in items:
         if (
             item.get("type") == "functionCallOutput"
@@ -246,7 +255,7 @@ def app_server_delivery_id(message: dict) -> str | None:
                 and payload.get("format") == DELIVERY_FORMAT
                 and isinstance(payload.get("id"), str)
             ):
-                found.add(payload["id"])
+                add(payload["id"])
             continue
         if item.get("type") != "userMessage":
             continue
@@ -265,7 +274,7 @@ def app_server_delivery_id(message: dict) -> str | None:
                 and set(pointer.attrib) == {"id", "operation"}
                 and pointer.attrib["operation"] == "delivery claim"
             ):
-                found.add(pointer.attrib["id"])
+                add(pointer.attrib["id"])
     return next(iter(found)) if len(found) == 1 else None
 
 
@@ -937,6 +946,7 @@ def delivery_lock_path(session_id: str) -> Path:
 
 
 def queue_path(session_id: str, delivery_id: str) -> Path:
+    validate_delivery_id(delivery_id)
     return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
@@ -1032,6 +1042,17 @@ class PreparedDelivery:
     )
 
 
+def _readdress_queue(path: Path) -> Path:
+    """Give a collecting queue a fresh identity after a delivery collision."""
+    while True:
+        candidate = new_delivery_id()
+        replacement = path.with_name(f"{candidate}.json")
+        if replacement.exists() or read_json(delivery_path(candidate)) is not None:
+            continue
+        path.replace(replacement)
+        return replacement
+
+
 def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
     """Freeze one payload before offering its permanent pointer."""
     if queue["state"] == "offering":
@@ -1041,11 +1062,16 @@ def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
             raise RuntimeError("the Codex delivery payload is missing")
         return PreparedDelivery(delivery_pointer_prompt(path.stem, payload), payload)
 
-    payload = freeze_delivery(
-        queue["batches"],
-        delivery_id=path.stem,
-        created_at=queue["created_at"],
-    )
+    while True:
+        try:
+            payload = freeze_delivery(
+                queue["batches"],
+                delivery_id=path.stem,
+                created_at=queue["created_at"],
+            )
+            break
+        except DeliveryIdConflict:
+            path = _readdress_queue(path)
     queue["batches"] = [
         {
             "page": batch["page"],
@@ -1071,7 +1097,11 @@ def append_batch(
     """Append fresh events to the task's one collecting queue."""
     current = _collecting_queue(session_id)
     if current is None:
-        path = queue_path(session_id, str(uuid.uuid4()))
+        while True:
+            delivery_id = new_delivery_id()
+            path = queue_path(session_id, delivery_id)
+            if not path.exists() and read_json(delivery_path(delivery_id)) is None:
+                break
         path.parent.mkdir(parents=True, exist_ok=True)
         queue = {
             "format": QUEUE_FORMAT,

@@ -68,11 +68,6 @@ has tried; settle that before building it.
 
 ### The agent's text interface
 
-- **Send each `handling` clause once per batch.** Each delivered event carries its
-  clauses' full text, so ten plain comments repeat one 493-character instruction
-  ten times. List each distinct clause once per batch and have each event name the
-  ones that apply. **Unconfirmed:** no agent run shows a clause named by reference
-  is followed as reliably as one printed on its event.
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it.

@@ -2,7 +2,7 @@
 # the Codex pointer generated from that same immutable delivery.
 
 delivery:
-  format: leaf-delivery-v1
+  format: leaf-delivery-v2
   id: <delivery>
   created_at: <time>
   batches:
@@ -68,6 +68,16 @@ delivery:
               in the suggested range first; keep the newer exchange outside the
               summary.
           actions: []
+      handling:
+        h1: >-
+          The reader answered in a thread; the batch's `conversations` carries the
+          thread's context, and `leaf conversation read <page> <conversation-id>`
+          reads its history in pages. Reply with `leaf reply <page> --for <event-id>`,
+          or with your final message on a host that sends it as the reply; `leaf
+          reply` checks any page edit and makes it live before posting. Add `--awaits`
+          only if your reply's prose asks the reader something. Finishing the requested
+          work is not a reason to `leaf resolve` the thread; the reader usually
+          closes it.
       events:
         - kind: reply
           author: user
@@ -81,15 +91,7 @@ delivery:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: >-
-            The reader answered in a thread; the batch's `conversations` carries
-            the thread's context, and `leaf conversation read <page> <conversation-id>`
-            reads its history in pages. Reply with `leaf reply <page> --for <event-id>`,
-            or with your final message on a host that sends it as the reply; `leaf
-            reply` checks any page edit and makes it live before posting. Add `--awaits`
-            only if your reply's prose asks the reader something. Finishing the
-            requested work is not a reason to `leaf resolve` the thread; the reader
-            usually closes it.
+          handling: [h1]
           obligation:
             as_of_seq: 13
             response:

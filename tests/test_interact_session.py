@@ -324,7 +324,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert 'operation="delivery claim"' in prompt.prompt
     assert "skill=" not in prompt.prompt
     [batch] = prompt.payload["batches"]
-    assert set(batch) == {"page", "through_seq", "conversations", "events"}
+    assert set(batch) == {"page", "through_seq", "conversations", "handling", "events"}
     assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
     assert {key: claim[key] for key in ("id", "harness", "pid", "agent")} == {
@@ -3789,10 +3789,7 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
 
 
 def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys):
-    """An event carries its kind's `$events.handling` clauses whose `when` its record
-    matches, so the rule reaches the agent beside the event it applies to, and a plain
-    comment is not told how to read a drawing, nor a pick on the page how a thread's
-    group answers."""
+    """Shared clauses travel once, and each event names only its applicable rules."""
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
     page_pick = {
@@ -3825,8 +3822,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
-    assert "handling" not in header
-    plain, drawn, resolved, on_page, in_thread = (event["handling"] for event in shown)
+    handling = header["handling"]
+    assert len(handling.values()) == len(set(handling.values()))
+    assert shown[0]["handling"][0] in shown[1]["handling"]
+    plain, drawn, resolved, on_page, in_thread = (
+        " ".join(handling[clause] for clause in event["handling"]) for event in shown
+    )
     declared = registry_storage.load_registry(page_dir)["$events"]["handling"]
     [reading_a_drawing] = [
         c["text"]
@@ -3865,8 +3866,77 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     events_model.append_event(page_dir, comment)
 
     assert session_model.cmd_wait(page_dir) == 0
-    _, _, [shown] = delivered(capsys.readouterr().out)
-    assert active and shown["handling"] == " ".join(c["text"] for c in active)
+    _, batch, [shown] = delivered(capsys.readouterr().out)
+    assert active and [batch["handling"][ref] for ref in shown["handling"]] == [
+        c["text"] for c in active
+    ]
+
+
+def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
+    """A later reply stays out of this delivery, including its unique clauses."""
+    for event in (
+        {"kind": "error", "message": "first failure"},
+        {"kind": "error", "message": "second failure"},
+        {"kind": "comment", "text": "first question"},
+        {
+            "kind": "comment",
+            "text": "later drawing",
+            "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [1, 1]]]},
+        },
+    ):
+        events_model.append_event(page_dir, {"author": "user", **event})
+    with service_model.PageTransaction(page_dir) as transaction:
+        selected = transaction.events[:3]
+        queued, _, _ = codex_model.append_batch(
+            "handling-test", page_dir, transaction, transaction.events
+        )
+    payload = codex_model.offer_delivery(queued, files_model.read_json(queued)).payload
+    [batch] = payload["batches"]
+    assert [event["id"] for event in batch["events"]] == [
+        event["id"] for event in selected
+    ]
+    registry = registry_storage.active_registry(page_dir)
+    expected = [registry_contract.event_clauses(event, registry) for event in selected]
+    assert [
+        [batch["handling"][ref] for ref in event["handling"]]
+        for event in batch["events"]
+    ] == [[clause["text"] for clause in clauses] for clauses in expected]
+    assert len(batch["handling"]) == 2
+    assert delivery_model.read_delivery(payload["id"]) == payload
+
+
+def test_delivery_without_a_registry_has_no_handling(page_dir):
+    (page_dir / "registry.json").unlink()
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    [batch] = freeze_events(page_dir, [comment])["batches"]
+    assert batch["handling"] == {}
+    assert "handling" not in batch["events"][0]
+
+
+@pytest.mark.parametrize("state", ["collecting", "offering"])
+def test_codex_drops_a_queue_whose_handling_representation_it_cannot_read(
+    page_dir, state
+):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "hello"}
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        path, _, _ = codex_model.append_batch(
+            "handling-test", page_dir, transaction, transaction.events
+        )
+    queue = files_model.read_json(path)
+    if state == "collecting":
+        del queue["batches"][0]["handling"]
+        files_model.write_json(path, queue)
+    else:
+        payload = codex_model.offer_delivery(path, queue).payload
+        payload["format"] = "leaf-delivery-v1"
+        files_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
+        with pytest.raises(RuntimeError, match="invalid envelope"):
+            delivery_model.read_delivery(payload["id"])
+    assert codex_model.queue_records("handling-test") == []
 
 
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
@@ -7000,7 +7070,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY_FORMAT
             assert all(
-                set(batch) == {"page", "through_seq", "conversations", "events"}
+                set(batch)
+                == {"page", "through_seq", "conversations", "handling", "events"}
                 for batch in payload["batches"]
             )
             queue_history = (

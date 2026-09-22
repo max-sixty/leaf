@@ -152,8 +152,9 @@ page directory in your working directory is the complete scope of this task.
 
 Reader input arrives inline as a structured `leaf_delivery` tool output or as a
 `leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
-exact id. For a pointer, then run `$LEAF delivery read ID`. Process every delivered
-event using its handling and `obligation.response`.
+exact id. For a pointer, then run `$LEAF delivery read ID`. For every delivered
+event, read its `handling` clause ids in order from that batch's `handling` object
+and follow those instructions and `obligation.response`.
 
 Each App Server delivery contains at most one response whose kind is `reply`.
 The normal final message is that reply's only writer: the host binds its destination

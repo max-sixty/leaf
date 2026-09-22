@@ -36,6 +36,7 @@ import { createConversationPresentation } from "./conversation/presentation.js";
 import { renderMarginThread } from "./conversation/inline.js";
 import { conversationBox as buildConversationBox } from "./conversation/box.js";
 import { messageText } from "./conversation/messages.js";
+import { isConversationEvent } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
@@ -54,7 +55,15 @@ const app = () => {
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   setPresentationFailureReporter(dependencies.reportPageError);
-  const ledger = createPendingLedger({ newAttempt, now: saidNow, messageText });
+  const ledger = createPendingLedger({
+    newAttempt,
+    enqueue: (event) =>
+      applicationState.enqueue(
+        event,
+        saidNow(),
+        isConversationEvent(event) ? messageText(event) : undefined,
+      ),
+  });
   const hasPending = ledger.hasUnresolved;
   const engagement = dependencies.createEngagement({
     hasPending,

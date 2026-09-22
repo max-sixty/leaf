@@ -769,13 +769,25 @@ export function createSemanticApplication({
         );
         return receipt ? { ...item, readEvent: receipt } : item;
       });
+      // A capture can add message bodies without changing the shown document.
+      // Retain its explicit identity and share fields the publisher already owns.
+      const capture = <T>(value: T, standing: unknown): T =>
+        value === standing ? value : structuredClone(value);
       publish({
         document: document
           ? {
-              ...structuredClone(document),
-              stamp: document.stamp ?? state.active.version ?? null,
-              authored: new Map(structuredClone(document.authored)),
-              descriptors: new Map(structuredClone(document.descriptors)),
+              ...document,
+              registry: capture(document.registry, prior.document.registry),
+              authored: capture(document.authored, prior.document.authored),
+              descriptors: capture(document.descriptors, prior.document.descriptors),
+              ...(document.messageBodies
+                ? {
+                    messageBodies: capture(
+                      document.messageBodies,
+                      prior.document.messageBodies,
+                    ),
+                  }
+                : {}),
             }
           : prior.document,
         authoritative,

@@ -144,12 +144,19 @@ export function createStateApplication({
       // document and the state that speaks for it reach the page in one reading.
       const installed = following !== null ? await activation.install() : null;
       const prior = installed ?? readApplication().document;
-      const authored = new Map(prior.authored);
-      const descriptors = new Map(prior.descriptors);
+      let authored = prior.authored;
+      let descriptors = prior.descriptors;
       for (const frozen of frozenDocuments) {
-        for (const [id, baseline] of frozen.authored) authored.set(id, baseline);
-        for (const [id, descriptor] of frozen.descriptors.descriptors)
+        for (const [id, baseline] of frozen.authored) {
+          if (authored.has(id)) continue;
+          if (authored === prior.authored) authored = new Map(authored);
+          authored.set(id, baseline);
+        }
+        for (const [id, descriptor] of frozen.descriptors.descriptors) {
+          if (descriptors.has(id)) continue;
+          if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
           descriptors.set(id, descriptor);
+        }
       }
       const documentCapture = {
         ...prior,

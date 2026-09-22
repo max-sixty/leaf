@@ -229,18 +229,19 @@ export function renderSurfaces(collection, placedAt, commands) {
               `consumeThreads(${owner.localName}) returned an outlet outside its widget`,
             );
         }
+        const text = byOutlet.size ? pageText() : null;
         for (const [outlet, threads] of byOutlet) {
           byOutlet.set(
             outlet,
             threads.filter((thread) =>
-              exact(thread.anchor, resolveAnchor(thread.anchor, pageText())),
+              exact(thread.anchor, resolveAnchor(thread.anchor, text)),
             ),
           );
         }
         if (
           compositionOutlet &&
           (!byOutlet.has(compositionOutlet) ||
-            !exact(anchor, resolveAnchor(anchor, pageText())) ||
+            !exact(anchor, resolveAnchor(anchor, text)) ||
             !sameAnchor(commands.composition.active()?.anchor, anchor))
         )
           compositionOutlet = null;

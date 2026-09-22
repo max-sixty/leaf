@@ -1140,14 +1140,23 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     watched(page)
     page.add_init_script(
         """
-        document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => {
-            window.releaseHeldPageInterface = resolve;
-          }));
-        });
+        if (window === window.top) {
+          document.addEventListener('lf-page-interface', event => {
+            event.detail.present(new Promise(resolve => {
+              window.releaseHeldPageInterface = resolve;
+            }));
+          });
+        }
         """
     )
-    page.route("**/api/state*", lambda route: held.append(route))
+
+    def hold_parent_state(route):
+        if route.request.frame == page.main_frame:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/state*", hold_parent_state)
     page.goto(url, wait_until="load")
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")

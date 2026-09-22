@@ -87,8 +87,7 @@ leaf delivery claim <delivery-id> --event <event-id> --detail "checking the roll
 ```
 
 Printing is not receipt. The wait owner acknowledges only after the complete
-batch reaches its next durable consumer. In the direct loop that consumer is
-model context: direct delivery records the included events as opened in this turn.
+batch reaches its next durable consumer, which in the direct loop is model context.
 Acknowledge with `leaf ack <page> <through_seq>` for the page the batch names, by the
 route the host contract gives, and address every event while ack waits for the next
 batch. If wait
@@ -106,8 +105,8 @@ the wait and acknowledgement route.
 `leaf wait`, and `leaf ack` once its cursor has advanced, ends one of two ways: exit 0
 with one JSON envelope on stdout, the next input, or exit 2 with the ending named on
 stderr. Exit 1 from `leaf ack` means the acknowledgement was refused and the cursor
-did not move. The initial wait revives a dead server under its recorded lifetime and
-says so on stderr. The endings:
+did not move. The initial wait says on stderr when it revived a dead server. The
+endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.
@@ -136,8 +135,7 @@ still-current obligation with the Leaf operation its `response` names, then
 re-enter the host's wait loop: `waiting` after every obligation has been answered and
 the reader owns the next move, `working` while you continue. When the active host binds
 a plain reply to its turn, the normal assistant final message is that operation; an
-unbound delivery uses the explicit operation. A premature `waiting` declaration cannot
-override an opened, unsettled interaction in canonical activity.
+unbound delivery uses the explicit operation.
 `page state` lists every standing reaction under `reactions`; a package-supplied
 `means` appears when present. Resolve a page reaction once the live revision has
 acted on it.

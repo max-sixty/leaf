@@ -148,9 +148,8 @@ in the README. The dev group — pytest, the accessibility checks, the demo
 recorder's frames — is recorded in that same lock but never installed on a
 host: `bin/leaf` passes `--no-dev`. Playwright is a runtime dependency, since
 the skill's own flow renders pages; browser checks launch the host's installed
-Chrome — or, ahead of it, whichever executable `LEAF_BROWSER_EXECUTABLE`,
-`CHROME_PATH`, or `CHROME_BIN` names — else the first browser on `PATH`, and
-leaf does not download a browser.
+Chrome, or the executable `skills/leaf/scripts/leaf/validation.md`, "Browser
+validation", says comes first, and leaf does not download a browser.
 
 `uv` owns `.venv/`; a `.venv` inside an installed copy is uv doing its job, not
 stray state to clean up. Nothing else is written back: no cache leaf keeps for
@@ -226,12 +225,11 @@ agent state, and stop guard consume that projection. JavaScript may schedule a n
 state read at its `next_transition_at`; it does not age, override, or independently
 combine those facts.
 
-The page directory is the durable record and deployment unit. `index.html` is
-mutable author source; revisions are immutable, and append-only notes bind public
-versions to them. The event log is append-only, while `data.json` is the explicit
-replace-in-place authority for typed external data. A source id keeps one contract
-for the page's lifetime.
-`skills/leaf/scripts/leaf/page-storage.md` defines the complete layout.
+The page directory is the durable record and deployment unit: mutable `index.html`,
+immutable revisions, an append-only event log, and `data.json` as the
+replace-in-place authority for typed external data, whose source ids keep one
+contract for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
+defines the complete layout.
 
 A request is a durable, non-undoable one-shot instruction whose external effect
 may precede its receipt. The append door admits one pending request per declared

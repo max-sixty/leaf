@@ -144,8 +144,7 @@ page-local `<style>` only for presentation unique to this page.
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
-first, then `<` and `>`; any other order can silently decode entity text. The
-registry is the only widget vocabulary.
+first, then `<` and `>`; any other order can silently decode entity text.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
@@ -286,9 +285,8 @@ deterministic markup check; this review adds the browser gate and a reading:
 leaf version check <page> --render
 ```
 
-It loads the page in both color schemes and checks runtime errors, widget size,
-overflow, diagrams, selectable words, print output, replay-safe state, and
-action idempotence. Fix every failure; a screenshot is not a substitute.
+It runs the browser gate in both color schemes. Fix every failure; a screenshot is
+not a substitute.
 
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that

@@ -26,9 +26,8 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
    Append the complete wait output verbatim. If the send fails or its outcome is
    uncertain, acknowledge nothing and resend the same follow-up. If the wait output was
-   lost or truncated, acknowledge nothing and rerun `leaf wait <page>` with
-   enough output capacity. The later batch may also contain newer events because the
-   cursor has not moved.
+   lost or truncated, acknowledge nothing and rerun `leaf wait <page>`, as the batch
+   reference says.
 4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
    unified exec. Retain and poll that command's session id: after advancing the
    cursor, ack stays active as the next wait. A batch on stdout is the next
@@ -45,6 +44,4 @@ turn. The named wait transfers the page's claim to the watcher, so the page task
 hook stands down. Status updates, replies, and versions do not reclaim the page. Setting
 the page idle ends the watcher's next wait.
 
-When a forwarded batch reaches the page task, follow its instruction. Handle every
-event without waiting or acknowledging, and skip any page-and-seq pair already handled
-in that task.
+When a forwarded batch reaches the page task, follow its instruction.

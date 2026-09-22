@@ -22,22 +22,19 @@ New reader input reaches you only between your own operations, at the next tool
 result.
 
 One unnamed `leaf wait` watches every page the host session owns. It prints one
-complete `leaf-delivery-v1` envelope inline. Each batch names its `page`,
-`through_seq`, `conversations`, `handling`, and complete ordered `events`. Name a
-page only to pick up a page this session did not serve; `leaf wait <page>` claims
-it.
+complete envelope inline (`references/event-batches.md`, "One envelope on every
+transport"). Name a page only to pick up a page this session did not serve;
+`leaf wait <page>` claims it.
 
 Start `leaf wait` as a background task and end the turn. Its completion becomes
-host input and records the included moves as opened in that exact turn. Process
-every event and its capture-time `obligation.response`. After each batch, start
-`leaf ack <page> <through_seq>` as the next background task; it acknowledges that
-batch and waits for another. The event reference owns the complete-batch and
-acknowledgement rules.
+host input. Process every event and its capture-time `obligation.response`. After
+each batch, start `leaf ack <page> <through_seq>` as the next background task; it
+acknowledges that batch and waits for another. The event reference owns the
+complete-batch and acknowledgement rules.
 
 If a turn ends without answering an acknowledged move, the next prompt hook
-carries that obligation back into context and records it as opened in the new
-turn. The page therefore resumes **handling** from that exact prompt delivery;
-the agent does not need a status write to repair the banner.
+carries that obligation back into context, and the page resumes **handling** from
+that delivery without a status write.
 
 How `leaf wait` and `leaf ack` end, and what each ending asks of the loop, is in
 `references/event-batches.md` under "Delivery and acknowledgement". The signal that
@@ -67,17 +64,3 @@ while yours runs, and otherwise takes the batches from every page you hold into
 the subagent's context instead of yours. That is why the page stays with you
 (`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
 session has its own id and can drive a page of its own.
-
-## Review fixtures
-
-A page put up to be looked at — a preview of an example, a fixture for a visual
-check — is not a handoff, so it owes no watcher. `scripts/preview.py` in a Leaf
-checkout marks every page it builds as a preview, and the per-turn reminder to
-start one skips those. Nothing else is exempt: on a preview this session claimed,
-a comment is a delivery it owes like any other, and the reminder says so. A
-preview nobody claimed keeps its comments in its own log, where only a reader of
-that log finds them, so start one you mean to hand over with
-`scripts/preview.py --reader`, which claims it.
-
-Do not idle a fixture to quiet the loop. `idle` closes the page in the browser,
-which changes the banner a visual check may be reading.

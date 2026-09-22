@@ -49,8 +49,8 @@ directory explicitly; export or copy anything that must outlive the page directo
    of the page needs, listed under "Author a version" below. Write
    `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
    active immutable revision; an invalid save leaves the last valid one live and
-   reports its diagnostic in page state and the browser. Edit only `index.html`;
-   Leaf alone writes revisions and version mappings.
+   reports its diagnostic in page state and the browser. You write `index.html` and
+   `page/`; Leaf alone writes revisions and version mappings.
 3. Check the page by its intended lifetime, whatever its shape and whether or
    not it asks a question. A quick page that will be revised or dropped after an
    immediate reaction needs only `leaf version check <page>`; fix every failure,

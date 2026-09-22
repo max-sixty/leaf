@@ -95,9 +95,8 @@ leaf data capture <page> pr-patch --file change.patch --format unified-diff \
 ```
 
 The `unified-diff` transform validates each file and builds a structured value whose
-`files` array carries its path, change counts, and patch. Leaf sends only that manifest
-at startup and fetches each patch fragment when its disclosure opens. An entry the
-widget's declaration does not support is refused before capture.
+`files` array carries its path, change counts, and patch. An entry the widget's
+declaration does not support is refused before capture.
 
 Capture and structured `data set --capture-label` print the data revision retained. Add
 `snapshot="REVISION"` before

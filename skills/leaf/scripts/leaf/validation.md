@@ -21,11 +21,11 @@ browser, near-free; activation and `version stamp` run the same boundary): the H
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
 appears only in inline modules or literal local module graphs rooted below `/page/`,
 never classic scripts, network imports, event-handler attributes, or `javascript:` URLs;
-page-specific presentation appears inline or in captured `/page/` stylesheets. CSP,
-runtime, theme, page identity, and
-canonical address belong to delivery and are rejected in source. Delivery inserts
-them at the start of `<head>`, before authored executable content, and marks each
-authored inline module with the nonce its policy names. Every lf-* element validates against the effective registry
+page-specific presentation appears inline or in captured `/page/` stylesheets. The
+encoding, CSP, runtime, theme, page identity, and canonical address belong to delivery
+and are rejected in source. Delivery inserts them at the start of `<head>`, before
+authored executable content, and marks each authored inline module with the nonce its
+policy names. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -60,12 +60,14 @@ types, so neither input surface can become a script module.
 `version check --render` adds the browser half, run once before a page's URL is first
 handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
-Playwright's `channel="chrome"`, else the first browser `PATH` answers with — the
-caller supplies playwright, which
-`bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot
-reach run against it — no console warnings or errors, no page errors, no fail-soft
-error box, every visible widget occupies real space, code that reads against the block
-it is set on, no sideways scroll, in both color schemes.
+Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
+render invariants the static lint cannot reach run against it in both color schemes:
+no console or page errors and no fail-soft box; every widget upgraded, painted with
+values that resolve, and given real space; words a reader can mark, reach, and
+select, with the registry's verbatim and shadow declarations honored; no sideways
+scroll, clipped control, squeezed table, trapped margin, or misplaced box; a print
+rendering that covers and drops nothing; and standing state that replays without
+conflict and idempotently. `render_gate/readings.py` is the list.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

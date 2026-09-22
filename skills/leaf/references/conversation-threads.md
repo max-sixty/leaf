@@ -50,8 +50,8 @@ of a picture it marks; a page drawing has no `box`, and its strokes are offsets 
 document's origin. Use any accompanying text, and reply or revise through the same path
 as any other comment.
 
-A reader may paste an image into any thread text box. The composer shows a thumbnail,
-while its message carries an ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
+A reader may paste an image into any thread text box; the message carries it as an
+ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
 that path beneath the absolute page directory named by the delivered batch and inspect
 the image itself before replying; alt text is a label, not evidence of what the pixels
 show.
@@ -106,7 +106,15 @@ comment keeps its original anchor in `leaf events --conversation`. The panel kee
 detached thread open under **No longer in this version**, and `page state` reports its
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject. Held command-goal
-threads cannot move or detach, and a version-response thread cannot take a reply.
+threads cannot move or detach.
+
+A thread the reader opened as a request for change, delivered as a `version`
+obligation, takes no reply from you: the next stamped version is its answer. Where the
+change needs clarification first, open a separate thread on the same Ask with
+`leaf comment <page> --section <ask-id>`; the reader's answer hands both threads back
+to you. The original stays open until authored state in a later stamped version
+answers the Ask it came from, or changes the declared answer where the Ask was already
+answered, and `leaf resolve` accepts it only then.
 
 A declared visual part is held only while a live conversation's current anchor names
 it, so a version may drop the part once every thread on it has moved, detached, or
@@ -116,8 +124,9 @@ reader can reopen a resolved thread, and it comes back pointing at a coordinate 
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-Fragment links take the reader to page content. `--markup` adds a validated widget
-after reply text; its ids must be new.
+A fragment link takes the reader to page content, opening whatever tab or group hides
+it, and the runtime marks one the current version cannot follow. `--markup` adds a
+validated widget after reply text; its ids must be new.
 An ordinary reply answers the thread without adding it to the outstanding Ask
 list. Add `--awaits` when the reply's prose asks the reader to answer:
 

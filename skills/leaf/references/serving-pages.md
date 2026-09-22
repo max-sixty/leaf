@@ -38,20 +38,17 @@ so sharing one page URL grants access to every Leaf page on that machine.
 Leaf serves only on networks the machine already joins and creates no public
 tunnel. Binding beyond loopback exposes the port to that network.
 
-`<page>/service.json` records address, bind, port, enabled state, and lifetime so
-a restart reproduces the URL an open tab holds. Delete it only when
-intentionally deriving a new address and lifetime. The access key lives in
-Leaf's state home rather than in the page.
+`<page>/service.json` is what a restart reproduces an open tab's URL from. Delete
+it only when intentionally deriving a new address and lifetime.
 
 ## Unreachable URLs and `--host`
 
-A serve that binds loopback says so on the line after the lifetime note. That
-address is derived whenever the session carries no SSH environment, which
-includes sessions that are remote from the user without having arrived over SSH
-— a scheduler, a daemon, a detached background job. When that line appears and
-the session is not one the user is sitting at, ask them for a name their browser
-routes to and serve on it before handing the URL over, or export the version as
-a file.
+A serve that binds loopback says so on the line after the lifetime note. That is
+the no-SSH default above, and it covers sessions that are remote from the user
+without having arrived over SSH: a scheduler, a daemon, a detached background job.
+When that line appears and the session is not one the user is sitting at, ask them
+for a name their browser routes to and serve on it before handing the URL over, or
+export the version as a file.
 
 Otherwise only the user's browser can establish that a URL is unreachable. When
 they say it does not load, stop the server and restart it with a hostname their
@@ -77,27 +74,24 @@ leaf page init <page>
 leaf server start <page>
 ```
 
-Stopping disables desired service and waits until the old process releases its
-listening socket, accepted connections, and live lease. Initialization preserves
-the recorded address, port, lifetime, and page status; restarting restores the
-same URL. Each successful initialization writes a new layer epoch into the
-runtime and registry, so an open or half-loaded tab from the previous contract
-reloads before its next read or event enters the replacement server.
+Stopping disables desired service and waits for the old process to retire.
+Initialization preserves the recorded address, lifetime, and page status, and
+writes a new layer epoch so an open tab reloads onto the new layer rather than
+posting into it; restarting restores the same URL.
 
 ## Page lifetime
 
 On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
-claims the page, but desired service remains enabled so a successor's live
-`leaf wait` can revive the exact URL. Only `leaf server stop <page>` disables a
-service.
+claims the page, but desired service remains enabled: a `leaf wait` watching any
+enabled page revives its server under the recorded lifetime and exact URL if the
+process dies. Only `leaf server stop <page>` disables a service.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime. Its process ignores session claims and remains live between
 sessions. Tell the user when starting one because they inherit a process only
 `server stop` ends, and do not stop it because a session's work is over: ending
-the session releases the claim and leaves the service enabled. A wait watching any
-enabled page revives its server under the recorded lifetime if the process dies.
+the session releases the claim and leaves the service enabled.
 
 `server run --temporary` is the browser-harness boundary. It serves on loopback
 until that foreground command exits, with a per-server access key and no claim or

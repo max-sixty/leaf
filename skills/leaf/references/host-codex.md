@@ -34,9 +34,7 @@ leaf codex start <page>
 
 The launcher owns both processes. Exiting the terminal stops its App Server, so
 each terminal is independent and no fixed port or separate server tab remains.
-Observed activity ends with that server. The detached page carrier reconnects to its
-App Server; it does not switch an observed reply to a second, explicit-output transport
-after losing the stream.
+Observed activity ends with that server.
 
 To run the two processes separately instead, start a loopback WebSocket listener
 and pass the same endpoint to both clients:
@@ -57,13 +55,9 @@ reasoning summaries, and waits for approval or user input are watched as the tas
 current step. The page's sentence stays the one you declare with `leaf status`, and the
 step stands beside it in the banner's disclosure; where you have declared nothing for
 this work, the step is the sentence. New reader input reaches you only once the current
-turn ends, because a delivery starts a turn of its own. If the task is idle, Leaf starts one turn with the
-complete delivery as a structured `leaf_delivery` tool output. If the task is
-already active, Leaf retains the immutable delivery in its own durable queue, observes
-the current turn, and starts the delivery directly as soon as the task is idle. It does
-not steer unrelated page input into the current turn or copy the delivery into App
-Server's separate queue. A delivery can span pages and conversations; the App Server
-adapter preserves that ordered envelope while presenting one chronological slice per
+turn ends, because a delivery starts a turn of its own: once the task is idle, Leaf
+starts one with the complete delivery as a structured `leaf_delivery` tool output. A
+delivery can span pages and conversations, presented as one chronological slice per
 turn.
 
 Each observed slice contains at most one plain reply. Write that reply as the normal
@@ -74,8 +68,7 @@ reply remains pending for the next slice. Version and receipt obligations in the
 current slice still use their explicit `resolve` and `receipt` operations.
 
 A `leaf-delivery` pointer may instead arrive through Codex's durable local queue with no
-App Server observer left to bind or stream its turn. Claiming its first outstanding move
-updates the page immediately; reading the immutable envelope does not. With nothing to
+App Server observer left to bind or stream its turn. With nothing to
 bind the turn, every obligation takes its explicit operation, the plain reply included,
 and a later observer skips one already settled that way. Keep the CLI open because it
 is still the interactive client for approvals and user input.
@@ -109,17 +102,15 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 
 ## Same-task delivery
 
-One detached adapter watches every page this task owns. It collects available
-input into one delivery and freezes it. Input collected after the freeze belongs
-to the next delivery. Starting the command again for another page adds that page
-to the same task-wide watch, and a completed turn does not stop the adapter.
+One detached adapter watches every page this task owns. Starting the command again
+for another page adds that page to the same task-wide watch, and a completed turn
+does not stop the adapter.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
 block, naming the `delivery claim` operation and the immutable delivery `id` that
 `leaf delivery read <id>` resolves. Do not wait or acknowledge: the adapter owns both.
 The same delivery id may return after an uncertain unobserved queue response, which is
-the retry `references/event-batches.md` describes. Queue acceptance records **Queued**
-activity.
+the retry `references/event-batches.md` describes.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

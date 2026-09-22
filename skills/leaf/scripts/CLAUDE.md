@@ -103,20 +103,13 @@ parallel projection, passage, registry, and render rules live in
 
 ## Boundaries
 
-Validate once at the public door and pass trusted structures inward. Static
-validation stays deterministic and browser-free; computed layout and module
-writes belong to the render gate. Use the shared parser or projection for a
+`leaf/validation.md` says where each input is validated ("Event admission") and
+what stays browser-free ("Static validation"). Use the shared parser or projection for a
 question it already answers instead of reconstructing it from source text,
 events, CSS selectors, or tag names.
 
 The page directory and append-only log are the authorities described in the
-root instructions. A derived reading is not another store. Preserve atomic file
-writes, immutable revision files, event-backed public version aliases, and the
-existing lock boundaries when adding a command.
-
-The registry is the common contract with the browser. Server-side event gates,
-state folds, package checks, markup validation, and agent queries consume its
-declarations without a widget-name list.
+root instructions. A derived reading is not another store.
 
 Within `registry/`, `contract` owns shared schema helpers and layer readings,
 `layer`, `widgets`, and `state` own their complete vocabulary contracts,

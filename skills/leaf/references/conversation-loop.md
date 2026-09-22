@@ -112,5 +112,5 @@ after about a quarter of an hour. Before you end a turn while workers run, make 
 last status say what is still running, and write it again in the turn that a worker's
 result or the reader's next comment wakes. Within a turn, fold your workers' progress
 into your own status: one sentence covering three workers reads better than three
-claims competing for one row. A thread claim written after your reply stands until your
-next reply there, and claims on different subjects stand side by side at the page edge.
+claims competing for one row, while claims on different subjects stand side by side at
+the page edge.

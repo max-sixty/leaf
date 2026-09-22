@@ -135,16 +135,16 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
       const at = event.clientX - grab;
       set(side === "right" ? document.documentElement.clientWidth - at : at);
     });
+    // Resizing is not an outside press on the page's open composer. Keep native
+    // pointer focus, but consume the compatibility press in its gesture owner.
+    edge.addEventListener("mousedown", (event) => event.stopPropagation());
     // A touch drag may generate no compatibility mouse event to focus the handle.
-    // Keep the completed gesture's arrow keys available for every pointer type.
-    edge.addEventListener("pointerup", () => edge.focus({ preventScroll: true }));
-    // Both ends of the gesture, because a drag the browser takes away — a window losing the
-    // pointer, a touch cancelled — leaves the page in the sizing posture otherwise, and the
-    // slide would be gone for the rest of the session with nothing to say why.
+    // Both completion and cancellation retain its arrow keys and end sizing.
     for (const ending of ["pointerup", "pointercancel"])
-      edge.addEventListener(ending, () =>
-        document.body.toggleAttribute("data-lf-sizing", false),
-      );
+      edge.addEventListener(ending, () => {
+        edge.focus({ preventScroll: true });
+        document.body.toggleAttribute("data-lf-sizing", false);
+      });
     // Arrows, and not a pair of letters, because the reader is standing on the edge
     // itself — the direction is the whole of what they have left to say. Away from the
     // side the region is held to widens it, which is the same reading the pointer makes of

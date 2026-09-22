@@ -640,14 +640,17 @@ export function createSelectionComposer({
           loadDraft(ctx) === null &&
           currentIntent() &&
           !pageSelection();
-        // Show the sent thread without moving into its reply box. A later gesture may
-        // already have moved the reader elsewhere while presentation was settling.
+        // Land on the sent thread without moving into its reply box. A later gesture
+        // may already have moved the reader elsewhere while presentation was settling.
         const inlineThread =
           shouldReveal && !panelIsOpen()
-            ? openInlineThread(sent.id, { transition })
+            ? openInlineThread(sent.id, {
+                transition,
+                onPositioned: (thread) => thread.focus({ preventScroll: true }),
+              })
             : null;
         if (!inlineThread && (shouldReveal || panelIsOpen()))
-          await showThread(sent.id, { focus: false });
+          await showThread(sent.id, { focus: shouldReveal ? "thread" : false });
       },
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);

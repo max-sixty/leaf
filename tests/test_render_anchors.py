@@ -2689,6 +2689,7 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
     expect(page.locator(".lf-margin-preview textarea")).not_to_be_focused()
 
     d = serve.page_dir

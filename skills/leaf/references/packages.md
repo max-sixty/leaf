@@ -945,11 +945,12 @@ connection failure retains the last admitted collection. Bare reactions are abse
 a reaction that starts a conversation remains its root. `done` contains the admitted,
 unwithdrawn page approvals shown in the panel.
 
-Each Thread has a stable `key`, `root`, ordered `msgs`, `anchor`, `detached_from`,
+Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `anchor`, `detached_from`,
 `resolved`, `settling`, `awaits_agent`, `awaits_reader`, `seat`, and `summaries`.
 `threadTurns(thread)` selects its ordered displayed turns, including a reaction root
 but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
-turn count, and latest turn timestamp. A Thread's `key` and each message's `key` survive
+turn count, and latest turn timestamp. Its topic uses the agent-chosen `title`, or
+the opening message text while `title` is null. A Thread's `key` and each message's `key` survive
 admission of a pending gesture; `root.id` and message `id` identify the current admitted
 or provisional record.
 

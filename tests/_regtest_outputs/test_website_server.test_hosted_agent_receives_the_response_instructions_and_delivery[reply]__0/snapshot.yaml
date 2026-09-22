@@ -52,7 +52,7 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v2","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"handling":{"h1":"Reply
+    output: '{"format":"leaf-delivery-v2","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[{"id":"reader-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Reply
       in the thread with `leaf reply <page> --for <event-id>`, or with your final
       message on a host that sends it as the reply, and revise the page if the comment
       calls for it. If that revision removes what the thread is anchored on, move

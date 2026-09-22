@@ -1977,11 +1977,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
 
 def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
-    """All six renderer paths share one lazy module import and one vendored file.
-
-    Mermaid's own reader travels beside that file for the render gate's check, and a
-    reader's page never asks for it.
-    """
+    """The page's six diagram types share one lazy module import and one vendored file."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)

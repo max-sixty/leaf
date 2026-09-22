@@ -1265,7 +1265,7 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
 def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     browser, serve
 ):
-    """The corpus needs one page covering all six supported renderer paths.
+    """The corpus needs one page covering the six diagram types the guide documents.
 
     State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
     The whole-page contracts (both palettes, axe, print, export, reachability) are what
@@ -1299,16 +1299,23 @@ classDiagram
 DIAGRAM_FAMILIES = {
     "pie": 'pie title Pets\n  "Dogs" : 386\n  "Cats" : 85',
     "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
-    "mindmap": "mindmap\n  root((Leaf))\n    Pages\n    Threads",
+    # A box whose id is several words can never be a part, and still has to draw.
+    "mindmap": "mindmap\n  root((Leaf))\n    Big idea\n    Threads",
+    "er-quoted-name": 'erDiagram\n  "Line Item" ||--o{ ORDER : in',
     "timeline": "timeline\n  2025 : Draft\n  2026 : Ship",
+    "journey": "journey\n  title Review\n  section Read\n    Open page: 5: Reader",
+    "quadrant": "quadrantChart\n  x-axis Low --&gt; High\n  y-axis Low --&gt; High\n  A: [0.3, 0.6]",
+    "git-graph": "gitGraph\n  commit\n  branch fix\n  commit\n  checkout main\n  merge fix",
+    "architecture": "architecture-beta\n  service api(server)[API]\n  service db(database)[DB]\n  api:R --&gt; L:db",
+    "radar": "radar-beta\n  axis a, b, c\n  curve one{1, 2, 3}",
 }
 
 
-def test_the_gate_passes_every_family_the_renderer_draws(browser, serve):
-    """Leaf draws what Agentic Mermaid draws, beyond the families it documents.
+def test_the_gate_passes_what_the_renderer_draws(browser, serve):
+    """Leaf draws what Agentic Mermaid draws, beyond the families its guide documents.
 
     The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
-    family it can draw is no failure, whether or not Leaf's guidance names it.
+    family it can draw is no failure, whether or not the guide names it.
     """
     url = serve(
         leaf_page(
@@ -1320,7 +1327,7 @@ def test_the_gate_passes_every_family_the_renderer_draws(browser, serve):
             ),
         )
     )
-    assert render_gate_model.render_version(browser.unwatched, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
 
 def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):

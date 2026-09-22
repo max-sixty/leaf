@@ -34,17 +34,21 @@ drag, an options group takes a click, or a review task's nested Ask takes a pick
 Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for flows, state machines, sequences, class relationships, and ER
-schemas. Agentic Mermaid draws them from Mermaid source, along with Mermaid's other
-families, such as Gantt charts, timelines, and mindmaps.
+schemas. Agentic Mermaid draws them from Mermaid source, along with many of Mermaid's
+other families, such as Gantt charts, timelines, and mindmaps.
 Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf's
 accent surface. Use `classDef` only for nodes that need to stand apart from that
 baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. The renderer also
-honors `stroke-width`; other properties are ignored. It draws something for most
-sources, including statements it reads differently from Mermaid, and
-`version check --render` reports a source it cannot draw at all, not a drawing that
-parts from its source, so look at each diagram once. Quote a label that holds
-punctuation: `A["call foo(bar)"]`, not `A[call foo(bar)]`. Use `lf-chart` rather than
+honors `stroke-width`; other properties are ignored. `version check --render` reports
+a diagram the renderer refuses or draws empty, not one it draws only in part, so look
+at each diagram once. Quote a label that holds its shape's closing bracket:
+`A["names: list[str]"]`, not `A[names: list[str]]`. The renderer parts from Mermaid in
+places the gate does not see: it draws no `click` or `link` target and no frontmatter
+or sequence `title`, drops a state statement that ends in `;`, labels a state with its
+bare id when a transition names it before `state "…" as S0` declares it, reads an ER
+relationship only in its symbol form (`||--o{`), and draws an entity code such as
+`#36;` as written. Use `lf-chart` rather than
 Mermaid's XY or pie charts for quantities that need Leaf's data-first chart vocabulary:
 a comparison across a few categories, a run over time, a ranking, a composition, or two
 numbers against each other. The diagram renderer is 2.9MB, so `lf-diagram` travels in

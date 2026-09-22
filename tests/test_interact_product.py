@@ -44,6 +44,7 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
+from page_fixtures import media_source, package_selection_args, source_packages
 from playwright.sync_api import Error as PlaywrightError
 
 PUBLIC_EXAMPLES = tuple(
@@ -399,27 +400,37 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 
 
 def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
-    """Every public example and developer feature fixture passes the real check."""
+    """Every page fixture in the tree passes the real check: each public example and
+    developer feature fixture, and each playground a note previews. A note's page
+    is built by nothing else before a reader asks for it, so without this a
+    playground that names media it never committed stays green until preview
+    refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    root = Path(__file__).parent.parent / "examples"
-    packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    examples = [*CORPUS_SOURCES, root / "corpus.html"]
+    examples = [
+        *CORPUS_SOURCES,
+        ROOT / "examples" / "corpus.html",
+        *sorted((ROOT / "notes").glob("**/*.html")),
+    ]
     assert FEATURE_GALLERY in DEVELOPER_PAGES
-    selection_args = [arg for package in packages for arg in ("--package", package)]
-
-    def initialize(target):
-        initialized = CliRunner().invoke(
-            cli_model.cli, ["page", "init", *selection_args, str(target)]
-        )
-        assert initialized.exit_code == 0, initialized.output
 
     for example in examples:
+        packages = source_packages(example)
+
+        def initialize(target, packages=packages):
+            initialized = CliRunner().invoke(
+                cli_model.cli,
+                ["page", "init", *package_selection_args(packages), str(target)],
+            )
+            assert initialized.exit_code == 0, initialized.output
+
         d = tmp_path / example.stem
-        initialized_page("examples", d, initialize)
+        initialized_page("-".join(["fixture", *packages]), d, initialize)
         page_files = example.with_suffix(".page")
         if page_files.is_dir():
             shutil.copytree(page_files, d / "page", dirs_exist_ok=True)
-        shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        media = media_source(example)
+        if media.is_dir():
+            shutil.copytree(media, d / "media", dirs_exist_ok=True)
         # The data door validates a source against the page's markup, and the current
         # version is the one that has to bind it; the loop below then walks every
         # version, oldest first, exactly as a builder stamps them.

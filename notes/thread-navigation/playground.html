@@ -409,9 +409,8 @@
         <p id="current-review">
           Messages, thread rows, and margin entries share one workflow reading. Exact
           input and response bindings preserve newer unanswered messages; standing
-          reader questions survive later informational updates. The comparisons below
-          show the visible changes. Independent jobs and notification subscriptions
-          remain later work.
+          reader questions survive later informational updates. Independent jobs and
+          notification subscriptions remain later work.
         </p>
         <p id="workflow-validation">
           Backend and browser coverage exercises sending, refusal, response progress,
@@ -486,35 +485,6 @@
             treatment, and a fresh response replaces the earlier uncertainty.
           </p>
         </section>
-        <details id="workflow-visual-comparison">
-          <summary>
-            Before and after: shared message workflow and reader attention
-          </summary>
-          <p>
-            The same unanswered question is followed by an informational agent update.
-            The candidate keeps On you in the compact row and the blue margin mark; the
-            previous runtime drops both. These are matched captures of real Leaf pages
-            with the same conversation log.
-          </p>
-          <lf-shot
-            id="workflow-attention-comparison"
-            before="/media/39bc55b3f16bf55f.png"
-            after="/media/c5fc0f3a354f35e0.png"
-            alt="An unanswered question remains On you after a later agent update"
-          ></lf-shot>
-          <p>
-            After a keyboard-submitted answer, Sent appears beside the message time and
-            in the thread row from the same workflow. The former green delivery receipt
-            is now a quiet status label. Sending, uncertainty, and recovery use that
-            same location rather than adding a second status line.
-          </p>
-          <lf-shot
-            id="workflow-message-comparison"
-            before="/media/6b43f1d37651e8bd.png"
-            after="/media/a7ac6271d6032dfd.png"
-            alt="One compact Sent reading shared by the message and thread row"
-          ></lf-shot>
-        </details>
         <section id="page-state-proposal">
           <h3>Overall activity does not confer message progress</h3>
           <p>
@@ -525,29 +495,6 @@
             while answering different questions.
           </p>
         </section>
-        <details id="activity-visual-comparison">
-          <summary>
-            Before and after: page activity in the banner and Leaves tray
-          </summary>
-          <p>
-            A queued update now appears alongside Listening instead of becoming the
-            page's status. The agent can also show a typed approval wait. These are
-            captures of the actual runtime with the same backend evidence, before and
-            after the change.
-          </p>
-          <lf-shot
-            id="activity-queued-comparison"
-            before="/media/24723c2c18434b30.png"
-            after="/media/9b36af3ee89e7820.png"
-            alt="Queued delivery shown separately from overall page activity"
-          ></lf-shot>
-          <lf-shot
-            id="activity-approval-comparison"
-            before="/media/9527637b18cc360b.png"
-            after="/media/3753bca3d0f9b4af.png"
-            alt="A typed approval wait in the banner and Leaves tray"
-          ></lf-shot>
-        </details>
         <section id="external-requests-explained">
           <h3>External requests are operation buttons</h3>
           <p>

@@ -8388,8 +8388,9 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Search all the text on the page")
     # Read the capability by the command the reference lists it under. Its words belong
-    # to `target.chooser.open` and are pinned where a pull request reads them, in
-    # `test_render_semantic_selection.py`; a second copy here only drifts.
+    # to `target.chooser.open` and are read once, in `test_render_semantic_selection.py`;
+    # a second copy here only drifts. Both cases are nightly, so neither holds those
+    # words before `main`.
     expect(help_el.locator('tr[data-lf-command="target.chooser.open"]')).to_have_count(
         1
     )

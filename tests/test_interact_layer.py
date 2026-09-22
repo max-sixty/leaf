@@ -1422,6 +1422,57 @@ def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     assert second["generation"] != first["generation"]
 
 
+def test_the_browser_gate_refuses_a_page_this_payload_did_not_vendor(
+    tmp_path, monkeypatch
+):
+    """A page whose layer moved under it names the re-vendor, not a missing export.
+
+    The gate's probe modules come from the running Leaf and the runtime they import
+    comes from the page, so a page vendored by an older one breaks in the browser.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "theme.css").write_text(
+        ":root { --test-accent: red }\n", encoding="utf-8"
+    )
+    page = tmp_path / "page"
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>t</title></head>'
+        "<body><main><h1>Title</h1><p>words</p></main></body></html>",
+        encoding="utf-8",
+    )
+    vendored = interact_files.read_json(page / "registry.json")["$layer"]["fingerprint"]
+
+    # The payload moves under the page, which is what a plugin update does to it.
+    (package / "theme.css").write_text(
+        ":root { --test-accent: blue }\n", encoding="utf-8"
+    )
+
+    result = runner.invoke(cli_model.cli, ["version", "check", "--render", str(page)])
+
+    assert result.exit_code != 0, result.output
+    assert vendored in result.output
+    assert f"leaf page init {page}" in result.output
+
+    # A project-relative package resolves where `page init` would resolve it, so a
+    # gate run from outside the project cannot confirm the layer either.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    away = runner.invoke(cli_model.cli, ["version", "check", "--render", str(page)])
+
+    assert away.exit_code != 0, away.output
+    assert vendored in away.output
+    assert f"leaf page init {page}" in away.output
+
+
 def test_payload_provenance_belongs_to_the_plugin_repo_without_writing_its_index(
     tmp_path, monkeypatch
 ):

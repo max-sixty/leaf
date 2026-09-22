@@ -264,6 +264,19 @@ def layer_fingerprint(composition: LayerComposition) -> str:
     return f"sha256:{digest.hexdigest()}"
 
 
+def payload_layer_fingerprint(selected: list[str] | tuple[str, ...]) -> str | None:
+    """The identity this payload composes for one page's package selection.
+
+    `page init` records the same reading under `$layer.fingerprint`. None where the
+    selection does not compose here, which is not this payload's layer either.
+    """
+    try:
+        roots = checked_layer_inputs(layer_inputs(tuple(selected)))
+        return layer_fingerprint(compose_layer(roots))
+    except SystemExit:
+        return None
+
+
 def payload_provenance(*, include_path: bool = False) -> dict:
     """Describe the Leaf payload that is running this command, when its source can."""
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}

@@ -27,6 +27,7 @@ from render_cases_layout import (
 from render_cases_navigation import _publish
 from render_harness import (
     LONG_PAGE,
+    CutOff,
     Traffic,
     _until,
     clean_browser,
@@ -41,6 +42,155 @@ from render_harness import (
     told,
     watched,
 )
+
+
+def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
+    browser, serve
+):
+    """Only new accepted replies announce, regardless of the panel's disclosure."""
+    url = serve(leaf_page("Reply arrivals", "<h1>Reply arrivals</h1>"))
+    directory = serve.page_dir
+    a = events_model.append_event(
+        directory, {"kind": "comment", "author": "user", "revision": 1, "text": "A"}
+    )
+    b = events_model.append_event(
+        directory, {"kind": "comment", "author": "user", "revision": 1, "text": "B"}
+    )
+    events_model.append_event(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": a["id"],
+            "text": "Earlier",
+        },
+    )
+    page = open_page(browser, url)
+    live = page.locator(".lf-live")
+    notice = page.locator(".lf-notice")
+    assert "replied" not in live.text_content()
+    expect(notice).not_to_have_class(re.compile(r"\bshow\b"))
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(f'.lf-thread[data-id="{a["id"]}"] .lf-thread-summary').click()
+    draft = page.locator(f'.lf-thread[data-id="{a["id"]}"] textarea')
+    draft.fill("Keep this draft")
+    draft.focus()
+    page.evaluate(
+        """() => {
+          window.__lfReplyAnnouncements = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__lfReplyAnnouncements.push(words);
+          }).observe(document.querySelector('.lf-live'), {childList: true, subtree: true});
+        }"""
+    )
+    events_model.append_event(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": b["id"],
+            "text": "For B",
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    expect(live).to_have_text("Codex replied")
+    expect(notice).to_have_text("Codex replied")
+    expect(draft).to_be_focused()
+    expect(draft).to_have_value("Keep this draft")
+
+    reads = CutOff().hold(page)
+    events_model.append_event(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": a["id"],
+            "text": "More for A",
+        },
+    )
+    events_model.append_event(
+        directory,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": b["id"],
+            "text": "More for B",
+        },
+    )
+    reads.restore()
+    told(page)
+    expect(live).to_have_text("2 replies in 2 threads")
+    expect(notice).to_have_text("2 replies in 2 threads", timeout=5_000)
+    expect(draft).to_be_focused()
+    expect(draft).to_have_value("Keep this draft")
+
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(10000)"
+    )
+    for parent in (a["id"], b["id"]):
+        events_model.append_event(
+            directory,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": parent,
+                "text": "Another answer",
+            },
+        )
+        page.evaluate(
+            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+        )
+    page.wait_for_function(
+        "() => window.__lfReplyAnnouncements.filter(words => words === 'Codex replied').length === 3"
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(1)"
+    )
+    expect(notice).to_have_text("4 replies in 2 threads")
+    expect(notice).to_be_visible()
+    expect(draft).to_be_focused()
+    expect(draft).to_have_value("Keep this draft")
+
+    # A duplicate read and a fresh document make no fresh announcement.
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    page.wait_for_timeout(100)
+    assert page.evaluate("() => window.__lfReplyAnnouncements") == [
+        "Codex replied",
+        "2 replies in 2 threads",
+        "Codex replied",
+        "Codex replied",
+    ]
+    page.reload()
+    expect(notice).not_to_have_class(re.compile(r"\bshow\b"))
+    assert "replied" not in live.text_content()
+
+
+def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
+    """An older visible notice cannot replace a newer one already waiting."""
+    page = open_page(browser, serve(leaf_page("Notice order", "<h1>Notice order</h1>")))
+    page.evaluate(
+        """async () => {
+          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          notice('Updated to v3', {background: true});
+          notice('Updated to v4', {background: true});
+          notice('Saved — sent');
+        }"""
+    )
+    shown = page.locator(".lf-notice")
+    expect(shown).to_have_text("Saved — sent")
+    expect(shown).to_have_text("Updated to v4", timeout=5_000)
 
 
 class _ProblemPage:

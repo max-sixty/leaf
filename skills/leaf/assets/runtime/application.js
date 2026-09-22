@@ -416,7 +416,6 @@ export function mountApplication(dependencies) {
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     accountPending,
-    panelIsOpen: dependencies.panelIsOpen,
     paintKeys,
   });
 

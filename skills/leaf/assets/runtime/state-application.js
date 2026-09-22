@@ -27,6 +27,11 @@ import {
   messageText,
 } from "./conversation/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
+import {
+  agentReplyArrivals,
+  agentReplyNotice,
+  combineAgentReplyArrivals,
+} from "./conversation/arrivals.js";
 
 export function createStateApplication({
   prepareActivation,
@@ -38,10 +43,9 @@ export function createStateApplication({
   stateSignoff,
   renderOthers,
   accountPending,
-  panelIsOpen,
   paintKeys,
 }) {
-  let agentMsgCount = -1;
+  let observedAgentReplies = null;
   const markupRead = new Set();
   let stateApplying = false;
   let admission = Promise.resolve();
@@ -185,16 +189,21 @@ export function createStateApplication({
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
         accountPending(state.browser.receipts ?? []);
-        const replies = runtime.browser.conversation.threads.flatMap((thread) =>
-          thread.msgs.filter(
-            (message) => message.author === "agent" && message.kind === "reply",
-          ),
+        const replyReading = agentReplyArrivals(
+          observedAgentReplies,
+          state.browser.conversation.threads,
         );
-        if (agentMsgCount >= 0 && replies.length > agentMsgCount && !panelIsOpen())
-          notice(`${replies.at(-1).agent || "Agent"} replied — open Threads`, {
+        observedAgentReplies = replyReading.observed;
+        if (replyReading.arrivals.length)
+          notice(agentReplyNotice(replyReading.arrivals), {
             background: true,
+            group: {
+              key: "agent-replies",
+              value: replyReading.arrivals,
+              combine: combineAgentReplyArrivals,
+              format: agentReplyNotice,
+            },
           });
-        agentMsgCount = replies.length;
       } catch (error) {
         reportPageError(`State presentation failed: ${error?.message ?? error}`);
         throw error;

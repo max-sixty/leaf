@@ -19,14 +19,14 @@ reading remains separate, and native requests have their own terminal receipts.
 These are the source facts for notification decisions; no second message-status
 ontology is needed.
 
-First decide which changes deserve notice: an agent answer, a new reader obligation,
-a failed or interrupted response, a page becoming available, or a native request
-outcome. A stage change such as Sent to Picked up, a heartbeat, or a tool step does
+Agent reply arrivals now use the identity comparison in
+[`conversation/arrivals.js`](../skills/leaf/assets/runtime/conversation/arrivals.js)
+and the existing status line and live region. The remaining choices are new reader
+obligations, failed or interrupted responses, page availability, and native request
+outcomes. A stage change such as Sent to Picked up, a heartbeat, or a tool step does
 not by itself demand a notification. Compare successive canonical readings using
-stable ids, then let subscribers choose the status line, accessible announcement,
-Thread control, or another destination. The application publisher already updates
-semantic readings; the bottom status line and live region already show brief notices.
-Inspect these before adding a transition bus or new transport.
+stable ids, then choose the status line, accessible announcement, Thread control,
+or another destination. Inspect these before adding a transition bus or new transport.
 
 Unread is a separate fact about what the reader has seen, not a workflow stage or
 the same thing as Needs you. The current `viewed` timestamp means a tab had the page

@@ -48,6 +48,7 @@ from render_harness import (
     _until,
     ask_actions_hint,
     compare_with,
+    expect_banner_control_offered,
     hold_selection,
     holding,
     leaf_page,
@@ -985,7 +986,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         ).count()
         == 0
     )
-    expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (1)")
+    expect_banner_control_offered(page.locator(".lf-answer-all"))
 
     # The control: the same markup unquoted wires all of it.
     assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2

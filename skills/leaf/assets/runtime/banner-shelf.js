@@ -1,25 +1,18 @@
 /* The banner shelf owns the complete generated control run.
  *
- * Contributors register one stable control with an explicit rank and policy.
+ * Contributors register one stable control with an explicit rank and seat.
  * A compound control also names its retained focus target.
  * This synchronous light-DOM Lit owner is then the only code that decides inventory,
  * order, presence, row-versus-overflow placement, and the overflow door's state. The
  * native controls are retained islands: their own owners keep commands, words, and
- * local state while this owner moves the same nodes between its two Lit lists.
- *
- * Geometry remains mechanical browser state. The owner measures the live row, moves
- * whole controls until it fits, freezes that partition while the disclosure is open,
- * and restores focus after a move. It does not publish application state or join the
- * application presentation transaction.
+ * local state while this owner retains the same nodes in its two Lit lists. Approval
+ * and Threads form the page's reading loop on the row; every secondary action has one
+ * stable seat behind More. Geometry never changes that partition.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
 
-// The final two offered controls stay on the row. They are the page's reading loop at
-// the end of the complete run (approval and Threads on sign-off pages; Versions and
-// Threads otherwise), matching the shelf's established narrow-layout contract.
-const KEPT = 2;
 const EMPTY = Object.freeze([]);
 
 export const BANNER_CONTROL_RANK = Object.freeze({
@@ -49,16 +42,12 @@ const controls = new Map();
 let sequence = 0;
 let row = EMPTY;
 let menu = EMPTY;
-let folding = false;
-let newsFoldQueued = false;
-const pendingMeasurements = new Set();
 
 const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
   );
 const visible = (entry) => entry.present && (!entry.conditional || entry.offered);
-const occupies = (entry) => visible(entry) || (entry.present && entry.reserved);
 
 function rowTemplate() {
   return html`
@@ -99,17 +88,17 @@ function paintControl(entry) {
   entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
   // These are paint only. The owner's entry is the value read by layout and door
   // decisions; neither class nor style is read back as authority.
-  const displayed = row.includes(entry) ? occupies(entry) : visible(entry);
+  const displayed = visible(entry);
   entry.control.style.display = displayed ? "" : "none";
   entry.control.style.visibility = visible(entry) ? "" : "hidden";
 }
 
 function paintDoor() {
-  const hasMenu = menu.some(occupies);
+  const hasMenu = menu.some(visible);
   const news = menu.some((entry) => entry.urgent && visible(entry));
   // Keep the native invoker standing until its open popover has closed. A semantic
-  // update can retire the last visible item while the reader is inside the frozen
-  // partition; closing then lets the ordinary fold remove the empty door.
+  // update can retire the last visible item while the reader is inside it; closing then
+  // lets paint remove the empty door.
   overflowBtn.hidden = !hasMenu && !overflowMenu.matches(":popover-open");
   overflowBtn.toggleAttribute("data-lf-news", news);
   const name = news ? "More page controls, new" : "More page controls";
@@ -130,51 +119,25 @@ const focusable = (entry) =>
   !entry.focusTarget.matches(":disabled, [aria-disabled='true']") &&
   !entry.control.closest("[inert]") &&
   entry.control.checkVisibility();
-const canRetainFocus = (entry) =>
-  visible(entry) &&
-  !entry.focusTarget.matches(":disabled") &&
-  !entry.control.closest("[inert]") &&
-  entry.control.checkVisibility();
-
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   overflowBtn.setAttribute("aria-expanded", String(open));
   if (open && document.activeElement === overflowBtn)
     menu.find(focusable)?.focusTarget.focus();
-  if (!open) {
-    const measurements = [...pendingMeasurements];
-    pendingMeasurements.clear();
-    if (measurements.length)
-      measureBannerControls(() => measurements.forEach((run) => run()));
-    else foldShelf();
-  }
+  if (!open) paintDoor();
   repaint();
 });
 
-function normalizePartition() {
+function seatControls() {
   const run = ordered();
-  const known = new Set(run);
-  row = row.filter((entry) => known.has(entry) && !entry.alwaysFolded);
-  menu = menu.filter((entry) => known.has(entry));
-  const placed = new Set([...row, ...menu]);
-  for (const entry of run) {
-    if (placed.has(entry)) continue;
-    (entry.alwaysFolded ? menu : row).push(entry);
-  }
-  for (const entry of [...row]) {
-    if (!entry.alwaysFolded) continue;
-    row = row.filter((candidate) => candidate !== entry);
-    menu.push(entry);
-  }
-  row = run.filter((entry) => row.includes(entry));
-  menu = run.filter((entry) => menu.includes(entry));
+  row = run.filter((entry) => entry.seat === "row");
+  menu = run.filter((entry) => entry.seat === "menu");
 }
 
 function replaceEntry(prior, next) {
   controls.set(next.control, next);
   row = row.map((entry) => (entry === prior ? next : entry));
   menu = menu.map((entry) => (entry === prior ? next : entry));
-  normalizePartition();
 }
 
 /** Register one internal banner contribution and synchronously seat its native node. */
@@ -183,16 +146,20 @@ export function registerBannerControl({
   control,
   focusTarget = control,
   rank,
-  alwaysFolded = false,
+  seat = "menu",
   conditional = false,
   present = true,
   offered = !conditional,
-  reserved = false,
   urgent = false,
 }) {
-  if (!key || !(control instanceof Element) || !Number.isFinite(rank))
+  if (
+    !key ||
+    !(control instanceof Element) ||
+    !Number.isFinite(rank) ||
+    !["row", "menu"].includes(seat)
+  )
     throw new TypeError(
-      "A banner control needs a key, native control, and numeric rank",
+      "A banner control needs a key, native control, numeric rank, and row or menu seat",
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -207,17 +174,15 @@ export function registerBannerControl({
       focusTarget,
       rank,
       sequence: sequence++,
-      alwaysFolded: Boolean(alwaysFolded),
+      seat,
       conditional: Boolean(conditional),
       present: Boolean(present),
       offered: Boolean(offered),
-      reserved: Boolean(reserved),
       urgent: Boolean(urgent),
     }),
   );
-  normalizePartition();
+  seatControls();
   paint();
-  if (bannerActions.isConnected) foldShelf();
   return control;
 }
 
@@ -233,24 +198,14 @@ export function showBannerControl(control, shown) {
   entry = Object.freeze({ ...entry, present: shown });
   replaceEntry(prior, entry);
   paint();
-  foldShelf();
   if (heldFocus && !shown) focusAfterRemoval(entry, wasInMenu);
-}
-
-function queueNewsFold() {
-  if (newsFoldQueued) return;
-  newsFoldQueued = true;
-  queueMicrotask(() => {
-    newsFoldQueued = false;
-    foldShelf();
-  });
 }
 
 export function showNews(control, on) {
   let entry = controls.get(control);
   if (!entry) throw new TypeError("Banner news control is not registered");
   on = Boolean(on);
-  if (entry.conditional && entry.offered === on && (!on || entry.reserved)) return;
+  if (entry.conditional && entry.offered === on) return;
   const focused = document.activeElement === entry.focusTarget;
   const wasInMenu = menu.includes(entry);
   const prior = entry;
@@ -258,28 +213,16 @@ export function showNews(control, on) {
     ...entry,
     conditional: true,
     offered: on,
-    reserved: entry.reserved || on,
   });
   replaceEntry(prior, entry);
   paint();
-  queueNewsFold();
   if (focused && !on) {
     focusAfterRemoval(entry, wasInMenu);
   }
 }
 
-export function reserveNewsSlot(control) {
-  let entry = controls.get(control);
-  if (!entry) throw new TypeError("Banner news control is not registered");
-  if (entry.reserved) return;
-  const prior = entry;
-  entry = Object.freeze({ ...entry, reserved: true });
-  replaceEntry(prior, entry);
-  paint();
-}
-
 function focusAfterRemoval(entry, wasInMenu) {
-  const run = wasInMenu ? menu : ordered();
+  const run = wasInMenu ? menu : row;
   const at = Math.max(
     0,
     run.findIndex((candidate) => candidate === entry),
@@ -288,62 +231,15 @@ function focusAfterRemoval(entry, wasInMenu) {
   (next?.focusTarget ?? overflowBtn).focus({ preventScroll: true });
 }
 
-function heldShelfFocus() {
-  const focused = document.activeElement;
-  return focused === overflowBtn ||
-    ordered().some((entry) => entry.focusTarget === focused)
-    ? focused
-    : null;
-}
-
-function restoreShelfFocus(focused) {
-  if (!focused) return;
-  let target = null;
-  if (focused === overflowBtn) {
-    if (!overflowBtn.hidden && overflowBtn.checkVisibility()) target = overflowBtn;
-  } else {
-    const entry = ordered().find((entry) => entry.focusTarget === focused);
-    if (entry && canRetainFocus(entry)) target = focused;
-    else if (entry && menu.includes(entry) && !overflowBtn.hidden) target = overflowBtn;
-  }
-  target ??= row.find(focusable)?.focusTarget;
-  if (target && document.activeElement !== target)
-    target.focus({ preventScroll: true });
-}
-
-function unfoldShelf() {
-  const run = ordered();
-  row = run;
-  menu = EMPTY;
-  paint();
-}
-
-/** Measure retained controls on the live row without disturbing an open disclosure. */
-export function measureBannerControls(measure) {
-  if (typeof measure !== "function")
-    throw new TypeError("Banner control measurement needs a function");
-  if (overflowMenu.matches(":popover-open")) {
-    pendingMeasurements.add(measure);
-    return;
-  }
-  const focused = heldShelfFocus();
-  unfoldShelf();
-  try {
-    measure();
-  } finally {
-    foldShelfFrom(focused);
-  }
-}
-
-// A control the shelf folded away stands behind a door this owner holds shut, so it
+// A secondary control stands behind a door this owner holds shut, so it
 // answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
-// caller means to show, and this is the only one that can open for a folded control.
+// caller means to show, and this is the only one that can open for a menu control.
 overflowMenu.addEventListener("lf-reveal", () => {
   if (!overflowMenu.matches(":popover-open")) overflowMenu.showPopover();
 });
 
 // The node a reader can actually put focus on to reach this control: the control
-// itself while it stands on the row, and otherwise the More door holding it. A folded
+// itself while it stands on the row, and otherwise the More door holding it. A menu
 // control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
 // no-op, so a caller that hands the reader somewhere has to ask this rather than the
 // control. Null means the shelf offers no way in, which happens only off the banner.
@@ -353,68 +249,6 @@ export function bannerControlDoor(control) {
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
 }
 
-export function focusBannerControl(control) {
-  const menu = control.closest("[popover]");
-  if (menu && !menu.matches(":popover-open")) menu.showPopover();
-  control.focus({ preventScroll: true });
-}
-
 export function dismissBannerControls() {
   if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
-}
-
-function foldable() {
-  const present = row.filter(occupies);
-  return present.slice(0, Math.max(0, present.length - KEPT));
-}
-
-function foldShelfFrom(focused) {
-  if (folding || overflowMenu.matches(":popover-open") || !bannerActions.isConnected)
-    return;
-  folding = true;
-  try {
-    refold(focused);
-  } finally {
-    folding = false;
-  }
-}
-
-export function foldShelf() {
-  foldShelfFrom(heldShelfFocus());
-}
-
-function refold(focused) {
-  normalizePartition();
-  // Normalization is a state transition too: in particular, unfolding temporarily
-  // seats always-folded diagnostics on the row, and refolding must move those retained
-  // nodes back before geometry is measured. Keep the two Lit roots in lockstep with
-  // the typed partition before either fold loop decides there is no work to do.
-  paint();
-
-  // Hand ordinary controls back in reverse fold order without assuming the registered
-  // ranks put every permanent-overflow contribution before them. Then take the earliest
-  // foldable control until the row fits.
-  const giveBack = () => menu.findLast((entry) => !entry.alwaysFolded);
-  for (let back = giveBack(); back; back = giveBack()) {
-    menu = menu.filter((entry) => entry !== back);
-    row.push(back);
-    normalizePartition();
-    paint();
-    if (bannerActions.scrollWidth <= bannerActions.clientWidth) continue;
-    row = row.filter((entry) => entry !== back);
-    menu.push(back);
-    normalizePartition();
-    paint();
-    break;
-  }
-  while (bannerActions.scrollWidth > bannerActions.clientWidth) {
-    const [first] = foldable();
-    if (!first) break;
-    row = row.filter((entry) => entry !== first);
-    menu.push(first);
-    normalizePartition();
-    paint();
-  }
-  paintDoor();
-  restoreShelfFocus(focused);
 }

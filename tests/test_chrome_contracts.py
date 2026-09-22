@@ -35,6 +35,7 @@ from render_harness import (
     consume_browser_errors,
     leaf_page,
     open_page,
+    open_versions,
     panel_settled,
     resized,
     sending,
@@ -223,62 +224,6 @@ def test_consuming_browser_problems_accounts_for_every_entry():
         watched(page).extend(["expected fault", "unrelated fault"])
         with pytest.raises(AssertionError, match="unrelated fault"):
             consume_browser_errors(page, "expected fault")
-
-
-def test_version_reservation_retains_the_lit_controls(browser, serve):
-    """Sizing and folding retain the exact native controls and their Lit parts."""
-    page = open_page(browser, serve(LONG_PAGE))
-    version = page.locator(".lf-version")
-    version.focus()
-    retained = page.evaluate(
-        """async () => {
-          const entry = document.querySelector('script[data-lf-entry]');
-          const owner = await import(new URL(
-            'runtime/version-chooser.js',
-            new URL(entry.dataset.lfEntry, location.href),
-          ));
-          const button = owner.versionBtn;
-          const latest = owner.latestChip;
-          window.__lfVersionControls = {
-            button,
-            latest,
-            buttonParts: [...button.childNodes],
-            latestParts: [...latest.childNodes],
-          };
-          owner.reserveVersionControls();
-          return {
-            focus: document.activeElement === button,
-            buttonParts: button.childNodes.length,
-            latestParts: latest.childNodes.length,
-          };
-        }"""
-    )
-    assert retained["focus"], "measuring the chooser took its native focus"
-    assert retained["buttonParts"] and retained["latestParts"]
-    assert page.evaluate(
-        """() => {
-          const held = window.__lfVersionControls;
-          return held.button === document.querySelector('.lf-version') &&
-            held.latest === document.querySelector('.lf-latest-chip') &&
-            held.buttonParts.every((node, index) => held.button.childNodes[index] === node) &&
-            held.latestParts.every((node, index) => held.latest.childNodes[index] === node);
-        }"""
-    ), "version reservation replaced a retained Lit part"
-
-    resized(page, 390, 900)
-    resized(page, 1200, 900)
-    assert page.evaluate(
-        """() => {
-          const held = window.__lfVersionControls;
-          return held.button === document.querySelector('.lf-version') &&
-            held.latest === document.querySelector('.lf-latest-chip') &&
-            held.buttonParts.every((node, index) => held.button.childNodes[index] === node) &&
-            held.latestParts.every((node, index) => held.latest.childNodes[index] === node);
-        }"""
-    ), "responsive reservation or folding replaced a version control"
-    version.click()
-    expect(page.locator(".lf-version-menu")).to_be_visible()
-    expect(page.locator(".lf-version-row")).to_be_focused()
 
 
 def test_live_revision_retains_the_runtime_favicon(browser, serve):
@@ -546,21 +491,8 @@ def test_signoff_enabled_face_is_readable(browser, serve):
     }, f"the banner's primary action lost its readable face: {paint}"
 
 
-def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
-    """A comparison standing behind the overflow menu is the same comparison, and has
-    to go on looking like one.
-
-    Both places clear the border and the fill `.lf-btn.on` states, each for its own
-    reason: the row so that a control cannot resize it and displace the controls
-    before it, the menu so that a control reads as a row rather than as a chip. Left
-    at that, the class is ink alone in either — two characters at 2.16:1 against the
-    control's own resting ink. The row was answered first and the menu was not, which
-    put the banner's two active states on opposite sides of one fold: an open
-    auxiliary surface's own selector outranks the menu's resting rule and keeps its face
-    across it, and a standing comparison did not. So this reads the one control in
-    both places rather than a number in either, because what the fold promises is that
-    nothing about a control changes except where it stands.
-    """
+def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
+    """A standing comparison remains legible in its fixed menu seat."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -574,42 +506,38 @@ def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     resized(page, 1440, 900)
     compare_with(page, 1)
     expect(chooser).to_have_class(re.compile(r"\bon\b"))
-    expect(page.locator(".lf-banner-actions > .lf-version")).to_have_count(1)
-    on_the_row = chooser.evaluate(STATE_PAINT)
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
+    banner_control(page, ".lf-version")
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    box = chooser.bounding_box()
+    assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    active = chooser.evaluate(STATE_PAINT)
     assert (
-        on_the_row["shadow"] != "none"
-        and "rgba(0, 0, 0, 0)" not in on_the_row["background"]
-    ), f"the comparison stood on the row with nothing but ink: {on_the_row}"
+        active["shadow"] != "none" and "rgba(0, 0, 0, 0)" not in active["background"]
+    ), f"the comparison stood in the menu with nothing but ink: {active}"
 
     resized(page, 320, 844)
     expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
     banner_control(page, ".lf-version")
-    folded = chooser.evaluate(STATE_PAINT)
-
-    assert folded == on_the_row, (
-        f"the comparison changed face when it folded: row {on_the_row}, menu {folded}"
-    )
+    assert chooser.evaluate(STATE_PAINT) == active
+    chooser.click()
+    versions = page.locator(".lf-version-menu")
+    expect(versions).to_be_visible()
+    box = versions.bounding_box()
+    assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    open_versions(page)
+    expect(versions).to_be_visible()
+    box = versions.bounding_box()
+    assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
     door = page.locator(".lf-banner-more")
     door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
     expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
-    """The row says the same thing at 1440 that it says on a phone.
-
-    It used to turn round at the covering breakpoint: Threads went from the far right of
-    the banner to the far left, and approval — the page's one committing press — swapped
-    ends with it, so a reader narrowing the window found every control somewhere else.
-    What a narrow window may change is how many controls stand on the row at once; the
-    rest fold into the row's own menu, in this same order.
-
-    Two things legitimately differ with width and neither is an order: the Page Map is a
-    narrow window's stand-in for the margin's own markers, and a reserved news slot is not
-    a banner control until it has news. So each width is held to being this one order with
-    the controls that width does not have taken out of it, rather than to a fixed list — a
-    reversal fails that just as loudly, and a control appearing at the wrong seat fails it
-    where a fixed list would only have said the list was different.
-    """
+    """The fixed menu and primary row keep one reading order at every width."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -622,25 +550,20 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(page.locator(".lf-signoff")).to_have_attribute(
         "title", "Answer every Ask before approving this work"
     )
-    expect(page.locator(".lf-answer-all")).to_be_visible()
+    banner_control(page, ".lf-answer-all")
 
     orders = {}
     for width in (1440, 860, 800, 390):
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
 
-    # One order, put as the thing it is: no two controls ever swap. Held pair by pair
-    # rather than against a list taken at one width, because the widths do not all show
-    # the same controls and a fixed list would then be failing about the Page Map rather
-    # than about the order. A reversal breaks this on its first pair.
     first = {}
     for width, order in orders.items():
         for index, before in enumerate(order):
             for after in order[index + 1 :]:
                 assert (after, before) not in first, (
                     f"{after!r} comes before {before!r} at {first[(after, before)]}px "
-                    f"and after it at {width}px, so the banner reads in two orders: "
-                    f"{orders}"
+                    f"and after it at {width}px: {orders}"
                 )
                 first.setdefault((before, after), width)
     assert len(first) >= 15, (
@@ -752,7 +675,10 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     }""")
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
-    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    banner_control(
+        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    ).tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
     field.fill("From a phone")
     with sending(page, "the comment"):
@@ -819,7 +745,13 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       getSelection().addRange(range);
     }""")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
-    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    comment = banner_control(
+        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    )
+    box = comment.bounding_box()
+    assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    comment.tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     placed = page.evaluate("""() => {
       const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();

@@ -15,6 +15,7 @@ from render_cases_interaction import (
 )
 from render_harness import (
     BOTH_STAMPS,
+    banner_control,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -678,7 +679,6 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         )
         told(page)
 
-        expect(page.locator(".lf-latest-chip")).to_be_visible()
         assert page.evaluate("performance.timeOrigin") == first_document
         expect(page).to_have_title("Live first")
         expect(standing).to_be_focused()
@@ -686,8 +686,9 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
         # The explicit door may release a composition hold, but it cannot release the
         # delivery hold.
+        latest = banner_control(page, ".lf-latest-chip")
         with page.expect_response("**/api/state*"):
-            page.locator(".lf-latest-chip").click()
+            latest.click()
         told(page)
         assert page.evaluate("performance.timeOrigin") == first_document
         assert len(held) == 1

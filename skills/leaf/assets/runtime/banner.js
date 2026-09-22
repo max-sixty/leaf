@@ -6,15 +6,12 @@ import { agentName, runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
-  foldShelf,
-  measureBannerControls,
   registerBannerControl,
   showBannerControl,
   showNews,
 } from "./banner-shelf.js";
-import { latestChip, reserveVersionControls, versionBtn } from "./version-chooser.js";
+import { latestChip, versionBtn } from "./version-chooser.js";
 import { asksBtn, othersBtn } from "./trays.js";
-import { COVERING } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
@@ -72,12 +69,14 @@ registerBannerControl({
   key: "approval",
   control: approveBtn,
   rank: BANNER_CONTROL_RANK.approval,
+  seat: "row",
   present: false,
 });
 registerBannerControl({
   key: "threads",
   control: toggleBtn,
   rank: BANNER_CONTROL_RANK.threads,
+  seat: "row",
 });
 
 // ---------- banner ----------
@@ -228,7 +227,6 @@ const presentStatus = ({
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.
-// The shelf still owns and measures it with every other control.
 function copyControl(trigger, success, error) {
   const copy = offer("wa-copy-button", "lf-banner-copy");
   copy.successLabel = success;
@@ -238,16 +236,11 @@ function copyControl(trigger, success, error) {
   copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
   copy.addEventListener("wa-error", () => notice(error, { announce: false }));
   copy.append(trigger);
-  copy.updateComplete.then(reserveBannerControls);
   return copy;
 }
 
 let previewMarginEntry = null;
 let previewMarginEntryCopy = null;
-// A checkout goes dirty and clean again while a developer works, so the chip holds the
-// wider of its two spellings for the page's life rather than growing a character under
-// the reader's pointer. Renewed with the row's other reservations at a breakpoint.
-let previewLabels = [];
 let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
@@ -257,7 +250,6 @@ function renderPreview(state) {
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "reader" ? "Reader" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  previewLabels = preview.commit ? [stem, `${stem}+`] : [stem];
   const label = preview.commit && preview.dirty ? `${stem}+` : stem;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
@@ -291,9 +283,7 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
-      alwaysFolded: true,
     });
-    reserveBannerControls();
   }
   previewMarginEntryCopy.value = previewDiagnostics;
   previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
@@ -343,7 +333,6 @@ function renderLayerReference(state) {
       control: layerReferenceElementCopy,
       focusTarget: layerReferenceElement,
       rank: BANNER_CONTROL_RANK.layer,
-      alwaysFolded: true,
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
@@ -462,7 +451,6 @@ function renderSessionReference() {
       control: sessionReferenceElementCopy,
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
-      alwaysFolded: true,
     });
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
@@ -589,7 +577,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerActions);
-  foldShelf();
+  reserveBannerControls();
   approveBtn.onclick = async () => {
     if (approving) return;
     approving = true;
@@ -619,60 +607,12 @@ export function stateSignoff(next, syncLayout, paintApproval) {
   syncLayout();
 }
 
-// The controls that rewrite their own words hold the widest of them, measured in the
-// face and padding the banner is using now (see the stylesheet's banner comment). The
-// covering row deliberately spends less horizontal padding than the wide one, so its
-// media-query transition has to renew these measurements in both directions; an inline
-// minimum measured once on a desk would otherwise make that responsive padding inert.
-// The counters hold the widest they reach anywhere below a thousand, so no count they
-// write can move them — a page with a thousand open threads, or a machine with a thousand
-// live pages, is not one anyone hands a user.
-//
-// Every control stands on the row while this runs. A control measures its own words in
-// its own live face, and inside the shut menu the fold may have put it in there is no
-// box to measure: every word comes back zero and the floor with it. The fold is asked
-// again at the end, against the reservations this just took.
-// Asked at use rather than as this module evaluates: chrome-layout.js imports this
-// module back, so its constants are not readable here yet.
-let coveringRow = null;
-const covering = () => (coveringRow ??= matchMedia(COVERING));
-// The breakpoint the reservations were last measured at, so a crossing renews them.
-let reservedCovering = null;
-function reserveBannerControlWidths() {
-  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  if (sessionReferenceElement)
-    reserve(sessionReferenceElement, [sessionReferenceLabel]);
-  if (previewMarginEntry) reserve(previewMarginEntry, previewLabels);
-  // News keeps one readable control while it changes words. The row folds rather than
-  // clips, so no control has to collapse into an illegible pressure release.
-  reserveVersionControls();
-  reserve(toggleBtn, ["Threads", "Threads (999)"]);
-  reserve(asksBtn, ["Asks 999/999"]);
-  reserve(othersBtn, ["All leaves (999)"]);
-  reservedCovering = covering().matches;
-}
+// The two primary controls hold the widest words they can show, so an asynchronous
+// count or approval result cannot move its sibling. Secondary controls can grow inside
+// More without changing the page's reading loop.
 export function reserveBannerControls() {
-  measureBannerControls(reserveBannerControlWidths);
-}
-
-// The fold chrome-layout.js asks for: renew the reservations for the breakpoint the row
-// is at, then fold what the row cannot hold.
-//
-// The reservations are measured in the padding the current breakpoint gives the row's
-// controls, and the fold reads them to decide what the row can hold — so they have to be
-// this breakpoint's before anything is measured against them. A crossing is two events, a
-// resize and a media query change, and the platform does not order them against each
-// other: a fold running on the resize measured the narrow row against the widths the
-// window it had just left reserved, folded a control the narrow row had room for, handed
-// the reader the door it went behind, and then had the renewal behind it take that door
-// away with the reader still standing on it. Renewed here, at the head of the one layout
-// pass, the renewal is the crossing's first act whichever event arrives first.
-export function foldBannerRow() {
-  currentBannerReservations();
-  foldShelf();
-}
-function currentBannerReservations() {
-  if (reservedCovering !== covering().matches) reserveBannerControls();
+  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  reserve(toggleBtn, ["Threads", "Threads (999)"]);
 }
 
 let approving = false;

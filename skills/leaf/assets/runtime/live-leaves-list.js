@@ -14,7 +14,7 @@ import {
   failSoftAfterRetention,
   PresentationRetentionError,
 } from "./semantic-state.js";
-import { foldShelf, showNews } from "./banner-shelf.js";
+import { showNews } from "./banner-shelf.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 
 const TAG = "lf-leaves-list";
@@ -149,7 +149,6 @@ class LiveLeavesList extends LitElement {
     this.model = this.#committed;
     await Promise.all([this.updateComplete, this.#face.retainCommitted()]);
     if (this.#failure) throw this.#failure;
-    foldShelf();
     return this.#committed;
   }
 
@@ -162,7 +161,6 @@ class LiveLeavesList extends LitElement {
       await this.updateComplete;
       if (this.#failure) throw this.#failure;
       if (generation !== this.#generation) return this;
-      foldShelf();
       this.#committed = model;
       this.#face.commit();
       return this;

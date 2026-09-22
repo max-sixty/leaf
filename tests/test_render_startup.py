@@ -1009,17 +1009,12 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     The authored document is useful while the first state response is held: its text,
     link, structure, and generated interface in light and shadow DOM all paint after
     upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
-    post, and authored top-layer UI stays withheld. Releasing the response applies the
-    standing decision and opens semantic interaction once."""
+    post. Releasing the response applies the standing decision and opens semantic
+    interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
             "<lf-old>",
-            "<lf-old>"
-            '<a id="startup-link" href="#after">Continue reading</a>'
-            '<dialog id="stale-dialog" style="visibility: visible; opacity: 1; '
-            'interactivity: auto; pointer-events: auto">'
-            '<button style="visibility: visible">'
-            "Top-layer stale control</button></dialog>",
+            '<lf-old><a id="startup-link" href="#after">Continue reading</a>',
         ).replace(
             "</main>",
             """<lf-ask id="startup-decision"><h2>Startup choice</h2>
@@ -1096,37 +1091,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
     assert posts == [], "an anchored comment posted before the first state projection"
-    page.locator("#stale-dialog").evaluate("dialog => dialog.showModal()")
-    page.evaluate(
-        """() => {
-              const root = document.querySelector('#shadowed').shadowRoot;
-              const dialog = document.createElement('dialog');
-              dialog.id = 'shadow-stale-dialog';
-              dialog.innerHTML = '<button>Shadow top-layer stale control</button>';
-              root.append(dialog);
-              dialog.showModal();
-              const popover = document.createElement('div');
-              popover.id = 'shadow-stale-popover';
-              popover.setAttribute('popover', 'manual');
-              popover.textContent = 'Shadow top-layer stale popover';
-              root.append(popover);
-              popover.showPopover();
-              const cancelled = document.createElement('div');
-              cancelled.id = 'shadow-cancelled-popover';
-              cancelled.setAttribute('popover', 'manual');
-              cancelled.textContent = 'Cancelled before presentation';
-              root.append(cancelled);
-              cancelled.showPopover();
-              if (cancelled.matches(':popover-open')) cancelled.hidePopover();
-              const nonmodal = document.createElement('dialog');
-              nonmodal.id = 'shadow-final-nonmodal';
-              nonmodal.textContent = 'Final state is non-modal';
-              root.append(nonmodal);
-              nonmodal.showModal();
-              nonmodal.close();
-              nonmodal.show();
-            }"""
-    )
     frames = page.evaluate("() => window.__lfPresentation.frames")
     assert frames and all(frame["height"] > 0 for frame in frames), (
         f"the authored state was never laid out: {frames}"
@@ -1151,87 +1115,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
               return ui?.checkVisibility({visibilityProperty: true});
             }"""
     ), "generated shadow interface remained withheld after upgrade"
-    assert not page.locator("#stale-dialog").is_visible(), (
-        "authored top-layer content painted before replay"
-    )
-    assert not page.locator("#stale-dialog button").evaluate(
-        "element => { element.focus(); return document.activeElement === element; }"
-    ), "authored top-layer content accepted focus before replay"
-    assert not page.locator("#stale-dialog").evaluate(
-        """dialog => {
-              const box = dialog.getBoundingClientRect();
-              return dialog.contains(document.elementFromPoint(
-                box.left + box.width / 2,
-                box.top + box.height / 2,
-              ));
-            }"""
-    ), "authored top-layer content accepted a pointer before replay"
-    shadow_state = page.evaluate(
-        """() => {
-              const root = document.querySelector('#shadowed').shadowRoot;
-              const dialog = root.querySelector('#shadow-stale-dialog');
-              const control = dialog.querySelector('button');
-              control.focus();
-              const box = dialog.getBoundingClientRect();
-              return {
-                visibility: getComputedStyle(dialog).visibility,
-                opacity: getComputedStyle(dialog).opacity,
-                focused: root.activeElement === control,
-                hit: dialog.contains(root.elementFromPoint(
-                  box.left + box.width / 2,
-                  box.top + box.height / 2,
-                )),
-              };
-            }"""
-    )
-    assert shadow_state == {
-        "visibility": "hidden",
-        "opacity": "0",
-        "focused": False,
-        "hit": False,
-    }, f"authored shadow top-layer content escaped before replay: {shadow_state}"
-    shadow_popover = page.evaluate(
-        """() => {
-              const root = document.querySelector('#shadowed').shadowRoot;
-              const popover = root.querySelector('#shadow-stale-popover');
-              const box = popover.getBoundingClientRect();
-              return {
-                open: popover.matches(':popover-open'),
-                visibility: getComputedStyle(popover).visibility,
-                opacity: getComputedStyle(popover).opacity,
-                hit: popover.contains(root.elementFromPoint(
-                  box.left + box.width / 2,
-                  box.top + box.height / 2,
-                )),
-              };
-            }"""
-    )
-    assert shadow_popover == {
-        "open": True,
-        "visibility": "hidden",
-        "opacity": "0",
-        "hit": False,
-    }, f"authored shadow popover escaped before replay: {shadow_popover}"
-    assert page.locator("#stale-dialog").evaluate(
-        "dialog => dialog.open && !dialog.matches(':modal')"
-    ), "the held light dialog became modal before replay"
-    assert page.evaluate(
-        """() => {
-              const dialog = document.querySelector('#shadowed').shadowRoot
-                .querySelector('#shadow-stale-dialog');
-              return dialog.open && !dialog.matches(':modal');
-            }"""
-    ), "the held shadow dialog became modal before replay"
-    assert page.evaluate(
-        """() => {
-              const dialog = document.querySelector('#shadowed').shadowRoot
-                .querySelector('#shadow-final-nonmodal');
-              return dialog.open && !dialog.matches(':modal');
-            }"""
-    ), "the widget's final non-modal state did not stand before replay"
-    assert page.get_by_role("button", name=re.compile("^Threads")).evaluate(
-        "button => { button.focus(); return document.activeElement === button; }"
-    ), "a held authored modal disabled the usable Threads chrome"
     assert all(frame["startupSheet"] == "none" for frame in frames), frames
 
     held.pop(0).continue_()
@@ -1246,36 +1129,6 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         """() => document.querySelector('#shadowed').shadowRoot
               .querySelector('.lf-ui').checkVisibility({visibilityProperty: true})"""
     ), "generated shadow interface remained withheld after replay"
-    assert not page.locator("#stale-dialog").evaluate(
-        "dialog => dialog.open || dialog.matches(':modal')"
-    ), "replay retired a dialog but presentation promoted it anyway"
-    assert page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-dialog').matches(':modal')"
-    ), "a still-current deferred dialog was not promoted after replay"
-    assert page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-popover').matches(':popover-open')"
-    ), "a still-current deferred popover was not opened after replay"
-    assert not page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-cancelled-popover').matches(':popover-open')"
-    ), "a popover dismissed by its widget reopened after replay"
-    assert page.evaluate(
-        """() => {
-              const dialog = document.querySelector('#shadowed').shadowRoot
-                .querySelector('#shadow-final-nonmodal');
-              return dialog.open && !dialog.matches(':modal');
-            }"""
-    ), "a dialog whose final state was non-modal was promoted after replay"
-    page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-dialog').close()"
-    )
-    page.evaluate(
-        "document.querySelector('#shadowed').shadowRoot"
-        ".querySelector('#shadow-stale-popover').hidePopover()"
-    )
     assert page.evaluate("() => window.__lfPresentation.releases") == 1
 
 
@@ -3164,12 +3017,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
     held_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery '
-        f'.lf-receipt[data-receipt-id="{held}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{held}"]'
     )
     other_receipt = other_thread.locator(
-        f'.lf-msg.user[data-mid="{other}"] > .lf-msg-delivery '
-        f'.lf-receipt[data-receipt-id="{other}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{other}"]'
     )
     expect(receipts).to_have_count(2)
     expect(held_receipt).to_contain_text("✓ Sent")
@@ -3267,8 +3118,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     assert held_receipt.evaluate(
-        "node => node.parentElement.matches('.lf-msg-delivery') "
-        "&& node.nextElementSibling === null"
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
 
     # New words do not detach the claim from the comment that started the work.
@@ -3284,7 +3135,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     told(page)
     followup_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-delivery '
+        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
         f'.lf-receipt[data-receipt-id="{followup["id"]}"]'
     )
     expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
@@ -3329,9 +3180,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # message to own it, the claim uses the root message that identifies the thread;
     # conversation status never grows a separate footer row.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    claim_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-delivery .lf-receipt'
-    )
+    claim_receipt = held_thread.locator(":scope > .lf-thread-root-meta .lf-receipt")
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
     expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
@@ -3419,8 +3268,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page.keyboard.press("c")
     receipt = page.locator(
         f'.lf-thread[data-id="{comment["id"]}"] '
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
-        f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
+        f'> .lf-thread-root-meta .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
     expect(receipt).to_contain_text("○ Waiting for pickup")
     assert receipt.locator(".lf-receipt-state").evaluate(
@@ -3431,7 +3279,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
 def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     """A phase change updates colored metadata without moving or replacing it.
 
-    The receipt belongs below the outgoing message's text. Heartbeats leave
+    The receipt belongs beside the outgoing message's relative time. Heartbeats leave
     it alone, while a semantic transition changes its words and color in place.
     Re-inserting the node would replay its live region and any animation it wore."""
     url = serve(LONG_PAGE)
@@ -3449,17 +3297,15 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     receipt = thread.locator(
-        f'.lf-msg.user[data-mid="{comment["id"]}"] > .lf-msg-delivery '
-        f'> .lf-receipt[data-receipt-id="{comment["id"]}"]'
+        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{comment["id"]}"]'
     )
     thread.locator(".lf-thread-summary").click()
     expect(receipt).to_be_visible()
     expect(receipt).to_contain_text("✓ Sent")
     expect(thread.locator(".lf-thread-summary")).not_to_contain_text("Sent")
-    body = thread.locator(f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-body')
-    assert (
-        receipt.bounding_box()["y"]
-        >= body.bounding_box()["y"] + body.bounding_box()["height"]
+    assert receipt.evaluate(
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
     expect(receipt.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-receipt")).to_have_count(0)

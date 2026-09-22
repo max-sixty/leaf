@@ -5,7 +5,6 @@ import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
-import { promoteDeferredModals } from "./runtime/deferred-modals.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   settlePageInterface,
@@ -905,7 +904,6 @@ async function presentPage() {
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
   selectionComposer.openDraft(savedComposer);
-  promoteDeferredModals();
   document.dispatchEvent(new Event(PRESENTATION));
 }
 

@@ -374,8 +374,8 @@ this model, not reasons to add independent status rules at each surface.
 
 The selected compact accordion is implemented in the thread panel. A title row opens
 one conversation in place; the others retain their message and editor nodes while
-collapsed. Message counts share a column, author/time headers precede messages, and
-the reply field spans the conversation width. Delivery receipts follow their message. The [playground](thread-navigation/README.md)
+collapsed. Message counts share a column, message status follows its relative time in
+the author row, and the reply field spans the conversation width. The [playground](thread-navigation/README.md)
 retains the spacing study and supplies a seeded conversation fixture.
 
 The runtime owners document disclosure, keyboard, draft, and arrival behavior beside

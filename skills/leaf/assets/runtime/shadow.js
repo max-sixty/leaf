@@ -77,12 +77,10 @@ export const inUi = (node) =>
 // override travels with the widget, and fetched during upgrade so the stage below stays
 // synchronous for its callers.
 export let shadowRules = "";
-// A top-layer element no longer composites through its light/shadow ancestors, so the
-// document's rules cannot withhold generated interface, or a dialog or popover promoted
-// out of an x-shadow widget. Every legitimate page shadow tree is built here; repeat
-// those boundaries inside it, together with transition suppression. The shadow's
-// ordinary contents paint immediately and its generated interface paints after upgrade,
-// on the same boundaries as authored and generated light DOM.
+// Every legitimate page shadow tree is built here, so repeat the generated-interface
+// boundary and transition suppression inside it. The shadow's ordinary contents paint
+// immediately and its generated interface paints after upgrade, on the same boundaries
+// as authored and generated light DOM.
 export const SHADOW_STARTUP_CSS = `
 @layer {
   @media screen {
@@ -93,13 +91,6 @@ export const SHADOW_STARTUP_CSS = `
     }
     :host-context(body:not([data-lf-upgraded])) .lf-ui {
       visibility: hidden !important;
-    }
-    :host-context(body:not([data-lf-presented])) :is(dialog, [popover]),
-    :host-context(body:not([data-lf-presented])) :is(dialog, [popover])::backdrop {
-      visibility: hidden !important;
-      opacity: 0 !important;
-      transition: none !important;
-      interactivity: inert !important;
     }
   }
 }`;

@@ -1366,7 +1366,7 @@ class YamlDocument(str):
 
 class Prose(str):
     """A string a YAML snapshot writes as a folded `>-` block wrapped to the line,
-    where a plain scalar holding a colon would come out quoted."""
+    or a literal block when it already has line breaks."""
 
 
 class Json(dict):
@@ -1393,7 +1393,7 @@ class _SnapshotDumper(yaml.SafeDumper):
 _SnapshotDumper.add_representer(
     Prose,
     lambda dumper, text: dumper.represent_scalar(
-        "tag:yaml.org,2002:str", text, style=">"
+        "tag:yaml.org,2002:str", text, style="|" if "\n" in text else ">"
     ),
 )
 

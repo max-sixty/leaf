@@ -17,7 +17,7 @@ import {
   offer,
   paintKeys,
   projectData,
-  registerThreadSurface,
+  consumeThreads,
   relabel,
   scrollBehavior,
   shadowStage,
@@ -267,7 +267,7 @@ function wrapSwitch() {
 function diffTools(host, reviewing) {
   const tools = offer("div", "lf-diff-tools");
   const label = offer("div", "lf-diff-search-label");
-  const search = offer("wa-input", "lf-diff-search");
+  const search = offer("wa-input", "lf-diff-search lf-label-hidden");
   search.type = "search";
   search.size = "s";
   search.label = "Filter diff files";
@@ -433,10 +433,18 @@ customElements.define(
     connectedCallback() {
       this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
-        this.threadSurface = registerThreadSurface(this, {
-          begin: () => this.beginThreadSurface(),
-          outletFor: (entry) => this.threadOutletFor(entry),
-          end: () => this.endThreadSurface(),
+        this.threadSurface = consumeThreads(this, (collection, surfaces) => {
+          this.beginThreadSurface();
+          for (const thread of collection.threads) {
+            if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
+            const target = surfaces.target(thread.key);
+            const outlet = target && this.threadOutletFor(target);
+            if (outlet) surfaces.place(thread.key, outlet);
+          }
+          const outlet =
+            surfaces.composition && this.threadOutletFor(surfaces.composition);
+          if (outlet) surfaces.placeComposition(outlet);
+          this.endThreadSurface();
         });
       if (this.stopWatching) return;
       // A page diff's file header pins under the banner; one an agent sent in a reply

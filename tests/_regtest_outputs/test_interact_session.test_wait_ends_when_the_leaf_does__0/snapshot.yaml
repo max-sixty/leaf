@@ -1,0 +1,13 @@
+# An idle page ends its wait whether the server is still running or stopped.
+
+still served:
+  exit: 2
+  stdout: ''
+  stderr: |
+    the leaf ended; <page> is idle
+
+server stopped:
+  exit: 2
+  stdout: ''
+  stderr: |
+    the leaf ended; <page> is idle

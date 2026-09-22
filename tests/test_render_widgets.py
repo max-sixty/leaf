@@ -9653,11 +9653,11 @@ WEB_AWESOME_SHEET = """sheets => sheets.some(
 )"""
 
 
-def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
+def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
         plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is False
+        is True
     )
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
@@ -9665,6 +9665,9 @@ def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
             "() => performance.getEntriesByType('resource').map(entry => entry.name)"
         )
     )
+
+    assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
+    assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
 
     playground = open_page(browser, serve(PLAYGROUND_PAGE))
     assert (

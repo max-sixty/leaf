@@ -1,6 +1,7 @@
 """Control stability, browser shell, accessibility, and ring tests."""
 
 import json
+import os
 import re
 
 import pytest
@@ -11,6 +12,7 @@ from interact_support import (
 )
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import leases as leases_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -695,7 +697,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > .lf-layer-reference")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_have_count(1)
     expect(page.locator(".lf-banner-menu > *")).to_have_count(2)
     expect(page.locator(".lf-permanent-destination")).to_be_attached()
 
@@ -1016,15 +1018,16 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
-    needs = page.locator(".lf-needs")
-    reached_needs = False
+    selected_state = page.get_by_role("radio", name=re.compile(r"^Open(?: \(|$)"))
+    expect(selected_state).to_be_checked()
+    reached_state = False
     for _ in range(20):
-        if needs.evaluate("el => el === document.activeElement"):
-            reached_needs = True
+        if selected_state.evaluate("el => el.matches(':focus-within')"):
+            reached_state = True
             break
         page.keyboard.press("Tab")
-    assert reached_needs, "native Tab never reached the pending-reader panel control"
-    expect(needs).to_be_focused()
+    assert reached_state, "native Tab never reached the selected thread-state radio"
+    expect(selected_state).to_be_focused()
     expect(menu).to_be_hidden()
     expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     page.locator(".lf-threads-toggle").click()
@@ -1310,27 +1313,38 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
           shelf.measureBannerControls(() => {});
         }"""
     )
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
     page.locator(".lf-banner-more").click()
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
     page.evaluate(
         """async () => {
           const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
           window.__lfDeferredBannerMeasurement = null;
           shelf.measureBannerControls(() => {
             const chip = document.querySelector('.lf-preview');
-            window.__lfDeferredBannerMeasurement = chip.parentElement.className;
+            window.__lfDeferredBannerMeasurement = chip.closest(".lf-banner-actions, .lf-banner-menu").className;
           });
         }"""
     )
     assert page.evaluate("() => window.__lfDeferredBannerMeasurement") is None
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
     page.keyboard.press("Escape")
     page.wait_for_function("() => window.__lfDeferredBannerMeasurement !== null")
     assert page.evaluate("() => window.__lfDeferredBannerMeasurement") == (
         "lf-banner-actions"
     )
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    copy = page.get_by_role("button", name="Copy preview diagnostics", exact=True)
+    copy.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
+    copied = page.evaluate("() => navigator.clipboard.readText()")
+    assert copied.startswith("Leaf preview\nexample: feature-gallery\n")
+    assert "checkout: leaf.status-floor-and-selection" in copied
+    assert "t=" not in copied
+    expect(copy).to_be_focused()
     page.close()
 
     # A published page uses the same one-line status and complete hover text.
@@ -1551,7 +1565,7 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     )
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
-    folded = page.locator(".lf-banner-menu > *")
+    folded = page.locator(".lf-banner-menu .lf-btn")
     assert folded.count() > 0, "nothing folded, so this test has no menu to walk"
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
@@ -1712,6 +1726,34 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     assert live.text_content() == "", (
         f"the banner announced its first reading: {live.text_content()!r}"
     )
+
+    claim = record_claim(serve.page_dir, id="s", pid=os.getpid())
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    )
+    assert lease
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_stream_activity(
+            claim["id"], "provider-turn", {"kind": "awaiting_input"}
+        )
+    told(page)
+    expect(live).to_contain_text("Claude is waiting for input")
+    announced_wait = live.text_content()
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_stream_activity(
+            claim["id"], "provider-turn", {"kind": "tool", "detail": "Checking"}
+        )
+    told(page)
+    assert live.text_content() == announced_wait
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_stream_activity(
+            claim["id"], "provider-turn", {"kind": "awaiting_approval"}
+        )
+    told(page)
+    expect(live).to_contain_text("Claude is waiting for approval")
+    lease.close()
 
     held = []
 
@@ -2705,7 +2747,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         )
 
     wide = actions()
-    wide_folded = page.locator(".lf-banner-menu > *").count()
+    wide_folded = page.locator(".lf-banner-menu .lf-btn").count()
     assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
 
     # Where the left tray's control begins the row — or, where this width has folded it,
@@ -2862,16 +2904,15 @@ def test_a_panel_row_follows_its_pages_status_live(
             "Listening — pick a storage engine · 1 update waiting"
             "\n1 update waiting",
         )
-        # Pickup advances the same canonical activity row that the thread receipt
-        # reads. A latent page-wide waiting declaration cannot contradict exact
-        # delivery into the current turn.
+        # Pickup into the claimant's current turn proves generic page work while the
+        # exact delivery phase remains on the interaction receipt and in the account.
         with service_model.PageTransaction(other_dir) as transaction:
             session_model.record_pickup(transaction, [comment])
         told(page)
-        expect(row.locator(".lf-others-line")).to_have_text("Handling updates")
+        expect(row.locator(".lf-others-line")).to_have_text("Working")
         expect(row).to_have_attribute(
             "title",
-            f"The other leaf\n{tmp_path / 'other-work'}\nHandling updates"
+            f"The other leaf\n{tmp_path / 'other-work'}\nWorking"
             "\n1 update being handled",
         )
         events_model.append_event(
@@ -5439,7 +5480,7 @@ RING_CASES = (
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
                 (".lf-edge:visible", "edge"),
-                (".lf-find-box", "find-box"),
+                (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel textarea", "text-box"),
                 (".lf-shortcut-more", "key-more"),
             ),
@@ -5481,6 +5522,13 @@ RING_CASES = (
         "a thread title",
         (),
         {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
+    ),
+    # The keyboard walk lands on the accordion title, whose inset band also marks
+    # its native Tab stop.
+    (
+        "a walked thread",
+        ("g", "Shift+t", "t"),
+        {"ship-review": ((None, "thread-summary"),)},
     ),
     # The same walk with the panel shut lands in the margin's conversation view, on the
     # thread itself rather than a control inside it.
@@ -5586,7 +5634,7 @@ RING_CASES = (
         {
             "corpus": (
                 (".lf-page-map-action:visible", "page-map-action"),
-                (".lf-page-map-search:visible", "page-map-search"),
+                (".lf-page-map-search input:visible", "text-entry"),
             )
         },
     ),
@@ -5627,6 +5675,7 @@ RING_SCOPE_SURFACE = {
         None,
     ),
     "the thread list": (".lf-thread-panel.open", None),
+    "a walked thread": (".lf-thread-panel.open", None),
     "an inline thread": (".lf-margin-preview:popover-open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
@@ -5663,6 +5712,7 @@ RING_VIEWPORT = (1200, 900)
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "an inline response",
     "the thread list",
+    "a walked thread",
     "an inline thread",
     "a contents link",
     "a thread card",
@@ -5991,7 +6041,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 resolved = page.locator('[data-filter-value="resolved"]')
                 if (
                     resolved.is_enabled()
-                    and resolved.get_attribute("aria-pressed") != "true"
+                    and resolved.get_attribute("aria-checked") != "true"
                 ):
                     resolved.click()
                 page.evaluate(RING_FOCUS_START)

@@ -1,0 +1,105 @@
+# The summary hint from real conversation events, their wait delivery, and
+# the Codex pointer generated from that same immutable delivery.
+
+delivery:
+  format: leaf-delivery-v2
+  id: <delivery>
+  created_at: <time>
+  batches:
+    - page: <page>
+      through_seq: 13
+      conversations:
+        - id: event-2
+          anchor: null
+          detached_from: null
+          resolved: null
+          elided:
+            messages: 3
+            actions: 0
+          messages:
+            - id: event-2
+              seq: 2
+              author: user
+              text: >-
+                Which rollout?
+            - id: event-6
+              seq: 6
+              author: user
+              text: >-
+                Rollout consideration 4.
+            - id: event-7
+              seq: 7
+              author: agent
+              text: >-
+                Rollout consideration 5.
+            - id: event-8
+              seq: 8
+              author: user
+              text: >-
+                Rollout consideration 6.
+            - id: event-9
+              seq: 9
+              author: agent
+              text: >-
+                Rollout consideration 7.
+            - id: event-10
+              seq: 10
+              author: user
+              text: >-
+                Rollout consideration 8.
+            - id: event-11
+              seq: 11
+              author: agent
+              text: >-
+                Rollout consideration 9.
+            - id: event-12
+              seq: 12
+              author: user
+              text: >-
+                Rollout consideration 10.
+          summaries: []
+          summary_hint:
+            from: event-2
+            through: event-11
+            operation: >-
+              conversation summarize
+            instruction: >-
+              Consider summarizing this older exchange. Read the original messages
+              in the suggested range first; keep the newer exchange outside the
+              summary.
+          actions: []
+      handling:
+        h1: >-
+          The reader answered in a thread; the batch's `conversations` carries the
+          thread's context, and `leaf conversation read <page> <conversation-id>`
+          reads its history in pages. Reply with `leaf reply <page> --for <event-id>`,
+          or with your final message on a host that sends it as the reply; `leaf
+          reply` checks any page edit and makes it live before posting. Add `--awaits`
+          only if your reply's prose asks the reader something. Finishing the requested
+          work is not a reason to `leaf resolve` the thread; the reader usually
+          closes it.
+      events:
+        - kind: reply
+          author: user
+          parent: event-2
+          text: >-
+            What do you recommend now?
+          id: event-13
+          ts: <time>
+          seq: 13
+          subject:
+            kind: conversation
+            id: event-2
+          conversations: [event-2]
+          handling: [h1]
+          obligation:
+            as_of_seq: 13
+            response:
+              kind: reply
+              to: event-13
+              for: event-13
+
+Codex task input: |-
+  ```xml
+  <leaf-delivery id="&lt;delivery&gt;" operation="delivery claim"><summarize page="<page>" conversation="event-2" from="event-2" through="event-11" operation="conversation summarize">Consider summarizing this older exchange. Read the original messages in the suggested range first; keep the newer exchange outside the summary.</summarize></leaf-delivery>
+  ```

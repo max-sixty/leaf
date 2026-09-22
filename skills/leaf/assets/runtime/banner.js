@@ -1,7 +1,7 @@
 /* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
  * that has changed. */
 import { JUST_NOW, ago, clocked } from "./presence.js";
-import { el, reserve } from "./widget-elements.js";
+import { el, offer, reserve } from "./widget-elements.js";
 import { agentName, runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
@@ -83,9 +83,6 @@ registerBannerControl({
 // ---------- banner ----------
 const TONE = {
   working: "working",
-  handling: "working",
-  queued: "away",
-  picked_up: "away",
   listening: "listening",
   stalled: "away",
   away: "away",
@@ -94,6 +91,14 @@ const TONE = {
   closed: "",
 };
 export const toneFor = (kind) => TONE[kind];
+const WORK_WORDS = {
+  thinking: "thinking",
+  tool: "using a tool",
+  awaiting_approval: "waiting for approval",
+  awaiting_input: "waiting for input",
+  replying: "replying",
+};
+export const workWords = (kind) => WORK_WORDS[kind] || "working";
 // The judgment's third seat. A reader keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
@@ -179,9 +184,18 @@ function paintTab() {
 }
 // Summary and explanation share the canonical activity reading. The complete wording
 // remains available to pointer, keyboard, and touch through the native disclosure;
-// announcements report that explanation only when the kind changes, not on every poll.
+// announcements report that explanation when the page kind changes or current work
+// begins waiting for reader input or approval, not on every observed work step or poll.
 let saidKind;
-const presentStatus = ({ kind, tone, summary, explanation, publication = null }) => {
+let saidActionableWork;
+const presentStatus = ({
+  kind,
+  tone,
+  summary,
+  explanation,
+  publication = null,
+  actionableWork = null,
+}) => {
   let publicationModel = null;
   if (publication) {
     // A publication's introduction and install link remain an ordinary reading row.
@@ -203,15 +217,33 @@ const presentStatus = ({ kind, tone, summary, explanation, publication = null })
     }),
   );
   paintTab();
-  const changed = saidKind !== undefined && saidKind !== kind;
+  const changed =
+    saidKind !== undefined &&
+    (saidKind !== kind ||
+      (actionableWork !== null && actionableWork !== saidActionableWork));
   saidKind = kind;
+  saidActionableWork = actionableWork;
   if (changed) announce(explanation);
 };
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.
 // The shelf still owns and measures it with every other control.
+function copyControl(trigger, success, error) {
+  const copy = offer("wa-copy-button", "lf-banner-copy");
+  copy.successLabel = success;
+  copy.errorLabel = error;
+  copy.tooltip = "none";
+  // Web Awesome announces the result; Leaf puts the same words in its status line.
+  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
+  copy.addEventListener("wa-error", () => notice(error, { announce: false }));
+  copy.append(trigger);
+  copy.updateComplete.then(reserveBannerControls);
+  return copy;
+}
+
 let previewMarginEntry = null;
+let previewMarginEntryCopy = null;
 // A checkout goes dirty and clean again while a developer works, so the chip holds the
 // wider of its two spellings for the page's life rather than growing a character under
 // the reader's pointer. Renewed with the row's other reservations at a breakpoint.
@@ -249,22 +281,22 @@ function renderPreview(state) {
     previewMarginEntry = el("button", "lf-btn lf-preview", label);
     previewMarginEntry.type = "button";
     previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
-    previewMarginEntry.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(previewDiagnostics);
-        notice("Copied preview diagnostics");
-      } catch (_error) {
-        notice("Couldn't copy preview diagnostics");
-      }
-    });
+    previewMarginEntryCopy = copyControl(
+      previewMarginEntry,
+      "Copied preview diagnostics",
+      "Couldn't copy preview diagnostics",
+    );
     registerBannerControl({
       key: "preview",
-      control: previewMarginEntry,
+      control: previewMarginEntryCopy,
+      focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
       alwaysFolded: true,
     });
     reserveBannerControls();
   }
+  previewMarginEntryCopy.value = previewDiagnostics;
+  previewMarginEntryCopy.copyLabel = "Copy preview diagnostics";
   previewMarginEntry.textContent = label;
   previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
@@ -274,6 +306,7 @@ function renderPreview(state) {
 // `page init` rather than a live package or server version. Pages built outside Git
 // retain a stable identity through the composed layer fingerprint.
 let layerReferenceElement = null;
+let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
   if (state.preview) return;
@@ -300,21 +333,21 @@ function renderLayerReference(state) {
   if (!layerReferenceElement) {
     layerReferenceElement = el("button", "lf-btn lf-layer-reference");
     layerReferenceElement.type = "button";
-    layerReferenceElement.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(layerDiagnostics);
-        notice("Copied Leaf version");
-      } catch (_error) {
-        notice("Couldn't copy Leaf version");
-      }
-    });
+    layerReferenceElementCopy = copyControl(
+      layerReferenceElement,
+      "Copied Leaf version",
+      "Couldn't copy Leaf version",
+    );
     registerBannerControl({
       key: "layer",
-      control: layerReferenceElement,
+      control: layerReferenceElementCopy,
+      focusTarget: layerReferenceElement,
       rank: BANNER_CONTROL_RANK.layer,
       alwaysFolded: true,
     });
   }
+  layerReferenceElementCopy.value = layerDiagnostics;
+  layerReferenceElementCopy.copyLabel = `Leaf ${identity} · copy version`;
   layerReferenceElement.replaceChildren(
     "Leaf ",
     el("code", "lf-layer-version", identity),
@@ -347,14 +380,14 @@ function statusWords({
   shortDate,
   detail,
   kind,
-  obligations,
   pending,
+  progressSummary,
   quiet,
   saved,
   total,
+  workKind,
 }) {
   const savedSummary = total ? ` · ${total} saved` : "";
-  const updates = `${obligations} update${obligations === 1 ? "" : "s"}`;
   if (kind === "closed") return ["Leaf closed", "Leaf closed"];
   if (kind === "unattended")
     return [
@@ -372,32 +405,21 @@ function statusWords({
   // is what the ellipsis eats first and a stale sentence with its date cut off is the one
   // reading this row must not give.
   if (kind === "working") {
+    const work = workWords(workKind);
     const said = detail ? " — " + detail : "";
     return [
-      `${agent} working${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
-      `${agent} is working${said}`,
+      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}${progressSummary}`,
+      `${agent} is ${work}${said}`,
     ];
   }
-  if (kind === "handling")
-    return [`${agent} handling ${updates}`, `${agent} is handling ${updates}`];
-  if (kind === "queued")
-    return [
-      `${updates} queued for ${agent}`,
-      `${updates}${obligations === 1 ? " is" : " are"} queued for ${agent}`,
-    ];
-  if (kind === "picked_up")
-    return [
-      `${agent}’s turn ended${savedSummary}`,
-      `${agent} picked up ${updates}, but that turn ended. ${saved}`,
-    ];
   // A declared request tells the reader what to do. Preserve it on the row when
   // no pending input supersedes it; a generic attendance label would lose that cue.
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
     return pending
       ? [
-          `${agent} listening${savedSummary}`,
-          `${saved} ${agent} is listening${detail ? " — " + detail : ""}.`,
+          `${agent} listening${progressSummary}`,
+          `${agent} is listening${detail ? " — " + detail : ""}.`,
         ]
       : [awaits, awaits];
   }
@@ -417,6 +439,7 @@ function statusWords({
 // The public website support handle is available on demand with the banner's other
 // low-frequency controls. It does not compete with the page's live status sentence.
 let sessionReferenceElement = null;
+let sessionReferenceElementCopy = null;
 let sessionReferenceLabel = "";
 function renderSessionReference() {
   const reference = runtime.sessionReference;
@@ -429,21 +452,21 @@ function renderSessionReference() {
       sessionReferenceLabel,
     );
     sessionReferenceElement.type = "button";
-    sessionReferenceElement.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(runtime.sessionReference);
-        notice("Copied session reference");
-      } catch (_error) {
-        notice("Couldn't copy session reference");
-      }
-    });
+    sessionReferenceElementCopy = copyControl(
+      sessionReferenceElement,
+      "Copied session reference",
+      "Couldn't copy session reference",
+    );
     registerBannerControl({
       key: "session",
-      control: sessionReferenceElement,
+      control: sessionReferenceElementCopy,
+      focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       alwaysFolded: true,
     });
   }
+  sessionReferenceElementCopy.value = runtime.sessionReference;
+  sessionReferenceElementCopy.copyLabel = `${sessionReferenceLabel} · copy reference`;
   sessionReferenceElement.textContent = sessionReferenceLabel;
   sessionReferenceElement.setAttribute(
     "aria-label",
@@ -497,6 +520,10 @@ function renderStatusNow(state) {
     ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
     : `${agentName()} last checked in ${ago(activity.ts)}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
+  const progress = [];
+  if (activity.counts.queued) progress.push(`${activity.counts.queued} queued`);
+  if (activity.counts.pending) progress.push(`${activity.counts.pending} waiting`);
+  const progressSummary = progress.length ? ` · ${progress.join(" · ")}` : "";
   const [summary, text] = statusWords({
     age,
     agent: agentName(),
@@ -506,11 +533,12 @@ function renderStatusNow(state) {
       : `${agentName()} last checked in ${ago(activity.ts)}`,
     detail,
     kind,
-    obligations: activity.count,
     total: activity.counts.total,
-    pending: activity.counts.pending,
+    pending: activity.counts.pending || activity.counts.queued,
+    progressSummary,
     quiet,
     saved,
+    workKind: activity.observed_kind,
   });
   let explanation = age ? `${text} (${age})` : text;
   // What a transport can watch for itself, when the sentence beside it was written by
@@ -518,9 +546,23 @@ function renderStatusNow(state) {
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
     explanation += ` · ${activity.observed}`;
-  if (kind === "working" && activity.counts.queued)
-    explanation += `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`;
-  presentStatus({ kind, tone: TONE[kind], summary, explanation });
+  const waiting = [];
+  if (activity.counts.queued)
+    waiting.push(
+      `${activity.counts.queued} update${activity.counts.queued === 1 ? "" : "s"} queued`,
+    );
+  if (activity.counts.pending)
+    waiting.push(
+      `${activity.counts.pending} update${activity.counts.pending === 1 ? "" : "s"} waiting`,
+    );
+  if (waiting.length && ["working", "listening"].includes(kind))
+    explanation += `${explanation.endsWith(".") ? "" : "."} ${waiting.join(" · ")}.`;
+  const actionableWork = ["awaiting_approval", "awaiting_input"].includes(
+    activity.observed_kind,
+  )
+    ? activity.observed_kind
+    : null;
+  presentStatus({ kind, tone: TONE[kind], summary, explanation, actionableWork });
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);

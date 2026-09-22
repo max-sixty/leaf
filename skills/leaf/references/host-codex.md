@@ -52,7 +52,9 @@ leaf codex start <page> --app-server ws://127.0.0.1:4500
 
 Leaf resumes the current task as a second client. Plan updates, tool starts,
 reasoning summaries, and waits for approval or user input are watched as the task's
-current step. The page's sentence stays the one you declare with `leaf status`, and the
+current step. Leaf retains thinking, tool use, replying, approval waits, and input
+waits as distinct observations. They describe overall page activity; an observed
+step alone does not claim work on a particular message. The page's sentence stays the one you declare with `leaf status`, and the
 step stands beside it in the banner's disclosure; where you have declared nothing for
 this work, the step is the sentence. New reader input reaches you only once the current
 turn ends, because a delivery starts a turn of its own: once the task is idle, Leaf

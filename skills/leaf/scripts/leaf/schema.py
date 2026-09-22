@@ -53,31 +53,26 @@ MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
 ANSWER_ASK_INSTRUCTION = (
-    "`leaf page state <page>` lists each conversation's current state, and "
-    "`leaf conversation read <page> <id>` prints one exact bounded history. A "
-    "conversation with "
-    "`response.kind: version` is answered by revising the page and resolving it; open a "
-    "separate `leaf comment <page> --section <ask-id>` on the same Ask if that revision "
-    "needs an answer first. Answer each reply through the active host's reply "
-    "interface. A host may bind the current response to its normal final message; "
-    "CLI hosts use `leaf reply <page> --text ...`, selecting an event with `--for "
-    "<event-id>` when several are pending. "
-    "An explicit reply validates and activates a changed source, and leaves the "
-    "conversation open for the reader."
+    "Read current obligations with `leaf page state <page>` and conversation history "
+    "with `leaf conversation read <page> <id>`. Reply using "
+    "`leaf reply <page> --for <event-id> --text ...`, or your final message if the "
+    "host sends it as the reply. For `response.kind: version`, revise and stamp the "
+    "page, then resolve the conversation. If you need clarification first, open "
+    "`leaf comment <page> --section <ask-id>` on the same Ask. "
+    "An explicit reply checks and activates page edits; it leaves the conversation open."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
-    "A wait result prints one immutable Leaf delivery envelope containing one page's "
-    "complete ordered batch, conversation context, and capture-time response "
-    "requirements. First run `leaf delivery claim <id>` so the page shows the exact "
-    "outstanding move as Working; the same envelope remains available with `leaf "
-    "delivery read <id>`."
+    "Print one page's complete ordered batch, conversation context, and response "
+    "requirements as an immutable delivery. Run `leaf delivery claim <id>` to mark "
+    "the outstanding move Working. `leaf delivery read <id>` reads that same delivery."
 )
 ACK_BATCH_INSTRUCTION = (
-    "If wait output is truncated, acknowledge nothing and rerun with enough output "
-    "capacity for the whole batch. After the complete batch reaches its next durable "
-    "consumer, the wait owner runs `leaf ack <page> <through-seq>` for the page and "
-    "sequence the batch names. Ack advances the cursor, then waits for the next batch "
-    "while the page remains live."
+    "If output is truncated, acknowledge nothing; rerun with enough output capacity "
+    "for the whole batch. If you handle the batch yourself, read it fully before "
+    "acknowledging. If forwarding it, wait for durable delivery to its handler. "
+    "Then run `leaf ack <page> <through-seq>` in the background, using the batch's "
+    "page and sequence. Ack advances the cursor, then "
+    "waits for the next batch while the page remains live."
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"

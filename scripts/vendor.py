@@ -378,13 +378,10 @@ def build_floating_ui(work: Path) -> list[Path]:
 
 
 def build_webawesome(work: Path) -> list[Path]:
-    """Ship shared controls and their theme in one on-demand browser bundle.
+    """Split chrome controls from optional widgets, sharing their dependency graph.
 
-    Every runtime package consumed by this entry is pinned, including Lit and
-    Floating UI. Leaf's browser module intentionally exports only its own Lit
-    subset; Web Awesome needs additional directives and decorators, so this
-    shared bundle carries its own copy instead of widening the core API. Widget
-    imports load the JavaScript only when the page uses one of these controls.
+    Both entry points register the same components once. Optional controls remain
+    on demand; the shared chunks are core payload because chrome also reads them.
     """
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
@@ -415,21 +412,30 @@ def build_webawesome(work: Path) -> list[Path]:
         cwd=work,
     )
     source = ROOT / "scripts/vendor-src/webawesome"
-    for name in ("entry.mjs", "build.mjs", "leaf-theme.css"):
+    for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
         "build.mjs",
-        str(out),
+        str(work / "bundle"),
         PINS["@awesome.me/webawesome"],
         cwd=work,
     )
     consumed = tuple(json.loads((work / "packages.json").read_text()))
     if set(consumed) != set(packages):
         raise RuntimeError(f"Web Awesome runtime dependencies changed: {consumed}")
-    refuse_if_csp_forbids(out)
+    shared = ASSETS / "vendor/webawesome"
+    if shared.exists():
+        shutil.rmtree(shared)
+    shutil.copytree(work / "bundle/webawesome", shared)
+    shutil.copyfile(work / "bundle/webawesome.esm.js", out)
+    chrome = ASSETS / "vendor/webawesome-chrome.js"
+    shutil.copyfile(work / "bundle/webawesome-chrome.js", chrome)
+    outputs = [out, chrome, *sorted(shared.glob("*.js"))]
+    for output in outputs:
+        refuse_if_csp_forbids(output)
     notices.write_text(package_notices(work, consumed, out.name), encoding="utf-8")
-    return [out, notices]
+    return [*outputs, notices]
 
 
 def build_plot(work: Path) -> list[Path]:

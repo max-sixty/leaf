@@ -33,8 +33,9 @@ acknowledges that batch and waits for another. The event reference owns the
 complete-batch and acknowledgement rules.
 
 If a turn ends without answering an acknowledged move, the next prompt hook
-carries that obligation back into context, and the page resumes **handling** from
-that delivery without a status write.
+carries that obligation back into context and renews its **Picked up** receipt
+for the new turn without a status write. The banner reports overall page activity
+separately.
 
 How `leaf wait` and `leaf ack` end, and what each ending asks of the loop, is in
 `references/event-batches.md` under "Delivery and acknowledgement". The signal that

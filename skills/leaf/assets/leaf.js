@@ -1,5 +1,8 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
+// Restored panels and the first keyboard gesture share the ordinary synchronous
+// control routes, so their controls must be upgraded before those routes mount.
+import "./vendor/webawesome-chrome.js";
 import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
@@ -7,6 +10,7 @@ import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
+  pageArrived,
   settlePageInterface,
   PAGE_INTERFACE,
   PAGE_PAINT_ATTRIBUTE,
@@ -125,9 +129,15 @@ initializeServedDocument();
 
 // A published shell may bundle the entry without publishing its source modules beside
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API.
+// checks can inspect either distribution without turning it into a package API. The two
+// readings answer different questions: whether the current epoch is presented, and
+// whether the page has also finished the arrivals it deliberately placed after
+// presenting.
 const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry) validationEntry.lfCurrentPresentationReady = applicationPresented;
+if (validationEntry) {
+  validationEntry.lfCurrentPresentationReady = applicationPresented;
+  validationEntry.lfPageArrived = pageArrived;
+}
 import { overflowMenu } from "./runtime/banner-shelf.js";
 import {
   leavesOffered,
@@ -726,7 +736,11 @@ skipToChrome.onclick = () => {
 };
 
 if (!offlineInteractive) {
-  document.adoptedStyleSheets = [chromeSheet, marksSheet];
+  document.adoptedStyleSheets = [
+    ...document.adoptedStyleSheets,
+    chromeSheet,
+    marksSheet,
+  ];
   chromeRoot.append(
     banner,
     overflowMenu,
@@ -768,7 +782,10 @@ if (!offlineInteractive) {
   });
   reserveBannerControls();
   auxiliaryModality.mount();
-  panelComposer.mount();
+  // Connect the search field before mount awaits its rendered input: Lit does not
+  // resolve updateComplete until connection, and keyboard registration needs that input.
+  mountNarrowing(app.presentConversation);
+  await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
   reactions.mount();
@@ -786,7 +803,6 @@ if (!offlineInteractive) {
   app.mountConversation();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
-  mountNarrowing(app.presentConversation);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();

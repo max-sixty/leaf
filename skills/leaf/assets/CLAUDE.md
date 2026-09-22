@@ -320,8 +320,8 @@ before resolving its current node and scrolling to it;
 `runtime/page-geometry.js` coordinates page movement and anchor, drawing, and aim paint;
 `runtime/conversation/model.js` folds supplied server threads and unresolved messages
 as values; it reads no runtime store or DOM. `conversation/identity.js` owns pending
-message identity. `conversation/state.js` holds the one derived conversation reading,
-written by conversation presentation and consumed by its surfaces;
+message identity. `conversation/state.js` selects the publisher's canonical Thread
+collection shared by the panel and packages;
 `runtime/conversation/messages.js` owns immutable message readings and their synchronous
 Lit presentation, including retained frozen authored islands;
 `runtime/conversation/replies.js` owns reply drafts, retained editor subscription
@@ -342,16 +342,16 @@ search input and local disclosure state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` projects and Lit-renders complete message
 reaction surfaces, retiring their registered keyboard mode before removal;
-`runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
-threads they claim from the margin-projection fallback;
+`runtime/conversation/surfaces.js` owns Thread consumer lifetimes, their presentation
+completion, registry-declared outlets, and the Threads they claim from the margin;
 `runtime/conversation/thread-card.js` owns the shared immutable thread descriptor and
 complete synchronous Lit tree across retained native panel, page, widget-outlet, and
 margin cards; native editors remain opaque mechanical islands;
 `runtime/conversation/thread-list-view.js` owns keyed panel placement and committed
 descriptor restoration; `conversation/thread-list.js` owns its grouping, scroll holds,
 and connected presentation proof for already-admitted frozen widgets;
-`runtime/conversation/acknowledgments.js` derives immutable message-receipt readings
-from canonical activity and captured fragment membership; message owners place retained
+`runtime/conversation/acknowledgments.js` formats the canonical message receipts
+published by the conversation model; message owners place retained
 Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
@@ -683,11 +683,15 @@ sibling's visible surface.
 
 During startup, generated interface first appears in its settled upgrade position, from
 authored and tab-local state. An asynchronous producer joins the applicable widget, data,
-or page-interface settlement before `data-lf-upgraded` releases that interface. Apparatus
-that also depends on authoritative replay takes one synchronous reading on `PRESENTATION`,
-then uses `ResizeObserver` or the shared layout signal for later changes. An asynchronous
-producer's default may reserve space without painting; a box-derived reading taken before
-replay does paint, and `PRESENTATION` replaces it.
+or page-interface settlement before `data-lf-upgraded` releases that interface. A producer
+that stays off the presentation path on purpose goes through `afterPresentation`, which
+waits and declares the arrival in one call, so `pageArrived` still answers for it and
+nothing outside the page has to name the widget that deferred; `deferredArrival` is that
+declaration on its own, for runtime work that defers without waiting for presentation.
+Apparatus that also depends on authoritative replay takes one synchronous reading on
+`PRESENTATION`, then uses `ResizeObserver` or the shared layout signal for later changes.
+An asynchronous producer's default may reserve space without painting; a box-derived
+reading taken before replay does paint, and `PRESENTATION` replaces it.
 
 An action awaiting confirmation dims its existing control after the shared delay; it
 does not gain another mark or change geometry. Durable workflow state uses the control's

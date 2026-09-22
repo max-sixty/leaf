@@ -5,15 +5,10 @@
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
-import { turns, threadKey } from "./model.js";
-import {
-  anchorLabel,
-  MessageView,
-  messageReading,
-  messageWidgetIds,
-} from "./messages.js";
+import { turns, threadKey, threadSummary } from "./model.js";
+import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-strips.js";
-import { messageReceipts } from "./acknowledgments.js";
+import { receiptReading } from "./acknowledgments.js";
 import { offer, reachedForWords } from "../widget-elements.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -67,14 +62,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  {
-    interactions,
-    revision,
-    visible = true,
-    grow = false,
-    outline = null,
-    search = null,
-  },
+  { visible = true, grow = false, outline = null, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -89,6 +77,7 @@ export function threadReading(
   const label = resolved ? word : "Resolve thread";
   return Object.freeze({
     key: threadKey(thread),
+    summary: threadSummary(thread),
     id: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
@@ -114,12 +103,10 @@ export function threadReading(
       turns(thread).map((message) =>
         messageReading(message, {
           panel,
-          receipts: messageReceipts(
-            thread,
-            message,
-            panel ? messageWidgetIds(message) : [],
-            interactions,
-            revision,
+          receipts: Object.freeze(
+            message.receipts
+              .filter((receipt) => panel || receipt.target.kind === "thread")
+              .map(receiptReading),
           ),
           reactions: reactionReading(thread, message, panel || surface === "outlet"),
         }),
@@ -130,9 +117,8 @@ export function threadReading(
 
 function navigationSummary(navigation, model) {
   if (!navigation) return nothing;
-  const first = model.messages[0]?.body;
-  const title = first?.plainText.trim() || model.quote?.label || "Thread";
-  const count = model.messages.length;
+  const title = model.summary.topic || model.quote?.label || "Thread";
+  const count = model.summary.count;
   const latest = model.messages.at(-1);
   // Pick the most advanced live work across the thread: a later Sent message
   // must not hide an earlier message the agent is still working on.

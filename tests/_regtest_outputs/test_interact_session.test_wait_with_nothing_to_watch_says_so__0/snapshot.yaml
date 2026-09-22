@@ -1,0 +1,8 @@
+# An unnamed wait exits when the session owns no page.
+
+exit: 2
+
+stdout: ''
+
+stderr: |
+  nothing to watch: no page named and none claimed by this session

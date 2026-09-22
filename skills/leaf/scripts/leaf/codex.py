@@ -26,7 +26,7 @@ import subprocess
 import time
 import uuid
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
@@ -344,20 +344,22 @@ class AppServerEvents:
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.turn_id: str | None = None
-        self.details: dict[str, str] = {}
         self.text: dict[str, str] = {}
         self.message_phases: dict[str, str | None] = {}
         self.message_order: list[str] = []
         self.item_started_at: dict[str, int] = {}
+        self.active_items: dict[str, dict] = {}
+        self.waiting_kind: str | None = None
 
     def restore_turn(self, turn: dict) -> str:
         """Replace transient message state with one resumed provider turn."""
         self.turn_id = turn["id"]
-        self.details.clear()
         self.text.clear()
         self.message_phases.clear()
         self.message_order.clear()
         self.item_started_at.clear()
+        self.active_items.clear()
+        self.waiting_kind = None
         for item in turn.get("items", []):
             if item.get("type") == "agentMessage":
                 self._record_message(item)
@@ -373,7 +375,7 @@ class AppServerEvents:
 
         if method == "turn/started":
             self.restore_turn(params["turn"])
-            return {"turn": self.turn_id, "activity": "Starting"}
+            return {"turn": self.turn_id, "activity": {"kind": "working"}}
 
         turn_id = params.get("turnId") or self.turn_id
         if method == "turn/completed":
@@ -382,14 +384,15 @@ class AppServerEvents:
             final = self.final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
-                self.details.clear()
                 self.item_started_at.clear()
+                self.active_items.clear()
+                self.waiting_kind = None
             return {
                 "turn": completed,
                 "completed": turn.get("status", "completed"),
                 "text": final,
             }
-        if turn_id is None:
+        if turn_id is None or turn_id != self.turn_id:
             return None
 
         if method == "turn/plan/updated":
@@ -403,7 +406,17 @@ class AppServerEvents:
                     (step["step"] for step in steps if step["status"] == "pending"),
                     None,
                 )
-            return {"turn": turn_id, "activity": _head(current)} if current else None
+            if current is None:
+                return None
+            planned = {"kind": "working", "detail": _head(current)}
+            return {
+                "turn": turn_id,
+                "activity": (
+                    self._standing_activity()
+                    if self.waiting_kind is not None or self.active_items
+                    else planned
+                ),
+            }
 
         if method == "item/started":
             item = params["item"]
@@ -412,26 +425,32 @@ class AppServerEvents:
                 self._record_message(item)
                 if item.get("phase") == "commentary":
                     return {"turn": turn_id, "item": lifecycle}
+                self._set_active(item["id"], {"kind": "replying"})
                 if item.get("text"):
                     return {
                         "turn": turn_id,
                         "item": lifecycle,
+                        "activity": self._standing_activity(),
                         "message": self._message_update(item["id"], complete=False),
                     }
-                return {"turn": turn_id, "item": lifecycle}
+                return {
+                    "turn": turn_id,
+                    "item": lifecycle,
+                    "activity": self._standing_activity(),
+                }
             detail = self._item_detail(item)
             if detail:
-                self.details[item["id"]] = detail
+                self._set_active(item["id"], {"kind": "tool", "detail": detail})
             return {
                 "turn": turn_id,
                 "item": lifecycle,
-                **({"activity": detail} if detail else {}),
+                **({"activity": self._standing_activity()} if detail else {}),
             }
 
         if method == "item/completed":
             item = params["item"]
             lifecycle = self._item_lifecycle(params, "completed")
-            self.details.pop(item["id"], None)
+            self.active_items.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
                 if item.get("phase") == "commentary":
@@ -439,9 +458,14 @@ class AppServerEvents:
                 return {
                     "turn": turn_id,
                     "item": lifecycle,
+                    "activity": self._standing_activity(),
                     "message": self._message_update(item["id"], complete=True),
                 }
-            return {"turn": turn_id, "item": lifecycle}
+            return {
+                "turn": turn_id,
+                "item": lifecycle,
+                "activity": self._standing_activity(),
+            }
 
         if method == STREAM_MESSAGE_METHOD:
             item_id = params["itemId"]
@@ -452,8 +476,10 @@ class AppServerEvents:
                 self.message_phases[item_id] = None
             if self.message_phases.get(item_id) == "commentary":
                 return None
+            self._set_active(item_id, {"kind": "replying"})
             return {
                 "turn": turn_id,
+                "activity": self._standing_activity(),
                 "message": self._message_update(item_id, complete=False),
             }
 
@@ -461,25 +487,56 @@ class AppServerEvents:
             item_id = params["itemId"]
             combined = self.text.get(item_id, "") + params["delta"]
             self.text[item_id] = combined
-            return {"turn": turn_id, "activity": "Thinking — " + _tail(combined)}
+            activity = {"kind": "thinking", "detail": _tail(combined)}
+            self._set_active(item_id, activity)
+            return {"turn": turn_id, "activity": self._standing_activity()}
 
         if method in STREAM_HEARTBEAT_METHODS:
-            detail = self.details.get(params["itemId"])
-            return {"turn": turn_id, "activity": detail} if detail else None
+            item_id = params["itemId"]
+            activity = self.active_items.get(item_id)
+            if activity and activity["kind"] == "tool":
+                self._set_active(item_id, activity)
+            return (
+                {
+                    "turn": turn_id,
+                    "activity": self._standing_activity(),
+                }
+                if activity and activity["kind"] == "tool"
+                else None
+            )
 
         if method in {
             "item/commandExecution/requestApproval",
             "item/fileChange/requestApproval",
             "item/permissions/requestApproval",
-            "item/tool/requestUserInput",
         }:
-            return {"turn": turn_id, "activity": "Waiting for input in Codex"}
+            self.waiting_kind = "awaiting_approval"
+            return {"turn": turn_id, "activity": self._standing_activity()}
+        if method == "item/tool/requestUserInput":
+            self.waiting_kind = "awaiting_input"
+            return {"turn": turn_id, "activity": self._standing_activity()}
 
         if method == "thread/status/changed":
             flags = params.get("status", {}).get("activeFlags", [])
-            if "waitingOnApproval" in flags or "waitingOnUserInput" in flags:
-                return {"turn": turn_id, "activity": "Waiting for input in Codex"}
+            if "waitingOnApproval" in flags:
+                self.waiting_kind = "awaiting_approval"
+            elif "waitingOnUserInput" in flags:
+                self.waiting_kind = "awaiting_input"
+            else:
+                self.waiting_kind = None
+            return {"turn": turn_id, "activity": self._standing_activity()}
         return None
+
+    def _standing_activity(self) -> dict:
+        """Return the newest observation whose provider item is still running."""
+        if self.waiting_kind is not None:
+            return {"kind": self.waiting_kind}
+        return next(reversed(self.active_items.values()), {"kind": "working"})
+
+    def _set_active(self, item_id: str, activity: dict) -> None:
+        """Make one live provider item the most recently observed item."""
+        self.active_items.pop(item_id, None)
+        self.active_items[item_id] = activity
 
     def _record_message(self, item: dict) -> None:
         item_id = item["id"]
@@ -645,10 +702,8 @@ def project_app_server_activity(
     if update.get("completed"):
         clear_stream_activity(events.thread_id, turn_id)
         return last_stream_update
-    detail = update.get("activity")
-    if detail is None and (message_update := update.get("message")):
-        detail = _tail(message_update["text"])
-    if detail is None:
+    activity = update.get("activity")
+    if activity is None:
         return last_stream_update
     now = time.monotonic()
     if (
@@ -656,7 +711,7 @@ def project_app_server_activity(
         and now - last_stream_update < STREAM_UPDATE_INTERVAL
     ):
         return last_stream_update
-    set_stream_activity(events.thread_id, turn_id, detail)
+    set_stream_activity(events.thread_id, turn_id, activity)
     return now
 
 
@@ -682,11 +737,11 @@ def _locked_task_pages(session_id: str):
         yield pages
 
 
-def set_stream_activity(session_id: str, turn_id: str, detail: str) -> None:
+def set_stream_activity(session_id: str, turn_id: str, activity: dict) -> None:
     """Show what one turn is doing on every page this task claims."""
     with _locked_task_pages(session_id) as pages:
         for page in pages:
-            page.set_stream_activity(session_id, turn_id, detail)
+            page.set_stream_activity(session_id, turn_id, activity)
 
 
 def clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
@@ -911,6 +966,17 @@ def queue_records(session_id: str) -> list[tuple[Path, dict]]:
         for path in directory.glob("*.json")
         if (queue := read_json(path)) is not None
         and queue.get("format") == QUEUE_FORMAT
+        and (
+            queue["state"] != "collecting"
+            or all("handling" in batch for batch in queue["batches"])
+        )
+        and (
+            queue["state"] != "offering"
+            or (
+                (payload := read_json(delivery_path(path.stem))) is not None
+                and payload.get("format") == DELIVERY_FORMAT
+            )
+        )
     ]
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
@@ -961,6 +1027,9 @@ class PreparedDelivery:
 
     prompt: str
     payload: dict
+    claim_transition: tuple[dict | None, dict] | None = field(
+        default=None, compare=False, repr=False
+    )
 
 
 def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
@@ -1051,11 +1120,8 @@ def append_batch(
         as_of_seq=max(event["seq"] for event in fresh),
     )
     entry = {
-        "page": data["page"],
+        **data,
         "session": session_id,
-        "through_seq": data["through_seq"],
-        "conversations": data["conversations"],
-        "events": data["events"],
         "receipted": False,
     }
     queue["batches"].append(entry)
@@ -1140,7 +1206,8 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
-                    return offer_delivery(*pending)
+                    offered = offer_delivery(*pending)
+                    return PreparedDelivery(offered.prompt, offered.payload, transition)
                 captured = append_batch(
                     session_id,
                     page_dir,
@@ -1150,7 +1217,8 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                return offer_delivery(path, read_json(path))
+                offered = offer_delivery(path, read_json(path))
+                return PreparedDelivery(offered.prompt, offered.payload, transition)
     except BaseException:
         restore_page_claim(page_dir, transition)
         raise

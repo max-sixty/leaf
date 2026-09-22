@@ -4,7 +4,7 @@ import { pagePresented } from "./presentation.js";
 import { liveLeavesList, trayIsOpen, othersPanel } from "./trays.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { walkRows } from "./keyboard/bindings.js";
-import { toneFor } from "./banner.js";
+import { toneFor, workWords } from "./banner.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 let others = [];
@@ -76,7 +76,15 @@ export function declareLeavesKeys() {
 // same judgment the banner's sentences come from — the judgment is shared, the
 // wording is the seat's.
 function rowPresence(entry) {
-  const { kind, quiet, dropped, detail, ts, counts } = entry.activity;
+  const {
+    kind,
+    quiet,
+    dropped,
+    detail,
+    observed_kind: observedKind,
+    ts,
+    counts,
+  } = entry.activity;
   // The same join for both kinds that have words of their own. The reader opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
   // `Working — recording the demo` said least about the one row they are here to act
@@ -85,34 +93,31 @@ function rowPresence(entry) {
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
   const silence = dropped ? `Left (${ago(entry.turn_closed)})` : `Quiet (${ago(ts)})`;
+  const work = workWords(observedKind).replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"
-      ? stated("Working")
-      : kind === "handling"
-        ? "Handling updates"
-        : kind === "queued"
-          ? "Queued"
-          : kind === "picked_up"
-            ? "Picked up; turn ended"
-            : kind === "listening"
-              ? counts.pending
-                ? stated("Listening")
-                : stated("Awaits")
-              : kind === "stalled"
-                ? stated(silence)
-                : kind === "away"
-                  ? quiet
-                    ? silence
-                    : "Away"
-                  : kind === "unheld"
-                    ? "Unheld"
-                    : kind === "unattended"
-                      ? "Unattended"
-                      : "Closed";
-  const pending = counts.pending
-    ? `${counts.pending} update${counts.pending === 1 ? "" : "s"} waiting`
-    : null;
-  const line = pending ? `${primary} · ${pending}` : primary;
+      ? stated(work)
+      : kind === "listening"
+        ? counts.pending || counts.queued
+          ? stated("Listening")
+          : stated("Awaits")
+        : kind === "stalled"
+          ? stated(silence)
+          : kind === "away"
+            ? quiet
+              ? silence
+              : "Away"
+            : kind === "unheld"
+              ? "Unheld"
+              : kind === "unattended"
+                ? "Unattended"
+                : "Closed";
+  const waiting = [];
+  if (counts.queued)
+    waiting.push(`${counts.queued} update${counts.queued === 1 ? "" : "s"} queued`);
+  if (counts.pending)
+    waiting.push(`${counts.pending} update${counts.pending === 1 ? "" : "s"} waiting`);
+  const line = waiting.length ? `${primary} · ${waiting.join(" · ")}` : primary;
   return { tone: toneFor(kind), line };
 }
 

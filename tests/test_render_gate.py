@@ -3350,6 +3350,68 @@ def test_dragging_an_edge_preserves_reader_state(browser, serve, edge, pointer):
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
+    """Other buttons, outside presses, and a second touch cannot take a resize."""
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, has_touch=True
+    )
+    page = open_page(
+        browser, serve(edge.html(), comments=edge.comments), context=context
+    )
+    edge.stand(page)
+    edge_settled(page, edge)
+    handle = page.locator(f"{edge.region} .lf-edge")
+    box = handle.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    dx = -40 if edge.side == "right" else 40
+    before = geometry(page, edge)["width"]
+
+    page.mouse.move(x, y)
+    page.mouse.down(button="right")
+    page.mouse.move(x + dx, y)
+    assert geometry(page, edge)["width"] == before
+    assert not page.evaluate("() => document.body.hasAttribute('data-lf-sizing')")
+    page.mouse.up(button="right")
+
+    page.mouse.move(x - 150 if edge.side == "right" else x + 150, y)
+    page.mouse.down()
+    page.mouse.move(x, y)
+    page.mouse.up()
+    assert geometry(page, edge)["width"] == before
+    assert not handle.evaluate("e => e === document.activeElement")
+
+    cdp = context.new_cdp_session(page)
+
+    def touch(kind, *points):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": kind,
+                "touchPoints": [
+                    {"id": pointer_id, "x": at, "y": y} for pointer_id, at in points
+                ],
+            },
+        )
+
+    touch("touchStart", (1, x))
+    touch("touchMove", (1, x + dx))
+    assert geometry(page, edge)["width"] == before + 40
+    second_box = handle.bounding_box()
+    second_x = second_box["x"] + second_box["width"] / 2 + 10
+    touch("touchStart", (1, x + dx), (2, second_x))
+    touch("touchMove", (1, x + dx + dx / 2), (2, second_x))
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert geometry(page, edge)["width"] == before + 60
+    touch("touchEnd", (2, second_x))
+    assert page.evaluate("() => document.body.hasAttribute('data-lf-sizing')")
+    touch("touchMove", (1, x + dx + dx))
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert geometry(page, edge)["width"] == before + 80
+    touch("touchEnd", (1, x + dx + dx))
+    assert not page.evaluate("() => document.body.hasAttribute('data-lf-sizing')")
+
+
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     browser, serve, edge
 ):

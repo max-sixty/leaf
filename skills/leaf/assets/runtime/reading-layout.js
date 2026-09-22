@@ -10,6 +10,9 @@ import {
 } from "./reading-regions.js";
 import { LAYOUT, layoutChanged } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
+import { focused } from "./keyboard/scopes.js";
+import { focusDestination, readCaret } from "./focus.js";
+import { containsAcross } from "./passages.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 
 const generated = (className) => {
@@ -62,6 +65,11 @@ export function arrangeReadingElement({
   if (!owner || !["workspace", "pane", "partition"].includes(role))
     throw new Error("leaf: a reading element needs an owner and reading role");
 
+  // Building wrappers temporarily disconnects the same authored controls. Transfer
+  // their focus in this turn, before asynchronous layout can admit another gesture.
+  const active = focused();
+  const held = active && containsAcross(owner, active) ? active : null;
+  const caret = readCaret(held);
   const content = generated(`lf-reading-content lf-${role}-content`);
   const body = role === "pane" ? generated("lf-reading-body lf-pane-body") : content;
   const frame = new Set([header, footer].filter(Boolean));
@@ -83,6 +91,7 @@ export function arrangeReadingElement({
   owner.replaceChildren(...[header, content, footer].filter(Boolean));
   owner.classList.add("lf-reading", `lf-${role}-reading`);
   syncWorkspaceContext(owner);
+  if (held?.isConnected) focusDestination(held, caret);
 
   layoutChanged(owner);
   return { body, content, readingArrangement };

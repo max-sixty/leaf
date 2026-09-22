@@ -376,12 +376,20 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     ("install", "gesture"),
     [
         ("patch", gesture)
-        for gesture in ("wheel", "focus", "edit", "reveal", "hidden", "untouched")
+        for gesture in (
+            "wheel",
+            "focus",
+            "edit",
+            "blank",
+            "reveal",
+            "hidden",
+            "untouched",
+        )
     ]
     # A fresh document has no tab controls until its widgets have loaded.
     + [
         ("reload", gesture)
-        for gesture in ("wheel", "focus", "edit", "hidden", "untouched")
+        for gesture in ("wheel", "focus", "edit", "blank", "hidden", "untouched")
     ],
 )
 def test_revision_restoration_yields_to_input_while_a_diagram_loads(
@@ -413,7 +421,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     page.locator("#reading-draft").fill("kept draft")
     left = page.locator("#left-reading .lf-pane-body")
     left.evaluate("el => el.scrollTop = 300")
-    page.locator("#left-head").click()
+    page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
     held = []
     page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
     revised = source.replace(
@@ -431,6 +439,11 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     stamp_page(serve.page_dir, revised, "Add a diagram")
     holding(page, held, 1, "the new diagram renderer")
     try:
+        # Typing must remain possible throughout replacement, without a click to
+        # recover the field while an unrelated renderer finishes downloading.
+        draft = page.locator("#reading-draft")
+        expect(draft).to_be_focused()
+        assert draft.evaluate("el => el.selectionStart") == 4
         if gesture == "wheel":
             left.hover()
             page.mouse.wheel(0, 220)
@@ -440,7 +453,10 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         elif gesture == "focus":
             page.locator("#right-head").click()
         elif gesture == "edit":
-            page.locator("#reading-draft").fill("new draft")
+            page.keyboard.type(" fresh")
+        elif gesture == "blank":
+            page.mouse.click(2, 200)
+            expect(page.locator("body")).to_be_focused()
         elif gesture == "reveal":
             page.get_by_role("tab", name="Second", exact=True).click()
         scroll = left.evaluate("el => el.scrollTop")
@@ -448,7 +464,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         wait_for_revision(page, 2)
         expect(page.locator("#late-diagram svg")).to_have_count(1)
         expect(page.locator("#reading-draft")).to_have_value(
-            "new draft" if gesture == "edit" else "kept draft"
+            "kept fresh draft" if gesture == "edit" else "kept draft"
         )
         expect(
             page.get_by_role(
@@ -459,10 +475,17 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
         elif gesture == "focus":
             expect(page.locator("#right-head")).to_be_focused()
+        elif gesture == "blank":
+            expect(page.locator("body")).to_be_focused()
         elif gesture == "untouched":
             assert page.locator("#left-landmark").evaluate(
                 "el => el.getBoundingClientRect().top"
             ) == pytest.approx(before, abs=2)
+        if gesture in ("wheel", "edit", "hidden", "untouched"):
+            expect(draft).to_be_focused()
+            assert draft.evaluate("el => el.selectionStart") == (
+                10 if gesture == "edit" else 4
+            )
     finally:
         for route in held:
             route.continue_()

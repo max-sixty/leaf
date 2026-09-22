@@ -53,9 +53,9 @@ export function captureCarry(root, authored) {
   return { records, held };
 }
 
-// Restore values and disclosures in the same turn that replaces their nodes, before
-// the reader can edit the arrivals. Geometry and focus need the finished layout; the
-// returned landing runs after presentation, only while the install still owns intent.
+// Restore values, disclosures, focus and caret in the turn that replaces their nodes,
+// so the reader can keep typing while renderers settle. Only scroll needs the finished
+// layout; the returned correction runs while the install still owns navigation.
 // Kept nodes never lost their state, and a changed tag is a different control.
 export function restoreCarry(records, held = new Map()) {
   const positions = [];
@@ -69,12 +69,14 @@ export function restoreCarry(records, held = new Map()) {
       arrived.checked = record.checked;
     positions.push([arrived, record]);
   }
+  // All enclosing disclosures must be restored before a descendant takes focus.
+  for (const [arrived, record] of positions)
+    if (record.focus) focusDestination(arrived, record.caret);
   return () => {
     for (const [arrived, record] of positions) {
       if (!arrived.isConnected) continue;
       if (record.scrollTop) arrived.scrollTop = record.scrollTop;
       if (record.scrollLeft) arrived.scrollLeft = record.scrollLeft;
-      if (record.focus) focusDestination(arrived, record.caret);
     }
   };
 }

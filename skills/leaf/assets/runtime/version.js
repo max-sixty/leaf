@@ -1288,7 +1288,7 @@ export function createVersionController({
       return arriving;
     };
 
-    let landCarry;
+    let restoreCarryScroll;
     await patchDocument(live, () => {
       authoredHtmlAttributes = replaceAuthoredAttributes(
         document.documentElement,
@@ -1333,7 +1333,9 @@ export function createVersionController({
           if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
-      landCarry = restoreCarry(carry.records, carry.held);
+      currentIntent.handoff(() => {
+        restoreCarryScroll = restoreCarry(carry.records, carry.held);
+      });
       // After the patch, over the document the patch left: an owner's number is its
       // place among the document's preserving owners, and an insertion moves the ones
       // after it.
@@ -1357,11 +1359,11 @@ export function createVersionController({
     );
     syncLayout();
     // Presentation can wait on a renderer download while the reader uses the arrivals.
-    // Their newer input owns navigation; carried field values already crossed with the
-    // nodes, so yielding here cannot discard an unrelated draft.
+    // Their newer input owns navigation; values, focus and caret crossed with the nodes
+    // synchronously, so yielding here leaves their ongoing editing intact.
     if (currentIntent()) {
       restoreView(view, currentIntent);
-      landCarry();
+      restoreCarryScroll();
       restoreAskStanding(askStanding);
     }
     if (comparedFrom !== null) showComparison(comparedFrom);
@@ -1826,7 +1828,7 @@ export function createVersionController({
       if (!anchoringIsReady()) return;
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
-    const landCarry = handoff && restoreCarry(handoff.carry);
+    const restoreCarryScroll = handoff && restoreCarry(handoff.carry);
     const currentIntent = retainReaderIntent();
     function landArrival() {
       if (!currentIntent()) return;
@@ -1834,7 +1836,7 @@ export function createVersionController({
         restorePointer(handoff.pointer);
         restoreView(handoff.view, currentIntent);
         restoreRetainedStanding(handoff.retainedStanding);
-        landCarry();
+        restoreCarryScroll();
         restoreAskStanding(handoff.askStanding);
         if (handoff.comparison !== null && stamped(handoff.comparison))
           showComparison(handoff.comparison);

@@ -15,10 +15,12 @@ has tried; settle that before building it.
   board or table, and populated conversation in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
-- **Give conversations a stable hierarchy.** Follow the separate
-  [thread plans](notes/threads.md): build long-history reading on the implemented
-  accordion and summary checkpoints. Keep thread context, search, filters, agent
-  activity, selection, and reply editing clear.
+- **Make Thread notifications useful.** Follow the
+  [Thread plan](notes/threads.md#notifications-and-unread-state): use canonical
+  workflow, Ask, and request outcomes to choose meaningful arrivals, then define
+  what a reader must see before a reply counts as read.
+- **Keep the Thread hierarchy clear.** Check context, search, filters, agent
+  activity, selection, and reply editing in the implemented accordion.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -88,6 +90,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and host ideas
 
+- **Explore independent jobs.** Work out their identity, observer, continuation
+  owner, and outcomes across background commands, delegates, and external waits.
+  See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   readers return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the host
@@ -106,6 +111,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   more than plain replacement and focused inspection.
 - **Motion evidence:** define video, caption, and transcript handling when core
   gains durable video.
+- **Revisit long-thread folding after using summaries.** If agent-written summaries
+  leave readers struggling with long histories or oversized messages, follow the
+  [Thread plan](notes/threads.md#later-long-thread-reading).
 
 ### Implementation candidates
 

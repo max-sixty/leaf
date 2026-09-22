@@ -14,6 +14,7 @@
  * Expansion and an open thread are explicit mechanical inputs, not application facts.
  */
 import {
+  spokenSubject,
   marginItemKey,
   compareMarginContributions,
   compareMarginEntryRecords,
@@ -70,11 +71,6 @@ export const KINDS = Object.freeze(
 );
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
-
-export const labelWords = (value) =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
 
 const noticeItems = (entry) =>
   entry.offers.flatMap((offered) => {
@@ -290,7 +286,7 @@ function optionGroupProjection(
   return Object.freeze({
     entry,
     entryKey: entry.key,
-    label: `${entryEngaged(entry) ? "Actions" : "More options"} for ${entry.title}`,
+    label: `${entryEngaged(entry) ? "Actions" : "More options"} for ${spokenSubject(entry.title)}`,
     hidden: !optionsOpen || direct.length === 0,
     items: Object.freeze(items),
     spill: needsSpill
@@ -334,8 +330,8 @@ export function clusterProjection(
     direct: Object.freeze([...(primary ? [primary] : []), ...noticeItems(entry)]),
     entry,
     kind: "page",
-    label: `Page actions for ${entry.title}`,
-    moreLabel: `More options for ${entry.title}`,
+    label: `Page actions for ${spokenSubject(entry.title)}`,
+    moreLabel: `More options for ${spokenSubject(entry.title)}`,
     offers: entry.offers,
     hasPrimary: Boolean(primary),
     state: entryState(entry),

@@ -6895,14 +6895,19 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
 
 
-def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
+@pytest.mark.parametrize("height", [480, 760])
+def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, height):
     """The open dialog is a live projection, not a snapshot from its opening press."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
-    resized(page, 390, 760)
+    resized(page, 390, height)
     page.locator(".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
     expect(actions).to_have_count(5)
+    if height == 480:
+        assert dialog.locator(".lf-page-map-list").evaluate(
+            "list => list.scrollHeight > list.clientHeight"
+        ), "the short dialog must exercise focus through an overflowing list"
     page.keyboard.press("Tab")
     expect(actions.first).to_be_focused()
 

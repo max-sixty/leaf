@@ -48,6 +48,7 @@
    Boot supplies version, map, travel, and semantic thread-render capabilities.
    mount reserves the rail and binds the lifecycle after those owners exist; every
    later render reads the same bound capabilities, including event-driven repaints. */
+import { labelWords, spokenSubject } from "./margin-entry-model.js";
 import {
   registerMarginRow,
   reserveRail,
@@ -70,7 +71,6 @@ import {
 } from "./margin-entries.js";
 import {
   KINDS,
-  labelWords,
   secondaryCount,
   entryEngaged,
   choosePrimary,
@@ -1167,17 +1167,6 @@ export function createMarginProjection({
     };
   }
 
-  // A spoken control name has a listening budget, independent of the space CSS
-  // gives its visible label. Keep this excerpt at the accessibility presentation
-  // boundary; the target and Page Map retain their complete, searchable text.
-  function spokenSubject(subject) {
-    const letters = [...subject];
-    if (letters.length <= 120) return subject;
-    const excerpt = letters.slice(0, 120).join("");
-    const boundary = excerpt.lastIndexOf(" ");
-    return `${boundary > 0 ? excerpt.slice(0, boundary) : excerpt}…`;
-  }
-
   function markerName(entry, index, anchored, position) {
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
@@ -1763,7 +1752,7 @@ export function createMarginProjection({
           entry: null,
           items: Object.freeze([...items("before"), ...items("after")]),
           kind: "inline",
-          label: `Actions for ${addressableWord(target)}`,
+          label: `Actions for ${spokenSubject(addressableWord(target))}`,
           offers: Object.freeze([...offers]),
           target: target.id || targetPath(target),
         }),
@@ -2110,7 +2099,7 @@ export function createMarginProjection({
       : null;
     const title = labelWords(targetHeading || quoted || entry.title);
     keeps(preview, "data-lf-thread", "");
-    keeps(preview, "aria-label", `Conversation for ${title}`);
+    keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
     previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;

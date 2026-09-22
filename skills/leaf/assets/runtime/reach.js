@@ -12,9 +12,9 @@ import { LAYOUT } from "./widget-elements.js";
 // entry, and it reaches the runtime's own boxes on the same terms as the page's — and
 // into the trees an x-shadow widget renders in, which the walk alone does not enter.
 //
-// Asked of the content first, because a box holding a control of its own is already
-// reachable (lf-board, through its grips) and a tab stop over the whole board would
-// stand between the user and the card they were tabbing to.
+// A box holding a control of its own is already reachable (lf-board, through its
+// grips). Re-read that content when layout changes: an initially empty Page Map list
+// must give up its container stop once actions arrive inside it.
 //
 // Two things every caller owes it, both learned by getting them wrong. It runs after a
 // widget has rendered rather than as one stages, because the look a scroll box has is
@@ -87,9 +87,9 @@ const mayScroll = new Set();
 //
 // The marks are paint (theme.css, [data-lf-more-before/after]). Writing them from a
 // resize observation moves nothing and cannot feed itself. Its candidate set is every
-// box whose computed `overflow-x` is `auto` or `scroll`, and not `mayScroll`, which stops
-// at boxes holding a control of their own: a board is reached through its grips and needs
-// no stop, and is cut exactly as silently as anything else. Computed, not declared, is
+// box whose computed `overflow-x` is `auto` or `scroll`, including boxes reached through
+// their own controls: a board needs no container stop, and is cut exactly as silently
+// as anything else. Computed, not declared, is
 // wider than it sounds and is the set on purpose: `overflow-x: visible` computes to
 // `auto` whenever `overflow-y` is not visible, so a box that only ever meant to scroll
 // down — the panel's list, a tray, the sidebar — is in here too. It earns the mark on the
@@ -168,7 +168,6 @@ export function reachScrollers(root) {
       // A box that already carries a stop of its own is somewhere the reader can be put,
       // whoever put it there; this sweep neither adds to it nor takes it away.
       if (el.tabIndex >= 0 && !mayScroll.has(el)) continue;
-      if (el.querySelector(FOCUSABLE)) continue;
       mayScroll.add(el);
       // The box itself, not the page's: a candidate's own resize is exactly the moment
       // its answer can change, and asking it there is one observation per candidate
@@ -213,7 +212,7 @@ function gone(el) {
 function paintReach() {
   for (const el of mayScroll) {
     if (gone(el)) continue;
-    const wanted = overflows(el) ? 0 : -1;
+    const wanted = overflows(el) && !el.querySelector(FOCUSABLE) ? 0 : -1;
     if (el.tabIndex !== wanted) el.tabIndex = wanted;
   }
   for (const el of sideways) {

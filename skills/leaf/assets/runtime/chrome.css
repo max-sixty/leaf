@@ -1584,6 +1584,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-page-map-action-label { min-width: 0; }
   .lf-page-map-action-label-word, .lf-page-map-action-context { display: block; }
+  .lf-page-map-action-label-word, .lf-page-map-group h3 {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere; }
   .lf-page-map-action-context { margin-block-start: 2px; color: var(--muted);
     font-size: var(--t-6); line-height: 1.25; }
   /* Inset, because a row here fills the list to its own edge and the list is a
@@ -1612,9 +1615,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-empty { margin: 18px 8px 8px; color: var(--muted); text-align: center; }
   .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
   .lf-page-map-group:first-child { border-top: 0; }
-  .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-    overflow: hidden; overflow-wrap: anywhere; }
+  .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
      same floor the rail does, of the same box: theme.css, at the margin projection. A

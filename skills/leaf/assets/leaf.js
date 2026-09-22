@@ -3,7 +3,7 @@ import "./vendor/browser-runtime.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
+import { passiveSpecimen, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { chromeSheet, marksSheet } from "./runtime/stylesheets.js";
@@ -831,21 +831,25 @@ if (!offlineInteractive) {
     pageShifted: pageGeometry.pageShifted,
     paintStandingGeometry: standing.paintStandingGeometry,
   });
-
-  window.leafInteractionGalleryFrame?.mount({
-    toggleBtn,
-    panelIsOpen,
-    setPanel: threadPanelController.setPanel,
-    detachComposer: selectionComposer.detachComposer,
-    fabInput,
-    openComposer: selectionComposer.openComposer,
-    closePreview: app.margin.closePreview,
-    openInlineThread: app.margin.openInlineThread,
-    threadTransitionOrigin: app.margin.threadTransitionOrigin,
-    currentTray,
-    setOpenTray: trays.setOpenTray,
-  });
 }
+
+const replayReady = passiveSpecimen
+  ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
+      mountReplay({
+        toggleBtn,
+        panelIsOpen,
+        setPanel: threadPanelController.setPanel,
+        detachComposer: selectionComposer.detachComposer,
+        fabInput,
+        openComposer: selectionComposer.openComposer,
+        closePreview: app.margin.closePreview,
+        openInlineThread: app.margin.openInlineThread,
+        threadTransitionOrigin: app.margin.threadTransitionOrigin,
+        currentTray,
+        setOpenTray: trays.setOpenTray,
+      }),
+    )
+  : Promise.resolve();
 
 const initialStateRead = app.beginRead();
 let interactionGalleryModule;
@@ -874,7 +878,7 @@ if (!offlineInteractive) {
   );
 }
 
-if (!containedPage && !offlineInteractive) {
+if (!passiveSpecimen && !offlineInteractive) {
   restoreReaderView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
@@ -942,6 +946,7 @@ async function startPage() {
     offlineInteractive
       ? Promise.resolve()
       : loadIcon().catch((error) => console.error(error)),
+    replayReady,
   ]);
   if (!upgraded) return;
   if (!offlineInteractive) {

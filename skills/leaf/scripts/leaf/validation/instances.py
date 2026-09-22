@@ -503,9 +503,9 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
 def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> list:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
-    names a comment that exists. A family lint, named for its family — and it
-    reads even its own slots out of the merged registry, so a layer that adds
-    one to the family is linted for it rather than around it."""
+    names a comment in the document's reference namespace. A family lint, named
+    for its family — and it reads even its own slots out of the merged registry,
+    so a layer that adds one to the family is linted for it rather than around it."""
     tags = {
         tag
         for slot_tags in retirement_slots(registry).get("lf-suggestion", {}).values()
@@ -531,7 +531,9 @@ def suggestion_errors(lf_elements: list, registry: dict, comment_ids: set) -> li
                 )
         resolves = rec["attrs"].get("resolves")
         if resolves and resolves not in comment_ids:
-            errors.append(f"{where}: resolves={resolves!r} names no comment in the log")
+            errors.append(
+                f"{where}: resolves={resolves!r} names no comment in this document"
+            )
     return errors
 
 

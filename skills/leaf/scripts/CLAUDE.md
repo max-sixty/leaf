@@ -53,6 +53,8 @@ The main owners are:
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
+- `specimens`: disposable child pages built from captured templates and selected
+  conversations, with independent event logs and server-owned lifetimes;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
 - `codex`: the Codex App Server connection every carrier speaks, the turn each one
   carries on the connection that started it, its activity and final-answer readings,

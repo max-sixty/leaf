@@ -47,7 +47,7 @@ from leaf.conversation import (
 from leaf.delivery import read_delivery
 from leaf.host import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
-from leaf.http import PageEndpoint, scope_page_urls
+from leaf.http import PageEndpoint, scope_page_urls, scope_script_routes
 from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
@@ -1343,9 +1343,22 @@ class WebsitePageEndpoint(PageEndpoint):
     def _document_head(self) -> str:
         return site_head(self.page_root, self.pages[self.page_root or "/"])
 
+    def _specimen_asset_root(self, revision: int) -> str:
+        page = self.pages[self.page_root or "/"]
+        # Published revisions share the public shell's release-captured graph.
+        # Reader-created revisions belong to this container, not that release.
+        if str(revision) in page["states"]:
+            name = self._revision_name(revision).removesuffix(".html")
+            return f"{page['assets']}/revisions/{name}"
+        return super()._specimen_asset_root(revision)
+
     def _get(self) -> Response | None:
         if self.path == "/sitenote.js":
-            return self._content(200, "text/javascript; charset=utf-8", self.sitenote)
+            return self._content(
+                200,
+                "text/javascript; charset=utf-8",
+                scope_script_routes(self.sitenote, self.page_root),
+            )
         return super()._get()
 
     def _post(self) -> Response | None:

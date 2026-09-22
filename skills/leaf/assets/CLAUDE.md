@@ -209,18 +209,19 @@ complete synchronous Lit inventory, order, presence, reservation, focus continui
 overflow door, and row-versus-menu partition; native controls remain retained islands;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
-`runtime/interaction-gallery.js` and `runtime/interaction-gallery-frame.js` own the
-Product Gallery's opt-in, ephemeral interaction replays, playback controls, and the
-contained frames those replays run document-global chrome in. `data-lf-contained` marks
-both sides of that boundary — the frame element out in the gallery and the body of the
-page inside it — and a contained page is a picture rather than a place to stand: it
-arrives restoring none of the reader's arrangements and placing no focus, and it leaves a
-standalone copy with the scripts. Its body is written `inert` for the same reason: a
-document tree has one focus, so the chrome a replay drives must not be able to take the
-reader off the page they are standing on, and an inert subject ends a shown dialog's
-focusing steps before they reach anything. A contained page takes one initial state
-reading to render production chrome, then opens no news stream or heartbeat of its own;
-the outer page remains the live reader lease;
+`runtime/specimen.js` owns the browser lifetime of an isolated child Leaf page:
+creation from an authored template, presentation readiness, reset,
+release, and explicit focus entry and return. The server serves its captured layer
+and independent event log through the ordinary page endpoint. A specimen starts inert;
+entry releases it, and Escape returns after the child's own unwind has finished.
+Browser storage, including chrome preferences, is scoped to the child address.
+`runtime/interaction-gallery.js` owns the Product Gallery's opt-in choreography and
+playback controls using that shared host. Its passive children stay inert and take one
+initial state reading without a continuing feed. `runtime/interaction-gallery-frame.js`
+exposes only the production transitions those replays illustrate without posting
+gestures; it loads during passive child startup. Operable `lf-specimen` children use
+the normal event door and state feed. Standalone export embeds their rendered static
+documents; passive replay frames leave with the scripts;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;

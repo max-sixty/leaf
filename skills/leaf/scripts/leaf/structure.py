@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from html import escape
 from pathlib import Path
 
 import turbohtml
@@ -231,6 +232,7 @@ class SourceDocument:
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
+        self.specimens = []
         # id → the innermost lf-* element standing around it, an element's own id
         # standing in itself. Where an id lives is structure; which of those elements is
         # a slot a decision retires and which widget holds it is the registry's word,
@@ -509,9 +511,7 @@ class SourceDocument:
             if reference.startswith(("/page/", "page/", "./page/"))
         )
 
-        if tag == "noscript" or (
-            tag == "template" and "data-interaction-page" not in attrs
-        ):
+        if tag == "noscript" or (tag == "template" and "data-specimen" not in attrs):
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"
@@ -565,44 +565,38 @@ class SourceDocument:
                 if isinstance(child, turbohtml.Text)
             )
 
-    def _visit_interaction_page(
-        self,
-        node,
-        *,
-        parent_tag: str,
-        ancestors: tuple,
-        holder: dict | None = None,
-    ) -> None:
-        """Index widget declarations in one inert, separately rendered page."""
-        if isinstance(node, turbohtml.Element):
-            attrs = self._attrs(node)
-            record = None
-            if self._source_element(node) and node.tag.startswith("lf-"):
-                record = self._record_element(
-                    node,
-                    attrs,
-                    parent_tag=parent_tag,
-                    ancestors=ancestors,
-                    holder=holder,
-                )
-                self._record_direct_contents(record, node)
-            next_holder = record or holder
-            next_ancestors = (*ancestors, node.tag)
-            for child in node.children:
-                self._visit_interaction_page(
-                    child,
-                    parent_tag=node.tag,
-                    ancestors=next_ancestors,
-                    holder=next_holder,
-                )
-            return
-        for child in node.children:
-            self._visit_interaction_page(
-                child,
-                parent_tag=parent_tag,
-                ancestors=ancestors,
-                holder=holder,
+    def _specimen_resources(self, template) -> None:
+        """Read the complete child document without merging its identity space."""
+        attrs = self._attrs(template)
+        location = template.source_location
+        content_start = self._source_index(
+            location.start_tag.end_line, location.start_tag.end_col
+        )
+        content_end = (
+            self._source_index(location.end_tag.start_line, location.end_tag.start_col)
+            if location.end_tag
+            else len(self._source)
+        )
+        if not attrs.get("id"):
+            line, _ = self._position(template)
+            self.errors.append(
+                f"<template data-specimen> at line {line}: needs a stable id"
             )
+        source = (
+            '<!doctype html><html lang="en"><head>'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head><body><main>"
+            # Preserve authored lines, including multiline tags in nested specimens.
+            + "\n" * (location.start_tag.end_line - 1)
+            + self._source[content_start:content_end]
+            + "</main></body></html>"
+        )
+        self.specimens.append(
+            {
+                "attrs": attrs,
+                "document": SourceDocument(source),
+            }
+        )
 
     def _visit(
         self,
@@ -742,14 +736,8 @@ class SourceDocument:
                 ):
                     self.outside_main.append(f"text in <{element.tag}> at line {line}")
 
-        if element.tag == "template" and "data-interaction-page" in attrs:
-            for child in element.children:
-                self._visit_interaction_page(
-                    child,
-                    parent_tag="template",
-                    ancestors=next_ancestors,
-                    holder=None,
-                )
+        if element.tag == "template" and "data-specimen" in attrs:
+            self._specimen_resources(element)
 
         if element.tag == "style":
             self.css += element.text

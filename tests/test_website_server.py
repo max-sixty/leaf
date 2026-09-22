@@ -111,6 +111,8 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
         "pages": {
             route: {
                 "directory": directory,
+                "assets": f"/_leaf-release/{'0' * 64}/{route.strip('/').replace('/', '--') or 'root'}",
+                "states": {},
                 "kind": kind,
                 "title": f"The {route} page",
                 "description": f"What a reader does at {route}.",
@@ -2892,6 +2894,69 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
         first["id"],
         second["id"],
     ]
+
+
+@pytest.mark.parametrize("published_revision", [False, True])
+def test_website_specimens_serve_private_pages_without_starting_an_agent(
+    page_dir, tmp_path, published_revision
+):
+    source = (page_dir / "index.html").read_text()
+    template = '<template id="practice" data-specimen><h1>Practice</h1><p id="child-text">A private child page.</p></template>'
+    (page_dir / "index.html").write_text(
+        source.replace("</main>", template + "</main>")
+    )
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    host = FakeCodexHost()
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    if published_revision:
+        manifest["pages"]["/examples/decision"]["states"] = {
+            "1": "/_leaf/state/decision--r1.json"
+        }
+    manifest_path.write_text(json.dumps(manifest))
+    httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site, host))
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        parent = origin + "/examples/decision/"
+        state = json.loads(get(parent + "api/state")[0])
+        child, _ = post(
+            parent + "api/specimens",
+            {"template": "practice"},
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        url = origin + child["url"]
+        document, headers = get(url)
+        assert b"A private child page." in document
+        asset_root = (
+            manifest["pages"]["/examples/decision"]["assets"]
+            if published_revision
+            else "/examples/decision"
+        )
+        expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
+        assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
+        assert f'data-lf-page-root="{child["url"].rstrip("/")}"'.encode() in document
+        assert b"sitenote.js" not in document
+        assert b"data-lf-release=" not in document
+        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
+        assert headers["Leaf-Layer"] == state["layer"]["generation"]
+        accepted, _ = post(
+            url + "api/event",
+            {
+                "kind": "comment",
+                "revision": 1,
+                "text": "Try this here",
+                "anchor": {"section": "child-text"},
+            },
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        assert accepted["state"]["events"][-1]["text"] == "Try this here"
+        assert read_events(published) == []
+        assert host.attached == []
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):

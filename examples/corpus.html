@@ -5320,6 +5320,28 @@ gallery/
               </lf-option>
             </lf-options>
           </lf-specimen>
+          <section id="bg-live-practice">
+            <h3>Live specimen</h3>
+            <p id="bg-live-specimen-guide">
+              Enter the practice page, accept its suggestion, and add a comment. Its
+              decisions and Threads belong to that page alone. Close any open controls
+              and press Escape to return here; Reset clears the practice page.
+            </p>
+            <lf-specimen id="bg-live-specimen" label="practice release note">
+              <template id="bg-live-specimen-page" data-specimen>
+                <p class="eyebrow">practice page</p>
+                <h1>Weekend train service</h1>
+                <p id="bg-live-specimen-copy">
+                  The sample timetable now
+                  <lf-suggestion id="bg-live-specimen-suggestion"
+                    ><lf-old>sometimes includes</lf-old
+                    ><lf-new>includes</lf-new></lf-suggestion
+                  >
+                  the evening shuttle.
+                </p>
+              </template>
+            </lf-specimen>
+          </section>
           <p id="bg-shot-guide">
             Specimen labels invented content. Choose Before or After above the image, or
             press the Shot control or image to flip.
@@ -5360,7 +5382,7 @@ gallery/
         <lf-tabs id="bg-interaction-tabs">
           <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
             <figure class="interaction-demo" data-interaction-demo="accept">
-              <template data-interaction-page>
+              <template id="bg-motion-accept-page" data-specimen>
                 <p class="eyebrow">proposed release note</p>
                 <p id="bg-motion-accept-copy">
                   The importer now
@@ -5393,7 +5415,7 @@ gallery/
 
           <lf-tab id="bg-interaction-move" label="Move a card">
             <figure class="interaction-demo" data-interaction-demo="move-card">
-              <template data-interaction-page>
+              <template id="bg-motion-board-page" data-specimen>
                 <p class="eyebrow">migration checklist</p>
                 <h1>Schema migration</h1>
                 <lf-board id="bg-motion-board">
@@ -5427,13 +5449,17 @@ gallery/
             <figure
               class="interaction-demo"
               data-interaction-demo="send-comment"
-              data-interaction-target="bg-motion-comment-text"
+              data-interaction-target="bg-thread-text"
               data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
             >
-              <template data-interaction-page>
+              <template
+                id="bg-motion-comment-page"
+                data-specimen
+                data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
+              >
                 <p class="eyebrow">review note</p>
                 <h1>Agenda draft</h1>
-                <p id="bg-motion-comment-text">
+                <p id="bg-thread-text">
                   The sample agenda has room for one more topic.
                 </p>
               </template>
@@ -5463,10 +5489,14 @@ gallery/
 
           <lf-tab id="bg-interaction-threads" label="Open and close Threads">
             <figure class="interaction-demo" data-interaction-demo="open-threads">
-              <template data-interaction-page>
+              <template
+                id="bg-motion-threads-page"
+                data-specimen
+                data-specimen-threads="2be2443f0bb6cc49fc86b52f340e6073"
+              >
                 <p class="eyebrow">review workspace</p>
                 <h1>Release notes</h1>
-                <p id="bg-motion-threads-text">
+                <p id="bg-thread-text">
                   The sample agenda has room for one more topic.
                 </p>
               </template>

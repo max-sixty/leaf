@@ -2,41 +2,10 @@
  * adapter exposes production controls and state transitions to the parent gallery
  * without posting their gestures.
  *
- * The parent loads this adapter into a complete document before it loads Leaf. The
- * adapter can therefore hear Leaf's startup outcome without racing it, while Leaf does
- * not measure the frame until its stylesheet has loaded. Readiness is Leaf's
- * presentation fact rather than a timer: a slow state read may delay the frame, while
- * a failed startup rejects it immediately. */
+ * Passive specimen startup loads this module. The shared host owns readiness;
+ * this adapter choreographs production transitions without recording gestures. */
 
 let commands;
-let mountCommands;
-const mounted = new Promise((resolve) => {
-  mountCommands = resolve;
-});
-
-function presented() {
-  return new Promise((resolve, reject) => {
-    const observer = new MutationObserver(() => {
-      if (!document.body.hasAttribute("data-lf-presented")) return;
-      cleanup();
-      resolve();
-    });
-    const failed = () => {
-      cleanup();
-      reject(new Error("the contained Leaf page did not finish presenting"));
-    };
-    const cleanup = () => {
-      observer.disconnect();
-      window.removeEventListener("lf-startup-failed", failed);
-    };
-    if (document.body.hasAttribute("data-lf-presented")) {
-      resolve();
-      return;
-    }
-    observer.observe(document.body, { attributes: true });
-    window.addEventListener("lf-startup-failed", failed, { once: true });
-  });
-}
 
 function neutralChrome() {
   commands.detachComposer();
@@ -45,43 +14,35 @@ function neutralChrome() {
   if (commands.currentTray()) commands.setOpenTray(null, { remember: false });
 }
 
-async function prepare() {
-  await Promise.all([presented(), mounted]);
-  neutralChrome();
+export function mountReplay(capabilities) {
+  commands = capabilities;
+  window.leafInteractionGalleryFrame = {
+    resetComment(section, text) {
+      neutralChrome();
+      commands.openComposer({ section }, text, { focus: false });
+    },
+    commentInput() {
+      return commands.fabInput;
+    },
+    submitComment(threadId) {
+      const transition = commands.threadTransitionOrigin(
+        commands.fabInput,
+        commands.fabInput.value,
+      );
+      commands.detachComposer();
+      return () => commands.openInlineThread(threadId, { transition });
+    },
+    resetThreads() {
+      neutralChrome();
+    },
+    threadsButton() {
+      return commands.toggleBtn;
+    },
+    threadsOpen() {
+      return commands.panelIsOpen();
+    },
+    setThreads(open) {
+      commands.setPanel(open, { remember: false });
+    },
+  };
 }
-
-window.leafInteractionGalleryFrame = {
-  mount(capabilities) {
-    if (commands) throw new Error("the interaction gallery adapter mounted twice");
-    commands = capabilities;
-    mountCommands();
-  },
-  ready: prepare(),
-  resetComment(section, text) {
-    neutralChrome();
-    commands.openComposer({ section }, text, { focus: false });
-  },
-  commentInput() {
-    return commands.fabInput;
-  },
-  submitComment(threadId) {
-    const transition = commands.threadTransitionOrigin(
-      commands.fabInput,
-      commands.fabInput.value,
-    );
-    commands.detachComposer();
-    return () => commands.openInlineThread(threadId, { transition });
-  },
-  resetThreads() {
-    neutralChrome();
-  },
-  threadsButton() {
-    return commands.toggleBtn;
-  },
-  threadsOpen() {
-    return commands.panelIsOpen();
-  },
-  setThreads(open) {
-    commands.setPanel(open, { remember: false });
-  },
-};

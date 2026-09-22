@@ -668,12 +668,27 @@ REBUILDS = {
 # table would say one thing while the bundle carried another. Their rows read against
 # the dependant's range, so what the report calls movement is movement that can
 # actually be taken.
+#
+# The rule is the pin's own provenance, not which bundle it lands in: a pin Leaf chose
+# is Leaf's to move, and a pin that is here because something Leaf chose imports it
+# reads against that dependant. `diff` is the one package on both sides — the `jsdiff`
+# bundle is Leaf's choice of it, and `@pierre/diffs` happens to declare the same
+# version — so it stays Leaf's.
 HELD_BY = {
     "elkjs": "agentic-mermaid",
     "entities": "agentic-mermaid",
     "yaml": "agentic-mermaid",
     "@floating-ui/core": "@floating-ui/dom",
     "@floating-ui/utils": "@floating-ui/dom",
+    "shiki": "@pierre/diffs",
+    "@ctrl/tinycolor": "@awesome.me/webawesome",
+    "@shoelace-style/localize": "@awesome.me/webawesome",
+    "composed-offset-position": "@awesome.me/webawesome",
+    "lit": "@awesome.me/webawesome",
+    "nanoid": "@awesome.me/webawesome",
+    "lit-element": "lit",
+    "lit-html": "lit",
+    "@lit/reactive-element": "lit",
 }
 
 

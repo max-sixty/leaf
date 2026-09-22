@@ -1167,6 +1167,17 @@ export function createMarginProjection({
     };
   }
 
+  // A spoken control name has a listening budget, independent of the space CSS
+  // gives its visible label. Keep this excerpt at the accessibility presentation
+  // boundary; the target and Page Map retain their complete, searchable text.
+  function spokenSubject(subject) {
+    const letters = [...subject];
+    if (letters.length <= 120) return subject;
+    const excerpt = letters.slice(0, 120).join("");
+    const boundary = excerpt.lastIndexOf(" ");
+    return `${boundary > 0 ? excerpt.slice(0, boundary) : excerpt}…`;
+  }
+
   function markerName(entry, index, anchored, position) {
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
@@ -1174,7 +1185,7 @@ export function createMarginProjection({
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${awaitingReader(choice?.items ?? []) ? `, ${TURN_WORD}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
-    return `${reading}, ${index + 1} of ${anchored}, ${subject}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}`;
+    return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
   }
 
   function availableRows() {
@@ -1584,7 +1595,7 @@ export function createMarginProjection({
         key: `reading:${choice.key}`,
         icon: face.icon,
         label,
-        accessibleLabel: `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}${awaitingReader(choice.items) ? `, ${TURN_WORD}` : ""}`,
+        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${awaitingReader(choice.items) ? `, ${TURN_WORD}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",

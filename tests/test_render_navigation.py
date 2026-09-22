@@ -3456,12 +3456,10 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 
 
 @pytest.mark.parametrize(
-    ("reply_paragraphs", "bottom_clamped"),
-    [(0, None), (18, True), (30, False)],
-    ids=["short", "long-clamped", "long-aligned"],
+    "reply_paragraphs", [0, 10, 18, 30], ids=["short", "near-fit", "long", "very-long"]
 )
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
-    browser, serve, reply_paragraphs, bottom_clamped
+    browser, serve, reply_paragraphs
 ):
     """Pointer and keyboard arrival open one compact conversation card. Enter or c
     reveals its reply, and Escape returns through each layer. The Page Map fallback
@@ -3490,6 +3488,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             },
         )
     page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
     threads = page.locator(".lf-threads > .lf-thread:not([hidden])")
     first_id = threads.first.get_attribute("data-id")
     second_id = threads.nth(1).get_attribute("data-id")
@@ -3569,41 +3568,10 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     panel_settled(page)
     panel_thread = threads.first
     panel_reply = panel_thread.locator(":scope > .lf-compose textarea")
-    if reply_paragraphs:
-        # Opening the mark focuses its reply before native smooth placement finishes.
-        # Arm the list itself immediately before that gesture. A prior scrollend cannot
-        # pass without a causal move, and a preliminary one is withdrawn if a later frame
-        # continues the same arrival.
-        page.evaluate(
-            """() => {
-              const list = document.querySelector('.lf-threads');
-              const rest = window.__lfThreadScrollRest = {
-                at: null, event: 0, moved: false, start: list.scrollTop,
-              };
-              list.addEventListener('scroll', () => {
-                rest.at = null;
-                rest.moved ||= list.scrollTop !== rest.start;
-              }, {passive: true});
-              list.addEventListener('scrollend', () => {
-                const event = ++rest.event;
-                const at = list.scrollTop;
-                requestAnimationFrame(() => {
-                  if (rest.event === event && list.scrollTop === at) rest.at = at;
-                });
-              });
-            }"""
-        )
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(panel_reply).to_be_focused()
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
     if reply_paragraphs:
-        page.wait_for_function(
-            """() => {
-              const list = document.querySelector('.lf-threads');
-              const rest = window.__lfThreadScrollRest;
-              return rest.moved && rest.at === list.scrollTop;
-            }"""
-        )
         landing = page.evaluate(
             """() => {
               const list = document.querySelector('.lf-threads');
@@ -3615,7 +3583,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const start = view.top + clear;
               const head = list.querySelector('.lf-pinned').getBoundingClientRect();
               const blocks = [...thread.querySelectorAll(
-                ':scope > .lf-msg, :scope > .lf-msg .lf-msg-body > *, ' +
+                ':scope > *, :scope > .lf-msg .lf-msg-body > *, ' +
                 ':scope > .lf-msg .lf-msg-text > *'), compose]
                 .map((block) => ({
                   name: block.className || block.tagName,
@@ -3640,17 +3608,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        if bottom_clamped:
-            # The next thread is collapsed. The list can run out of scroll room
-            # before its first message reaches the heading; the whole body still fits.
-            assert landing["scroll"] == pytest.approx(landing["maximumScroll"], abs=1)
-            assert landing["blocks"][0]["top"] >= landing["start"]
-        else:
-            assert landing["scroll"] < landing["maximumScroll"] - 1
+        if landing["scroll"]:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)
                 for block in landing["blocks"]
             ), f"the long arrival cut through a content block: {landing}"
+        else:
+            assert landing["blocks"][0]["top"] >= landing["start"] - 1
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
         )

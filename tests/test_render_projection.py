@@ -1099,6 +1099,16 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
     widget = page.locator("#visual-review-run")
     selector = widget.locator(".lf-vr-case-select")
     initial = selector.evaluate("node => node.value")
+    assert widget.evaluate(
+        """owner => {
+          const parent = owner.parentNode;
+          const next = owner.nextSibling;
+          const nodes = [...owner.querySelectorAll('*')];
+          owner.remove();
+          parent.insertBefore(owner, next);
+          return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
+        }"""
+    )
     widget.get_by_role("radio", name="Compare").click()
     page.keyboard.press("ArrowDown")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")

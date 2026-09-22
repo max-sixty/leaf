@@ -1,12 +1,6 @@
 /* A root workspace can spend the page's available height on reading regions. Embedded
    workspaces keep the same semantic structure in ordinary document flow. */
-import {
-  arrangeReadingElement,
-  fitRootReadingElement,
-  once,
-  registerReadingElement,
-  widgetController,
-} from "/runtime/widget-api.js";
+import { arrangeReadingElement, once, widgetController } from "/runtime/widget-api.js";
 
 const MIN_BODY_HEIGHT = 160;
 const MIN_PANE_WIDTH = 240;
@@ -123,48 +117,32 @@ const minimumSize = (owner) => {
 customElements.define(
   "lf-workspace",
   class extends HTMLElement {
-    #readingArrangement = null;
-    #content = null;
-    #fitting = null;
+    #layout = null;
 
     connectedCallback() {
-      if (once(this)) {
-        const arranged = arrangeReadingElement({
+      if (!this.#layout) {
+        this.#layout = arrangeReadingElement({
           owner: this,
           role: "workspace",
           header: direct(this, "header"),
           footer: direct(this, "footer"),
+          minimumSize: () => {
+            const size = minimumSize(this);
+            return (
+              size && {
+                height: size.height,
+                width: Math.max(MIN_WORKSPACE_WIDTH, size.width),
+              }
+            );
+          },
         });
-        this.#readingArrangement = arranged.readingArrangement;
-        this.#content = arranged.content;
-      } else {
-        this.#content = this.querySelector(":scope > .lf-workspace-content");
-        this.#readingArrangement = registerReadingElement({
-          owner: this,
-          content: this.#content,
-        });
+        once(this);
       }
-      this.#fitting = fitRootReadingElement({
-        owner: this,
-        readingArrangement: this.#readingArrangement,
-        minimumSize: () => {
-          const size = minimumSize(this);
-          return (
-            size && {
-              height: size.height,
-              width: Math.max(MIN_WORKSPACE_WIDTH, size.width),
-            }
-          );
-        },
-      });
-      widgetController(this).present(this.#fitting.update());
+      widgetController(this).present(this.#layout.connect());
     }
 
     disconnectedCallback() {
-      this.#fitting?.cleanup();
-      this.#fitting = null;
-      this.#readingArrangement?.cleanup();
-      this.#readingArrangement = null;
+      this.#layout?.disconnect();
     }
   },
 );

@@ -79,14 +79,13 @@ import { narrowingView, threadsBox } from "./panel-elements.js";
 import { pointerAt } from "../pointer.js";
 import { focused } from "../keyboard/scopes.js";
 import { conversational, threadKey } from "./model.js";
-import { runtime } from "../context.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { narrowingModel, threadSearchReading } from "./narrowing.js";
-import { conversationState } from "./state.js";
+import { readThreads } from "./state.js";
 import { threadReading } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
@@ -377,8 +376,6 @@ const rowModel = (all, commands) => {
         kind: "thread",
         key: `thread:${threadKey(t)}`,
         descriptor: threadReading(t, "panel", commands.card, {
-          interactions: runtime.activity?.interactions ?? [],
-          revision: runtime.currentRevision,
           visible: visible.has(t),
           grow,
           outline,
@@ -388,7 +385,7 @@ const rowModel = (all, commands) => {
       }),
     );
   }
-  for (const e of conversationState().done)
+  for (const e of readThreads().done)
     rows.push(
       Object.freeze({
         kind: "system",
@@ -485,7 +482,8 @@ async function presentList(model, current) {
 // The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
 // one proof for the existing conversation presentation ticket. Only the newest call can
 // run post-paint work, capture authored values, or commit a fallback.
-export async function renderThreads(all, commands) {
+export async function renderThreads(collection, commands) {
+  const all = collection.threads;
   const generation = ++renderGeneration;
   const current = () => generation === renderGeneration;
   let reading = rowModel(all, commands);

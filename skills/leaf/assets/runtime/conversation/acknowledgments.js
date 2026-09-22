@@ -7,7 +7,6 @@
    while the separate live region changes only with semantic phase or detail. */
 import { ago } from "../presence.js";
 import { agentWorkflowStage } from "../updates.js";
-import { turns } from "./model.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 
 const phaseText = (receipt, includeAge = true) => {
@@ -79,29 +78,6 @@ export const receiptReading = (receipt) =>
     semantic: phaseText(receipt),
     workflowStage: agentWorkflowStage(receipt),
   });
-
-// Membership comes from the gate-validated frozen fragment, never from the live DOM.
-export function messageReceipts(thread, message, widgets, interactions, revision) {
-  return Object.freeze(
-    interactions
-      .filter((receipt) => {
-        if (receipt.target.kind === "thread") {
-          if (thread.resolved || receipt.target.id !== thread.root.id) return false;
-          const source = turns(thread).some((item) => item.id === receipt.event)
-            ? receipt.event
-            : thread.root.id;
-          return source === message.id;
-        }
-        return (
-          receipt.target.kind === "widget" &&
-          receipt.event &&
-          receipt.revision <= revision &&
-          widgets.includes(receipt.target.id)
-        );
-      })
-      .map(receiptReading),
-  );
-}
 
 export function createReceipt() {
   const node = document.createElement(RECEIPT_TAG);

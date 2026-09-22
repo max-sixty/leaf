@@ -11,7 +11,7 @@ import { clocked } from "../presence.js";
 import { focused } from "../keyboard/scopes.js";
 import { retainReaderIntent } from "../reader-intent.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
-import { conversationState } from "./state.js";
+import { conversationState, readThreads } from "./state.js";
 import {
   renderConversations,
   beginConversationSeats,
@@ -136,10 +136,12 @@ export function createConversationPresentation({
     const current = () => generation === surfaceGeneration;
     const batch = beginConversationSeats();
     let prepared = null;
+    let surfaces = null;
     try {
-      const { all, listed } = conversationState();
+      const { all } = conversationState();
+      const collection = readThreads();
       const threads = phase === "ready" ? all : [];
-      const conversations = phase === "ready" ? listed : [];
+      const conversations = collection.threads;
       renderHolds(threads);
       const painted = anchorPaint.paint({
         threads,
@@ -148,10 +150,11 @@ export function createConversationPresentation({
       });
       if (painted) anchorControls.render(painted);
       drawingPaint.paint(threads);
-      renderSurfaces(conversations, anchorPaint.placedAt, surfaceView);
+      surfaces = renderSurfaces(collection, anchorPaint.placedAt, surfaceView);
+      void surfaces.completion.catch(() => {});
       prepared =
         phase === "ready"
-          ? renderThreads(threads, listView)
+          ? renderThreads(collection, listView)
           : renderThreadListUnavailable(
               phase === "offline"
                 ? "Current threads are unavailable while the server is offline."
@@ -160,14 +163,17 @@ export function createConversationPresentation({
             );
       void prepared.catch(() => {});
       renderConversations(conversations, inlineView);
-      renderMargin();
-      const candidate = await prepared;
+      // Capture every core message and approval age before yielding to a package.
+      // Their shared clock refreshes this whole presentation, including its outlets.
+      const [, candidate] = await Promise.all([surfaces.completion, prepared]);
       if (!current()) return;
+      renderMargin();
       candidate?.commit();
       commitConversationSeats(batch);
       pageGeometry.pageShifted();
       finishListRecovery(candidate);
     } catch (error) {
+      surfaces?.cancel();
       if (!current() || error instanceof RetainedThreadListError) throw error;
       // A synchronous sibling failure may leave the panel's widget preparation in
       // flight. Invalidate its private generation before restoring the whole reading.

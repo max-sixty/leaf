@@ -13,6 +13,7 @@ import {
 import {
   conversational,
   foldThreads,
+  readThreadRecords,
 } from "../../skills/leaf/assets/runtime/conversation/model.js";
 import {
   conversationForAttempt,
@@ -94,6 +95,10 @@ export interface SemanticDocument {
   >;
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;
+  messageBodies?: ReadonlyMap<
+    string,
+    { text: string; document?: { thread: string; message: string } }
+  >;
 }
 
 export interface WidgetDescriptor {
@@ -403,9 +408,7 @@ function widgetReading(
   );
   const holdingThread = root.effective.conversation.all.find(
     (thread: any) =>
-      !thread.resolved &&
-      !thread.root.pending &&
-      thread.root.holds === descriptor.id,
+      !thread.resolved && !thread.root.pending && thread.root.holds === descriptor.id,
   );
   return {
     authored: authored ?? {},
@@ -534,10 +537,16 @@ export function createSemanticApplication({
     // that thread to the agent for the reply; the standing obligation goes back on top
     // of it, from the same reader list the tray and the walk read.
     const owed = new Set(asks.reader.map((ask) => ask.thread));
-    const threads = folded.map((thread: any) =>
+    const obligated = folded.map((thread: any) =>
       owed.has(thread.root.id) && !thread.awaits_reader
         ? { ...thread, awaits_reader: true }
         : thread,
+    );
+    const threads = readThreadRecords(
+      obligated,
+      document,
+      widgets,
+      (state?.activity as any)?.interactions ?? [],
     );
     return {
       hostAvailable,
@@ -545,13 +554,12 @@ export function createSemanticApplication({
       widgets,
       conversation: {
         all: threads,
-        listed: threads.filter(conversational),
-        // The approvals the log has accepted, folded through withdrawal by the server.
-        // The thread list draws a row for each and the banner's button reads them for
-        // the word it wears, so they are a semantic input like any other: left out of
-        // this publication, an approval arriving on its own changes nothing anyone
-        // derives, no epoch follows it, and neither surface repaints.
-        done: state?.browser.conversation.done ?? [],
+        collection: {
+          phase,
+          threads: threads.filter(conversational),
+          // Admitted approvals are semantic input even when no Thread changes.
+          done: state?.browser.conversation.done ?? [],
+        },
       },
       asks,
       // These are semantic inputs to package rendering, not transport metadata.
@@ -761,13 +769,25 @@ export function createSemanticApplication({
         );
         return receipt ? { ...item, readEvent: receipt } : item;
       });
+      // A capture can add message bodies without changing the shown document.
+      // Retain its explicit identity and share fields the publisher already owns.
+      const capture = <T>(value: T, standing: unknown): T =>
+        value === standing ? value : structuredClone(value);
       publish({
         document: document
           ? {
-              ...structuredClone(document),
-              stamp: document.stamp ?? state.active.version ?? null,
-              authored: new Map(structuredClone(document.authored)),
-              descriptors: new Map(structuredClone(document.descriptors)),
+              ...document,
+              registry: capture(document.registry, prior.document.registry),
+              authored: capture(document.authored, prior.document.authored),
+              descriptors: capture(document.descriptors, prior.document.descriptors),
+              ...(document.messageBodies
+                ? {
+                    messageBodies: capture(
+                      document.messageBodies,
+                      prior.document.messageBodies,
+                    ),
+                  }
+                : {}),
             }
           : prior.document,
         authoritative,
@@ -776,12 +796,16 @@ export function createSemanticApplication({
       });
       return true;
     },
-    enqueue(event: Event, timestamp: string) {
+    enqueue(
+      event: Event,
+      timestamp: string,
+      plainText: string = event.text ?? event.token ?? "",
+    ) {
       if (entry(event.attempt)) return null;
       const before = publisher.read();
       const localId = PENDING + event.attempt;
       const conversation = isConversationEvent(event)
-        ? conversationForAttempt(event, timestamp)
+        ? { ...conversationForAttempt(event, timestamp), plainText }
         : null;
       const undoTarget =
         event.kind === "undo"

@@ -320,8 +320,8 @@ before resolving its current node and scrolling to it;
 `runtime/page-geometry.js` coordinates page movement and anchor, drawing, and aim paint;
 `runtime/conversation/model.js` folds supplied server threads and unresolved messages
 as values; it reads no runtime store or DOM. `conversation/identity.js` owns pending
-message identity. `conversation/state.js` holds the one derived conversation reading,
-written by conversation presentation and consumed by its surfaces;
+message identity. `conversation/state.js` selects the publisher's canonical Thread
+collection shared by the panel and packages;
 `runtime/conversation/messages.js` owns immutable message readings and their synchronous
 Lit presentation, including retained frozen authored islands;
 `runtime/conversation/replies.js` owns reply drafts, retained editor subscription
@@ -342,16 +342,16 @@ search input and local disclosure state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` projects and Lit-renders complete message
 reaction surfaces, retiring their registered keyboard mode before removal;
-`runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
-threads they claim from the margin-projection fallback;
+`runtime/conversation/surfaces.js` owns Thread consumer lifetimes, their presentation
+completion, registry-declared outlets, and the Threads they claim from the margin;
 `runtime/conversation/thread-card.js` owns the shared immutable thread descriptor and
 complete synchronous Lit tree across retained native panel, page, widget-outlet, and
 margin cards; native editors remain opaque mechanical islands;
 `runtime/conversation/thread-list-view.js` owns keyed panel placement and committed
 descriptor restoration; `conversation/thread-list.js` owns its grouping, scroll holds,
 and connected presentation proof for already-admitted frozen widgets;
-`runtime/conversation/acknowledgments.js` derives immutable message-receipt readings
-from canonical activity and captured fragment membership; message owners place retained
+`runtime/conversation/acknowledgments.js` formats the canonical message receipts
+published by the conversation model; message owners place retained
 Lit receipts, which own their words and semantic paint;
 and
 `runtime/conversation/presentation.js` composes retained conversation rendering;

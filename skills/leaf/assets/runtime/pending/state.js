@@ -5,7 +5,7 @@
    Presentation accounting is the only door that resolves a receipt read race. */
 import { applicationState, readApplication } from "../semantic-state.js";
 
-export function createPendingLedger({ newAttempt, now }) {
+export function createPendingLedger({ newAttempt, enqueue }) {
   const handles = new Map();
   const snapshot = () => readApplication().unresolved;
   const remove = (entry) => applicationState.remove(new Set([entry.event.attempt]));
@@ -45,7 +45,7 @@ export function createPendingLedger({ newAttempt, now }) {
         resolveRead,
       };
       handles.set(attempted.attempt, handle);
-      applicationState.enqueue(attempted, now());
+      enqueue(attempted);
       return handle;
     },
     snapshot,

@@ -93,7 +93,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
         named = [roots.get(event["id"])]
     elif kind == "edit":
         named = [roots.get(event["message"])]
-    elif kind == "summary":
+    elif kind in {"summary", "conversation_title"}:
         named = [event["conversation"]]
     elif kind in {"resolve", "unresolve"}:
         parent = event["parent"]
@@ -224,6 +224,7 @@ def thread_digest(
     shown = ends_kept(kept, pin)
     return {
         "id": thread["root"]["id"],
+        "title": thread["title"],
         "anchor": thread["anchor"],
         "detached_from": thread["detached_from"],
         # Who closed it, or null for a thread still open — a thread an agent

@@ -192,6 +192,7 @@ def _base_state(
         "conversations": [
             {
                 "id": root,
+                "title": thread["title"],
                 "anchor": thread["anchor"],
                 "detached_from": thread["detached_from"],
                 "resolved": thread["resolved"] and thread["resolved"]["author"],

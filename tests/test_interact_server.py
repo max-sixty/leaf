@@ -5079,6 +5079,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     [thread] = closed_reading["conversations"]
     assert thread == {
         "id": "c-lost",
+        "title": None,
         "anchor": None,
         "detached_from": None,
         "resolved": "user",

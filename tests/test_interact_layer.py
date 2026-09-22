@@ -134,6 +134,7 @@ def test_agent_interaction_command_help(regtest):
         "page state",
         "conversation read",
         "conversation summarize",
+        "conversation title",
         "status",
         "comment",
         "reply",

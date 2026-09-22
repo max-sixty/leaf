@@ -96,6 +96,19 @@ Options:
   --json        print the summary event
   --help        Show this message and exit.
 
+## leaf conversation title --help
+Usage: leaf conversation title [OPTIONS] PAGE CONVERSATION_ID
+
+  Name the conversation for the thread panel; repeat to rename it.
+
+  Choose a few descriptive words when first handling a conversation. Keep the
+  title stable unless its subject changes. This adds no message or reply.
+
+Options:
+  --text TEXT  short descriptive title (at most 80 characters)  [required]
+  --json       print the title event
+  --help       Show this message and exit.
+
 ## leaf status --help
 Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
 

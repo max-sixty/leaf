@@ -18,6 +18,19 @@ cross-boundary text instead of creating a detached comment. It prints the id of
 the thread it opened, which `leaf status --on`, `leaf edit --to`, and
 `leaf resolve --to` take.
 
+Give a conversation a short, descriptive title when you open it or first handle
+the reader's thread. Choose a few words that identify its subject in the thread
+panel. Keep the title stable; rename it only when it no longer describes the
+discussion.
+
+```bash
+leaf conversation title <page> <conversation-id> --text "Afternoon workshop"
+```
+
+The conversation id is its opening comment's id. Titles are plain text, at most
+80 characters. The same command sets or replaces the title without changing
+messages or adding a conversational turn.
+
 Use `--markup` for a small question: an `lf-ask` containing one heading and
 its `lf-options` group. Thread markup is frozen in the log and has no revision
 boundary: every immutable historical document shows the same markup. It must

@@ -6,16 +6,7 @@
 // under a directory of its own cannot have one of them agreeing with its URL while the
 // next two contradict it.
 export const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
-// A generated contained document has no address of its own. document.open() gives it
-// the outer page's URL, even though the content still has about:srcdoc's fixed-page
-// semantics. Runtime-owned markup states that semantic location explicitly; ordinary
-// authored and served documents continue to derive it from their real URL.
-const runtimeLocation = document.querySelector(
-  'meta[name="lf-location"][data-lf-runtime]',
-)?.content;
-export const PAGE_PATH = runtimeLocation
-  ? new URL(runtimeLocation).pathname
-  : location.pathname;
+export const PAGE_PATH = location.pathname;
 // Where another version is: beside this one. It was "/versions/vN.html" at the three
 // seats that travel, which is a claim about where the page directory sits — true of a
 // server serving one page at a root of its own, and of nothing else. The published site
@@ -108,4 +99,22 @@ const stored = (open, name, scope = "") => ({
 // nobody asked for.
 export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-export const readerStore = stored(() => localStorage, "local");
+export const readerStore = stored(
+  () => localStorage,
+  "local",
+  document.body.hasAttribute("data-lf-contained") ? PAGE_SCOPE : "",
+);
+
+// Disposable child pages have an exclusive URL scope. Call only after their
+// browsing context has stopped: pagehide itself saves tab state.
+export function discardPageStorage(url) {
+  const scope = new URL(url).pathname;
+  if (scope === "/") throw new Error("cannot discard root page storage");
+  for (const [open, name] of [
+    [() => localStorage, "local"],
+    [() => sessionStorage, "session"],
+  ]) {
+    const store = stored(open, name, scope);
+    for (const key of store.keys()) store.set(key, null);
+  }
+}

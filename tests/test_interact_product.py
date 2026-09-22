@@ -576,6 +576,9 @@ def test_corpus_is_generated_from_the_examples():
     assert corpus.build_data() == committed_data, (
         "example data changed — rerun scripts/corpus.py"
     )
+    assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
+        "specimen conversations changed — rerun scripts/corpus.py"
+    )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
     )

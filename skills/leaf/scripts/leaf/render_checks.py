@@ -77,6 +77,9 @@ def prepare_standalone_probes(page) -> None:
 
 def install_driver(page) -> None:
     """Install the guarded document-side probe driver before navigation."""
+    # A frame uses its containing page's initialization scripts; evaluations and
+    # probe imports remain in the frame's own document.
+    page = getattr(page, "page", page)
     if getattr(page, "_leaf_render_driver_installed", False):
         return
     page.add_init_script(path=DRIVER_SOURCE)
@@ -98,7 +101,12 @@ def _load_probes(page, call: dict) -> None:
     _ensure_driver(page)
     page.evaluate(_START_PROBES, call)
     try:
-        page.wait_for_function(_PROBES_LOADED, arg=call, timeout=call["timeoutMs"])
+        # Probe readiness is independent of animation frames. A complete child
+        # document in a closed disclosure or inactive tab still needs inspection,
+        # but browsers suspend its requestAnimationFrame callbacks.
+        page.wait_for_function(
+            _PROBES_LOADED, arg=call, timeout=call["timeoutMs"], polling=100
+        )
     except PlaywrightTimeout as error:
         raise PlaywrightError(
             f"Leaf browser probes did not load from {call['route']} within "
@@ -125,7 +133,7 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
     call = _call(page, name, args, timeout_ms)
     _load_probes(page, call)
     try:
-        page.wait_for_function(_PROBE, arg=call, timeout=call["timeoutMs"])
+        page.wait_for_function(_PROBE, arg=call, timeout=call["timeoutMs"], polling=100)
     except PlaywrightTimeout as error:
         raise PlaywrightTimeout(
             f"Leaf wait probe {name} did not become true within {call['timeoutMs']}ms"

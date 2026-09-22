@@ -168,6 +168,40 @@ describe("product-site delivery", () => {
     expect(env.ASSETS.fetch).toHaveBeenCalledTimes(3);
   });
 
+  it("routes specimen documents, assets, and events to the private container without agent work", async () => {
+    const sessionId = "03".repeat(16);
+    const specimen = `/examples/triage-board/api/specimens/${"04".repeat(16)}`;
+    const eventId = "05".repeat(16);
+    const attempt = "specimen-comment";
+    const containerFetch = vi.fn(async () => Response.json({
+      ok: true,
+      state: {
+        events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
+        activity: { obligations: [{ event: eventId }] },
+      },
+    }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const waitUntil = vi.fn();
+    const env = environment();
+    for (const [method, path] of [
+      ["POST", "/examples/triage-board/api/specimens"],
+      ["GET", `${specimen}/`],
+      ["GET", `${specimen}/revisions/r1-0123456789abcdef/leaf.js`],
+      ["GET", `${specimen}/api/state`],
+      ["POST", `${specimen}/api/event`],
+    ]) {
+      const response = await worker.fetch(new Request(`https://leaf.page${path}`, {
+        method,
+        headers: { Cookie: `__Host-leaf-page=${sessionId}`, "Content-Type": "application/json" },
+        ...(method === "POST" ? { body: JSON.stringify({ kind: "comment", attempt }) } : {}),
+      }), env, { waitUntil } as unknown as ExecutionContext);
+      expect(response.status).toBe(200);
+    }
+    expect(containerFetch).toHaveBeenCalledTimes(5);
+    expect(waitUntil).not.toHaveBeenCalled();
+    expect(env.WEBSITE_EVENTS.writeDataPoint).not.toHaveBeenCalled();
+  });
+
   it.each([
     "/",
     "/how-it-works/",

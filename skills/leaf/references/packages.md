@@ -443,11 +443,24 @@ the gallery's playback controls; the same call must still reach its complete sta
 the caller ignores the return. Optional recorded scalar attributes have a null initial
 value and must be removed when that value returns.
 
+### A hosted specimen
+
+`await mountSpecimen(frame, {template, passive})` hosts an isolated Leaf page from an
+authored `template[data-specimen]` id. `ready` resolves to the presented child
+`Document`; `reset()` replaces it with a fresh child and resolves the same way.
+`enter(returnTo)` activates the child and records the parent control to return to;
+`leave()` returns there. Size the frame with CSS. `destroy()` releases the child.
+The frame emits `lf-specimen-enter` and
+`lf-specimen-leave` when the host changes its focus boundary, including Escape
+from the child. A passive specimen stays inert for demonstration playback.
+`page-authoring.md`, "Live specimens", owns the authored element and its
+isolation contract.
+
 ### A package-owned interaction replay
 
 The developer Product Gallery can replay a package widget's production motion without
 moving that package into the default layer. Its figure carries the contained page's
-authored markup in `template[data-interaction-page]` and names the widget module with
+authored markup in `template[data-specimen]` and names the widget module with
 `data-interaction-module`; that module exports one optional
 `interactionGalleryScenario` object with `reset(root)` and `play(context)` methods.
 `reset` receives the contained page's `Document` and restores its authored starting

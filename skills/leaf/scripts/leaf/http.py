@@ -22,7 +22,7 @@ from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 
 from . import presence as presence_model
-from .data import DataError, data_fragment, read_data_fragment
+from .data import DataError, data_fragment, read_data, read_data_fragment
 from .data_contracts import valid_snapshot_id
 from .event_endpoint import accept_event, event_rejection
 from .event_log import read_events
@@ -63,6 +63,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
+from .specimens import Specimens
 from .structure import (
     DELIVERY_ENCODING_META,
     FRAME_ANCESTORS_CSP,
@@ -152,9 +153,14 @@ def _scope_routes(
         return body
     page = page_root.rstrip("/").encode()
     assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
+    # Captured authored dependencies already carry an address; runtime API strings
+    # still carry logical paths. A page root may itself begin with /api/.
+    addressed = tuple(root.lstrip(b"/") + b"/" for root in (page, assets) if root)
     return pattern.sub(
         lambda match: (
-            match.group("before")
+            match.group()
+            if body[match.start("path") :].startswith(addressed)
+            else match.group("before")
             + (page if match.group("path").startswith((b"api/", b"media/")) else assets)
             + b"/"
             + match.group("path")
@@ -192,14 +198,21 @@ def scope_document_routes(
         return body
     page = page_root.rstrip("/").encode()
     assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
+    addressed = tuple(root.lstrip(b"/") + b"/" for root in (page, assets) if root)
 
     def route_root(match: re.Match) -> bytes:
         return page if match.group("path").startswith(b"api/") else assets
 
     def scope_start_tag(tag_match: re.Match) -> bytes:
+        original = tag_match.group()
         tag = _ROOTED_PAGE_ATTRIBUTE.sub(
             lambda match: (
-                match.group("before") + route_root(match) + b"/" + match.group("path")
+                match.group()
+                if original[match.start("path") :].startswith(addressed)
+                else match.group("before")
+                + route_root(match)
+                + b"/"
+                + match.group("path")
             ),
             tag_match.group(),
         )
@@ -732,14 +745,8 @@ class PageEndpoint:
         return headers
 
     def _content(self, status: int, ctype: str, body: bytes) -> Response:
-        """One body, its Leaf routes rewritten for wherever this page is mounted."""
+        """Encode a body whose producer has already addressed its dependencies."""
         is_html = ctype.startswith("text/html")
-        if is_html:
-            body = scope_document_routes(body, self.page_root)
-        elif ctype.startswith("text/css"):
-            body = scope_stylesheet_routes(body, self.page_root)
-        elif ctype.startswith(("text/javascript", "application/javascript")):
-            body = scope_script_routes(body, self.page_root)
         headers = {"Content-Type": ctype, "Cache-Control": "no-store"}
         if is_html and self.frame_ancestors_policy:
             headers["Content-Security-Policy"] = self.frame_ancestors_policy
@@ -846,6 +853,9 @@ class PageEndpoint:
                 if prepare:
                     self.body_unread = True
                 return self._refuse(NO_KEY, 403)
+            specimen_answer = self._specimen_request()
+            if specimen_answer is not None:
+                return specimen_answer
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
@@ -856,6 +866,39 @@ class PageEndpoint:
             if prepare and not prepared:
                 self.body_unread = True
             return self._json({"error": f"{type(error).__name__}: {error}"}, 500)
+
+    def _specimen_request(self) -> Response | None:
+        """Enter a child only after its parent transport has authorized this request."""
+        match = re.fullmatch(r"/api/specimens/([a-f0-9]{32})(/.*)?", self.path)
+        if match is None:
+            return None
+        identity, inside = match.groups()
+        specimen = self.server.specimens.get(self.page_dir, identity)
+        if specimen is None:
+            return self._not_found()
+        if self.method == "POST" and inside == "/api/release":
+            self.read_body(MAX_MEDIA_UPLOAD_BYTES)
+            self.server.specimens.release(self.page_dir, identity)
+            return self._json({"released": True})
+        child = SpecimenEndpoint(
+            self.request,
+            self.server,
+            page_dir=specimen.directory,
+            layer_identity=specimen.layer,
+            page_root=f"{self.page_root}/api/specimens/{identity}",
+        )
+        child.path = inside or "/"
+        child.passive = specimen.passive
+        child.asset_root = specimen.asset_root
+        child.frame_ancestors_policy = (
+            "frame-ancestors 'self'" if self.frame_ancestors_policy else None
+        )
+        with specimen.lock:
+            if specimen.closed:
+                return self._not_found()
+            answer = child.respond()
+            self.response_layer = child.response_layer
+            return answer
 
     def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
@@ -887,16 +930,23 @@ class PageEndpoint:
         name = self._revision_name(revision).removesuffix(".html")
         return self.page_root.rstrip("/") + f"/revisions/{name}"
 
+    def _document_asset_root(self, revision: int) -> str:
+        """The immutable dependency namespace selected for this document."""
+        return self._artifact_root(revision)
+
+    def _specimen_asset_root(self, revision: int) -> str:
+        """Capture the parent's resource provenance when creating a child."""
+        return self._document_asset_root(revision)
+
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
         """Serve one immutable document under the current delivery boundary."""
         try:
             self.response_layer = artifact.registry["$layer"]["generation"]
+            asset_root = self._document_asset_root(revision)
             projected = supervised_document(
-                deliver_document(
-                    artifact.html.decode("utf-8"), self._artifact_root(revision)
-                ),
+                deliver_document(artifact.html.decode("utf-8"), asset_root),
                 revision,
                 version,
                 executable=artifact.executable,
@@ -906,7 +956,7 @@ class PageEndpoint:
                 resources=artifact.resources,
                 release_id=self.release,
                 page_root=self.page_root,
-                asset_root=self._artifact_root(revision),
+                asset_root=asset_root,
                 before_runtime=self._document_head(),
             )
         except ValueError as error:
@@ -1054,7 +1104,12 @@ class PageEndpoint:
             # have one. On a PNG it is noise.
             if ctype not in BINARY_TYPES:
                 ctype += "; charset=utf-8"
-            return self._content(200, ctype, file.read_bytes())
+            body = file.read_bytes()
+            if ctype.startswith("text/css"):
+                body = scope_stylesheet_routes(body, self.page_root)
+            elif ctype.startswith(("text/javascript", "application/javascript")):
+                body = scope_script_routes(body, self.page_root)
+            return self._content(200, ctype, body)
         return None
 
     def _get(self) -> Response | None:
@@ -1063,7 +1118,7 @@ class PageEndpoint:
             return self._content(
                 200,
                 "text/javascript; charset=utf-8",
-                probe_source.read_bytes(),
+                scope_script_routes(probe_source.read_bytes(), self.page_root),
             )
         if path == "/":
             return self._serve_root()
@@ -1114,26 +1169,35 @@ class PageEndpoint:
 
     def _post(self) -> Response | None:
         path = self.path
-        if path not in {"/api/event", "/api/media"}:
+        if path not in {"/api/event", "/api/media", "/api/specimens"}:
             return self._json({"error": "not found"}, 404)
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
-        if self.page_snapshot is not None:
+        # A specimen allocates an independent page from the frozen reading; it does
+        # not write to the preview's parent.
+        if self.page_snapshot is not None and path != "/api/specimens":
             return self._refuse("the preview server is read-only", 403)
         try:
             view_revision = self.requested_view_revision(header=True)
         except ValueError as error:
             return self._refuse(str(error))
-        if view_revision is not None and view_revision not in list_revisions(
-            self.page_dir
-        ):
+        revisions = (
+            self.page_snapshot.artifacts
+            if self.page_snapshot is not None
+            else list_revisions(self.page_dir)
+        )
+        if view_revision is not None and view_revision not in revisions:
             return self._refuse(f"unknown view revision r{view_revision}")
         if view_revision is not None:
             current_layer = self._artifact(view_revision).registry["$layer"][
                 "generation"
             ]
         else:
-            active_revision = latest_revision(self.page_dir)
+            active_revision = (
+                self.page_snapshot.active["revision"]
+                if self.page_snapshot is not None
+                else latest_revision(self.page_dir)
+            )
             current_layer = (
                 self._artifact(active_revision).registry["$layer"]["generation"]
                 if active_revision is not None
@@ -1146,6 +1210,46 @@ class PageEndpoint:
             return self._json({"layer": current_layer})
         if self.posted_error:
             return self._refuse(self.posted_error)
+        if path == "/api/specimens":
+            template = self.posted.get("template")
+            passive = self.posted.get("passive", False)
+            if (
+                not isinstance(template, str)
+                or not template
+                or not isinstance(passive, bool)
+            ):
+                return self._refuse(
+                    "specimen requires a template id and a boolean passive value"
+                )
+            revision = view_revision or active_revision
+            if revision is None:
+                return self._refuse("specimen requires an active parent revision")
+            try:
+                if self.page_snapshot is not None:
+                    artifact = self._artifact(revision)
+                    events = list(self.page_snapshot.events)
+                    data = self.page_snapshot.data
+                    asset_root = self._specimen_asset_root(revision)
+                else:
+                    with PageTransaction(self.page_dir) as page:
+                        artifact = self._artifact(revision)
+                        events = page.events
+                        data = read_data(self.page_dir)
+                        asset_root = self._specimen_asset_root(revision)
+                # Allocation validates and writes only the child's directory.
+                # Its parent reading is complete before releasing the log lease.
+                identity = self.server.specimens.create(
+                    self.page_dir,
+                    artifact,
+                    events,
+                    data,
+                    template,
+                    passive,
+                    asset_root,
+                )
+            except ValueError as error:
+                return self._refuse(str(error))
+            return self._json({"url": f"{self.page_root}/api/specimens/{identity}/"})
         if path == "/api/media":
             try:
                 media_path = store_uploaded_media(
@@ -1160,6 +1264,35 @@ class PageEndpoint:
             self.page_dir, self.posted, lambda: self.page_state(view_revision)
         )
         return self._json(answer, status)
+
+
+class SpecimenEndpoint(PageEndpoint):
+    """A normal child page whose parent route already checked access."""
+
+    def authorized(self) -> bool:
+        return True
+
+    def _document_asset_root(self, revision: int) -> str:
+        return self.asset_root
+
+    def _content(self, status: int, ctype: str, body: bytes) -> Response:
+        if ctype.startswith("text/html"):
+            body = re.sub(
+                rb"<html\b",
+                b"<html data-lf-contained",
+                body,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            passive = b" data-lf-specimen-passive" if self.passive else b""
+            body = re.sub(
+                rb"<body\b",
+                b"<body data-lf-contained inert" + passive,
+                body,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+        return super()._content(status, ctype, body)
 
 
 def page_endpoint(
@@ -1198,6 +1331,8 @@ def page_app(endpoint, server):
     log reads, atomic writes — so they run on the serving loop's worker threads, and
     an open news stream is the one response that stays on the loop itself.
     """
+
+    server.specimens = Specimens()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":

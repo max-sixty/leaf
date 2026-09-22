@@ -2132,13 +2132,12 @@ def test_a_revision_reaches_the_markup_held_inside_a_template(browser, serve):
     `childNodes` is empty on a template however much markup it holds, so a patch that
     read the element alone left every template on a page frozen at the revision it
     arrived in — silently, because the element is there and its attributes even keep
-    up. The one template an authored page may hold is the gallery's interaction page,
-    which is the markup every replay in the feature gallery instantiates.
+    up. Specimen templates supply the authored document of an isolated child page.
     """
     first = leaf_page(
         "Template first",
         '<h1 id="tm-title">Template</h1>\n'
-        '<template id="tm-held" data-interaction-page>'
+        '<template id="tm-held" data-specimen>'
         '<p class="tm-line">The first account.</p></template>',
     )
     second = first.replace("Template first", "Template second").replace(
@@ -2168,7 +2167,7 @@ def test_a_revision_patches_one_line_of_a_template_written_over_several(browser,
     first = leaf_page(
         "Lines first",
         '<h1 id="tl-title">Lines</h1>\n'
-        '<template id="tl-held" data-interaction-page>\n'
+        '<template id="tl-held" data-specimen>\n'
         '  <p class="tl-line">The first account.</p>\n'
         '  <p class="tl-line">The <lf-gloss tip="held inside">second</lf-gloss>'
         " account.</p>\n"

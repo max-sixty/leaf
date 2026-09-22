@@ -45,7 +45,10 @@
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
       navigator.sendBeacon(
-        "/api/performance",
+        new URL(
+          "api/performance",
+          new URL(`${script.dataset.lfPageRoot}/`, location.origin),
+        ),
         JSON.stringify({
           version: 1,
           loadId: crypto.randomUUID(),
@@ -94,13 +97,16 @@
   // document before the module graph that builds their contents. The theme consumes
   // these provisional root facts; restoreReaderView replaces them with live state.
   try {
-    const tray = localStorage.getItem("lf-tray-slot-open");
+    const scope = root.hasAttribute("data-lf-contained") ? location.pathname : "";
+    const tray = localStorage.getItem(scope + "lf-tray-slot-open");
     if (tray) root.dataset.lfRestoreTray = tray;
-    else if (localStorage.getItem("lf-thread-panel-open") === "1")
+    else if (localStorage.getItem(scope + "lf-thread-panel-open") === "1")
       root.toggleAttribute("data-lf-restore-panel", true);
 
-    const panelWidth = parseFloat(localStorage.getItem("lf-thread-panel-width"));
-    const trayWidth = parseFloat(localStorage.getItem("lf-tray-slot-width"));
+    const panelWidth = parseFloat(
+      localStorage.getItem(scope + "lf-thread-panel-width"),
+    );
+    const trayWidth = parseFloat(localStorage.getItem(scope + "lf-tray-slot-width"));
     if (panelWidth)
       root.style.setProperty("--lf-thread-panel-choice", `${panelWidth}px`);
     if (trayWidth) root.style.setProperty("--lf-tray-slot-choice", `${trayWidth}px`);
@@ -116,6 +122,7 @@
   // server would serve the same bytes, so if the page presents it has started with
   // everything it is going to get.
   function recover(reason, awaits = true) {
+    root.dataset.lfStartupError = reason;
     recordStartupFault(reason);
     if (recovering) return;
     recovering = true;

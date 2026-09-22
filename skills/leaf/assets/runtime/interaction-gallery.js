@@ -8,8 +8,7 @@
  * for this developer surface. */
 
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
-import { runtime } from "./context.js";
-import { servedExecutable, servedWidgets } from "./document-identity.js";
+import { mountSpecimen } from "./specimen.js";
 import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
@@ -55,111 +54,6 @@ async function boundedRead(
   throw new Error(message);
 }
 
-function loadFrameModule(frame, source, message) {
-  return new Promise((resolve, reject) => {
-    const script = frame.contentDocument.createElement("script");
-    script.type = "module";
-    script.src = source;
-    script.addEventListener("load", resolve, { once: true });
-    script.addEventListener("error", () => reject(new Error(message)), { once: true });
-    frame.contentDocument.body.append(script);
-  });
-}
-
-function framePageContent(frame, source) {
-  const template = frame
-    .closest("[data-interaction-demo]")
-    .querySelector(":scope > template[data-interaction-page]");
-  if (!template)
-    throw new Error("interaction gallery page is missing its authored content");
-  return source.importNode(template.content, true);
-}
-
-async function loadFrameDocument(frame) {
-  const source = document.implementation.createHTMLDocument();
-  const root = source.documentElement;
-  const head = source.head;
-  const body = source.body;
-  const theme = new URL("../theme.css", import.meta.url).href;
-  const content = framePageContent(frame, source);
-  const meta = (name, value) => {
-    const element = source.createElement("meta");
-    element.name = name;
-    element.content = value;
-    element.dataset.lfRuntime = "";
-    return element;
-  };
-  const charset = source.createElement("meta");
-  charset.charset = "utf-8";
-  const viewport = source.createElement("meta");
-  viewport.name = "viewport";
-  viewport.content = "width=device-width, initial-scale=1";
-  const style = source.createElement("style");
-  style.textContent = `
-      body { overflow: hidden; }
-    `;
-  const stylesheet = source.createElement("link");
-  stylesheet.rel = "stylesheet";
-  stylesheet.href = theme;
-  // The contained page constructs its adopted sheets from the text its document carries
-  // (runtime/stylesheets.js); this page's own carrier is the same layer's.
-  const carrier = document.querySelector(
-    'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
-  );
-  if (!carrier)
-    throw new Error("this document carries no runtime stylesheets to hand the frame");
-  const sheets = source.importNode(carrier, true);
-  const main = source.createElement("main");
-  main.append(content);
-  root.lang = "en";
-  head.replaceChildren(
-    charset,
-    viewport,
-    meta("lf-location", "about:srcdoc"),
-    meta("lf-revision", String(runtime.currentRevision)),
-    // The whole prelude, from what this document was served: the identity it has as
-    // running code, and what each of its declared widgets was written as. The contained
-    // page never follows a revision — it takes one state reading and opens no feed — but
-    // a prelude that says what a document is says all of it wherever one is written, or
-    // the next reader of the contract finds two answers to one question.
-    meta("lf-executable", servedExecutable ?? ""),
-    meta("lf-widgets", JSON.stringify(servedWidgets)),
-    meta("lf-version", String(runtime.currentStamp)),
-    stylesheet,
-    sheets,
-    style,
-  );
-  // The document in the frame is the runtime's, and it is a whole second Leaf page.
-  // The mark says so on both sides of the boundary — the frame element out in the
-  // gallery carries it too — so the contained page knows to leave the reader's
-  // arrangements alone and a standalone copy knows this is a document it has no
-  // server to open.
-  body.toggleAttribute("data-lf-contained", true);
-  // A picture is not a place to stand, and this is the platform's word for that. A
-  // document tree has one focus, so focus landing in here is focus taken off the page
-  // the reader is actually on: their open margin cluster folds, their selection hints
-  // drop, and the next sequence they press goes somewhere they cannot see. The framed
-  // chrome still runs — the replays drive it through the adapter rather than by
-  // pointing at it — but its focusing steps reach nothing, including a shown dialog's,
-  // which return at once against an inert subject.
-  body.inert = true;
-  body.replaceChildren(main);
-  const doc = frame.contentDocument;
-  doc.open();
-  doc.write(`<!doctype html>${root.outerHTML}`);
-  doc.close();
-  const loadedStylesheet = doc.querySelector('link[rel="stylesheet"]');
-  if (!loadedStylesheet.sheet)
-    await new Promise((resolve, reject) => {
-      loadedStylesheet.addEventListener("load", resolve, { once: true });
-      loadedStylesheet.addEventListener(
-        "error",
-        () => reject(new Error("the contained Leaf page did not load its theme")),
-        { once: true },
-      );
-    });
-}
-
 class Demo {
   constructor(panel, changed) {
     this.panel = panel;
@@ -184,27 +78,17 @@ class Demo {
   }
 
   async load() {
-    // The element is the author's; the document about to be written into it is the
-    // runtime's, and both sides of the boundary carry the mark.
-    this.frameElement.toggleAttribute("data-lf-contained", true);
-    await loadFrameDocument(this.frameElement);
-    const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
-    const leafEntry = new URL("../leaf.js", import.meta.url).href;
-    await loadFrameModule(
-      this.frameElement,
-      adapter,
-      "the contained Leaf page did not load its gallery adapter",
-    );
+    const template = this.figure.querySelector(":scope > template[data-specimen]");
+    this.specimen = mountSpecimen(this.frameElement, {
+      template: template?.id,
+      passive: true,
+    });
+    await this.specimen.ready;
     const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
     if (!frameApi)
       throw new Error("the contained Leaf page did not expose its gallery adapter");
     this.frameApi = frameApi;
-    await loadFrameModule(
-      this.frameElement,
-      leafEntry,
-      "the contained Leaf page did not load Leaf",
-    );
-    await this.frameApi.ready;
+    this.frameApi.resetThreads();
     this.frameElement.dataset.interactionReady = "";
     const modulePath = this.figure.dataset.interactionModule;
     if (modulePath) {
@@ -769,7 +653,10 @@ export function installInteractionGallery() {
 
   uninstallGallery = () => {
     active?.deactivate();
-    for (const demo of demos.values()) demo.stopAnimations();
+    for (const demo of demos.values()) {
+      demo.stopAnimations();
+      void demo.specimen?.destroy();
+    }
     tabObserver.disconnect();
     viewObserver.disconnect();
     toggle.removeEventListener("click", togglePlayback);
@@ -782,6 +669,7 @@ export function installInteractionGallery() {
     void demo
       .load()
       .catch((error) => {
+        if (!demo.figure.isConnected && error.name === "AbortError") return;
         console.error(error);
         demo.loadState = "error";
         demo.setState("error");

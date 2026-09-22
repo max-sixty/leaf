@@ -1021,7 +1021,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font: inherit; font-size: var(--t-6); font-weight: 600;
     text-align: left; color: var(--muted);
     overflow-wrap: anywhere; }
-  button.lf-group { cursor: pointer; }
+  button.lf-group { cursor: pointer; min-height: var(--aim-floor); }
   button.lf-group:hover { color: var(--ink-2); }
   /* Inset, because being pinned is where this heading spends its life and the pin
      puts its box top on the scrollport's own edge: a sticky offset is measured from

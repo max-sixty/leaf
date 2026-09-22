@@ -2081,6 +2081,20 @@ lf-specimen::before { content: "quoted"; }
 lf-specimen[label]::before { content: "quoted · " attr(label); }
 lf-specimen:has(> [data-lf-said="label"])::before { content: none; }
 lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
+lf-specimen[data-lf-specimen-live]::before { content: "live specimen"; }
+lf-specimen[data-lf-specimen-live][label]::before { content: "live specimen · " attr(label); }
+lf-specimen[data-lf-specimen-live]:has(> [data-lf-said="label"])::before { content: none; }
+lf-specimen[data-lf-specimen-live] > [data-lf-said="label"]::before { content: "live specimen · "; }
+/* Like the label, host controls describe the exhibit; they stand outside its gutter. */
+.lf-specimen-controls { display: table-caption; margin-bottom: 10px; }
+.lf-specimen-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.lf-specimen-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
+.lf-specimen-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
+                    border: 1px solid var(--border-2); border-radius: var(--r);
+                    background: var(--paper); }
+@media print {
+  .lf-specimen-controls, .lf-specimen-frame:not([data-lf-exported]) { display: none; }
+}
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
  * the lf-options section — the hand, the lift, the joined shape, the reserved strip and

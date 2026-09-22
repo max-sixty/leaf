@@ -4492,11 +4492,11 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     assert after["content"] == ["After"]
 
 
-def test_source_reading_indexes_widgets_in_an_interaction_page_template():
-    """A gallery specimen is inert here but a real document when the replay imports it."""
+def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
+    """Child widgets are validated when the child page is created."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template data-interaction-page><lf-ask id="nested-ask">'
+        '<template data-specimen><lf-ask id="nested-ask">'
         '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
@@ -4504,12 +4504,8 @@ def test_source_reading_indexes_widgets_in_an_interaction_page_template():
     parser = structure_model.SourceDocument(html)
 
     assert parser.errors == []
-    assert [record["tag"] for record in parser.lf_elements] == [
-        "lf-ask",
-        "lf-options",
-        "lf-option",
-    ]
-    assert parser.by_id["nested-options"]["holder"] is parser.by_id["nested-ask"]
+    assert parser.lf_elements == []
+    assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
 
 

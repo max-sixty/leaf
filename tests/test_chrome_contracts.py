@@ -544,9 +544,7 @@ PHONE_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize(
-    "viewport", [None, "width=device-width, initial-scale=1, viewport-fit=cover"]
-)
+@pytest.mark.parametrize("viewport", [None, "width=device-width, initial-scale=1"])
 def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, viewport):
     """The runtime starts in WebKit; selection offers an explicit Comment action.
 
@@ -564,7 +562,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     metas = page.locator('meta[name="viewport"]')
     expect(metas).to_have_count(1)
     expect(metas).to_have_attribute(
-        "content", viewport or "width=device-width, initial-scale=1"
+        "content", viewport or "width=device-width, initial-scale=1, viewport-fit=cover"
     )
     page.locator("#p1").evaluate("""paragraph => {
       const range = document.createRange();

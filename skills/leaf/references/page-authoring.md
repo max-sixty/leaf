@@ -53,9 +53,9 @@ Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address whe
 delivers the document. Put page-specific CSS in `<style>` and JavaScript in inline
 module blocks. Every `lf-*` element has an explicit end tag.
 
-Delivery also supplies `width=device-width, initial-scale=1` when the head has no
-viewport meta. An authored viewport is preserved; include one only to choose a
-different policy, such as adding `viewport-fit=cover`.
+Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
+when the head has no viewport meta. This lets Leaf's chrome use the device's
+safe-area insets. An authored viewport is preserved and replaces that policy.
 
 The title and description are what the page says it is anywhere outside itself: a
 tab, a search result, a link someone pastes into a chat. Write a description that

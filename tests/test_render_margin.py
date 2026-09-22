@@ -2580,15 +2580,23 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     page.evaluate(
         """() => new Promise(resolve => {
           addEventListener('scrollend', resolve, {once: true});
-          const section = document.querySelector('#bg-quoted-and-visual');
-          document.scrollingElement.scrollTo(0, section.offsetTop - 100);
+          const anchor = document.querySelector('#bg-shot');
+          const scroller = document.scrollingElement;
+          const top = anchor.getBoundingClientRect().top + scroller.scrollTop;
+          scroller.scrollTo(0, top - 100);
         })"""
     )
+    margins_laid_out(page)
     page.locator("body").focus()
     show_after = page.get_by_role(
         "button", name="Show after — a sample run list with and without a status column"
     )
-    expect(show_after).to_be_visible()
+    # The hint layer offers the locations on screen, so that is the premise, and the
+    # scroll reaches the location's own anchor rather than the section holding it.
+    # `to_be_visible` says a control is laid out, not that the reader can see it, so it
+    # passed while gallery content grew between the two and carried this entry out of
+    # the scrollport — leaving the case asking for a chip the page was right not to draw.
+    expect(show_after).to_be_in_viewport()
 
     page.keyboard.press("g")
     target = show_after.evaluate(

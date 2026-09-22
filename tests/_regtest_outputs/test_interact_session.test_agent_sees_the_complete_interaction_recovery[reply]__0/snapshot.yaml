@@ -31,13 +31,22 @@ idle before pickup:
     1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live.
 
 delivered:
-  format: leaf-delivery-v1
+  format: leaf-delivery-v2
   id: <delivery>
   created_at: <time>
   batches:
     - page: <page>
       through_seq: 2
       conversations: []
+      handling:
+        h1: >-
+          Reply in the thread with `leaf reply <page> --for <event-id>`, or with
+          your final message on a host that sends it as the reply, and revise the
+          page if the comment calls for it. If that revision removes what the thread
+          is anchored on, move the thread in the same reply with `--section <id>`
+          (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
+          subject has left the page. Leave the thread open unless the reader asks
+          you to close it or nothing further could change the outcome.
       events:
         - kind: comment
           author: user
@@ -51,14 +60,7 @@ delivered:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: >-
-            Reply in the thread with `leaf reply <page> --for <event-id>`, or with
-            your final message on a host that sends it as the reply, and revise
-            the page if the comment calls for it. If that revision removes what
-            the thread is anchored on, move the thread in the same reply with `--section
-            <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it
-            if its subject has left the page. Leave the thread open unless the reader
-            asks you to close it or nothing further could change the outcome.
+          handling: [h1]
           obligation:
             as_of_seq: 2
             response:

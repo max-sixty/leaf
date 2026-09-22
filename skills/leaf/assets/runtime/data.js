@@ -11,7 +11,7 @@
    seat; they do not fetch it, mutate the accepted copy, or keep a hidden current-value
    map of their own.*/
 
-import { offlineData, offlineInteractive, runtime } from "./context.js";
+import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -292,7 +292,9 @@ export async function loadDataFragment(manifest, key) {
     key,
   });
   if (snapshot) params.set("snapshot", snapshot);
-  const response = await fetch(`/api/data?${params}`, { headers: layerHeaders() });
+  const response = await fetch(pageUrl(`api/data?${params}`), {
+    headers: layerHeaders(),
+  });
   if (response.ok && !sameDelivery(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a fragment");
   }

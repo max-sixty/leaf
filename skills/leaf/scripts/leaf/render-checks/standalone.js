@@ -167,6 +167,11 @@ export function bake() {
   // The reading identifies one live server response. It is neither stable across
   // exports nor meaningful once the scripts and server are gone.
   document.body.removeAttribute("data-lf-reading");
+  // Embedded live pages begin inert until their parent explicitly enters them.
+  // A static copy keeps native links and disclosures, so that focus boundary ends
+  // with the runtime that owned it.
+  document.body.removeAttribute("inert");
+  document.body.removeAttribute("data-lf-contained");
   // A live report is runtime chrome even where its seat is in the page rather than
   // under .lf-chrome, so it is answered here, in the document and in every open shadow
   // root, before those roots are serialized below.

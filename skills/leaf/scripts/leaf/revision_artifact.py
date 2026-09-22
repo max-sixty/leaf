@@ -422,35 +422,44 @@ def _capture_artifact(
         capture("/" + source.lstrip("/"))
 
     entries = []
-    for script in document.inline_scripts:
-        for _, _, specifier in _javascript_imports(
-            script["body"].encode("utf-8"), "/index.html"
-        ):
-            entries.append(resolve_dependency(specifier, "/index.html", module=True))
-    for script in document.external_scripts:
-        path = resolve_dependency(script["attrs"]["src"], "/index.html", module=True)
-        if not path.startswith("/page/"):
-            raise ArtifactError(f"{path}: authored module sources must be under /page/")
-        entries.append(path)
-    for link in links_with_rel(document.links, "stylesheet"):
-        path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
-        if Path(path).suffix != ".css":
-            raise ArtifactError(
-                f"{path}: a stylesheet dependency must have CSS MIME type"
+    documents = [document]
+    for authored in documents:
+        documents.extend(specimen["document"] for specimen in authored.specimens)
+        for script in authored.inline_scripts:
+            for _, _, specifier in _javascript_imports(
+                script["body"].encode("utf-8"), "/index.html"
+            ):
+                entries.append(
+                    resolve_dependency(specifier, "/index.html", module=True)
+                )
+        for script in authored.external_scripts:
+            path = resolve_dependency(
+                script["attrs"]["src"], "/index.html", module=True
             )
-        entries.append(path)
-    for specifier in _css_dependencies(document.css):
-        if not specifier.startswith(("#", "data:")):
-            entries.append(resolve_dependency(specifier, "/index.html"))
-    for inline in document.inline_styles:
-        for specifier in _css_dependencies(inline["style"], declarations=True):
+            if not path.startswith("/page/"):
+                raise ArtifactError(
+                    f"{path}: authored module sources must be under /page/"
+                )
+            entries.append(path)
+        for link in links_with_rel(authored.links, "stylesheet"):
+            path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
+            if Path(path).suffix != ".css":
+                raise ArtifactError(
+                    f"{path}: a stylesheet dependency must have CSS MIME type"
+                )
+            entries.append(path)
+        for specifier in _css_dependencies(authored.css):
             if not specifier.startswith(("#", "data:")):
                 entries.append(resolve_dependency(specifier, "/index.html"))
-    entries.extend(document.media_refs)
-    entries.extend(
-        resolve_dependency(specifier, "/index.html")
-        for specifier in document.page_resource_refs
-    )
+        for inline in authored.inline_styles:
+            for specifier in _css_dependencies(inline["style"], declarations=True):
+                if not specifier.startswith(("#", "data:")):
+                    entries.append(resolve_dependency(specifier, "/index.html"))
+        entries.extend(authored.media_refs)
+        entries.extend(
+            resolve_dependency(specifier, "/index.html")
+            for specifier in authored.page_resource_refs
+        )
     for entry in entries:
         capture(entry)
 

@@ -1,11 +1,12 @@
 /* The thread panel's complete narrowing surface.
  *
  * `narrowing.js` supplies one frozen presentation reading and stable commands. This
- * synchronous light-DOM Lit owner retains the native search input and local Filters
+ * synchronous light-DOM Lit owner retains the search control and local Filters
  * disclosure while rendering the summary, Reset, and declared facet controls. It
  * never reads its rendering back into reader intent.
  */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { offer } from "../widget-elements.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-thread-narrowing";
@@ -16,15 +17,15 @@ class ThreadNarrowingView extends HTMLElement {
   #disclosed = false;
   #model = null;
   #reset = null;
-  #searchInput = document.createElement("input");
+  #searchInput = offer("wa-input", "lf-find-box lf-label-hidden");
 
   constructor() {
     super();
     this.#searchInput.type = "search";
+    this.#searchInput.size = "s";
     this.#searchInput.name = "thread-search";
-    this.#searchInput.className = "lf-find-box";
     this.#searchInput.placeholder = "Find in threads";
-    this.#searchInput.setAttribute("aria-label", "Find in threads");
+    this.#searchInput.label = "Find in threads";
     this.#searchInput.title = "Find in threads";
     this.#searchInput.addEventListener("input", () =>
       this.#changeWords?.(this.#searchInput.value),
@@ -42,6 +43,10 @@ class ThreadNarrowingView extends HTMLElement {
 
   get readerControl() {
     return this.querySelector('[data-filter-kind="state"][data-filter-value="reader"]');
+  }
+
+  toggleReader() {
+    this.#chooseFacet("state", "reader");
   }
 
   get searchInput() {
@@ -72,27 +77,53 @@ class ThreadNarrowingView extends HTMLElement {
   }
 
   #choice(choice) {
-    const classes = ["lf-btn", "lf-thread-filter"];
-    if (choice.className) classes.push(choice.className);
-    if (choice.selected) classes.push("on");
     const keyTitle = choice.kind === "state" && choice.value === "reader";
-    return html`<button
-      type="button"
-      class=${classes.join(" ")}
+    const classes = ["lf-thread-filter", choice.className].filter(Boolean).join(" ");
+    const label = html`${choice.label}${choice.amount ? ` (${choice.amount})` : nothing}`;
+    if (choice.kind === "state")
+      return html`<wa-radio
+        data-lf-gen="1"
+        class=${classes}
+        value=${choice.value}
+        data-filter-kind=${choice.kind}
+        data-filter-value=${choice.value}
+        data-lf-key-title=${keyTitle ? this.#model.readerTitle : nothing}
+        title=${keyTitle ? this.#model.readerTitle : nothing}
+        .disabled=${choice.disabled}
+        >${label}</wa-radio
+      >`;
+    return html`<wa-checkbox
+      data-lf-gen="1"
+      name=${`thread-${choice.kind}-${choice.value}`}
+      size="s"
+      .checked=${choice.selected}
+      class=${classes}
       data-filter-kind=${choice.kind}
       data-filter-value=${choice.value}
-      data-lf-key-title=${keyTitle ? this.#model.readerTitle : nothing}
-      aria-pressed=${String(choice.selected)}
-      title=${keyTitle ? this.#model.readerTitle : nothing}
       ?hidden=${choice.hidden}
       .disabled=${choice.disabled}
-      @click=${() => this.#chooseFacet(choice.kind, choice.value)}
-    >
-      ${choice.label}${choice.amount ? ` (${choice.amount})` : nothing}
-    </button>`;
+      @change=${() => this.#chooseFacet(choice.kind, choice.value)}
+      >${label}</wa-checkbox
+    >`;
   }
 
   #group(group) {
+    if (group.kind === "state")
+      return html`<wa-radio-group
+        data-lf-gen="1"
+        name="thread-state"
+        class="lf-thread-state lf-label-hidden"
+        label=${group.label}
+        orientation="horizontal"
+        size="s"
+        .value=${group.choices.find((choice) => choice.selected).value}
+        @change=${(event) => this.#chooseFacet("state", event.currentTarget.value)}
+        >${repeat(
+          group.choices,
+          (choice) => choice.value,
+          (choice) => this.#choice(choice),
+        )}</wa-radio-group
+      >`;
     return html`<div
       class="lf-thread-filter-group"
       role="group"

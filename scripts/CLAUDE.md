@@ -139,10 +139,12 @@ bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's res
 dependencies and inherit its ranges, so a diff from one of those can be an upstream
 patch rather than drift.
 
-`webawesome` bundles its scoped theme defaults and Leaf token mappings with the
-shared JavaScript. Importing that bundle registers one constructed stylesheet in the
-document and declared shadow stages, so pages without those widgets load and parse no
-Web Awesome JavaScript or CSS.
+`webawesome` builds a chrome entry and an optional-widget entry with shared chunks.
+The chrome entry loads the standard search, filter, and copy controls; optional widgets
+load their remaining controls on demand. Shared dependencies and scoped theme defaults
+are registered once in the document and declared shadow stages. The chrome entry and
+shared chunks live under `assets/vendor/`; the optional entry remains in the default
+package's vendor directory. Page vendoring composes both into the page's vendor root.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.

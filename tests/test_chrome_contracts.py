@@ -683,14 +683,17 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         files[name] = answer.text()
 
     readings = page.evaluate(
-        """(files) => {
+        """async (files) => {
           const rules = (sheet) => [...sheet.cssRules].map((rule) => rule.cssText);
           const fromFile = (text) => {
             const sheet = new CSSStyleSheet();
             sheet.replaceSync(text);
             return rules(sheet);
           };
-          const [chrome, marks] = document.adoptedStyleSheets;
+          const { chromeSheet: chrome, marksSheet: marks } =
+            await window.__lfRuntimeImport("/runtime/stylesheets.js");
+          if (![chrome, marks].every(sheet => document.adoptedStyleSheets.includes(sheet)))
+            throw new Error("The document did not adopt its chrome and marks sheets");
           return {
             chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
             marks: {delivered: rules(marks), file: fromFile(files.marks)},

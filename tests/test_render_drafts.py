@@ -1504,7 +1504,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     page = open_page(browser, serve(NOTED_PAGE, comments=1))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-find-box").fill("Comment 0")
+    page.get_by_role("searchbox", name="Find in threads").fill("Comment 0")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
 
     select_words(page, "#p1")
@@ -1533,7 +1533,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
     )
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-find-box")).to_have_value("")
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread).to_contain_text(sent["text"])
     if later_selection:

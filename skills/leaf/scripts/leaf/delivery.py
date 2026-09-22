@@ -13,14 +13,16 @@ on the events they apply to. Clause identities belong only to that batch.
 """
 
 import json
+import re
+import secrets
 import sys
 import time
-import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 from .event_contracts import append_admitted
+from .event_log import flocked
 from .events import build_threads
 from .files import read_json, write_json
 from .machine import state_home
@@ -43,6 +45,7 @@ from .thread_context import (
 )
 
 DELIVERY_FORMAT = "leaf-delivery-v2"
+DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
     "through_seq",
@@ -52,15 +55,31 @@ _BATCH_FIELDS = (
 )
 
 
+class DeliveryIdConflict(RuntimeError):
+    """A delivery identity already belongs to different immutable input."""
+
+
+def new_delivery_id() -> str:
+    """Mint one candidate in the agent-facing delivery-id vocabulary."""
+    return secrets.token_hex(4)
+
+
+def validate_delivery_id(delivery_id: str) -> str:
+    """Return one delivery id after validating its complete wire form."""
+    if not isinstance(delivery_id, str) or DELIVERY_ID.fullmatch(delivery_id) is None:
+        raise ValueError(f"invalid delivery id {delivery_id!r}")
+    return delivery_id
+
+
 def delivery_path(delivery_id: str) -> Path:
     """The process-independent address of one immutable delivery."""
-    try:
-        parsed = uuid.UUID(delivery_id)
-    except (ValueError, AttributeError) as error:
-        raise ValueError(f"invalid delivery id {delivery_id!r}") from error
-    if str(parsed) != delivery_id:
-        raise ValueError(f"invalid delivery id {delivery_id!r}")
+    validate_delivery_id(delivery_id)
     return state_home() / "deliveries" / f"{delivery_id}.json"
+
+
+def _delivery_lock_path() -> Path:
+    """Serialize machine-wide delivery identity selection and creation."""
+    return state_home() / "deliveries.lock"
 
 
 def _registry(page_dir: Path):
@@ -272,26 +291,35 @@ def freeze_delivery(
     created_at: float | None = None,
 ) -> dict:
     """Persist and return one immutable delivery envelope."""
-    delivery_id = delivery_id or str(uuid.uuid4())
-    payload = {
-        "format": DELIVERY_FORMAT,
-        "id": delivery_id,
-        "created_at": created_at if created_at is not None else time.time(),
-        "batches": [
-            {field: batch[field] for field in _BATCH_FIELDS} for batch in batches
-        ],
-    }
-    path = delivery_path(delivery_id)
-    existing = read_json(path)
-    if existing is not None:
-        if existing != payload:
-            raise RuntimeError(
-                f"delivery {delivery_id!r} already exists with other data"
-            )
-        return existing
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(path, payload)
-    return payload
+    lock = _delivery_lock_path()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(lock):
+        if delivery_id is None:
+            while True:
+                delivery_id = new_delivery_id()
+                path = delivery_path(delivery_id)
+                if read_json(path) is None:
+                    break
+        else:
+            path = delivery_path(delivery_id)
+        payload = {
+            "format": DELIVERY_FORMAT,
+            "id": delivery_id,
+            "created_at": created_at if created_at is not None else time.time(),
+            "batches": [
+                {field: batch[field] for field in _BATCH_FIELDS} for batch in batches
+            ],
+        }
+        existing = read_json(path)
+        if existing is not None:
+            if existing != payload:
+                raise DeliveryIdConflict(
+                    f"delivery {delivery_id!r} already exists with other data"
+                )
+            return existing
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_json(path, payload)
+        return payload
 
 
 def read_delivery(delivery_id: str) -> dict:

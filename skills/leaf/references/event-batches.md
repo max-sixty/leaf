@@ -7,7 +7,7 @@ Every carrier presents the same immutable object:
 ```json
 {
   "format": "leaf-delivery-v2",
-  "id": "…",
+  "id": "a1b2c3d4",
   "created_at": 0,
   "batches": [
     {
@@ -20,6 +20,9 @@ Every carrier presents the same immutable object:
   ]
 }
 ```
+
+The id is eight lowercase hexadecimal characters and addresses this envelope in the
+machine's immutable delivery store.
 
 Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your host contract names which. These differ only in

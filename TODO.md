@@ -81,10 +81,6 @@ has tried; settle that before building it.
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move.
-- **Shorten the delivery id.** It is still a 36-character UUID, beside 8-character
-  event ids. Codex names its queue files with it and `delivery_path` requires the
-  UUID form, so both change together, with a collision check like event ids have.
-  **Unconfirmed:** it saves under 30 characters a batch, which may not be worth it.
 
 ## Etc
 

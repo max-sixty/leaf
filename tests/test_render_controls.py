@@ -6746,7 +6746,11 @@ def _each_aim_surface(page, page_dir):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
+    # Narrowing retains the card's disclosure, so the resolved thread comes back open
+    # and a second press on its summary would put the Reopen away again.
+    expect(page.locator(f'.lf-thread[data-id="{comment}"]')).to_have_js_property(
+        "open", True
+    )
     expect(page.locator(".lf-reopen")).to_be_visible()
     yield
 

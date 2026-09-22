@@ -1487,6 +1487,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
       .lf-margin-preview-nav:not([hidden])) {
     position: static; justify-content: flex-end; margin-bottom: 8px; }
+  /* Navigation takes its own row. Keep Dismiss beside Resolve below it, with the
+     same control floor setting the navigation row's height in pointer and touch UI. */
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
+      .lf-margin-preview-nav:not([hidden])) .lf-margin-preview-close {
+    position: absolute; inset-inline-end: 12px;
+    inset-block-start: calc(12px + max(28px, var(--aim-floor)) + 8px + var(--sp-1)); }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;

@@ -6275,7 +6275,7 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
           )
         )"""
     )
-    assert controls[".lf-margin-preview-nav"]["middle"] == pytest.approx(
+    assert controls[".lf-resolve"]["middle"] == pytest.approx(
         controls[".lf-margin-preview-close"]["middle"], abs=1
     ), controls
     assert (

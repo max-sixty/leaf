@@ -342,6 +342,34 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert grown["overflow"] == 0
 
 
+@pytest.mark.parametrize("thread_count", [1, 2])
+@pytest.mark.parametrize("touch", [False, True])
+def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
+    browser, serve, thread_count, touch
+):
+    context = browser.new_context(
+        viewport={"width": 900, "height": 844}, is_mobile=touch, has_touch=touch
+    )
+    url = serve(LONG_PAGE)
+    for index in range(thread_count):
+        panel_comment(serve.page_dir, f"Comment {index}.", {"section": "p0"})
+    page = open_page(browser, url, context=context)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').first.click()
+    preview = page.locator(".lf-margin-preview[data-lf-thread]:popover-open")
+    resolve = preview.get_by_role("button", name="Resolve thread")
+    dismiss = preview.get_by_role("button", name="Dismiss conversation view")
+    expect(resolve).to_be_visible()
+    expect(dismiss).to_be_visible()
+    centers = preview.evaluate(
+        """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
+          const rect = preview.querySelector(selector).getBoundingClientRect();
+          return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+        })"""
+    )
+    assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
+    assert centers[0]["x"] < centers[1]["x"]
+
+
 STATE_PAINT = """el => {
   const style = getComputedStyle(el);
   return {background: style.backgroundColor, shadow: style.boxShadow};

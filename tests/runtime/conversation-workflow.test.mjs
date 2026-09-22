@@ -149,6 +149,34 @@ test("page widget workflows are revision-bounded independently of frozen widgets
   assert.equal(isPageWidgetWorkflow(widget, 2), true);
 });
 
+test("thread records project local sending attention", () => {
+  const sending = workflow("pending:send", "sending");
+  const thread = {
+    root: { id: "root", author: "user", text: "Question", ts: "2026-09-22T10:00:00Z" },
+    msgs: [
+      { id: "root", author: "user", text: "Question", ts: "2026-09-22T10:00:00Z" },
+    ],
+    anchor: null,
+    resolved: null,
+    awaits_agent: true,
+    awaits_reader: false,
+    attention: null,
+    bare_reaction: false,
+    seat: null,
+  };
+  const [record] = readThreadRecords(
+    [thread],
+    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    new Map(),
+    [sending],
+  );
+  assert.deepEqual(record.attention, {
+    kind: "waiting",
+    reason: "workflow",
+    workflow: sending.id,
+  });
+});
+
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
   const widgetWork = workflow("action-1", "working", {
     revision: 2,

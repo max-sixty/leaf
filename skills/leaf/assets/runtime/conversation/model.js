@@ -10,6 +10,7 @@
    and must get one answer. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
+import { projectThreadAttention } from "./workflow.js";
 
 export const isReaction = (message) => Boolean(message.token);
 export const isAddressable = (message) => message.addressable !== false;
@@ -233,7 +234,7 @@ export function readThreadRecords(threads, document, widgets, workflows) {
       settling: thread.settling ?? null,
       awaits_agent: thread.awaits_agent,
       awaits_reader: thread.awaits_reader,
-      attention: thread.attention ?? null,
+      attention: projectThreadAttention(thread.attention ?? null, threadWorkflows),
       workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

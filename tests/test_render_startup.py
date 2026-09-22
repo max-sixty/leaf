@@ -3823,7 +3823,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
         "the comment followed its old display text onto the other datum"
     )
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
     assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
         "revision": 2,

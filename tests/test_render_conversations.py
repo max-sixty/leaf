@@ -3229,21 +3229,22 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_value("Try the south pair again.")
     page.unroute("**/api/event")
 
-    # And it is dressed rather than bare: an unmarked span among a head of muted
-    # metadata would be the same invisibility in another shape.
+    # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(
         """(id) => {
           const head = document.querySelector(`.lf-msg[data-mid="${id}"] .lf-msg-head`);
-          const chip = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          const failure = getComputedStyle(head.querySelector(".lf-msg-failure"));
           return {
-            chip: chip.color,
-            border: chip.borderTopWidth,
+            failure: failure.color,
+            border: failure.borderTopWidth,
+            weight: failure.fontWeight,
             clock: getComputedStyle(head.querySelector("time")).color,
           };
         }""",
         receipt["id"],
     )
-    assert head["chip"] != head["clock"] and head["border"] != "0px"
+    assert head["failure"] != head["clock"]
+    assert head["border"] == "0px" and int(head["weight"]) >= 600
 
 
 def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):

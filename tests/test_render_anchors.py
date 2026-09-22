@@ -4898,7 +4898,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(2)
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text(
-        ["Outdated", "Outdated"]
+        ["Earlier data", "Earlier data"]
     )
     quote_classes = page.locator(".lf-thread .lf-quote").evaluate_all(
         "quotes => quotes.map(quote => [...quote.classList])"

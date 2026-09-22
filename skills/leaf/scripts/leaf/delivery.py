@@ -5,6 +5,9 @@ each preserving the page's monotonic event order. Conversation membership is
 context, not a partition key, and response requirements are a snapshot of the
 standing projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
+Receipt validates the current receiver and captured event identities under the
+page transaction before advancing its cursor. Pickup records host acceptance or
+turn entry separately; neither settles the reader's response requirement.
 Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
 """
@@ -14,8 +17,11 @@ import re
 import secrets
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
+from .event_contracts import append_admitted
 from .event_log import flocked
 from .events import build_threads
 from .files import read_json, write_json
@@ -26,7 +32,9 @@ from .registry.contract import RegistryError, event_clauses
 from .registry.reactions import described
 from .registry.storage import active_registry
 from .revision_artifact import read_registry
+from .schema import CURSOR_FILE
 from .served_state.page import full_state
+from .service import PageTransaction
 from .structure import parse_revision
 from .thread_context import (
     batch_threads,
@@ -329,3 +337,88 @@ def read_delivery(delivery_id: str) -> dict:
 
 def cmd_delivery_read(delivery_id: str) -> None:
     print(json.dumps(read_delivery(delivery_id), indent=2, ensure_ascii=False))
+
+
+def record_pickup(
+    page: PageTransaction,
+    events: list[dict],
+    *,
+    phase: str = "opened",
+    session: str | None = None,
+    turn: str | None = None,
+) -> dict | None:
+    """Durably record one delivery transition for exact reader moves.
+
+    ``queued`` means Codex's durable same-task queue accepted the batch;
+    ``opened`` means the batch entered an agent turn. Both are transport
+    evidence, not authored work claims. A queued transition may therefore be
+    followed by an opened transition for the same events, while a retry of the
+    same transition appends nothing.
+    """
+    if phase not in {"queued", "opened"}:
+        raise ValueError(f"unknown pickup phase {phase!r}")
+    claim = page.claim
+    if session is None and claim:
+        session = claim.get("id")
+    if phase == "opened" and turn is None and claim and claim.get("id") == session:
+        turn = claim.get("turn")
+    wanted = [event["id"] for event in events if event.get("author") == "user"]
+    picked = {
+        (event_id, event["phase"], event["session"], event["turn"])
+        for event in page.events
+        if event["kind"] == "pickup"
+        for event_id in event["events"]
+    }
+    fresh = list(
+        dict.fromkeys(
+            event_id
+            for event_id in wanted
+            if (event_id, phase, session, turn) not in picked
+        )
+    )
+    if not fresh:
+        return None
+    return append_admitted(
+        page,
+        {
+            "kind": "pickup",
+            "author": "page",
+            "events": fresh,
+            "phase": phase,
+            "session": session,
+            "turn": turn,
+        },
+    )
+
+
+class ReceiptRefused(RuntimeError):
+    """Captured input no longer belongs to this receiver or page log."""
+
+
+@contextmanager
+def receive_batch(
+    page: PageTransaction, batch: dict, *, session_id: str | None
+) -> Iterator[list[dict]]:
+    """Commit receipt after the consumer records its durable pickup evidence.
+
+    All carriers use this boundary after their durable consumer accepts input.
+    The body records pickup and turn entry before this advances the cursor, so
+    interruption leaves input available for retry. Work remains separate.
+    Current ownership authorizes the write, not capture-time ownership;
+    an old envelope can be confirmed after ownership returns to its receiver.
+    """
+    claim = page.active_claim
+    if (claim["id"] if claim else None) != session_id:
+        raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+    expected = {event["seq"]: event["id"] for event in batch["events"]}
+    delivered = {event["seq"]: event for event in page.events}
+    if not expected or any(
+        seq not in delivered or delivered[seq]["id"] != event_id
+        for seq, event_id in expected.items()
+    ):
+        raise ReceiptRefused(
+            f"delivery no longer matches its page log: {page.page_dir}"
+        )
+    yield [delivered[seq] for seq in expected]
+    if max(expected) > page.cursor:
+        write_json(page.page_dir / CURSOR_FILE, {"seq": max(expected)})

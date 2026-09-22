@@ -42,7 +42,7 @@ class Harness:
     What differs between harnesses is how a leaf's input reaches the session
     between its turns, and the methods below answer for that carrier:
 
-    - Claude Code runs a `leaf wait`/`leaf ack` loop itself, watched by the
+    - Claude Code runs a `leaf wait`/`leaf wait --ack` loop itself, watched by the
       host's Stop and prompt hooks. It is the one carrier that stops while its
       session lives on, which is why it is the one with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
@@ -169,7 +169,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
 # writing to that session rather than by starting a second watcher.
 _POLL_UNIFIED_EXEC = (
     "the existing shell session — `leaf wait` before the first batch or "
-    "the rearmed `leaf ack` afterward — with `write_stdin`"
+    "the rearmed `leaf wait --ack` afterward — with `write_stdin`"
 )
 
 

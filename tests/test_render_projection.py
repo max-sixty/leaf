@@ -7694,7 +7694,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —
     and the row is the only thing here either one can be wrong about: the repaint that
     turns them over together is the document's disclosure watch, held up by
-    `test_a_widgets_native_control_names_the_press_the_platform_makes`, and not anything
+    `test_staged_widget_controls_name_the_presses_their_owners_make`, and not anything
     this widget does. Read once and never retried, for the reason `shortcut_bar_text` is: the
     heartbeat repaints scopes too, and an assertion that retries goes green on whichever
     tick lands inside its budget.

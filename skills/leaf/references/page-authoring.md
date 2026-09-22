@@ -250,7 +250,7 @@ stands open in the column is what the reader has to take from the page. History,
 method, source excerpts, exhaustive support, transcripts, and raw output are
 backing by default and go under `<details>`. Collapsed words stay quotable, and
 the runtime opens the disclosure when a comment or a walk lands inside one. An
-Ask and the evidence it turns on never collapse.
+open Ask and the evidence it turns on never collapse.
 
 The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an

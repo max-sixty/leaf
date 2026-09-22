@@ -55,6 +55,7 @@ from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.render_gate import readings as render_gate_readings
 from leaf.validation import compatibility as validation_model
+from leaf.validation.source_history import PROTECTED_REMEDIES
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -2272,6 +2273,109 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     assert "ids dropped from revision r1: ['backfill-first', 'plan']" in result.output
 
 
+def _remedies(output: str) -> set:
+    """Which reasons' ways out a protected-ids refusal named, read from the gate's
+    own table so the wording stays free to change."""
+    return {why for why, remedy in PROTECTED_REMEDIES.items() if remedy in output}
+
+
+def test_an_id_held_twice_is_refused_for_both_reasons_at_once(page_dir):
+    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
+    )
+    publish(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "anchor": {"section": "o-shim"},
+            "text": "Why the shim?",
+        },
+    )
+    (page_dir / "index.html").write_text(PAGE)
+
+    # Settling one reason would otherwise only uncover the next refusal.
+    held = check(page_dir)
+    assert held.exit_code == 1
+    assert _remedies(held.output) == {"thread", "state"}
+
+
+def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
+    page_dir,
+):
+    """The route `authoring-revisions.md` gives finished work: the answered Ask goes
+    to a collapsed section whole, under the words the reader picked it under."""
+    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
+    )
+    publish(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+
+    def complete(ask):
+        return PAGE.replace(
+            "</section>\n</main>",
+            '</section>\n<section id="complete"><h2>Complete</h2><details>'
+            f"<summary>Migration order chosen</summary>{ask}</details></section>\n</main>",
+        )
+
+    settled = live.replace('id="g1" choose', 'id="g1" choose settled')
+    (page_dir / "index.html").write_text(complete(settled))
+    moved = check(page_dir)
+    assert moved.exit_code == 0, moved.output
+
+    (page_dir / "index.html").write_text(
+        complete(settled.replace("Keep the old API.", "Merged: keep the old API."))
+    )
+    reworded = check(page_dir)
+    assert reworded.exit_code == 1
+    assert "its words changed" in reworded.output and "'o-shim'" in reworded.output
+
+
+def test_a_suggestion_keeps_the_markup_its_withdrawal_does_not_retire(page_dir):
+    suggest(page_dir)
+    (page_dir / "index.html").write_text(PAGE)
+
+    whole = check(page_dir)
+    assert whole.exit_code == 1
+    assert "'refill-rule'" in whole.output
+    assert _remedies(whole.output) == {"retirement"}
+
+    # Following it: the page's own words stay, and the proposal leaves whole.
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<lf-options>",
+            '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
+        )
+    )
+    kept = check(page_dir)
+    assert kept.exit_code == 0, kept.output
+
+
 def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir):
     publish(page_dir)
     events_model.append_event(
@@ -2297,6 +2401,8 @@ def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir
     unresolved = check(page_dir)
     assert unresolved.exit_code == 1
     assert "protected ids" in unresolved.output and "'flow'" in unresolved.output
+    # The refusal names the way out its own reason leaves open, and no other reason's.
+    assert _remedies(unresolved.output) == {"thread"}
 
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
@@ -2313,7 +2419,9 @@ def test_a_standing_action_protects_its_id_until_it_is_retracted(page_dir):
     standing = check(page_dir)
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'d1'" in standing.output
+    assert _remedies(standing.output) == {"state"}
 
+    # The route that remedy names: a restated rewrite, stamped, then the drop.
     v2("Ship the flag dark, then backfill. Roll back with one flag.", attrs=" restated")
     retracted = stamp(page_dir, "replace the draft")
     assert retracted.exit_code == 0, retracted.output
@@ -2940,6 +3048,7 @@ def test_an_effective_report_protects_its_unit_until_a_stamp_settles_it(page_dir
     standing = check(page_dir)
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'t-parser'" in standing.output
+    assert _remedies(standing.output) == {"report"}
     assert "ids dropped from revision r1: ['tree']" in standing.output
 
     _tasks_version(page_dir, "review")

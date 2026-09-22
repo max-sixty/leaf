@@ -23,7 +23,7 @@ from leaf.styles import (
     inline_style_at,
     root_tokens,
 )
-from leaf.thread_context import specimen_events, thread_structure
+from leaf.thread_context import comment_ids, specimen_events, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
@@ -303,7 +303,7 @@ def check_source(
         registry,
         stored_data,
         readings,
-        {event["id"] for event in events if event["kind"] == "comment"},
+        comment_ids(events),
     )
     errors.extend(document_errors)
     documents = [(document, events, "")]
@@ -316,9 +316,7 @@ def check_source(
             selected = set(specimen["attrs"].get("data-specimen-threads", "").split())
             # A template may precede its seed log. Check the history available now;
             # allocation requires every declared root when it copies the child.
-            available = {
-                event["id"] for event in parent_events if event["kind"] == "comment"
-            }
+            available = comment_ids(parent_events)
             child_events = [
                 {**event, "seq": index}
                 for index, event in enumerate(

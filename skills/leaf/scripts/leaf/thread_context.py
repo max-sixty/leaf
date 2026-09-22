@@ -13,14 +13,17 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
 
+def comment_ids(events: list[dict]) -> set[str]:
+    """Comment roots present in the log, excluding orphaned reply parents."""
+    return {event["id"] for event in events if event["kind"] == "comment"}
+
+
 def specimen_events(
     document: SourceDocument, events: list[dict], selected: set[str]
 ) -> list[dict]:
     """Copy selected conversation closures into a fresh page's first revision."""
     roots = thread_roots(events)
-    if unknown := selected - {
-        event["id"] for event in events if event["kind"] == "comment"
-    }:
+    if unknown := selected - comment_ids(events):
         raise ValueError(
             f"unknown specimen conversations: {', '.join(sorted(unknown))}"
         )

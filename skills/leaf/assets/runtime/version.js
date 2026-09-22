@@ -97,7 +97,7 @@ import {
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, versionUrl } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, keeps, layoutChanged, quoted, reveal } from "./widget-elements.js";
-import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
+import { showNews } from "./banner-shelf.js";
 import { allButCommandReference, pageScope } from "./keyboard/register.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
@@ -286,7 +286,6 @@ export function createVersionController({
     runtime.active !== null &&
     runtime.currentRevision !== null &&
     runtime.active.revision !== runtime.currentRevision;
-  let offeredBefore = null;
   // A menu is a transient reading of the chooser, not a layer over the next control a
   // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
@@ -616,16 +615,11 @@ export function createVersionController({
   // `null` is the page before its first accepted state. Version controls read the
   // immutable document revision and the accepted root.
   function renderVersions(state) {
-    const model = presentChooser(state);
-    const offered = model.chooser.offered;
+    presentChooser(state);
     const walkable = versionsToWalk();
     if (walkable !== versionsWalkable) {
       versionsWalkable = walkable;
       paintKeys();
-    }
-    if (state !== null && offered !== offeredBefore) {
-      offeredBefore = offered;
-      foldShelf();
     }
   }
 
@@ -1878,7 +1872,6 @@ export function createVersionController({
       latest: goActive,
       toggle: repaint,
     });
-    if (!LIVE_ROOT) reserveNewsSlot(latestChip);
     keys(
       versionMenu,
       "In the versions menu",

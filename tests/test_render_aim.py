@@ -39,6 +39,7 @@ from render_cases_layout import (
     NAMED,
     PAGE_MARKUP,
     aim_targets,
+    banner_control,
     draw_edge,
     edge_settled,
     geometry,
@@ -1103,7 +1104,7 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
@@ -2952,7 +2953,10 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
-    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    banner_control(
+        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    ).tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
     page.evaluate(RENDERED)
     geometry = page.evaluate("""() => {
@@ -2992,7 +2996,10 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    banner_control(
+        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    ).tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})

@@ -65,6 +65,7 @@ import {
 import { sameAnchor } from "../anchor-coordinate.js";
 import {
   BANNER_CONTROL_RANK,
+  dismissBannerControls,
   registerBannerControl,
   showBannerControl,
 } from "../banner-shelf.js";
@@ -998,6 +999,7 @@ export function createResponseSurface({
   const commentOnTouchSelection = () => {
     const anchor = touchSelectionAnchor;
     if (!anchor) return;
+    dismissBannerControls();
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
     getSelection()?.removeAllRanges();
@@ -1187,6 +1189,16 @@ export function createResponseSurface({
       setTimeout(() => {
         actionPress = false;
       });
+    // Opening or acting in chrome is a route away from the page, not a new selection
+    // gesture. Keep the already-captured touch passage verbatim while focus moves
+    // through the banner, its sibling popovers, and their controls.
+    if (touchSelectionAnchor && inChrome(ev.target)) {
+      primaryPointerPressed = false;
+      pointerSelecting = false;
+      selectionGestureClaimed = false;
+      releasePress();
+      return;
+    }
     if (
       primaryPointerPressed &&
       ev.type === "pointerup" &&
@@ -1291,6 +1303,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
         actionPress =
+          (touchSelectionAnchor && inChrome(ev.target)) ||
           ev.target === selectionComment ||
           Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
       },

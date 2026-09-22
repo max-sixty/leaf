@@ -1,6 +1,9 @@
 # Thread status: proposed canonical model
 
-Status: proposed, not implemented. Based on the
+Status: #21 (overall page state) and #22 (typed host observations) are implemented.
+Their canonical contract is
+[session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md). Message-workflow consolidation follows the separate shared Thread
+collection cutover. Based on the
 [source inventory](activity-ontology.md). This proposal owns the next design;
 the inventory records the current implementation and supporting evidence.
 
@@ -71,22 +74,12 @@ Asks. An unrelated agent update must not silently clear a standing reader Ask;
 settlement must follow the Ask's own answer, widget-state, or reaction contract.
 Deferred tasks and outcomes still belong in the document.
 
-## Page state describes the overall agent relationship
+## Page state stays separate
 
-Keep page/session state separate from message workflow. It answers whether this
-page has an owner, whether the carrier is reachable/listening, whether the
-agent is currently active, and what the agent says it is doing overall.
-
-Do not label a message Working merely because the page's agent is active.
-Do not label the page Picked up as though it were one message. The banner can
-compose overall agent state with explicitly scoped thread counts, such as
-“Agent active · 2 threads need you”; those counts remain an aggregate, not the
-page's execution state. Page and message readings may share raw evidence without
-sharing their classification or identity.
-
-No immediate change to claim lifetime, watcher leases, or stop-guard obligation
-semantics is implied by removing overlapping display classifications. Keep those
-contracts while replacing their reader-facing projection coherently.
+Overall page activity and typed host observations are implemented by #21 and #22.
+Their [canonical contract](../skills/leaf/scripts/leaf/session-lifetime.md) owns
+availability, execution, counts, freshness, and host scope. Message consolidation
+must not attribute that page-wide work to an input without an explicit binding.
 
 ## External requests are commands, not chat delivery
 
@@ -121,7 +114,7 @@ deferred and requires its own definition of what the reader has seen.
 
 ## Implementation slices
 
-**First: shared message workflow and thread attention.** Define the reading from
+**Next, after the shared Thread collection: message workflow and thread attention.** Define the reading from
 existing facts, replace independent compact-row/receipt/attention precedence,
 and use it consistently in thread rows, message marks and margin entries. Keep
 the browser's immediate Sending/refusal overlay and exact response bindings.
@@ -129,17 +122,15 @@ Prove a reader Ask concurrent with older agent work, newer input during a reply,
 an ended turn, a stale observation, an unrelated reply, and a single turn
 covering two subjects without attributing its activity to both.
 
-**Second: overall page-state separation.** Give banner and Leaves tray the same
-overall availability/activity reading, composing separately labeled thread
-counts. Prove that an active session never upgrades unrelated message work and
-that an unavailable carrier does not become an invented job failure.
+**#21 — Implemented: overall page-state separation.** The banner and
+Leaves tray share page availability and activity, with separate delivery counts.
 
-**Third: richer observed work.** Retain typed thinking/replying/tool signals,
-then independently observed jobs and delegated work with continuation. Use the
-same message-workflow reading without changing its responsibility semantics.
+**#22 — Implemented: typed host observations.** Thinking, replying, tool
+execution, approval waits, and input waits retain their session and provider turn.
+Independent jobs and delegated work remain deferred.
 
 **Deferred: typed notification subscriptions and unread tracking.** These can
 consume the earlier readings once their transitions are stable.
 
-The first two slices form the recommended initial implementation. They share
-one source of evidence while giving each UI level a distinct question to answer.
+#21 and #22 can land independently of the shared Thread collection. The message-workflow consolidation remains planned;
+page-level separation does not implement that consolidation.

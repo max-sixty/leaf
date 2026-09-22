@@ -179,18 +179,7 @@
         color: var(--muted);
         font: 10px/20px var(--sans);
       }
-      .sketch-footer button {
-        min-height: 24px;
-        padding: 0 2px;
-        border: 0;
-        background: transparent;
-        color: var(--muted);
-        font: 11px var(--sans);
-        cursor: pointer;
-      }
-      .sketch-footer button:hover {
-        color: var(--ink);
-      }
+
       .sketch-stage button:focus-visible,
       .sketch-stage textarea:focus-visible {
         outline: 2px solid var(--accent);
@@ -328,7 +317,7 @@
                   preventScroll: true,
                 });
               }
-              if (button.hasAttribute("data-close")) this.#close();
+
               if (button.hasAttribute("data-send")) this.#send();
             };
             this.oninput = (event) => {
@@ -387,7 +376,7 @@
               )
               .join(
                 "",
-              )}<div class="sketch-compose"><textarea rows="1" name="sketch-reply-${index}" aria-label="Draft reply to ${topics[index].title}" placeholder="Reply…"></textarea><button type="button" data-send title="Add simulated reply (⌘/Ctrl+Enter)" aria-label="Add simulated reply" ${this.#drafts[index]?.trim() ? "" : "disabled"}>↑</button></div><div class="sketch-footer"><span>Simulated reply · ⌘/Ctrl+Enter</span><button type="button" data-close>Collapse ↑</button></div></section>`;
+              )}<div class="sketch-compose"><textarea rows="1" name="sketch-reply-${index}" aria-label="Draft reply to ${topics[index].title}" placeholder="Reply…"></textarea><button type="button" data-send title="Add simulated reply (⌘/Ctrl+Enter)" aria-label="Add simulated reply" ${this.#drafts[index]?.trim() ? "" : "disabled"}>↑</button></div><div class="sketch-footer"><span>Simulated reply · ⌘/Ctrl+Enter</span></div></section>`;
           }
           #render() {
             this.innerHTML = `<div class="sketch-stage"><div class="sketch-layout" data-density="${this.#density}" data-width="${this.#width}"><div class="sketch-shelf"><div class="sketch-heading">Threads <span>3 need you · 2 waiting</span></div>${topics
@@ -410,18 +399,20 @@
         <p>Threads / activity and attention</p>
         <h1>What is happening, and who needs to act?</h1>
         <p>
-          The inventory now supports a concrete proposal: unify message workflow, derive
-          thread attention, and keep overall page activity distinct. The accordion and
-          expandable summaries are implemented; their design history is below.
+          Implemented: #21, separating overall page activity, and #22, retaining typed
+          host observations. Combining message workflow and deriving thread attention
+          remain the next step after the shared Thread collection. The accordion and
+          expandable summaries are implemented; their history is below.
         </p>
       </header>
       <section id="activity-ontology">
         <h2>Proposal: one message workflow, distinct page state</h2>
         <p id="current-review">
-          The proposed next implementation combines message delivery and response
-          progress into one reading, derives thread attention from it, and separates the
-          page's overall agent state. Review those boundaries below; the backend has not
-          changed yet.
+          The plan still combines delivery receipts, local sending state, and response
+          progress into one message workflow, with thread attention derived from it. The
+          current implementation covers #21 and #22 below. There is no decision waiting
+          on you. The shared Thread collection is a separate dependency for the next
+          implementation.
         </p>
         <table id="proposed-status-model">
           <thead>
@@ -494,6 +485,29 @@
             while answering different questions.
           </p>
         </section>
+        <details id="activity-visual-comparison">
+          <summary>
+            Before and after: page activity in the banner and Leaves tray
+          </summary>
+          <p>
+            A queued update now appears alongside Listening instead of becoming the
+            page's status. The agent can also show a typed approval wait. These are
+            captures of the actual runtime with the same backend evidence, before and
+            after the change.
+          </p>
+          <lf-shot
+            id="activity-queued-comparison"
+            before="/media/24723c2c18434b30.png"
+            after="/media/9b36af3ee89e7820.png"
+            alt="Queued delivery shown separately from overall page activity"
+          ></lf-shot>
+          <lf-shot
+            id="activity-approval-comparison"
+            before="/media/9527637b18cc360b.png"
+            after="/media/3753bca3d0f9b4af.png"
+            alt="A typed approval wait in the banner and Leaves tray"
+          ></lf-shot>
+        </details>
         <section id="external-requests-explained">
           <h3>External requests are operation buttons</h3>
           <p>
@@ -523,17 +537,21 @@
           </p>
         </section>
         <section id="status-implementation-sequence">
-          <h3>Recommended initial implementation</h3>
+          <h3>Implemented: #21 and #22</h3>
           <p>
-            Implement the shared message workflow and derived thread attention, together
-            with the overall page-state separation. Prove newer input during an older
-            reply, a reader Ask concurrent with agent work, an ended turn, stale
-            observation, and exact response settlement.
+            <strong>#21 — Overall page state.</strong> Give the banner and Leaves tray
+            the same reading of agent availability and current work. Keep delivery
+            counts separate and preserve message receipts and outstanding obligations.
           </p>
           <p>
-            Then retain typed thinking and tool observations. Independently running jobs
-            and delegated work follow with their own observation and continuation
-            contracts. The full design is in
+            <strong>#22 — Typed host observations.</strong> Retain thinking, tool use,
+            replying, approval waits, and input waits with their session and turn.
+            Observations without an exact input or subject binding stay page-wide.
+          </p>
+          <p>
+            Next, combine the message ontologies once the shared Thread collection
+            lands. Independently running jobs, delegated work, and notification
+            subscriptions remain later work. The full design is in
             <code>notes/thread-status-proposal.md</code>.
           </p>
         </section>
@@ -647,18 +665,19 @@
           <h2>Try the real Threads panel</h2>
           <p>
             One conversation expands at a time. The reply field spans the conversation’s
-            width. Author and time sit above each message; delivery receipts sit below
-            the message they describe. Unfinished drafts survive switching threads.
-            Search, filters, and links to individual messages reveal their target.
+            width. Author, time, and delivery status share the row above each message.
+            Unfinished drafts survive switching threads. Search, filters, and links to
+            individual messages reveal their target.
           </p>
           <p>
             Use Enter or Space on a title to expand it; arrow keys and Home/End move
             between titles. Use t / Shift+t to walk threads, c to reply, and
-            Cmd/Ctrl+Enter to send. Escape leaves the reply box, collapses the
-            conversation, then steps back out of the panel.
+            Cmd/Ctrl+Enter to send. Click the open title to collapse its conversation;
+            Escape leaves an inner reply or narrowing interaction first, then closes the
+            Threads panel.
           </p>
           <p>
-            Sending and Sent share a delivery line so confirmation does not shift the
+            Sending and Sent share the metadata row so confirmation does not shift the
             conversation. The local review also checks that collapsed titles retain
             reader obligations and ongoing agent work. The richer activity ontology
             remains separate work.
@@ -719,7 +738,7 @@
             The title and message count remain compact. An open conversation uses one
             shared inset for its quote, messages, and reply field. Author and time form
             a small header instead of consuming a separate column. A Draft marker
-            preserves unfinished work, and the bottom control collapses long threads.
+            preserves unfinished work; the title and Escape collapse an open thread.
           </p>
           <p>
             <a href="https://carbondesignsystem.com/components/accordion/style/"
@@ -734,9 +753,9 @@
               href="https://support.signal.org/hc/en-us/articles/360007320751-How-do-I-know-if-my-message-was-delivered-or-read"
               >Signal distinguishes Sent, Delivered, and Read for each message.</a
             >
-            Applying that distinction here, Sent belongs beneath the sent message and no
-            longer appears as a thread title’s status. Current work and failure states
-            can still help identify a thread before opening it.
+            Applying that distinction here, Sent belongs beside the sent message’s
+            relative time and no longer appears as a thread title’s status. Current work
+            and failure states can still help identify a thread before opening it.
           </p>
           <p>
             Component reuse is possible:

@@ -3836,7 +3836,8 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
         document, so the two placements have different scroll limits. An offset sitting
         on either one is moved by the crossing for the limit's reason rather than the
         reader's, and holding it equal across the crossing would assert nothing. The
-        fixture has to be deep enough that the place stands clear of both.
+        fixture has to be deep enough that the place stands clear of both, so each
+        crossing reads this on the placement it leaves and on the one it arrives at.
         """
         held = threads.evaluate(
             "el => ({at: el.scrollTop, limit: el.scrollHeight - el.clientHeight})"
@@ -3861,7 +3862,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
         page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
     ).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    assert reading_place() == pytest.approx(list_at, abs=1)
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(
@@ -3933,7 +3934,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    assert reading_place() == pytest.approx(list_at, abs=1)
     resized(page, 500, 640)
     panel_settled(page)
     expect(summary).to_be_focused()

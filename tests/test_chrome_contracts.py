@@ -541,18 +541,31 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
 PHONE_PAGE = leaf_page(
     "phone",
     "<h1 id='t'>Phone</h1><p id='p1'>Paragraph one. " + "Filler. " * 40 + "</p>",
-    head='<meta name="viewport" content="width=device-width, initial-scale=1">',
 )
 
 
-def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve):
+@pytest.mark.parametrize(
+    "viewport", [None, "width=device-width, initial-scale=1, viewport-fit=cover"]
+)
+def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, viewport):
     """The runtime starts in WebKit, and a selection alone opens the comment field.
 
     A module feature WebKit lacks fails the whole module graph before the runtime runs:
     CSS module scripts did, and an iPhone reader saw only that Leaf could not start. A
     long press that selects words hands the page no mouseup, and Playwright cannot make
     one, so the selection is placed with no pointer gesture at all."""
-    page = open_page(None, serve(PHONE_PAGE), context=iphone)
+    source = PHONE_PAGE
+    if viewport:
+        source = source.replace(
+            "<head>", f'<head><meta name="viewport" content="{viewport}">'
+        )
+    page = open_page(None, serve(source), context=iphone)
+    assert page.evaluate("innerWidth") == page.viewport_size["width"]
+    metas = page.locator('meta[name="viewport"]')
+    expect(metas).to_have_count(1)
+    expect(metas).to_have_attribute(
+        "content", viewport or "width=device-width, initial-scale=1"
+    )
     page.locator("#p1").evaluate("""paragraph => {
       const range = document.createRange();
       range.setStart(paragraph.firstChild, 0);
@@ -586,12 +599,11 @@ PHONE_READING_PAGE = leaf_page(
         + "</p>"
         for n in range(12)
     ),
-    head='<meta name="viewport" content="width=device-width, initial-scale=1">',
 )
 
 
-def test_a_phone_comment_field_keeps_clear_of_what_ios_draws_itself(iphone, serve):
-    """On a phone the comment field stays out of the way of the platform's own apparatus.
+def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
+    """Phone fields keep their text size and stand below a selected paragraph.
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the reader panning
@@ -599,10 +611,9 @@ def test_a_phone_comment_field_keeps_clear_of_what_ios_draws_itself(iphone, serv
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
     one set in a sidenote's smaller type opens a size larger than it showed.
 
-    iOS draws its selection menu (Copy, Look Up) in the band above the selected words,
-    where it covered a field standing over the paragraph. So the field goes below the
-    paragraph, although this paragraph has more room above it and too little below: the
-    page makes the room, as it would for any field that has chosen its side."""
+    The field goes below this paragraph even though it has more room above and too
+    little below: the page makes the room. This emulation cannot show the native iOS
+    selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
     sizes = page.evaluate(
         "() => [...document.querySelectorAll('input, textarea, select')]"

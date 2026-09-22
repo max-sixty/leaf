@@ -284,6 +284,10 @@ aim = createAim({
   standDown: (...args) => responseSurface.standDown(...args),
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
+  targetChooser: {
+    active: () => targets.pointerChoosing(),
+    choose: (...args) => targets.chooseTarget(...args),
+  },
 });
 pageGeometry = createPageGeometry({
   refreshAnchorHover: anchorPaint.refreshHover,
@@ -590,6 +594,7 @@ targets = createTargetChooser({
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
+  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPaint.pendingAt },

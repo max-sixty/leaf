@@ -246,12 +246,16 @@ function commentButton(label, opened, className) {
   return button;
 }
 
-// The soft-wrap switch is a native checkbox and the theme reads it with `:has()`, the
-// same bargain lf-shot strikes: the state is the control, so a copy with its scripts
-// dropped still wraps and unwraps, and no second store can disagree with what the box
-// says. It stands ahead of the file rows in the shadow tree because the rule that reads
-// it is a sibling combinator — the switch is the only thing every file's lines can be
-// addressed from without naming a widget or hoisting the state onto the host.
+// A shared body lets the checkbox style its own subtree. WebKit does not repaint
+// a shadow-root sibling selected through the toolbar's :has() after a native tap.
+function diffBody(nodes) {
+  const body = document.createElement("div");
+  body.className = "lf-diff-body";
+  body.append(...nodes);
+  return body;
+}
+
+// The checkbox is the complete wrap state, including in a scriptless export.
 function wrapSwitch() {
   const label = offer("label", "lf-diff-wrap-label");
   const box = offer("input", "lf-diff-wrap", undefined, "checkbox");
@@ -664,8 +668,7 @@ customElements.define(
           this.replaceChildren();
           shadowStage(this, [
             ...sharedStyles.values(),
-            this.diffTools.node,
-            ...entries.map(({ node }) => node),
+            diffBody([this.diffTools.node, ...entries.map(({ node }) => node)]),
           ]);
           if (bound)
             projectData(
@@ -771,6 +774,10 @@ customElements.define(
         this.diffTools = diffTools(this, this.reviewing());
         for (const entry of entries)
           this.attachEntryControls(entry, { commentable: true });
+        this.manifestBody = diffBody([
+          this.diffTools.node,
+          ...entries.map(({ node }) => node),
+        ]);
         this.replaceChildren();
         this.stageManifest();
         this.projectManifest();
@@ -786,14 +793,7 @@ customElements.define(
 
     stageManifest() {
       if (!this.manifestEntries) return;
-      shadowStage(
-        this,
-        [
-          ...this.sharedStyles.values(),
-          this.diffTools?.node,
-          ...this.manifestEntries.map(({ node }) => node),
-        ].filter(Boolean),
-      );
+      shadowStage(this, [...this.sharedStyles.values(), this.manifestBody]);
     }
 
     projectManifest() {

@@ -45,6 +45,7 @@
 .lf-diff-search::part(form-control-label) { display: none; }
 .lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
+                      min-height: var(--aim-floor);
                       white-space: nowrap; cursor: pointer; }
 /* A native switch keeps the exported diff interactive without scripts. */
 .lf-diff-wrap { appearance: none; margin: 0; flex: none; cursor: pointer;
@@ -272,16 +273,16 @@
    file — twenty-four thousand pixels below the line, on the patch this was measured on.
    Wrapping trades the diff's column alignment for lines that end where the reader can
    see them, which is why it is the reader's own switch rather than the default.
-   The switch is a checkbox and this is a sibling combinator off it, so the state has one
-   home and a copy with its scripts dropped still works it; the siblings are the file
-   rows, each holding its disclosure and its review press. `anywhere` rather than
+   The shared body reads its checkbox, so the state has one home and a copy with its
+   scripts dropped still works it. Keeping the query inside one subtree also lets
+   WebKit invalidate the line styles when the reader taps the switch. `anywhere` rather than
    `break-word`: what runs long in a patch is paths, URLs, minified data and prose in
    comments, and the first three offer the line box no break opportunity to find.
    The code box gives up its permanent scrollbar with them, since wrapped rows leave it
    nothing to scroll. */
-.lf-diff-tools:has(.lf-diff-wrap:checked) ~ .lf-diff-file [data-line] {
+.lf-diff-body:has(.lf-diff-wrap:checked) .lf-diff-file [data-line] {
                           white-space: pre-wrap; overflow-wrap: anywhere; }
-.lf-diff-tools:has(.lf-diff-wrap:checked) ~ .lf-diff-file code[data-code] {
+.lf-diff-body:has(.lf-diff-wrap:checked) .lf-diff-file code[data-code] {
                           overflow-x: auto; --lf-diff-row-fill: 0; }
 /* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
    through its variables above, and keeps its syntax roles readable on the denser one. */

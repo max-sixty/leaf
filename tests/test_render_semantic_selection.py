@@ -63,6 +63,68 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
     }
 
 
+def test_touch_reader_selects_an_element_comments_and_finds_its_thread(browser, serve):
+    """A touch target press comments on the innermost element without activating its link."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Touch targets",
+                '<section id="outer" style="padding-top:100px"><h1>Touch targets</h1>'
+                '<p id="inner"><a href="#elsewhere">A paragraph link to comment on</a></p>'
+                '<p id="elsewhere">Another place on this page.</p></section>',
+            )
+        ),
+        context=context,
+    )
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="Select element", exact=True).tap()
+    cancel = page.get_by_role("button", name="Cancel selecting an element")
+    expect(cancel).to_be_visible()
+    cancel.tap()
+    expect(cancel).to_be_hidden()
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="Select element", exact=True).tap()
+    page.locator("#inner a").tap()
+    expect(cancel).to_be_hidden()
+    assert not page.url.endswith("#elsewhere"), (
+        "target selection activated the authored link"
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    field.fill("Please clarify this paragraph.")
+    with sending(page, "the touch element comment"):
+        page.locator(".lf-fab-bar .lf-compose-submit").tap()
+    comment = events_model.read_events(serve.page_dir)[-1]
+    assert comment["anchor"] == {"section": "inner"}
+    page.locator(".lf-threads-toggle").tap()
+    expect(page.locator(".lf-thread-panel")).to_contain_text(
+        "Please clarify this paragraph."
+    )
+
+
+def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
+    page = open_page(browser, serve(TARGETS_PAGE))
+    select = page.get_by_role(
+        "button", name="Select element", exact=True, include_hidden=True
+    )
+    for key in ("l", "w"):
+        page.keyboard.press(key)
+        expect(select).to_be_disabled()
+        # Text search remains available inside these pointer modes.
+        page.keyboard.press("/")
+        page.get_by_role("searchbox", name="Search page text").fill("paragraph")
+        expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.locator(".lf-threads-toggle").click()
+    expect(select).to_be_disabled()
+
+
 def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     """The keyboard target is the same addressable element Alt-click would take. Choosing the
     paragraph focuses its in-place Comment field without making a native selection."""
@@ -532,7 +594,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     )
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text(
-        "Comment on a visible target by hint"
+        "Select an element to comment by tapping it or typing its hint"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

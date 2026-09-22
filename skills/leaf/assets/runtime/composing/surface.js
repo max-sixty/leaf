@@ -20,9 +20,9 @@
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
    80ch and then wraps. Without a horizontal rail, a quoted passage chooses the
-   vertical side with more reachable room; on a touch screen, whose own selection menu
-   stands above the words, it goes below whenever the page can make room there. The
-   field keeps that side and moves the reading region only enough to keep the passage
+   vertical side with more reachable room; on a touch screen it prefers below whenever
+   the page can make room there. The field keeps that side and moves the reading
+   region only enough to keep the passage
    and field visible together; it finally scrolls internally. Other targets grow toward
    the available viewport edge.
    The target chooses a placement from the field's minimum footprint once. Later
@@ -179,10 +179,22 @@ export function createResponseSurface({
     return tops.length ? Math.min(...tops) : innerHeight - 8;
   };
   const floatBoundary = (bounds = null) => {
-    const left = (bounds?.left ?? 0) + 8;
-    const right = rightEdge(bounds);
-    const top = topEdge(bounds);
-    const bottom = bottomEdge(left, Math.max(0, right - left), bounds);
+    // Pinch zoom and a software keyboard change the visible viewport without resizing
+    // the document's layout viewport. Intersect the reading room with that visible band
+    // before choosing a side or sizing the field; autoUpdate follows its resize/scroll.
+    const viewport = window.visualViewport;
+    const visibleLeft = viewport?.offsetLeft ?? 0;
+    const visibleTop = viewport?.offsetTop ?? 0;
+    const left = Math.max(bounds?.left ?? 0, visibleLeft) + 8;
+    const right = Math.min(
+      rightEdge(bounds),
+      visibleLeft + (viewport?.width ?? innerWidth) - 8,
+    );
+    const top = Math.max(topEdge(bounds), visibleTop + 8);
+    const bottom = Math.min(
+      bottomEdge(left, Math.max(0, right - left), bounds),
+      visibleTop + (viewport?.height ?? innerHeight) - 8,
+    );
     return {
       x: left,
       y: top,
@@ -485,9 +497,8 @@ export function createResponseSurface({
       if (Math.ceil(sideRoom("left")) >= Math.ceil(minimum)) return "left-start";
       const below = verticalRoom("bottom");
       const above = verticalRoom("top");
-      // A touch selection wears the platform's own menu (Copy, Look Up) in the band above
-      // it, where that menu covers a bar standing over the block. So on a touch screen a
-      // bar the page can make room for below the block takes that side.
+      // Prefer below on touch screens. This keeps Leaf away from a native selection menu
+      // above the passage, but the browser does not expose that menu's actual bounds.
       if (coarsePointer.matches && below >= minimumFabHeight()) return "bottom-end";
       return below > above ||
         (below === above && visibleVerticalRoom("bottom") > visibleVerticalRoom("top"))

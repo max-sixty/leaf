@@ -269,11 +269,27 @@ def head_open_end_offset(document: SourceDocument) -> int:
 
 
 def _delivery_prelude(
-    revision: int, version: int | None, executable: str | None, widgets: dict
+    document: SourceDocument,
+    revision: int,
+    version: int | None,
+    executable: str | None,
+    widgets: dict,
 ) -> str:
-    """Declare the delivery's encoding, then the immutable Leaf identity behind it."""
-    return DELIVERY_ENCODING_META + delivery_identity(
-        revision, version, executable, widgets
+    """Declare encoding, a device-width viewport, and immutable Leaf identity.
+
+    Authors can supply their own viewport. Otherwise every delivery starts at the
+    device width, so a phone uses responsive layout instead of a scaled desktop page.
+    The rendered document carries this metadata into standalone exports too.
+    """
+    viewport = (
+        ""
+        if any(meta["name"].lower() == "viewport" for meta in document.named_metas)
+        else '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    )
+    return (
+        DELIVERY_ENCODING_META
+        + delivery_identity(revision, version, executable, widgets)
+        + viewport
     )
 
 
@@ -319,7 +335,7 @@ def runtime_document(
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
     runtime = (
-        _delivery_prelude(revision, version, executable, widgets)
+        _delivery_prelude(document, revision, version, executable, widgets)
         + theme_head
         + entry_head
     )
@@ -395,7 +411,7 @@ def supervised_document(
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
     supervised = (
-        _delivery_prelude(revision, version, executable, widgets)
+        _delivery_prelude(parsed, revision, version, executable, widgets)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head

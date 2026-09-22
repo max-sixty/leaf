@@ -10227,3 +10227,29 @@ def test_diff_export_keeps_native_soft_wrap_without_scripted_search(
     switch.focus()
     copy.keyboard.press("Space")
     expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
+    patch = (
+        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone diff",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    label = page.locator(".lf-diff-wrap-label")
+    line = page.locator("lf-diff [data-line]").last
+    expect(line).to_have_css("white-space", "pre")
+    assert label.bounding_box()["height"] >= 44
+    before = line.bounding_box()["height"]
+    label.tap()
+    expect(line).to_have_css("white-space", "pre-wrap")
+    assert line.bounding_box()["height"] > before
+    label.tap()
+    expect(line).to_have_css("white-space", "pre")

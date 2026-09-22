@@ -5067,11 +5067,16 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
             '.lf-go-to-hints > [data-lf-go-to-command="navigation.tray.leaves"]'
         )
     ).to_have_count(0)
+    threads_hint = page.locator(
+        '.lf-go-to-hints > [data-lf-go-to-command="navigation.panel.threads"]'
+    )
+    expect(threads_hint).to_be_visible()
     # A live secondary-control label may change while the sequence stands. Its keyboard
     # destination remains operable even though the fixed More seat has no target overlay.
     live_leaf("third", "A third leaf")
     round_trip(page)
     expect(page.locator(".lf-others")).to_contain_text("All leaves (3)")
+    expect(threads_hint).to_be_visible()
     page.keyboard.press("Shift+l")
 
     expect(page.locator(".lf-others-panel")).to_be_visible()

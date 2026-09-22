@@ -1676,7 +1676,7 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
     expect(menu).to_be_visible()
     boxes = menu.evaluate(
         """menu => {
-              const button = document.querySelector('.lf-version').getBoundingClientRect();
+              const button = document.querySelector('.lf-banner-more').getBoundingClientRect();
               const banner = document.querySelector('.lf-banner').getBoundingClientRect();
               const box = menu.getBoundingClientRect();
               return {banner: {bottom: banner.bottom},
@@ -1688,13 +1688,13 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
         boxes["banner"]["bottom"] + 6, abs=2
     ), boxes
     assert boxes["menu"]["right"] == pytest.approx(boxes["button"]["right"], abs=2), (
-        f"the versions menu did not line up with the chooser's right edge: {boxes}"
+        f"the versions menu did not line up with More's right edge: {boxes}"
     )
 
     resized(page, 320, 844)
     phone = menu.evaluate(
         """menu => {
-              const button = document.querySelector('.lf-version').getBoundingClientRect();
+              const button = document.querySelector('.lf-banner-more').getBoundingClientRect();
               const banner = document.querySelector('.lf-banner').getBoundingClientRect();
               const box = menu.getBoundingClientRect();
               return {banner: {bottom: banner.bottom},
@@ -1821,9 +1821,10 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
                           control.matches('.lf-answer-all') ? 'blanket' : null)
           .filter(Boolean)"""
     )
-    assert order == ["map", "blanket"], (
-        f"the shelf changed the established Map-before-blanket order: {order}"
-    )
+    assert order == [
+        "map",
+        "blanket",
+    ], f"the shelf changed the established Map-before-blanket order: {order}"
 
     page.evaluate(
         """async () => {

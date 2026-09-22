@@ -1284,6 +1284,20 @@ def banner_control(page, selector):
     return control
 
 
+def expect_banner_control_offered(control, *, offered=True):
+    """Read whether a retained banner control offers its own seat.
+
+    Secondary controls live under a closed More ancestor, so ordinary visibility reads
+    the ancestor rather than the control. Its own computed display includes both the
+    owner's presence and conditional offer without treating the shelf's news paint as
+    application authority.
+    """
+    if offered:
+        expect(control).not_to_have_css("display", "none")
+    else:
+        expect(control).to_have_css("display", "none")
+
+
 def open_page(
     browser,
     url,

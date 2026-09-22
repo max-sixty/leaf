@@ -8,6 +8,7 @@
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
+import { dismissBannerControls } from "./banner-shelf.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { listWalkPosition } from "./walk-position.js";
 import { el } from "./widget-elements.js";
@@ -63,14 +64,11 @@ class VersionChooserView {
     this.button.popoverTargetElement = this.menu;
     this.menu.lfInvoker = this.button;
     this.menu.addEventListener("beforetoggle", (event) => {
+      if (event.newState === "open") dismissBannerControls();
       // The native popover opening focuses its declared arrival synchronously.
       // Declare it only for this opening: autofocus on inserted rows also runs
       // during document load, when an embedded page cannot claim focus.
       const arrival = event.newState === "open" ? this.#selectedRow() : null;
-      if (arrival)
-        this.menu.style.positionAnchor = this.button.checkVisibility()
-          ? "--lf-version-btn"
-          : "--lf-banner-more";
       for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
     });
     this.menu.addEventListener("toggle", (event) => {

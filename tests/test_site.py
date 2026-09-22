@@ -47,6 +47,7 @@ from render_harness import (
     BOTH_STAMPS,
     consume_browser_errors,
     displayed,
+    expect_banner_control_offered,
     navigate,
     open_page,
     panel_settled,
@@ -2144,7 +2145,7 @@ def test_the_published_page_counts_every_declared_ask(served_example, browser):
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/5")
-    expect(decisions).to_have_class(re.compile(r"\blf-news-shown\b"))
+    expect_banner_control_offered(decisions)
 
 
 def test_a_published_decision_survives_reload(served_example, browser):
@@ -2153,7 +2154,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")
     expect(decisions).to_have_text("Asks 0/1")
-    expect(decisions).to_have_class(re.compile(r"\blf-news-shown\b"))
+    expect_banner_control_offered(decisions)
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()

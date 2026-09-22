@@ -73,6 +73,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     displayed,
+    expect_banner_control_offered,
     holding,
     leaf_page,
     nudge,
@@ -1362,11 +1363,9 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect(page.locator(".lf-asks")).not_to_have_class(re.compile(r"\blf-news-shown\b"))
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    expect(page.locator(".lf-answer-all")).not_to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
     comments = page.get_by_role("button", name=re.compile("^Threads"))
     expect(comments).to_be_enabled()
@@ -1378,16 +1377,14 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     page.wait_for_function(BOTH_STAMPS)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_class(re.compile(r"\blf-news-shown\b"))
+    expect_banner_control_offered(decisions)
     expect(decisions).to_have_text("Asks 1/1")
     expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(0)
-    expect(page.locator(".lf-answer-all")).not_to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
 
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
@@ -2870,8 +2867,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 update queued\.$"
+            r"^Claude is working — revising the plan \(.+\)\. " r"1 update queued\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))

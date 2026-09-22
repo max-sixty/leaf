@@ -169,6 +169,7 @@ def test_selection_banner_controls_follow_the_primary_pointer(browser, serve):
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(cancel).to_have_count(0)
+    expect(select).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-target-chooser-hint")).to_have_count(0)
 

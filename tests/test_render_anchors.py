@@ -3600,7 +3600,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     closing, and the keys between. A select came with all of that, so what this
     asserts is the part that had to be written back — the pointer route opens through
     More, focus lands on the version being read so the walk starts where the reader is,
-    ↑/↓ clamp at the ends, Escape closes the nested panels in order, and a click anywhere
+    ↑/↓ clamp at the ends, Escape closes the replacing panel, and a click anywhere
     else closes without navigating.
 
     The note is the reason the menu exists at all: a select's closed label is its
@@ -3627,16 +3627,23 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
-    # Escape closes the child panel and leaves its door visible in More; a second Escape
-    # closes the parent. The nested panel deliberately shares the banner's viewport
-    # edge rather than growing a second adaptive placement contract.
+    # Versions replaces More rather than covering its own invoker. Escape closes the
+    # one root panel and leaves the page as the keyboard destination.
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    page.locator(".lf-banner-more").click()
+    expect(menu).to_be_hidden()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(btn).to_be_visible()
+    banner_control(page, ".lf-version").click()
+    expect(menu).to_be_visible()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    expect(btn).to_be_visible()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
+    page.locator(".lf-banner-more").click()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(btn).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
 
     open_versions(page)
     expect(menu).to_be_visible()
@@ -3706,7 +3713,9 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
         "data-lf-shelf-open", "false"
     )
-    assert page.evaluate("() => document.activeElement === document.body")
+    # The help layer returns to the visible root disclosure that preceded it. The
+    # independent gV route below works directly from that real landing.
+    expect(page.locator(".lf-banner-more")).to_be_focused()
 
     open_versions(page)
     expect(menu).to_be_visible()
@@ -4436,7 +4445,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(chooser).to_have_attribute(
         "aria-label", "v3: comparing with v1; open versions"
     )
-    chooser.click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
         "aria-checked", "true"
     )

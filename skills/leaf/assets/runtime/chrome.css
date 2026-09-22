@@ -659,8 +659,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @layer lf-reset {
     .lf-thread-action { font: inherit; }
   }
-  /* The chooser's menu: fixed under the button it hangs off, anchored rather than
-     measured, so nothing recomputes a position when the row's contents change width.
+  /* The chooser's menu replaces More at the same fixed banner door. Opening it closes
+     More, so the reader sees one root popup rather than a child covering its invoker.
+     It is anchored rather than measured, so nothing recomputes a position when the
+     row's contents change width.
      It is the only place the version notes are, so a row wraps to hold one whole —
      the reason a menu is worth having over a control whose closed label and open list
      are forced to be the same string. Capped at the viewport's remaining height and
@@ -676,15 +678,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 
      The horizontal anchored edge and fixed vertical edge are the whole of the
      placement, so the other two are taken back from the popover UA rule, which states
-     inset 0 with auto margins. The fixed edge keeps this nested top-layer popover below
-     the fixed banner after the document scrolls, as More does above. */
-  .lf-version { anchor-name: --lf-version-btn; }
+     inset 0 with auto margins. The fixed edge keeps this top-layer popover below the
+     fixed banner after the document scrolls, as More does above. */
   /* A pinned or deferred page keeps the full destination in the Latest control, but
      that control stands in More. Mark its stable Versions door with the same
      border-and-ink vocabulary as a menu-news door, without adding words or width. */
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
-  .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
+  .lf-version-menu { position: fixed; position-anchor: --lf-banner-more;
     right: anchor(right);
     bottom: auto; left: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; grid-template-columns: 1fr auto; align-items: start;

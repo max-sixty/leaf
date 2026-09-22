@@ -80,6 +80,7 @@ from render_harness import (
     ask_actions_hint,
     compare_with,
     consume_browser_errors,
+    expect_banner_control_offered,
     holding,
     leaf_page,
     open_page,
@@ -6286,9 +6287,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     )
     # The banner's count follows the page: three pending, one decided.
     expect(page.locator(".lf-answer-all")).to_have_text("Accept all (2)")
-    expect(page.locator(".lf-answer-all")).to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(page.locator(".lf-answer-all"))
 
     # The boundary before reading the shared log: what the press sent has to have a
     # definitive outcome first. The fetch this replaced proved nothing —
@@ -6673,9 +6672,7 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
     expect(page.locator(".lf-answer-all")).to_have_text("Accept all (3)")
-    expect(page.locator(".lf-answer-all")).to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(page.locator(".lf-answer-all"))
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -6826,9 +6823,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
     expect(rejected).to_be_hidden()
     expect(second.locator(".lf-answer-all")).to_have_text("Accept all (2)")
-    expect(second.locator(".lf-answer-all")).to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(second.locator(".lf-answer-all"))
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -6841,9 +6836,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # to decide rather than the network's.
     told(second)
     expect(second.locator(".lf-answer-all")).to_have_text("Accept all (1)")
-    expect(second.locator(".lf-answer-all")).to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(second.locator(".lf-answer-all"))
     unfolded_button(
         third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
     ).click()
@@ -6885,9 +6878,7 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
     expect(decisions).to_have_text("Asks 2/5")
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect(decisions).to_have_text("Asks 3/5")
-    expect(page.locator(".lf-answer-all")).not_to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
@@ -9820,9 +9811,10 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     assert remarked["scrolls"] == filled["scrolls"], (
         f"a remark sized the code, so a file that fit its box now scrolls: {remarked}"
     )
-    assert (remarked["short"], remarked["narrow"]) == (0, 0), (
-        f"the rows do not fill their box with a thread among them: {remarked}"
-    )
+    assert (remarked["short"], remarked["narrow"]) == (
+        0,
+        0,
+    ), f"the rows do not fill their box with a thread among them: {remarked}"
 
     page.locator("lf-diff .lf-diff-wrap").click()
     wrapped = page.evaluate(DIFF_ROW_FILL)
@@ -9830,9 +9822,10 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
         wrapped,
         filled,
     )
-    assert (wrapped["short"], wrapped["narrow"]) == (0, 0), (
-        f"wrapped rows do not fill the box they wrapped into: {wrapped}"
-    )
+    assert (wrapped["short"], wrapped["narrow"]) == (
+        0,
+        0,
+    ), f"wrapped rows do not fill the box they wrapped into: {wrapped}"
 
 
 def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_switch_says(

@@ -41,6 +41,7 @@ from render_harness import (
     author_test_widget,
     banner_control,
     consume_browser_errors,
+    expect_banner_control_offered,
     holding,
     leaf_page,
     navigate,
@@ -2282,9 +2283,7 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     )
     stamp_page(d, rewritten, "two")
     told(page)
-    expect(page.locator(".lf-latest-chip")).to_have_class(
-        re.compile(r"\blf-news-shown\b")
-    )
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
     banner_control(page, ".lf-latest-chip").click()
     wait_for_revision(page, 2)
     expect(page).not_to_have_url(re.compile("/versions/"))

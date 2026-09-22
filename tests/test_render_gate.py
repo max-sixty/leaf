@@ -3273,6 +3273,54 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+@pytest.mark.parametrize("pointer", ["mouse", "touch"])
+def test_dragging_an_edge_switches_from_keyboard_to_pointer_focus(
+    browser, serve, edge, pointer
+):
+    """A drag keeps the edge's arrow keys, but not the prior keyboard focus ring."""
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, has_touch=pointer == "touch"
+    )
+    page = open_page(
+        browser, serve(edge.html(), comments=edge.comments), context=context
+    )
+    edge.stand(page)
+    edge_settled(page, edge)
+    handle = page.locator(f"{edge.region} .lf-edge")
+    handle.focus()
+    page.keyboard.press("ArrowRight")
+    assert handle.evaluate("e => e.matches(':focus-visible')")
+
+    box = handle.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    if pointer == "mouse":
+        page.mouse.move(x, y)
+        page.mouse.down()
+        page.mouse.move(x + 40, y, steps=8)
+    else:
+        cdp = context.new_cdp_session(page)
+        for event, at in [("touchStart", x), ("touchMove", x + 40)]:
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": event, "touchPoints": [{"x": at, "y": y}]},
+            )
+    assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "none"
+    if pointer == "mouse":
+        page.mouse.up()
+        assert not handle.evaluate("e => e.matches(':focus-visible')")
+    else:
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    assert handle.evaluate("e => e === document.activeElement")
+
+    drawn = geometry(page, edge)
+    page.keyboard.press("ArrowRight")
+    assert handle.evaluate("e => e.matches(':focus-visible')")
+    assert geometry(page, edge)["width"] == drawn["width"] + (
+        -24 if edge.side == "right" else 24
+    )
+
+
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     browser, serve, edge
 ):

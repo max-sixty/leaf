@@ -118,16 +118,13 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
     // had just arrived.
     let grab = 0;
     edge.addEventListener("pointerdown", (event) => {
-      // Refusing the press stops the compatibility mouse events, and with them the
-      // selection a drag makes: without it a gesture about the edge would drop whatever the
-      // reader had selected and paint a new one over the paragraphs it passed. Focus is
-      // then taken by hand, refusing the press having refused that too, so the arrows are
-      // live on the edge the reader is holding.
-      event.preventDefault();
+      // A fresh native pointer focus clears a keyboard ring even when this handle
+      // already owns focus. Cancelling pointerdown and focusing by script preserves
+      // that ring. The chrome's user-select rule already protects page selections.
+      edge.blur();
       edge.setPointerCapture(event.pointerId);
       const box = region.getBoundingClientRect();
       grab = event.clientX - (side === "right" ? box.left : box.right);
-      edge.focus({ preventScroll: true });
       document.body.toggleAttribute("data-lf-sizing", true);
     });
     edge.addEventListener("pointermove", (event) => {
@@ -138,6 +135,9 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
       const at = event.clientX - grab;
       set(side === "right" ? document.documentElement.clientWidth - at : at);
     });
+    // A touch drag may generate no compatibility mouse event to focus the handle.
+    // Keep the completed gesture's arrow keys available for every pointer type.
+    edge.addEventListener("pointerup", () => edge.focus({ preventScroll: true }));
     // Both ends of the gesture, because a drag the browser takes away — a window losing the
     // pointer, a touch cancelled — leaves the page in the sizing posture otherwise, and the
     // slide would be gone for the rest of the session with nothing to say why.

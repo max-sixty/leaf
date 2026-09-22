@@ -6,14 +6,24 @@
    what makes one answer serve both trees, and it is the reading `inChrome` and
    `pageWords` are built on.
 
-   `pageText` is the whole of that reading, and it is a function of the document alone.
-   Every caller shares one answer for as long as the document holds still, and the page
-   changing under it is what makes the next caller pay for a walk. */
+   `pageText` is the whole of that reading. Every caller shares one answer for as long as
+   the page holds still, and something the reading is built out of moving is what makes the
+   next caller pay for a walk. The document reports most of that movement itself; the two
+   inputs it reports nothing about have a door apiece, and the last cases here are why. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { closestAcross, inChrome, pageText, pageWords } from "/runtime/passages.js";
+import { registry } from "/runtime/registry.js";
+import {
+  closestAcross,
+  fencePassageParts,
+  inChrome,
+  neighbourhood,
+  pageText,
+  pageWords,
+  watchPassageRoot,
+} from "/runtime/passages.js";
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
@@ -83,4 +93,36 @@ test("a mark the runtime paints is not a change to what the page says", () => {
   // page could not afford.
   document.querySelector("p").classList.add("lf-mark-el");
   assert.equal(pageText(), first, "a painted class leaves the reading standing");
+});
+
+// The two inputs the document reports nothing about. An observer sees neither a set the
+// runtime marks a widget's parts into nor a tree behind a shadow boundary, so each has a
+// door in passages.js, and a door that stopped forgetting would leave the reading standing
+// over words the page no longer says — with nothing else to catch it.
+test("a widget fenced after a reading was taken is in the next one", () => {
+  document.body.innerHTML =
+    "<main><p>Alpha</p><lf-fenced><p>Beta</p></lf-fenced></main>";
+  const past = (reading) =>
+    neighbourhood(reading.origin, reading.fences, "Alpha".length, 8, false);
+  assert.match(past(pageText()), /Beta/, "unfenced, the widget's words are page prose");
+  // Marking the parts changes no node, so a reading taken before the marking would let a
+  // quote from the paragraph above run straight into the widget's lines.
+  fencePassageParts(document.querySelector("lf-fenced"));
+  assert.equal(past(pageText()), "", "the fence ends the paragraph's neighbourhood");
+});
+
+test("a declared shadow tree's words are read, and its changes are seen", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "passage-doors" },
+  });
+  document.body.innerHTML = "<main><p>Alpha</p><lf-staged></lf-staged></main>";
+  const root = document.querySelector("lf-staged").attachShadow({ mode: "open" });
+  root.append(Object.assign(document.createElement("p"), { textContent: "Beta" }));
+  // Attaching the root and filling it reached no node the document observes.
+  watchPassageRoot(root);
+  assert.match(pageText().raw, /Alpha.*Beta/s);
+  // And the door leaves the tree watched, rather than forgetting the reading once.
+  root.firstElementChild.textContent = "Gamma";
+  assert.match(pageText().raw, /Alpha.*Gamma/s);
 });

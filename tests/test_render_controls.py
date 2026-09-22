@@ -695,7 +695,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > .lf-layer-reference")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_have_count(1)
     expect(page.locator(".lf-banner-menu > *")).to_have_count(2)
     expect(page.locator(".lf-permanent-destination")).to_be_attached()
 
@@ -1016,15 +1016,16 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
-    needs = page.locator(".lf-needs")
-    reached_needs = False
+    selected_state = page.get_by_role("radio", name=re.compile(r"^Open(?: \(|$)"))
+    expect(selected_state).to_be_checked()
+    reached_state = False
     for _ in range(20):
-        if needs.evaluate("el => el === document.activeElement"):
-            reached_needs = True
+        if selected_state.evaluate("el => el.matches(':focus-within')"):
+            reached_state = True
             break
         page.keyboard.press("Tab")
-    assert reached_needs, "native Tab never reached the pending-reader panel control"
-    expect(needs).to_be_focused()
+    assert reached_state, "native Tab never reached the selected thread-state radio"
+    expect(selected_state).to_be_focused()
     expect(menu).to_be_hidden()
     expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     page.locator(".lf-threads-toggle").click()
@@ -1310,27 +1311,38 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
           shelf.measureBannerControls(() => {});
         }"""
     )
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
     page.locator(".lf-banner-more").click()
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
     page.evaluate(
         """async () => {
           const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
           window.__lfDeferredBannerMeasurement = null;
           shelf.measureBannerControls(() => {
             const chip = document.querySelector('.lf-preview');
-            window.__lfDeferredBannerMeasurement = chip.parentElement.className;
+            window.__lfDeferredBannerMeasurement = chip.closest(".lf-banner-actions, .lf-banner-menu").className;
           });
         }"""
     )
     assert page.evaluate("() => window.__lfDeferredBannerMeasurement") is None
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
     page.keyboard.press("Escape")
     page.wait_for_function("() => window.__lfDeferredBannerMeasurement !== null")
     assert page.evaluate("() => window.__lfDeferredBannerMeasurement") == (
         "lf-banner-actions"
     )
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    copy = page.get_by_role("button", name="Copy preview diagnostics", exact=True)
+    copy.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
+    copied = page.evaluate("() => navigator.clipboard.readText()")
+    assert copied.startswith("Leaf preview\nexample: feature-gallery\n")
+    assert "checkout: leaf.status-floor-and-selection" in copied
+    assert "t=" not in copied
+    expect(copy).to_be_focused()
     page.close()
 
     # A published page uses the same one-line status and complete hover text.
@@ -1551,7 +1563,7 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     )
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
-    folded = page.locator(".lf-banner-menu > *")
+    folded = page.locator(".lf-banner-menu .lf-btn")
     assert folded.count() > 0, "nothing folded, so this test has no menu to walk"
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
@@ -2705,7 +2717,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         )
 
     wide = actions()
-    wide_folded = page.locator(".lf-banner-menu > *").count()
+    wide_folded = page.locator(".lf-banner-menu .lf-btn").count()
     assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
 
     # Where the left tray's control begins the row — or, where this width has folded it,
@@ -5439,7 +5451,7 @@ RING_CASES = (
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
                 (".lf-edge:visible", "edge"),
-                (".lf-find-box", "find-box"),
+                (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel textarea", "text-box"),
                 (".lf-shortcut-more", "key-more"),
             ),
@@ -5482,12 +5494,12 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
     ),
-    # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
-    # arrival paints only the ground, so the specimen is the walk's own landing.
+    # The keyboard walk lands on the accordion title, whose inset band also marks
+    # its native Tab stop.
     (
         "a walked thread",
         ("g", "Shift+t", "t"),
-        {"ship-review": ((None, "thread-card"),)},
+        {"ship-review": ((None, "thread-summary"),)},
     ),
     # The same walk with the panel shut lands in the margin's conversation view, on the
     # thread itself rather than a control inside it.
@@ -5593,7 +5605,7 @@ RING_CASES = (
         {
             "corpus": (
                 (".lf-page-map-action:visible", "page-map-action"),
-                (".lf-page-map-search:visible", "page-map-search"),
+                (".lf-page-map-search input:visible", "text-entry"),
             )
         },
     ),
@@ -6000,7 +6012,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 resolved = page.locator('[data-filter-value="resolved"]')
                 if (
                     resolved.is_enabled()
-                    and resolved.get_attribute("aria-pressed") != "true"
+                    and resolved.get_attribute("aria-checked") != "true"
                 ):
                     resolved.click()
                 page.evaluate(RING_FOCUS_START)

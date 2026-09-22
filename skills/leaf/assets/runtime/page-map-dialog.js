@@ -21,7 +21,7 @@ import { letGo } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
-import { el } from "./widget-elements.js";
+import { el, offer } from "./widget-elements.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -59,14 +59,12 @@ dialogHead.append(el("strong", "", "Page Map"));
 const dialogClose = el("button", "lf-btn", "Close");
 dialogClose.type = "button";
 dialogHead.append(dialogClose);
-const dialogSearch = el("input", "lf-page-map-search");
+const dialogSearch = offer("wa-input", "lf-page-map-search");
 dialogSearch.type = "search";
 dialogSearch.name = "page-map-search";
 dialogSearch.placeholder = "Find an action, status, or location";
-dialogSearch.setAttribute(
-  "aria-label",
-  "Find an action, status, or location in Page Map",
-);
+dialogSearch.label = "Find an action, status, or location in Page Map";
+dialogSearch.size = "s";
 const dialogList = el("div", "lf-page-map-list");
 const dialogEmpty = el(
   "p",

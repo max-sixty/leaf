@@ -2193,12 +2193,12 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_quote(browser, serve):
 
     # A narrowing can put a different card under a hand that has not moved. The list
     # reconcile is therefore one of the hover's inputs, just like page geometry.
-    page.fill(".lf-find-box", "About")
+    page.get_by_role("searchbox", name="Find in threads").fill("About")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     first.locator(".lf-thread-summary").click()
     first.locator(".lf-thread-summary").hover()
     wait_hovered(page, "bold text")
-    page.fill(".lf-find-box", "neighbouring block")
+    page.get_by_role("searchbox", name="Find in threads").fill("neighbouring block")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(second).to_have_class(re.compile(r"\blf-mark-hover\b"))
     wait_hovered(page, "neighbouring block")
@@ -2373,7 +2373,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     # visit, but must not silently remove a visible page thread from the inline walk.
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    page.fill(".lf-find-box", "neighbouring block")
+    page.get_by_role("searchbox", name="Find in threads").fill("neighbouring block")
     expect(page.locator(f'.lf-thread[data-id="{roots[0]}"]')).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
     position = page.locator(".lf-walk-position")
@@ -2794,10 +2794,10 @@ def test_what_the_reader_put_on_after_the_panel_comes_off_before_it(browser, ser
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
-    expect(page.locator(".lf-find-box")).to_have_value("About")
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("About")
     page.keyboard.press("Escape")
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-find-box")).to_have_value("")
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     page.keyboard.press("Escape")
     expect(panel).to_be_hidden()
 
@@ -2900,7 +2900,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    page.fill(".lf-find-box", "no matching thread")
+    page.get_by_role("searchbox", name="Find in threads").fill("no matching thread")
     expect(page.locator(".lf-thread")).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
@@ -6496,7 +6496,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.keyboard.press("Shift+m")
     page_map = page.locator(".lf-page-map-dialog")
     expect(page_map).to_be_visible()
-    expect(page_map.locator(".lf-page-map-search")).to_be_focused()
+    expect(page_map.get_by_role("searchbox")).to_be_focused()
     assert page.locator("main").evaluate("main => main.inert")
     assert not page_map.evaluate("surface => surface.inert")
     page.keyboard.press("Escape")
@@ -9117,7 +9117,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     general = page.locator(".lf-general textarea")
     replies = page.locator(".lf-thread textarea")
     assert general.get_attribute("placeholder") == "Comment on the page · c"
-    page.locator(".lf-find-box").focus()
+    page.get_by_role("searchbox", name="Find in threads").focus()
     shortcut_bar_text(page)
     assert general.get_attribute("placeholder") == "Comment on the page"
     general.focus()

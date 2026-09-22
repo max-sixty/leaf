@@ -1,5 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
+import "./vendor/webawesome-chrome.js";
 import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
@@ -726,7 +727,11 @@ skipToChrome.onclick = () => {
 };
 
 if (!offlineInteractive) {
-  document.adoptedStyleSheets = [chromeSheet, marksSheet];
+  document.adoptedStyleSheets = [
+    ...document.adoptedStyleSheets,
+    chromeSheet,
+    marksSheet,
+  ];
   chromeRoot.append(
     banner,
     overflowMenu,
@@ -768,7 +773,8 @@ if (!offlineInteractive) {
   });
   reserveBannerControls();
   auxiliaryModality.mount();
-  panelComposer.mount();
+  mountNarrowing(app.presentConversation);
+  await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
   reactions.mount();
@@ -786,7 +792,6 @@ if (!offlineInteractive) {
   app.mountConversation();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
-  mountNarrowing(app.presentConversation);
   trays.mountTrays();
   threadPanelController.mountThreadPanel();
   layout.mountLayoutObservers();

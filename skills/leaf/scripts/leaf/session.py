@@ -175,9 +175,7 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
         if pending:
             sys.exit(
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
-                "idling ends the leaf over them; `leaf wait` prints them and returns "
-                "at once when events are already waiting. The wait owner must finish "
-                "the delivery contract before idling. " + ACK_BATCH_INSTRUCTION
+                "read them with `leaf wait` before idling. " + ACK_BATCH_INSTRUCTION
             )
         owed = [
             obligation
@@ -186,8 +184,8 @@ def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
         ]
         if owed:
             sys.exit(
-                f"{unanswered(owed, 'acknowledged')}; idling ends the leaf over "
-                "them. " + ANSWER_ASK_INSTRUCTION
+                f"{unanswered(owed, 'acknowledged')}; answer before idling. "
+                + ANSWER_ASK_INSTRUCTION
             )
         page.set_status("idle", detail)
 

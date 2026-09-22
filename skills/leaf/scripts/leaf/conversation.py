@@ -469,7 +469,10 @@ def cmd_reply(
                 sys.exit("reply --initiates requires --to")
         elif for_event is None:
             if to is not None:
-                sys.exit("a delivered reply uses --for; omit --to to infer both")
+                sys.exit(
+                    "use --for EVENT_ID to answer reader input; "
+                    "--to ID --initiates starts a new message when no reply is owed"
+                )
             claim = page.active_claim
             delivered = (
                 {
@@ -494,9 +497,11 @@ def cmd_reply(
             ]
             if len(pending) != 1:
                 sys.exit(
-                    "reply needs exactly one reply obligation from this turn's "
-                    "opened delivery to infer; use --for EVENT_ID when more than "
-                    "one was delivered"
+                    "cannot infer a reply: this turn's opened delivery holds "
+                    f"{len(pending)} reply obligations. Read what the page still "
+                    "owes with `leaf page state <page>`; use --for EVENT_ID to "
+                    "answer one, or --to ID --initiates only if that read shows "
+                    "nothing owed"
                 )
             for_event, expected = pending[0]
             to = expected["to"]

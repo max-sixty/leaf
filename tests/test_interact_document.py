@@ -1910,7 +1910,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery" in result.output
+    assert "this turn's opened delivery holds 0 reply obligations" in result.output
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
@@ -1941,7 +1941,7 @@ def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery" in result.output
+    assert "this turn's opened delivery holds 0 reply obligations" in result.output
 
 
 def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
@@ -1966,7 +1966,7 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery" in result.output
+    assert "this turn's opened delivery holds 0 reply obligations" in result.output
 
 
 def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):

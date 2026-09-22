@@ -62,8 +62,16 @@ uv run pytest --lf --lfnf=none -x -n0
 Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
 change, reset only the affected test, then inspect the recorded diff before committing:
 
-TODO(2026-09-12): Move more stable multiline CLI output contracts from partial
-string assertions to regtest snapshots.
+Agent-facing interaction specimens cover the complete outputs at their delivery
+boundaries: `test_interact_contract.py` records event handling and a browser POST
+through delivery; `test_interact_session.py` records hooks, watcher recovery,
+reply/version/receipt lifecycles, and summary suggestions; `test_interact_layer.py`
+records command help and reply selection errors; `test_interact_mcp.py` records
+the stdio server's tool descriptions and metadata; `test_website_server.py` records
+the hosted agent's outgoing start messages and serialized tool output. Review
+these together when changing interaction guidance. The specimens normalize
+temporary paths and generated identities, not instruction text. Multiline prompts
+use literal YAML blocks so their actual line breaks remain readable.
 
 ```sh
 uv run pytest --regtest-reset -n0 <node-id>

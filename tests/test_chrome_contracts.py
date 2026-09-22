@@ -728,3 +728,34 @@ def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
 
     with pytest.raises(AssertionError, match="never reached a false fact"):
         _until(page, lambda _traffic: False, "reached a false fact")
+
+
+def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
+    browser, serve
+):
+    """The web-protocol guard reads the href the document will resolve, not its source.
+
+    marked hands a renderer the authored destination, and an href attribute still
+    decodes character references when that markup lands, so `javascript&#58;` reaches
+    the reader as a `javascript:` URL. A guard reading the authored text sees a
+    relative path, admits it, and the reader gets a live script link out of ordinary
+    message prose.
+    """
+    url = serve(LONG_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "[press me](javascript&#58;window.leaked=true)",
+        {"section": "p0"},
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+
+    prose = page.locator(".lf-msg-text").first
+    expect(prose).to_have_text("press me")
+    admitted = prose.evaluate(
+        """node => [...node.querySelectorAll('a')].map(link => link.protocol)"""
+    )
+    assert all(protocol in ("http:", "https:", "mailto:") for protocol in admitted), (
+        admitted
+    )

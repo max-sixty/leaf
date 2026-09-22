@@ -28,6 +28,11 @@ function safeUrl(href) {
   }
 }
 
+// Page media keeps its canonical text in the log, and an MCP capability route needs
+// that href scoped to reach the same bytes. Scope only those; every other destination
+// stands as the reader wrote it.
+const destination = (href) => (isCanonicalMediaUrl(href) ? scopedMediaUrl(href) : href);
+
 export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/marked.esm.js").then((module) => {
     const markdown = new module.Marked({
@@ -37,20 +42,29 @@ export function loadMarkdown(onError = null) {
       // markup fields.
       renderer: {
         html: (token) => escapeHtml(token.text),
+        // One reading of a destination, shared by the protocol check and the
+        // attribute it lands in. Marked hands a renderer the authored text, and an
+        // href attribute decodes character references when that markup lands, so
+        // handing the destination back to Marked's own renderer would write
+        // `javascript&#58;` unescaped and let the document resolve as a script URL
+        // what this guard read as a relative path. Every link and image is therefore
+        // written here, with the destination escaped into the attribute it was
+        // checked as; image inspection has its own button renderer below.
         link(token) {
           if (!safeUrl(token.href)) return this.parser.parseInline(token.tokens);
-          if (!isCanonicalMediaUrl(token.href)) return false;
-          // Marked can preserve an ordinary page-media link on a normal page, but its
-          // root would escape an MCP capability route. Scope only this href and retain
-          // the link's authored meaning; image inspection has its own button renderer.
-          let link = `<a href="${escapeAttribute(scopedMediaUrl(token.href))}"`;
+          let link = `<a href="${escapeAttribute(destination(token.href))}"`;
           if (token.title) link += ` title="${escapeAttribute(token.title)}"`;
           return link + `>${this.parser.parseInline(token.tokens)}</a>`;
         },
         image(token) {
           if (!safeUrl(token.href)) return escapeHtml(token.text);
-          if (!isCanonicalMediaUrl(token.href)) return false;
-          const source = scopedMediaUrl(token.href);
+          const source = destination(token.href);
+          if (!isCanonicalMediaUrl(token.href)) {
+            let image = `<img src="${escapeAttribute(source)}"`;
+            image += ` alt="${escapeAttribute(token.text)}"`;
+            if (token.title) image += ` title="${escapeAttribute(token.title)}"`;
+            return image + ">";
+          }
           const label = token.text || "Image";
           let image = `<button type="button" class="lf-media-open lf-message-media" data-lf-offer="button" data-lf-said data-lf-media-url="${escapeAttribute(source)}" aria-label="View ${escapeAttribute(label)}"><img src="${escapeAttribute(source)}" alt="${escapeAttribute(token.text)}"`;
           if (token.title) image += ` title="${escapeAttribute(token.title)}"`;

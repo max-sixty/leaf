@@ -3242,10 +3242,8 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         ).to_be_focused()
 
 
-def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
-    browser, serve
-):
-    """New messages reconcile before the resolved thread's persistent actions."""
+def test_a_late_reply_reopens_its_resolved_thread(browser, serve):
+    """New spoken content returns to Open Threads, including after a reload."""
     url = serve(LONG_PAGE, comments=1)
     root = next(
         event
@@ -3257,8 +3255,8 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
+    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    expect(thread).to_be_hidden()
     events_model.append_event(
         serve.page_dir,
         {
@@ -3266,18 +3264,19 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
             "author": "agent",
             "revision": 1,
             "parent": root["id"],
+            "responds": root["id"],
             "text": "This arrived after resolution.",
         },
     )
     told(page)
-
-    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]:not([hidden])')
-    expect(thread.locator(":scope > .lf-msg")).to_have_count(2)
-    assert thread.evaluate(
-        """node => [...node.querySelectorAll(':scope > .lf-msg')].every(message =>
-          message.compareDocumentPosition(node.querySelector('.lf-thread-actions'))
-            & Node.DOCUMENT_POSITION_FOLLOWING)"""
-    ), "the late reply landed below Reopen"
+    expect(thread).to_be_visible()
+    thread.locator(".lf-thread-summary").press("Enter")
+    expect(thread.locator(".lf-msg.agent")).to_be_visible()
+    expect(thread.get_by_role("button", name="Reopen", exact=True)).to_have_count(0)
+    page.reload()
+    told(page)
+    expect(thread).to_be_visible()
+    expect(thread).to_have_attribute("data-resolved", "false")
 
 
 def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):

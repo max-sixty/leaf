@@ -155,8 +155,8 @@ in the append-only event log. Only text is revised; any widget markup stays froz
 sentence naming what they wrote. `--json` prints the posted event instead, whose
 `id` is what `--to` takes here. A refusal lists the ids it knows.
 
-An ordinary reply leaves the thread open so the reader can inspect the answer or
-revised page. The reader closes it by default. Resolve it yourself only when the
+An ordinary reply leaves the thread open, or reopens a resolved thread, so the reader
+can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The reader closes it by default. Resolve it yourself only when the
 reader asks, when an event rule requires resolution, or when no review or
 follow-up can change the outcome. Completing the requested work does not meet
 that bar by itself; when uncertain, leave the thread open. Reply before resolving:

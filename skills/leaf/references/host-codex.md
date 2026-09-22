@@ -66,12 +66,8 @@ Each observed slice contains at most one plain reply. Write that reply as the no
 final message. Leaf streams it into the addressed thread and commits its completed
 text through the same reply contract as `leaf reply`; do not run a reply command for
 that response. The committed reply retains the thread's standing anchor. Settling that
-move before the commit — your own `resolve`, the reader's ✓, authored state that
-honors it — does not discard the answer; it is posted in the same thread as your own
-message instead, settling nothing. A thread you closed keeps it as a late reply,
-which the panel shows under its resolved narrowing rather than its open default, so
-wait for your answer to land before resolving a thread you were delivered a reply
-for. A later plain
+move before the commit does not discard the answer: the completed reply keeps its
+response address and reopens the conversation in Open Threads. A later plain
 reply remains pending for the next slice. Version and receipt obligations in the
 current slice still use their explicit `resolve` and `receipt` operations.
 

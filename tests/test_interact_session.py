@@ -4060,7 +4060,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
     )
     assert session_model.cmd_wait(page_dir) == 0
     payload, header, shown = delivered(capsys.readouterr().out)
-    assert (header["page"], header["conversations"]) == (str(page_dir), [])
+    assert header["page"] == str(page_dir)
     assert [e["kind"] for e in shown] == ["comment", "action"]
     assert shown[1]["detail"]["to"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
@@ -4133,6 +4133,53 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
     assert files_model.read_json(page_dir / "cursor.json")["seq"] == shown[-1]["seq"]
 
 
+@pytest.mark.parametrize("title", [None, "Workshop venue"])
+def test_first_delivery_carries_conversation_title_without_repeating_messages(
+    page_dir, title
+):
+    publish(page_dir)
+    serving(page_dir, 1)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which space will be easier for everyone to find?",
+        },
+    )
+    if title is not None:
+        named = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "conversation",
+                "title",
+                str(page_dir),
+                root["id"],
+                "--text",
+                title,
+            ],
+        )
+        assert named.exit_code == 0, named.output
+    waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert waited.exit_code == 0, waited.output
+    _, header, shown = delivered(waited.output)
+    assert [event["id"] for event in shown] == [root["id"]]
+    assert header["conversations"] == [
+        {
+            "id": root["id"],
+            "title": title,
+            "anchor": None,
+            "detached_from": None,
+            "resolved": None,
+            "elided": {"messages": 0, "actions": 0},
+            "messages": [],
+            "summaries": [],
+            "actions": [],
+        }
+    ]
+
+
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     """The page and each event's sequence identify retries for any consumer."""
     serving(page_dir, 1)
@@ -4143,7 +4190,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     first = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert first.exit_code == 0, first.output
     first_payload, header, [event] = delivered(first.output)
-    assert (header["page"], header["conversations"]) == (str(page_dir), [])
+    assert header["page"] == str(page_dir)
     assert (event["id"], event["seq"], event["text"]) == ("c1", 1, "hi")
     assert files_model.read_json(page_dir / "cursor.json") is None
 
@@ -4173,9 +4220,9 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     grown = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert grown.exit_code == 0, grown.output
     _, grown_header, grown_events = delivered(grown.output)
-    assert {key: grown_header[key] for key in ("page", "conversations")} == {
-        key: header[key] for key in ("page", "conversations")
-    }
+    assert grown_header["page"] == header["page"]
+    assert grown_header["conversations"][0] == header["conversations"][0]
+    assert [thread["id"] for thread in grown_header["conversations"]] == ["c1", "c2"]
     assert grown_header["through_seq"] == 2
     assert [event["seq"] for event in grown_events] == [1, 2]
 
@@ -4691,8 +4738,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     ]
     assert "without naming a date" in thread["messages"][1]["text"]
 
-    # A comment that opens a thread states its own anchor on its own line, so
-    # there is nothing behind it to carry.
+    # A new conversation carries its metadata without repeating the opening message.
     receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
         page_dir,
@@ -4700,7 +4746,9 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     )
     assert session_model.cmd_wait(page_dir) == 0
     _, fresh, _ = delivered(capsys.readouterr().out)
-    assert fresh["conversations"] == []
+    [new_thread] = fresh["conversations"]
+    assert new_thread["title"] is None
+    assert new_thread["messages"] == []
 
     # The reader closing a thread from the panel posts a resolve, whose only
     # pointer at the conversation is the message it names.
@@ -5746,7 +5794,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
     # an agent which of the two happened rather than sending it to the streams.
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = delivered(out)
-    assert (header["page"], header["conversations"]) == (str(page_dir), [])
+    assert header["page"] == str(page_dir)
     assert (event["id"], event["seq"], event["text"]) == ("c2", 3, "two")
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert (page_dir / "status.json").read_bytes() == status_before_delivery
@@ -5873,7 +5921,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     out, err = acknowledging.communicate(timeout=10)
     assert acknowledging.returncode == 0, f"{out}{err}"
     _, header, [event] = delivered(out)
-    assert (header["page"], header["conversations"]) == (str(other), [])
+    assert header["page"] == str(other)
     assert (event["id"], event["text"]) == ("second", "two")
     assert files_model.read_json(other / "cursor.json") is None
     assert service_model.page_claim(page_dir)["id"] == "successor"
@@ -6301,7 +6349,7 @@ def test_one_wait_watches_every_page_the_session_holds(
 
     assert session_model.cmd_wait() == 0
     _, batch, shown = delivered(capsys.readouterr().out)
-    assert [batch[k] for k in ("page", "conversations")] == [str(second), []]
+    assert batch["page"] == str(second)
     assert [event["text"] for event in shown] == ["hi"]
     # The page that spoke records exact pickup; neither page's status is rewritten.
     assert files_model.read_json(second / "status.json")["state"] == "waiting"
@@ -6340,7 +6388,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     threading.Timer(0.2, join).start()
     assert session_model.cmd_wait() == 0
     _, first, _ = delivered(capsys.readouterr().out)
-    assert (first["page"], first["conversations"]) == (str(joined), [])
+    assert first["page"] == str(joined)
 
 
 def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
@@ -6356,7 +6404,7 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     session_model.cmd_status(page_dir, "idle", "the page is done")
     assert session_model.cmd_wait(page_dir) == 0
     _, first, _ = delivered(capsys.readouterr().out)
-    assert (first["page"], first["conversations"]) == (str(page_dir), [])
+    assert first["page"] == str(page_dir)
 
 
 def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys, snapshot):
@@ -6392,7 +6440,7 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
     assert session_model.cmd_wait(page_dir) == 0
     printed = capsys.readouterr()
     _, first, shown = delivered(printed.out)
-    assert (first["page"], first["conversations"]) == (str(page_dir), [])
+    assert first["page"] == str(page_dir)
     assert [event["id"] for event in shown] == ["c1"]
     assert printed.err == ""
 
@@ -6408,7 +6456,7 @@ def test_a_named_bare_shell_wait_keeps_its_directory_without_a_claim(
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    assert (header["page"], header["conversations"]) == (str(page_dir), [])
+    assert header["page"] == str(page_dir)
     assert service_model.page_claim(page_dir) is None
 
 
@@ -7076,7 +7124,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     assert [event["id"] for event in payload["batches"][0]["events"]] == ["first"]
     assert [
         conversation["id"] for conversation in payload["batches"][0]["conversations"]
-    ] == []
+    ] == ["first"]
     assert payload["batches"][0]["events"][0]["obligation"]["as_of_seq"] == 2
 
     # Accepting the first delivery receipts it, so the second comment is collected
@@ -8246,7 +8294,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     out, err = watcher.communicate(timeout=60)
     assert watcher.returncode == 0, f"{out}{err}"
     _, header, [event] = delivered(out)
-    assert (header["page"], header["conversations"]) == (str(page), [])
+    assert header["page"] == str(page)
     assert event["text"] == "hi"
     assert files_model.read_json(page / "cursor.json") is None
 
@@ -8299,7 +8347,7 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
 
     assert second.returncode == 0, f"{second_out}{second_err}"
     _, header, [event] = delivered(second_out)
-    assert (header["page"], header["conversations"]) == (str(page), [])
+    assert header["page"] == str(page)
     assert event["seq"] == 1
 
 

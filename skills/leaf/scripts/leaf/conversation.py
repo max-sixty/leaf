@@ -760,6 +760,22 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
 
 @contract_writer
+def cmd_title(page_dir: Path, conversation: str, text: str) -> dict:
+    """Name a conversation without adding a turn or changing its obligations."""
+    with PageTransaction(page_dir) as page:
+        return append_admitted(
+            page,
+            {
+                "kind": "conversation_title",
+                "author": "agent",
+                **message_identity(),
+                "conversation": conversation,
+                "title": text,
+            },
+        )
+
+
+@contract_writer
 def cmd_summarize(
     page_dir: Path,
     conversation: str,

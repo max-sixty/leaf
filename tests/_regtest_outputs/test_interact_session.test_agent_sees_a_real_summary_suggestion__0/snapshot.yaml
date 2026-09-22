@@ -10,6 +10,7 @@ delivery:
       through_seq: 14
       conversations:
         - id: event-2
+          title: null
           anchor: null
           detached_from: null
           resolved: null

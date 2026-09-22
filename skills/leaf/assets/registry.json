@@ -587,6 +587,24 @@
           "additionalProperties": false
         }
       },
+      "conversation_title": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "agent"},
+            "kind": {"const": "conversation_title"},
+            "seq": {"type": "integer", "minimum": 1},
+            "conversation": {"type": "string", "minLength": 1},
+            "title": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "conversation", "title", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
       "resolve": {
         "record": {
           "type": "object",

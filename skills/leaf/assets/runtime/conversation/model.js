@@ -125,7 +125,7 @@ export const awaitsReader = (thread) => thread.awaits_reader;
 export const seatRoot = (thread) => thread.seat;
 
 export const threadSummary = (thread) => ({
-  topic: thread.root.body.text.trim(),
+  topic: thread.title ?? thread.root.body.text.trim(),
   count: turns(thread).length,
   latest: turns(thread).at(-1)?.ts ?? null,
 });
@@ -216,6 +216,7 @@ export function readThreadRecords(threads, document, widgets, interactions) {
     });
     return {
       key: threadKey(thread),
+      title: thread.title ?? null,
       root: msgs.find((message) => message.id === thread.root.id),
       msgs,
       anchor: thread.anchor ?? null,

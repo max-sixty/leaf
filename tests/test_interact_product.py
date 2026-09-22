@@ -32,6 +32,7 @@ from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import layer as layer_model
@@ -40,6 +41,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
+from leaf.thread_context import thread_digest
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
 from playwright.sync_api import Error as PlaywrightError
@@ -1577,7 +1579,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert state_result.exit_code == 0, state_result.output
     state = json.loads(state_result.output)
     assert all(
-        set(thread) == {"id", "anchor", "detached_from", "resolved"}
+        set(thread) == {"id", "title", "anchor", "detached_from", "resolved"}
         for thread in state["conversations"]
     )
     expected = {
@@ -2079,3 +2081,98 @@ def test_export_state_route_refuses_a_missing_canonical_without_waiting():
 
     with pytest.raises(PlaywrightError, match="document has no canonical page root"):
         exporting_model._state_url(Page(), "https://leaf.invalid/versions/v1.html")
+
+
+def test_an_agent_names_and_renames_a_conversation_without_changing_its_speech(
+    page_dir,
+):
+    publish(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "I was wondering whether the workshop should use the terrace.",
+        },
+    )
+    runner = CliRunner()
+    assert state_json(page_dir)["conversations"][0]["title"] is None
+    titles = []
+    for title in ("Workshop venue", "Terrace accessibility"):
+        result = runner.invoke(
+            cli_model.cli,
+            [
+                "conversation",
+                "title",
+                str(page_dir),
+                root["id"],
+                "--text",
+                title,
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        titles.append(json.loads(result.output))
+        assert state_json(page_dir)["conversations"][0]["title"] == title
+        thread = event_folds_model.build_threads(
+            events_model.read_events(page_dir), {}
+        )[root["id"]]
+        assert thread_digest(thread)["title"] == title
+        assert [message["text"] for message in thread["msgs"]] == [root["text"]]
+
+    selected = runner.invoke(
+        cli_model.cli,
+        [
+            "events",
+            str(page_dir),
+            "--conversation",
+            root["id"],
+        ],
+    )
+    assert selected.exit_code == 0, selected.output
+    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
+        root["id"],
+        *(title["id"] for title in titles),
+    ]
+    assert [
+        (event["kind"], event["conversation"], event["title"]) for event in titles
+    ] == [
+        ("conversation_title", root["id"], "Workshop venue"),
+        ("conversation_title", root["id"], "Terrace accessibility"),
+    ]
+
+
+def test_conversation_titles_require_an_existing_thread_and_short_agent_prose(page_dir):
+    publish(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Where should we meet?",
+        },
+    )
+    command = {
+        "kind": "conversation_title",
+        "author": "agent",
+        "agent": "Codex",
+        "session": "title-test",
+        "conversation": root["id"],
+        "title": "Meeting venue",
+    }
+    before = events_model.read_events(page_dir)
+    for invalid in (
+        {"title": ""},
+        {"title": "   "},
+        {"title": "a" * 81},
+        {"title": "Two\nlines"},
+        {"title": "Trailing newline\n"},
+        {"title": "Two\rlines"},
+        {"conversation": "missing-conversation"},
+        {"author": "user"},
+    ):
+        with pytest.raises(events_model.EventRefused):
+            append_command(page_dir, {**command, **invalid})
+    assert events_model.read_events(page_dir) == before

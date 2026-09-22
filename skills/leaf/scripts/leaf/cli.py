@@ -321,9 +321,9 @@ def delivery_read(delivery_id: str) -> None:
     cmd_delivery_read(delivery_id)
 
 
-@cli.group(short_help="Read one exact Leaf conversation.")
+@cli.group(short_help="Read, name, or summarize a Leaf conversation.")
 def conversation() -> None:
-    """Inspect contextual conversation state without selecting delivery work."""
+    """Read and maintain conversations without selecting delivery work."""
 
 
 @conversation.command("read", short_help="Read one bounded conversation history.")
@@ -357,6 +357,30 @@ def conversation_read(
         after=after,
         limit=limit,
     )
+
+
+@conversation.command("title", short_help="Set or update a short conversation title.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("conversation_id", metavar="CONVERSATION_ID")
+@click.option(
+    "--text", required=True, help="short descriptive title (at most 80 characters)"
+)
+@click.option("--json", "as_json", is_flag=True, help="print the title event")
+def conversation_title(
+    dir: str, conversation_id: str, text: str, as_json: bool
+) -> None:
+    """Name the conversation for the thread panel; repeat to rename it.
+
+    Choose a few descriptive words when first handling a conversation. Keep the
+    title stable unless its subject changes. This adds no message or reply.
+    """
+    from leaf.conversation import cmd_title
+
+    accepted = cmd_title(resolve_dir(dir), conversation_id, text)
+    if as_json:
+        click.echo(json.dumps(accepted, ensure_ascii=False))
+        return
+    click.echo(f"named conversation {conversation_id}: {accepted['title']}")
 
 
 @conversation.command("summarize", short_help="Summarize a contiguous message range.")

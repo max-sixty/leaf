@@ -6265,3 +6265,45 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
         "Keep this unfinished answer.",
     )
     assert not take_browser_errors(page)
+
+
+def test_agent_titles_update_without_losing_the_readers_draft(browser, serve):
+    url = serve(PANEL_PAGE)
+    opening = "I was wondering which space would be easier for everyone to find."
+    root = panel_comment(serve.page_dir, opening, {"section": "h-how"})
+    other = panel_comment(serve.page_dir, "Keep the filter rows compact.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-topic")).to_have_text(opening)
+    focus_panel_thread(thread)
+    editor = thread.locator("textarea")
+    editor.fill("Keep this unfinished reply")
+    for title in ("Workshop venue", "Terrace accessibility"):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "conversation",
+                "title",
+                str(serve.page_dir),
+                root,
+                "--text",
+                title,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        told(page)
+        expect(thread.locator(".lf-thread-topic")).to_have_text(title)
+        expect(editor).to_have_value("Keep this unfinished reply")
+        expect(thread.get_by_text(opening, exact=True)).to_be_visible()
+    find = page.get_by_role("searchbox", name="Find in threads")
+    find.fill("Terrace accessibility")
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{other}"]')).to_be_hidden()
+    expect(thread).to_be_visible()
+    find.fill("")
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{other}"]')).to_be_visible()
+    page.reload()
+    expect(
+        page.locator(f'.lf-threads > .lf-thread[data-id="{root}"] .lf-thread-topic')
+    ).to_have_text("Terrace accessibility")

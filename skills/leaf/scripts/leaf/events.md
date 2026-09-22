@@ -11,6 +11,7 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
@@ -158,6 +159,10 @@ them:
   rest on a widget in it. The original stays in the log with its id, timestamp,
   author, thread position, and anchor; the panel, wait digests, and the transcript
   fold the latest text onto it and label it edited.
+- `conversation_title` names an existing conversation with a nonblank, single-line
+  plain-text title of at most 80 characters. The latest title is projected separately
+  from messages into browser state and agent context; an unnamed conversation has
+  a null title and the panel uses its opening text until the agent names it.
 - `summary` names an inclusive `from`–`through` range of at least two spoken turns in
   one conversation; a reaction may lie inside the range but not at an endpoint. A
   later overlapping summary replaces the earlier one whole, disjoint summaries

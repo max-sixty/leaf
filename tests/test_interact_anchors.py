@@ -487,6 +487,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
         {
             "id": root["id"],
             "anchor": current,
+            "title": None,
             "detached_from": None,
             "resolved": None,
         }
@@ -570,6 +571,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
         {
             "id": root["id"],
             "anchor": None,
+            "title": None,
             "detached_from": root["anchor"],
             "resolved": None,
         }

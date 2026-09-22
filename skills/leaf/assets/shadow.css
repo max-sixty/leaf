@@ -326,7 +326,7 @@ leaf-anchor-note { display: contents; }
           inset-block-start: -3px; inset-inline-end: -2px;
           box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
-          border: 1px solid transparent; border-radius: var(--r); background: var(--card);
+          border: 1px solid transparent; border-radius: var(--r); background: transparent;
           opacity: 0; cursor: pointer; }
 .lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;

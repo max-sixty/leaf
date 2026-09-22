@@ -4830,6 +4830,25 @@ def test_check_validates_each_specimen_document(page_dir, markup, error):
     assert error in result.output
 
 
+@pytest.mark.parametrize("nested", [False, True])
+def test_specimen_diagnostics_report_authored_lines(page_dir, nested):
+    markup = '<lf-unknown\n id="bad">Unknown</lf-unknown>\n<noscript>Hidden</noscript>'
+    if nested:
+        markup = f'<template\n id="nested"\n data-specimen>\n{markup}</template>'
+    source = PAGE.replace(
+        "</main>",
+        f'<template\n id="practice"\n data-specimen>\n{markup}</template></main>',
+    )
+    (page_dir / "index.html").write_text(source)
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "specimen 'practice'" in result.output
+    if nested:
+        assert "specimen 'nested'" in result.output
+    line = source[: source.index("<noscript>")].count("\n") + 1
+    assert f"<noscript> at line {line}:" in result.output
+
+
 def test_check_keeps_parent_and_sibling_specimen_ids_independent(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(

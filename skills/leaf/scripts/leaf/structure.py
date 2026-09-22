@@ -568,16 +568,27 @@ class SourceDocument:
     def _specimen_resources(self, template) -> None:
         """Read the complete child document without merging its identity space."""
         attrs = self._attrs(template)
+        location = template.source_location
+        content_start = self._source_index(
+            location.start_tag.end_line, location.start_tag.end_col
+        )
+        content_end = (
+            self._source_index(location.end_tag.start_line, location.end_tag.start_col)
+            if location.end_tag
+            else len(self._source)
+        )
         if not attrs.get("id"):
             line, _ = self._position(template)
             self.errors.append(
-                f"<template data-specimen> (line {line}): needs a stable id"
+                f"<template data-specimen> at line {line}: needs a stable id"
             )
         source = (
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head><body><main>"
-            + template.inner_html
+            # Preserve authored lines, including multiline tags in nested specimens.
+            + "\n" * (location.start_tag.end_line - 1)
+            + self._source[content_start:content_end]
             + "</main></body></html>"
         )
         self.specimens.append(

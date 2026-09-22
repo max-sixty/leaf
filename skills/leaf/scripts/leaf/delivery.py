@@ -18,7 +18,7 @@ from .files import read_json, write_json
 from .machine import state_home
 from .passages import active_enclosing, spoken
 from .projection import frozen_thread_reading
-from .registry.contract import RegistryError, handling
+from .registry.contract import RegistryError, event_clauses
 from .registry.reactions import described
 from .registry.storage import active_registry
 from .revision_artifact import read_registry
@@ -37,7 +37,6 @@ _BATCH_FIELDS = (
     "page",
     "through_seq",
     "conversations",
-    "handling",
     "events",
 )
 
@@ -226,10 +225,15 @@ def batch_data(
             "subject": _subject(event, conversations, by_id),
             "conversations": conversations,
         }
+        # The browser's retry key: the log keeps it to recognise a resent post, and
+        # the agent has no use for it.
+        entry.pop("attempt", None)
         # What an element says is a registry's word, and a page whose active layer
         # does not read is not read for its words at all.
         if registry is not None and (says := _says(event, by_id, reading)):
             entry["says"] = says
+        if clauses := event_clauses(event, registry):
+            entry["handling"] = " ".join(clause["text"] for clause in clauses)
         response = responses.get(event["id"])
         if response is not None:
             entry["obligation"] = {
@@ -241,7 +245,6 @@ def batch_data(
         "page": str(page_dir),
         "through_seq": through_seq,
         "conversations": batch_threads(events, batch, within),
-        "handling": handling(batch, registry),
         "events": captured,
     }
 

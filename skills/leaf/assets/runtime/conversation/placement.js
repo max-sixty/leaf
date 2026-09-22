@@ -1,8 +1,11 @@
-/* Document-order placement and grouping for conversation threads. */
+/* Placement and grouping for conversation threads: the page's order, which every
+   reading of the threads shares, and the panel's Recent order. */
 import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
 import { pageParts } from "../passages.js";
 import { inChrome, layerPart } from "../passages.js";
+import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
+import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the reader walks the conversation the way they walk the
@@ -11,6 +14,10 @@ import { readingRegionFor } from "../reading-regions.js";
 // say the same order. Log order answered a different question — when a
 // thread was opened — which is a question about one thread rather than about a list, and
 // the message clocks already answer it.
+//
+// The panel's Recent order (below) is the one exception, and only the panel's: the
+// reader asked the list the other question, which thread moved last. The marks and the
+// walk with the panel shut keep the page's order.
 //
 // Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
 // same resolution the marks are drawn from, so the list and the page cannot disagree about
@@ -159,4 +166,53 @@ export function threadGroups(threads, outline, placedAt) {
     });
   }
   return groups;
+}
+
+// ---------- the panel's Recent order ----------
+// A thread's latest message is when it last moved. A message still being sent has no
+// clock yet and is moving now. Ties keep the log's order.
+const lastMoved = (thread, now) => {
+  const latest = threadSummary(thread).latest;
+  return latest ? Date.parse(latest) : now;
+};
+
+export function inRecentOrder(threads) {
+  const now = serverNow();
+  const seat = new Map(threads.map((t, i) => [t, i]));
+  const moved = new Map(threads.map((t) => [t, lastMoved(t, now)]));
+  return [...threads].sort(
+    (a, b) => moved.get(b) - moved.get(a) || seat.get(a) - seat.get(b),
+  );
+}
+
+const dayOf = (ms) => {
+  const at = new Date(ms);
+  return new Date(at.getFullYear(), at.getMonth(), at.getDate());
+};
+const DAY_NAME = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const DATED_NAME = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+// The run a thread sits in under Recent: the reader's calendar day it last moved on.
+// Rounding absorbs a daylight-saving day that is 23 or 25 hours long.
+export function recentGroup(thread) {
+  const now = serverNow();
+  const day = dayOf(lastMoved(thread, now));
+  const today = dayOf(now);
+  const behind = Math.round((today - day) / 86_400_000);
+  const label =
+    behind === 0
+      ? "Today"
+      : behind === 1
+        ? "Yesterday"
+        : (day.getFullYear() === today.getFullYear() ? DAY_NAME : DATED_NAME).format(
+            day,
+          );
+  return {
+    key: `day:${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`,
+    label,
+  };
 }

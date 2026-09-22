@@ -2,7 +2,7 @@
  *
  * `narrowing.js` supplies one frozen presentation reading and stable commands. This
  * synchronous light-DOM Lit owner retains the search control and local Filters
- * disclosure while rendering the summary, Reset, and declared facet controls. It
+ * disclosure while rendering the summary, Reset, the order and declared facet controls. It
  * never reads its rendering back into reader intent.
  */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
@@ -107,7 +107,7 @@ class ThreadNarrowingView extends HTMLElement {
       ?disabled=${choice.disabled}
       @click=${() => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}
     >
-      ${choice.label} (${choice.amount})
+      ${choice.amount === null ? choice.label : `${choice.label} (${choice.amount})`}
     </button>`;
   }
 
@@ -141,7 +141,7 @@ class ThreadNarrowingView extends HTMLElement {
           aria-controls="lf-thread-filters"
           @click=${() => this.#toggleFilters()}
         >
-          Filters
+          ${this.#model.order ? `Filters · ${this.#model.order}` : "Filters"}
         </button>
       </div>
       <div class="lf-thread-view" ?hidden=${this.#model.hidden}>

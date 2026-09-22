@@ -151,6 +151,75 @@ def append_agent_reply(page_dir, parent, text, markup=None):
     return events_model.append_event(page_dir, event)
 
 
+def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
+    browser, serve, request
+):
+    """The answer the log holds is what the panel draws, not the draft it replaced.
+
+    `publish-site` failed on a deployed turn that published its revision and replied:
+    the container held the answer, every server reading returned it, and the reader's
+    panel showed one agent bubble with no words in it. The provisional reply was
+    retired by the response address it was sent to, while every consumer keys the
+    message on the delivery attempt it was reserved under, so an answer that named
+    only the attempt stood beside its own placeholder under one key and the draft is
+    what got drawn.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
+    claim = record_claim(
+        serve.page_dir, id="codex-thread", harness="codex", agent="Codex"
+    )
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim["id"])
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    attempt = service_model.delivery_reply_attempt("delivery-1")
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_stream_reply(
+            "codex-thread",
+            "leaf-turn",
+            root,
+            root,
+            attempt,
+            None,
+            "",
+            "active",
+        )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(
+        page.locator(f'.lf-msg[data-attempt="{attempt}"] .lf-msg-text')
+    ).to_be_empty()
+
+    # An answer that names the attempt it was reserved under and nothing else. The
+    # attempt is the identity the placeholder was opened on and the one the panel
+    # draws by, so this is the whole of what says the draft is finished.
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "session": "codex-thread",
+            "parent": root,
+            "revision": 1,
+            "attempt": attempt,
+            "text": "deployment verified",
+        },
+    )
+    assert "responds" not in reply
+    told(page)
+
+    answered = page.locator(f'.lf-msg[data-attempt="{attempt}"]')
+    expect(answered).to_have_count(1)
+    expect(answered).to_have_attribute("data-mid", reply["id"])
+    expect(answered.locator(".lf-msg-text")).to_have_text("deployment verified")
+
+
 def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, request):
     """One retained message gains its durable prose and validated authored island.
 

@@ -65,6 +65,7 @@ import {
 import { sameAnchor } from "../anchor-coordinate.js";
 import {
   BANNER_CONTROL_RANK,
+  dismissBannerControls,
   registerBannerControl,
   showBannerControl,
 } from "../banner-shelf.js";
@@ -998,6 +999,7 @@ export function createResponseSurface({
   const commentOnTouchSelection = () => {
     const anchor = touchSelectionAnchor;
     if (!anchor) return;
+    dismissBannerControls();
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
     getSelection()?.removeAllRanges();
@@ -1187,6 +1189,16 @@ export function createResponseSurface({
       setTimeout(() => {
         actionPress = false;
       });
+    // Opening or acting in the banner is a route to the already-captured touch
+    // selection, not a new selection gesture. Keep that passage verbatim while the
+    // browser moves focus through More and its controls.
+    if (touchSelectionAnchor && ev.target.closest?.(".lf-banner")) {
+      primaryPointerPressed = false;
+      pointerSelecting = false;
+      selectionGestureClaimed = false;
+      releasePress();
+      return;
+    }
     if (
       primaryPointerPressed &&
       ev.type === "pointerup" &&
@@ -1291,6 +1303,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(ev.target))
           rememberPointerSelection();
         actionPress =
+          (touchSelectionAnchor && Boolean(ev.target.closest?.(".lf-banner"))) ||
           ev.target === selectionComment ||
           Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
       },

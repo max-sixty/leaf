@@ -64,7 +64,7 @@ relative to `runtime/` unless stated otherwise.
 | Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js` |
-| Banner, approvals, and control allocation | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
+| Banner, approvals, and fixed primary/menu control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `notifications.js`, `keyboard/shortcut-bar.js` |

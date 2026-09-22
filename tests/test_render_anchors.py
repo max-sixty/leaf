@@ -31,6 +31,7 @@ from render_cases_layout import (
     AIM_SEAM_PAGE,
     SHOT_SRC,
     SHOTS,
+    banner_control,
     button_radius,
 )
 from render_cases_navigation import (
@@ -3159,7 +3160,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
 
     # And the older document is a real destination, not just a row: choosing it pins
     # the reader to the virtual version address the chooser named.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(page.locator(".lf-version")).to_have_text("v1")
@@ -3559,7 +3560,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
     # reader is already on.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     pointer_line = shortcut_bar_text(page)
     assert "walk — marking changes" not in pointer_line, pointer_line
@@ -4125,7 +4126,7 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     menu = page.locator(".lf-version-menu")
     expect(page.locator(".lf-version-row")).to_have_count(2)
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     focused_row = page.locator(".lf-version-row").first
     focused_row.focus()
@@ -4189,7 +4190,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
 
     # The first read sees both the publication and the reply. Hold any crossed read
@@ -4441,7 +4442,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # Compare is still reachable by keyboard, a Tab off the row it belongs to, and still the
     # toggle the pointer presses.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').focus()
     page.keyboard.press("Tab")
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()

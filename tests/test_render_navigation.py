@@ -18,6 +18,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    banner_control,
     in_threads_scrollport,
     page_at_rest,
 )
@@ -754,7 +755,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         expect(guide).to_contain_text(surface)
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     map_ask = page.locator("button.lf-asks-row").filter(
         has_text="Which map should the sample team carry?"
     )
@@ -762,7 +763,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(map_ask.locator(".lf-asks-kind")).to_have_text("ask")
     map_ask.click()
     expect(page.locator("#bg-choice-ask")).to_be_focused()
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -809,13 +810,13 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     # chrome control — the toggle that reopens it, or the tray the reader came from.
     assert page.evaluate("() => document.activeElement === document.body")
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(
         page.locator('.lf-version-menu .lf-version-row[data-lf-version="1"]')
     ).to_be_visible()
     page.keyboard.press("Escape")
 
-    page.locator(".lf-others").click()
+    banner_control(page, ".lf-others").click()
     expect(page.locator(".lf-others-panel")).to_be_visible()
     expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
     page.keyboard.press("Escape")
@@ -6054,7 +6055,7 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     page.keyboard.press("Escape")
 
     assert page.locator(".lf-asks").get_attribute("aria-keyshortcuts") is None
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown"
     )
@@ -7113,7 +7114,7 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
 
     # An unrelated core layer may stand at the same time. The widget ancestor remains
     # nearer for keys the text-entry shield does not claim; only editing stays native.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator(".lf-version-menu")).to_be_visible()
     page.locator("#key-owning-widget textarea").focus()
     page.keyboard.press("Escape")

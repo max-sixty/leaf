@@ -8,6 +8,7 @@ from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_layout import (
     DRAFT_MARK,
+    banner_control,
 )
 from render_cases_navigation import (
     TARGETS_PAGE,
@@ -80,14 +81,13 @@ def test_touch_reader_selects_an_element_comments_and_finds_its_thread(browser, 
         ),
         context=context,
     )
-    page.get_by_role("button", name="More page controls", exact=True).tap()
-    page.get_by_role("button", name="Select element", exact=True).tap()
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     cancel = page.get_by_role("button", name="Cancel selecting an element")
-    expect(cancel).to_be_visible()
-    cancel.tap()
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Cancel selection')").tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(cancel).to_be_hidden()
-    page.get_by_role("button", name="More page controls", exact=True).tap()
-    page.get_by_role("button", name="Select element", exact=True).tap()
+    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
     page.locator("#inner a").tap()
     expect(cancel).to_be_hidden()
     assert not page.url.endswith("#elsewhere"), (

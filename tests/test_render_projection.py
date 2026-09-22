@@ -70,6 +70,7 @@ from render_cases_interaction import (
     trial_family,
 )
 from render_cases_layout import (
+    banner_control,
     token_colour,
     unfolded_button,
 )
@@ -1908,7 +1909,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     told(page)
     expect(page).to_have_title("Live second")
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     rows = page.locator(".lf-version-row")
     expect(rows).to_have_count(4)
     same_revision = page.locator('.lf-version-row[data-lf-revision="2"]')
@@ -1927,7 +1928,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     page.keyboard.press("Escape")
     page.locator(".lf-latest-chip").click()
     expect(page).to_have_title("Live third")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(rows).to_have_count(3)
     assert stamped_row.evaluate("row => row === window.__lfStampedRow")
     assert page.evaluate("() => !window.__lfDraftRow.isConnected")
@@ -2132,7 +2133,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     # The passage the selection named is the passage it still names, so the box the
     # reader had open over it is still theirs to send.
     expect(page.locator(".lf-composer")).to_contain_text("account")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
 
 
@@ -2694,7 +2695,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         f"<h1>Two questions</h1>{second_question}{first_question}",
     )
     page = open_page(browser, live_url(serve(first)))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator(".lf-asks-row")
     expect(rows).to_have_count(2)
 
@@ -2802,7 +2803,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
         told(page)
         if count:
             expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-            page.locator(".lf-asks").click()
+            banner_control(page, ".lf-asks").click()
         expect(page.locator(".lf-asks-row")).to_have_count(count)
 
 
@@ -2956,7 +2957,7 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
 
     clipped = page.evaluate(clip_heading)
     assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     page.wait_for_function(BOTH_STAMPS)
@@ -4652,7 +4653,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
 
     page.route("**/api/view*", hold_first_view)
     try:
-        page.locator(".lf-version").click()
+        banner_control(page, ".lf-version").click()
         with page.expect_request("**/api/view*"):
             page.locator('.lf-version-diff[data-lf-version="1"]').click()
         holding(page, held, 1, "the first comparison view")
@@ -4714,7 +4715,7 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
 
     expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
@@ -7864,7 +7865,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     )
     assert available == [True, False]
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     request_row = page.locator('.lf-asks-row[data-lf-at="dedupe-operations-decision"]')
     expect(request_row).to_have_attribute("data-lf-answer-state", "open")
     held = []
@@ -7902,7 +7903,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
     )
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(operations.get_by_role("button")).to_have_count(3)
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'true')"

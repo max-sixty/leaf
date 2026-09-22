@@ -1,10 +1,9 @@
 /* Generated faces for the Asks banner controls. The banner shelf owns the stable native
-   buttons and may move them between its row and overflow menu; these light-DOM Lit
-   owners move with those buttons and paint one frozen Ask presentation reading. */
+   buttons and their fixed overflow seats; these light-DOM Lit owners paint one frozen
+   Ask presentation reading inside them. */
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import {
   BANNER_CONTROL_RANK,
-  foldShelf,
   registerBannerControl,
   showNews,
 } from "../banner-shelf.js";
@@ -128,9 +127,6 @@ export function createAskBannerControls(progress, activateBulk) {
         progressFace.present(model.progress),
         ...model.bulk.map((reading) => bulk.get(reading.verb).owner.present(reading)),
       ]);
-      // showNews coalesces ordinary batches. The presentation boundary asks for the final
-      // reparenting now so readiness includes the shelf position and any focus handoff.
-      foldShelf();
     } catch (error) {
       try {
         await retainCommitted();
@@ -155,7 +151,6 @@ export function createAskBannerControls(progress, activateBulk) {
       progressFace.retainCommitted(),
       ...[...bulk.values()].map(({ owner }) => owner.retainCommitted()),
     ]);
-    foldShelf();
   }
 
   return Object.freeze({

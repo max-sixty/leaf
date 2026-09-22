@@ -7960,7 +7960,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert len(rows) == 1, rows
@@ -8379,7 +8379,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 1200, 900)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
 
@@ -8468,7 +8468,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
 ):
     """A keyed row follows the published document, not later presentation DOM edits."""
     page = open_page(browser, serve(ASKS_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
 
@@ -8532,7 +8532,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     """Receipt settlement cannot retire optimism before the Ask row has painted it."""
     browser, held = held_events
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     row = page.locator("button.lf-asks-row")
     expect(row).to_have_count(1)
     expect(row.locator(".lf-asks-answer")).to_have_text("")
@@ -8631,7 +8631,7 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     answer_all = page.locator(".lf-answer-all")
     expect(progress).to_have_text("Asks 1/5")
     expect(answer_all).to_have_text("Accept all (1)")
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
     held = []
@@ -8802,13 +8802,13 @@ def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
     )
     page = open_page(browser, serve(source))
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-answer")).to_have_text("empty")
 
 
 def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
     page.evaluate(
         """async () => {
@@ -8874,7 +8874,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     presses no keys and so never has a tray to restore. It took a reader with the
     tray open pressing reload, which is what this now is."""
     page = open_page(browser, serve(ASKS_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     tray = page.locator(".lf-asks-panel")
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
@@ -8951,7 +8951,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     })"""
 
     resized(page, 1200, 800)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
         """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
@@ -8990,7 +8990,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         page.locator(".lf-others-panel"),
     )
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 

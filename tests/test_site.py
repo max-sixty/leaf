@@ -39,6 +39,7 @@ from leaf.passages import enclosing_ids
 from leaf.structure import SourceDocument
 from PIL import Image
 from playwright.sync_api import expect
+from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
@@ -595,12 +596,12 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     assert current["active"]["label"] == "v2"
     assert current["versions"] == versions
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator(".lf-version-row")).to_have_count(2)
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")

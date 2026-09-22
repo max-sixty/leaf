@@ -525,20 +525,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      keeps the row still: a status ageing from "is working" to "last checked in" is a
      longer sentence in a box that has not changed size, so nothing beside it moves. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* Keep a readable start of the status sentence while the shelf folds complete
-     controls into its menu. The reservation is independent of changing status copy,
-     so updates cannot move controls under the reader's pointer. */
+  /* Keep a readable start of the status sentence beside the shelf's fixed primary
+     controls. The reservation is independent of changing status copy, so updates
+     cannot move controls under the reader's pointer. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
     max-width: calc(100% - var(--lf-status-floor) - var(--lf-mark-w)
       - 2 * var(--lf-banner-gap));
     justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
-  /* A control keeps its words at every width, and says so: a flex item's default
-     minimum is its own words, but the aim floor states a minimum width in pixels for
-     every control in the layer, and a stated minimum lets the item shrink past its
-     words to that number. A row of clipped controls overflows nothing, so the fold,
-     which reads overflow, would never fire; a control that cannot shrink is what
-     hands the fold something to measure. */
+  /* A primary control keeps its words at every width. A flex item's default minimum is
+     its own words, but the shared aim floor states a minimum width in pixels and would
+     otherwise let the item shrink past them. */
   .lf-banner-actions > .lf-btn { flex: none; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
@@ -600,9 +597,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-publication-install { flex: none; }
-  /* The door onto the folded controls. It stands where they would have: at the row's
-     start, so the menu's contents read straight on into the row's and the two are one
-     order rather than two to keep in step. */
+  /* The door onto the secondary controls stands at the row's start. Its menu hangs
+     inward from that door on a desk, where Approval and Threads place it near the
+     viewport's right edge; the phone rule below hangs it outward from the left instead. */
   .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
   /* The row's own .lf-btn rule states a display, and an author's display outranks the
      UA's for [hidden], so a door with nothing behind it goes on standing there. Said
@@ -618,14 +615,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-  /* Anchored under its own press, and every side it does not name said out loud. The
-     popover UA rule is inset: 0 with margin: auto, so a rule that states only top and
-     left leaves bottom and right at zero with automatic margins to resolve the
-     contradiction — which centres the menu in the window, nowhere near the button it
-     hangs off. */
+  /* Fixed below the fixed banner and horizontally anchored to its own press. Keeping
+     the vertical edge in viewport coordinates also keeps the menu reachable after the
+     document has scrolled; an anchored vertical edge follows document coordinates in
+     WebKit's top layer. Every side the rule does not use is said out loud because the
+     popover UA rule is inset: 0 with margin: auto, which otherwise centres the menu. */
   .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
-    top: calc(anchor(bottom) + 6px); left: anchor(left);
-    right: auto; bottom: auto; margin: 0; z-index: var(--lf-z-menu);
+    top: calc(var(--lf-banner-h) + 6px); right: anchor(right);
+    left: auto; bottom: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; flex-direction: column; align-items: stretch; gap: 1px;
     min-width: max(anchor-size(width), 180px);
     max-width: calc(100vw - 16px);
@@ -634,8 +631,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
   .lf-banner-menu:popover-open { display: flex; }
-  /* A folded control is the same control, so it keeps its own paint and states its own
-     words; what the menu decides is that it reads as a row rather than as a chip. It
+  /* A secondary control keeps its own paint and states its own words in its fixed menu
+     seat; what the menu decides is that it reads as a row rather than as a chip. It
      does not state display: whether a control is drawn at all belongs to the control,
      and a rule here stating it for the whole menu would put a control the page has
      taken away — the map above 900, a chip with no news — into the list as a blank. */
@@ -643,32 +640,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
   .lf-banner-menu .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
-  /* The fold moves the row's own node, so a control folded while it is doing
-     something has to go on saying so. The menu's resting rule clears the same two
-     declarations the row's does, and for the same reason, so `.on` needs the same
+  /* A secondary control doing something has to go on saying so. The menu's resting
+     rule clears the same two declarations the row's does, so `.on` needs the same
      answer here: the treatment the open auxiliary surface already keeps in the menu on its
      own specificity. The menu reserves no width, so nothing is spent restating it. */
   .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
-  /* The controls stay packed against the row's end. That decides who pays for a
-     control changing size: it moves itself and the controls to its left, while
-     everything to its right keeps its place. It is also what the fold rests on — the
-     widest a control may ever say is the width it already holds, so the fold's answer
-     does not turn over on a count gaining a digit. Three
-     of these rewrite their own words —
-     "✓ Version approved" is narrower than "Approve version", and two of them count something
-     that gains a digit — so each holds room for the widest it may say, taken from the
-     words themselves (the reserve calls where the banner is built) rather than stated
-     here as numbers. Three numbers stood here once and all three quietly stopped
-     covering the day --t-5 moved from 13.5px to 14px; a reservation the control
-     measures in its own live face at load has no number to go stale. The two sweeps —
-     a press, and the poll — stay the check that the words reserved are the words the
-     writers actually write.
-
-     The chooser was the one control here that had to state a width, because its label
-     carried the version's note and a note has no widest to reserve. It now says one of
-     the bounded version tokens banner.js measures, so it is floored at its own like the
-     rest and no number on this row is a fact about a font any more. */
+  /* The controls stay packed against the row's end. Approval and Threads each hold the
+     widest words they can show, measured by the reserve calls where the banner is
+     built, so either can update without moving its sibling. The measured floor stays
+     tied to the live font rather than a number that drifts when typography changes. */
   @layer lf-reset {
     .lf-thread-action { font: inherit; }
   }
@@ -687,18 +668,18 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      siblings rather than a wrapper each, because a role="menu" owns menuitems and a
      div between them is a claim about ARIA that nothing here needed to make.
 
-     Two anchored edges are the whole of the placement, so the other two are taken back
-     from the popover UA rule, which states inset 0 with auto margins: left alone, its
-     far edges stay pinned to the viewport's corner and its margins centre the box in
-     the band between them and the anchor, nowhere near the button. */
+     The horizontal anchored edge and fixed vertical edge are the whole of the
+     placement, so the other two are taken back from the popover UA rule, which states
+     inset 0 with auto margins. The fixed edge keeps this nested top-layer popover below
+     the fixed banner after the document scrolls, as More does above. */
   .lf-version { anchor-name: --lf-version-btn; }
   /* A pinned or deferred page keeps the full destination in the Latest control, but
-     that control may be behind the fold. Mark its stable Versions door with the same
-     border-and-ink vocabulary as a folded-news door, without adding words or width. */
+     that control stands in More. Mark its stable Versions door with the same
+     border-and-ink vocabulary as a menu-news door, without adding words or width. */
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
   .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
-    top: calc(anchor(bottom) + 6px); right: anchor(right);
+    top: calc(var(--lf-banner-h) + 6px); right: anchor(right);
     bottom: auto; left: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; grid-template-columns: 1fr auto; align-items: start;
     min-width: anchor-size(width);
@@ -1788,11 +1769,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
     background: var(--accent); color: var(--paper); }
   .lf-inspect.lf-shown { display: block; }
-  /* On a phone the banner is a status line with the page's controls under it, not a
-     cropped desktop row. The status gets the first line to itself, so the controls
-     have the whole width to fit in; what still does not fit folds into the same menu it
-     folds into on a desk. One row of controls, in the row's one order, at every width
-     — the reader who learned this banner on a laptop finds it here.
+  /* On a phone the banner is a status line with its fixed primary controls under it,
+     not a cropped desktop row. The status gets the first line to itself, and the same
+     More, Approval, and Threads seats remain in the same order at every width.
 
      The status keeps to one line in its own 36px row. Two would be a row that changes
      height as a sentence ages, which moves every control under it for no gesture; the
@@ -1818,6 +1797,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
+    /* Primary widths are measured once with the desk's horizontal padding. Keep that
+       padding invariant so a page loaded narrow can widen without changing either
+       control's floor when its count or approval label later changes. */
+    .lf-banner-actions > :is(.lf-signoff, .lf-threads-toggle) { padding-inline: 10px; }
+    .lf-banner-menu { right: auto;
+      left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
     /* The control run starts at the left on this two-row banner. Keep its menu under
        the same door; pinning the menu to the viewport's right made it appear to belong
        to Threads after the Versions door wrapped to the left. Its viewport max-width
@@ -1825,7 +1810,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-version-menu { right: auto;
       left: max(calc(8px + var(--lf-safe-left)), anchor(left)); }
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
-       its compact shape belongs to the folded banner rather than to the rail: it asks
+       its compact shape belongs to the banner overflow rather than to the rail: it asks
        the window, and this is the block that asks it. */
     .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
       max-height: min(82vh, 720px); margin: 0;

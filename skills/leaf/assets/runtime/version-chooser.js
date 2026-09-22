@@ -3,19 +3,17 @@
  * Version travel supplies one frozen presentation reading and stable commands. This
  * synchronous light-DOM Lit view retains the native chooser button, versions popover,
  * and latest-version chip in their separate banner and chrome seats. It owns their
- * labels, attributes, keyed rows, disclosure focus, and width reservation; it never
+ * labels, attributes, keyed rows, and disclosure focus; it never
  * fetches a document, chooses a version, or decides what a comparison means.
  */
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
 import { walkRows } from "./keyboard/bindings.js";
 import { listWalkPosition } from "./walk-position.js";
-import { el, reserve } from "./widget-elements.js";
+import { el } from "./widget-elements.js";
 
-const VERSION_LABELS = Object.freeze(["Draft", "v999"]);
 const LATEST_FAILED = "Latest edit couldn't be shown";
-const LATEST_LABELS = Object.freeze(["New page available → open v999", LATEST_FAILED]);
-const INITIAL_LATEST = LATEST_LABELS[0];
+const INITIAL_LATEST = "New page available → open v999";
 const EMPTY = Object.freeze([]);
 const INITIAL = Object.freeze({
   chooser: Object.freeze({
@@ -69,6 +67,10 @@ class VersionChooserView {
       // Declare it only for this opening: autofocus on inserted rows also runs
       // during document load, when an embedded page cannot claim focus.
       const arrival = event.newState === "open" ? this.#selectedRow() : null;
+      if (arrival)
+        this.menu.style.positionAnchor = this.button.checkVisibility()
+          ? "--lf-version-btn"
+          : "--lf-banner-more";
       for (const row of this.rows()) row.toggleAttribute("autofocus", row === arrival);
     });
     this.menu.addEventListener("toggle", (event) => {
@@ -148,13 +150,6 @@ class VersionChooserView {
         line: `open v${version}`,
         control,
       }));
-  }
-
-  reserve() {
-    // Hidden pinned slots need representative words as well as a measured width: an
-    // empty button is shorter, so its first real label would still move vertically.
-    reserve(this.latestChip, LATEST_LABELS);
-    reserve(this.button, VERSION_LABELS);
   }
 
   present(model) {
@@ -253,7 +248,6 @@ export const versionBtn = versionChooser.button;
 export const versionMenu = versionChooser.menu;
 export const latestChip = versionChooser.latestChip;
 export const versionMenuIsOpen = () => versionChooser.isOpen();
-export const reserveVersionControls = () => versionChooser.reserve();
 export const latestVersionLabel = ({ failed = false, activeLabel = null } = {}) =>
   failed
     ? LATEST_FAILED

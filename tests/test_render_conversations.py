@@ -33,6 +33,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     COVERED_TOP,
     EDGES,
+    banner_control,
     button_radius,
     draw_edge,
     edge_settled,
@@ -5982,7 +5983,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-row")).to_have_count(2)
 
 

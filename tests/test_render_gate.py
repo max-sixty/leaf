@@ -51,6 +51,7 @@ from render_cases_layout import (
     WIDE_TABLE_PAGE,
     apply_restore_case,
     arrival_findings,
+    banner_control,
     draw_edge,
     edge_settled,
     geometry,
@@ -945,7 +946,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
@@ -3436,11 +3437,11 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
     posture = "() => getComputedStyle(document.querySelector('aside.sidenote')).float"
     room = page.evaluate(posture)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
     standing = page.evaluate(posture)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     given_back = page.evaluate(posture)
     page.close()
@@ -3463,7 +3464,7 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     page.evaluate(ROOM_EVERY_FRAME, 60)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
     page.wait_for_function("() => window.__room.length >= 60")
     trace = page.evaluate("() => window.__room")

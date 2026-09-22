@@ -109,13 +109,11 @@ import { createVersionController } from "./runtime/version.js";
 import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
 import {
   banner,
-  foldBannerRow,
   isSignoffDeclared,
   loadIcon,
   mountBanner,
   paintApproval,
   renderStatus,
-  reserveBannerControls,
   stateSignoff,
   toggleBtn,
 } from "./runtime/banner.js";
@@ -637,7 +635,6 @@ layout = createChromeLayout({
     shortcutBarEl,
     bottomStatusEl,
   },
-  foldBannerRow,
   scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,
   bottomChromeBoxes,
   reserveListClearance,
@@ -767,7 +764,6 @@ if (!offlineInteractive) {
       }),
     paintApproval: paintVersionApproval,
   });
-  reserveBannerControls();
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.

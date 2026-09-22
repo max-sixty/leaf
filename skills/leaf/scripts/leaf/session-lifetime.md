@@ -17,7 +17,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; an App Server observer records `opened` with session and turn identity when its direct delivery starts | never; each event/phase/session/turn transition is idempotent |
+| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait` delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
@@ -28,8 +28,7 @@ activity. These facts project into one reader-facing **Agent workflow**; the bro
 does not present delivery status and work ownership as separate categories. Pickup
 never rewrites `status.json`. Page activity counts one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one). A thread's local views may also retain **Working** beside
-the earlier message that prompted its standing claim. On the subject's existing target
+press that followed are one). On the subject's existing target
 margin entry or a compact local row, append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
 later `status … --on` claim on the same reader move is **Working**. That same evidence
@@ -61,15 +60,13 @@ A work declaration has to be renewed, and `leaf status` renews it. `--on` names 
 or widget the work is about. `leaf delivery claim` instead records one event from an
 immutable delivery after checking under the page lock that the exact move remains
 outstanding; it never transfers a claim to newer input on the same subject. A thread
-claim also records the current unanswered message,
-so one check-in keeps **Working** beside the words that prompted the work even when the
-reader adds another comment. Widget work appears on the Target margin entry. These
-readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`
-while its turn is over, and its workers leave the page to it, so a declaration over
-work that outlasts the turn stands unrenewed until a later turn writes it again.
+claim also records the current unanswered message, so one check-in keeps **Working**
+beside the words that prompted the work even when the reader adds another comment.
+Nothing in a session touches `status.json` while its turn is over, and its workers
+leave the page to it, so a declaration over work that outlasts the turn stands
+unrenewed until a later turn writes it again.
 
-Canonical activity stops believing a work declaration older than the
-`turn_closed` stamp after a short grace. Both turn id and closing stamp are the
+The turn id and `turn_closed` stamp a declaration is judged against are the
 session's rather than the page's: the Stop hook closes the turn on every page the
 session holds, and an opening advances that same set, each page under its own
 transaction. Where nothing answers for the declaration, activity reports the page
@@ -87,9 +84,7 @@ interaction projection the browser reads; it does not reconstruct conversations
 itself. The App Server adapter presents at most one plain reply in each turn's
 chronological delivery slice. Its completed final-answer item finishes that exact
 response; the hook lets the provider turn close, and the observer commits the same text
-through the canonical reply writer when the terminal notification arrives. Version
-and request obligations still record their explicit resolution or receipt before Stop
-can consider them answered.
+through the canonical reply writer when the terminal notification arrives.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded host records the same
 transition from the queued turn's App Server `turn/started` notification. A
@@ -98,18 +93,16 @@ queued Codex move needs no reminder there: the prompt itself carries its deliver
 pointer, while the transition gives the browser and the next Stop their shared
 handling fact.
 Session death is not completion or an explicit stop: work status and desired
-service stay as they were, while a session server retires once no live successor
-has claimed it. Absent the harness the environment implies, nothing is
+service stay as they were. Absent the harness the environment implies, nothing is
 claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
 run, decides none of that: it runs this command under `uv` and stays silent when
 it cannot get an answer, so a leaf bug costs a turn nothing.
 
 Only a page handed to a reader owes a watcher, so the unwatched clause passes
-over a page carrying `preview.json`. Nothing else about that page changes: a
-delivery it has not taken, or a comment nobody answered, is reported as on any
-other. The guard reads the file's presence rather than the serve path's
-validating reader, because it fails open by saying nothing. Unacknowledged
-events are the one thing `leaf status <page> idle` cannot close over.
+over a page carrying `preview.json`, which only a checkout's `scripts/preview.py`
+writes; nothing else about that page changes. The guard reads the file's presence
+rather than the serve path's validating reader, because it fails open by saying
+nothing.
 
 ## Carriers
 
@@ -129,9 +122,8 @@ shapes:
   uses: it starts the turn directly and needs nothing between them.
 
 Every carrier watches every page the session holds, re-reading the set on each
-pass, and produces the same `leaf-delivery-v1` envelope. Each batch names its
-page, monotonic `through_seq`, conversation context, layer handling, and complete
-ordered events.
+pass, and produces the same envelope (`../../references/event-batches.md`, "One envelope
+on every transport").
 
 A `wait` carrier is the one that stops while its session lives on, because the Stop
 hook fails open on a repeated stop or the wait is stopped after the turn ends. Input
@@ -167,9 +159,10 @@ In Codex, the adapter collects available input, then freezes the delivery. Input
 collected after that boundary belongs to a later delivery. Without an App Server
 observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable
 same-task queue. A failed or uncertain queue call retries the same frozen pointer while
-the session owns a page. With an observer, Leaf retains the frozen delivery in its own
-offering state until the task is idle, then starts it directly; it does not also copy
-the delivery into App Server's queue. Losing the session's final page leaves the
+the session owns a page. With an observer, as with the embedded host below, Leaf
+retains the frozen delivery in its own offering state until the task is idle, then
+starts it directly; neither steers page input into the running turn nor copies the
+delivery into App Server's queue. Losing the session's final page leaves the
 collecting or offering record standing but inactive until the same session claims a
 page again. Acceptance has crossed the external-effect boundary, so its remaining page
 receipts are reconciled before the adapter checks ownership and retires.
@@ -206,9 +199,7 @@ page cursor, holds that task's wait lease for the container host's lifetime, and
 keeps the initiating connection for activity notifications. The pickup names
 Leaf's claim turn, while streamed activity names App Server's task and turn; each
 projection reads the identity its own fold compares. A retry reads the durable
-pickup instead of starting the event again. If the task is active, the host queues
-the same delivery locally for a later direct start instead of using page input as
-steering or adding it to App Server's queue. Its subscription spans the active turn,
+pickup instead of starting the event again. Its subscription spans the active turn,
 the delivery turn's opening, and that turn's terminal notification, recording both
 `opened` and the exact turn close. A host
 that owns a starting connection closes only the matching Leaf claim turn on its
@@ -217,35 +208,24 @@ the delivery id as its client message id, and App Server answers with the turn i
 from it, so the starter knows its turn before reading a notification. The structured
 delivery also stays in the transcript, which is how a client that did not start a turn
 recovers the same binding — one resuming a task after the fact, or reading the turn the
-task opened for a queued pointer. A lost subscription is not one of those cases. An
-embedded host follows its turn on the connection it started on, and losing that
-connection ends the turn rather than opening a gap to read across. The adapter keeps the delivery's
-chronological prefix through the first
-plain reply and leaves any later plain reply for the next turn. The connection streams
-the assistant final message into that thread and commits the completed message through
-the ordinary reply operation. The delivery address survives a turn close or a later
-turn opening; those turn transitions govern activity, not response ownership. Version
-and request responses remain explicit. This is another carrier over the same
-delivery, page claim, event log, and activity projection, not another conversation
-store or response policy.
+task opened for a queued pointer. A lost subscription is not one of those cases:
+losing the starting connection ends the turn rather than opening a gap to read across.
+Reply binding is the hook's contract above and, for the agent,
+`../../references/host-codex.md`, "Codex App Server transport". This is another carrier over
+the same delivery, page claim, event log, and activity projection, not another
+conversation store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs
-only delivery and leaves every page up. A direct-loop recovery is one
-`leaf wait`; a Codex recovery is one `leaf codex start <page>`.
+only delivery and leaves every page up.
 
 ## Lifetime
 
 Whether a session's end reaches a server is decided at launch and written in
-`service.json`. A serve from an agent host records the page's claim under the
-state home's claims directory; a successor arriving before the session server's
-final recheck keeps that process, and one arriving afterward finds the process
-and lease gone and revives the still-enabled service. Neither path changes the
-page's authored work status. A serve from a bare shell claims nothing, and that
-is the standing serve: a long-lived dashboard someone leaves open for weeks.
-`server start --standing` makes the same statement from inside a host. No daemon
-is involved; a server that dies under a `leaf wait` watching an enabled page is
-revived with the lifetime and exact URL in `service.json`. `leaf server stop` is
-a standing server's one reaper. A session that picks the page up later owes it a
-watcher while the session lives, and its claim comes and goes without changing
-the standing service or the page's status.
+`service.json`; which lifetime a serve chooses, and what each asks of the agent, is
+`../../references/serving-pages.md`, "Page lifetime". A serve from an agent host
+records the page's claim under the state home's claims directory; a successor arriving
+before the session server's final recheck keeps that process, and one arriving
+afterward finds the process and lease gone and revives the still-enabled service.
+Neither path changes the page's authored work status. A serve from a bare shell claims
+nothing, and a claim on a standing page comes and goes without changing its service.

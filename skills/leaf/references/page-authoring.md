@@ -1,12 +1,8 @@
 # Page authoring
 
-Read this before writing or revising any version. It owns the rules every page
-needs; the main skill routes Asks, live revisions, and evidence to separate
-references.
-
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
-- [Document or workspace](#document-or-workspace)
+- [Document, page tabs, or workspace](#document-page-tabs-or-workspace)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Stable anchors](#stable-anchors)
@@ -148,8 +144,7 @@ page-local `<style>` only for presentation unique to this page.
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
-first, then `<` and `>`; any other order can silently decode entity text. The
-registry is the only widget vocabulary.
+first, then `<` and `>`; any other order can silently decode entity text.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
@@ -281,18 +276,17 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 
 ## Pre-handover review
 
-The main skill's handoff ceremony decides which page takes this review: a
-finished record before its URL first reaches the user, and a quick page before
-the stamp that turns it into one. Every source activation already runs the
+Step 3 of the main skill's "Operate" decides which page takes this review, by
+its lifetime: a finished record before its URL first reaches the user, and a
+quick page before the stamp that turns it into one. Every source activation already runs the
 deterministic markup check; this review adds the browser gate and a reading:
 
 ```bash
 leaf version check <page> --render
 ```
 
-It loads the page in both color schemes and checks runtime errors, widget size,
-overflow, diagrams, selectable words, print output, replay-safe state, and
-action idempotence. Fix every failure; a screenshot is not a substitute.
+It runs the browser gate in both color schemes. Fix every failure; a screenshot is
+not a substitute.
 
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that

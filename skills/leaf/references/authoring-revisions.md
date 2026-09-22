@@ -1,8 +1,5 @@
 # Live revisions and reader state
 
-Read this before changing a page that has already been handed over, proposing a
-rewrite, or using a reader-owned draft.
-
 ## Read before editing
 
 Run `leaf page state <page>` and read its `content` tree. Each node joins its
@@ -58,7 +55,6 @@ in the version note. An unrelated revision may leave the report standing.
 To deliberately replace state established by an action, put `restated` on the
 rewritten element and explain why in the version note. Without `restated`, replay
 restores the user's state and `version check` refuses a conflicting version.
-Read the current projection before editing; an `undo` withdraws its named gesture.
 
 ## Make changes easy to find
 
@@ -74,10 +70,10 @@ next handed-over revision.
 The main skill's "Keep the reader current" sets the goal: the page the reader
 returns to is the one you would write today. Rewriting the page to get there, its
 structure included, is an ordinary revision, and when the structure changes, write
-`index.html` whole rather than as a series of edits. Ids carry threads, reader
-state, reading position, and version comparison across a rewrite, so a passage that
-survives keeps its id wherever on the page it goes, and moving it needs neither a
-suggestion nor `restated`. `version check` refuses a rewrite that drops an id an
+`index.html` whole rather than as a series of edits. Ids are what carry threads and
+reader state across a rewrite (`page-authoring.md`, "Stable anchors"), so a passage
+that survives keeps its id wherever on the page it goes, and moving it needs neither
+a suggestion nor `restated`. `version check` refuses a rewrite that drops an id an
 open thread or the reader's state still rests on, and names the way out. It does
 not guard the words an open thread quotes, so leave those as they stand while the
 thread is open.
@@ -105,8 +101,8 @@ there.
 Before handing the page back, check that its status and outstanding work agree
 with what you report to the reader.
 
-When one page needs several views, use one `lf-tabs` tab set. Keep the shared
-title and lede before it, and put the primary current view first: ordering makes it
+When one page needs several views, use one `lf-tabs` tab set and put the primary
+current view first: ordering makes it
 the default for a reader with no saved panel or reading position, and a saved
 panel or restored position takes precedence. Context an earlier run still owes
 the current one goes in a collapsed `<details>` inside the relevant tab, with any

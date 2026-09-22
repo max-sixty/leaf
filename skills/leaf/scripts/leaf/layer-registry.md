@@ -1,33 +1,24 @@
 # Layer composition and registry contract
 
 `page init` vendors the runtime, theme, registry, widgets, and vendor assets into the
-page directory. Leaf's kernel comes first, followed by the bundled default package,
-explicitly selected packages in command order. Theme stylesheets concatenate in
-that order, so a package
-can override one token or rule without copying the defaults. Registry declarations
-merge by top-level name, with a later package replacing one complete entry rather
-than deep-merging its schema; runtime, widget, and vendor files replace by path.
+page directory, composed on the order and merge grains in
+`../../references/packages.md`, "Package contract"; `registry/layer.py` is the merge.
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, noted in the next stamped version's changelog. A served page
-is first stopped, which disables its desired service and waits for the process
-and every accepted connection to retire. After re-vendoring, `server start`
-restores its URL and lifetime; its status needs no maintenance copy. One
-transition covers start, stop, init, contract-bearing CLI writes, and preview
-reads. Stop retains it through the server's release, so no operation can cross
-the old process's contract.
+is the explicit re-vendor, on the sequence in `../../references/serving-pages.md`,
+"Re-vendoring and layer epochs". One transition covers start, stop, init,
+contract-bearing CLI writes, and preview reads. Stop retains it through the server's
+release, so no operation can cross the old process's contract.
 
-The effective registry is shared by the JS runtime, the POST and candidate-version
-gates, thread-markup validation, the passage reader `leaf comment` anchors through,
-and the selective queries the agent runs. A candidate must retain every page action or
-report whose sender it retains, including superseded predecessors that a later undo can
-expose. It must also retain all frozen thread markup and the actions and requests sent
-from it, because that document has no revision boundary. Page events whose senders the
-candidate removes are historical-only and remain interpretable through the registry
-captured with their immutable revisions. Re-vendoring composes page-owned declarations
-over the prospective layer before running this same candidate check. Each successful
-init records three deliberately different identities under `$layer`:
+A candidate layer must retain every page action or report whose sender it retains,
+including superseded predecessors that a later undo can expose. It must also retain
+all frozen thread markup and the actions and requests sent from it, because that
+document has no revision boundary. Page events whose senders the candidate removes are
+historical-only and remain interpretable through the registry captured with their
+immutable revisions. Re-vendoring composes page-owned declarations over the
+prospective layer before running this same candidate check. Each successful init
+records three deliberately different identities under `$layer`:
 
 - `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
@@ -68,15 +59,7 @@ its explanations; this contract does not mirror that inventory.
 
 The append transaction records state coordinates and direct dependencies in an
 action or report's `meaning`. Identity-bearing detail fields come from the declared
-fold unit and attribute-set or position record. A verb's optional `references` map
-declares package- or page-named roles using the same `{}` or `{via, where}` target
-contract as `x-refers`; the event carries the matching role-to-stable-target-record map
-beside `detail`. The append door resolves every role in the command's immutable source
-document. Id records and structural anchors join direct dependencies; arbitrary detail
-strings carry no identity.
-
-A state verb that creates authored children declares `creates: {field, child}`.
-The optional detail field is the canonical map from generated element ids to their
-first authored words, and `child` names their exact tag. The server snapshots the
-map's sorted keys in `generated`. Historical folds read that durable ownership;
-source continuity and word validation read the declaration.
+fold unit and attribute-set or position record. A verb's declared `references` roles
+(`../../references/packages.md`, "A widget") are resolved at the append door in the
+command's immutable source document. Id records and structural anchors join direct
+dependencies; arbitrary detail strings carry no identity.

@@ -1,8 +1,5 @@
 # Claude Code handoff and wait loop
 
-Read this immediately before handing a page over in Claude Code, and when
-recovering its wait process.
-
 ## Launcher
 
 The skill directory's `../../bin/leaf` launcher resolves to
@@ -25,46 +22,26 @@ New reader input reaches you only between your own operations, at the next tool
 result.
 
 One unnamed `leaf wait` watches every page the host session owns. It prints one
-complete `leaf-delivery-v1` envelope inline. Each batch names its `page`,
-`through_seq`, `conversations`, `handling`, and complete ordered `events`. Name a
-page only to pick up a page this session did not serve; `leaf wait <page>` claims
-it.
+complete envelope inline (`references/event-batches.md`, "One envelope on every
+transport"). Name a page only to pick up a page this session did not serve;
+`leaf wait <page>` claims it.
 
 Start `leaf wait` as a background task and end the turn. Its completion becomes
-host input and records the included moves as opened in that exact turn. Process
-every event and its capture-time `obligation.response`. After each batch, start
-`leaf ack <page> <through_seq>` as the next background task; it acknowledges that
-batch and waits for another. The event reference owns the complete-batch and
-acknowledgement rules.
+host input. Process every event and its capture-time `obligation.response`. After
+each batch, start `leaf ack <page> <through_seq>` as the next background task; it
+acknowledges that batch and waits for another. The event reference owns the
+complete-batch and acknowledgement rules.
 
 If a turn ends without answering an acknowledged move, the next prompt hook
-carries that obligation back into context and records it as opened in the new
-turn. The page therefore resumes **handling** from that exact prompt delivery;
-the agent does not need a status write to repair the banner.
+carries that obligation back into context, and the page resumes **handling** from
+that delivery without a status write.
 
-The initial `leaf wait` revives a dead server under its recorded lifetime and
-reports that on stderr. Exit 2 means stderr names an ending rather than a batch.
-`leaf ack` answers the same way once the cursor has advanced; its exit 1 means
-the acknowledgement was refused and the cursor did not move. The streams say
-which ending arrived:
-
-- One JSON delivery envelope on stdout is the next input.
-- `the leaf ended` or `the leaves ended` on stderr means every page left in the
-  watch is idle; `nothing to watch` means the session holds none. End the loop.
-- `server is not running` gives the recovery command. After recovery, resume
-  the session-wide loop with an unnamed `leaf wait`.
-- `this session no longer owns` means a successor has the page. Do not name or
-  reclaim it. A rearm keeps watching any other live page; when the observed
-  transfer empties that set, it exits with this line.
-- Stderr saying another `leaf wait` is already active means the existing
-  process still owns the session lease. Leave that watcher running rather than
-  starting another.
-
-Empty stdout alone is not evidence that the host stopped the process. Start a
-replacement unnamed wait only when the host itself reports that it canceled or
-killed the command, or when a message from Leaf says a page has new input and no
-`leaf wait` is running for this session. That message comes through Claude
-Code's session messaging, so it is presented as coming from another session.
+How `leaf wait` and `leaf ack` end, and what each ending asks of the loop, is in
+`references/event-batches.md` under "Delivery and acknowledgement". The signal that
+reference leaves to the host is a message from Leaf saying a page has new input and
+no `leaf wait` is running for this session: start a replacement unnamed wait. It
+comes through Claude Code's session messaging, so it is presented as coming from
+another session.
 
 ## Session list
 
@@ -87,17 +64,3 @@ while yours runs, and otherwise takes the batches from every page you hold into
 the subagent's context instead of yours. That is why the page stays with you
 (`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
 session has its own id and can drive a page of its own.
-
-## Review fixtures
-
-A page put up to be looked at — a preview of an example, a fixture for a visual
-check — is not a handoff, so it owes no watcher. `scripts/preview.py` in a Leaf
-checkout marks every page it builds as a preview, and the per-turn reminder to
-start one skips those. Nothing else is exempt: on a preview this session claimed,
-a comment is a delivery it owes like any other, and the reminder says so. A
-preview nobody claimed keeps its comments in its own log, where only a reader of
-that log finds them, so start one you mean to hand over with
-`scripts/preview.py --reader`, which claims it.
-
-Do not idle a fixture to quiet the loop. `idle` closes the page in the browser,
-which changes the banner a visual check may be reading.

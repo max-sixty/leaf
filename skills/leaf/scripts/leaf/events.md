@@ -32,23 +32,16 @@ a declared part of a picture and `part` the control a design comment landed on.
 `response: {kind: version, verb}` on a comment says the originating widget
 requires the agent to revise its declared answer state rather than reply.
 
-A `drawing` is up to 32 bounded freehand strokes (`strokes`, each a list of points)
-attached to an ordinary comment, and may be that comment's only content. The first stroke
-places it: when that drag starts over an addressable element or in the margin alongside
-it, its element anchor remains the thread coordinate and every point is a CSS-pixel
-offset from that target's top-left origin. A first drag starting where no addressable
-element shares its line has no anchor and its points are offsets from the document
-origin. Every stroke keeps that one frame and may run anywhere across the page. An
-anchored drawing records `box`, its target's width and height when drawn. `says` is the
-page's words the drawing stands over: from the first shown word inside the ink's extents
-to the last, read as a quote is, so it holds more than the ink marked. It is bounded at
-500 characters and absent where the extents hold no words. The browser reads both fields
-off the rendered page, which holds words no file reading can produce, so the door bounds
-their shape and does not re-read them.
-Leaf derives the drawing's frame and owns ink, weight, SVG construction, and replay. A
-drawing is immutable once sent, follows the thread's
-resolution state, and is omitted from the default standalone export with the rest of
-discussion chrome.
+A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
+an ordinary comment, and may be that comment's only content. Its first stroke decides
+whether it anchors on an element or on the page, and with it the browser records `box`
+and `says`; `../../references/conversation-threads.md` says how to read the three. The
+browser reads them off the rendered page, which holds words and geometry no file
+reading can produce, so the door bounds their shape, the stroke count and 500
+characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
+owns ink, weight, SVG construction, and replay. A drawing is immutable once sent,
+follows the thread's resolution state, and is omitted from the default standalone
+export with the rest of discussion chrome.
 
 ## Undo
 
@@ -132,60 +125,45 @@ An agent reply records the delivery event it answers as `responds`; a proactive
 `--initiates` reply records `initiates: true`. Settlement consumes this durable
 scope rather than log order, so answering older work cannot erase newer reader input.
 A host that settles an ask because it cannot start work records `failure`, a nonempty
-host-owned code, on its reply. The code is independent of the presentation `text`;
-ordinary agent answers omit it. Only the host reply writer can supply this field,
-and browser commands cannot write it. It is a reader-facing fact rather than only a
-diagnostic one: a reply carrying it is drawn as a receipt, its head saying the message
-answers nothing, because otherwise it is indistinguishable from the answer it stands
-in for.
+host-owned code, on its reply; only the host reply writer can supply it, and the panel
+draws such a reply as a receipt whose head says the message answers nothing, since
+otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup.
 
-`leaf edit` may revise only a comment or reply whose recorded session matches the
-posting session. It appends rather than rewriting: the original message and every
-revision remain visible in `leaf events`, while the panel, wait digests, and the
-transcript fold the latest text onto the original message and label it edited.
-The original id, timestamp, author, thread position, anchor, and markup remain
-its own. Markup is not editable because a reader action may already rest on a
-widget frozen into it.
+What each conversation command does for its reader, and when an agent uses it, is
+`../../references/conversation-threads.md`. The door and the fold hold these rules behind
+them:
 
-`leaf conversation summarize` records presentation, not speech. Its inclusive
-`from` and `through` endpoints name at least two spoken turns in one conversation;
-reactions between those endpoints remain part of the summarized range, but a reaction
-cannot be an endpoint.
-The panel retains those originals under the summary, while other conversation
-surfaces retain the full transcript. A later overlapping summary replaces the
-earlier summary whole; disjoint summaries coexist. Editing a covered message
-invalidates its summary, and messages appended after the range remain outside it.
-Summaries do not answer, resolve, or otherwise settle anything.
-
-An agent reply may carry an `anchor` captured against its `revision`, or a null anchor
-when its subject has left that revision. The fold uses the latest such value as the
-thread's current location and exposes its prior anchor as `detached_from` only while
-detached, while the opening comment's anchor remains on the immutable root event. The
-anchor transition and explanatory reply are one append, so the page never observes a
-move or detachment without the message that accounts for it. A detached thread remains
-open under **No longer in this version** and can later move to a genuine replacement.
-A thread whose root `holds` a command goal cannot move or detach, and a
-version-response root takes no reply at all, because those anchors are part of the
-request's meaning.
-
-A message body is Markdown, stored as typed and rendered by the page's own
-vendored runtime, so the renderer and the panel's styles version together. A
-fragment link in a body (`[the group](#d-channel)`) points at an element of the
-page; the browser's own navigation carries the reader there, opening whatever
-tab or settled group hides it, and the runtime marks a link this version can't
-follow, since a message outlives the version it was written on. Raw HTML in a
-body renders as its own characters. A widget in a message rides the event's
-`markup` field instead, whose one door is `leaf comment`/`leaf reply`, where it
-is validated against the vendored registry; the browser door refuses the field.
-An agent's body is read for a `/media/…` reference at that same door, whether it
-arrives as text or markup, since either names a file the page directory has to
-have — and the directory holds `/media/<digest>.<ext>` and nothing else, so any
-other one under that root is a file it can never answer. Text is read where the runtime resolves one — a Markdown link or image
-destination — so a path quoted in prose is words, as it is in authored markup;
-the browser's own paste stores the image before the reference exists.
+- `edit` revises only a comment or reply whose recorded session matches the posting
+  session, and only its `text`: markup is frozen because a reader action may already
+  rest on a widget in it. The original stays in the log with its id, timestamp,
+  author, thread position, and anchor; the panel, wait digests, and the transcript
+  fold the latest text onto it and label it edited.
+- `summary` names an inclusive `from`–`through` range of at least two spoken turns in
+  one conversation; a reaction may lie inside the range but not at an endpoint. A
+  later overlapping summary replaces the earlier one whole, disjoint summaries
+  coexist, editing a covered message invalidates its summary, and a message appended
+  after the range stays outside it. A summary answers, resolves, and settles nothing.
+- An agent `reply` may carry an `anchor` captured against its `revision`, or a null
+  anchor when its subject has left that revision. The fold takes the latest such value
+  as the thread's current location and exposes the prior one as `detached_from` while
+  detached; the root event's anchor is immutable. The transition and its explanatory
+  message are one append, so the page never observes a move without the message that
+  accounts for it. A thread whose root `holds` a command goal cannot move or detach.
+- A comment carrying `response: {kind: version, verb}` asks for a change to authored
+  state. `leaf reply` into that thread is refused, though the reader may still write
+  there, and `resolve` is accepted only once a later stamped version's authored state
+  answers the originating Ask, or changes its declared answer where the Ask was
+  already answered; a log action does not substitute.
+- A message body is Markdown, stored as typed and rendered by the page's own vendored
+  runtime, so the renderer and the panel's styles version together; raw HTML renders as
+  its own characters. A widget in a message rides the `markup` field, whose one door is
+  `leaf comment`/`leaf reply`, where it is validated against the vendored registry; the
+  browser door refuses the field. The door reads a body's Markdown link and image
+  destinations, in text and markup alike, and refuses a `/media/…` the page directory
+  cannot answer, since the directory holds `/media/<digest>.<ext>` and nothing else.
 
 A raster image pasted into a browser text box is stored first as content-addressed page
 media. Its durable draft carries an ordinary Markdown image at
@@ -195,17 +173,6 @@ preserve the exact Markdown, while each HTTP presentation scopes the canonical m
 path when it renders. An abandoned draft may leave unreferenced media behind; Leaf
 retains it because reachability has to include every immutable revision and event before
 deletion could be safe.
-
-A browser comment carrying `response: {kind: version, verb}` is a request to
-change authored state. Its exact-section view is text-only, and `leaf reply`
-refuses every message in that thread. When the change needs clarification, the
-agent opens a separate comment thread in the same exact-section seat; that
-thread carries the version response through the stop gate while it waits on the
-reader, and their answer hands both back to the agent. The original remains open
-until authored state in a later published version answers an originating open
-Ask, or changes the declared answer when the Ask was already answered.
-Log actions do not substitute for that version. That is also when `leaf resolve`
-first accepts it.
 
 ## Anchors
 

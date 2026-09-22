@@ -147,14 +147,14 @@ def _response(
         return {"kind": "receipt", "request": event["id"]}
     if obligation is None:
         return None
-    target = obligation["target"]
+    target = obligation["subject"]
     if target["kind"] == "thread":
         thread = threads.get(target["id"])
         if thread and (thread["root"].get("response") or {}).get("kind") == "version":
             return {"kind": "version", "conversation": target["id"]}
         return {
             "kind": "reply",
-            "to": obligation["event"],
+            "to": obligation["input"],
             "for": event["id"],
         }
     if owner := widget_conversations.get(event.get("widget")):
@@ -172,11 +172,11 @@ def _response_context(
     widget_conversations = thread_widgets(structure, roots)
     threads = build_threads(events, within)
     obligations = {
-        item["event"]: item
+        item["input"]: item
         for item in full_state(page_dir, events, layer_identity={})["activity"][
             "obligations"
         ]
-        if item.get("event") is not None
+        if item.get("input") is not None
     }
     receipted_requests = {
         event["request"] for event in events if event["kind"] == "receipt"

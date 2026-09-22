@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from ..acknowledgments import canonical_acknowledgments
 from ..activity import canonical_activity, canonical_stream_reply
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
@@ -11,8 +10,81 @@ from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
+from ..workflows import canonical_workflows
 from .conversation import browser_conversation
 from .document import browser_document, browser_undo_candidates
+
+
+def _apply_thread_attention(
+    threads: list[dict],
+    asks: dict,
+    workflows: list[dict],
+    thread_by_widget: dict[str, str],
+) -> None:
+    """Attach the shared attention aggregate, with reader Asks taking precedence."""
+    reader_threads = {ask["thread"] for ask in asks["reader"]}
+    stage_rank = {
+        "sent": 0,
+        "queued": 1,
+        "picked_up": 2,
+        "working": 3,
+        "replying": 4,
+        "answered": 5,
+    }
+
+    def priority(workflow: dict) -> tuple:
+        if workflow["condition"] is not None:
+            category = 2
+        elif workflow["stage"] in {"working", "replying"}:
+            category = 3
+        elif workflow["stage"] == "answered":
+            category = 0
+        else:
+            category = 1
+        return category, stage_rank[workflow["stage"]], workflow["seq"]
+
+    by_thread: dict[str, list[dict]] = {}
+    for workflow in workflows:
+        subject = workflow["subject"]
+        thread_id = (
+            subject["id"]
+            if subject["kind"] == "thread"
+            else thread_by_widget.get(subject["id"])
+            if subject["kind"] == "widget"
+            else None
+        )
+        if thread_id is not None:
+            by_thread.setdefault(thread_id, []).append(workflow)
+    for thread in threads:
+        if thread["resolved"]:
+            thread["attention"] = None
+        elif thread["root"]["id"] in reader_threads or thread["awaits_reader"]:
+            thread["attention"] = {
+                "kind": "needs_reader",
+                "reason": "ask",
+                "workflow": None,
+            }
+        elif candidates := by_thread.get(thread["root"]["id"]):
+            if recovery := [
+                workflow
+                for workflow in candidates
+                if workflow["next_actor"] == "reader"
+            ]:
+                workflow = max(recovery, key=priority)
+                thread["attention"] = {
+                    "kind": "needs_reader",
+                    "reason": "recovery",
+                    "workflow": workflow["id"],
+                }
+            else:
+                workflow = max(candidates, key=priority)
+                thread["attention"] = {
+                    "kind": "waiting",
+                    "reason": "uncertain" if workflow["condition"] else "workflow",
+                    "workflow": workflow["id"],
+                }
+        else:
+            thread["attention"] = None
 
 
 def browser_state(
@@ -105,23 +177,32 @@ def browser_state(
             "coverage": coverage,
             "published_at": published_at,
         }
-    interaction_evidence = canonical_acknowledgments(
+    workflows = canonical_workflows(
         present["claims"],
         threads,
         conversation_reading,
         page=active_page,
     )
+    activity = canonical_activity(
+        present,
+        workflows,
+        now,
+        (live_stream or {}).get("activity"),
+        live_reply,
+    )
+    workflows = activity.pop("workflows")
+    _apply_thread_attention(
+        conversation["threads"],
+        conversation["asks"],
+        workflows,
+        conversation_reading.thread_by_widget,
+    )
     return {
         "basis": {"through_seq": through_seq},
         "views": views,
         "conversation": conversation,
-        "activity": canonical_activity(
-            present,
-            interaction_evidence,
-            now,
-            (live_stream or {}).get("activity"),
-            live_reply,
-        ),
+        "activity": activity,
+        "workflows": workflows,
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]

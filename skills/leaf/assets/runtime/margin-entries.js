@@ -17,7 +17,6 @@ import { html, render } from "../vendor/browser-runtime.js";
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps, offer } from "./widget-elements.js";
-import { agentWorkflowStage } from "./updates.js";
 import { focused, isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 import {
@@ -198,17 +197,19 @@ function syncAgentDescriptionBase(control, description, title) {
 }
 
 export function syncMarginAgentWorkflow(control, receipt) {
-  const workflowStage = agentWorkflowStage(receipt);
-  const stage = ["picked_up", "working"].includes(workflowStage) ? workflowStage : null;
+  const workflowStage = receipt?.stage ?? null;
+  const stage = workflowStage === "replying" ? "working" : workflowStage;
+  const paintedStage =
+    !receipt?.condition && ["picked_up", "working"].includes(stage) ? stage : null;
   syncAgentArrival(
     control,
-    receipt && JSON.stringify([receipt.target.kind, receipt.target.id, receipt.id]),
-    stage,
+    receipt && JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]),
+    paintedStage,
   );
   const reading = agentWorkflowDescription(control);
-  if (stage) {
-    Object.assign(reading, { stage, detail: receipt.detail });
-    keeps(control, "data-lf-agent-workflow", stage);
+  if (paintedStage) {
+    Object.assign(reading, { stage: paintedStage, detail: receipt.detail });
+    keeps(control, "data-lf-agent-workflow", paintedStage);
   } else {
     control.removeAttribute("data-lf-agent-workflow");
     Object.assign(reading, { stage: null, detail: null });

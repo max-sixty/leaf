@@ -47,7 +47,7 @@ relative to `runtime/` unless stated otherwise.
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| State models, selectors, and projection | `projection/`, `conversation/model.js`, `conversation/state.js`, `pending/`, `asks/model.js` |
+| State models, selectors, and projection | `projection/`, `conversation/model.js`, `conversation/workflow.js`, `conversation/state.js`, `pending/`, `asks/model.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js`, `request-elements.js` |
 | External data and authored projections | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -125,13 +125,14 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
-| which Asks stand, which the reader owes, and whose turn each thread is | the server's one `leaf.asks` fold, shipped as the view's `document.asks`, the conversation's `asks`, and each thread's `awaits_reader` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
+| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels and reader-Ask precedence |
+| which Asks stand and which the reader owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the conversation's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `CLAUDE.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
-| canonical agent activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner, receipts, margin, and leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
+| canonical page activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
@@ -257,10 +258,12 @@ revision and the active revision it may install. Version comparison requests its
 from `/api/view` at the sequence already applied to the DOM, keeping related views on
 one log snapshot without projecting all historical revisions on every read.
 
-Python also supplies each thread's `awaits_reader`; `awaitsReader` reads that field.
-`runtime/conversation/model.js` overlays unresolved replies, handing the thread to the
-agent. The application publisher preserves the reader obligation while the thread still
-has a reader Ask that reply cannot answer.
+Python supplies each thread's raw `awaits_reader` and aggregated `attention`.
+`awaitsReader` reads unresolved `attention`, which includes recovery even when the raw
+flag is false. The conversation model clears attention for an unresolved prose reply;
+the publisher restores a standing structural Ask that reply cannot answer. A pending
+resend retires the failed workflow's recovery obligation while retaining its historical
+message status. Refusal restores the accepted attention.
 The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
 "Threads".
 
@@ -425,21 +428,21 @@ underline or ring on the same selected control; the second edge reads as a stray
 In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
 the selection distinct without adding another line inside it.
 
-Agent workflow stays on the existing semantic margin control whenever one survives:
+Message workflow stays on the existing semantic margin control whenever one survives:
 pickup uses a green icon, moving any positive or negative tone to the existing contour;
 working keeps the green icon, colors the interior green, and pulses once on arrival. A
-generated status carries the same workflow when no semantic control exists. Conversation
-receipts carry it beside the triggering message; thread cards do not repeat it as a
-colored edge. Quiet or ended work releases the control. Reduced motion suppresses
-arrival, and repainting or replacing a carrier cannot replay it.
+generated status carries the same workflow when no semantic control exists. Message
+metadata carries it beside the triggering message; thread cards do not repeat it as a
+colored edge. Quiet or ended work releases the control. Reduced motion suppresses arrival,
+and repainting or replacing a carrier cannot replay it.
 
-A thread reading whose next word is the reader's wears the same two channels in blue —
-icon and interior — in Margin and in Page Map. It reads `awaitsReader` (Authoritative
-projection, above). Agent workflow outranks it on the same carrier: live work is what
-the reader needs first, and one interior carries one wash. Colour is never the only
-channel, so the reading also says "On you" in its label and accessible name. An
-aggregated thread control takes the turn of any member, as it takes the most urgent
-member's workflow stage.
+Each Thread's canonical `attention` is its aggregate reader obligation or waiting
+workflow. A concrete reader Ask outranks concurrent agent work; that work remains the
+secondary status. Local failure or recovery may add reader-owned attention beyond the
+server's raw `awaits_reader` value. Margin, Page Map, and compact thread rows consume
+that same attention instead of deriving another aggregate from member turns or workflow
+stages. Reader attention wears the same two channels in blue — icon and interior — and
+says "On you" for an Ask or the exact recovery label in its visible and accessible name.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

@@ -2,7 +2,9 @@
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
  * semantic threads and the synchronous conversation refresh from the application root;
- * subordinate geometry never imports the presenter.
+ * subordinate geometry never imports the presenter. A trip keeps its original reader
+ * intent through hydration, reveal and presentation. Newer input or another trip
+ * cancels its landing without cancelling the data the page is loading.
  */
 
 import {
@@ -19,17 +21,19 @@ import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
+import { retainReaderIntent } from "./reader-intent.js";
 
 export function createAnchorTravel({
   anchors,
   currentThreads,
   refreshConversation,
   announce,
-  focused,
 }) {
-  let threadTravelIntent = 0;
-  let mounted = false;
-  const leaveThreadTravel = () => threadTravelIntent++;
+  let travelIntent = 0;
+  const retainTravel = () => {
+    const intent = ++travelIntent;
+    return retainReaderIntent({ available: () => intent === travelIntent });
+  };
 
   function validateProjectionReference(owner, attribute) {
     if (!(owner instanceof Element))
@@ -46,6 +50,7 @@ export function createAnchorTravel({
     key,
     { success = "", missing = "" } = {},
   ) {
+    const mayArrive = retainTravel();
     validateProjectionReference(owner, attribute);
     if (typeof key !== "string" || !key)
       throw new TypeError("navigateToDatum key must be a non-empty string");
@@ -59,6 +64,7 @@ export function createAnchorTravel({
     // reachable before interpreting DOM presence.
     const hydration = source.lfRevealDatum?.(key);
     if (hydration?.then) await hydration;
+    if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
     if (!source) {
       if (missing) announce(missing);
@@ -75,7 +81,8 @@ export function createAnchorTravel({
       return false;
     }
 
-    reveal(destination);
+    await reveal(destination, mayArrive);
+    if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
     destination = source && (currentDatum(source, key) ?? suppliedDatum(source, key));
     if (!destination) {
@@ -227,35 +234,30 @@ export function createAnchorTravel({
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
   async function scrollToThread(id, { land = null } = {}) {
-    const intent = ++threadTravelIntent;
-    const startingFocus = focused();
+    const mayArrive = retainTravel();
     const thread = currentThreads().find((candidate) => candidate.root.id === id);
     const anchor = thread?.anchor;
     if (anchor?.datum && anchors.placedAt(id)?.status !== "outdated") {
       const source = sectionOf(anchor);
       const hydration = source?.lfRevealDatum?.(anchor.datum);
       if (hydration?.then) await hydration;
-      if (
-        intent !== threadTravelIntent ||
-        sectionOf(anchor) !== source ||
-        (focused() !== startingFocus && focused() !== document.body)
-      )
-        return false;
+      if (!mayArrive() || sectionOf(anchor) !== source) return false;
       await refreshConversation();
-      if (intent !== threadTravelIntent) return false;
+      if (!mayArrive()) return false;
     }
 
     let where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
     if (!where) return false;
     let holder = destinationHolder(where);
     if (!holder) return false;
-    reveal(holder);
+    await reveal(holder, mayArrive);
+    if (!mayArrive()) return false;
     // The marks, the placement and the widget outlet this arrival lands in are all
     // written by the conversation pass. Wait for it: a claim is synchronous but its
     // paint is not, so reading the destination in this turn would find the page as the
     // press left it.
     await refreshConversation();
-    if (intent !== threadTravelIntent) return false;
+    if (!mayArrive()) return false;
     where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
     if (!where) return false;
     holder = destinationHolder(where);
@@ -269,26 +271,7 @@ export function createAnchorTravel({
     return true;
   }
 
-  function mount() {
-    if (mounted) return;
-    mounted = true;
-    for (const type of ["pointerdown", "keydown", "input", "wheel"])
-      addEventListener(type, leaveThreadTravel, { capture: true, passive: true });
-    addEventListener("blur", leaveThreadTravel);
-  }
-
-  function destroy() {
-    if (!mounted) return;
-    mounted = false;
-    for (const type of ["pointerdown", "keydown", "input", "wheel"])
-      globalThis.removeEventListener(type, leaveThreadTravel, { capture: true });
-    globalThis.removeEventListener("blur", leaveThreadTravel);
-    threadTravelIntent++;
-  }
-
   return {
-    mount,
-    destroy,
     navigateToDatum,
     scrollToElement,
     scrollRevealedElement,

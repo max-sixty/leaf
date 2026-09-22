@@ -33,7 +33,7 @@ def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
         and reply.get("has_text")
         and reply.get("session") == state["claim_session"]
         and reply.get("turn") == state["claim_turn"]
-        and reply.get("responds") == obligation["event"]
+        and reply.get("responds") == obligation["input"]
     )
 
 
@@ -89,7 +89,7 @@ def unattended_pages(
         stale = [
             obligation
             for obligation in acknowledged
-            if obligation["phase"] != "queued"
+            if obligation["stage"] != "queued"
             and not _stream_answers(reply, obligation, state)
         ]
         if stale:
@@ -151,9 +151,9 @@ def unattended_pages(
                         record_pickup(
                             page,
                             [
-                                by_id[obligation["event"]]
+                                by_id[obligation["input"]]
                                 for obligation in acknowledged
-                                if obligation["event"] in by_id
+                                if obligation["input"] in by_id
                             ],
                             phase="opened",
                             session=session_id,

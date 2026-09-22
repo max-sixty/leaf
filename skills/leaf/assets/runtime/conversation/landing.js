@@ -410,7 +410,7 @@ async function showThreadNow(id, focus, revealThread) {
   node = listNode(id);
   if (!node || !mayArrive()) return false;
   if (node.closest(".lf-summary-originals[hidden]")) {
-    await reveal(node);
+    await reveal(node, mayArrive);
     if (!mayArrive()) return false;
   }
   const thread = node.closest(".lf-thread");

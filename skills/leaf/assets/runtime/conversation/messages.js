@@ -1,10 +1,10 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
-   Generated metadata, prose, receipts and reaction placement have one owner. An
+   Generated metadata, prose, workflow and reaction placement have one owner. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. The fragment is captured inertly before its first upgrade; panel
    presentation waits for preparation before capturing typed authored facets. */
-import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
+import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
 import { isReaction } from "./model.js";
@@ -14,6 +14,7 @@ import {
   stageAuthoredFacets,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
+import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
 import {
   markDeclared,
   MARKED_ANYWHERE,
@@ -30,7 +31,6 @@ import {
   visualPartLabel,
 } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
-import { createReceipt } from "./acknowledgments.js";
 import { ReactionStripView } from "./reaction-strips.js";
 
 export const loadMarked = () =>
@@ -125,13 +125,9 @@ const authoredMessage = (message) => {
     throw new Error("authored message presentation preceded semantic preparation");
   return prepared;
 };
-// One word for every host failure receipt. The codes behind them differ — a rate
-// limiter, a dispatch that threw, a turn followed to nothing (worker/server.py,
-// FAILURE_RECEIPTS) — but the difference is diagnostic, and what they share is the
-// whole of what the reader can act on: this message answers nothing, send it again.
 const FAILURE_LABEL = "Not answered";
-
-export function messageReading(message, { panel, receipts, reactions }) {
+export function messageReading(message, { panel, reactions, workflows }) {
+  const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
@@ -148,23 +144,11 @@ export function messageReading(message, { panel, receipts, reactions }) {
     timestamp: message.ts,
     age: ago(message.ts),
     edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,
-    pending: Boolean(message.pending),
-    // A host receipt saying no reply is coming is otherwise indistinguishable from
-    // one: it is a reply event, written under the thread's own agent name, in the
-    // same bubble. The head is where that gets said, because the body is prose the
-    // reader has no reason to trust differently from the prose above it.
     failure: message.failure ?? null,
-    stream: message.stream_state ?? null,
-    streamLabel:
-      !message.stream_state || message.stream_state === "active"
-        ? null
-        : message.stream_state === "failed"
-          ? "Failed"
-          : message.stream_state === "interrupted"
-            ? "Interrupted"
-            : message.stream_state === "disconnected"
-              ? "Disconnected"
-              : "Partial",
+    pending: workflow?.stage === "sending",
+    workflow,
+    workflowLabel: workflowLabel(workflow),
+    workflowTitle: workflowTitle(workflow),
     body: Object.freeze({
       kind,
       text: message.text ?? "",
@@ -177,7 +161,6 @@ export function messageReading(message, { panel, receipts, reactions }) {
       authored: message.body.kind === "authored",
     }),
     panel,
-    receipts,
     reactions,
   });
 }
@@ -185,7 +168,6 @@ export function messageReading(message, { panel, receipts, reactions }) {
 export class MessageView {
   #commands;
   #model = null;
-  #receipts = new Map();
   #reaction = null;
   #authored = null;
   #dressed = false;
@@ -214,8 +196,6 @@ export class MessageView {
     else delete this.node.dataset.attempt;
     if (model.pending) this.node.setAttribute("aria-busy", "true");
     else this.node.removeAttribute("aria-busy");
-    if (model.stream) this.node.dataset.streamState = model.stream;
-    else delete this.node.dataset.streamState;
     if (model.failure) this.node.dataset.failure = model.failure;
     else delete this.node.dataset.failure;
     if (panel && model.body.authored && !this.#authored)
@@ -223,19 +203,6 @@ export class MessageView {
         id: model.id,
         attempt: model.attempt,
       }).nodes;
-    const sending = model.pending && model.author === "user";
-    const receipts = model.receipts.map((receipt) => {
-      let node = this.#receipts.get(receipt.id);
-      if (!node) this.#receipts.set(receipt.id, (node = createReceipt()));
-      node.dataset.receiptId = receipt.id;
-      node.present(receipt);
-      return { key: receipt.id, node };
-    });
-    const receiptTemplate = repeat(
-      receipts,
-      (receipt) => receipt.key,
-      (receipt) => receipt.node,
-    );
     if (!model.reactions) this.#reaction?.retire();
     const strip = model.reactions
       ? (this.#reaction ??= new ReactionStripView(this.#commands.reaction)).present(
@@ -248,9 +215,11 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${
-            panel && sending
-              ? html`<span class="lf-msg-sending">Sending</span>`
-              : receiptTemplate
+            model.workflowLabel
+              ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+                  >${model.workflowLabel}</span
+                >`
+              : nothing
           }
           ${
             model.failure
@@ -267,14 +236,7 @@ export class MessageView {
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
-          ${
-            model.streamLabel
-              ? html`<span class="lf-stream-state lf-edited"
-                  >${model.streamLabel}</span
-                >`
-              : nothing
-          }</span
-        >
+        </span>
       `,
       this.#header,
     );
@@ -361,9 +323,6 @@ export class MessageView {
   }
 
   commit() {
-    const wanted = new Set(this.#model.receipts.map((receipt) => receipt.id));
-    for (const key of this.#receipts.keys())
-      if (!wanted.has(key)) this.#receipts.delete(key);
     if (!this.#model.reactions && this.#reaction) {
       this.#reaction.retire();
       this.#reaction = null;

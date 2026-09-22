@@ -543,7 +543,7 @@ def still_answering(state: dict, event_id: str) -> bool:
     if activity.get("kind") not in ANSWERING:
         return False
     return any(
-        obligation.get("event") == event_id and not obligation.get("dropped")
+        obligation.get("input") == event_id and not obligation.get("dropped")
         for obligation in activity.get("obligations") or ()
     )
 

@@ -11,6 +11,7 @@ import { setRuntimeRootStyle } from "./root-state.js";
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
 const EDGE_STEP = 24;
+let activeResize = null;
 
 /** A region held to one side of the window, and the boundary the reader draws it by.
  *
@@ -113,35 +114,48 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
     // boundary stays under the point they grabbed. Without it the region jumps by up to
     // the handle's own width on the first move, which is the page moving under an aim that
     // had just arrived.
-    let grab = 0;
     edge.addEventListener("pointerdown", (event) => {
+      if (activeResize || !event.isPrimary || event.button !== 0) return;
       // A fresh native pointer focus clears a keyboard ring even when this handle
       // already owns focus. Cancelling pointerdown and focusing by script preserves
       // that ring. The chrome's user-select rule already protects page selections.
       edge.blur();
       edge.setPointerCapture(event.pointerId);
       const box = region.getBoundingClientRect();
-      grab = event.clientX - (side === "right" ? box.left : box.right);
+      activeResize = {
+        edge,
+        pointerId: event.pointerId,
+        grab: event.clientX - (side === "right" ? box.left : box.right),
+      };
       document.body.toggleAttribute("data-lf-sizing", true);
     });
     edge.addEventListener("pointermove", (event) => {
-      if (!edge.hasPointerCapture(event.pointerId)) return;
+      if (
+        activeResize?.edge !== edge ||
+        activeResize.pointerId !== event.pointerId ||
+        !edge.hasPointerCapture(event.pointerId)
+      )
+        return;
       // The region's far edge is the window's, so the width is what the pointer leaves
       // between the two — read off the window rather than off the region, which is the box
       // this is about to resize.
-      const at = event.clientX - grab;
+      const at = event.clientX - activeResize.grab;
       set(side === "right" ? document.documentElement.clientWidth - at : at);
     });
     // Resizing is not an outside press on the page's open composer. Keep native
     // pointer focus, but consume the compatibility press in its gesture owner.
     edge.addEventListener("mousedown", (event) => event.stopPropagation());
     // A touch drag may generate no compatibility mouse event to focus the handle.
-    // Both completion and cancellation retain its arrow keys and end sizing.
-    for (const ending of ["pointerup", "pointercancel"])
-      edge.addEventListener(ending, () => {
-        edge.focus({ preventScroll: true });
-        document.body.toggleAttribute("data-lf-sizing", false);
-      });
+    // Completion, cancellation, and capture loss end only the gesture this edge began.
+    const finish = (event) => {
+      if (activeResize?.edge !== edge || activeResize.pointerId !== event.pointerId)
+        return;
+      activeResize = null;
+      edge.focus({ preventScroll: true });
+      document.body.toggleAttribute("data-lf-sizing", false);
+    };
+    for (const ending of ["pointerup", "pointercancel", "lostpointercapture"])
+      edge.addEventListener(ending, finish);
     // Arrows, and not a pair of letters, because the reader is standing on the edge
     // itself — the direction is the whole of what they have left to say. Away from the
     // side the region is held to widens it, which is the same reading the pointer makes of

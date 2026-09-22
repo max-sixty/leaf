@@ -104,6 +104,7 @@ export {
   targetCandidates,
 } from "./target-references.js";
 export { projectData } from "./application.js";
+export { retainReaderIntent } from "./reader-intent.js";
 export { tabStore } from "./storage.js";
 export {
   highlightBlocks,

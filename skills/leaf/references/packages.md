@@ -423,6 +423,17 @@ authority. The declaration applies equally to recordless verbs.
 Worker reports supply the same map with `leaf report --references '<JSON-object>'`.
 Omit the option only for a verb that declares no reference roles.
 
+An asynchronous navigation captures `retainReaderIntent()` before its first wait and
+checks the returned predicate before moving focus or scroll. Pass that same predicate to
+`reveal(target, currentIntent)`; asynchronous `lf-reveal` listeners receive it as
+`event.detail.mayReveal`. If the navigation itself opens or closes a surface that moves
+focus, `currentIntent.handoff(() => changeSurface())` preserves that synchronous focus
+transfer without renewing the original input generation. After a wait, check the
+predicate before starting that synchronous handoff. If the synchronous work already
+moved focus, the handoff keeps and adopts that destination instead of running the old
+focus move. A skipped move returns false, so a caller that requires the surface change
+can decline; adoption alone does not report that the move ran.
+
 What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
@@ -959,7 +970,15 @@ a reaction that starts a conversation remains its root. `done` contains the admi
 unwithdrawn page approvals shown in the panel.
 
 Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `anchor`, `detached_from`,
-`resolved`, `settling`, `awaits_agent`, `awaits_reader`, `seat`, and `summaries`.
+`resolved`, `settling`, `awaits_agent`, `awaits_reader`, `attention`, `workflows`,
+`seat`, and `summaries`. `attention` is `null` or names `needs_reader`/`waiting`, its
+reason, and the workflow supplying its detail. A concrete reader Ask takes precedence
+over concurrent agent work; explicit resolution remains separate. Use unresolved
+`attention.kind === "needs_reader"` for reader attention, including recovery after a
+failed response. `awaits_reader` is the raw conversation-turn flag and does not include
+that recovery; it is not the presentation authority. `awaits_agent` remains independent,
+so a standing reader Ask and agent work can coexist. Pending replies and refused sends
+are already reflected in the published attention.
 `threadTurns(thread)` selects its ordered displayed turns, including a reaction root
 but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
 turn count, and latest turn timestamp. Its topic uses the agent-chosen `title`, or
@@ -967,9 +986,11 @@ the opening message text while `title` is null. A Thread's `key` and each messag
 admission of a pending gesture; `root.id` and message `id` identify the current admitted
 or provisional record.
 
-Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts
-(`pending`, `failure`, `stream_state`), reaction tokens, and canonical activity
-`receipts`. Their `body.kind` distinguishes prose, reaction, suggestion, and authored
+Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts,
+reaction tokens, and their exact-input `workflows` when work is bound to that message
+or to a widget in its frozen authored body.
+A workflow carries its subject and input identities, stage, typed activity, condition,
+next actor, and delivery/turn/response bindings. Their `body.kind` distinguishes prose, reaction, suggestion, and authored
 content. Each body carries its plain `text`; an authored body also contains an opaque
 `document: {thread, message}` identity, and `units: [{id, tag, state}]` from the
 registry declarations and current widget fold. It contains no HTML or live nodes.

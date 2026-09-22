@@ -139,18 +139,25 @@ def other_leaves(page_dir: Path) -> list:
                                     observed_at,
                                     live_stream=live_stream,
                                 )
+                                activity = project_activity(
+                                    candidate,
+                                    events,
+                                    raw,
+                                    observed_at,
+                                    browser,
+                                    live_stream,
+                                )
+                                workflows = (
+                                    browser.pop("workflows")
+                                    if browser is not None
+                                    else activity.pop("workflows")
+                                )
                                 present = {
                                     "title": parser.title.strip() or candidate.name,
                                     "url": info["url"],
                                     **raw,
-                                    "activity": project_activity(
-                                        candidate,
-                                        events,
-                                        raw,
-                                        observed_at,
-                                        browser,
-                                        live_stream,
-                                    ),
+                                    "activity": activity,
+                                    "workflows": workflows,
                                 }
                     except Exception:  # noqa: BLE001 - cache this page's fault
                         present = None

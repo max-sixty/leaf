@@ -1306,6 +1306,43 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
     expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
 
 
+def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
+    """A lazy exact-patch fetch must not undo a later tab choice and focus."""
+    example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
+    page = open_page(browser, live_url(serve(example)))
+    page.get_by_role("tab", name="CallDiff").click()
+    held = []
+    page.route("**/api/data*", lambda route: held.append(route))
+    page.get_by_role("link", name="src/summary.rs:259").first.click()
+    page.wait_for_function(
+        "() => document.querySelector('#pr-exact-patch').shadowRoot.querySelector('details[open]') !== null"
+    )
+    assert held, "the real exact-patch request must remain pending"
+
+    other = page.get_by_role("tab", name="Behavior diff")
+    other.click()
+    expect(other).to_be_focused()
+    before = page.evaluate(
+        "() => ({url: location.href, y: document.scrollingElement.scrollTop})"
+    )
+    page.unroute("**/api/data*")
+    for route in held:
+        route.continue_()
+    line = page.locator(
+        '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
+    )
+    expect(line).to_have_count(1)
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    expect(other).to_be_focused()
+    assert page.url == before["url"]
+    assert (
+        abs(page.evaluate("() => document.scrollingElement.scrollTop") - before["y"])
+        < 2
+    )
+
+
 SWIPE_PAGE = leaf_page(
     "session backlog triage",
     """

@@ -58,6 +58,7 @@ interface WireProjection {
 /** One wire Ask, as `served_state` serializes it. */
 interface WireAsk {
   id: string;
+  seq: number;
   tag: string;
   source: string;
   source_tag: string;
@@ -70,6 +71,36 @@ interface WireAsks {
   unanswered: WireAsk[];
   awaiting: Record<string, boolean>;
   unanswered_awaiting: Record<string, boolean>;
+}
+
+interface WireWorkflow {
+  id: string;
+  revision: number | null;
+  input: string | null;
+  subject: { kind: "thread" | "widget"; id: string };
+  coordinate: unknown;
+  requires_response: boolean;
+  stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
+  ts: string | null;
+  detail: string;
+  agent: string | null;
+  session: string | null;
+  delivery_seq: number | null;
+  delivery_session: string | null;
+  delivery_turn: string | null;
+  response: object | null;
+  activity: readonly {
+    kind: string;
+    detail: string;
+    ts: string;
+    session: string | null;
+    turn: string | null;
+  }[];
+  condition: {
+    kind: "ended" | "interrupted" | "stale" | "failed";
+    operation: "delivery" | "work" | "response";
+  } | null;
+  next_actor: "reader" | "agent" | "none";
 }
 
 /** The public Ask record packages read. */
@@ -121,6 +152,7 @@ export interface AuthoritativeState {
   active: { revision: number; version?: number | null; label?: string | null };
   versions?: { revision: number; version: number; label: string }[];
   events: Event[];
+  workflows: WireWorkflow[];
   browser: {
     basis: { through_seq: number };
     views: Record<
@@ -521,10 +553,11 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
+    const pendingMessages = unreadMessages(unresolved, receipts);
     const folded = ready
       ? foldThreads(
           state?.browser.conversation.threads ?? [],
-          unreadMessages(unresolved, receipts),
+          pendingMessages,
           pendingReactions(unresolved, receipts),
           pendingSettlements(unresolved, receipts),
         )
@@ -532,22 +565,82 @@ export function createSemanticApplication({
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
     const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
-    // An Ask the server says the reader still owes is carried by the thread it stands
-    // in, and the reader's own unsent reply does not answer it. `foldThreads` hands
-    // that thread to the agent for the reply; the standing obligation goes back on top
-    // of it, from the same reader list the tray and the walk read.
+    // A structural Ask survives prose sent beside it. `foldThreads` clears the
+    // conversation turn the prose answers; the admitted Ask inventory puts back only
+    // the independent obligation that still stands in that thread.
     const owed = new Set(asks.reader.map((ask) => ask.thread));
     const obligated = folded.map((thread: any) =>
-      owed.has(thread.root.id) && !thread.awaits_reader
-        ? { ...thread, awaits_reader: true }
+      owed.has(thread.root.id) && thread.attention?.reason !== "ask"
+        ? {
+            ...thread,
+            awaits_reader: true,
+            attention: { kind: "needs_reader", reason: "ask", workflow: null },
+          }
         : thread,
     );
-    const threads = readThreadRecords(
-      obligated,
-      document,
-      widgets,
-      (state?.activity as any)?.interactions ?? [],
+    const entriesByMessage = new Map(
+      unresolved
+        .filter((entry: any) => entry.message)
+        .map((entry: any) => [entry.message.id, entry]),
     );
+    const localWorkflow = (entry: any, rejected: boolean) => {
+      const message = entry.message;
+      return {
+        id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
+        revision: entry.event.revision ?? document.revision,
+        seq: entry.order,
+        input: message?.id ?? entry.localId,
+        subject: message
+          ? {
+              kind: "thread",
+              id: message.kind === "reply" ? message.parent : message.id,
+            }
+          : { kind: "widget", id: entry.event.widget },
+        coordinate: entry.projection?.coordinate ?? null,
+        requires_response: !rejected,
+        stage: "sending",
+        ts: message?.ts ?? null,
+        detail: "",
+        agent: null,
+        session: null,
+        delivery_seq: null,
+        delivery_session: null,
+        delivery_turn: null,
+        response: null,
+        activity: [],
+        condition: rejected ? { kind: "failed", operation: "delivery" } : null,
+        next_actor: rejected ? "reader" : "agent",
+      };
+    };
+    // An optimistic prose reply answers the exact accepted obligation currently
+    // attached to its conversation. Keep that workflow on its original message as
+    // history, but retire its next actor until refusal removes the optimistic reply.
+    const acceptedThreads = new Map<string, any>();
+    for (const thread of state?.browser.conversation.threads ?? []) {
+      acceptedThreads.set(thread.root.id, thread);
+      if (thread.root.attempt) acceptedThreads.set(PENDING + thread.root.attempt, thread);
+    }
+    const answeredWorkflows = new Set(
+      pendingMessages
+        .filter((message: any) => message.kind === "reply")
+        .map((message: any) => acceptedThreads.get(message.parent)?.attention?.workflow)
+        .filter(Boolean),
+    );
+    const acceptedWorkflows = (state ? state.workflows : []).map((workflow) =>
+      answeredWorkflows.has(workflow.id)
+        ? { ...workflow, next_actor: "none" as const }
+        : workflow,
+    );
+    const workflows = [
+      ...acceptedWorkflows,
+      ...pendingMessages.map((message: any) =>
+        localWorkflow(entriesByMessage.get(message.id), false),
+      ),
+      ...unresolved
+        .filter((entry: any) => entry.rejected)
+        .map((entry: any) => localWorkflow(entry, true)),
+    ];
+    const threads = readThreadRecords(obligated, document, widgets, workflows);
     return {
       hostAvailable,
       projection,
@@ -572,6 +665,7 @@ export function createSemanticApplication({
       pendingApprovals: pendingApprovals(unresolved, receipts),
       pendingRequests: projectedRequests,
       delivery: unresolvedAttempts(unresolved),
+      workflows,
       activity: state?.activity ?? null,
       lifecycle,
     };
@@ -882,7 +976,6 @@ export function createSemanticApplication({
       const rejected = entry(attempt);
       if (!rejected) return [];
       const removed = new Set<string>();
-      if (rejected.event.kind !== "action") removed.add(attempt);
       for (const item of publisher.read().unresolved)
         if (
           item.undoTarget === attempt ||

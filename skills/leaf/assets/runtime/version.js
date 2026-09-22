@@ -1333,9 +1333,11 @@ export function createVersionController({
           if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
         },
       });
-      currentIntent.handoff(() => {
-        restoreCarryScroll = restoreCarry(carry.records, carry.held);
-      });
+      restoreCarryScroll = restoreCarry(
+        carry.records,
+        carry.held,
+        currentIntent.handoff,
+      );
       // After the patch, over the document the patch left: an owner's number is its
       // place among the document's preserving owners, and an insertion moves the ones
       // after it.

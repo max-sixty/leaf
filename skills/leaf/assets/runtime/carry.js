@@ -57,7 +57,11 @@ export function captureCarry(root, authored) {
 // so the reader can keep typing while renderers settle. Only scroll needs the finished
 // layout; the returned correction runs while the install still owns navigation.
 // Kept nodes never lost their state, and a changed tag is a different control.
-export function restoreCarry(records, held = new Map()) {
+export function restoreCarry(
+  records,
+  held = new Map(),
+  handoffFocus = (move) => move(),
+) {
   const positions = [];
   for (const record of records ?? []) {
     const arrived = document.getElementById(record.id);
@@ -69,9 +73,13 @@ export function restoreCarry(records, held = new Map()) {
       arrived.checked = record.checked;
     positions.push([arrived, record]);
   }
-  // All enclosing disclosures must be restored before a descendant takes focus.
-  for (const [arrived, record] of positions)
-    if (record.focus) focusDestination(arrived, record.caret);
+  // Values and disclosures are owed even when a connected widget took focus during
+  // replacement. Only focus yields to that newer owner; its handoff keeps the same
+  // input generation and adopts the synchronous transfer when still permitted.
+  handoffFocus(() => {
+    for (const [arrived, record] of positions)
+      if (record.focus) focusDestination(arrived, record.caret);
+  });
   return () => {
     for (const [arrived, record] of positions) {
       if (!arrived.isConnected) continue;

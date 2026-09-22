@@ -492,6 +492,38 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         page.unroute("**/vendor/agentic-mermaid.esm.js")
 
 
+def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
+    browser, serve
+):
+    """A synchronous widget focus handoff cannot discard unrelated carried state."""
+    source = READING_REGIONS_PAGE.replace(
+        '<button id="left-head">',
+        '<label>Draft <input id="reading-draft"></label>'
+        '<label>Flag <input id="reading-flag" type="checkbox"></label>'
+        '<details id="reading-detail"><summary>Context</summary>Kept open</details>'
+        '<button id="left-head">',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    page.locator("#reading-flag").check()
+    page.locator("#reading-detail summary").click()
+    page.locator("#reading-draft").fill("kept draft")
+    page.evaluate("""() => {
+      customElements.define('page-focus-transfer', class extends HTMLElement {
+        connectedCallback() { document.getElementById('right-head').focus(); }
+      });
+    }""")
+    revised = source.replace(
+        '<p id="left-start">', '<p>Added context.</p><p id="left-start">'
+    ).replace("</main>", "<page-focus-transfer></page-focus-transfer></main>")
+    stamp_page(serve.page_dir, revised, "Update reading with a focus handoff")
+    wait_for_revision(page, 2)
+
+    expect(page.locator("#right-head")).to_be_focused()
+    expect(page.locator("#reading-draft")).to_have_value("kept draft")
+    expect(page.locator("#reading-flag")).to_be_checked()
+    expect(page.locator("#reading-detail")).to_have_attribute("open", "")
+
+
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     url = serve(READING_REGIONS_PAGE)
     page = open_page(browser, live_url(url))

@@ -3914,7 +3914,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    # A taller list can no longer retain an offset beyond its new scroll limit.
+    max_scroll = threads.evaluate("el => el.scrollHeight - el.clientHeight")
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(
+        min(list_at, max_scroll), abs=1
+    )
     resized(page, 500, 640)
     panel_settled(page)
     expect(summary).to_be_focused()

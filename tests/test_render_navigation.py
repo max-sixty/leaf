@@ -3455,9 +3455,13 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     )
 
 
-@pytest.mark.parametrize("long_thread", [False, True], ids=["short", "long"])
+@pytest.mark.parametrize(
+    ("reply_paragraphs", "bottom_clamped"),
+    [(0, None), (18, True), (30, False)],
+    ids=["short", "long-clamped", "long-aligned"],
+)
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
-    browser, serve, long_thread
+    browser, serve, reply_paragraphs, bottom_clamped
 ):
     """Pointer and keyboard arrival open one compact conversation card. Enter or c
     reveals its reply, and Escape returns through each layer. The Page Map fallback
@@ -3466,7 +3470,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
-    if long_thread:
+    if reply_paragraphs:
         root = next(
             event["id"]
             for event in events_model.read_events(serve.page_dir)
@@ -3481,7 +3485,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                 "revision": 1,
                 "text": "\n\n".join(
                     f"Consideration {i}: the response needs room for its explanation."
-                    for i in range(18)
+                    for i in range(reply_paragraphs)
                 ),
             },
         )
@@ -3565,7 +3569,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     panel_settled(page)
     panel_thread = threads.first
     panel_reply = panel_thread.locator(":scope > .lf-compose textarea")
-    if long_thread:
+    if reply_paragraphs:
         # Opening the mark focuses its reply before native smooth placement finishes.
         # Arm the list itself immediately before that gesture. A prior scrollend cannot
         # pass without a causal move, and a preliminary one is withdrawn if a later frame
@@ -3592,7 +3596,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(panel_reply).to_be_focused()
     in_threads_scrollport(page, ".lf-threads > .lf-thread:first-of-type .lf-compose")
-    if long_thread:
+    if reply_paragraphs:
         page.wait_for_function(
             """() => {
               const list = document.querySelector('.lf-threads');
@@ -3631,14 +3635,22 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                 }
               }
               return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
-                      crossedLines: lines};
+                      crossedLines: lines, scroll: list.scrollTop,
+                      maximumScroll: list.scrollHeight - list.clientHeight};
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        assert any(
-            block["top"] == pytest.approx(landing["start"], abs=2)
-            for block in landing["blocks"]
-        ), f"the long arrival cut through a content block: {landing}"
+        if bottom_clamped:
+            # The next thread is collapsed. The list can run out of scroll room
+            # before its first message reaches the heading; the whole body still fits.
+            assert landing["scroll"] == pytest.approx(landing["maximumScroll"], abs=1)
+            assert landing["blocks"][0]["top"] >= landing["start"]
+        else:
+            assert landing["scroll"] < landing["maximumScroll"] - 1
+            assert any(
+                block["top"] == pytest.approx(landing["start"], abs=2)
+                for block in landing["blocks"]
+            ), f"the long arrival cut through a content block: {landing}"
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
         )

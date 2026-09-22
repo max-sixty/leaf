@@ -69,6 +69,7 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(
     assets = f"{root}/revisions/{revision_path(page_dir, 1).stem}"
     assert f'src="{assets}/leaf.js"' in html
     assert f'href="{assets}/theme.css"' in html
+    assert f'<link rel="canonical" href="{root}/" data-lf-runtime>' in html
     assert (
         f'<script type="module" src="{root}/mcp-ready.js" '
         "data-lf-runtime></script>" in html
@@ -79,12 +80,6 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(
         ready = response.read()
     assert ready == PAGE_READY_SOURCE.read_bytes()
     assert b'window.parent.postMessage({ type: "leaf:mcp-page-ready" }, "*")' in ready
-
-    with urllib.request.urlopen(
-        f"{page_server.origin}{assets}/runtime/layer-client.js"
-    ) as response:
-        runtime = response.read().decode()
-    assert f'fetch("{root}/api/event"' in runtime
 
     with urllib.request.urlopen(
         f"{page_server.origin}{assets}/widgets/lf-options.js"

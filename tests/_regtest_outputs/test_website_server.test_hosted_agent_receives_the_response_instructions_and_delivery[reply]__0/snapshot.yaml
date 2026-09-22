@@ -13,8 +13,9 @@ thread/start:
 
     Reader input arrives inline as a structured `leaf_delivery` tool output or as a
     `leaf-delivery` pointer. For either form, first run `$LEAF delivery claim ID` with its
-    exact id. For a pointer, then run `$LEAF delivery read ID`. Process every delivered
-    event using its handling and `obligation.response`.
+    exact id. For a pointer, then run `$LEAF delivery read ID`. For every delivered
+    event, read its `handling` clause ids in order from that batch's `handling` object
+    and follow those instructions and `obligation.response`.
 
     Each App Server delivery contains at most one response whose kind is `reply`.
     The normal final message is that reply's only writer: the host binds its destination
@@ -46,13 +47,13 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v1","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"events":[{"kind":"comment","author":"user","text":"Use
-      backfill first.","id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":"Reply
+    output: '{"format":"leaf-delivery-v2","id":"00000000-0000-4000-8000-000000000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"handling":{"h1":"Reply
       in the thread with `leaf reply <page> --for <event-id>`, or with your final
       message on a host that sends it as the reply, and revise the page if the comment
       calls for it. If that revision removes what the thread is anchored on, move
       the thread in the same reply with `--section <id>` (narrowed by `--quote`
       or `--part` if needed), or `--detach` it if its subject has left the page.
       Leave the thread open unless the reader asks you to close it or nothing further
-      could change the outcome.","obligation":{"as_of_seq":1,"response":{"kind":"reply","to":"reader-event","for":"reader-event"}}}]}]}'
+      could change the outcome."},"events":[{"kind":"comment","author":"user","text":"Use
+      backfill first.","id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":["h1"],"obligation":{"as_of_seq":1,"response":{"kind":"reply","to":"reader-event","for":"reader-event"}}}]}]}'
   turnTrigger: leaf

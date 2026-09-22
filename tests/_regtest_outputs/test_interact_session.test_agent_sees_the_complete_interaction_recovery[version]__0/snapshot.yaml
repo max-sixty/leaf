@@ -31,13 +31,20 @@ idle before pickup:
     1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf ack <page> <through-seq>` in the background, using the batch's page and sequence. Ack advances the cursor, then waits for the next batch while the page remains live.
 
 delivered:
-  format: leaf-delivery-v1
+  format: leaf-delivery-v2
   id: <delivery>
   created_at: <time>
   batches:
     - page: <page>
       through_seq: 2
       conversations: []
+      handling:
+        h1: >-
+          This comment asks for a new version of the page, not a reply. Change the
+          Ask's declared answer in the next stamped version, then `leaf resolve
+          <page> --to <comment-id>`. If you need the reader's answer first, open
+          a separate thread on the same Ask with `leaf comment <page> --section
+          <ask-id>`.
       events:
         - kind: comment
           author: user
@@ -56,12 +63,7 @@ delivered:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: >-
-            This comment asks for a new version of the page, not a reply. Change
-            the Ask's declared answer in the next stamped version, then `leaf resolve
-            <page> --to <comment-id>`. If you need the reader's answer first, open
-            a separate thread on the same Ask with `leaf comment <page> --section
-            <ask-id>`.
+          handling: [h1]
           obligation:
             as_of_seq: 2
             response:

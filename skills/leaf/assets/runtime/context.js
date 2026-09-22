@@ -2,6 +2,12 @@
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
 
+// Code may be shared by several documents, including a specimen and its parent.
+// Page operations belong to the document, never to the module's asset URL.
+export const pageUrl = (path) =>
+  new URL(path, document.querySelector('link[rel="canonical"][data-lf-runtime]').href)
+    .href;
+
 const offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]',
 );
@@ -103,18 +109,10 @@ export const runtime = {
   },
 };
 
-// A contained page is a Leaf document rendered as a picture inside another one. The
-// interaction gallery frames the chrome that is singleton by design, so a replay can
-// drive the production controls without moving the gallery around it;
-// `loadFrameDocument` stamps the document it writes. The reader is standing in that
-// outer document, so a contained page arrives without restoring their arrangements and
-// without placing focus: either would take the page they are actually on somewhere they
-// did not ask to go. Focus its chrome would place later is refused by the frame's body
-// rather than by this flag — `loadFrameDocument` writes that body `inert`, so a shown
-// dialog's focusing steps return against an inert subject and the reader never leaves
-// the page around the picture. It takes one initial state reading so its production
-// chrome has real data, then leaves the continuing state/news feed to the outer page.
-export const containedPage = document.body.hasAttribute("data-lf-contained");
+// A specimen arrives inert and without the surrounding reader's arrangements.
+// The host releases inertness only on explicit entry. Passive gallery replays stay
+// inert and take one state reading; operable specimens run the ordinary live feed.
+export const passiveSpecimen = document.body.hasAttribute("data-lf-specimen-passive");
 
 export const agentName = () => runtime.agent;
 

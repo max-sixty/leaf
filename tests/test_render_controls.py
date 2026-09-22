@@ -75,6 +75,7 @@ from render_harness import (
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SHELL_BOX,
+    Traffic,
     _traffic,
     _until,
     consume_browser_errors,
@@ -106,6 +107,301 @@ TARGETING_GALLERY = next(
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
+
+
+LIVE_SPECIMENS_PAGE = leaf_page(
+    "Independent practice pages",
+    """
+<h1 id="host-heading">Practice without changing this page</h1>
+<lf-specimen id="first-practice" label="First practice">
+  <template id="first-source" data-specimen>
+    <h1 id="child-heading">A practice decision</h1>
+    <lf-ask id="child-ask"><h2>Which approach?</h2>
+      <lf-options id="child-options" choose>
+        <lf-option id="child-a">First approach</lf-option>
+        <lf-option id="child-b">Second approach</lf-option>
+      </lf-options>
+    </lf-ask>
+  </template>
+</lf-specimen>
+<lf-specimen id="second-practice" label="Second practice">
+  <template id="second-source" data-specimen>
+    <h1 id="child-heading">Another practice decision</h1>
+    <lf-ask id="child-ask"><h2>Which approach?</h2>
+      <lf-options id="child-options" choose>
+        <lf-option id="child-a">First approach</lf-option>
+        <lf-option id="child-b">Second approach</lf-option>
+      </lf-options>
+    </lf-ask>
+  </template>
+</lf-specimen>
+""",
+)
+
+
+def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
+    """A specimen is a full page: its choices and comments reach only its own log."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    parent_before = events_model.read_events(serve.page_dir)
+    first = page.locator("#first-practice")
+    second = page.locator("#second-practice")
+    enter = first.get_by_role("button", name="Enter specimen")
+    expect(enter).to_be_enabled()
+    expect(second.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    # The host's controls stand with its label, outside the indented child page.
+    controls = first.locator(".lf-specimen-controls").bounding_box()
+    frame = first.locator("iframe").bounding_box()
+    assert abs(controls["x"] - first.bounding_box()["x"]) < 1
+    assert controls["x"] < frame["x"]
+    assert controls["y"] + controls["height"] <= frame["y"]
+    child = first.locator("iframe").element_handle().content_frame()
+    other = second.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    child_url = child.url
+    assert child.url != other.url
+    assert child.locator("body").evaluate("body => body.inert")
+    assert other.locator("body").evaluate("body => body.inert")
+
+    enter.press("Enter")
+    expect(first.get_by_role("button", name="Return to page")).to_be_visible()
+    with sending(child, "the specimen choice"):
+        child.locator("#child-a .lf-pick").click()
+    expect(child.locator("#child-a .lf-pick")).to_have_attribute("aria-checked", "true")
+    expect(other.locator("#child-a .lf-pick")).to_have_attribute(
+        "aria-checked", "false"
+    )
+
+    child.locator(".lf-threads-toggle").click()
+    draft = child.locator(".lf-general textarea")
+    draft.fill("Keep this draft while I resize the page.")
+    width_before = child.evaluate("innerWidth")
+    page.set_viewport_size({"width": 720, "height": 900})
+    child.wait_for_function("before => innerWidth < before", arg=width_before)
+    expect(draft).to_have_value("Keep this draft while I resize the page.")
+    expect(draft).to_be_focused()
+    assert child.url == child_url
+    with sending(child, "the specimen comment"):
+        draft.press("ControlOrMeta+Enter")
+    expect(
+        child.locator(".lf-thread").filter(has_text="Keep this draft")
+    ).to_be_visible()
+    state_response = page.request.get(child_url + "api/state")
+    assert state_response.ok, state_response.text()
+    state = state_response.json()
+    assert [event["kind"] for event in state["events"]] == ["action", "comment"]
+    assert state["events"][-1]["text"] == "Keep this draft while I resize the page."
+    assert page.request.get(other.url + "api/state").json()["events"] == []
+    assert events_model.read_events(serve.page_dir) == parent_before
+
+    draft.fill("Discard this unsent practice draft on reset.")
+    page.evaluate("""() => {
+        localStorage.setItem('parent-draft', 'retain');
+        sessionStorage.setItem('parent-tab', 'retain');
+    }""")
+    old_scope = child.evaluate("location.pathname")
+    assert page.evaluate(
+        "scope => Object.keys(localStorage).some(key => key.startsWith(scope))",
+        old_scope,
+    )
+    first.get_by_role("button", name="Return to page").click()
+    expect(enter).to_be_focused()
+    second.get_by_role("button", name="Enter specimen").click()
+    other.locator(".lf-threads-toggle").click()
+    other.locator(".lf-general textarea").fill("Keep the other specimen's draft.")
+    other_scope = other.evaluate("location.pathname")
+    second.get_by_role("button", name="Return to page").click()
+    first.get_by_role("button", name="Reset", exact=True).click()
+    expect(enter).to_be_enabled()
+    reset_child = first.locator("iframe").element_handle().content_frame()
+    assert reset_child.url != child_url
+    expect(reset_child.locator("#child-a .lf-pick")).to_have_attribute(
+        "aria-checked", "false"
+    )
+    expect(reset_child.locator(".lf-thread")).to_have_count(0)
+    expect(reset_child.locator(".lf-general textarea")).to_have_value("")
+    assert page.request.get(child_url + "api/state").status == 404
+    assert events_model.read_events(serve.page_dir) == parent_before
+    assert page.evaluate(
+        """scope => [localStorage, sessionStorage].every(store =>
+        Object.keys(store).every(key => !key.startsWith(scope)))""",
+        old_scope,
+    )
+    assert page.evaluate(
+        """scope =>
+        localStorage.getItem('parent-draft') === 'retain' &&
+        sessionStorage.getItem('parent-tab') === 'retain' &&
+        Object.keys(localStorage).some(key => key.startsWith(scope))""",
+        other_scope,
+    )
+    expect(other.locator(".lf-general textarea")).to_have_value(
+        "Keep the other specimen's draft."
+    )
+
+
+def test_live_specimens_retire_before_navigation_and_coalesce_reset(browser, serve):
+    """A held replacement navigation cannot keep a released child alive."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.practiceFrame = document.createElement('iframe');
+        document.body.append(practiceFrame);
+        window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
+        await practiceHost.ready;
+    }""")
+    previous = page.evaluate("practiceFrame.src")
+    held = []
+    released = []
+    page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
+    page.on(
+        "request",
+        lambda request: (
+            released.append(request.url)
+            if request.url.endswith("/api/release")
+            else None
+        ),
+    )
+    page.evaluate("""() => {
+        window.oldPracticeWindow = practiceFrame.contentWindow;
+        const first = practiceHost.reset();
+        const second = practiceHost.reset();
+        window.samePracticeReset = first === second;
+        window.practiceResult = Promise.allSettled([first, second]);
+    }""")
+    holding(page, held, 1, "the replacement specimen document")
+    assert page.evaluate("samePracticeReset && oldPracticeWindow.closed")
+    assert page.request.get(previous + "api/state").status == 404
+    replacement = held[0].request.url
+    page.evaluate("practiceHost.destroy()")
+    assert page.evaluate(
+        "practiceResult.then(results => results.map(r => r.reason.name))"
+    ) == ["AbortError", "AbortError"]
+    assert page.evaluate(
+        "practiceFrame.isConnected && !practiceFrame.hasAttribute('src')"
+    )
+    assert page.request.get(replacement + "api/state").status == 404
+    assert released.count(previous + "api/release") == 1
+    assert released.count(replacement + "api/release") == 1
+    held[0].abort()
+    page.unroute(re.compile(r"/api/specimens/[^/]+/$"))
+
+    # A failed presentation is retired too; Reset can then start a healthy child.
+    page.route(
+        re.compile(r"/api/specimens/[^/]+/$"),
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body='<html data-lf-startup-error="Practice could not start"><body></body></html>',
+        ),
+    )
+    assert (
+        page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.practiceHost = mountSpecimen(practiceFrame, {template: 'first-source'});
+        return practiceHost.ready.catch(error => error.message);
+    }""")
+        == "Practice could not start"
+    )
+    assert page.evaluate("!practiceFrame.hasAttribute('src')")
+    page.unroute(re.compile(r"/api/specimens/[^/]+/$"))
+    page.evaluate("practiceHost.reset().then(() => {})")
+    assert page.evaluate(
+        "practiceFrame.contentDocument.body.hasAttribute('data-lf-presented')"
+    )
+    page.evaluate("practiceHost.destroy()")
+
+
+def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, serve):
+    """Destroy awaits allocation; a detached widget can create a fresh child later."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    specimen = page.locator("#first-practice")
+    expect(specimen.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    previous = specimen.locator("iframe").get_attribute("src")
+    page.evaluate("""() => {
+        window.detachedPractice = document.querySelector('#first-practice');
+        detachedPractice.remove();
+    }""")
+    page.wait_for_function(
+        "!detachedPractice.querySelector('iframe').hasAttribute('src')"
+    )
+    page.evaluate("document.querySelector('main').append(detachedPractice)")
+    expect(specimen.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    assert specimen.locator("iframe").get_attribute("src") != previous
+    assert page.request.get(previous + "api/state").status == 404
+
+    held = []
+    page.route("**/api/specimens", lambda route: held.append(route))
+    page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.pendingFrame = document.createElement('iframe');
+        document.body.append(pendingFrame);
+        window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
+        window.pendingResult = pendingHost.ready.catch(error => error.name);
+    }""")
+    holding(page, held, 1, "the child allocation")
+    page.evaluate("() => { window.pendingDestroy = pendingHost.destroy(); }")
+    response = held[0].fetch()
+    allocated = response.json()["url"]
+    held[0].fulfill(response=response)
+    page.evaluate("pendingDestroy")
+    assert page.evaluate("pendingResult") == "AbortError"
+    allocated_url = page.evaluate("url => new URL(url, location.href).href", allocated)
+    assert page.request.get(allocated_url + "api/state").status == 404
+    page.unroute("**/api/specimens")
+
+    held.clear()
+    page.route(re.compile(r"/api/specimens/[^/]+/$"), lambda route: held.append(route))
+    page.evaluate("""async () => {
+        const {mountSpecimen} = await import('/runtime/specimen.js');
+        window.pendingHost = mountSpecimen(pendingFrame, {template: 'first-source'});
+        window.pendingResult = pendingHost.ready.catch(error => error.name);
+    }""")
+    holding(page, held, 1, "a child detached before its document arrives")
+    page.evaluate("pendingFrame.remove()")
+    assert page.evaluate("pendingResult") == "AbortError"
+    assert page.request.get(held[0].request.url + "api/state").status == 404
+    held[0].abort()
+    page.evaluate("pendingHost.destroy()")
+
+
+def test_live_specimens_preserve_optimistic_refusal_and_child_escape(browser, serve):
+    """Delivery rollback and nested Escape remain the ordinary child's behavior."""
+    page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
+    specimen = page.locator("#first-practice")
+    enter = specimen.get_by_role("button", name="Enter specimen")
+    expect(enter).to_be_enabled()
+    enter.press("Enter")
+    child = specimen.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    held = []
+    page.route(child.url + "api/event", lambda route: held.append(route))
+    choice = child.locator("#child-a .lf-pick")
+    choice.click()
+    holding(page, held, 1, "the child's held choice")
+    expect(choice).to_have_attribute("aria-checked", "true")
+    held[0].fulfill(
+        json={
+            "ok": False,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "This practice choice was refused.",
+            "final": True,
+        }
+    )
+    round_trip(child)
+    expect(choice).to_have_attribute("aria-checked", "false")
+    assert page.request.get(child.url + "api/state").json()["events"] == []
+    page.unroute(child.url + "api/event")
+
+    child.locator(".lf-threads-toggle").click()
+    expect(child.locator(".lf-threads-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    page.keyboard.press("Escape")
+    expect(child.locator(".lf-threads-toggle")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(specimen.get_by_role("button", name="Return to page")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(enter).to_be_focused()
+    assert child.locator("body").evaluate("body => body.inert")
 
 
 CONTROL_STABILITY_PAGE = leaf_page(
@@ -697,7 +993,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     resized(page, 1600, 844)
     expect(page.locator(".lf-banner-more")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > .lf-layer-reference")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_have_count(1)
     expect(page.locator(".lf-banner-menu > *")).to_have_count(2)
     expect(page.locator(".lf-permanent-destination")).to_be_attached()
 
@@ -1018,15 +1314,16 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
-    needs = page.locator(".lf-needs")
-    reached_needs = False
+    selected_state = page.get_by_role("radio", name=re.compile(r"^Open(?: \(|$)"))
+    expect(selected_state).to_be_checked()
+    reached_state = False
     for _ in range(20):
-        if needs.evaluate("el => el === document.activeElement"):
-            reached_needs = True
+        if selected_state.evaluate("el => el.matches(':focus-within')"):
+            reached_state = True
             break
         page.keyboard.press("Tab")
-    assert reached_needs, "native Tab never reached the pending-reader panel control"
-    expect(needs).to_be_focused()
+    assert reached_state, "native Tab never reached the selected thread-state radio"
+    expect(selected_state).to_be_focused()
     expect(menu).to_be_hidden()
     expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     page.locator(".lf-threads-toggle").click()
@@ -1312,27 +1609,38 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
           shelf.measureBannerControls(() => {});
         }"""
     )
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
     page.locator(".lf-banner-more").click()
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
     page.evaluate(
         """async () => {
           const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
           window.__lfDeferredBannerMeasurement = null;
           shelf.measureBannerControls(() => {
             const chip = document.querySelector('.lf-preview');
-            window.__lfDeferredBannerMeasurement = chip.parentElement.className;
+            window.__lfDeferredBannerMeasurement = chip.closest(".lf-banner-actions, .lf-banner-menu").className;
           });
         }"""
     )
     assert page.evaluate("() => window.__lfDeferredBannerMeasurement") is None
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
     page.keyboard.press("Escape")
     page.wait_for_function("() => window.__lfDeferredBannerMeasurement !== null")
     assert page.evaluate("() => window.__lfDeferredBannerMeasurement") == (
         "lf-banner-actions"
     )
-    expect(page.locator(".lf-banner-menu > .lf-preview")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    copy = page.get_by_role("button", name="Copy preview diagnostics", exact=True)
+    copy.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
+    copied = page.evaluate("() => navigator.clipboard.readText()")
+    assert copied.startswith("Leaf preview\nexample: feature-gallery\n")
+    assert "checkout: leaf.status-floor-and-selection" in copied
+    assert "t=" not in copied
+    expect(copy).to_be_focused()
     page.close()
 
     # A published page uses the same one-line status and complete hover text.
@@ -1553,7 +1861,7 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     )
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
-    folded = page.locator(".lf-banner-menu > *")
+    folded = page.locator(".lf-banner-menu .lf-btn")
     assert folded.count() > 0, "nothing folded, so this test has no menu to walk"
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
@@ -2735,7 +3043,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
         )
 
     wide = actions()
-    wide_folded = page.locator(".lf-banner-menu > *").count()
+    wide_folded = page.locator(".lf-banner-menu .lf-btn").count()
     assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
 
     # Where the left tray's control begins the row — or, where this width has folded it,
@@ -5468,7 +5776,7 @@ RING_CASES = (
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
                 (".lf-edge:visible", "edge"),
-                (".lf-find-box", "find-box"),
+                (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel textarea", "text-box"),
                 (".lf-shortcut-more", "key-more"),
             ),
@@ -5511,12 +5819,12 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-thread-summary:visible", "thread-summary"),)},
     ),
-    # The card the walk lands on wears the ring inset, over its quiet ground; a pointer
-    # arrival paints only the ground, so the specimen is the walk's own landing.
+    # The keyboard walk lands on the accordion title, whose inset band also marks
+    # its native Tab stop.
     (
         "a walked thread",
         ("g", "Shift+t", "t"),
-        {"ship-review": ((None, "thread-card"),)},
+        {"ship-review": ((None, "thread-summary"),)},
     ),
     # The same walk with the panel shut lands in the margin's conversation view, on the
     # thread itself rather than a control inside it.
@@ -5622,7 +5930,7 @@ RING_CASES = (
         {
             "corpus": (
                 (".lf-page-map-action:visible", "page-map-action"),
-                (".lf-page-map-search:visible", "page-map-search"),
+                (".lf-page-map-search input:visible", "text-entry"),
             )
         },
     ),
@@ -6029,7 +6337,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 resolved = page.locator('[data-filter-value="resolved"]')
                 if (
                     resolved.is_enabled()
-                    and resolved.get_attribute("aria-pressed") != "true"
+                    and resolved.get_attribute("aria-checked") != "true"
                 ):
                     resolved.click()
                 page.evaluate(RING_FOCUS_START)

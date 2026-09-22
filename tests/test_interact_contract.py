@@ -4128,8 +4128,9 @@ How this text reaches the agent, by example
    The delivery's event is the log line from step 2 less @DROPPED@, the
    browser's retry key, and with these fields added:
    @ADDED@.
-   `handling` is the texts of the clauses that apply, in order, joined with
-   spaces. The whole output, indented here (leaf prints it on one line):
+   The batch's `handling` maps clause ids to their text, each distinct text
+   appearing once. The event's `handling` names its applicable clauses in order.
+   The whole output, indented here (leaf prints it on one line):
 
 @DELIVERY@
 
@@ -4277,7 +4278,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     applying = registry_contract.event_clauses(
         record, registry_storage.load_registry(page_dir)
     )
-    assert " ".join(clause["text"] for clause in applying) == delivered["handling"]
+    assert [clause["text"] for clause in applying] == [
+        batch["handling"][ref] for ref in delivered["handling"]
+    ]
     # The full line, anchor and all, gets exactly the `comment` case's clauses.
     assert applying == told["comment"]
 
@@ -4780,11 +4783,11 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     assert after["content"] == ["After"]
 
 
-def test_source_reading_indexes_widgets_in_an_interaction_page_template():
-    """A gallery specimen is inert here but a real document when the replay imports it."""
+def test_source_reading_keeps_a_specimen_out_of_its_parent_identity_space():
+    """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template data-interaction-page><lf-ask id="nested-ask">'
+        '<template id="practice" data-specimen><lf-ask id="nested-ask">'
         '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
@@ -4792,13 +4795,176 @@ def test_source_reading_indexes_widgets_in_an_interaction_page_template():
     parser = structure_model.SourceDocument(html)
 
     assert parser.errors == []
-    assert [record["tag"] for record in parser.lf_elements] == [
-        "lf-ask",
-        "lf-options",
-        "lf-option",
-    ]
-    assert parser.by_id["nested-options"]["holder"] is parser.by_id["nested-ask"]
+    assert parser.lf_elements == []
+    assert "nested-options" not in parser.by_id
     assert passages_model.page_passages(parser).text == "Visible words."
+    [specimen] = parser.specimens
+    assert "nested-options" in specimen["document"].by_id
+    assert specimen["document"].main_elements == [(1, True)]
+
+
+@pytest.mark.parametrize(
+    ("markup", "error"),
+    [
+        ("<noscript>invisible</noscript>", "the browser renders none of its content"),
+        ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown widget"),
+        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', "restated"),
+        ("<template data-specimen><h1>Child</h1></template>", "needs a stable id"),
+        ('<p id="duplicate">One</p><p id="duplicate">Two</p>', "duplicate"),
+        (
+            '<template id="nested" data-specimen><noscript>hidden</noscript></template>',
+            "specimen 'nested'",
+        ),
+    ],
+)
+def test_check_validates_each_specimen_document(page_dir, markup, error):
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-specimen>{markup}</template></main>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "specimen 'practice'" in result.output
+    assert error in result.output
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_specimen_diagnostics_report_authored_lines(page_dir, nested):
+    markup = '<lf-unknown\n id="bad">Unknown</lf-unknown>\n<noscript>Hidden</noscript>'
+    if nested:
+        markup = f'<template\n id="nested"\n data-specimen>\n{markup}</template>'
+    source = PAGE.replace(
+        "</main>",
+        f'<template\n id="practice"\n data-specimen>\n{markup}</template></main>',
+    )
+    (page_dir / "index.html").write_text(source)
+    result = check(page_dir)
+    assert result.exit_code != 0, result.output
+    assert "specimen 'practice'" in result.output
+    if nested:
+        assert "specimen 'nested'" in result.output
+    line = source[: source.index("<noscript>")].count("\n") + 1
+    assert f"<noscript> at line {line}:" in result.output
+
+
+def test_check_keeps_parent_and_sibling_specimen_ids_independent(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<p id="shared">Parent</p>'
+            '<template id="first" data-specimen><h1 id="shared">First</h1></template>'
+            '<template id="second" data-specimen><h1 id="shared">Second</h1></template></main>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+
+def test_specimen_data_bindings_use_copied_data_but_not_parent_history(page_dir):
+    declare_data_input(
+        page_dir, "shared", {"type": "string"}, contract="parent", tag="lf-parent-data"
+    )
+    source = (page_dir / "index.html").read_text()
+    declare_data_input(
+        page_dir,
+        "shared",
+        {"type": "number"},
+        contract="child",
+        tag="lf-child-data",
+        snapshot=True,
+        activate=False,
+    )
+    child = '<lf-child-data id="test-data" source="shared"></lf-child-data>'
+    markup = source.replace(
+        "</main>", f'<template id="practice" data-specimen>{child}</template></main>'
+    )
+    (page_dir / "index.html").write_text(markup)
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+
+    # A child may bind the same name differently, but cannot reinterpret a copied
+    # stored value or select a snapshot that the copied store does not contain.
+    (page_dir / "index.html").write_text(
+        markup.replace(
+            'source="shared"></lf-child-data>',
+            'source="shared" snapshot="1"></lf-child-data>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "specimen 'practice'" in result.output
+    assert "selects snapshot '1'" in result.output
+    (page_dir / "index.html").write_text(markup)
+    data_model.cmd_data_set(page_dir, "shared", "parent value")
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "specimen 'practice'" in result.output
+    assert "standing snapshot uses 'parent'" in result.output
+
+
+@pytest.mark.parametrize("seeded", [False, True])
+@pytest.mark.parametrize("available", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+def test_specimen_references_see_only_selected_conversations(
+    page_dir, seeded, available, nested
+):
+    if available:
+        events_model.append_event(
+            page_dir,
+            {
+                "kind": "comment",
+                "id": "aabb0011",
+                "author": "user",
+                "text": "A question",
+            },
+        )
+    selection = ' data-specimen-threads="aabb0011"' if seeded else ""
+    child = '<lf-suggestion id="answer" resolves="aabb0011"><lf-new>Answer</lf-new></lf-suggestion>'
+    if nested:
+        child = f'<template id="nested" data-specimen{selection}>{child}</template>'
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-specimen{selection}>{child}</template></main>',
+        )
+    )
+    result = check(page_dir)
+    assert (result.exit_code == 0) == seeded, result.output
+    if not seeded:
+        assert "names no comment in this document" in result.output
+
+
+def test_specimen_checks_available_history_beside_forward_conversation_references(
+    page_dir,
+):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "parent": "aabb0011",
+            "author": "agent",
+            "text": "An answer",
+            "markup": '<lf-code id="duplicate" language="python"><pre>1</pre></lf-code>',
+        },
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            '<template id="practice" data-specimen data-specimen-threads="aabb0011 aabb0022">'
+            '<h1 id="duplicate">Child</h1></template></main>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert (
+        "ids already taken by widget markup in a reply: ['duplicate']" in result.output
+    )
 
 
 def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):

@@ -264,7 +264,11 @@ def working_data_document_readings(
     incoming: list[tuple[list, str]] | None = None,
 ) -> list[tuple[list, str, dict]]:
     """Immutable readings plus candidate documents under the candidate registry."""
-    documents = page_data_document_readings(page_dir, events)
+    documents = (
+        page_data_document_readings(page_dir, events)
+        if list_revisions(page_dir)
+        else initial_data_document_readings([], events, registry)
+    )
     if authored is None:
         source = page_dir / "index.html"
         if source.exists():
@@ -275,6 +279,21 @@ def working_data_document_readings(
         (lf_elements, document, registry) for lf_elements, document in (incoming or [])
     )
     return documents
+
+
+def initial_data_document_readings(
+    authored: list, events: list, registry: dict
+) -> list:
+    """A fresh page's source and seeded markup share its initial registry."""
+    return [(authored, "index.html", registry)] + [
+        (
+            SourceDocument(event["markup"]).lf_elements,
+            f"event {event['id']!r} markup",
+            registry,
+        )
+        for event in events
+        if event.get("markup")
+    ]
 
 
 def working_data_documents(
@@ -436,6 +455,13 @@ def data_binding_errors(
         authored=authored,
         incoming=incoming,
     )
+    return data_document_errors(documents, stored)
+
+
+def data_document_errors(
+    documents: list[tuple[list, str, dict]], stored: dict
+) -> list[str]:
+    """Validate bindings and snapshot selections within one page's document readings."""
     bindings, errors = merge_data_document_readings(documents)
     for source, contract in bindings.items():
         snapshot = stored["sources"].get(source)

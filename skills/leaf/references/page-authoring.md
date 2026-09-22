@@ -5,6 +5,7 @@
 - [Document, page tabs, or workspace](#document-page-tabs-or-workspace)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
+- [Live specimens](#live-specimens)
 - [Stable anchors](#stable-anchors)
 - [Reading cost](#reading-cost)
 - [Pre-handover review](#pre-handover-review)
@@ -53,6 +54,10 @@ Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address whe
 delivers the document. Put page-specific CSS in `<style>` and JavaScript in inline
 module blocks. Every `lf-*` element has an explicit end tag.
 
+Delivery also supplies `width=device-width, initial-scale=1, viewport-fit=cover`
+when the head has no viewport meta. This lets Leaf's chrome use the device's
+safe-area insets. An authored viewport is preserved and replaces that policy.
+
 The title and description are what the page says it is anywhere outside itself: a
 tab, a search result, a link someone pastes into a chat. Write a description that
 stands alone, since whoever reads it there has none of the page around it.
@@ -61,7 +66,6 @@ stands alone, since whoever reads it there has none of the page around it.
 <!doctype html>
 <html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
   <meta name="description" content="…">
 </head>
@@ -216,6 +220,48 @@ filesystem escapes, classic scripts, event-handler attributes, and `javascript:`
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.
+
+## Live specimens
+
+Use `lf-specimen` with one direct `template[data-specimen]` to let the reader
+operate a complete Leaf page inside the surrounding document. Give both the
+element and template stable ids, and put the child page's main content in the
+template:
+
+```html
+<lf-specimen id="practice" label="practice release note">
+  <template id="practice-page" data-specimen>
+    <h1>Weekend service</h1>
+    <p id="service-note">The sample shuttle runs every hour.</p>
+  </template>
+</lf-specimen>
+```
+
+The specimen's gutter contains only the content being demonstrated. Keep labels,
+host controls, and instructions about using the specimen outside that gutter;
+instructions that belong to the demonstrated page remain inside it.
+
+The child uses the parent's selected layer and starts with its own event log.
+Enter specimen activates the child; its normal widget controls, keyboard routes,
+comments, and replies work there. Escape closes the child's open controls before
+returning to the surrounding page. Reset creates a fresh page from the template.
+Child decisions and comments do not change the parent's log or Ask inventory.
+The child is temporary: use an ordinary Leaf page when its history must outlive
+the specimen. A standalone copy keeps the rendered child and its assets as an
+isolated static document; native links and disclosures remain usable.
+Live specimens require a server, so pages declaring them cannot be exported with
+`--interactive`; use the static copy instead.
+
+To begin with conversations from the parent, set `data-specimen-threads` on the
+template to their space-separated root event ids. A first version can declare
+these ids before its seed log is written; the conversations must exist before
+the specimen opens. Their anchored content must exist in the child. Reset copies
+those conversations again from the parent; subsequent child replies remain independent.
+
+A page module can await the element's `ready` promise to receive the child
+`Document`, and await `reset()` to replace it. Author child content in the
+template rather than copying rendered controls from the parent. Ordinary
+`lf-specimen` children, without a template, remain static quoted material.
 
 ## Stable anchors
 

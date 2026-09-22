@@ -9644,11 +9644,11 @@ WEB_AWESOME_SHEET = """sheets => sheets.some(
 )"""
 
 
-def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
+def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     plain = open_page(browser, serve(leaf_page("Plain", "<h1>Plain page</h1>")))
     assert (
         plain.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
-        is False
+        is True
     )
     assert not any(
         entry.endswith("/vendor/webawesome.esm.js")
@@ -9656,6 +9656,9 @@ def test_webawesome_theme_loads_only_with_its_controls(browser, serve):
             "() => performance.getEntriesByType('resource').map(entry => entry.name)"
         )
     )
+
+    assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
+    assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
 
     playground = open_page(browser, serve(PLAYGROUND_PAGE))
     assert (
@@ -10233,4 +10236,30 @@ def test_diff_export_keeps_native_soft_wrap_without_scripted_search(
     expect(line).to_have_css("white-space", "pre-wrap")
     switch.focus()
     copy.keyboard.press("Space")
+    expect(line).to_have_css("white-space", "pre")
+
+
+def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
+    patch = (
+        "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+" + "long_line " * 40 + "\n"
+    )
+    page = open_page(
+        None,
+        serve(
+            leaf_page(
+                "Phone diff",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+        context=iphone,
+    )
+    label = page.locator(".lf-diff-wrap-label")
+    line = page.locator("lf-diff [data-line]").last
+    expect(line).to_have_css("white-space", "pre")
+    assert label.bounding_box()["height"] >= 44
+    before = line.bounding_box()["height"]
+    label.tap()
+    expect(line).to_have_css("white-space", "pre-wrap")
+    assert line.bounding_box()["height"] > before
+    label.tap()
     expect(line).to_have_css("white-space", "pre")

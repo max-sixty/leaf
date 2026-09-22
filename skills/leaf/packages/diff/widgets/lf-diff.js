@@ -267,7 +267,7 @@ function wrapSwitch() {
 function diffTools(host, reviewing) {
   const tools = offer("div", "lf-diff-tools");
   const label = offer("div", "lf-diff-search-label");
-  const search = offer("wa-input", "lf-diff-search");
+  const search = offer("wa-input", "lf-diff-search lf-label-hidden");
   search.type = "search";
   search.size = "s";
   search.label = "Filter diff files";

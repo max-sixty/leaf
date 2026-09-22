@@ -4703,6 +4703,14 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
+    # Its accessible name does not add a second visible caption above the placeholder.
+    assert (
+        sheet.locator(".lf-page-map-search").evaluate(
+            "node => node.shadowRoot.querySelector('[part~=form-control-label]')"
+            ".getBoundingClientRect().height"
+        )
+        <= 1
+    )
     page.evaluate(
         """() => {
           window.__lfPageMapClosed = false;

@@ -59,7 +59,7 @@ dialogHead.append(el("strong", "", "Page Map"));
 const dialogClose = el("button", "lf-btn", "Close");
 dialogClose.type = "button";
 dialogHead.append(dialogClose);
-const dialogSearch = offer("wa-input", "lf-page-map-search");
+const dialogSearch = offer("wa-input", "lf-page-map-search lf-label-hidden");
 dialogSearch.type = "search";
 dialogSearch.name = "page-map-search";
 dialogSearch.placeholder = "Find an action, status, or location";

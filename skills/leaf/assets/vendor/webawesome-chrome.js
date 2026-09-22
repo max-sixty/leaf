@@ -1,5 +1,5 @@
 /*! Web Awesome 3.13.0 — MIT — licenses: webawesome.LICENSES.txt */
-import{B as a,G as g,H as o,L as s,a as t,b as h,c as d,l as p,m as u,p as m,q as r,t as f,v as n,w as k,x as b,y as v}from"./webawesome/chunk-BSB54GSU.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var y=h`
+import{B as a,G as g,H as o,L as s,a as t,b as h,c as d,l as p,m as u,p as m,q as r,t as f,v as n,w as k,x as b,y as v}from"./webawesome/chunk-CGEUEGJS.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var y=h`
   :host {
     --checked-icon-color: var(--wa-color-brand-on-loud);
     --checked-icon-scale: 0.8;

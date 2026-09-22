@@ -17,7 +17,7 @@ class ThreadNarrowingView extends HTMLElement {
   #disclosed = false;
   #model = null;
   #reset = null;
-  #searchInput = offer("wa-input", "lf-find-box");
+  #searchInput = offer("wa-input", "lf-find-box lf-label-hidden");
 
   constructor() {
     super();
@@ -112,7 +112,7 @@ class ThreadNarrowingView extends HTMLElement {
       return html`<wa-radio-group
         data-lf-gen="1"
         name="thread-state"
-        class="lf-thread-state"
+        class="lf-thread-state lf-label-hidden"
         label=${group.label}
         orientation="horizontal"
         size="s"

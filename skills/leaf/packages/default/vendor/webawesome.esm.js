@@ -1,5 +1,5 @@
 /*! Web Awesome 3.13.0 — MIT — licenses: webawesome.LICENSES.txt */
-import{A as Q,B as y,C as z,D as vt,E as gt,F as wt,G as C,H as m,I as Ut,J as yt,K as j,L as tt,M as Wt,N as Pt,O as Kt,P as jt,a as o,b as S,c as d,d as Bt,e as It,f as dt,g as it,h as ct,i as pt,j as mt,k as rt,l as ft,m as B,n as $,o as bt,p as E,q as s,r as x,s as Nt,t as f,u as W,v as A,w as H,x as L,y as O,z as J}from"./webawesome/chunk-BSB54GSU.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var Gt=S`
+import{A as Q,B as y,C as z,D as vt,E as gt,F as wt,G as C,H as m,I as Ut,J as yt,K as j,L as tt,M as Wt,N as Pt,O as Kt,P as jt,a as o,b as S,c as d,d as Bt,e as It,f as dt,g as it,h as ct,i as pt,j as mt,k as rt,l as ft,m as B,n as $,o as bt,p as E,q as s,r as x,s as Nt,t as f,u as W,v as A,w as H,x as L,y as O,z as J}from"./webawesome/chunk-CGEUEGJS.js";/*! Copyright 2026 Fonticons, Inc. - https://webawesome.com/license */var Gt=S`
   :host {
     --grid-width: 17em;
     --grid-height: 12em;

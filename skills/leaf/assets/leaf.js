@@ -1,5 +1,7 @@
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
+// Restored panels and the first keyboard gesture share the ordinary synchronous
+// control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
 import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
@@ -780,6 +782,8 @@ if (!offlineInteractive) {
   });
   reserveBannerControls();
   auxiliaryModality.mount();
+  // Connect the search field before mount awaits its rendered input: Lit does not
+  // resolve updateComplete until connection, and keyboard registration needs that input.
   mountNarrowing(app.presentConversation);
   await panelComposer.mount();
   selectionComposer.mount();

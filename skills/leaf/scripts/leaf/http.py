@@ -1277,9 +1277,10 @@ class SpecimenEndpoint(PageEndpoint):
 
     def _content(self, status: int, ctype: str, body: bytes) -> Response:
         if ctype.startswith("text/html"):
+            scope = html.escape(self.page_root + "/", quote=True)
             body = re.sub(
                 rb"<html\b",
-                b"<html data-lf-contained",
+                f'<html data-lf-contained data-lf-reader-scope="{scope}"'.encode(),
                 body,
                 count=1,
                 flags=re.IGNORECASE,

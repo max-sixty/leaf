@@ -4,7 +4,12 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.data import empty_data, read_data
-from leaf.data_contracts import data_binding_errors, measurement_lag
+from leaf.data_contracts import (
+    data_document_errors,
+    initial_data_document_readings,
+    measurement_lag,
+    working_data_document_readings,
+)
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
@@ -18,7 +23,7 @@ from leaf.styles import (
     inline_style_at,
     root_tokens,
 )
-from leaf.thread_context import thread_structure
+from leaf.thread_context import specimen_events, thread_structure
 from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
@@ -164,30 +169,18 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     return errors
 
 
-def _registry_errors(
-    page_dir: Path,
+def _instance_errors(
     events: list,
     parser,
     registry: dict | None,
-) -> tuple[dict, list[str]]:
-    """Validate authored instances and stored data against the vendored vocabulary."""
-    stored_data = empty_data()
+) -> list[str]:
+    """Validate authored instances against their document's event and id namespace."""
     errors = []
     if registry is None:
-        return stored_data, errors
-    stored_data = read_data(page_dir)
+        return errors
     errors.extend(widget_errors(parser.lf_elements, registry))
     errors.extend(layout_errors(parser.lf_elements, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
-    errors.extend(
-        data_binding_errors(
-            page_dir,
-            registry,
-            stored_data,
-            events,
-            authored=parser.lf_elements,
-        )
-    )
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
     errors.extend(ask_surface_errors(parser.lf_elements, registry))
     errors.extend(request_offer_errors(parser.lf_elements, registry))
@@ -204,7 +197,22 @@ def _registry_errors(
             {event["id"] for event in events if event["kind"] == "comment"},
         )
     )
-    return stored_data, errors
+    taken = sorted(parser.ids & thread_structure(events).ids)
+    if taken:
+        errors.append(f"ids already taken by widget markup in a reply: {taken}")
+    return errors
+
+
+def _authored_document_checks(page_dir, document, events, registry, stored, readings):
+    """The same authored-page gate for the root and each isolated child document."""
+    errors = _document_errors(page_dir, document)
+    errors.extend(_instance_errors(events, document, registry))
+    if registry is not None:
+        errors.extend(data_document_errors(readings, stored))
+    errors.extend(media_errors(document, page_dir))
+    column, presentation_errors = _presentation_errors(page_dir, document)
+    errors.extend(presentation_errors)
+    return column, errors
 
 
 def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
@@ -275,7 +283,7 @@ def check_source(
         return SourceCheck(SourceDocument(""), None, None, {}, 0, [source_error], [], 0)
     html = data.decode("utf-8")
     document = SourceDocument(html)
-    errors = _document_errors(page_dir, document)
+    errors = []
     page_registry = None
     try:
         page_registry = read_page_registry(page_dir)
@@ -283,6 +291,48 @@ def check_source(
     except RegistryError as error:
         registry = None
         errors.append(str(error))
+    stored_data = read_data(page_dir) if registry is not None else empty_data()
+    readings = (
+        working_data_document_readings(
+            page_dir, registry, events, authored=document.lf_elements
+        )
+        if registry is not None
+        else []
+    )
+    column, document_errors = _authored_document_checks(
+        page_dir, document, events, registry, stored_data, readings
+    )
+    errors.extend(document_errors)
+    documents = [(document, events, "")]
+    for parent, parent_events, parent_name in documents:
+        for specimen in parent.specimens:
+            name = (
+                parent_name + f"specimen {specimen['attrs'].get('id', '<unnamed>')!r}: "
+            )
+            child = specimen["document"]
+            selected = set(specimen["attrs"].get("data-specimen-threads", "").split())
+            try:
+                child_events = specimen_events(parent, parent_events, selected)
+                child_events = [
+                    {**event, "seq": index}
+                    for index, event in enumerate(child_events, 1)
+                ]
+            except ValueError as error:
+                errors.append(name + str(error))
+                child_events = []
+            documents.append((child, child_events, name))
+            child_readings = initial_data_document_readings(
+                child.lf_elements, child_events, registry
+            )
+            _, child_errors = _authored_document_checks(
+                page_dir, child, child_events, registry, stored_data, child_readings
+            )
+            initial = RevisionReading(0, False, 0, SourceDocument(""), {}, {})
+            transition = transition_reading(child, child_events, registry, initial)
+            child_errors.extend(
+                transition_errors(child, registry, initial, transition, False)
+            )
+            errors.extend(name + error for error in child_errors)
     artifact = None
     if not errors and registry is not None:
         try:
@@ -296,10 +346,6 @@ def check_source(
         except ArtifactError as error:
             errors.append(str(error))
     revision = revision_reading(page_dir, data, events, artifact)
-    stored_data, registry_errors = _registry_errors(
-        page_dir, events, document, registry
-    )
-    errors.extend(registry_errors)
 
     source_history_errors, dropped_advice = continuity_errors(
         events, document, registry, revision
@@ -321,13 +367,6 @@ def check_source(
         transition_errors(document, registry, revision, transition, allow_transition)
     )
 
-    taken = sorted(document.ids & thread_structure(events).ids)
-    if taken:
-        errors.append(f"ids already taken by widget markup in a reply: {taken}")
-    errors.extend(media_errors(document, page_dir))
-
-    column, presentation_errors = _presentation_errors(page_dir, document)
-    errors.extend(presentation_errors)
     advice = _source_advice(
         document,
         registry,

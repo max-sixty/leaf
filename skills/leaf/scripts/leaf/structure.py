@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from html import escape
 from pathlib import Path
 
 import turbohtml
@@ -565,11 +566,24 @@ class SourceDocument:
             )
 
     def _specimen_resources(self, template) -> None:
-        """Capture a child document's dependencies without merging its identity space."""
+        """Read the complete child document without merging its identity space."""
+        attrs = self._attrs(template)
+        if not attrs.get("id"):
+            line, _ = self._position(template)
+            self.errors.append(
+                f"<template data-specimen> (line {line}): needs a stable id"
+            )
+        source = (
+            '<!doctype html><html lang="en"><head>'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>{escape(attrs.get('id', 'Specimen'))}</title></head><body><main>"
+            + template.inner_html
+            + "</main></body></html>"
+        )
         self.specimens.append(
             {
-                "attrs": self._attrs(template),
-                "document": SourceDocument(template.inner_html),
+                "attrs": attrs,
+                "document": SourceDocument(source),
             }
         )
 

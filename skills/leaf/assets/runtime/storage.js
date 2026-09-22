@@ -99,10 +99,12 @@ const stored = (open, name, scope = "") => ({
 // nobody asked for.
 export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+// The delivery declares a child page's private reader scope. Bootstrap reads the
+// same fact before this module loads; neither derives it from the viewed revision.
 export const readerStore = stored(
   () => localStorage,
   "local",
-  document.body.hasAttribute("data-lf-contained") ? PAGE_SCOPE : "",
+  document.documentElement.dataset.lfReaderScope ?? "",
 );
 
 // Disposable child pages have an exclusive URL scope. Call only after their

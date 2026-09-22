@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 
 from example_data import regression_sources
-from leaf.specimens import specimen_events
 from leaf.structure import SourceDocument
+from leaf.thread_context import specimen_events
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"

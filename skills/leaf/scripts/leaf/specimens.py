@@ -8,7 +8,6 @@ and API identity are new. Browser gestures enter the ordinary page event door. T
 HTTP server owns these directories until explicit release or server shutdown.
 """
 
-import html
 import json
 import secrets
 import shutil
@@ -22,45 +21,7 @@ from .files import write_json
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
 from .structure import SourceDocument
-from .thread_context import (
-    thread_memberships,
-    thread_roots,
-    thread_structure,
-    thread_widgets,
-)
-
-
-def specimen_events(
-    document: SourceDocument, events: list[dict], selected: set[str]
-) -> list[dict]:
-    """Copy the declared conversations into a fresh page's first revision.
-
-    Both embedded pages and generated example fixtures use this same conversation
-    closure. Unknown roots remain authoring errors rather than empty demonstrations.
-    """
-    roots = thread_roots(events)
-    if unknown := selected - set(roots.values()):
-        raise ValueError(
-            f"unknown specimen conversations: {', '.join(sorted(unknown))}"
-        )
-    memberships = thread_memberships(
-        events, roots, thread_widgets(thread_structure(events), roots), document.within
-    )
-    seeded = [
-        {
-            **{key: value for key, value in event.items() if key != "seq"},
-            **({"revision": 1} if "revision" in event else {}),
-        }
-        for event in events
-        if selected.intersection(memberships[event["id"]])
-    ]
-    for event in seeded:
-        if event.get("meaning", {}).get("document", {}).get("kind") == "page":
-            event["meaning"] = {
-                **event["meaning"],
-                "document": {"kind": "page", "revision": 1},
-            }
-    return seeded
+from .thread_context import specimen_events
 
 
 @dataclass
@@ -113,13 +74,7 @@ class Specimens:
             raise ValueError(f"unknown specimen template {template_id!r}")
         selected = set(template["attrs"].get("data-specimen-threads", "").split())
         seeded = specimen_events(document, events, selected)
-        source = (
-            '<!doctype html><html lang="en"><head>'
-            '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>{html.escape(template_id)}</title></head><body><main>"
-            + template["document"].data.decode("utf-8")
-            + "</main></body></html>"
-        )
+        source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-specimen-")
         child = Path(temporary.name)
         try:
@@ -131,7 +86,7 @@ class Specimens:
             # dependencies of the authored revision. Preserve those bytes too.
             if (parent / "media").is_dir():
                 shutil.copytree(parent / "media", child / "media", dirs_exist_ok=True)
-            (child / "index.html").write_text(source, encoding="utf-8")
+            (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),
                 encoding="utf-8",

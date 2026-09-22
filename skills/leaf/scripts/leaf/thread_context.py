@@ -13,6 +13,35 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 
 
+def specimen_events(
+    document: SourceDocument, events: list[dict], selected: set[str]
+) -> list[dict]:
+    """Copy selected conversation closures into a fresh page's first revision."""
+    roots = thread_roots(events)
+    if unknown := selected - set(roots.values()):
+        raise ValueError(
+            f"unknown specimen conversations: {', '.join(sorted(unknown))}"
+        )
+    memberships = thread_memberships(
+        events, roots, thread_widgets(thread_structure(events), roots), document.within
+    )
+    seeded = [
+        {
+            **{key: value for key, value in event.items() if key != "seq"},
+            **({"revision": 1} if "revision" in event else {}),
+        }
+        for event in events
+        if selected.intersection(memberships[event["id"]])
+    ]
+    for event in seeded:
+        if event.get("meaning", {}).get("document", {}).get("kind") == "page":
+            event["meaning"] = {
+                **event["meaning"],
+                "document": {"kind": "page", "revision": 1},
+            }
+    return seeded
+
+
 def thread_roots(events: list) -> dict:
     """Message id → the id of the comment that opened its thread.
 

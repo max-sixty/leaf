@@ -142,7 +142,6 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
 ):
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    publish(page_dir)
     event_model.append_event(
         page_dir,
         {
@@ -154,6 +153,7 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
         },
     )
     files_model.write_json(page_dir / "data.json", {"revision": 7, "sources": {}})
+    publish(page_dir)
     allocating = threading.Barrier(3)
     release = threading.Event()
     original = specimens_model.Specimens.create
@@ -207,7 +207,6 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
 ):
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1><p id="plan">The cutoff lives in the plan.</p><p><lf-suggestion id="revision" resolves="aabb0011"><lf-old>Friday</lf-old><lf-new>Monday</lf-new></lf-suggestion></p></template>'
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
-    publish(page_dir)
     for identity, text in (
         ("aabb0011", "Selected conversation"),
         ("aabb0022", "Outside conversation"),
@@ -232,8 +231,10 @@ def test_specimens_seed_only_the_declared_conversations_and_reset_by_recreation(
             "parent": "aabb0011",
             "revision": 1,
             "text": "Seeded reply",
+            "markup": '<lf-code id="seed-code" language="python"><pre>print("seed")</pre></lf-code>',
         },
     )
+    publish(page_dir)
     before = event_model.read_events(page_dir)
     children = []
     for _ in range(2):

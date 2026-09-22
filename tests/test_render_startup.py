@@ -470,17 +470,34 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ),
     ],
 )
+@pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, root_attribute, body_attribute
+    browser, serve, saved, root_attribute, body_attribute, contained
 ):
     """Returning readers do not watch saved auxiliary chrome move the document."""
-    url = serve(leaf_page("Restored surface", "<h1>Restored surface</h1>"))
+    content = "<h1>Restored surface</h1>"
+    if contained:
+        content = (
+            '<lf-specimen id="practice" label="Practice">'
+            '<template id="practice-source" data-specimen>'
+            + content
+            + "</template></lf-specimen>"
+        )
+    url = serve(leaf_page("Restored surface", content))
     context = browser.new_context(viewport={"width": 1600, "height": 900})
+    if contained:
+        host = context.new_page()
+        host.goto(url, wait_until="load")
+        expect(host.get_by_role("button", name="Enter specimen")).to_be_enabled()
+        url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.evaluate(
-        "saved => { for (const [key, value] of Object.entries(saved)) "
-        "localStorage.setItem(key, value); }",
+        """async saved => {
+            const entry = document.querySelector('script[type="module"][src]');
+            const {readerStore} = await import(new URL('runtime/storage.js', entry.src));
+            for (const [key, value] of Object.entries(saved)) readerStore.set(key, value);
+        }""",
         saved,
     )
     priming.close()

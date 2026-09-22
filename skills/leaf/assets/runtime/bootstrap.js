@@ -97,7 +97,7 @@
   // document before the module graph that builds their contents. The theme consumes
   // these provisional root facts; restoreReaderView replaces them with live state.
   try {
-    const scope = root.hasAttribute("data-lf-contained") ? location.pathname : "";
+    const scope = root.dataset.lfReaderScope ?? "";
     const tray = localStorage.getItem(scope + "lf-tray-slot-open");
     if (tray) root.dataset.lfRestoreTray = tray;
     else if (localStorage.getItem(scope + "lf-thread-panel-open") === "1")

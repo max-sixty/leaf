@@ -65,7 +65,9 @@ turn.
 Each observed slice contains at most one plain reply. Write that reply as the normal
 final message. Leaf streams it into the addressed thread and commits its completed
 text through the same reply contract as `leaf reply`; do not run a reply command for
-that response. The committed reply retains the thread's standing anchor. A later plain
+that response. The committed reply retains the thread's standing anchor. Settling that
+move before the commit does not discard the answer: the completed reply keeps its
+response address and reopens the conversation in Open Threads. A later plain
 reply remains pending for the next slice. Version and receipt obligations in the
 current slice still use their explicit `resolve` and `receipt` operations.
 

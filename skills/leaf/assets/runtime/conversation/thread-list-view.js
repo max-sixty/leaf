@@ -4,7 +4,8 @@
    Count and narrowing paint share the rows' checkpoint and update boundary.
    Native named details keep at most one visible thread open while every card retains
    its message and editor nodes behind its title. Disclosure is mechanical state and
-   never publishes a new application epoch. Explicit arrivals open their target. */
+   never publishes a new application epoch. Narrowing retains that disclosure; opening
+   another named card closes it natively. Explicit arrivals open their target. */
 import { LitElement, html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { ThreadView } from "./thread-card.js";
@@ -166,7 +167,6 @@ class ThreadListView extends LitElement {
         if (view.node.contains(focused())) this.focus({ preventScroll: true });
       }
       view.node.name = folding ? "" : "threads";
-      if (!descriptor.visible && !folding) view.node.open = false;
       view.setNavigation({
         draftChanged: () => view.present(view.model),
       });

@@ -34,6 +34,8 @@ from leaf import codex as leaf_codex
 from leaf.cli import cli
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
+from leaf.conversation import cmd_resolve
+from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
@@ -42,7 +44,8 @@ from leaf.machine import pid_alive
 from leaf.revision_artifact import Resource
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
-from render_harness import consume_browser_errors
+from playwright.sync_api import expect
+from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
@@ -2688,6 +2691,98 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     assert socket.closed
 
 
+@pytest.mark.parametrize("read_elsewhere", [False, True])
+def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
+    browser, serve, read_elsewhere
+):
+    """A resolve during a turn cannot hide its completed answer from Open Threads.
+
+    Exercise the hosted commit and the publication gate's actual browser observer,
+    then verify settlement and retry at the same durable response address.
+    """
+    url = serve(LONG_PAGE)
+    page_dir = serve.page_dir
+    page = open_page(browser, url)
+    verify_site.observe_startup(page)
+    page.reload()
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    page.evaluate("window.__leafVerifier.startVisibleReplyClock")
+    box = page.locator(".lf-general textarea")
+    box.fill("edit the page")
+    box.press("ControlOrMeta+Enter")
+    told(page)
+    [comment] = [event for event in read_events(page_dir) if event["kind"] == "comment"]
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        website_server.website_harness("hosted-thread", os.getpid()),
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    turn = hosted_follower(host, page_dir, prepared)
+    turn.begin()
+    cmd_resolve(page_dir, comment["id"])
+    told(page)
+    # Let resolution finish filtering the card out; racing its fold can conceal a
+    # disclosure reset that would hide an answer arriving later in a real turn.
+    thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
+    expect(thread).to_be_hidden()
+    if read_elsewhere:
+        box.fill("A separate conversation")
+        box.press("ControlOrMeta+Enter")
+        told(page)
+        [other] = [
+            event
+            for event in read_events(page_dir)
+            if event["kind"] == "comment" and event["id"] != comment["id"]
+        ]
+        other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
+        expect(other_thread).to_have_attribute("open", "")
+
+    turn.commit(
+        {
+            "id": "app-server-turn",
+            "status": "completed",
+            "items": [
+                {
+                    "type": "agentMessage",
+                    "phase": "final_answer",
+                    "id": "msg-1",
+                    "text": "deployment verified",
+                }
+            ],
+        }
+    )
+
+    told(page)
+    if read_elsewhere:
+        expect(other_thread).to_have_attribute("open", "")
+        expect(thread.locator(".lf-msg.agent")).to_be_hidden()
+        assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
+    else:
+        page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
+        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
+        assert current_responses(page_dir, read_events(page_dir)) == {}
+    [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert answer["parent"] == comment["id"]
+    assert answer["text"] == "deployment verified"
+    assert answer["responds"] == comment["id"]
+    assert "initiates" not in answer
+    # Retrying the same delivery keeps one answer and its original response scope.
+    assert (
+        website_server.cmd_reply(
+            page_dir,
+            comment["id"],
+            "deployment verified",
+            "",
+            for_event=comment["id"],
+            attempt=answer["attempt"],
+            when_settled="post",
+            identity={"session": "hosted-thread"},
+        )
+        == answer
+    )
+
+
 def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     page_dir, monkeypatch
 ):
@@ -2775,7 +2870,7 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
         "",
         for_event=comment["id"],
         attempt=website_server.agent_attempt(comment["id"]),
-        skip_if_settled=True,
+        when_settled="skip",
         only_if_unclaimed=True,
         identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
     )

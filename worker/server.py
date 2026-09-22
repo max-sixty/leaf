@@ -339,7 +339,7 @@ def write_failure_receipt(
         "",
         for_event=responds,
         attempt=agent_attempt(responds),
-        skip_if_settled=True,
+        when_settled="skip",
         only_if_unclaimed=only_if_unclaimed,
         failure=failure,
         identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},

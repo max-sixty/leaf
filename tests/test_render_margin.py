@@ -7177,3 +7177,37 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         f"after Escape: in the closing task the thread margin entry stands at {landed}, "
         f"but the column's rest is {rest}"
     )
+
+
+def test_closing_a_tray_places_the_margin_against_the_released_column(browser, serve):
+    """Tray closure finishes its margin projection in the gesture, after releasing room."""
+    url = serve(ASK_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "mounts-p"},
+            "text": "Check the mounts.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    marker = '.lf-margin-marker[data-lf-kinds="comment"]'
+    resting = page.locator(marker).bounding_box()["x"]
+    page.locator(".lf-asks").click()
+    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    margins_laid_out(page)
+    assert page.locator(marker).bounding_box()["x"] != pytest.approx(resting, abs=1)
+    # The listener reads after the control's handler, before a repaint can mask a stale
+    # margin. The real click is necessary: it exercises focus return and the tray's close.
+    page.evaluate(
+        """selector => document.addEventListener('click', () => {
+          window.trayClosedMargin = document.querySelector(selector).getBoundingClientRect().x;
+        }, {once: true})""",
+        marker,
+    )
+    page.locator(".lf-asks").click()
+    assert page.evaluate("window.trayClosedMargin") == pytest.approx(resting, abs=1)

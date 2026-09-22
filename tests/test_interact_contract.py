@@ -58,6 +58,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -79,6 +80,128 @@ from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
 from page_fixtures import package_selection_args
+
+
+def test_new_words_reopen_a_thread_without_settling_a_newer_reader_turn(page_dir):
+    """Late answers keep their exact scope; marks and failure receipts stay closed."""
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
+    )
+    conversation_model.cmd_resolve(page_dir, "question")
+    for message in (
+        {"author": "user", "token": "keep"},
+        {
+            "author": "agent",
+            "text": "Delivery failed",
+            "failure": "unavailable",
+            "responds": "question",
+        },
+    ):
+        events_model.append_event(
+            page_dir, {"kind": "reply", "parent": "question", **message}
+        )
+        threads = event_folds_model.build_threads(
+            events_model.read_events(page_dir), {}
+        )
+        assert threads["question"]["resolved"] is not None
+
+    answer = conversation_model.cmd_reply(
+        page_dir,
+        "question",
+        "Here is the completed answer.",
+        None,
+        for_event="question",
+        when_settled="post",
+    )
+    assert answer["responds"] == "question"
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["question"]["resolved"] is None
+    assert not event_folds_model.awaits_agent(threads["question"])
+    assert (
+        delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
+        == {}
+    )
+
+    conversation_model.cmd_resolve(page_dir, answer["id"])
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "correction",
+            "author": "user",
+            "parent": answer["id"],
+            "text": "Please address this correction too.",
+        },
+    )
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["question"]["resolved"] is None
+    conversation_model.cmd_reply(
+        page_dir,
+        "question",
+        "Additional detail on the original question.",
+        None,
+        for_event="question",
+        when_settled="post",
+    )
+    assert delivery_model.current_responses(
+        page_dir, events_model.read_events(page_dir)
+    ) == {"correction": {"kind": "reply", "to": "correction", "for": "correction"}}
+    closed = conversation_model.cmd_resolve(page_dir, "question")
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["question"]["resolved"]["id"] == closed["id"]
+
+
+def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation(
+    server, page_dir
+):
+    """Reopening restores the conversation while its completed choice stays answered."""
+    publish(page_dir)
+    question = conversation_model.cmd_comment(
+        page_dir,
+        None,
+        None,
+        None,
+        "Choose an option.",
+        '<lf-ask id="thread-ask"><h2>Choose one</h2>'
+        '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
+        "Thread option</lf-option></lf-options></lf-ask>",
+    )
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": files_model.latest_revision(page_dir),
+                "widget": "thread-picks",
+                "action": "choose",
+                "detail": {"options": ["thread-option"]},
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+    choice = json.loads(body)["state"]["events"][-1]
+    assert choice["id"] in delivery_model.current_responses(
+        page_dir, events_model.read_events(page_dir)
+    )
+    conversation_model.cmd_resolve(page_dir, question["id"])
+    answer = conversation_model.cmd_reply(
+        page_dir,
+        question["id"],
+        "I applied your choice.",
+        None,
+        for_event=choice["id"],
+        when_settled="post",
+    )
+    assert answer["responds"] == choice["id"]
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads[question["id"]]["resolved"] is None
+    assert (
+        delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
+        == {}
+    )
+
 
 # One question quoted back and the same question live. The pair is what makes the
 # exhibit refusal below the exhibit's doing: the two groups are the same markup

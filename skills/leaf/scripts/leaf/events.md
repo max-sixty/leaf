@@ -120,13 +120,18 @@ sorted identity snapshot the server stamps in `generated`.
 
 ## Threads
 
-An agent comment opens a question. A reply answers without closing the thread;
+An agent comment opens a question. A substantive reply opens or resumes the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply
 always hands the thread back to the agent, so it needs no parallel declaration.
-An agent reply records the delivery event it answers as `responds`; a proactive
-`--initiates` reply records `initiates: true`. Settlement consumes this durable
-scope rather than log order, so answering older work cannot erase newer reader input.
+An agent reply records the delivery event it answers as `responds`, including a
+completed delivery answer whose move was settled during the turn. A proactive
+message with no response address records `initiates: true` instead. Settlement
+consumes this exact identity rather than log order, so answering older work cannot
+erase newer reader input. A substantive reply reopens a resolved conversation;
+reactions and host failure receipts leave its closure standing. A later resolution
+closes the conversation again. Reopening restores its still-unanswered widget Asks,
+as an explicit reopen does.
 A host that settles an ask because it cannot start work records `failure`, a nonempty
 host-owned code, on its reply; only the host reply writer can supply it, and the panel
 draws such a reply as a receipt whose head says the message answers nothing, since

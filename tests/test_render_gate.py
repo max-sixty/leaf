@@ -858,12 +858,9 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     of a second and the document steps aside to make the room. Coming back to a tray
     that was already standing is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the reader a fifth of a
-    second of furniture instead of what they came back to read. The runtime says so in
-    two places, and neither had anything holding it: `motion` refuses to animate behind
-    the presentation boundary, and `restoreTray` paints the tray without going through
-    the opener a press uses. Route the restore through that opener — the natural tidy,
-    since it is otherwise two writers of one fact — and the tray slides on every load,
-    with every gate here green.
+    second of furniture instead of what they came back to read. The auxiliary-surface
+    owner passes arrival separately from a gesture, so even a tray whose first paint
+    waits for presentation appears without an opening slide.
 
     What is read is every motion the browser reports, which it does through the
     inspector's animation agent as it reports a request or a response: nothing is
@@ -3269,6 +3266,86 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     ), f"the arrow moved something other than the edge and the page with it: {stepped}"
     assert returned["width"] == stepped["width"], (
         f"the width did not survive the reload a version switch makes: {returned}"
+    )
+
+
+@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
+@pytest.mark.parametrize("pointer", ["mouse", "touch", "touch-cancel"])
+def test_dragging_an_edge_preserves_reader_state(browser, serve, edge, pointer):
+    """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact."""
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, has_touch=pointer != "mouse"
+    )
+    page = open_page(
+        browser, serve(edge.html(), comments=edge.comments), context=context
+    )
+    edge.stand(page)
+    edge_settled(page, edge)
+    handle = page.locator(f"{edge.region} .lf-edge")
+    cdp = context.new_cdp_session(page) if pointer != "mouse" else None
+
+    def drag():
+        box = handle.bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        dx = -40 if edge.side == "right" else 40
+        before = geometry(page, edge)["width"]
+        if pointer == "mouse":
+            page.mouse.move(x, y)
+            page.mouse.down()
+            page.mouse.move(x + dx, y, steps=8)
+        else:
+            for event, at in [("touchStart", x), ("touchMove", x + dx)]:
+                cdp.send(
+                    "Input.dispatchTouchEvent",
+                    {"type": event, "touchPoints": [{"x": at, "y": y}]},
+                )
+        assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "none"
+        if pointer == "mouse":
+            page.mouse.up()
+            assert not handle.evaluate("e => e.matches(':focus-visible')")
+        else:
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {
+                    "type": "touchCancel" if pointer == "touch-cancel" else "touchEnd",
+                    "touchPoints": [],
+                },
+            )
+        assert handle.evaluate("e => e === document.activeElement")
+        assert geometry(page, edge)["width"] == before + 40
+
+    handle.focus()
+    page.keyboard.press("ArrowRight")
+    assert handle.evaluate("e => e.matches(':focus-visible')")
+    drag()
+    drawn = geometry(page, edge)
+    page.keyboard.press("ArrowRight")
+    assert handle.evaluate("e => e.matches(':focus-visible')")
+    assert geometry(page, edge)["width"] == drawn["width"] + (
+        -24 if edge.side == "right" else 24
+    )
+
+    page.locator("main p").first.click(modifiers=["Alt"])
+    composer = page.locator(".lf-fab-input")
+    composer.fill("half a comment")
+    drag()
+    expect(composer).to_be_visible()
+    expect(composer).to_have_value("half a comment")
+
+    # An existing partial-word selection can come from native keyboard selection or
+    # browser commands. Only a new selection gesture may expand it to a sentence.
+    page.locator("main p").nth(1).evaluate("""p => {
+        const text = p.firstChild;
+        getSelection().setBaseAndExtent(text, 3, text, 14);
+    }""")
+    selected = page.evaluate("() => getSelection().toString()")
+    drag()
+    assert (
+        page.evaluate("""async () => {
+        await new Promise(resolve => setTimeout(resolve));
+        return getSelection().toString();
+    }""")
+        == selected
     )
 
 

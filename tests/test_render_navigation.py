@@ -502,12 +502,15 @@ def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
         '<label>Draft <input id="reading-draft"></label>'
         '<label>Flag <input id="reading-flag" type="checkbox"></label>'
         '<details id="reading-detail"><summary>Context</summary>Kept open</details>'
+        '<div id="reading-inner" style="height: 60px; overflow: auto">'
+        '<div style="height: 600px">Scrollable evidence</div></div>'
         '<button id="left-head">',
     )
     page = open_page(browser, live_url(serve(source)))
     page.locator("#reading-flag").check()
     page.locator("#reading-detail summary").click()
     page.locator("#reading-draft").fill("kept draft")
+    page.locator("#reading-inner").evaluate("el => el.scrollTop = 220")
     page.evaluate("""() => {
       customElements.define('page-focus-transfer', class extends HTMLElement {
         connectedCallback() { document.getElementById('right-head').focus(); }
@@ -523,6 +526,7 @@ def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
     expect(page.locator("#reading-draft")).to_have_value("kept draft")
     expect(page.locator("#reading-flag")).to_be_checked()
     expect(page.locator("#reading-detail")).to_have_attribute("open", "")
+    assert page.locator("#reading-inner").evaluate("el => el.scrollTop") == 220
 
 
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):

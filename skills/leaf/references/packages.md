@@ -428,7 +428,10 @@ checks the returned predicate before moving focus or scroll. Pass that same pred
 `reveal(target, currentIntent)`; asynchronous `lf-reveal` listeners receive it as
 `event.detail.mayReveal`. If the navigation itself opens or closes a surface that moves
 focus, `currentIntent.handoff(() => changeSurface())` preserves that synchronous focus
-transfer without renewing the original input generation.
+transfer without renewing the original input generation. After a wait, check the
+predicate before starting that synchronous handoff. If the synchronous work already
+moved focus, the handoff keeps and adopts that destination instead of running the old
+focus move.
 
 What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a

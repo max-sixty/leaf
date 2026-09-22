@@ -28,11 +28,13 @@ export function retainReaderIntent({
       (at === document.body || at === fallback || withinSource)
     );
   };
-  // A navigation may itself close a tray or open a panel and move focus. Adopt only
-  // that synchronous handoff, retaining the original input generation throughout.
+  // Synchronous work may already have transferred focus, as a connected widget can
+  // during replacement. Keep that destination instead of running the old focus move,
+  // and adopt it for subsequent continuity without renewing the input generation.
+  // A delayed caller must check current() before beginning its synchronous handoff.
   current.handoff = (move) => {
-    if (!current()) return false;
-    move();
+    if (!available() || retained !== intent) return false;
+    if (current()) move();
     source = focused();
     return current();
   };

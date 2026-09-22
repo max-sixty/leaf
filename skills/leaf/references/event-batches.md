@@ -14,7 +14,6 @@ Every carrier presents the same immutable object:
       "page": "/absolute/page",
       "through_seq": 12,
       "conversations": [],
-      "handling": {},
       "events": []
     }
   ]
@@ -25,8 +24,8 @@ Some hosts deliver it inline; others deliver a pointer that `leaf delivery read 
 resolves to the same object. Your host contract names which. These differ only in
 transport. Process every batch and every event.
 
-Each event retains its stored identity and order, then adds four delivery
-readings:
+Each event retains its stored identity, fields and order, less the browser's
+retry key `attempt`, then adds these delivery readings:
 
 - `subject` is the stable page, conversation, or widget the event changes.
 - `says`, when present, maps each element a widget gesture names to its words: the
@@ -52,6 +51,11 @@ readings:
   current state before writing because later evidence may already have settled the
   requirement. A reply response carries both `to`, the conversation address to write
   under, and `for`, the exact event whose obligation the write must still satisfy.
+- `handling`, when present, is what the vendored layer asks of the agent for this
+  event: its kind's clauses whose condition the event meets, so a plain comment is
+  not told how to read a drawing and a page widget's pick is not told how a thread
+  answers. A missing or invalid registry leaves it out rather than substituting
+  another layer's rules.
 
 The batch-level `conversations` carry each needed anchor, closure state, earlier
 messages, and standing gestures on sent widgets. A long conversation includes
@@ -61,10 +65,7 @@ current reading and paginate with `--after`; use `leaf events <page>
 --conversation <conversation-id>` only for raw-log diagnostics. `leaf transcript
 <page>` is the human-facing Markdown export.
 
-`handling` carries the vendored layer's instruction for every event kind present.
-A missing or invalid registry leaves it empty rather than substituting another
-layer's rules. A reaction carries its token, plus `means` when its package defines
-one.
+A reaction carries its token, plus `means` when its package defines one.
 
 Long-thread context may include `summary_hint`; a pointer-only host can surface the
 same suggestion as XML. It names a contiguous message range to consider summarizing.

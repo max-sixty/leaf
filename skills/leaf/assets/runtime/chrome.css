@@ -93,7 +93,7 @@
    the head instead changes nothing the corpus draws, so nothing here is winning on
    position (test_render_gate.py). */
 .lf-ui { box-sizing: border-box; }
-.lf-ui *, .lf-ui *::before, .lf-ui *::after { box-sizing: inherit; }
+.lf-ui *, .lf-ui *::before, .lf-ui *::after { box-sizing: border-box; }
 /* Clearing the UA's form-control face is a different kind of declaration from
    choosing one, so the clearing lives in a layer, which any unlayered choice
    outranks whatever its specificity. That makes unrepresentable what used to be a
@@ -1053,12 +1053,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
-  .lf-thread-summary[aria-expanded="true"] { background: var(--chip);
+  .lf-thread[open] > .lf-thread-summary { background: var(--chip);
     box-shadow: inset 2px 0 var(--accent); }
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-chevron { width: 12px; height: 12px; color: var(--muted); }
-  .lf-thread-summary[aria-expanded="true"] .lf-thread-chevron { transform: rotate(90deg); }
+  .lf-thread[open] > .lf-thread-summary .lf-thread-chevron { transform: rotate(90deg); }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; }
   .lf-thread-status { min-width: 0; overflow: hidden; text-overflow: ellipsis;
@@ -1066,7 +1066,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-status[data-lf-turn="reader"] { color: var(--turn-ink); }
   .lf-thread-count { color: var(--muted); font-size: 11px; text-align: right;
     font-variant-numeric: tabular-nums; }
-  .lf-thread-collapsed > :not(.lf-thread-summary) { display: none !important; }
   /* One inset serves the quote, messages and composer. Author, time and delivery
      form one quiet header. */
   .lf-thread-compact > .lf-thread-head { margin: 12px 8px; }
@@ -1155,10 +1154,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread:is(:focus-within, .lf-focus-within) {
     outline: none;
     background: var(--here-surface);
-  }
-  .lf-thread:is(:focus-visible, .lf-focus-visible) {
-    outline: var(--here-ring); --lf-here-ring: thread-card;
-    outline-offset: calc(-1 * var(--here-ring-w));
   }
   .lf-quote { margin: 0 0 12px; padding: 2px 8px 2px 10px;
     border-inline-start: 1px solid var(--border-2); color: var(--muted);
@@ -1513,8 +1508,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread]:popover-open { display: flex; flex-direction: column; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
+  /* Dismiss rides the conversation's own meta row, where the settlement action sits,
+     so it starts at the card's inset plus the thread's own padding rather than above
+     that row. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
-    position: absolute; z-index: 3; inset-block-start: 12px; inset-inline-end: 12px;
+    position: absolute; z-index: 3; inset-inline-end: 12px;
+    inset-block-start: calc(12px + var(--sp-1));
     align-items: flex-start; flex: none; }
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
       .lf-margin-preview-nav:not([hidden])) {
@@ -1531,7 +1530,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; }
   /* The subject and its actions stay outside the conversation's scrollport. The
-     retained settlement action is positioned against the card, alongside Dismiss. */
+     retained settlement action rides the conversation's meta row, which sticks to the
+     top of that scrollport, and Dismiss is positioned on that row beside it. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-list {
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     scroll-padding-block: var(--here-ring-room); }

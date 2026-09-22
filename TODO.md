@@ -4,6 +4,8 @@ Priority runs from **Now** to **Next** to **Etc**. Themes group related work wit
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
 evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.
 Completed work and rejected ideas live in git history or the relevant research note.
+An item marked **Unconfirmed** rests on a reading nobody has run or a design nobody
+has tried; settle that before building it.
 
 ## Now
 
@@ -59,6 +61,46 @@ Completed work and rejected ideas live in git history or the relevant research n
   clipped diagram and diff content, and undersized touch targets.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
+- **Keep wrapped inline code inside the column.** `theme.css` gives inline `code`
+  `box-decoration-break: clone`, which pads every wrapped fragment and pushes it
+  about 4px past the text column; `slice` keeps it inside, with a squared-off end
+  where a code span breaks. A visual call.
+
+### The agent's text interface
+
+- **Tell a thread widget's multi-pick toggles apart from its Done.** Leaf holds two
+  readings of one rule. `asks.py` honours the registry's `x-awaits.until`, so a
+  `multiple` group inside a thread is answered only by its `answer` action; the
+  frozen-widget loop in `acknowledgments.py` owes a reply to every toggle until an
+  agent reply responds to it. The `handling` text follows `until`. Make
+  acknowledgments read `until` too. **Unconfirmed:** found by reading both
+  modules; no run has shown an agent held on a toggle.
+- **Send each `handling` clause once per batch.** Each delivered event carries its
+  clauses' full text, so ten plain comments repeat one 493-character instruction
+  ten times. List each distinct clause once per batch and have each event name the
+  ones that apply. **Unconfirmed:** no agent run shows a clause named by reference
+  is followed as reliably as one printed on its event.
+- **Say what an agent without a browser does instead of looking.** Two places in
+  the guidance ask the agent to look at the rendered page: the pre-handover review
+  ("read the page as the user will") and diagrams ("look at each flowchart once").
+  Name what an agent with only the Leaf skill does in their place.
+- **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by
+  the anchored element's size over the recorded `box`, so a mark stays on its
+  element in a narrower window; reflowed text still moves under it.
+- **Record the reader's view beside `viewed`.** Add the window size, colour scheme
+  and revision a visible tab reports to the presence reading, and document them.
+  **Unconfirmed:** no agent failure yet shows the agent needs them; the
+  agent-usability baseline above should.
+- **Cut the Claude Code loop to one command per batch.** Advance the cursor when
+  `leaf wait` prints, mark a delivered move Working when it enters the turn, and
+  default the handoff banner to the page's open Ask, so `ack`, `delivery claim` and
+  `status waiting` leave the ordinary batch. **Unconfirmed:** advancing on print
+  gives up what `ack` guards today: a `leaf wait` output that was truncated or
+  lost before it reached the agent is delivered again (`event-batches.md`).
+- **Shorten the delivery id.** It is still a 36-character UUID, beside 8-character
+  event ids. Codex names its queue files with it and `delivery_path` requires the
+  UUID form, so both change together, with a collision check like event ids have.
+  **Unconfirmed:** it saves under 30 characters a batch, which may not be worth it.
 
 ## Etc
 

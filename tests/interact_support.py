@@ -5,6 +5,7 @@ Run from the repo root:
     uv run pytest tests
 """
 
+import difflib
 import errno
 import fcntl
 import http.client
@@ -28,6 +29,7 @@ from pathlib import Path
 
 import anyio
 import pytest
+import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
@@ -49,6 +51,10 @@ from leaf import vendoring as vendoring_model
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as compatibility_model
 from leaf.validation import instances as validation_model
+from pytest_regtest.snapshot_handler import (
+    BaseSnapshotHandler,
+    SnapshotHandlerRegistry,
+)
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a host installs are one tree now; PLUGIN_ROOT still
@@ -1350,3 +1356,132 @@ def element_declaration(tag: str, upgrade: bool = False) -> dict:
     if upgrade:
         declaration["x-verbatim"] = True
     return declaration
+
+
+class YamlDocument(str):
+    """Text that `snapshot.check` records as `snapshot.yaml` in the test's folder
+    under `_regtest_outputs/`, so an editor reads it as YAML: its `#` header says
+    what the file is, and everything under the header is the recorded data."""
+
+
+class Prose(str):
+    """A string a YAML snapshot writes as a folded `>-` block wrapped to the line,
+    where a plain scalar holding a colon would come out quoted."""
+
+
+class Json(dict):
+    """A mapping a YAML snapshot writes as JSON, which YAML reads back as the same
+    mapping, so it reads character for character like the JSON file it came from."""
+
+
+class _SnapshotDumper(yaml.SafeDumper):
+    # Prose folds at the width; a JSON value stays on one line, as its own file has
+    # it. The emitter reads this width on every break it considers.
+    @property
+    def best_width(self):
+        return sys.maxsize if self.flow_level else self._best_width
+
+    @best_width.setter
+    def best_width(self, width):
+        self._best_width = width
+
+    def increase_indent(self, flow=False, indentless=False):
+        # A list sits indented under its key, as a person writes one.
+        return super().increase_indent(flow, False)
+
+
+_SnapshotDumper.add_representer(
+    Prose,
+    lambda dumper, text: dumper.represent_scalar(
+        "tag:yaml.org,2002:str", text, style=">"
+    ),
+)
+
+
+def _json_node(dumper, value):
+    if isinstance(value, dict):
+        return yaml.MappingNode(
+            "tag:yaml.org,2002:map",
+            [(_json_node(dumper, k), _json_node(dumper, v)) for k, v in value.items()],
+            flow_style=True,
+        )
+    if isinstance(value, list):
+        return yaml.SequenceNode(
+            "tag:yaml.org,2002:seq",
+            [_json_node(dumper, item) for item in value],
+            flow_style=True,
+        )
+    if isinstance(value, str):
+        return yaml.ScalarNode("tag:yaml.org,2002:str", value, style='"')
+    # true, false, null and numbers are spelled the same in both.
+    return dumper.represent_data(value)
+
+
+_SnapshotDumper.add_representer(Json, _json_node)
+# A list of values stays on one line, as `[0, 0]`; a list of records goes one to a
+# line.
+_SnapshotDumper.add_representer(
+    list,
+    lambda dumper, items: dumper.represent_sequence(
+        "tag:yaml.org,2002:seq",
+        items,
+        flow_style=not any(isinstance(item, dict) for item in items),
+    ),
+)
+
+
+def yaml_block(data: dict) -> str:
+    """`data` as a YAML snapshot writes it."""
+    return yaml.dump(
+        data,
+        Dumper=_SnapshotDumper,
+        sort_keys=False,
+        allow_unicode=True,
+        # PyYAML breaks at the first space past this column, so a line runs a word
+        # longer.
+        width=78,
+    )
+
+
+def yaml_document(header: str, cases: dict) -> YamlDocument:
+    """`cases` as YAML, a blank line between top-level keys, under `header` as a
+    comment block."""
+    comment = "\n".join(f"# {line}".rstrip() for line in header.splitlines())
+    body = "\n".join(yaml_block({name: case}) for name, case in cases.items())
+    return YamlDocument(f"{comment}\n\n{body}")
+
+
+class _YamlSnapshotHandler(BaseSnapshotHandler):
+    FILE = "snapshot.yaml"
+
+    def __init__(self, handler_options, pytest_config, tw):
+        pass
+
+    def save(self, folder, obj):
+        Path(folder, self.FILE).write_text(obj, encoding="utf-8")
+
+    def load(self, folder):
+        return YamlDocument(Path(folder, self.FILE).read_text(encoding="utf-8"))
+
+    def show(self, obj):
+        return obj.splitlines()
+
+    def compare(self, current_obj, recorded_obj):
+        return current_obj == recorded_obj
+
+    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):
+        return list(
+            difflib.unified_diff(
+                recorded_obj.splitlines(),
+                current_obj.splitlines(),
+                "recorded",
+                "current",
+                lineterm="",
+            )
+        )
+
+
+# In front of the plugin's own handler, which takes every str.
+SnapshotHandlerRegistry.add_handler(
+    lambda obj: isinstance(obj, YamlDocument), _YamlSnapshotHandler, insert_front=True
+)

@@ -308,6 +308,14 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
     comes every two seconds, so at most one of these frames can carry it.
     """
     page = open_page(browser, serve(FEATURE_GALLERY))
+    # The gallery's screenshot upgrades to Web Awesome's draggable comparison after the
+    # page has presented, deliberately off the presentation path (#892), and moving its
+    # two frames into that component lays the margin out twice a few milliseconds apart.
+    # The stamps `open_page` waits on do not cover an upgrade that comes after them, so
+    # until it lands the page is still arriving, and a count started before it read that
+    # pair as the cycle this test denies — on about one run in five here, and once on
+    # CI, with the window landing wherever the module happened to resolve.
+    page.wait_for_function("() => document.querySelector('lf-shot wa-comparison')")
     resized(page, 1280, 900)
     margins_laid_out(page)
     assert page.locator(".lf-react-mark").count() >= 1
@@ -4618,12 +4626,15 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     browser, serve
 ):
     """A walked thread uses the free strip without covering its whole control cluster."""
+    # The gallery's thread on the crowded suggestion, which is where this walk is going.
+    crowded_thread = "a554d5e884abffdb6494a2fb90b0634f"
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1838, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
 
+    walked = page.locator(".lf-margin-preview .lf-conversation-thread")
     page.keyboard.press("t")
     expect(
         page.locator(
@@ -4631,7 +4642,23 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
             '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
         )
     ).to_be_focused()
-    page.keyboard.press("t")
+    # The walk steps one thread at a time in page order, so the presses between the
+    # gallery's first thread and this cluster's are however many threads the gallery
+    # carries between them. #886 added one, and this test — which counted two presses —
+    # arrived at that one instead and measured a card three thousand pixels from the
+    # cluster it names. The walk is taken to the thread it is for instead, and gives up
+    # when it comes back round to one it has already stood on rather than pressing
+    # forever. Each press waits for its own arrival before the next
+    # (`tests/CLAUDE.md`, "A repeated gesture has to let the repaint it causes land").
+    stood_on = []
+    while (standing := walked.get_attribute("data-thread")) != crowded_thread:
+        assert standing not in stood_on, (
+            f"the walk came back to {standing} without reaching the crowded cluster's "
+            f"thread; it stood on {stood_on}"
+        )
+        stood_on.append(standing)
+        page.keyboard.press("t")
+        expect(walked).not_to_have_attribute("data-thread", standing)
 
     crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
     expect(page.locator("#bg-crowded")).to_be_in_viewport()
@@ -4782,10 +4809,17 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser, serve):
-    """A rail a few pixels short of the card's measure narrows the card, not its height."""
+    """A rail a few pixels short of the card's measure narrows the card, not its height.
+
+    The width is the arrangement: the rail beside this cluster grows with half the
+    viewport, and the case only says anything where the room it leaves falls between
+    `--thread-card-min` and `--thread-card`. Wider and the card takes its preferred
+    measure with room to spare, narrower and it is the short-rail case below. The room
+    is asserted before the outcome is, so moving either token reddens the arrangement
+    and names the width to re-pick rather than reading as a layout regression."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1440, 900)
+    resized(page, 1220, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
     page.keyboard.press("t")
@@ -4815,6 +4849,11 @@ def test_a_thread_beside_its_cluster_takes_the_room_to_the_visible_edge(browser,
     assert geometry["cardLeft"] == pytest.approx(
         geometry["controlsRight"] + 8, abs=0.5
     ), geometry
+    # The room between the cluster and the visible edge is what the card has to fit
+    # into, and this case is the one where that room falls short of the preferred
+    # measure without reaching the minimum.
+    room = geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+    assert geometry["minimum"] <= room < geometry["preferred"], geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -5507,15 +5546,16 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
           const head = preview.querySelector('.lf-margin-preview-head');
-          const messageHead = thread.querySelector(
-            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
-          );
+          // The first message's head is hoisted out of its message and onto the row the
+          // thread opens with, which carries its Resolve beside the author. The head
+          // itself is `display: contents` there, so the row is what has a box.
+          const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
           const reply = thread.querySelector('.lf-reply-disclosure');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const tr = thread.getBoundingClientRect();
           const hr = head.getBoundingClientRect();
-          const mh = messageHead.getBoundingClientRect();
+          const mr = metaRow.getBoundingClientRect();
           const rb = reply.getBoundingClientRect();
           const cr = close.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
@@ -5529,8 +5569,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
               left: tr.left + parseFloat(ts.borderLeftWidth)
                 + parseFloat(ts.paddingLeft),
             },
-            head: {bottom: hr.bottom},
-            messageHead: {top: mh.top},
+            head: {top: hr.top, bottom: hr.bottom},
+            metaRow: {top: mr.top},
             reply: {right: rb.right, left: rb.left},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
             closeBorder: getComputedStyle(close).borderTopWidth,
@@ -5550,7 +5590,11 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         geometry["close"]["bottom"], abs=1
     )
     assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
-    assert geometry["messageHead"]["top"] - geometry["head"]["bottom"] < 24
+    # The card opens on that row rather than above a band of its own: Dismiss is
+    # positioned onto it, so the two share a line.
+    assert geometry["metaRow"]["top"] == pytest.approx(
+        geometry["head"]["top"], abs=1
+    ), geometry
     reply_button.click()
     expect(preview.locator("textarea")).to_be_visible()
     page.locator("h1").click()
@@ -5744,7 +5788,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(f'.lf-thread[data-id="{root_id}"]')).to_be_focused()
+    expect(
+        page.locator(f'.lf-thread[data-id="{root_id}"] > .lf-thread-summary')
+    ).to_be_focused()
 
     preview.evaluate(
         """card => {
@@ -5817,9 +5863,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(preview).to_be_hidden()
         thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
         expect(thread).to_contain_text(sent["text"])
-        expect(thread.locator(".lf-thread-summary")).to_have_attribute(
-            "aria-expanded", "true"
-        )
+        expect(thread).to_have_attribute("open", "")
     else:
         expect(preview).to_be_visible()
         thread = preview.locator(
@@ -5947,9 +5991,13 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     note = page.locator("#mounts-p .lf-mark-note")
     note.focus()
     page.keyboard.press("Enter")
-    expect(threads.locator(f'.lf-thread[data-id="{first["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{first["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
     page.keyboard.press("t")
-    expect(threads.locator(f'.lf-thread[data-id="{second["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{second["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
 
     # The walk moved the reader laterally to a second conversation in Threads. Escape
     # closes that surface; the note that took them there is not a landing.
@@ -5983,7 +6031,9 @@ def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve
     # The box hands the reader back to the thread it belongs to; the marker is Leaf's
     # own control beside the words it marks rather than a place they were standing.
     page.keyboard.press("Escape")
-    expect(threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')).to_be_focused()
+    expect(
+        threads.locator(f'.lf-thread[data-id="{sent["id"]}"] > .lf-thread-summary')
+    ).to_be_focused()
     expect(threads).to_have_class(re.compile(r"\bopen\b"))
 
 

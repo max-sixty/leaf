@@ -18,6 +18,7 @@ import { groupFor, pageOutline } from "./placement.js";
 import { iconTemplate } from "../icons.js";
 import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
+import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges } from "./summary-ranges.js";
 
@@ -152,13 +153,7 @@ function navigationSummary(navigation, model) {
             ? receiptLabel
             : latest?.streamLabel || (model.awaitsReader ? "On you" : receiptLabel);
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
-  return html`<button
-    type="button"
-    class="lf-thread-summary"
-    title=${title}
-    aria-expanded=${String(navigation.selected)}
-    @click=${navigation.activate}
-  >
+  return html`<summary class="lf-thread-summary" title=${title}>
     ${iconTemplate("next", "lf-thread-chevron")}
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
@@ -173,7 +168,7 @@ function navigationSummary(navigation, model) {
       title=${receipt && status === receiptLabel ? receipt.announced : status}
       >${status}</span
     >
-  </button>`;
+  </summary>`;
 }
 
 export class ThreadView {
@@ -191,8 +186,11 @@ export class ThreadView {
 
   constructor(surface, commands) {
     this.#commands = commands;
-    this.node = document.createElement(surface === "outlet" ? "details" : "div");
-    this.node.tabIndex = -1;
+    this.node = document.createElement(
+      surface === "outlet" || surface === "panel" ? "details" : "div",
+    );
+    if (surface === "panel") this.node.name = "threads";
+    else this.node.tabIndex = -1;
     this.node.addEventListener("animationend", () => {
       this.#growing = false;
       this.node.classList.remove("grow");
@@ -208,10 +206,6 @@ export class ThreadView {
 
   setNavigation(navigation) {
     this.#navigation = navigation;
-  }
-
-  get expanded() {
-    return Boolean(this.#navigation?.selected);
   }
 
   get model() {
@@ -253,10 +247,6 @@ export class ThreadView {
     const panel = model.surface === "panel";
     const navigation = panel ? this.#navigation : null;
     this.node.classList.toggle("lf-thread-compact", Boolean(navigation));
-    this.node.classList.toggle(
-      "lf-thread-collapsed",
-      Boolean(navigation && !navigation.selected),
-    );
     const hiding = !model.visible && !model.folding && !this.node.hidden;
     if (hiding) this.retire();
     this.node.hidden = !model.visible && !model.folding;
@@ -640,12 +630,17 @@ export class ThreadView {
           if (!mayLand()) return false;
           const kept = openThreads();
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
-          destination.focus({ preventScroll: true });
+          if (destination.matches?.(".lf-thread"))
+            focusThread(destination, { preventScroll: true });
+          else destination.focus({ preventScroll: true });
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },
         refused: () => {
-          if (mayRestore()) shownCard()?.focus({ preventScroll: true });
+          if (mayRestore()) {
+            const card = shownCard();
+            if (card) focusThread(card, { preventScroll: true });
+          }
         },
       };
     }

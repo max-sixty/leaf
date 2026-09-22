@@ -1055,7 +1055,6 @@ def append_batch(
         "session": session_id,
         "through_seq": data["through_seq"],
         "conversations": data["conversations"],
-        "handling": data["handling"],
         "events": data["events"],
         "receipted": False,
     }

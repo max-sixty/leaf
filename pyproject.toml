@@ -80,6 +80,8 @@ dev = [
   # Browser screenshot assertions and scripts/record-demo.py's frames.
   "pillow>=12.1",
   "pytest-regtest>=2.7",
+  # The YAML snapshots `interact_support.yaml_document` writes.
+  "pyyaml>=6",
   # scripts/preview.py's watcher. 1.1.0 is the first release with a wheel for the
   # interpreter this project runs on; earlier ones would build Rust from source.
   "watchfiles>=1.1.0",

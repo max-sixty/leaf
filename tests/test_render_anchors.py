@@ -29,6 +29,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     AIM_SEAM,
     AIM_SEAM_PAGE,
+    SHOT_PAGE,
     SHOT_SRC,
     SHOTS,
     button_radius,
@@ -45,7 +46,6 @@ from render_cases_navigation import (
     DRIFT_V2,
     EDGE_PAGE,
     FENCED_CAPTURE_PAGE,
-    NATIVE_CONTROL_PAGE,
     TAIL_PAGE,
     THIN_V1,
     THIN_V2,
@@ -74,6 +74,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
+    primed,
     resized,
     round_trip,
     scroll_settled,
@@ -2155,12 +2156,28 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the reader was standing on."""
-    url = serve(
-        NATIVE_CONTROL_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    widget and never saw the control the reader was standing on.
+
+    The screenshot's checkbox is that light-DOM control, and it stands while the
+    widget's static flip is what the page shows: #892 made Web Awesome's draggable
+    comparison a progressive upgrade over it, so the checkbox is hidden from the
+    moment that bundle lands. The bundle is therefore held from outside the page
+    rather than raced, and the shot gets a page of its own because `lf-diff` imports
+    the same bundle at the top of its module and would never upgrade behind the hold
+    (`tests/CLAUDE.md`, "State races are arrangements, not probabilities")."""
+    held = []
+    page = open_page(
+        primed(
+            browser,
+            lambda opened: opened.route(
+                "**/vendor/webawesome.esm.js", lambda route: held.append(route)
+            ),
+        ),
+        serve(
+            SHOT_PAGE,
+            media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+        ),
     )
-    page = open_page(browser, url)
     line = page.locator(".lf-shortcut-bar")
 
     comparison = page.locator("lf-shot wa-comparison")
@@ -2174,6 +2191,8 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     page.keyboard.press("End")
     expect(comparison).to_have_attribute("position", "100")
 
+    page = open_page(browser, serve(DIFF_PAGE))
+    line = page.locator(".lf-shortcut-bar")
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
     summary.scroll_into_view_if_needed()
@@ -3660,9 +3679,15 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     assert label_result.response["violations"] == []
 
     # The keys are one declaration, so the "?" reference names them too — a page with
-    # a second version is the first that has a list to walk.
+    # a second version is the first that has a list to walk. The shelf stands beside the
+    # menu; the reference is a modal and global chrome, so entering it dismisses the menu
+    # the way the platform dismisses any auto popover, and leaves it dismissed. The rows
+    # are read off the declaration rather than off the standing mode, which is why they
+    # are there to read at all once the menu has gone.
     page.keyboard.press("?")
+    expect(menu).to_be_visible()
     page.keyboard.press("?")
+    expect(menu).to_be_hidden()
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
@@ -3671,8 +3696,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(menu).to_be_visible()
+    expect(menu).to_be_hidden()
 
+    open_versions(page)
+    expect(menu).to_be_visible()
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     position = page.locator(".lf-walk-position")
     page.keyboard.press("ArrowUp")
@@ -3696,10 +3723,9 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
     # Escape closes the menu and lands the reader on the page it stood over, whatever
-    # door they came through and whatever the reference did on the way. A popover
-    # restores focus to whatever had it when it showed, which after a reference round
-    # trip is the body; Leaf performs the whole step instead, so the landing is the same
-    # one every time.
+    # door they came through. A popover restores focus to whatever had it when it
+    # showed, which for a menu opened from the page is the body; Leaf performs the whole
+    # step instead, so the landing is the same one every time.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3834,18 +3860,24 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the
-    # page, and Escape there returns through the shelf with the menu where it was — with the
-    # reader on the row they left, since a scope is where focus is and the overlay takes the
-    # focus. Landing on the body instead put the walk it had just described out of reach.
+    # page. The shelf stands beside the menu, and the reference is a modal, so entering
+    # it dismisses the menu as the platform dismisses any auto popover and does not
+    # rebuild it. Reopening is what stands the mode up again, and the reader is back on
+    # the row they left, since a scope is where focus is and the overlay takes the focus.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
+    expect(menu).to_be_visible()
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
+    expect(menu).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
+    expect(menu).to_be_hidden()
+
+    open_versions(page)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
@@ -3863,7 +3895,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(menu).to_be_hidden()
     page.keyboard.press("t")
     expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread").first).to_be_focused()
+    expect(page.locator(".lf-thread-summary").first).to_be_focused()
 
 
 def clearance_page(browser, serve):
@@ -4021,16 +4053,34 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-version-menu")).to_be_visible()
     expect(compared.locator(".lf-shortcut-bar")).to_contain_text("leave forward")
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
+    # The reference reads the same declaration, but it is a modal and global chrome: its
+    # entry dismisses the menu the way the platform dismisses any auto popover. The bar
+    # speaks for the live scene and names only the direction the reader can take; the
+    # reference is a catalogue and names both, each marked as reachable in the menu
+    # rather than here. Which is the whole of what the pair is for: a reader who cannot
+    # read the second direction anywhere cannot learn that the row has one.
     compared.keyboard.press("?")
     compared.keyboard.press("?")
-    expect(compared.locator(".lf-command-reference")).to_contain_text(
-        "Leave the versions menu forward"
-    )
-    expect(compared.locator(".lf-command-reference")).not_to_contain_text(
-        "Leave the versions menu backward"
-    )
+    reference = compared.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(reference).to_contain_text("Leave the versions menu forward")
+    expect(reference).to_contain_text("Leave the versions menu backward")
+    assert compared.evaluate(
+        """() => Object.fromEntries(
+          ['version.leave-forward', 'version.leave-backward'].map(command => [
+            command,
+            document.querySelector(
+              `.lf-command-reference-command[data-lf-command="${command}"]`
+            )?.dataset.lfAvailable ?? null,
+          ])
+        )"""
+    ) == {"version.leave-forward": "false", "version.leave-backward": "false"}
     compared.keyboard.press("Escape")
-    expect(comparison).to_be_focused()
+    expect(reference).to_be_hidden()
+
+    open_versions(compared)
+    expect(compared.locator(".lf-version-menu")).to_be_visible()
 
     # Holding Tab sends repeated keydowns after the first stop. The boundary action must
     # repeat too: leaving the browser's focus move native does not mean leaving the menu
@@ -4071,7 +4121,10 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
-    # And the key the row had been leaving unnamed does what the row now says it does.
+    # And the key the row had been leaving unnamed does what the row now says it does,
+    # on the menu stood up again after the reference dismissed it.
+    open_versions(page)
+    expect(page.locator(".lf-version-menu")).to_be_visible()
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     page.keyboard.press("Space")
     page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))
@@ -4966,7 +5019,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread).to_be_focused()
+    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     # The card is content of the panel. The seat on the page is not put back, the reader
     # having left it to come here.
     page.keyboard.press("Escape")

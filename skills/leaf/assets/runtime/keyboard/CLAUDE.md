@@ -116,8 +116,8 @@ and it is an inner step because standing is the newest thing they did.
 
 The thread panel is one surface. Its titles and open conversations are content of that
 surface, so accordion disclosure does not add an Escape level: after a reply box or
-narrowing is gone, Escape closes Threads from either a title or a conversation. Title
-arrows and Home/End move through the list; Enter/Space toggles a conversation. The
+narrowing is gone, Escape closes Threads from either a title or a conversation. Native
+focus order moves from a title through its open conversation; Enter/Space toggles it. The
 semantic thread walk opens its conversation directly, whether that conversation is on
 the page or requires Threads. `g T` is the route to the list itself. Comment enters the
 reply box even from a collapsed title.

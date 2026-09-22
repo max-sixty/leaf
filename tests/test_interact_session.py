@@ -5472,9 +5472,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
     )
     newer = freeze_events(page_dir, [first, second])
     runner = CliRunner()
-    missing = runner.invoke(
-        cli_model.cli, ["wait", "--ack", "00000000-0000-0000-0000-000000000000"]
-    )
+    missing = runner.invoke(cli_model.cli, ["wait", "--ack", "00000000"])
     assert missing.exit_code == 1
     assert "unknown delivery" in missing.output
     combined = runner.invoke(
@@ -5567,6 +5565,82 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
         service_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
         == later["id"]
     )
+
+
+def test_concurrent_receipts_open_sibling_turns_without_nesting_page_locks(
+    claimed, tmp_path, spawn
+):
+    """Both consumers reach the sibling sweep before either can run it.
+
+    If receipt still holds its own page lock at this boundary, each process
+    waits on the other's page forever. The real sweep must complete both
+    receipts, including the sibling that supplied neither batch.
+    """
+    second = tmp_path / "second"
+    silent = tmp_path / "silent"
+    for page in (second, silent):
+        shutil.copytree(claimed, page)
+        service_model.claim_page(page)
+    pages = (claimed, second, silent)
+    session_id = service_model.page_claim(claimed)["id"]
+    for page in pages:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.close_turn(session_id)
+    deliveries = []
+    for page in pages[:2]:
+        comment = events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "Please answer"}
+        )
+        deliveries.append(freeze_events(page, [comment]))
+    release = tmp_path / "release-sibling-sweeps"
+    arrivals = [tmp_path / f"sweep-{number}" for number in range(2)]
+    probe = """\
+import time
+from leaf import session
+
+original_open = session.open_session_turn
+def synchronized_open(*args, **kwargs):
+    Path(os.environ["ARRIVAL"]).write_text("ready", encoding="utf-8")
+    release = Path(os.environ["RELEASE"])
+    while not release.exists():
+        time.sleep(0.01)
+    return original_open(*args, **kwargs)
+
+session.open_session_turn = synchronized_open
+session.receive_delivery(os.environ["DELIVERY"])
+"""
+    consumers = [
+        spawn_probe(
+            spawn,
+            page,
+            probe,
+            DELIVERY=payload["id"],
+            ARRIVAL=arrival,
+            RELEASE=release,
+        )
+        for page, payload, arrival in zip(pages[:2], deliveries, arrivals, strict=True)
+    ]
+    wait_for(
+        lambda: all(arrival.exists() for arrival in arrivals),
+        bool,
+        failure="both receipts did not reach the sibling-turn sweep",
+    )
+    release.write_text("continue", encoding="utf-8")
+    for consumer in consumers:
+        out, err = consumer.communicate(timeout=STATED_TIMEOUT)
+        assert consumer.returncode == 0, out + err
+    for page in pages:
+        assert service_model.page_claim(page)["turn_closed"] is None
+    for page in pages[:2]:
+        assert files_model.read_json(page / "cursor.json") == {"seq": 1}
+        [pickup] = [
+            event
+            for event in events_model.read_events(page)
+            if event["kind"] == "pickup"
+        ]
+        assert pickup["phase"] == "opened"
+        assert page_state(page)["activity"]["obligations"][0]["phase"] == "picked_up"
+    assert files_model.read_json(silent / "cursor.json") is None
 
 
 def test_receipt_checks_the_owner_after_acquiring_the_page_lock(

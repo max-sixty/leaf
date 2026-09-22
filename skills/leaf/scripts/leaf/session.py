@@ -470,7 +470,8 @@ def receive_delivery(delivery_id: str) -> list[Path]:
 
     Each page uses its own transaction. Interrupted multi-page receipt can be
     retried against the same immutable bounds; no receipt transfers ownership.
-    Printing a delivery cannot call this: the next durable consumer confirms it.
+    Sibling turns open after releasing the page locks, so concurrent receipts
+    never nest transactions across pages. Printing cannot confirm receipt.
     """
     payload = read_delivery(delivery_id)
     harness = session_harness()
@@ -484,9 +485,9 @@ def receive_delivery(delivery_id: str) -> list[Path]:
         ):
             turn = page.open_turn(session_id) if session_id else None
             record_pickup(page, events, session=session_id, turn=turn)
-            if session_id:
-                open_session_turn(session_id, page)
         pages.append(page_dir)
+    if session_id:
+        open_session_turn(session_id)
     return pages
 
 

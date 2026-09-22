@@ -210,7 +210,6 @@ export function createPanelComposer({
       "In the find box",
       [
         {
-
           id: "thread.find.first",
           keys: ["Enter"],
           does: "Go to the first thread found",

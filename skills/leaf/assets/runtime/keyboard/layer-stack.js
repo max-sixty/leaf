@@ -8,8 +8,8 @@
 
    A layer may open through a prototype method or through declarative popover activation,
    and a popover need not move focus into itself, so every opener declares its own
-   opening: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle` at
-   the document and at each declared shadow boundary. `beforetoggle` makes a declarative
+   opening here: the `showModal` and `showPopover` patches, and `beforetoggle` and `toggle`
+   at the document and at each declared shadow boundary. `beforetoggle` makes a declarative
    opening visible synchronously to the command that caused it; `toggle` follows the
    completed native transition, and carries an opening whose earlier declarations this
    module was not yet listening for. An opening arrives once, so a declaration naming a
@@ -37,6 +37,8 @@
 
 const entries = [];
 const watchedRoots = new WeakSet();
+const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
+const nativePopoverShow = HTMLElement.prototype.showPopover;
 
 const held = (node) =>
   Boolean(node?.isConnected) && node.matches(":popover-open, dialog:modal");
@@ -58,6 +60,16 @@ export function pushNativeLayer(node, kind) {
   prune();
   entries.push({ root: node, kind, active: () => held(node) });
 }
+
+HTMLDialogElement.prototype.showModal = function () {
+  if (!this.matches(":modal")) pushNativeLayer(this, "modal");
+  return nativeDialogShowModal.call(this);
+};
+
+HTMLElement.prototype.showPopover = function (...args) {
+  if (!this.matches(":popover-open")) pushNativeLayer(this, "popover");
+  return nativePopoverShow.apply(this, args);
+};
 
 export function watchLayers(root) {
   if (watchedRoots.has(root)) return;

@@ -24,13 +24,17 @@
         margin-block: var(--sp-4);
       }
       .package-card {
-        display: grid;
-        gap: var(--sp-2);
+        display: block;
         padding: var(--sp-4);
         border: 1px solid var(--border-2);
         border-radius: var(--r);
         color: inherit;
         text-decoration: none;
+      }
+      .package-card strong,
+      .package-card span {
+        display: block;
+        margin-bottom: var(--sp-2);
       }
       .package-card strong {
         font: 600 var(--t-3) / 1.25 var(--serif);
@@ -106,11 +110,18 @@
         <h2>Choose a bundled package</h2>
         <p>
           The <a href="/examples/feature-gallery/">core product gallery</a> now stays
-          with Leaf’s default vocabulary. Each optional package has a focused working
-          page, so its controls, data, and reader task can be judged without searching
-          an omnibus gallery.
+          with Leaf’s default vocabulary. Explore optional widgets in focused working
+          pages, or read a guidance package's suggestions before choosing it.
         </p>
         <div class="package-catalog">
+          <a
+            class="package-card"
+            href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/packages/code-review/guidance/author.md"
+          >
+            <strong>Code review</strong>
+            <span>Trial review-authoring suggestions, with no additional widgets.</span>
+            <em>Read guidance</em>
+          </a>
           <a class="package-card" href="/examples/security-boundary/">
             <strong>Diagram</strong>
             <span>Render Mermaid evidence with commentable semantic nodes.</span>

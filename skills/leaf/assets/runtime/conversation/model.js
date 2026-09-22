@@ -83,6 +83,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
     if (!thread) continue;
     thread.msgs.push(reply);
     if (!isReaction(reply)) {
+      thread.resolved = null;
       thread.awaits_agent = true;
       thread.awaits_reader = false;
       thread.attention = null;

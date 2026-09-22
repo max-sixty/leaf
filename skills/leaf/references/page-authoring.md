@@ -90,8 +90,9 @@ before or after the set, leaves it a framed tabbed section. Each `lf-tab` contai
 in the same set may use either form. The tab strip becomes the page's top navigation,
 and links, comment anchors, Ask travel, search, and reading-position restoration open
 the view containing their destination.
-Selecting a page tab puts its panel id in the URL, so browser Back and Forward travel
-between views. An explicit fragment opens the tab containing that target.
+Switching page tabs navigates to the chosen panel, with its id in the URL. Browser
+Back and Forward return to the corresponding views. An explicit fragment inside
+a panel opens that panel and reaches the named content.
 
 An `lf-tabs` inside document flow, a pane, or another widget is a tabbed section. Use
 one for local alternatives within the surrounding view. It keeps the framed treatment
@@ -323,8 +324,12 @@ no separate browser tool. Fix every failure; a screenshot is not a substitute.
 Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
 referents are introduced, claims have evidence, decisions have controls, diagrams
-add information, links work, and that everything standing open in the column is
+add information, and that everything standing open in the column is
 there because the reader needs it.
+
+Follow the page's links and operate its navigation with pointer and keyboard.
+At each destination, check that the visible content and focus leave the reader
+oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with Asks, start at the top and press `a` through them. At each
 arrival, confirm that the question, shared premise, alternatives, and evidence

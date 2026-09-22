@@ -37,7 +37,8 @@ has tried; settle that before building it.
   [cold-authoring, reading-parity, and resume cases](notes/agent-usability-evals.md#first-executable-slice).
   Compare authoring and a feedback cycle with plain HTML before improving Leaf's
   authoring guidance. Use observed failures to choose new reading interfaces;
-  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20).
+  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
+  including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/reader-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;

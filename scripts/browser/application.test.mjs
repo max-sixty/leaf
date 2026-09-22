@@ -861,64 +861,66 @@ test("widget selections publish the canonical held conversation", () => {
   assert.equal(selected.read().conversation.heldBy, null);
 });
 
-test("a pending reader reply hands an accepted question to the agent until it leaves", () => {
-  const app = setup();
-  const root = {
-    kind: "comment",
-    id: "question",
-    author: "agent",
-    text: "Which one?",
-    ts: "now",
-  };
-  const accepted = state(2);
-  accepted.browser.conversation.threads = [
-    {
-      root,
-      anchor: null,
-      msgs: [root],
-      resolved: null,
-      awaits_agent: false,
-      awaits_reader: true,
-      attention: { kind: "needs_reader", reason: "ask", workflow: null },
-      bare_reaction: false,
-      seat: null,
-    },
-  ];
-  app.adopt(accepted);
-  const turn = () => {
-    const thread = app.read().effective.conversation.all[0];
-    return [thread.awaits_agent, thread.attention?.kind ?? null];
-  };
-  assert.deepEqual(turn(), [false, "needs_reader"]);
+for (const resolved of [null, { author: "user" }]) {
+  test(`a pending reader reply hands ${resolved ? "a resolved" : "an open"} question to the agent until it leaves`, () => {
+    const app = setup();
+    const root = {
+      kind: "comment",
+      id: "question",
+      author: "agent",
+      text: "Which one?",
+      ts: "now",
+    };
+    const accepted = state(2);
+    accepted.browser.conversation.threads = [
+      {
+        root,
+        anchor: null,
+        msgs: [root],
+        resolved,
+        awaits_agent: false,
+        awaits_reader: true,
+        attention: { kind: "needs_reader", reason: "ask", workflow: null },
+        bare_reaction: false,
+        seat: null,
+      },
+    ];
+    app.adopt(accepted);
+    const turn = () => {
+      const thread = app.read().effective.conversation.all[0];
+      return [thread.awaits_agent, thread.attention?.kind ?? null, thread.resolved];
+    };
+    assert.deepEqual(turn(), [false, "needs_reader", resolved]);
 
-  app.enqueue(
-    {
-      kind: "reply",
-      parent: root.id,
-      attempt: "answer",
-      text: "The first one.",
-      revision: 1,
-    },
-    "now",
-  );
-  assert.deepEqual(turn(), [true, "waiting"]);
-  app.remove(new Set(["answer"]));
-  assert.deepEqual(turn(), [false, "needs_reader"]);
+    app.enqueue(
+      {
+        kind: "reply",
+        parent: root.id,
+        attempt: "answer",
+        text: "The first one.",
+        revision: 1,
+      },
+      "now",
+    );
+    assert.deepEqual(turn(), [true, "waiting", null]);
+    app.remove(new Set(["answer"]));
+    assert.deepEqual(turn(), [false, "needs_reader", resolved]);
 
-  app.enqueue(
-    {
-      kind: "reply",
-      parent: root.id,
-      attempt: "retry",
-      text: "Still the first one.",
-      revision: 1,
-    },
-    "now",
-  );
-  assert.deepEqual(turn(), [true, "waiting"]);
-  app.reject("retry");
-  assert.deepEqual(turn(), [false, "needs_reader"]);
-});
+    app.enqueue(
+      {
+        kind: "reply",
+        parent: root.id,
+        attempt: "retry",
+        text: "Still the first one.",
+        revision: 1,
+      },
+      "now",
+    );
+    assert.deepEqual(turn(), [true, "waiting", null]);
+    app.reject("retry");
+    assert.deepEqual(turn(), [false, "needs_reader", resolved]);
+  });
+}
 
 test("a pending prose reply does not hide a frozen structural Ask", () => {
   const root = {

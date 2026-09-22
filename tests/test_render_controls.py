@@ -1327,15 +1327,15 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     open_versions(page)
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
-    selected_state = page.get_by_role("radio", name=re.compile(r"^Open(?: \(|$)"))
-    expect(selected_state).to_be_checked()
+    selected_state = page.get_by_role("button", name=re.compile(r"^Open(?: \(|$)"))
+    expect(selected_state).to_have_attribute("aria-pressed", "true")
     reached_state = False
     for _ in range(20):
         if selected_state.evaluate("el => el.matches(':focus-within')"):
             reached_state = True
             break
         page.keyboard.press("Tab")
-    assert reached_state, "native Tab never reached the selected thread-state radio"
+    assert reached_state, "native Tab never reached the selected thread-status toggle"
     expect(selected_state).to_be_focused()
     expect(menu).to_be_hidden()
     expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
@@ -3915,7 +3915,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    # A taller list can no longer retain an offset beyond its new scroll limit.
+    max_scroll = threads.evaluate("el => el.scrollHeight - el.clientHeight")
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(
+        min(list_at, max_scroll), abs=1
+    )
     resized(page, 500, 640)
     panel_settled(page)
     expect(summary).to_be_focused()

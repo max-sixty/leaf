@@ -94,11 +94,7 @@ import { createAskView } from "./runtime/asks/view.js";
 import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
-import {
-  createPanelVisibility,
-  createThreadPanelController,
-  THREAD_PANEL_KEY,
-} from "./runtime/thread-panel.js";
+import { createThreadPanelController, panelIsOpen } from "./runtime/thread-panel.js";
 import {
   createTrays,
   asksPanel,
@@ -106,9 +102,8 @@ import {
   othersPanel,
   reserveListClearance,
 } from "./runtime/trays.js";
-import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
+import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreReaderView } from "./runtime/restore-state.js";
-import { readerStore } from "./runtime/storage.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
 import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
@@ -213,25 +208,27 @@ let reactions;
 let pageGeometry;
 let goToSequence;
 
-const panelVisibility = createPanelVisibility();
-const { panelIsOpen } = panelVisibility;
-const auxiliaryModality = createAuxiliaryModality({ chromeRoot, focusable: FOCUSABLE });
+const auxiliarySurfaces = createAuxiliarySurfaces({
+  chromeRoot,
+  focusable: FOCUSABLE,
+  moveContentFrame: (change) => layout.moveContentFrame(change),
+  syncLayout: () => layout.syncLayout(),
+  afterChange: () => {
+    app.margin.renderMargin();
+    paintKeys();
+    repaint();
+    anchorPaint.refreshHover();
+  },
+});
 const navigation = createNavigation({
   panelIsOpen,
-  coveringAuxiliaryScroller: auxiliaryModality.coveringScroller,
+  coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
     openPageThread: (...args) => app.margin.openPageThread(...args),
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     activeInlineThread: () => app.margin.activeInlineThread(),
     inlineThreadView: () => app.margin.inlineThreadView,
   },
-});
-const panelModality = auxiliaryModality.registerAuxiliarySurface({
-  surface: panel,
-  scroller: () => threadsBox,
-  covers: navigation.panelCovers,
-  focus: () => threadsBox,
-  dismiss: () => threadPanelController.setPanel(false),
 });
 
 const targetPaintCaps = {
@@ -459,8 +456,8 @@ declareReading(version.readingBlock);
 // answers both halves for whichever surface is standing — the panel, either tray — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
-  surface: auxiliaryModality.coveringSurface,
-  landing: auxiliaryModality.coveringFocus,
+  surface: auxiliarySurfaces.coveringSurface,
+  landing: auxiliarySurfaces.coveringFocus,
 });
 
 // The let-go's external readings stand by now, so the scope is declared before anything
@@ -516,7 +513,6 @@ panelComposer = createPanelComposer({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
-  widen: () => widen(app.presentConversation),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
@@ -646,7 +642,7 @@ layout = createChromeLayout({
   bottomChromeBoxes,
   reserveListClearance,
   restateTrayEdge: () => trays.traysEdge.state(),
-  syncAuxiliarySurfaces: auxiliaryModality.sync,
+  syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
   dockSeats: anchorControls.dockSeats,
@@ -656,12 +652,9 @@ layout = createChromeLayout({
   repaintPage,
 });
 threadPanelController = createThreadPanelController({
-  visibility: panelVisibility,
-  layout,
-  elements: { panel, toggleBtn },
-  hideTray: ({ remember }) => {
-    if (currentTray()) trays.setOpenTray(null, { remember });
-  },
+  auxiliarySurfaces,
+  panelCovers: navigation.panelCovers,
+  elements: { panel, toggleBtn, threadsBox },
   widen: () => widen(app.presentConversation),
   activeInlineThread: app.margin.activeInlineThread,
   showThread: landing.showThread,
@@ -669,23 +662,14 @@ threadPanelController = createThreadPanelController({
   closeReactionMode: () => reactions.setReact(false),
   closePreview: app.margin.closePreview,
   syncGeneral: panelComposer.syncGeneral,
-  refreshHover: anchorPaint.refreshHover,
-  rememberOpen: (open) => readerStore.set(THREAD_PANEL_KEY, open ? "1" : "0"),
-  modality: panelModality,
-  repaint,
 });
 trays = createTrays({
   landEdge: layout.landEdge,
-  moveContentFrame: layout.moveContentFrame,
-  panelIsOpen,
-  setPanel: threadPanelController.setPanel,
-  syncLayout: layout.syncLayout,
+  auxiliarySurfaces,
   closePreview: app.margin.closePreview,
   leavesOffered,
   presentLeaves,
   syncAsks: asks.syncAsks,
-  renderMargin: app.margin.renderMargin,
-  registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
@@ -705,7 +689,7 @@ goToSequence = createGoToSequence({
   placeThreadEdge,
   seenScroller: navigation.seenScroller,
   stopGlide,
-  coveringAuxiliarySurface: auxiliaryModality.coveringSurface,
+  coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
   enterPageMap: pageMapDialog.enterPageMap,
   leavePageMap: pageMapDialog.leavePageMap,
   pageMapIsActive: pageMapDialog.pageMapIsActive,
@@ -764,7 +748,7 @@ if (!offlineInteractive) {
     liveEl,
     mediaViewer,
     commandReferenceDialog,
-    auxiliaryModality.scrim,
+    auxiliarySurfaces.scrim,
     bottomStatusEl,
     shortcutBarEl,
     inspectEl,
@@ -784,7 +768,7 @@ if (!offlineInteractive) {
     paintApproval: paintVersionApproval,
   });
   reserveBannerControls();
-  auxiliaryModality.mount();
+  auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
   mountNarrowing(app.presentConversation);
@@ -880,8 +864,7 @@ if (!passiveSpecimen && !offlineInteractive) {
   restoreReaderView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
-    setPanel: threadPanelController.setPanel,
-    restoreTrays: trays.restoreTrays,
+    restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
   });
   // The page has just arrived, so nothing holds focus and the first Tab starts at the
@@ -916,7 +899,7 @@ async function presentPage() {
     return;
   }
   responseSurface.updateFab();
-  trays.restoreTray();
+  auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
   void syncInteractionGallery();

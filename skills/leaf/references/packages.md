@@ -60,7 +60,9 @@ installed package answers to is refused rather than replaced; remove the install
 directory to replace one. A page records the bare name, so re-vendoring it on another
 machine needs the same package installed there.
 
-Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
+Leaf also ships optional packages that select by bare name. `code-review` trials
+guidance-led review authoring without adding widgets; select it or your own review
+guidance package alongside the evidence packages the page needs. `diagram` adds `lf-diagram`
 and the Agentic Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` coordinates declarative controls and page-owned
@@ -226,14 +228,22 @@ validator reads roles rather than tag names, so a package may supply a different
 member without changing Leaf or joining an `x-owners` list.
 
 Behavior modules compose these reading areas with
-`arrangeReadingElement({owner, role, header, footer, regions})` from the public widget
-API. It returns `{body, content, readingArrangement}`; `role` selects workspace, pane,
-or partition.
+`arrangeReadingElement({owner, role, header, footer, regions, minimumSize})` from the
+public widget API. It returns a retained layout with `body` and `content` nodes;
+`role` selects workspace, pane, or partition.
 The optional header and footer are elements the caller identifies, including generated
 elements; shared slot classes carry their geometry. The helper groups the remaining
-children into the content body and registers any declared reading regions. On reconnect,
-`registerReadingElement({owner, content, body, regions})` rebinds that existing DOM.
-Both helpers mark a workspace owner `data-lf-workspace-context="root"` when it is the only
+children into the content body and registers any declared reading regions. Keep the
+layout for the element's lifetime. Call `connect()` from `connectedCallback` and
+`disconnect()` from `disconnectedCallback`: disconnect retires registrations and
+observers, and connect restores them from the retained nodes and declarations.
+Neither rebuilds DOM. For a widget whose build is a single arrangement, construct it
+only while its retained layout is absent, then call `once(owner)` to mark the successful
+upgrade. Admission failure leaves the authored nodes untouched, so a later connection
+can retry. This is not a transaction around a compound widget's whole build: use
+`once(owner)` to guard generated controls and listeners, retain the layouts it creates,
+and reconnect those layouts without rerunning that build.
+The helper marks a workspace owner `data-lf-workspace-context="root"` when it is the only
 non-metadata element directly inside `body > main`; other workspaces receive `embedded`.
 Packages read that context to choose
 bounded posture. The shared theme gives only a marked `.lf-workspace-reading` owner the
@@ -246,12 +256,14 @@ named pane, including furniture, region registration, accessibility, and reconne
 it when a package-specific pane differs only through its registry contract and CSS;
 write a behavior module when the element owns another interaction.
 
-`fitRootReadingElement({owner, readingArrangement, minimumSize})` owns the root's observation
-of available page width and height, window resize, and descendant layout changes. The
-caller supplies the complete minimum as `{width, height}` and keeps the composition's
+The optional `minimumSize` callback gives the layout ownership of root fitting:
+available page width and height, window resize, and descendant layout changes. The
+callback returns the complete minimum as `{width, height}` or `null` for flow, keeping the composition's
 policy: the default workspace derives one recursively from equal partitions, while an
-asymmetric package root may read its own grid tracks. The returned `update()` promise
-joins initial settlement; `cleanup()` retires its observers and listeners. Leaf reads
+asymmetric package root may read its own grid tracks. Pass the promise returned by
+`connect()` to `widgetController(owner).present()` to join initial settlement;
+`update()` requests another fit. A layout without root fitting may choose posture
+explicitly through `setReadingPosture("bounded"|"flow")`. Leaf reads
 the available room and minimum synchronously inside the bounded posture under decision,
 while its current document height remains fixed. Live boxes therefore describe the
 candidate arrangement rather than whichever posture is currently drawn, and taking the
@@ -274,7 +286,8 @@ is intact and an `after` reading on settled new geometry; a newer posture change
 the obsolete `after`. The continuity owner decides what to capture and restore.
 Use `preserveReadingRegions(owner, change)` when a composition hides or reveals regions.
 It invokes `change` immediately and awaits its returned layout promise before restoring
-the visible regions through the same continuity owner. Its notifications have null
+the visible regions in scrollers contained by the owner. The navigation changing the
+composition owns the surrounding document position. Its notifications have null
 `from` and `to`: visibility changed, not necessarily posture. A superseding change marks
 its `before` as `retained`; a failed or disconnected change marks its `after` as
 `cancelled`. Enclosing composition transitions own continuity over nested posture changes.

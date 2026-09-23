@@ -11,6 +11,8 @@ import {
 } from "../drafts.js";
 import { threadKey } from "./model.js";
 import { focused } from "../keyboard/scopes.js";
+import { retainReaderIntent } from "../reader-intent.js";
+import { whenDocumentPresented } from "../semantic-state.js";
 
 const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 
@@ -56,8 +58,23 @@ export function wireReply(
       tellDraft(draftCtx, v);
     },
     send: (_text, raw, owns) => {
+      const held = input.closest(
+        ".lf-thread, .lf-conversation-thread, .lf-conversation",
+      );
+      const mayReveal =
+        held && (focused() === input || focused() === send)
+          ? retainReaderIntent({ source: held, available: () => held.isConnected })
+          : null;
+      const control = focused() === send ? send : input;
       const sent = sendReply(t, liveId, raw, owns, createReply);
-      if (sent && (focused() === input || focused() === send)) revealReplyEditor(input);
+      if (sent && mayReveal)
+        void whenDocumentPresented()
+          .then(() => {
+            // The new turn is above the composer. Landing the composer's foot shows
+            // the turn's end and keeps the focused control in the visible band.
+            if (mayReveal()) revealReplyEditor(control, { block: "end" });
+          })
+          .catch(() => {});
     },
   });
   sync();
@@ -73,7 +90,7 @@ export function wireReply(
   input.addEventListener("input", () => {
     if (focused() !== input) return;
     const held = input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
-    if (held) revealReplyEditor(input, "instant");
+    if (held) revealReplyEditor(input, { behavior: "instant" });
   });
   const dispose = mirrorDraft(
     input,

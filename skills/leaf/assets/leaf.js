@@ -399,11 +399,12 @@ app = mountApplication({
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
   retainConversationFocus: () => retainConversationFocus(panelIsOpen),
-  revealReplyEditor: (input, behavior) =>
+  revealReplyEditor: (input, { behavior, block } = {}) =>
     revealConversation(
       input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
       input,
       behavior,
+      block,
     ),
   setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),

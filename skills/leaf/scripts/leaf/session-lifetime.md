@@ -59,13 +59,16 @@ a failed response condition until the reader moves again. A local
 send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
 put the thread in Needs you without persisting another workflow record.
 
-A workflow whose next actor is the agent is owed an answer, and `workflows.py`
-states the answer it takes: a reply, a version for a conversation that asked for one,
-a version whose markup records a reader's answer to a page Ask, or a request's
-receipt. Every owed
-answer blocks the Stop hook and `leaf status idle` once its move is acknowledged; a
-move the reader has not finished — a pick before the Done its Ask declares — is owed
-nothing and has no workflow. Consecutive reader turns form one response batch
+A workflow's `stage` and its `answer` are separate readings. The stage reports
+delivery for every move the reader has handed over; the answer, which `workflows.py`
+states, is what the agent owes it: a reply, a version for a conversation that asked
+for one, a version whose markup records a reader's answer to a page Ask, a request's
+receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
+its move is acknowledged, and only owed answers enter activity counts. A page action
+that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
+reports delivery until the markup records the move or a later version takes it in.
+A move the reader has not finished — a pick before the Done its Ask declares — has
+not been handed over and has no workflow. Consecutive reader turns form one response batch
 addressed by its newest input. Before settlement each input retains a workflow,
 while only the newest carries the thread's `answer` and enters the Stop obligation
 list. A response to an older input removes that input and leaves the newer

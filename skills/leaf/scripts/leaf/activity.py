@@ -250,29 +250,23 @@ def canonical_activity(
             ):
                 deadlines.append(due)
 
-    # Local receipts may retain a claim on the earlier message that prompted it
-    # while the subject's newest move keeps its own delivery receipt. Page activity
-    # still counts one interaction per semantic coordinate, taking the newest move.
-    # Only moves the agent owes count: a failed answer hands its move back to the
-    # reader, and the banner's saved count must not promise the agent picks it up.
-    outstanding_by_coordinate = {
-        tuple(item["coordinate"]): item
-        for item in workflows
-        if item.get("input") is not None and item["next_actor"] == "agent"
-    }
-    outstanding = list(outstanding_by_coordinate.values())
+    # Page activity counts the moves the agent owes, one per answer. A receipt
+    # reports delivery for every move the reader handed over, but a move that owes
+    # nothing, an input a newer one in its thread answers through, and a failed
+    # answer the reader must resend are no work the banner may promise the agent
+    # picks up.
     obligations = [item for item in workflows if item["answer"] is not None]
     active = [item for item in workflows if item["stage"] == "working"]
     active_now = [item for item in active if not item["quiet"]]
     active_moves = [
-        item for item in outstanding if item["stage"] in {"working", "replying"}
+        item for item in obligations if item["stage"] in {"working", "replying"}
     ]
     # Page work is scoped to the live claimant, not to one reader input. A newer
     # delivery may remain queued or pending while the agent continues other work on
     # the page; its exact progress stays in `workflows` below.
     declared_work = status["state"] == "working" and not status_quiet
     current_work = stream_current or declared_work
-    opened = [item for item in outstanding if item["stage"] == "picked_up"]
+    opened = [item for item in obligations if item["stage"] == "picked_up"]
     handling = [
         item
         for item in opened
@@ -294,8 +288,8 @@ def canonical_activity(
             item["condition"] = {"kind": "ended", "operation": "work"}
         else:
             item["condition"] = {"kind": "stale", "operation": "work"}
-    queued = [item for item in outstanding if item["stage"] == "queued"]
-    pending = [item for item in outstanding if item["stage"] == "sent"]
+    queued = [item for item in obligations if item["stage"] == "queued"]
+    pending = [item for item in obligations if item["stage"] == "sent"]
 
     kind = "away"
     detail = ""
@@ -383,7 +377,7 @@ def canonical_activity(
             "queued": len(queued),
             "picked_up": len(left_in_old_turn),
             "pending": len(pending),
-            "total": len(outstanding),
+            "total": len(obligations),
         },
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,

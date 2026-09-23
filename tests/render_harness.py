@@ -1289,7 +1289,7 @@ def banner_control(page, selector):
         door = page.locator(".lf-banner-more")
         expect(door).to_be_visible()
         if not page.locator(".lf-banner-menu").is_visible():
-            door.click()
+            door.press("Enter")
         expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(control).to_be_visible()
     control.scroll_into_view_if_needed()

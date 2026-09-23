@@ -103,6 +103,14 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
     expect(
         card.locator(f'.lf-read-boundary + .lf-msg[data-mid="{middle}"]')
     ).to_have_count(0)
+    # The boundary opening the originals hangs its label in the gap below the fold
+    # control, not over it.
+    label = card.locator(".lf-summary-messages > .lf-read-boundary > span").first
+    assert (
+        label.bounding_box()["y"]
+        >= checkpoint.locator(".lf-summary-expand").bounding_box()["y"]
+        + checkpoint.locator(".lf-summary-expand").bounding_box()["height"]
+    )
 
     draft = card.locator("textarea").first
     draft.fill("Compare the revised update.")

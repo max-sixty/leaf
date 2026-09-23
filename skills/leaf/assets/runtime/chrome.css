@@ -1177,6 +1177,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--turn-ink); font: 600 10px/1.3 var(--sans); white-space: nowrap; }
   .lf-read-boundary > span { position: absolute; inset-inline: 0; bottom: 2px;
     display: flex; align-items: center; gap: 7px; }
+  /* A boundary that opens its container has no margin above it to collapse with, so it
+     stands at the start of the gap its message keeps, and its label hangs below. */
+  .lf-read-boundary:first-child > span { inset-block: 2px auto; }
   .lf-read-boundary > span::before, .lf-read-boundary > span::after { content: "";
     min-width: 8px; flex: 1; border-block-start: 1px solid currentColor; opacity: .42; }
   .lf-thread-compact > .lf-read-boundary { margin-inline: 8px; }

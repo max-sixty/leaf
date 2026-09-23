@@ -179,7 +179,6 @@ export function createMarginProjection({
   renderPageMapDialog,
   revealConversation,
   renderMarginThread,
-  paintInputs,
   bottomChromeBoxes,
   placedAt,
   showThread,
@@ -647,12 +646,8 @@ export function createMarginProjection({
       const holdingGone =
         document.activeElement === document.body &&
         (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
-      if (placed && (document.activeElement === pending.holding || holdingGone)) {
+      if (placed && (document.activeElement === pending.holding || holdingGone))
         focus();
-        // The reply was wired before the card reached its final keyboard scope.
-        // Refresh its hint when deferred focus finishes, without repainting layout.
-        paintInputs();
-      }
     });
   }
 

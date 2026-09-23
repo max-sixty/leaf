@@ -567,13 +567,7 @@ leaf-anchor-note { display: contents; }
           --lf-here-ring: btn; outline-offset: 2px; }
 .lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
           position: relative; flex: 1; min-width: 0; }
-.lf-compose-hinted > textarea::placeholder { color: transparent; }
-.lf-compose-hint { display: none; position: absolute; pointer-events: none;
-          inset-block-start: 9px; inset-inline-start: 11px;
-          max-width: calc(100% - var(--lf-icon-action-hit) - 24px);
-          overflow: hidden; white-space: nowrap; color: var(--muted); font: inherit; }
-.lf-compose-hinted > textarea:placeholder-shown + .lf-compose-hint { display: block; }
-.lf-compose-hint kbd { font-family: var(--mono); }
+.lf-compose-hinted > textarea::placeholder { font-family: var(--mono); }
 .lf-compose-field > textarea:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);
           padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }
@@ -633,8 +627,6 @@ leaf-anchor-note { display: contents; }
           display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
           padding: 6px max(40px, calc(var(--aim-floor) + 12px)) 6px 12px;
           resize: none; field-sizing: content; overflow-y: auto; white-space: pre-wrap; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-hint {
-          inset-block-start: 7px; inset-inline-start: 13px; }
 .lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input:is(:focus, .lf-focus) {
           outline: var(--here-ring); outline-offset: 0; border-color: transparent;
           --lf-here-ring: inline-response; }

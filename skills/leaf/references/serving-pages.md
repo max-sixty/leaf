@@ -42,10 +42,12 @@ A page's URL is its host and port, which the first serve records in
 `<page>/service.json`, and the machine's key, which the state home keeps. None of
 them belongs to the server process, so every later serve of the page answers at the
 URL the user already has: a stop and start, a re-vendor, a revival by `leaf wait`,
-or a `server start` after a reboot. Only two things change the URL: `--host`
-replaces its name and keeps its port, and deleting `service.json` derives a new
-address and lifetime from the current session. If another process holds the
-recorded port, `server start` refuses rather than moving.
+or a `server start` after a reboot. `--host` is the one thing that moves a URL: it
+replaces the name and keeps the port. Deleting `service.json` makes the next serve
+derive the address and lifetime again from the session running it, which gives the
+same URL only when that session arrived the same way and the port derived from the
+page's path is free. If another process holds the recorded port, `server start`
+refuses rather than moving.
 
 ## Unreachable URLs and `--host`
 

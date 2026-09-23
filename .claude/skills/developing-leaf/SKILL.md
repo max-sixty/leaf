@@ -115,10 +115,10 @@ watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
 rebuilds it in the other one. `--reset` discards the slot's `service.json` with the
 rest of the page, and `--slot` names a different page, so after either, hand over
 the URL the command prints. Any other address question about a `--user` preview is
-a served page's, which `serving-pages.md`, "Address and authentication", answers.
-A subagent's previews stay claimless, and the session the user talks to starts any
-`--user` preview: a subagent's claim is that session's claim, so that session's
-Stop hook would answer for the preview's moves either way.
+a served page's, which `<root>/skills/leaf/references/serving-pages.md`, "Address
+and authentication", answers. A subagent's previews stay claimless, and the session
+the user talks to starts any `--user` preview: a subagent's claim is that session's
+claim, so that session's Stop hook would answer for the preview's moves either way.
 
 When finished with a preview, run the matching preview command with `--stop` (and
 `--user` for a user slot); it waits for the watcher and server to stop. Ctrl-C

@@ -2,7 +2,7 @@
 
 import json
 
-from interact_support import fetch, published
+from interact_support import fetch, published, state_json
 from leaf import conversation as conversation_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
@@ -10,20 +10,25 @@ from leaf import files as files_model
 from leaf import service as service_model
 
 
-def _post_read(server, *messages):
-    status, body = fetch(
-        f"{server}/api/event",
-        data=json.dumps({"kind": "read", "messages": list(messages)}).encode(),
-    )
+def _post(server, event):
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     return status, json.loads(body)
 
 
-def _agent_message(state, identity):
+def _post_read(server, *messages):
+    return _post(server, {"kind": "read", "messages": list(messages)})
+
+
+def _last_id(page_dir):
+    return event_log_model.read_events(page_dir)[-1]["id"]
+
+
+def _unread(state, root):
+    """One thread's unread reading, as the browser receives it."""
     return next(
-        message
+        thread["unread"]
         for thread in state["browser"]["conversation"]["threads"]
-        for message in thread["msgs"]
-        if message["id"] == identity
+        if thread["root"]["id"] == root
     )
 
 
@@ -38,20 +43,74 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
 
     status, answer = _post_read(server, {"message": original, "version": original})
     assert status == 200, answer
-    assert _agent_message(answer["state"], original)["unread"] is False
+    assert _unread(answer["state"], original) == []
     assert answer["state"]["pending"] == 0
     assert service_model.unacknowledged(event_log_model.read_events(page_dir), 0) == []
 
     edit = conversation_model.cmd_edit(page_dir, original, "Revised answer.")
     status, answer = _post_read(server, {"message": original, "version": original})
     assert status == 200, answer  # a delayed older acknowledgement remains valid
-    latest = _agent_message(answer["state"], original)
-    assert latest["content_version"] == edit["id"]
-    assert latest["unread"] is True
+    assert _unread(answer["state"], original) == [
+        {"message": original, "version": edit["id"]}
+    ]
 
     status, answer = _post_read(server, {"message": original, "version": edit["id"]})
     assert status == 200, answer
-    assert _agent_message(answer["state"], original)["unread"] is False
+    assert _unread(answer["state"], original) == []
+
+
+def test_what_the_reader_does_in_a_thread_acknowledges_what_it_said(page_dir, server):
+    """Replying, resolving and answering a widget each imply the reader took the
+    thread in as it stood; an edit after the move is unread again, and the agent reads
+    the same fact in page state."""
+    published(page_dir)
+    root = conversation_model.cmd_comment(
+        page_dir,
+        None,
+        None,
+        None,
+        "Which should go first?",
+        '<lf-ask id="order-decision"><h3>Which first?</h3>'
+        '<lf-options id="order" choose>'
+        '<lf-option id="mounts">Mounts</lf-option>'
+        '<lf-option id="camera">Camera</lf-option>'
+        "</lf-options></lf-ask>",
+    )["id"]
+    status, answer = _post(
+        server,
+        {
+            "kind": "action",
+            "revision": 1,
+            "widget": "order",
+            "action": "choose",
+            "detail": {"options": ["mounts"]},
+        },
+    )
+    assert status == 200, answer
+    assert _unread(answer["state"], root) == []
+
+    reply = conversation_model.cmd_reply(
+        page_dir, None, "Mounts first, then.", None, for_event=_last_id(page_dir)
+    )["id"]
+    assert state_json(page_dir)["conversations"][0]["unread"] == [reply]
+    status, answer = _post(
+        server, {"kind": "reply", "parent": reply, "revision": 1, "text": "Thanks."}
+    )
+    assert status == 200, answer
+    assert _unread(answer["state"], root) == []
+
+    later = conversation_model.cmd_reply(
+        page_dir, None, "Done.", None, for_event=_last_id(page_dir)
+    )["id"]
+    status, answer = _post(server, {"kind": "resolve", "parent": root})
+    assert status == 200, answer
+    assert _unread(answer["state"], root) == []
+
+    edit = conversation_model.cmd_edit(page_dir, later, "Done, and tested.")
+    assert state_json(page_dir)["conversations"][0]["unread"] == [later]
+    status, answer = _post_read(server, {"message": later, "version": edit["id"]})
+    assert status == 200, answer
+    assert state_json(page_dir)["conversations"][0]["unread"] == []
 
 
 def test_read_refuses_unknown_or_wrong_message_versions(page_dir, server):

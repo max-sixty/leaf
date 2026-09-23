@@ -437,6 +437,7 @@ const rowModel = (all, commands) => {
   return Object.freeze({
     rows: Object.freeze(rows),
     count: open.length,
+    unread: threads.filter((t) => t.unread.length).length,
     narrowing: narrowing.presentation,
     pageSeats: new Map(inPage.map((t, i) => [t.root.id, i])),
   });
@@ -454,15 +455,16 @@ function configureList(commands) {
     Object.freeze({
       rows: Object.freeze([]),
       count: null,
+      unread: 0,
       narrowing: narrowingModel([], new Map()).presentation,
       pageSeats: new Map(),
     }),
   );
 }
 
-function postPaint({ count, narrowing }, commands) {
+function postPaint({ count, unread, narrowing }, commands) {
   paintHeadRoom(commands.panelIsOpen);
-  commands.setThreadCount(count);
+  commands.setThreadCounts(count, unread);
   narrowingView.present(narrowing);
   commands.onListChanged();
   // Narrowing and reconciliation can move another card under a pointer that did not

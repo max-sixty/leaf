@@ -552,6 +552,7 @@ test("one publication keeps per-input workflows and reader-first thread attentio
       awaits_agent: true,
       awaits_reader: true,
       bare_reaction: false,
+      unread: [],
       seat: null,
       summaries: [],
       attention: { kind: "needs_reader", reason: "ask", workflow: null },
@@ -629,6 +630,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
       awaits_agent: true,
       awaits_reader: false,
       bare_reaction: false,
+      unread: [],
       seat: null,
       summaries: [],
       attention: null,
@@ -708,7 +710,7 @@ test("a refused local message publishes one failed workflow before retirement", 
   assert.equal(app.read().effective.workflows.length, 0);
 });
 
-test("read acknowledgement publishes exact unread state without delivery or work", () => {
+test("a version being marked read reads read, outside the gesture ledger", () => {
   const app = setup();
   const reading = state(2);
   const root = {
@@ -719,8 +721,6 @@ test("read acknowledgement publishes exact unread state without delivery or work
     ts: "2026-09-22T10:00:00-07:00",
     seq: 1,
     text: "Answer",
-    content_version: "agent-root",
-    unread: true,
   };
   reading.browser.conversation.threads = [
     {
@@ -734,44 +734,32 @@ test("read acknowledgement publishes exact unread state without delivery or work
       seat: null,
       summaries: [],
       attention: null,
+      unread: [{ message: "agent-root", version: "agent-root" }],
     },
   ];
   app.adopt(reading);
-  const message = () => app.read().effective.conversation.all[0].msgs[0];
-  assert.equal(message().unread, true);
-  assert.equal(message().contentVersion, "agent-root");
-  assert.equal(app.read().effective.conversation.all[0].unreadCount, 1);
+  const thread = () => app.read().effective.conversation.all[0];
+  assert.equal(thread().msgs[0].unread, true);
+  assert.deepEqual(thread().unread, [{ message: "agent-root", version: "agent-root" }]);
 
-  app.enqueue(
-    {
-      kind: "read",
-      attempt: "read-first",
-      messages: [{ message: "agent-root", version: "agent-root" }],
-    },
-    "now",
-  );
-  assert.equal(message().unread, false);
-  assert.equal(app.read().effective.conversation.all[0].unreadCount, 0);
+  const original = [{ message: "agent-root", version: "agent-root" }];
+  app.markRead(original);
+  assert.equal(thread().msgs[0].unread, false);
+  assert.deepEqual(thread().unread, []);
+  assert.deepEqual(app.read().unresolved, []);
   assert.deepEqual(app.read().effective.delivery, []);
   assert.deepEqual(app.read().effective.workflows, []);
-  app.reject("read-first");
-  assert.equal(message().unread, true);
-  assert.deepEqual(app.read().effective.delivery, []);
-  assert.deepEqual(app.read().effective.workflows, []);
+  app.settleMarkRead(original);
+  assert.equal(thread().msgs[0].unread, true);
 
+  // Marking read names one exact version; an edit's version is not it.
   const edited = structuredClone(reading);
-  edited.browser.conversation.threads[0].msgs[0].content_version = "edit-2";
-  edited.browser.conversation.threads[0].msgs[0].edited = { id: "edit-2", seq: 3 };
+  edited.browser.conversation.threads[0].unread = [
+    { message: "agent-root", version: "edit-2" },
+  ];
   app.adopt(edited);
-  app.enqueue(
-    {
-      kind: "read",
-      attempt: "late-original",
-      messages: [{ message: "agent-root", version: "agent-root" }],
-    },
-    "now",
-  );
-  assert.equal(message().unread, true);
+  app.markRead(original);
+  assert.equal(thread().msgs[0].unread, true);
 });
 
 test("semantic epochs include visible revision facts but not transport metadata", () => {
@@ -881,7 +869,7 @@ test("conversation acceptance is semantic before presentation can retire its loc
   const read = state(2);
   read.browser.receipts = [accepted];
   read.browser.conversation.threads = [
-    { root: accepted, msgs: [accepted], resolved: false },
+    { root: accepted, msgs: [accepted], resolved: false, unread: [] },
   ];
   app.adopt(read);
   app.accept("comment", accepted);
@@ -913,6 +901,7 @@ test("widget selections publish the canonical held conversation", () => {
       awaits_agent: true,
       awaits_reader: false,
       bare_reaction: false,
+      unread: [],
       seat: descriptor.id,
     },
   ];
@@ -948,6 +937,7 @@ for (const resolved of [null, { author: "user" }]) {
         awaits_reader: true,
         attention: { kind: "needs_reader", reason: "ask", workflow: null },
         bare_reaction: false,
+        unread: [],
         seat: null,
       },
     ];
@@ -1015,6 +1005,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
       awaits_agent: false,
       awaits_reader: true,
       bare_reaction: false,
+      unread: [],
       seat: null,
     },
   ];
@@ -1065,6 +1056,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
         workflow: "failed-response",
       },
       bare_reaction: false,
+      unread: [],
       seat: null,
     },
   ];
@@ -1253,6 +1245,7 @@ test("a reaction root is not a spoken turn awaiting the reader", () => {
       awaits_agent: false,
       awaits_reader: false,
       bare_reaction: true,
+      unread: [],
       seat: null,
     },
   ];

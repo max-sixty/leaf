@@ -24,8 +24,8 @@ The main owners are:
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;
-- `read_state`: reader-facing agent content, exact content versions, and durable
-  acknowledgement over the page log;
+- `read_state`: agent content versions and the one reading of which the reader has
+  not read, from `read` events and the reader's later moves in each thread;
 - `page_view`: the page as the door may read it, so admission is a fold over that
   reading, the standing log, and one event;
 - `event_endpoint`: the browser's transport onto that door — postable kinds,

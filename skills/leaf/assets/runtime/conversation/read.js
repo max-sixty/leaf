@@ -1,20 +1,26 @@
-/* Page-owned acknowledgement of exact, presented agent content.
+/* The page's evidence that the reader has seen exact agent content.
 
-   The log and semantic publisher decide unread. This owner observes only mechanical
-   exposure: a visible prose body is acknowledged after its complete vertical extent
-   has been shown without gaps in one rendered surface and one content version. A
-   widget-authored body has no general contract for its hidden internal states, so its
-   thread's explicit Mark read control acknowledges it. Reading never answers an Ask.
-   Each observation pass batches newly completed versions into one event. */
+   Whether a version is unread is the server's reading of the whole log (`read_state`),
+   published as each Thread's `unread`; replying, answering and resolving already count
+   there. This owner adds the one kind of evidence only the page has, exposure: a
+   visible prose body is marked read once its complete vertical extent has been shown
+   without gaps in one rendered surface and one content version. What the body holds
+   inside that extent — a wide code block, a scroller of its own — is part of what was
+   shown; geometry cannot say whether the reader read every column of it, and a message
+   whose contents never let it count would stand unread forever. A widget-authored body
+   has hidden states of its own and no general contract for them, so exposure does not
+   mark it read: answering its widget does, and so does its thread's Mark read control.
+   Each observation pass batches newly completed versions into one `read` event, which
+   the application sends outside the gesture queue (delivery.js). */
 import { shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { closestAcross, containsAcross } from "../passages.js";
 import { whenDocumentPresented } from "../semantic-state.js";
+import { moved } from "./model.js";
 import { firstUnreadBtn, panel, panelWouldCover } from "./panel-elements.js";
 import { readThreads } from "./state.js";
 
-const keyOf = (message) => `${message.id}\u0000${message.contentVersion}`;
-const itemOf = (message) => ({ message: message.id, version: message.contentVersion });
+const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
 
 function mergeIntervals(intervals) {
@@ -82,18 +88,6 @@ function frameIsFullyVisible() {
   return true;
 }
 
-function hasHiddenInnerScroll(body) {
-  return [...body.querySelectorAll("*")].some((element) => {
-    const { overflowX, overflowY } = getComputedStyle(element);
-    return (
-      (/(auto|scroll|hidden|clip)/.test(overflowY) &&
-        element.scrollHeight > element.clientHeight + EPSILON) ||
-      (/(auto|scroll|hidden|clip)/.test(overflowX) &&
-        element.scrollWidth > element.clientWidth + EPSILON)
-    );
-  });
-}
-
 function visibleInterval(body, clips) {
   if (!body.checkVisibility()) return null;
   for (
@@ -135,7 +129,7 @@ function visibleInterval(body, clips) {
   };
 }
 
-export function createReadAcknowledgement({ post, showThread, setUnreadThreadCount }) {
+export function createReadTracking({ markRead, showThread }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const refusedAutomatic = new Set();
@@ -146,41 +140,39 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
   let presentationGeneration = 0;
   let scheduled = false;
 
-  const unread = () =>
-    committedThreads.flatMap((thread) =>
-      thread.msgs
-        .filter((message) => message.unread && message.contentVersion)
-        .map((message) => ({ thread, message })),
+  const unreadIn = (threads) =>
+    threads.flatMap((thread) =>
+      thread.unread.map((item) => ({
+        thread,
+        item,
+        message: thread.msgs.find((message) => message.id === item.message),
+      })),
     );
+  // Unread in what the page has presented and still unread in the current reading: a
+  // version this tab is marking read, or another tab or move already did, is not
+  // offered again.
   const actionableUnread = () => {
     const live = new Set(
-      readThreads().threads.flatMap((thread) =>
-        thread.msgs
-          .filter((message) => message.unread && message.contentVersion)
-          .map(keyOf),
-      ),
+      unreadIn(readThreads().threads).map(({ item }) => keyOf(item)),
     );
-    return unread().filter(({ message }) => live.has(keyOf(message)));
+    return unreadIn(committedThreads).filter(({ item }) => live.has(keyOf(item)));
   };
 
   function markThread(id) {
-    const messages = actionableUnread()
+    const items = actionableUnread()
       .filter(({ thread }) => thread.root.id === id)
-      .map(({ message }) => message)
-      .map(itemOf);
-    if (messages.length)
-      void post(messages).then((accepted) => {
+      .map(({ item }) => item);
+    if (items.length)
+      void markRead(items).then((accepted) => {
         if (!accepted) notice("Couldn't mark thread read — try again.");
       });
   }
 
   function firstUnread() {
     const target = actionableUnread().sort(
-      (a, b) =>
-        (a.message.edited?.seq ?? a.message.seq) -
-        (b.message.edited?.seq ?? b.message.seq),
+      (a, b) => moved(a.message).seq - moved(b.message).seq,
     )[0];
-    if (target) void showThread(target.message.id, { focus: "message" });
+    if (target) void showThread(target.item.message, { focus: "message" });
   }
 
   function scan() {
@@ -192,27 +184,21 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
     )
       return;
     const candidates = new Map(
-      actionableUnread().map(({ message }) => [keyOf(message), message]),
+      actionableUnread().map(({ item }) => [item.message, item]),
     );
     if (!candidates.size) return;
     const clips = new Map();
     const completed = new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id, version, authored } = rendered;
+      const { body, id, authored } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
         continue;
       }
-      const key = `${id}\u0000${version}`;
-      const message = candidates.get(key);
-      if (
-        !message ||
-        authored ||
-        completed.has(key) ||
-        refusedAutomatic.has(key) ||
-        hasHiddenInnerScroll(body)
-      )
+      const item = candidates.get(id);
+      const key = item && keyOf(item);
+      if (!item || authored || completed.has(key) || refusedAutomatic.has(key))
         continue;
       const visible = visibleInterval(body, clips);
       if (!visible) continue;
@@ -239,15 +225,13 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
         tracked.intervals[0][0] <= EPSILON &&
         tracked.intervals[0][1] >= visible.height - EPSILON
       ) {
-        completed.set(key, itemOf(message));
+        completed.set(key, item);
       }
     }
     if (completed.size) {
       const items = [...completed.values()];
-      void post(items).then((accepted) => {
-        if (!accepted)
-          for (const item of items)
-            refusedAutomatic.add(`${item.message}\u0000${item.version}`);
+      void markRead(items).then((accepted) => {
+        if (!accepted) for (const item of items) refusedAutomatic.add(keyOf(item));
       });
     }
   }
@@ -314,7 +298,6 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
     renderedBodies.set(node, {
       body,
       id: message.id,
-      version: message.contentVersion,
       authored: message.body.authored,
     });
   }
@@ -333,11 +316,11 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
         if (generation !== presentationGeneration) return;
         committedThreads = threads;
         presented = true;
-        const current = new Set(unread().map(({ message }) => keyOf(message)));
+        const unread = unreadIn(threads);
+        const current = new Set(unread.map(({ item }) => keyOf(item)));
         for (const key of refusedAutomatic)
           if (!current.has(key)) refusedAutomatic.delete(key);
-        const count = unread().length;
-        setUnreadThreadCount(threads.filter((thread) => thread.unreadCount > 0).length);
+        const count = unread.length;
         firstUnreadBtn.hidden = count === 0;
         firstUnreadBtn.textContent = `Unread ${count}`;
         firstUnreadBtn.setAttribute(
@@ -373,6 +356,6 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
     forgetBody,
     markThread,
     firstUnread,
-    unread,
+    unreadCount: () => actionableUnread().length,
   };
 }

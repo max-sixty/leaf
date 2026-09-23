@@ -1,9 +1,15 @@
-/* Ordered event delivery. Pending records and application effects are supplied by the
-   browser application owner; this module owns only POST, retry, and queue progress. */
+/* Event delivery. Pending records and application effects are supplied by the
+   browser application owner; this module owns only POST, retry, and queue progress.
+
+   Gestures go through one ordered queue: each waits for the one before it, and the
+   reader is told when one cannot get through. A kind `$events` declares `bookkeeping`
+   never enters that queue. It records what the reader has seen rather than something
+   they did, so it is sent on its own, once, and a failure costs only a fact the page
+   will observe again; it neither waits behind a gesture nor holds one up. */
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
-import { isReadAcknowledgement, unresolvedAttempts } from "./pending/model.js";
+import { unresolvedAttempts } from "./pending/model.js";
 
 export const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -24,7 +30,6 @@ export function createDelivery({
       ledger.nameParent(entry, currentReceipts());
       if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
       const { event } = entry;
-      const reportDelivery = isReadAcknowledgement(event) ? () => {} : notice;
       if (entry.readEvent) return { accepted: entry.readEvent };
       const sent = await Promise.race([
         postEvent(event).then(
@@ -35,7 +40,7 @@ export function createDelivery({
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
-        if (!announced) reportDelivery("Connection lost — retrying your change…");
+        if (!announced) notice("Connection lost — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -46,8 +51,7 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        if (!announced)
-          reportDelivery("The server isn't ready yet — retrying your change…");
+        if (!announced) notice("The server isn't ready yet — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -61,8 +65,7 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        if (!announced)
-          reportDelivery("Couldn't read the answer — retrying your change…");
+        if (!announced) notice("Couldn't read the answer — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -82,11 +85,10 @@ export function createDelivery({
         (!("attempt" in answer) || answer.attempt === event.attempt) &&
         answer.ok === false
       ) {
-        reportDelivery(`Couldn't send — ${answer.error || "the server refused it"}`);
+        notice(`Couldn't send — ${answer.error || "the server refused it"}`);
         return { accepted: null };
       }
-      if (!announced)
-        reportDelivery("Server answer was incomplete — retrying your change…");
+      if (!announced) notice("Server answer was incomplete — retrying your change…");
       announced = true;
       await retryPause();
     }
@@ -121,4 +123,27 @@ export function createDelivery({
   }
 
   return { drain };
+}
+
+// Send one bookkeeping event and apply the state its answer carries. Resolves true once
+// that state is applied, false when the server refused it or could not be reached.
+export async function deliverBookkeeping(event, applyAcceptedState) {
+  let response;
+  try {
+    response = await postEvent(event);
+  } catch {
+    return false;
+  }
+  if (!response?.ok) return false;
+  let answer;
+  try {
+    answer = await response.json();
+  } catch {
+    return false;
+  }
+  if (answer?.ok !== true || !answer.state) return false;
+  await applyAcceptedState(answer.state).catch((error) =>
+    console.error("leaf: state in event response", error),
+  );
+  return true;
 }

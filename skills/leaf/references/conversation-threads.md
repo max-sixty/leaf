@@ -179,33 +179,15 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 leaf resolve <page> --to <thread-id>
 ```
 
-## Read a thread
+## What the reader has read
 
-The Threads control keeps the count of active discussions and shows a separate unread
-marker when any thread has unread agent content. Open Threads for each thread's unread
-message count and **Unread** to jump to the first unread message; that action reveals a folded original or a
-filtered resolved thread before moving focus. Reading a whole visible prose reply
-acknowledges that content version. A long reply is acknowledged after its entire body
-has passed through the visible reading area; opening a thread or seeing a summary is
-not enough. Authored interactive content uses **Mark thread read** in the thread card,
-also reachable by keyboard, which acknowledges the current versions of all messages
-in that thread. Each run of current unread messages begins with **New since you last
-looked** inside the thread, and a closing separator distinguishes later messages that
-are not unread. A collapsed summary shows how many unread originals it covers; expand
-it to see the boundary on each original. An edit is a new content version and becomes
-unread again, even among later messages already read. Read state
-belongs to this page's single reader and survives another tab or visit; it does not
-answer an Ask, change **On you**, deliver agent work, or resolve a thread.
-
-## New information
-
-New agent messages and edits, questions and Asks that need the reader, failed or
-interrupted responses, native request outcomes, and an agent becoming active on the
-page announce themselves in the status line and live region after the first complete
-reading. Existing history is quiet on arrival. A background notice waits while the
-reader is acting and does not move focus or scroll. Repeated readings, delivery stages,
-heartbeats, and tool steps do not announce new information. A notice does not mark
-content read or answer an Ask.
+Each conversation in `leaf page state <page>` and `leaf conversation read` lists under
+`unread` your messages the reader has not read at their current wording. A message
+counts as read once its whole body has been on the reader's screen, once they mark its
+thread read, or once they do something in the thread after it: reply, react, answer a
+widget in it, resolve or reopen it. `leaf edit` makes a message unread again. Unread
+is not a question and changes nothing about whose turn it is: a message the reader has
+not read yet needs no follow-up from you, and a read one is not an answer.
 
 ## Summarize a long discussion
 

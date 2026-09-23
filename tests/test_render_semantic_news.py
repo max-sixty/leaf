@@ -8,8 +8,8 @@ from leaf import conversation as conversation_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import requests as requests_model
-from leaf import session as session_model
 from leaf import service as service_model
+from leaf import session as session_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,

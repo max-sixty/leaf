@@ -29,6 +29,9 @@ export const pageShadowRoots = () => shadowRootsIn(document);
 // instead.
 export const upFrom = (node) =>
   node?.parentElement ?? node?.getRootNode()?.host ?? null;
+// The same step through the tree as rendered: a node slotted into a shadow tree renders
+// inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
+export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
 // document — is asked by every reading that climbs out of a widget, so it is answered

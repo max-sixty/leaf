@@ -144,6 +144,7 @@ import {
   threadAttention,
   workflowLabel,
 } from "./conversation/workflow.js";
+import { renderedParent } from "./shadow.js";
 
 // Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
 // posture on `main` where it claims the rail, and this reads that answer rather than
@@ -234,8 +235,7 @@ export function createMarginProjection({
       const chain = [];
       for (let node = target; node;) {
         chain.push(node);
-        node =
-          node.assignedSlot ?? node.parentElement ?? node.getRootNode()?.host ?? null;
+        node = renderedParent(node);
       }
       return chain.reverse();
     };

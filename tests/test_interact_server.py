@@ -69,6 +69,7 @@ from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import service as served_service
+from leaf.structure import EXTERNAL_ORIGINS
 from page_fixtures import package_selection_args
 
 
@@ -967,6 +968,47 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     assert reading["active"]["revision"] == stamped["revision"]
     assert reading["active"]["version"] == stamped["version"]
     assert reading["source_error"] is None
+
+
+def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
+    """Google Fonts and the script CDNs pass capture and delivery untouched."""
+    font = "https://fonts.googleapis.com/css2?family=Instrument+Sans&display=swap"
+    chart = "https://cdn.jsdelivr.net/npm/chart.js@4/+esm"
+    tailwind = "https://cdn.tailwindcss.com/3.4.1"
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "app.js").write_text(f'import "{chart}";\n')
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            f'<link rel="stylesheet" href="{html.escape(font)}">\n'
+            f'<style>@import url("{font}"); main {{ font-family: "Instrument Sans"; }}'
+            "</style>\n"
+            f'<script type="module" src="{tailwind}"></script>\n'
+            '<script type="module" src="/page/app.js"></script>\n</head>',
+        )
+    )
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    resources = activated.check.artifact.resources
+    assert resources["/page/app.js"].dependencies == ()
+    assert not any(path.startswith("http") for path in resources)
+
+    status, body = fetch(f"{server}/")
+    assert status == 200
+    for url in (html.escape(font), font, tailwind):
+        assert url.encode() in body
+    policy = html.unescape(
+        re.search(rb'http-equiv="Content-Security-Policy" content="([^"]*)"', body)
+        .group(1)
+        .decode()
+    )
+    directives = {
+        name: sources for name, *sources in (part.split() for part in policy.split(";"))
+    }
+    for name in ("default-src", "style-src", "script-src", "img-src"):
+        assert set(EXTERNAL_ORIGINS) <= set(directives[name]), name
+    module = re.search(rb'src="([^"]*/page/app\.js)"', body).group(1).decode()
+    assert fetch(f"{server}{module}")[1].decode() == f'import "{chart}";\n'
 
 
 def test_server_round_trip(server, page_dir):
@@ -2647,6 +2689,234 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
     publish(page_dir, 2)
     next_status, next_body = ask(2, "restart")
     assert next_status == 200, next_body
+
+
+def test_projected_record_requests_have_independent_typed_seats(server, page_dir):
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["job-rows"] = {
+        "description": "Jobs displayed by the request widget.",
+        "records": {"items": "rows", "key": "id"},
+        "schema": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string", "minLength": 1},
+                            "state": {"type": "string"},
+                        },
+                        "required": ["id", "state"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["rows"],
+            "additionalProperties": False,
+        },
+    }
+    registry["lf-row-requests"] = {
+        "description": "A typed request for each displayed job.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "members",
+        "x-upgrade": True,
+        "x-data": {"jobs": {"contract": "job-rows", "source": "source"}},
+        "x-request": {
+            "ask": True,
+            "region": True,
+            "records": "jobs",
+            "verbs": {
+                "restart": {
+                    "unit": "target",
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "state": {"type": "string"},
+                        },
+                        "required": ["target", "state"],
+                        "additionalProperties": False,
+                    },
+                    "bind": {"target": "id", "state": "state"},
+                }
+            },
+        },
+    }
+    registry_path.write_text(json.dumps(registry))
+    widget_module = page_dir / "page/widgets/lf-row-requests.js"
+    widget_module.parent.mkdir(parents=True, exist_ok=True)
+    widget_module.write_text(
+        'customElements.define("lf-row-requests", class extends HTMLElement {});'
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-ask id="jobs-question"><h2>Restart a job?</h2>'
+            '<lf-row-requests id="jobs" source="jobs"></lf-row-requests>'
+            "</lf-ask></section>",
+        )
+    )
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+    publish(page_dir)
+    data_model.cmd_data_set(
+        page_dir,
+        "jobs",
+        {
+            "rows": [
+                {"id": "alpha", "state": "stopped"},
+                {"id": "beta", "state": "stopped"},
+            ]
+        },
+    )
+
+    def send(unit, state="stopped", revision=1):
+        return fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": 1,
+                    "widget": "jobs",
+                    "action": "restart",
+                    "data_revision": revision,
+                    "detail": {"target": unit, "state": state},
+                }
+            ).encode(),
+        )
+
+    for unit, state, revision in [
+        ("missing", "stopped", 1),
+        ("alpha", "running", 1),
+        ("alpha", "stopped", 2),
+    ]:
+        status, _body = send(unit, state, revision)
+        assert status == 400
+    assert send("alpha")[0] == 200
+    assert send("alpha")[0] == 400
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200
+    state = json.loads(raw)
+    seats = state["browser"]["views"]["1"]["document"]["requests"]
+    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
+        ("alpha", "pending"),
+        ("beta", "ready"),
+    }
+    assert [
+        ask["id"]
+        for ask in state["browser"]["views"]["1"]["document"]["asks"]["reader"]
+    ] == ["jobs-question"]
+    assert send("beta")[0] == 200
+    events = event_model.read_events(page_dir)
+    requests = [event for event in events if event["kind"] == "request"]
+    assert [event["meaning"]["unit"] for event in requests] == ["alpha", "beta"]
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200
+    assert not json.loads(raw)["browser"]["views"]["1"]["document"]["asks"]["reader"]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "agent",
+            "request": requests[0]["id"],
+            "status": "failed",
+            "text": "Try again",
+        },
+    )
+    assert send("alpha")[0] == 200
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "agent",
+            "request": requests[1]["id"],
+            "status": "succeeded",
+            "text": "Restarted",
+        },
+    )
+    assert send("beta")[0] == 400
+    retry = [
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request"
+    ][-1]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "agent",
+            "request": retry["id"],
+            "status": "succeeded",
+            "text": "Restarted",
+        },
+    )
+    with pytest.raises(data_model.DataError, match="keys must be unique"):
+        data_model.cmd_data_set(
+            page_dir,
+            "jobs",
+            {
+                "rows": [
+                    {"id": "beta", "state": "stopped"},
+                    {"id": "beta", "state": "stopped"},
+                ],
+            },
+        )
+    data_model.cmd_data_set(
+        page_dir,
+        "jobs",
+        {
+            "rows": [
+                {"id": "beta", "state": "stopped"},
+                {"id": "gamma", "state": "stopped"},
+            ],
+        },
+    )
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200
+    seats = json.loads(raw)["browser"]["views"]["1"]["document"]["requests"]
+    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
+        ("alpha", "completed"),
+        ("beta", "completed"),
+        ("gamma", "ready"),
+    }
+    assert send("gamma", revision=1)[0] == 400
+    assert send("beta", revision=2)[0] == 400
+    assert send("gamma", revision=2)[0] == 200
+    gamma = next(
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request" and event["meaning"]["unit"] == "gamma"
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "agent",
+            "request": gamma["id"],
+            "status": "failed",
+            "text": "Try again",
+        },
+    )
+    data_model.cmd_data_set(page_dir, "jobs", {"rows": []})
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200
+    document = json.loads(raw)["browser"]["views"]["1"]["document"]
+    assert document["asks"]["reader"] == []
+    assert {
+        (seat["seat"]["unit"], seat["phase"], seat["seat"].get("offered", True))
+        for seat in document["requests"]
+    } == {
+        ("alpha", "completed", False),
+        ("beta", "completed", False),
+        ("gamma", "ready", False),
+    }
 
 
 def test_a_thread_request_does_not_reset_when_the_page_revision_changes(

@@ -18,6 +18,7 @@ from leaf.mcp_page import (
 )
 from leaf.mcp_server import make_mcp_server
 from leaf.revisioning import activate_source
+from leaf.structure import EXTERNAL_ORIGINS
 from vendor import PINS
 
 
@@ -188,7 +189,7 @@ def test_registered_server_uses_one_adaptive_resource_for_every_presentation(
         "ui": {
             "csp": {
                 "connectDomains": [],
-                "resourceDomains": [],
+                "resourceDomains": list(EXTERNAL_ORIGINS),
                 "frameDomains": [page_server.origin],
             },
             "prefersBorder": False,

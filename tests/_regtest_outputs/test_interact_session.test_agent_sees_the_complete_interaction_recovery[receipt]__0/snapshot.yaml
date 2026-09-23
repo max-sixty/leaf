@@ -62,6 +62,7 @@ delivered:
             document:
               kind: page
               revision: 1
+            unit: commands
           id: event-2
           ts: <time>
           seq: 2

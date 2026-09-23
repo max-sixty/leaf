@@ -4,6 +4,7 @@ import hashlib
 import re
 from html import escape
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import turbohtml
 
@@ -84,17 +85,41 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
+# The public CDNs a page may load from, the set a Claude artifact page is given:
+# Google Fonts' stylesheets and font files, and the script CDNs. A reference to
+# one of these is served from there as written; capture neither reads nor
+# refuses it, and every fetch directive of every policy below admits it.
+EXTERNAL_ORIGINS = (
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+    "https://cdnjs.cloudflare.com",
+    "https://cdn.jsdelivr.net",
+    "https://unpkg.com",
+    "https://cdn.tailwindcss.com",
+    "https://code.jquery.com",
+)
+EXTERNAL_SOURCES = " ".join(EXTERNAL_ORIGINS)
+
+
+def external_reference(reference: str) -> bool:
+    """Whether a URL names one of the EXTERNAL_ORIGINS."""
+    try:
+        parsed = urlsplit(reference)
+    except ValueError:
+        return False
+    return f"{parsed.scheme}://{parsed.netloc}" in EXTERNAL_ORIGINS
+
+
 # The one CSP delivery gives every page. Delivery adds a nonce and writes it onto the
 # runtime bootstrap and every authored module block, so only the inline scripts it
 # composed run. 'self' is the immutable page layer whole; base-uri and form-action
 # need their own directives because default-src governs only fetches. data: admits
 # the images `version export` inlines. 'unsafe-inline' admits the <style> block a
-# page writes its own CSS in, and the one the theme arrives in on export. That CSS
-# has nothing to reach with, because a stylesheet fetches under img-src and
-# font-src, and those stay at the page's own bytes.
+# page writes its own CSS in, and the one the theme arrives in on export.
 PAGE_CSP = (
-    "default-src 'self'; base-uri 'none'; form-action 'none'; "
-    "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    f"default-src 'self' {EXTERNAL_SOURCES}; base-uri 'none'; form-action 'none'; "
+    f"img-src 'self' data: {EXTERNAL_SOURCES}; "
+    f"style-src 'self' 'unsafe-inline' {EXTERNAL_SOURCES}"
 )
 # A meta policy cannot govern the document's ancestors. The ordinary server adds this
 # separate header policy; the capability-scoped MCP transport is deliberately frameable.
@@ -508,7 +533,9 @@ class SourceDocument:
             for name, value in attrs.items()
             if isinstance(value, str)
             for reference in resource_attribute_urls(tag, attrs, name, value)
-            if reference.startswith(("/page/", "page/", "./page/"))
+            # A page file, or an absolute URL, which capture either leaves as written
+            # or refuses with the origins the page's CSP admits.
+            if reference.startswith(("/page/", "page/", "./page/", "https:", "http:"))
         )
 
         if tag == "noscript" or (tag == "template" and "data-specimen" not in attrs):

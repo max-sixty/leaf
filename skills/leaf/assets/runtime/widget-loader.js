@@ -23,8 +23,7 @@ import {
   stageWidgetDescriptors,
 } from "./widget-descriptors.js";
 import {
-  opaquePassageParts,
-  opaquePassageRoots,
+  fencePassageParts,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "./passages.js";
@@ -65,8 +64,7 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
     for (const root of within(scope, tag)) {
       if (rememberedPassageRoots.has(root)) continue;
       rememberedPassageRoots.add(root);
-      opaquePassageRoots.add(root);
-      for (const child of root.children) opaquePassageParts.add(child);
+      fencePassageParts(root);
     }
   for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
     if (rememberedPassageRoots.has(root)) continue;

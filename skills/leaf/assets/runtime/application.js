@@ -276,6 +276,21 @@ export function mountApplication(dependencies) {
           ? reading.requests[command.verb]
           : null;
     if (!entry?.available) return null;
+    const request = descriptor.declaration["x-request"];
+    let dataRevision = null;
+    if (command.kind === "request" && request?.records) {
+      const field = request.verbs?.[command.verb]?.unit;
+      const unit = command.detail?.[field];
+      const seat = reading.requestUnits?.[unit];
+      if (
+        typeof unit !== "string" ||
+        !unit ||
+        seat?.phase !== "ready" ||
+        seat.seat.offered === false
+      )
+        return null;
+      dataRevision = seat.seat.data_revision;
+    }
     return (
       startPost({
         kind: command.kind,
@@ -283,6 +298,7 @@ export function mountApplication(dependencies) {
         widget: descriptor.id,
         action: command.verb,
         detail: structuredClone(command.detail ?? {}),
+        ...(dataRevision != null && { data_revision: dataRevision }),
         ...(command.references && {
           references: structuredClone(command.references),
         }),

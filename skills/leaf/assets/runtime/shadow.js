@@ -45,7 +45,7 @@ export const overIn = (el, selector, frame) => {
 };
 // A label a widget declared as the page speaking (relabel), which the anchor pass reads
 // over the chrome it sits in.
-const SAID = "[data-lf-said]";
+export const SAID = "[data-lf-said]";
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.
 // The nearest element that answers wins: a declared label is the page's words inside the

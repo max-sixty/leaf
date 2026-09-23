@@ -1672,7 +1672,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-notice { display: none; color: inherit; font-size: inherit; line-height: inherit;
     white-space: normal; min-width: 0; }
   .lf-notice.show { display: block; }
-  .lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice) { display: none; }
+  .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
+    display: none; }
   .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
     display: none; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down

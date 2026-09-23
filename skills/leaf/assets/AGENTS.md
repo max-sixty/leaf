@@ -94,6 +94,19 @@ The stylesheet boundary follows where rules apply:
   are unavailable in WebKit, and a module-scope await would delay page modules past
   `DOMContentLoaded`.
 
+A selector whose `:has()` stands before its last combinator is restyled from the
+document root. Chrome keeps one invalidation set for every such selector, keyed on
+their rightmost compounds, and a trace of a drag-select shows it scheduling that set on
+`html` for ordinary runtime writes (an `aria-pressed`, a `hidden`, a placeholder, a Lit
+render), none of which touch the rules' own subjects. Each rightmost compound therefore
+selects its targets across the whole document. A
+compound with no class, id, attribute, or type in it (`> :not(.x)`, `> *`) makes
+every such change restyle every element. On a 21,000-element page that cost 40 ms a
+frame for as long as a drag-select lasted. A type costs one restyle for each element
+of that type, so key a repeated element such as `details` or `li` by a class its
+owner writes. `test_no_has_rule_restyles_the_whole_document` enforces the first
+rule; the second is a judgment about how often the type repeats.
+
 The shared `.lf-ui` face starts in the assets root's `shadow.css`, before component
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.

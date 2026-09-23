@@ -1309,6 +1309,102 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
+def _split_top(text, separators):
+    """Split at separators outside parentheses, brackets and strings."""
+    parts, depth, start, quote = [], 0, 0, None
+    for at, char in enumerate(text):
+        if quote:
+            quote = None if char == quote else quote
+        elif char in "\"'":
+            quote = char
+        elif char in "([":
+            depth += 1
+        elif char in ")]":
+            depth -= 1
+        elif not depth and char in separators:
+            parts.append(text[start:at])
+            start = at + 1
+    parts.append(text[start:])
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _names_a_feature(compound):
+    """Whether a compound names a class, id, attribute, or type, directly or in every
+    arm of an :is()/:where(). `:not()` and pseudo-classes name nothing Chrome can key on."""
+    compound = compound.split("::")[0]
+    arms = []
+    while match := re.search(r":(is|where|not|has|[a-z-]+)\(", compound):
+        depth, end = 0, match.end() - 1
+        for end in range(match.end() - 1, len(compound)):
+            depth += {"(": 1, ")": -1}.get(compound[end], 0)
+            if not depth:
+                break
+        if match.group(1) in ("is", "where"):
+            arms.append(compound[match.end() : end])
+        compound = compound[: match.start()] + compound[end + 1 :]
+    compound = re.sub(r":[a-z-]+", "", compound)
+    if re.search(r"[.#\[]|^[a-zA-Z]", compound):
+        return True
+    return any(
+        all(
+            _names_a_feature(_split_top(arm, " >+~")[-1])
+            for arm in _split_top(arg, ",")
+        )
+        for arg in arms
+    )
+
+
+def _all_selectors(nodes):
+    """Every complex selector in a sheet, nested rules included."""
+    for node in nodes:
+        if node.type not in ("at-rule", "qualified-rule") or node.content is None:
+            continue
+        if node.type == "qualified-rule":
+            yield from _split_top(
+                " ".join(tinycss2.serialize(node.prelude).split()), ","
+            )
+        yield from _all_selectors(
+            tinycss2.parse_blocks_contents(
+                node.content, skip_comments=True, skip_whitespace=True
+            )
+        )
+
+
+def test_no_has_rule_restyles_the_whole_document():
+    """Chrome restyles a `:has()` that stands before the last combinator from the document
+    root, selecting by the rightmost compound alone (assets/AGENTS.md states the rule).
+    `.lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice)` named nothing there, so
+    every runtime write during a drag-select restyled all 21,600 elements of a large page:
+    twelve long tasks of up to 175 ms per three drags, from a line of chrome that was not
+    even showing."""
+    sheets = [
+        *sorted(schema_model.ASSETS.glob("*.css")),
+        *sorted((schema_model.ASSETS / "runtime").glob("*.css")),
+        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/*.css")),
+    ]
+    read = 0
+    unkeyed = []
+    for sheet in sheets:
+        nodes = tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+        for selector in _all_selectors(nodes):
+            compounds = _split_top(selector, " >+~")
+            if not any(":has(" in compound for compound in compounds[:-1]):
+                continue
+            read += 1
+            if not _names_a_feature(compounds[-1]):
+                unkeyed.append(
+                    f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
+                )
+    assert read, "no non-subject :has() read from the layer — the reading is broken"
+    assert _names_a_feature(":is(.a, lf-b)") and not _names_a_feature(":not(.a)")
+    assert not unkeyed, (
+        "a :has() rule whose target names nothing restyles the whole document:\n"
+        + "\n".join(unkeyed)
+    )
+
+
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     """chrome.css is adopted, so it cascades after theme.css and after every package
     theme concatenated onto it. One selector dressed for the same property in both

@@ -34,8 +34,7 @@ from interact_support import (
 )
 from leaf import codex as leaf_codex
 from leaf.cli import cli
-from leaf.codex import accept_codex_delivery
-from leaf.codex import queue_records as codex_queues
+from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.conversation import cmd_reply, cmd_resolve
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
@@ -352,8 +351,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     reserved = []
     monkeypatch.setattr(
-        website_server,
-        "reserve_delivery_reply",
+        "leaf.codex.reserve_delivery_reply",
         lambda *args: reserved.append(args),
     )
     requests = []
@@ -518,7 +516,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     assert [method for method, _ in sent] == ["turn/interrupt", "turn/start"]
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
     assert sent[1][1]["clientUserMessageId"]
-    [(_, queue)] = codex_queues("hosted-thread")
+    [(_, queue)] = delivery_records("hosted-thread")
     assert queue["state"] == "offering"
 
 
@@ -1151,7 +1149,8 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     monkeypatch.setattr(website_server.subprocess, "Popen", popen)
 
     assert host._ensure_server() is not None
-    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    path = launched["options"]["env"]["PATH"].split(os.pathsep)
+    assert shutil.which("leaf", path=path[0]) == website_server.LEAF_COMMAND
     assert "LEAF_REPLY" not in launched["options"]["env"]
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
@@ -1166,9 +1165,9 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
     # activity fold prefers over Leaf's own claim wording for exactly this reason.
-    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "$LEAF status" not in instructions
-    assert "$LEAF version check" not in instructions
+    instructions = " ".join(website_server.HOSTED_INSTRUCTIONS.split())
+    assert "leaf status" not in instructions
+    assert "leaf version check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1528,10 +1527,11 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
 @pytest.mark.parametrize(
     "refusal",
     [
-        website_server.AppServerRequestRejected("rejected"),
+        AppServerRequestRejected("rejected"),
         TimeoutError("lost ack"),
+        None,
     ],
-    ids=["refused", "lost"],
+    ids=["refused", "lost", "unnamed"],
 )
 def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     page_dir, monkeypatch, refusal
@@ -1563,6 +1563,8 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
         competing_writer_rejected.append(True)
+        if refusal is None:
+            return {"turn": {}}
         raise refusal
 
     interrupts = []
@@ -1581,7 +1583,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         )
 
     assert interrupts == [("hosted-thread", "")]
-    assert codex_queues("hosted-thread") == []
+    assert delivery_records("hosted-thread") == []
     assert competing_writer_rejected == [True]
     assert website_server.page_claim(page_dir) is None
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
@@ -1950,7 +1952,7 @@ def test_an_interrupt_refused_by_an_idle_thread_is_recorded_not_raised(
         host,
         "_send",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            website_server.AppServerRequestRejected("no active turn to interrupt")
+            AppServerRequestRejected("no active turn to interrupt")
         ),
     )
 

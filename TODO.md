@@ -53,6 +53,15 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
+- **Tell each host only the handling it can act on.** Every delivery carries the
+  same clauses to every host, including "acknowledge this delivery … where your host
+  leaves acknowledgement to you" and "reply with `leaf reply` before any other work".
+  Only `leaf wait` in Claude Code leaves either to the agent: both Codex transports
+  acknowledge themselves, and over App Server the final message is the reply. Paired
+  `verify_site.py local` runs on 2026-09-23 had the leaf.page agent invent
+  `leaf delivery ack`, `$LEAF ack` and `leaf acknowledge`, and post an early
+  `leaf reply`, on main and after the prompt change alike. Record at freeze time
+  how a delivery is carried, and attach those clauses only where they apply.
 
 ## Next
 

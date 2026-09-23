@@ -37,14 +37,11 @@ live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
 directory explicitly; export or copy anything that must outlive the page directory.
 
 1. Run `leaf page init <page>`, and name a package when the page needs an
-   optional vocabulary or guidance:
-   `code-review` for code-review authoring guidance, `diagram` for Mermaid,
-   `diff` for a unified diff, `swipe` for rapid
-   pass-or-keep triage, `playground` whenever the reader compares or tunes
-   several values or behaviors, `visual-review` for an ordered website run with
-   aligned before-and-after evidence, and `targeting` for selecting and proposing
-   changes to preview elements, as in
-   `leaf page init --package diagram --package diff <page>`. Re-running
+   optional vocabulary or guidance, as in
+   `leaf page init --package diagram --package diff <page>`. "Package reach" in
+   `references/packages.md` lists the optional packages and what each adds;
+   `playground` fits whenever the reader compares or tunes several values or
+   behaviors. Re-running
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
    of the page needs, listed under "Author a version" below. Write

@@ -158,7 +158,7 @@
               ]
             }
           },
-          "text": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."
+          "text": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome. Your reply renders as Markdown, so show code or markup in a fenced block."
         },
         {
           "when": {
@@ -178,7 +178,7 @@
               ]
             }
           },
-          "text": "The reader answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages. Reply with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply; `leaf reply` checks any page edit and makes it live before posting. Add `--awaits` only if your reply's prose asks the reader something. Finishing the requested work is not a reason to `leaf resolve` the thread; the reader usually closes it."
+          "text": "The reader answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages. Reply with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply; `leaf reply` checks any page edit and makes it live before posting. Add `--awaits` only if your reply's prose asks the reader something. Finishing the requested work is not a reason to `leaf resolve` the thread; the reader usually closes it. Your reply renders as Markdown, so show code or markup in a fenced block."
         },
         {
           "when": {

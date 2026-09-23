@@ -101,7 +101,7 @@ example to the canonical Python server in a per-reader container. Its container
 adapter, `worker/server.py`, is ordinary Python that `tests/` covers. Its
 TypeScript half and the TypeScript under `scripts/browser/` are the two parts of
 the tree with gates of their own that `tests/` does not reach.
-`worker/README.md` names Leaf's three Cloudflare tokens, what each reaches, and
+`worker/README.md` names Leaf's two Cloudflare tokens, what each reaches, and
 how an unattended agent loads one for API and Wrangler access.
 
 `docs/` is the site's own content: each product document there is a Leaf source,

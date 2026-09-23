@@ -9741,6 +9741,8 @@ def test_touch_return_keeps_newlines_until_the_reader_taps_submit(browser, serve
     with sending(page, "the touch draft"):
         draft_control(page, "save", "plan").click()
     expect(page.locator("#plan .lf-draft-body")).to_contain_text("Second paragraph")
+
+
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the shortcut bar asked `when`,

@@ -22,7 +22,7 @@ import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { visibleBand } from "../geometry.js";
+import { shownRect } from "../geometry.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -219,15 +219,11 @@ export class ThreadView {
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
-      const scrollport = this.node.closest("leaf-thread-list");
-      const boundary = scrollport && visibleBand(scrollport);
+      // Being read is being on screen, on whichever surface holds the card.
+      const clips = new Map();
       const beingRead = new Set(
         [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
-          .filter((message) => {
-            if (!message.getClientRects().length || !boundary) return false;
-            const box = message.getBoundingClientRect();
-            return box.bottom > boundary.top && box.top < boundary.bottom;
-          })
+          .filter((message) => shownRect(message, clips))
           .map((message) => message.dataset.mid),
       );
       for (const summary of model.summaries) {

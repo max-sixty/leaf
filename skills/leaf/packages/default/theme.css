@@ -1035,6 +1035,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
                      --lf-compose-border-width: 0px;
                      position: static; }
   .lf-another textarea { flex: 1; min-width: 0; min-height: 0; padding: 0;
+                     margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
                      padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--lf-option-font); resize: none; }
@@ -1131,8 +1132,6 @@ lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > stron
  * option's vertical inset makes the draft and the option it becomes one stable row. */
 lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
                      gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
-lf-options:not(:has(> lf-option > strong)) > .lf-another textarea {
-                     margin-inline-start: var(--lf-row-gap); }
 lf-options:not(:has(> lf-option > strong)) > .lf-another {
                      --lf-compose-text-margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.

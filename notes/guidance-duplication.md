@@ -116,7 +116,9 @@ Pairs:
 
 ## Delivery loop
 
-These rules came from the first pass, which looked only at the delivery loop:
+These rules came from the first pass, which looked only at the delivery loop. The
+order's copies in `answering.reply` and `ACK_BATCH_INSTRUCTION` are on the
+unmerged `message-flow` branch, which adds the order to them:
 - **The acknowledge, reply, then work order.** It appears in `SKILL.md`,
   `conversation-loop.md`, `host-claude-code.md`, `ACK_BATCH_INSTRUCTION` and
   `answering.reply`. Home: the "When to write" section of `conversation-loop.md`.

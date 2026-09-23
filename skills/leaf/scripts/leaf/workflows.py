@@ -25,10 +25,12 @@ Answers are one of:
 
 Two kinds of move are delivered with no answer of their own. A reader input a
 newer input in the same thread covers is answered through the newest, whose one
-answer settles both. A page action that answers no Ask, such as an edit to a
+answer settles both. A widget move that answers no Ask, such as an edit to a
 reader-owned draft or a moved card, owes nothing: the log carries it onto every
-later version, and its receipt stands until the markup records it or a later
-version takes it in (`page_action_unsettled`).
+later reading of its document. Its receipt stands until that document takes it
+in: on the page, until the markup records it or a later version supersedes it
+(`page_action_unsettled`); in frozen thread markup, which no version rewrites,
+until the agent's next spoken turn in that thread or a resolution after it.
 
 A reader move on an Ask the reader has not finished answering — a pick before
 the Done its group declares, a swipe before the deck's finish — has not been
@@ -37,8 +39,8 @@ answer, and the finishing move carries the receipt. Once the Ask is answered,
 every move in its answer is owed.
 
 A host that gives up on a move writes the failure its answer takes
-(`conversation.fail_answer`): a reply carrying `failure` in the conversation, a
-failed receipt, or a failed pickup of a page move. A failed receipt is the
+(`conversation.fail_answer`), each carrying `failure`: a reply in the
+conversation, a failed receipt, or a failed pickup of a page move. A failed receipt is the
 request's own outcome and settles it; the other two leave the move a workflow
 answered with a failed response, whose next actor is the reader, until the reader
 moves again or the markup records the move anyway.
@@ -352,83 +354,87 @@ def canonical_workflows(
                     answer=answer if source is response_address else None,
                 )
             )
-    # Every page action the reader has handed over keeps its delivery receipt until
-    # it settles (`page_action_unsettled`); only a move in an answered Ask is owed an
-    # answer. A move on an Ask the reader is still answering has not been handed
-    # over, so it has no receipt until the finishing move carries one.
-    moves = []
+
+    # Every widget move the reader has handed over keeps its delivery receipt until
+    # it settles, whether the widget stands in the page or was frozen into thread
+    # markup, and only a move in an answered Ask is owed an answer. A move on an Ask
+    # the reader is still answering has not been handed over, so it has no receipt
+    # until the finishing move carries one. The two documents differ only in what
+    # settles a move and which operation answers an owed one.
+    def page_move(coordinate: tuple, source: dict, spec: dict, owed: bool):
+        unsettled = page_action_unsettled(
+            coordinate,
+            source,
+            spec,
+            page.document,
+            page.spoken,
+            page.registry,
+            page.events,
+            owed=owed,
+        )
+        return unsettled, {"kind": "markup", "action": source["id"]} if owed else None
+
+    def thread_move(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
+        # No later authored document absorbs frozen markup, so the thread's next
+        # spoken agent turn is what settles a move there: the reply addressed to an
+        # owed move, and for a move that owes nothing any agent turn after it, which
+        # has taken the move in as a later version takes in a page move. A reaction
+        # is no turn, and a host's failure reply says no answer is coming rather
+        # than answering. The resolution standing over the thread settles the moves
+        # made before it, and the answer that resolved it; a move made after it is
+        # delivered like any other and keeps its receipt.
+        thread_id = conversation.thread_by_widget.get(source["widget"])
+        thread = threads.get(thread_id)
+        if not thread or (
+            thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
+        ):
+            return False, None
+        settled = any(
+            message["author"] == "agent"
+            and not message.get("failure")
+            and (
+                message.get("responds") == source["id"]
+                if owed
+                else message["seq"] > source["seq"]
+            )
+            for message in spoken_turns(thread)
+        )
+        return not settled, (
+            {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
+        )
+
+    documents = []
     if page is not None:
-        for coordinate, (source, spec) in page.projection.actions.items():
-            widget, unit, facet = coordinate
-            record = page.document.by_id.get(widget)
-            if record is None:
+        documents.append((page.projection, page.document.by_id, page.spoken, page_move))
+    if conversation is not None:
+        documents.append(
+            (
+                conversation.projection,
+                conversation.by_id,
+                conversation.spoken,
+                thread_move,
+            )
+        )
+    moves = []
+    for projection, by_id, spoken, settlement in documents:
+        for coordinate, (source, spec) in projection.actions.items():
+            record = by_id.get(source["widget"])
+            if source["author"] != "user" or record is None:
                 continue
             entry = page.registry.get(record["tag"], {})
             owed = answers_ask(record, entry, source["action"])
             if owed and not ask_answered(
-                record,
-                entry,
-                page.projection,
-                page.document.by_id,
-                page.spoken,
-                page.registry,
+                record, entry, projection, by_id, spoken, page.registry
             ):
                 continue
-            unsettled = page_action_unsettled(
-                coordinate,
-                source,
-                spec,
-                page.document,
-                page.spoken,
-                page.registry,
-                page.events,
-                owed=owed,
-            )
-            moves.append(
-                (
-                    source,
-                    {"kind": "widget", "id": widget},
-                    [widget, unit, facet],
-                    unsettled,
-                    {"kind": "markup", "action": source["id"]} if owed else None,
-                )
-            )
-
-    # Frozen widget actions answer an Ask in their conversation, under the same
-    # rule as the page's: owed once the reader has answered it, and answered by the
-    # next agent turn there, since no later authored document absorbs them.
-    if conversation is not None:
-        for coordinate, (source, _spec) in conversation.projection.actions.items():
-            if source["author"] != "user":
-                continue
-            thread_id = conversation.thread_by_widget.get(source["widget"])
-            thread = threads.get(thread_id)
-            if not thread or thread["resolved"]:
-                continue
-            record = conversation.by_id[source["widget"]]
-            entry = page.registry.get(record["tag"], {})
-            if not answers_ask(record, entry, source["action"]) or not ask_answered(
-                record,
-                entry,
-                conversation.projection,
-                conversation.by_id,
-                conversation.spoken,
-                page.registry,
-            ):
-                continue
-            settled = any(
-                message["kind"] == "reply"
-                and message["author"] == "agent"
-                and message.get("responds") == source["id"]
-                for message in thread["msgs"]
-            )
+            unsettled, answer = settlement(coordinate, source, spec, owed)
             moves.append(
                 (
                     source,
                     {"kind": "widget", "id": source["widget"]},
                     list(coordinate),
-                    not settled,
-                    {"kind": "reply", "to": thread_id, "for": source["id"]},
+                    unsettled,
+                    answer,
                 )
             )
 
@@ -444,14 +450,15 @@ def canonical_workflows(
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    # A host that gave up on an owed page move recorded a failed pickup, which hands
-    # the move back to the reader until the markup records it or a newer move
-    # replaces it.
+    # A host that gave up on an owed move recorded the failure its answer takes — a
+    # failed pickup for a page move, a failure reply for a frozen one — which hands
+    # the move back to the reader until the move settles or a newer move replaces it.
     for source, target, coordinate, unsettled, answer in moves:
         if not unsettled or newest[(target["id"], coordinate[1])] is not source:
             continue
         if answer is not None and (
             gave_up := deliveries.get(source["id"], {}).get("failed")
+            or failed_responses.get(source["id"])
         ):
             workflows.append(failed(source, target, coordinate, gave_up))
         else:

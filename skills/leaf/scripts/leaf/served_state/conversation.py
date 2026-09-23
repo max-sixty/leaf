@@ -108,7 +108,7 @@ def browser_conversation(
     )
     awaiting = asks["awaiting"]
     unread = unread_content(events, threads, reading.thread_by_widget)
-    open_ask_threads = {ask["thread"] for ask in asks["reader"]}
+    open_ask_threads = {ask["conversation"] for ask in asks["reader"]}
     rendered_threads = []
     for thread_id, thread in threads.items():
         awaits_reader, reader_prompt = _thread_awaits_reader(
@@ -129,7 +129,9 @@ def browser_conversation(
         if awaits_reader and turns:
             protected.add(turns[-1]["id"])
         ask_sources = {
-            ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
+            ask["source"]
+            for ask in asks["unanswered"]
+            if ask["conversation"] == thread_id
         }
         for message_id, fragment in reading.structure.fragments.items():
             if ask_sources.intersection(fragment.by_id):

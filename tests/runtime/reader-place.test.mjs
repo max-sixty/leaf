@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { insetBand, visibleBand } from "/runtime/geometry.js";
+import { declareCoverRoom, insetBand, visibleBand } from "/runtime/geometry.js";
 import {
   placeCandidates,
   placeCorrection,
@@ -114,13 +114,38 @@ function laidOut() {
 test("the band is the scroller's less a stuck cover", () => {
   const { scroller } = laidOut();
   const heading = document.createElement("h3");
-  heading.className = "lf-pinned";
   heading.getBoundingClientRect = () => new DOMRect(0, -4, 300, 34);
   scroller.append(heading);
+  // Undeclared, a sticky box is content like any other.
+  assert.equal(visibleBand(scroller).top, 0);
+  declareCoverRoom(scroller, "--lf-head-room", [heading]);
   assert.deepEqual(
     { top: visibleBand(scroller).top, bottom: visibleBand(scroller).bottom },
     { top: 30, bottom: 400 },
   );
+  // Read while detached, then put back and declared again, it is still a cover.
+  heading.remove();
+  visibleBand(scroller);
+  scroller.append(heading);
+  declareCoverRoom(scroller, "--lf-head-room", [heading]);
+  assert.equal(visibleBand(scroller).top, 30);
+  // A cover does not hide what it holds: read for a node inside it, the band keeps it.
+  const label = document.createElement("span");
+  heading.append(label);
+  assert.equal(visibleBand(scroller, label).top, 0);
+  // A heading stuck in a nested scroller is that scroller's, though this one holds it.
+  heading.remove();
+  const inner = document.createElement("div");
+  inner.style.overflowY = "auto";
+  inner.append(heading);
+  scroller.append(inner);
+  assert.equal(visibleBand(scroller).top, 0);
+  // A cover in a widget's shadow tree sticks in the scroller outside it.
+  inner.remove();
+  const widget = document.createElement("div");
+  widget.attachShadow({ mode: "open" }).append(heading);
+  scroller.append(widget);
+  assert.equal(visibleBand(scroller).top, 30);
   scroller.remove();
 });
 

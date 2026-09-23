@@ -26,6 +26,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.requests import receipt_event
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
@@ -754,8 +755,8 @@ def fail_answer(
 
     - a `reply` or `version` answer takes a reply carrying `failure` in its
       conversation, which the reader resends into;
-    - a `receipt` answer takes a failed receipt, the request's own terminal
-      outcome, which reopens its seat for the reader to press again;
+    - a `receipt` answer takes a failed receipt carrying `failure`, the request's
+      own terminal outcome, which reopens its seat for the reader to press again;
     - a `markup` answer takes a failed pickup: the reader's Ask answer stands in the
       log, and answering again sends a new move.
 
@@ -806,15 +807,7 @@ def _fail_page_answer(
             return None
         if answer["kind"] == "receipt":
             return append_admitted(
-                page,
-                {
-                    "kind": "receipt",
-                    "author": "agent",
-                    **identity,
-                    "request": responds,
-                    "status": "failed",
-                    "text": text,
-                },
+                page, receipt_event(responds, "failed", text, identity, failure)
             )
         [move] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [move], phase="failed", failure=failure)

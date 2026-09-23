@@ -23,7 +23,7 @@ def _apply_thread_attention(
     thread_by_widget: dict[str, str],
 ) -> None:
     """Attach the shared attention aggregate, with reader Asks taking precedence."""
-    reader_threads = {ask["thread"] for ask in asks["reader"]}
+    reader_threads = {ask["conversation"] for ask in asks["reader"]}
     stage_rank = {
         "sent": 0,
         "queued": 1,
@@ -33,10 +33,24 @@ def _apply_thread_attention(
         "answered": 5,
     }
 
+    def at_work(workflow: dict) -> bool:
+        return workflow["stage"] in {"working", "replying"}
+
+    def holds_thread(workflow: dict) -> bool:
+        """Whether this workflow keeps its thread the agent's turn: every one of the
+        thread's own inputs and claims, and a widget move frozen into it while the
+        move is owed or the agent is at work on it. A frozen move that owes nothing
+        shows its receipt on its message and leaves the thread nobody's turn."""
+        return (
+            workflow["subject"]["kind"] == "conversation"
+            or workflow["answer"] is not None
+            or at_work(workflow)
+        )
+
     def priority(workflow: dict) -> tuple:
         if workflow["condition"] is not None:
             category = 2
-        elif workflow["stage"] in {"working", "replying"}:
+        elif at_work(workflow):
             category = 3
         elif workflow["stage"] == "answered":
             category = 0
@@ -59,31 +73,31 @@ def _apply_thread_attention(
     for thread in threads:
         if thread["resolved"]:
             thread["attention"] = None
-        elif thread["root"]["id"] in reader_threads or thread["awaits_reader"]:
+            continue
+        if thread["root"]["id"] in reader_threads or thread["awaits_reader"]:
             thread["attention"] = {
                 "kind": "needs_reader",
                 "reason": "ask",
                 "workflow": None,
             }
-        elif candidates := by_thread.get(thread["root"]["id"]):
-            if recovery := [
-                workflow
-                for workflow in candidates
-                if workflow["next_actor"] == "reader"
-            ]:
-                workflow = max(recovery, key=priority)
-                thread["attention"] = {
-                    "kind": "needs_reader",
-                    "reason": "recovery",
-                    "workflow": workflow["id"],
-                }
-            else:
-                workflow = max(candidates, key=priority)
-                thread["attention"] = {
-                    "kind": "waiting",
-                    "reason": "uncertain" if workflow["condition"] else "workflow",
-                    "workflow": workflow["id"],
-                }
+            continue
+        candidates = by_thread.get(thread["root"]["id"], [])
+        if recovery := [
+            workflow for workflow in candidates if workflow["next_actor"] == "reader"
+        ]:
+            workflow = max(recovery, key=priority)
+            thread["attention"] = {
+                "kind": "needs_reader",
+                "reason": "recovery",
+                "workflow": workflow["id"],
+            }
+        elif waiting := [workflow for workflow in candidates if holds_thread(workflow)]:
+            workflow = max(waiting, key=priority)
+            thread["attention"] = {
+                "kind": "waiting",
+                "reason": "uncertain" if workflow["condition"] else "workflow",
+                "workflow": workflow["id"],
+            }
         else:
             thread["attention"] = None
 

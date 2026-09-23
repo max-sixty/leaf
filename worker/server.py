@@ -137,7 +137,7 @@ FAILURE_RECEIPTS = {
 CONTAINER_FAILURE = "turn_failed"
 WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_FAILURE)
 AGENT_START_PATH = "/_leaf/agent/start"
-AGENT_REPLY_PATH = "/_leaf/agent/reply"
+AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
 RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
 CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
@@ -151,8 +151,7 @@ Reader input arrives inline as a structured `leaf_delivery` tool output or as a
 `leaf-delivery` pointer. Read a pointer with `$LEAF delivery read ID`, using its
 exact id. The host confirms receipt; no work claim is required. For every delivered
 event, read its `handling` clause ids in order from that batch's `handling` object
-and follow those instructions and `obligation.response`. Name a conversation you open
-with `$LEAF conversation title . CONVERSATION_ID --text "<a few words>"`.
+and follow those instructions and `obligation.response`.
 
 Each App Server delivery contains at most one response whose kind is `reply`.
 The normal final message is that reply's only writer: the host binds its destination
@@ -1369,12 +1368,12 @@ class WebsitePageEndpoint(PageEndpoint):
             # the edge gives — otherwise every page served here loads with a 404 in its
             # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
             return self._content(204, "application/json", b"")
-        if path not in {AGENT_START_PATH, AGENT_REPLY_PATH}:
+        if path not in {AGENT_START_PATH, AGENT_FAIL_PATH}:
             return super()._post()
         if self.posted_error:
             return self._json({"error": self.posted_error}, 400)
         try:
-            if path == AGENT_REPLY_PATH:
+            if path == AGENT_FAIL_PATH:
                 event_id, failure = _agent_failure(self.posted)
             else:
                 event_id = _agent_event(self.posted)

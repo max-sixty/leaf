@@ -1173,23 +1173,43 @@ _FACE = frozenset(
 )
 
 
-def _selector_list(prelude):
-    """The complex selectors in a prelude, split on the commas separating them.
+def _split_top(text, separators):
+    """Split at separators outside parentheses, brackets and strings."""
+    parts, depth, start, quote = [], 0, 0, None
+    for at, char in enumerate(text):
+        if quote:
+            quote = None if char == quote else quote
+        elif char in "\"'":
+            quote = char
+        elif char in "([":
+            depth += 1
+        elif char in ")]":
+            depth -= 1
+        elif not depth and char in separators:
+            parts.append(text[start:at])
+            start = at + 1
+    parts.append(text[start:])
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _selector_list(prelude, parent=()):
+    """The complex selectors in a prelude, split on the commas separating them, and a
+    nested rule's composed with the rule it stands in.
 
     `str.split` cannot do it: the commas inside `:is(button, [role="button"])` separate
-    that function's arguments rather than the rule's subjects."""
-    text = tinycss2.serialize(prelude)
-    selectors, depth, start = [], 0, 0
-    for at, char in enumerate(text):
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            depth -= 1
-        elif char == "," and not depth:
-            selectors.append(text[start:at])
-            start = at + 1
-    selectors.append(text[start:])
-    return [" ".join(one.split()) for one in selectors if one.strip()]
+    that function's arguments rather than the rule's subjects. A nested selector reads
+    `&` as its parent, or stands after it as a descendant when it names no `&`."""
+    written = _split_top(" ".join(tinycss2.serialize(prelude).split()), ",")
+    if not parent:
+        return written
+    outer = (
+        parent[0]
+        if len(parent) == 1 and len(_split_top(parent[0], " >+~")) == 1
+        else f":is({', '.join(parent)})"
+    )
+    return [
+        one.replace("&", outer) if "&" in one else f"{outer} {one}" for one in written
+    ]
 
 
 # The at-rules whose contents are style rules that match elements. An animation's
@@ -1209,34 +1229,46 @@ def _style_rules(sheet):
     about each and another sheet's copy may name only one of them. Values are kept: a
     rule that answers another with a different value is an override, not a copy."""
 
-    def visit(rules, conditions, enclosing):
+    def body(block):
+        return tinycss2.parse_blocks_contents(
+            block, skip_comments=True, skip_whitespace=True
+        )
+
+    def declared(items):
+        return [
+            (item.lower_name, tinycss2.serialize(item.value).strip())
+            for item in items
+            if item.type == "declaration"
+        ]
+
+    # `parent` is the selector list a nested rule stands in; declarations written
+    # straight inside a conditional group nested in a rule belong to that rule.
+    def visit(rules, conditions, enclosing, parent=()):
         for rule in rules:
             if rule.type == "at-rule":
                 if rule.lower_at_keyword not in _HOLDS_RULES or rule.content is None:
                     continue
                 keyword = rule.lower_at_keyword
                 query = " ".join(tinycss2.serialize(rule.prelude).split())
-                yield from visit(
-                    tinycss2.parse_rule_list(
-                        rule.content, skip_comments=True, skip_whitespace=True
-                    ),
+                inner = (
                     conditions
                     if keyword == "scope"
-                    else (*conditions, f"@{keyword} {query}"),
-                    enclosing | {keyword},
+                    else (*conditions, f"@{keyword} {query}")
                 )
+                items = body(rule.content)
+                if parent and (declarations := declared(items)):
+                    for selector in parent:
+                        yield inner, enclosing | {keyword}, selector, declarations
+                yield from visit(items, inner, enclosing | {keyword}, parent)
                 continue
             if rule.type != "qualified-rule":
                 continue
-            declarations = [
-                (declaration.lower_name, tinycss2.serialize(declaration.value).strip())
-                for declaration in tinycss2.parse_declaration_list(
-                    rule.content, skip_comments=True, skip_whitespace=True
-                )
-                if declaration.type == "declaration"
-            ]
-            for selector in _selector_list(rule.prelude):
+            items = body(rule.content)
+            selectors = _selector_list(rule.prelude, parent)
+            declarations = declared(items)
+            for selector in selectors:
                 yield conditions, enclosing, selector, declarations
+            yield from visit(items, conditions, enclosing, tuple(selectors))
 
     yield from visit(
         tinycss2.parse_stylesheet(
@@ -1309,25 +1341,6 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
-def _split_top(text, separators):
-    """Split at separators outside parentheses, brackets and strings."""
-    parts, depth, start, quote = [], 0, 0, None
-    for at, char in enumerate(text):
-        if quote:
-            quote = None if char == quote else quote
-        elif char in "\"'":
-            quote = char
-        elif char in "([":
-            depth += 1
-        elif char in ")]":
-            depth -= 1
-        elif not depth and char in separators:
-            parts.append(text[start:at])
-            start = at + 1
-    parts.append(text[start:])
-    return [part.strip() for part in parts if part.strip()]
-
-
 def _names_a_feature(compound):
     """Whether a compound names a class, id, attribute, or type, directly or in every
     arm of an :is()/:where(). `:not()` and pseudo-classes name nothing Chrome can key on."""
@@ -1354,22 +1367,6 @@ def _names_a_feature(compound):
     )
 
 
-def _all_selectors(nodes):
-    """Every complex selector in a sheet, nested rules included."""
-    for node in nodes:
-        if node.type not in ("at-rule", "qualified-rule") or node.content is None:
-            continue
-        if node.type == "qualified-rule":
-            yield from _split_top(
-                " ".join(tinycss2.serialize(node.prelude).split()), ","
-            )
-        yield from _all_selectors(
-            tinycss2.parse_blocks_contents(
-                node.content, skip_comments=True, skip_whitespace=True
-            )
-        )
-
-
 def test_no_has_rule_restyles_the_whole_document():
     """Chrome restyles a `:has()` that stands before the last combinator from the document
     root, selecting by the rightmost compound alone (assets/AGENTS.md states the rule).
@@ -1385,10 +1382,7 @@ def test_no_has_rule_restyles_the_whole_document():
     read = 0
     unkeyed = []
     for sheet in sheets:
-        nodes = tinycss2.parse_stylesheet(
-            sheet.read_text(), skip_comments=True, skip_whitespace=True
-        )
-        for selector in _all_selectors(nodes):
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
             compounds = _split_top(selector, " >+~")
             if not any(":has(" in compound for compound in compounds[:-1]):
                 continue

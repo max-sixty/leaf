@@ -5,6 +5,7 @@ import re
 
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
@@ -24,6 +25,180 @@ def _read_events(page_dir):
     return [
         event for event in events_model.read_events(page_dir) if event["kind"] == "read"
     ]
+
+
+def _horizontal_bounds(locator):
+    box = locator.bounding_box()
+    return box["x"], box["x"] + box["width"]
+
+
+def _agent_metric_reply(page_dir, root, number, for_event=None):
+    return conversation_model.cmd_reply(
+        page_dir,
+        root,
+        f"Update {number}.",
+        (
+            f'<lf-metrics><lf-metric id="read-update-{number}" value="{number}">'
+            "Completed steps</lf-metric></lf-metrics>"
+        ),
+        for_event=for_event,
+        initiates=for_event is None,
+        when_settled="post",
+    )["id"]
+
+
+def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
+    browser, serve
+):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Can we review this?", author="user")
+    first = _agent_metric_reply(serve.page_dir, root, 1, for_event=root)
+    reader = events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": root, "text": "One more detail."},
+    )["id"]
+    middle = _agent_metric_reply(serve.page_dir, root, 2, for_event=reader)
+    last = _agent_metric_reply(serve.page_dir, root, 3)
+    accepted, _ = endpoint_model.accept_event(
+        serve.page_dir,
+        {
+            "kind": "read",
+            "messages": [
+                {"message": first, "version": first},
+                {"message": middle, "version": middle},
+            ],
+        },
+        dict,
+    )
+    assert accepted == 200
+    edit = conversation_model.cmd_edit(serve.page_dir, first, "Revised update 1.")
+    conversation_model.cmd_summarize(
+        serve.page_dir, root, first, middle, "The first two updates in brief."
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    checkpoint = card.locator(".lf-thread-checkpoint")
+    expect(checkpoint.locator(".lf-summary-unread")).to_contain_text(
+        "1 unread original"
+    )
+    expect(checkpoint.locator(".lf-summary-originals")).to_be_hidden()
+    expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(0)
+    expect(
+        card.locator(f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{last}"]')
+    ).to_be_visible()
+    checkpoint.locator(".lf-summary-expand").click()
+    expect(
+        card.get_by_role("separator", name="New since you last looked")
+    ).to_have_count(2)
+    expect(
+        card.locator(
+            f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{first}"]'
+        )
+    ).to_be_visible()
+    marker_bounds = _horizontal_bounds(checkpoint.locator(".lf-read-boundary").first)
+    original_bounds = _horizontal_bounds(card.locator(f'.lf-msg[data-mid="{first}"]'))
+    assert all(abs(a - b) < 1 for a, b in zip(marker_bounds, original_bounds))
+    expect(card.locator('.lf-read-boundary[data-kind="new"]')).to_have_count(2)
+    expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(1)
+    expect(
+        card.locator(f'.lf-read-boundary + .lf-msg[data-mid="{middle}"]')
+    ).to_have_count(0)
+    assert (
+        card.locator(f'.lf-msg[data-mid="{first}"]').get_attribute(
+            "data-content-version"
+        )
+        == edit["id"]
+    )
+
+    draft = card.locator("textarea").first
+    draft.fill("Compare the revised update.")
+    last_message = card.locator(f'.lf-msg[data-mid="{last}"]')
+    last_message.focus()
+    list_scroll = page.locator(".lf-threads")
+    list_scroll.evaluate("element => element.scrollTop = element.scrollHeight")
+    assert list_scroll.evaluate(
+        "element => element.scrollTop + element.clientHeight >= element.scrollHeight - 1"
+    )
+    page.keyboard.press("m")
+    expect(card.locator(".lf-read-boundary")).to_have_count(0)
+    expect(checkpoint.locator(".lf-summary-unread")).to_have_count(0)
+    expect(draft).to_have_value("Compare the revised update.")
+    expect(last_message).to_be_focused()
+    assert last_message.is_visible()
+    assert list_scroll.evaluate(
+        "element => element.scrollTop + element.clientHeight >= element.scrollHeight - 1"
+    )
+
+
+def test_first_unread_reveals_divider_inside_resolved_summary(browser, serve):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Is this metric settled?", author="user")
+    answer = _agent_metric_reply(serve.page_dir, root, 4, for_event=root)
+    conversation_model.cmd_summarize(
+        serve.page_dir, root, root, answer, "The earlier metric discussion."
+    )
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).to_be_hidden()
+    page.locator(".lf-first-unread").click()
+    expect(card).to_be_visible()
+    expect(card.locator(".lf-thread-checkpoint")).to_have_attribute(
+        "data-expanded", "true"
+    )
+    expect(card.locator(f'.lf-msg[data-mid="{answer}"]')).to_be_focused()
+    expect(
+        card.locator(
+            f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{answer}"]'
+        )
+    ).to_be_visible()
+
+
+def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
+    url = serve(PANEL_PAGE)
+    root = conversation_model.cmd_comment(
+        serve.page_dir,
+        "",
+        "",
+        "",
+        "Review this metric.",
+        '<lf-metrics><lf-metric id="root-metric" value="1">Completed steps</lf-metric></lf-metrics>',
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    expect(
+        card.locator(":scope > .lf-read-boundary + .lf-thread-root-meta")
+    ).to_be_visible()
+    marker_bounds = _horizontal_bounds(card.locator(":scope > .lf-read-boundary"))
+    header_bounds = _horizontal_bounds(card.locator(":scope > .lf-thread-root-meta"))
+    assert all(abs(a - b) < 1 for a, b in zip(marker_bounds, header_bounds))
+    expect(
+        card.locator(f':scope > .lf-thread-root-meta + .lf-msg[data-mid="{root}"]')
+    ).to_be_visible()
+    expect(
+        card.get_by_role("separator", name="New since you last looked")
+    ).to_have_count(1)
+    resolve = card.get_by_role("button", name="Resolve thread")
+    resolve.focus()
+    accepted, _ = endpoint_model.accept_event(
+        serve.page_dir,
+        {"kind": "read", "messages": [{"message": root, "version": root}]},
+        dict,
+    )
+    assert accepted == 200
+    told(page)
+    expect(card.locator(".lf-read-boundary")).to_have_count(0)
+    expect(resolve).to_be_focused()
 
 
 def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(

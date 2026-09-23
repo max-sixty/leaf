@@ -38,7 +38,8 @@
    for focus and presses. Keyboard arrival at a commented element puts the card up
    beside it; standing elsewhere on the page, letting go (`declareRelease`), or pressing
    outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
-   card lands on its target.
+   card lands on its target. With Threads open the list's one expanded thread plays the
+   card's part: the same arrival expands the target's thread there (`accompanyThread`).
 
    Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the list's own scroll, which the browser holds through reflow; only
@@ -124,6 +125,7 @@ import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
+import { accompanyThread } from "./conversation/landing.js";
 import {
   blockAt,
   closestAcross,
@@ -2666,11 +2668,20 @@ export function createMarginProjection({
       !active ||
       active === document.body ||
       preview.contains(active) ||
-      designModeActive() ||
-      panelIsOpen()
+      panel.contains(active) ||
+      designModeActive()
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
+    // With Threads open the panel is where a target's threads show, and its one expanded
+    // thread is the card: arriving at a target by the keyboard expands its thread there.
+    // Nothing closes, since the list stays whole wherever the user stands.
+    if (panelIsOpen()) {
+      const entry = host ? host.lfEntry : threadEntryAt(active);
+      if (entry && threadReading(entry) && active.matches(":focus-visible"))
+        accompanyThread(threadIdOf(entry));
+      return;
+    }
     if (host) {
       if (previewOpen() && host.lfEntry?.key !== previewEntry?.key) closePreview();
       return;

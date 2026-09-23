@@ -6155,6 +6155,45 @@ def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, ser
     expect(preview).to_be_hidden()
 
 
+def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, serve):
+    """With Threads open, the panel's one expanded thread is the element's card.
+
+    Arriving at a commented element by keyboard expands that element's thread in the
+    list and leaves the user on the element, with no margin card beside it. A pointer
+    that lands on another element asked for nothing there, and the list stays as it is.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+    first = seeded_thread(page, serve.page_dir, "#mounts-p")
+    second = seeded_thread(page, serve.page_dir, "#heater-p")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-thread-panel")
+    expanded = threads.locator(".lf-thread[open]")
+
+    def arrive(selector):
+        page.keyboard.press("Tab")
+        page.locator(selector).evaluate("node => { node.tabIndex = -1; node.focus(); }")
+        expect(page.locator(selector)).to_be_focused()
+
+    for passage, sent in (("#heater-p", second), ("#mounts-p", first)):
+        arrive(passage)
+        expect(expanded).to_have_attribute("data-id", sent["id"])
+        expect(page.locator(passage)).to_be_focused()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        assert threads.locator(f'.lf-thread[data-id="{sent["id"]}"]').evaluate(
+            """thread => {
+              const list = thread.closest('leaf-thread-list').getBoundingClientRect();
+              const box = thread.getBoundingClientRect();
+              return box.top < list.bottom && box.bottom > list.top;
+            }"""
+        )
+
+    page.locator("#heater-p").evaluate("node => node.removeAttribute('tabindex')")
+    page.locator("#heater-p").click()
+    expect(expanded).to_have_attribute("data-id", first["id"])
+
+
 def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     browser, serve
 ):

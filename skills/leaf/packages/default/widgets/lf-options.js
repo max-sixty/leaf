@@ -94,8 +94,8 @@
  * example decision can't be answered. `settled` still collapses there, because quoting
  * gates the action channel and not presentation.
  *
- * Authored element children stay in place. Direct prose text becomes inline Markdown
- * after the shared parser loads; its source remains in the immutable document. */
+ * Authored element children stay in place. The layer formats declared Markdown
+ * before this module upgrades the options; generated children use that parser too. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
@@ -108,12 +108,9 @@ import {
   commands,
   landInConversation,
   listWalkPosition,
-  loadMarkdown,
-  markdownReady,
   offer,
   quoted,
   reachedForWords,
-  renderInlineMarkdown,
   notice,
   walkRows,
   widgetController,
@@ -295,11 +292,6 @@ customElements.define(
       const exhibited = quoted(this);
       super.connectedCallback();
       if (!this.#wired) this.#wire(exhibited);
-      void loadMarkdown().then((loaded) => {
-        if (!loaded || !this.isConnected) return;
-        this.renderState(this.reading?.state ?? {});
-        this.requestUpdate();
-      });
       this.#addition?.connect();
       if (this.#choosable && this.hasAttribute("multiple") && !this.#done)
         this.#doneRow();
@@ -653,30 +645,7 @@ customElements.define(
       this.#settled?.sync();
     }
 
-    #formatOptions() {
-      if (!markdownReady()) return;
-      for (const option of this.#options()) {
-        if (option.hasAttribute("data-lf-added")) continue;
-        for (const node of [...option.childNodes]) {
-          if (node.nodeType !== Node.TEXT_NODE || !node.data.trim()) continue;
-          // Source HTML may wrap a sentence across lines; only a reader's textarea
-          // newline is a deliberate hard break.
-          const markup = renderInlineMarkdown(node.data, false);
-          const parsed = document.createElement("template");
-          parsed.innerHTML = markup;
-          if (!parsed.content.firstElementChild) continue;
-          const words = document.createElement("span");
-          words.className = "lf-option-words";
-          words.dataset.lfMarkdownWords = "";
-          words.dataset.lfSourceWords = node.data;
-          words.append(parsed.content);
-          node.replaceWith(words);
-        }
-      }
-    }
-
     #presentAuthored() {
-      this.#formatOptions();
       this.#syncChoice(this.#authoredChoice());
       this.requestUpdate();
     }
@@ -711,7 +680,6 @@ customElements.define(
       const detail = state.selection?.detail ?? this.#authoredChoice();
       for (const option of this.#addition.reconcile(detail.additions ?? {}, this.#done))
         this.#control(option, this.#choosable);
-      this.#formatOptions();
       this.#syncChoice(detail);
     }
 

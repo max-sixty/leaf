@@ -28,6 +28,7 @@ import {
   verbatimOwnerIdentity,
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
+import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -133,6 +134,7 @@ const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 
 export async function importWidgets(scope) {
+  await prepareDeclaredInlineMarkdown(scope);
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
   // Asked of the same scope for the same reason, and that is what makes the narrowing

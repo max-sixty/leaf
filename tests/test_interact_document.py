@@ -620,6 +620,20 @@ def test_option_passages_read_rendered_markdown_words():
     )
 
 
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parent / "option_markdown_cases.json").read_text()),
+)
+def test_option_markdown_file_words_match_browser_cases(case):
+    source = structure_model.SourceDocument(
+        f'<main><lf-option id="choice">{case["source"]}</lf-option></main>'
+    )
+    passages = passages_model.page_passages(
+        source, {"lf-option": {"x-text-format": "inline-markdown"}}
+    )
+    assert passages.text == case["words"]
+
+
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     optional = structure_model.SourceDocument("<main><p>First<div>Second</div></main>")
     assert optional.errors == [] and optional.unclosed == []

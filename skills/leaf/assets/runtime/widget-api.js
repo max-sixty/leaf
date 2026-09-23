@@ -45,6 +45,7 @@ export {
   registerMarginContribution,
 } from "./margin-entries.js";
 export {
+  inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
   renderInlineMarkdown,

@@ -485,7 +485,7 @@ lf-options:not(:has(> lf-option > strong)) {
              font: var(--lf-option-font); }
 lf-option { display: block; position: relative; }
 /* Markdown prose is an inline island beside the option's authored elements and controls. */
-lf-option > .lf-option-words { white-space: normal; }
+lf-option > .lf-markdown-words, lf-option > .lf-option-words { white-space: normal; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. The same sentence

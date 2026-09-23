@@ -83,6 +83,7 @@ import {
   wrote,
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
+import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
@@ -1040,6 +1041,8 @@ export function createVersionController({
         if (mine !== diffRequest) return;
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
+      if (mine !== diffRequest) return;
+      await prepareDeclaredInlineMarkdown(doc);
     } catch {
       if (mine === diffRequest) {
         diffPendingBase = null;

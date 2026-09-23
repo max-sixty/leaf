@@ -1,0 +1,10 @@
+[
+  {"source": "Can we leave it to the _widget_?", "words": "Can we leave it to the widget?"},
+  {"source": "A \\*literal\\* marker", "words": "A *literal* marker"},
+  {"source": "H~2~O", "words": "H2O"},
+  {"source": "[unsafe label](javascript:alert(1))", "words": "unsafe label"},
+  {"source": "![unsafe alt](javascript:alert(1))", "words": "unsafe alt"},
+  {"source": "first  \nsecond", "words": "first second"},
+  {"source": "A _b_<code>c</code>", "words": "A bc"},
+  {"source": "X<em>Y</em>", "words": "XY"}
+]

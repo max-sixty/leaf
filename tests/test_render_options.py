@@ -4,6 +4,7 @@ import io
 import json
 import math
 import re
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -372,7 +373,7 @@ def test_option_words_render_markdown_without_losing_the_reader_draft(browser, s
     assert render_gate_model.render_version(browser, url) == []
     page = open_page(browser, url)
     authored = page.locator("#job-mounts")
-    expect(authored.locator(":scope > .lf-option-words em")).to_have_text("widget")
+    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
     expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
         "aria-label", re.compile(r"Ask the widget to decide — option 1")
     )
@@ -396,6 +397,19 @@ def test_option_words_render_markdown_without_losing_the_reader_draft(browser, s
     assert choices[-1]["additions"][added.get_attribute("id")] == "Keep **both** routes"
 
 
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parent / "option_markdown_cases.json").read_text()),
+)
+def test_option_markdown_visible_words_match_file_reading(browser, serve, case):
+    source = ASK_PAGE.replace("Replace the <code>M8</code> mounts", case["source"])
+    page = open_page(browser, serve(source))
+    words = page.locator("#job-mounts").evaluate(
+        "async el => (await window.__lfRuntimeImport('/runtime/widget-api.js')).wrote(el)"
+    )
+    assert words == case["words"]
+
+
 def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
     source = ASK_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
@@ -417,6 +431,23 @@ def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["job-camera"]
+
+
+def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
+    source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    page = open_page(browser, live_url(serve(source)))
+    stamp_page(
+        serve.page_dir,
+        source.replace('id="job-mounts"', 'id="job-mounts" chosen'),
+        "Choose the mounts option",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    expect(page.locator("#job-mounts")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    change = page.locator('[data-lf-margin-for="job-mounts"] [data-lf-kinds~="change"]')
+    expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
 
 
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(

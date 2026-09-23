@@ -2,7 +2,8 @@
  * to that draft generation, and the generated option nodes replay reconstructs. */
 import {
   loadDraft,
-  renderInlineMarkdown,
+  inlineMarkdownFragment,
+  markdownReady,
   offer,
   saveDraft,
   sendDraft,
@@ -184,11 +185,11 @@ export class OptionAddition {
           words.dataset.lfMarkdownWords = "";
           option.prepend(words);
         }
-        const markup = renderInlineMarkdown(text);
-        if (words.source !== text || words.markup !== markup) {
+        const ready = markdownReady();
+        if (words.source !== text || words.markdownReady !== ready) {
           words.source = text;
-          words.markup = markup;
-          words.innerHTML = markup;
+          words.markdownReady = ready;
+          words.replaceChildren(inlineMarkdownFragment(text));
         }
       }
     }

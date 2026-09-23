@@ -85,6 +85,8 @@ class _RenderedInlineWords(HTMLParser):
         self.parts.append(data)
 
     def handle_starttag(self, tag, attrs):
+        if tag == "br":
+            self.parts.append("\n")
         # The browser's renderer leaves the alt word where an image URL is refused.
         if tag == "img":
             image = dict(attrs)
@@ -97,8 +99,12 @@ class _RenderedInlineWords(HTMLParser):
                 self.parts.append(image.get("alt", ""))
 
 
-_inline_markdown = MarkdownIt("default", {"html": False})
-_added_inline_markdown = MarkdownIt("default", {"html": False, "breaks": True})
+_inline_markdown = MarkdownIt(
+    "default", {"html": False, "strikethrough_single_tilde": True}
+)
+_added_inline_markdown = MarkdownIt(
+    "default", {"html": False, "breaks": True, "strikethrough_single_tilde": True}
+)
 # The browser accepts syntax first, then removes unsafe link destinations while
 # retaining their label. Parse those links here too, where only visible text is read.
 _inline_markdown.validateLink = lambda _url: True
@@ -341,10 +347,11 @@ class _PassageParser:
         if tag in VOID_TAGS:
             return
         entry = self.registry.get(tag) or {}
-        # The innermost open text block, if any: the runtime's `closest(TEXT_BLOCK)`.
+        # A declared text-format element owns one prose run across its parsed
+        # Markdown and existing inline HTML, like the runtime's blockAt.
         tb = (
             self._fresh()
-            if tag in TEXT_BLOCK_TAGS
+            if tag in TEXT_BLOCK_TAGS or entry.get("x-text-format")
             else (parent["tb"] if parent else None)
         )
         block = tb if tb else self._fresh()

@@ -1,6 +1,6 @@
 /* This module owns the shared readings of visible boxes and clipping, and the one
  * conversion from viewport boxes to document-positioned chrome. */
-import { uiInside, upFrom } from "./shadow.js";
+import { uiInside, under, upFrom } from "./shadow.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -130,23 +130,16 @@ const stuckIn = (cover) => {
     if (scrolls(a)) return a;
   return document.scrollingElement;
 };
-const holds = (cover, item) => {
-  for (let n = item; n; n = upFrom(n)) if (n === cover) return true;
-  return false;
-};
 // Every shown cover's box, by the scroller it sticks in. Built once per clip pass, since
-// a pass asks it at each ancestor of every item.
+// a pass asks it at each ancestor of every item. A detached cover is only skipped: its
+// observer lets it go, and a cover put back and declared again must still be one.
 const COVERS = Symbol("covers");
 function coversByScroller(clips = null) {
   let index = clips?.get(COVERS);
   if (index) return index;
   index = new Map();
   for (const cover of declaredCovers) {
-    if (!cover.isConnected) {
-      letGo(cover);
-      continue;
-    }
-    if (!cover.checkVisibility()) continue;
+    if (!cover.isConnected || !cover.checkVisibility()) continue;
     const scroller = stuckIn(cover);
     if (!index.has(scroller)) index.set(scroller, []);
     index.get(scroller).push({ cover, box: cover.getBoundingClientRect() });
@@ -157,7 +150,7 @@ function coversByScroller(clips = null) {
 const bandLess = (band, covers, item) =>
   insetBand(
     band,
-    covers.filter(({ cover }) => !item || !holds(cover, item)).map(({ box }) => box),
+    covers.filter(({ cover }) => !item || !under(item, cover)).map(({ box }) => box),
   );
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);

@@ -123,6 +123,12 @@ test("the band is the scroller's less a stuck cover", () => {
     { top: visibleBand(scroller).top, bottom: visibleBand(scroller).bottom },
     { top: 30, bottom: 400 },
   );
+  // Read while detached, then put back and declared again, it is still a cover.
+  heading.remove();
+  visibleBand(scroller);
+  scroller.append(heading);
+  declareCoverRoom(scroller, "--lf-head-room", [heading]);
+  assert.equal(visibleBand(scroller).top, 30);
   // A cover does not hide what it holds: read for a node inside it, the band keeps it.
   const label = document.createElement("span");
   heading.append(label);

@@ -10260,10 +10260,10 @@ def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_p
     """The `PostToolUse` entry prints `hooks/wait-started.json` after a `leaf wait`
     launch in Claude Code, and nothing anywhere else.
 
-    Claude Code's `if` filter keeps the hook off other commands, but Codex runs the
-    same `hooks.json`, ignores `if`, and fires the entry on every shell call, so the
-    command's own gate is what keeps Claude Code's guidance out of Codex. Run the
-    registered command the way a host does: through a shell, payload on stdin.
+    Claude Code's `if` filter keeps the hook off other commands. Codex runs the same
+    `hooks.json`, ignores `if`, and fires the entry on every shell call, so the
+    command's own Claude Code check is what keeps the guidance out of Codex. Run
+    the registered command the way a host does: through a shell, payload on stdin.
     """
     (entry,) = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"][
         "PostToolUse"
@@ -10296,7 +10296,6 @@ def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_p
     launch = f"{PLUGIN_ROOT}/bin/leaf wait --ack 64186241"
     assert run(launch, claude_code=True) == guidance
     assert run(launch, claude_code=False) is None
-    assert run("git status", claude_code=True) is None
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):

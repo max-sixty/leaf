@@ -32,6 +32,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
     created_children,
     schema_error,
@@ -825,6 +826,7 @@ def admission_error(
         or _anchored_comment_error(view, event, events, registry, capture_anchors)
         or _parent_error(event, events)
         or _conversation_presentation_error(view, event, events)
+        or read_contract_error(event, events)
         or _withdrawal_error(view, event, events)
     )
 

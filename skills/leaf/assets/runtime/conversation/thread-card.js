@@ -78,6 +78,7 @@ export function threadReading(
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
+    unreadCount: thread.unreadCount ?? 0,
     id: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
@@ -120,6 +121,15 @@ function navigationSummary(navigation, model) {
   return html`<summary class="lf-thread-summary" title=${title}>
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
+    ${
+      model.unreadCount
+        ? html`<span
+            class="lf-thread-unread"
+            aria-label=${`${model.unreadCount} unread`}
+            >${model.unreadCount} unread</span
+          >`
+        : nothing
+    }
     <span
       class="lf-thread-count"
       aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
@@ -136,6 +146,20 @@ function navigationSummary(navigation, model) {
   </summary>`;
 }
 
+function readBoundary(kind) {
+  if (!kind) return nothing;
+  const label =
+    kind === "new" ? "New since you last looked" : "End of this new section";
+  return html`<div
+    class="lf-read-boundary"
+    data-kind=${kind}
+    role="separator"
+    aria-label=${label}
+  >
+    <span aria-hidden="true">${label}</span>
+  </div>`;
+}
+
 export class ThreadView {
   #commands;
   #model = null;
@@ -144,6 +168,7 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
+  #markReadButton = null;
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
   #growing = false;
@@ -236,20 +261,64 @@ export class ThreadView {
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
+    const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
     let headerActions = null;
     if (!model.resolved || model.folding) {
       this.#metadataActions.className = "lf-thread-meta-actions";
-      const actions = [settlement];
-      if (
-        actions.length !== this.#metadataActions.children.length ||
-        actions.some(
-          (action, index) => this.#metadataActions.children[index] !== action,
-        )
-      )
-        this.#metadataActions.replaceChildren(...actions);
+      const actions = markRead ? [markRead, settlement] : [settlement];
+      for (const child of [...this.#metadataActions.children])
+        if (!actions.includes(child)) child.remove();
+      if (markRead && markRead.parentNode !== this.#metadataActions)
+        this.#metadataActions.insertBefore(
+          markRead,
+          settlement.parentNode === this.#metadataActions ? settlement : null,
+        );
+      if (settlement.parentNode !== this.#metadataActions)
+        this.#metadataActions.append(settlement);
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
+    const summaries = new Set(model.summaries.map(({ id }) => id));
+    for (const id of this.#expandedSummaries)
+      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
+    const rangeState = describedRanges.map((range) => {
+      if (range.kind === "message") return range;
+      const forced = Boolean(range.summary.protected?.length);
+      const searchMatch = range.messages.some((message) =>
+        model.search?.messages.includes(message.id),
+      );
+      return {
+        ...range,
+        expanded:
+          forced || searchMatch || this.#expandedSummaries.has(range.summary.id),
+        forced: forced || searchMatch,
+        requiredText: searchMatch
+          ? "Matching messages kept open"
+          : "Messages kept open · current work",
+      };
+    });
+    const boundaries = new Map();
+    let precedingUnread = false;
+    if (panel)
+      for (const range of rangeState) {
+        if (range.kind === "summary" && !range.expanded) {
+          precedingUnread = false;
+          continue;
+        }
+        for (const message of range.kind === "message"
+          ? [range.message]
+          : range.messages) {
+          const boundary = message.unread
+            ? precedingUnread
+              ? null
+              : "new"
+            : precedingUnread
+              ? "end"
+              : null;
+          if (boundary) boundaries.set(message.key, boundary);
+          precedingUnread = Boolean(message.unread);
+        }
+      }
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -258,21 +327,12 @@ export class ThreadView {
       return { key: message.key, node: view.node, header: view.header };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
-    const summaries = new Set(model.summaries.map(({ id }) => id));
-    for (const id of this.#expandedSummaries)
-      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    const ranges = describedRanges.map((range) => {
+    const ranges = rangeState.map((range) => {
       if (range.kind === "message") {
         const node = messageNodes.get(range.message.key);
         delete node.dataset.lfSummary;
         return { ...range, node };
       }
-      const forced = Boolean(range.summary.protected?.length);
-      const searchMatch = range.messages.some((message) =>
-        model.search?.messages.includes(message.id),
-      );
-      const expanded =
-        forced || searchMatch || this.#expandedSummaries.has(range.summary.id);
       const nodes = range.messages.map((message) => {
         const node = messageNodes.get(message.key);
         node.dataset.lfSummary = range.summary.id;
@@ -280,14 +340,12 @@ export class ThreadView {
       });
       return {
         ...range,
-        expanded,
-        forced: forced || searchMatch,
-        requiredText: searchMatch
-          ? "Matching messages kept open"
-          : "Messages kept open · current work",
         nodes,
       };
     });
+    const hoistedRoot = headerActions ? messages[0]?.key : null;
+    const markerFor = (key) =>
+      readBoundary(key === hoistedRoot ? null : boundaries.get(key));
     if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
     render(
       html`
@@ -323,7 +381,7 @@ export class ThreadView {
                         <span class="lf-quote-label">${model.quote.label}</span>
                         ${
                           model.quote.outdated
-                            ? html`<span class="lf-anchor-status">Outdated</span>`
+                            ? html`<span class="lf-anchor-status">Earlier data</span>`
                             : nothing
                         }
                       </blockquote>`
@@ -332,6 +390,7 @@ export class ThreadView {
               </header>`
             : nothing
         }
+        ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
         ${
           headerActions && messages[0]
             ? html`<div class="lf-thread-root-meta">
@@ -343,7 +402,9 @@ export class ThreadView {
           ranges,
           (range) => range.key,
           (range) =>
-            range.kind === "message" ? range.node : this.#summaryRange(range),
+            range.kind === "message"
+              ? html`${markerFor(range.message.key)}${range.node}`
+              : this.#summaryRange(range, markerFor),
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
@@ -360,7 +421,7 @@ export class ThreadView {
                       : nothing
                   }</span
                 >
-                ${settlement}
+                ${markRead ?? nothing}${settlement}
               </div>`
             : nothing
         }
@@ -368,7 +429,9 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (
+    if (panel && standing === this.#markReadButton && !markRead) {
+      focusThread(this.node, { preventScroll: true });
+    } else if (
       summaryReplacedFocusedMessage &&
       focused() !== standing &&
       standing?.isConnected
@@ -380,8 +443,9 @@ export class ThreadView {
     return this.node;
   }
 
-  #summaryRange(range) {
+  #summaryRange(range, markerFor) {
     const count = range.messages.length;
+    const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
     const originalsId = `lf-summary-originals-${id}`;
     return html`<section
@@ -390,7 +454,15 @@ export class ThreadView {
       data-expanded=${String(range.expanded)}
     >
       <div class="lf-summary-checkpoint">
-        <div class="lf-summary-label">Summary</div>
+        <div class="lf-summary-label">
+          Summary${
+            unread
+              ? html`<span class="lf-summary-unread">
+                  · ${unread} unread original${unread === 1 ? "" : "s"}</span
+                >`
+              : nothing
+          }
+        </div>
         <div
           class="lf-summary-text"
           .innerHTML=${renderMarkdown(range.summary.text)}
@@ -415,7 +487,8 @@ export class ThreadView {
           ${repeat(
             range.messages,
             (message) => message.key,
-            (message) => range.nodes[range.messages.indexOf(message)],
+            (message) =>
+              html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
           )}
         </div>
         ${
@@ -470,6 +543,20 @@ export class ThreadView {
     }
     render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
     return button;
+  }
+
+  #markReadControl() {
+    if (!this.#markReadButton) {
+      const button = offer(
+        "button",
+        "lf-btn lf-mark-read lf-thread-action",
+        "Mark thread read",
+      );
+      button.type = "button";
+      button.onclick = () => this.#commands.read.markThread(this.#model.id);
+      this.#markReadButton = button;
+    }
+    return this.#markReadButton;
   }
 
   #settle = () => {

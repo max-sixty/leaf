@@ -1,5 +1,6 @@
 /* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
+import { ANCHOR_NOTE_TAG } from "./anchor-note-view.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
@@ -15,6 +16,15 @@ import { LAYOUT } from "./widget-elements.js";
 // A box holding a control of its own is already reachable (lf-board, through its
 // grips). Re-read that content when layout changes: an initially empty Page Map list
 // must give up its container stop once actions arrive inside it.
+//
+// Of its own is the load-bearing half. The anchor note is the one control the runtime
+// hangs inside a block it does not own, and it is a skip control over that block rather
+// than a stop inside it: a 1px transparent button (shadow.css, .lf-mark-note) that
+// leaves the flow for `position: fixed` the moment it takes focus, so standing on it
+// scrolls nothing and leaves everything past the box's edge as unreachable as before.
+// Counting it took the scroll stop off any box a reader had commented on — one comment
+// anchored to a flowchart wider than the window, and the keyboard lost the half of the
+// graph hanging off the right of it.
 //
 // Two things every caller owes it, both learned by getting them wrong. It runs after a
 // widget has rendered rather than as one stages, because the look a scroll box has is
@@ -65,6 +75,12 @@ export const FOCUSABLE =
 // leaves behind, so the re-measure walks a handful of boxes rather than the document.
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+// The box's own controls, which is every focusable inside it but the note above.
+function holdsOwnStop(el) {
+  for (const node of el.querySelectorAll(FOCUSABLE))
+    if (!node.closest(ANCHOR_NOTE_TAG)) return true;
+  return false;
+}
 const mayScroll = new Set();
 // The same measurement spent on the eye. Scrolling is the layer's honest degrade for a
 // box whose content is wider than the room it was given — a diagram at the size it was
@@ -212,7 +228,7 @@ function gone(el) {
 function paintReach() {
   for (const el of mayScroll) {
     if (gone(el)) continue;
-    const wanted = overflows(el) && !el.querySelector(FOCUSABLE) ? 0 : -1;
+    const wanted = overflows(el) && !holdsOwnStop(el) ? 0 : -1;
     if (el.tabIndex !== wanted) el.tabIndex = wanted;
   }
   for (const el of sideways) {

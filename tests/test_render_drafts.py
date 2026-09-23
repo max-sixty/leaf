@@ -51,6 +51,7 @@ from render_harness import (
     _until,
     compare_with,
     consume_browser_errors,
+    expect_banner_control_offered,
     held_stale,
     hold_selection,
     holding,
@@ -544,7 +545,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
     told(page)
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
@@ -865,12 +866,12 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add option", exact=True
+        "button", name="Add and select option", exact=True
     ).click()
     holding(first, held, 1, "the first added option")
 
     second.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add option", exact=True
+        "button", name="Add and select option", exact=True
     ).click()
     round_trip(second)
     held_detail = held[0].request.post_data_json["detail"]
@@ -1545,11 +1546,11 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         expect(page.locator(".lf-fab-input")).not_to_be_focused()
         assert composer_quote(page)["text"].strip("“”") == "A short second passage."
     else:
-        expect(thread.locator("textarea")).to_be_focused()
+        expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
 def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
-    """Focus handed to a new reply is not itself a draft; an edit to empty is."""
+    """An untouched reply is not a draft; an edit to empty is."""
     page = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     select_words(page, "#p1")
@@ -1563,9 +1564,12 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
         page.keyboard.press("ControlOrMeta+Enter")
 
     sent = events_model.read_events(serve.page_dir)[-1]
-    reply = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"] textarea'
+    thread = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
     )
+    reply = thread.locator("textarea")
+    expect(thread).to_be_focused()
+    thread.get_by_role("button", name="Reply").click()
     expect(reply).to_be_focused()
 
     d = serve.page_dir
@@ -1589,7 +1593,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     stamp_page(d, v3, "v3")
     told(page)
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
     expect(page.locator(".lf-version")).to_contain_text("v2")
     expect(reply).to_have_value("")
     expect(reply).to_be_focused()

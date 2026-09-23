@@ -60,6 +60,29 @@ def request_phases(lifecycles: list[dict]) -> dict[str, str]:
     return {lifecycle["seat"]["widget"]: lifecycle["phase"] for lifecycle in lifecycles}
 
 
+def request_outcomes(events: list[dict]) -> list[dict]:
+    """Every terminal request result, even after its authored seat is retired.
+
+    Seat lifecycles answer what the current document can offer. A receipt remains
+    news about a completed instruction after a later revision removes that seat,
+    so browser news reads this complete log projection instead of the current
+    document's latest lifecycle attempt.
+    """
+    requests = {event["id"]: event for event in events if event["kind"] == "request"}
+    return [
+        {
+            "request": request["id"],
+            "widget": request["widget"],
+            "action": request["action"],
+            "document": request["meaning"]["document"],
+            "receipt": receipt,
+        }
+        for receipt in events
+        if receipt["kind"] == "receipt"
+        and (request := requests.get(receipt["request"])) is not None
+    ]
+
+
 def request_document(event: dict, page, thread):
     """The request's sender and the one document that contains its offers."""
     if record := page.by_id.get(event["widget"]):

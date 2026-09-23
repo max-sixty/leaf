@@ -1,10 +1,7 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
-   A reply send returns in the gesture that makes it, so whether the reader is still in
-   this box is read once, there, and typing continues here only on that reading. The
-   send preserves the panel's narrowing, and focuses the reply box only when no later
-   selection, edit, or typing gesture stands. A general-comment send keeps focus in its
-   originating box. */
+   A reply send returns in the gesture that makes it. The send preserves the panel's
+   narrowing and keeps the reader's focus where their gesture left it. */
 import {
   loadDraft,
   mirrorDraft,
@@ -14,7 +11,6 @@ import {
 } from "../drafts.js";
 import { threadKey } from "./model.js";
 import { focused } from "../keyboard/scopes.js";
-import { landTyping, mayLandTyping } from "../composing/capture.js";
 
 const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 
@@ -59,16 +55,9 @@ export function wireReply(
       saveDraft(draftCtx, v);
       tellDraft(draftCtx, v);
     },
-    // The send returns in the gesture, so where the reader is reading is still where
-    // they were when they pressed it. Whether typing continues here is that one
-    // reading, taken now, rather than a race against a scroll or a blur arriving during
-    // a flight this no longer waits on.
     send: (_text, raw, owns) => {
       const sent = sendReply(t, liveId, raw, owns, createReply);
-      if (!sent || (focused() !== input && focused() !== send) || !mayLandTyping(input))
-        return;
-      landTyping(input);
-      revealReplyEditor(input);
+      if (sent && (focused() === input || focused() === send)) revealReplyEditor(input);
     },
   });
   sync();

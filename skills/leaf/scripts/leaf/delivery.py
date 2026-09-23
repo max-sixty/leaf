@@ -34,7 +34,7 @@ from .registry.storage import active_registry
 from .revision_artifact import read_registry
 from .schema import CURSOR_FILE
 from .served_state.page import full_state
-from .service import PageTransaction
+from .service import PageTransaction, requires_agent_attention
 from .structure import parse_revision
 from .thread_context import (
     batch_threads,
@@ -362,7 +362,11 @@ def record_pickup(
         session = claim.get("id")
     if phase == "opened" and turn is None and claim and claim.get("id") == session:
         turn = claim.get("turn")
-    wanted = [event["id"] for event in events if event.get("author") == "user"]
+    wanted = [
+        event["id"]
+        for event in events
+        if event.get("author") == "user" and requires_agent_attention(event)
+    ]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])
         for event in page.events

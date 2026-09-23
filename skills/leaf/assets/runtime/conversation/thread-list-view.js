@@ -13,7 +13,7 @@ import { layoutChanged } from "../widget-elements.js";
 import { foldOut, finishFold, isFolding } from "./folding.js";
 
 const TAG = "leaf-thread-list";
-const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]) });
+const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]), pageSeats: new Map() });
 
 class ThreadListView extends LitElement {
   static properties = {
@@ -41,6 +41,12 @@ class ThreadListView extends LitElement {
     return this.#rows
       .filter((row) => row.kind === "thread" && eligible.has(row.node.dataset.id))
       .map((row) => row.node);
+  }
+
+  // The shown cards in the page's order, whichever order the list stands in.
+  inPageOrder(cards) {
+    const seats = this.model.pageSeats;
+    return [...cards].sort((a, b) => seats.get(a.dataset.id) - seats.get(b.dataset.id));
   }
 
   revealNavigation(id) {

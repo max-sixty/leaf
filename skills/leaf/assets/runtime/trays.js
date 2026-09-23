@@ -14,7 +14,7 @@ import { walkRows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { iconElement } from "./icons.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
-import { dismissBannerControls, focusBannerControl } from "./banner-shelf.js";
+import { bannerControlDoor, dismissBannerControls } from "./banner-shelf.js";
 import { createAskTrayList } from "./asks/tray-list.js";
 // The left side holds one tray at a time, selected by the shared auxiliary-surface owner.
 // The leaves tray overlays the document because its
@@ -196,7 +196,7 @@ export function createTrays({
         if (out) out.finished.then(hide, () => {});
         else hide();
         if (returnFocus && panel.contains(document.activeElement))
-          focusBannerControl(btn);
+          bannerControlDoor(btn)?.focus({ preventScroll: true });
       },
     });
     trays.set(key, { panel, btn, close });

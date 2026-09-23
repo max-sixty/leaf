@@ -33,10 +33,11 @@ const threadPosition = (activeInlineThread, panelIsOpen) => {
   });
 };
 
-// t/T walk open threads in page order. A closed panel keeps the walk at the thread's
+// t/T walk open threads. A closed panel walks them in page order, at each thread's
 // inline destination: a declared widget outlet first, then the thread margin entry's card. A
 // thread with no page destination is indexed only by Threads, so that destination opens the panel.
-// Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
+// Once the panel is open, the walk stays in its list, in whichever order the list shows.
+// Both paths are clamped, not wrapped.
 function stepThread(
   dir,
   { openPageThread, scrollToThread, activeInlineThread },

@@ -10,30 +10,6 @@ overlapping summary as the discussion grows. Their contracts live in
 [the package Thread API](../skills/leaf/references/packages.md#widget-local-thread-surfaces).
 The [playground](thread-navigation/README.md) retains the design comparisons.
 
-## Notifications and unread state
-
-The canonical workflow already records exact-input delivery, work, response,
-condition, and next actor. The Thread collection supplies stable message identities
-and attention derived from workflows and outstanding reader Asks. The page activity
-reading remains separate, and native requests have their own terminal receipts.
-These are the source facts for notification decisions; no second message-status
-ontology is needed.
-
-First decide which changes deserve notice: an agent answer, a new reader obligation,
-a failed or interrupted response, a page becoming available, or a native request
-outcome. A stage change such as Sent to Picked up, a heartbeat, or a tool step does
-not by itself demand a notification. Compare successive canonical readings using
-stable ids, then let subscribers choose the status line, accessible announcement,
-Thread control, or another destination. The application publisher already updates
-semantic readings; the bottom status line and live region already show brief notices.
-Inspect these before adding a transition bus or new transport.
-
-Unread is a separate fact about what the reader has seen, not a workflow stage or
-the same thing as Needs you. The current `viewed` timestamp means a tab had the page
-visible; it does not say which Thread or reply was read. Define the read boundary and
-lifetime (tab-local or durable) before adding unread counts, First unread, or badges.
-Keep notification coalescing and read state out of the canonical message workflow.
-
 ## Independent jobs, delegation, and continuation
 
 Develop an ontology for work that outlives the turn or tool that started it: what
@@ -72,5 +48,4 @@ individual oversized messages while preserving opening context, the current
 exchange, outstanding questions, and actionable controls. Search and direct-message
 navigation must reveal hidden matches; new replies and folding must preserve reading
 position. Test recovering an earlier argument and answering the current question
-without hidden obligations or scroll jumps. Keep read-position and unread-state
-decisions with the notification plan above.
+without hidden obligations or scroll jumps.

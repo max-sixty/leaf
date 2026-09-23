@@ -41,11 +41,13 @@ beside them: a `Something else` option takes a click where that cell takes the
 answer. Its Ask address is the digit after the listed options when one of the nine
 addresses remains. Submitting the cell creates and selects a real option. It reaches you as
 the group's ordinary `choose` action, with `detail.additions` mapping the complete
-set of reader-added option ids to their words. In a thread the reply box already owns
-free-form words, so the group carries no add cell of its own.
+set of reader-added option ids to their words. In a `multiple` group, the reader
+presses Done after adding and choosing their options. In a thread the reply box
+already owns free-form words, so the group carries no add cell of its own.
 
-The standing `choose` action answers the Ask immediately and preserves
-generated options across revisions. If an added option needs clarification,
+The standing `choose` action answers a single-choice Ask immediately and preserves
+generated options across revisions. A `multiple` Ask stays open until Done, on the
+page and in a thread. If an added option needs clarification,
 open a separate exact-section thread anchored to its event-supplied id. When
 editing that option's markup, follow `authoring-revisions.md`'s reader-state rules.
 

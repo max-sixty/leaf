@@ -67,7 +67,6 @@ registerBannerControl({
   key: "select-element",
   control: selectElement,
   rank: BANNER_CONTROL_RANK.select,
-  alwaysFolded: true,
   present: coarsePointer.matches,
 });
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
@@ -744,6 +743,7 @@ export function createTargetChooser({
       openTargetChooser();
     });
     targetChooserCancel.addEventListener("click", () => {
+      dismissBannerControls();
       setTargetChooser(false, true);
       announce("Target chooser closed.");
     });

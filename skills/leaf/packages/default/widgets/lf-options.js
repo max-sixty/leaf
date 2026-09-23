@@ -43,9 +43,9 @@
  * generated option joins the walk on replay just like an authored one.
  *
  * In a thread the existing reply box already owns those words, so Enter from a mark
- * continues into that box and a `multiple` group grows a Done press instead: every
- * toggle reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the thread decision's closing
+ * continues into that box. Every `multiple` group grows a Done press: each toggle
+ * reaches the agent as it lands, so the press is the one statement that the set
+ * is whole, posted as an `answer` action and held as the Ask's closing
  * condition (x-awaits.until). Answered is paint on the press, never a wider word, and the
  * set can still change after — each later toggle still reaches the agent, who reads the log.
  *
@@ -292,6 +292,8 @@ customElements.define(
       super.connectedCallback();
       if (!this.#wired) this.#wire(exhibited);
       this.#addition?.connect();
+      if (this.#choosable && this.hasAttribute("multiple") && !this.#done)
+        this.#doneRow();
       this.#settled?.connect();
       if (!exhibited && (this.hasAttribute("choose") || this.hasAttribute("settled"))) {
         this.#controller ??= widgetController(this);
@@ -322,7 +324,6 @@ customElements.define(
         },
       });
       if (this.#choosable) {
-        if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keysDirty = true;
       }
       if (this.hasAttribute("settled")) {

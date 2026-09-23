@@ -55,6 +55,7 @@ export function createConversationPresentation({
   activeActionAnchor,
   renderMargin,
   renderSurfaces,
+  read,
 }) {
   let painting = false;
 
@@ -131,6 +132,7 @@ export function createConversationPresentation({
 
   async function renderReading(phase = "ready") {
     const generation = ++surfaceGeneration;
+    read.begin();
     const current = () => generation === surfaceGeneration;
     const batch = beginConversationSeats();
     let prepared = null;
@@ -170,9 +172,12 @@ export function createConversationPresentation({
       commitConversationSeats(batch);
       pageGeometry.pageShifted();
       finishListRecovery(candidate);
+      read.present();
     } catch (error) {
       surfaces?.cancel();
-      if (!current() || error instanceof RetainedThreadListError) throw error;
+      if (!current()) throw error;
+      read.abort();
+      if (error instanceof RetainedThreadListError) throw error;
       // A synchronous sibling failure may leave the panel's widget preparation in
       // flight. Invalidate its private generation before restoring the whole reading.
       await restoreThreadList();

@@ -352,6 +352,64 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
     )
 
 
+def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
+    browser, serve
+):
+    """Draw mode swallows the presses the reader's own stroke still owes the page, so a
+    stroke lifting over a control does not press that control as well. A keyboard
+    activation is not one of those presses: `Ctrl+Enter` in the composer the stroke just
+    opened is Send's own click, and it has to reach Send whatever the pointer did the
+    moment before.
+
+    The claim comes off on a zero-delay timer, so which of the two arrives first is a
+    race — and the reader loses it whenever the release's own work runs long, the send
+    eaten with nothing said, the drawing still pending and Send still reading enabled.
+    So the arrangement holds that macrotask rather than racing it: every zero-delay
+    callback the release schedules is held until the press has been made, which is the
+    window the rule is about, stated rather than waited for.
+    """
+    page = open_page(browser, serve(TARGETS_PAGE))
+    point = page.evaluate(
+        """() => {
+          const x = 40;
+          const y = Math.min(innerHeight - 80, 420);
+          const hit = document.elementFromPoint(x, y);
+          return {x, y, tag: hit?.tagName ?? "", item: hit?.closest("main > *")?.id ?? ""};
+        }"""
+    )
+    assert point["tag"] in {"HTML", "BODY", "MAIN"} and not point["item"], point
+
+    page.mouse.move(point["x"], point["y"])
+    page.keyboard.press("w")
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    page.mouse.down()
+    page.mouse.move(point["x"] + 70, point["y"] - 60, steps=8)
+    page.mouse.move(point["x"] + 130, point["y"] + 30, steps=8)
+    page.evaluate(
+        """() => {
+          const schedule = globalThis.setTimeout;
+          const held = [];
+          window.__releaseHeldTimers = () => {
+            globalThis.setTimeout = schedule;
+            for (const callback of held.splice(0)) schedule(callback, 0);
+            return true;
+          };
+          globalThis.setTimeout = (callback, delay, ...rest) =>
+            delay ? schedule(callback, delay, ...rest) : (held.push(callback), -1);
+        }"""
+    )
+    page.mouse.up()
+    submit = page.locator(".lf-general .lf-compose-submit")
+    expect(submit).to_have_attribute("aria-disabled", "false")
+    with sending(page, "the drawing the keyboard sent"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    assert page.evaluate("() => window.__releaseHeldTimers()")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["kind"] == "comment", event
+    assert event["drawing"]["strokes"], event
+
+
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     """Whitespace is part of the drawable page plane. With no addressable element under the
     starting point, the stroke opens a page comment and keeps document coordinates."""

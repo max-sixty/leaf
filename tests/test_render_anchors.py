@@ -31,6 +31,7 @@ from render_cases_layout import (
     AIM_SEAM_PAGE,
     SHOT_SRC,
     SHOTS,
+    banner_control,
     button_radius,
 )
 from render_cases_navigation import (
@@ -2688,6 +2689,9 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     with sending(page, "the comment on the ambiguous passage"):
         page.locator(".lf-composer button.lf-compose-submit").click()
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview textarea")).not_to_be_focused()
 
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
@@ -3159,7 +3163,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
 
     # And the older document is a real destination, not just a row: choosing it pins
     # the reader to the virtual version address the chooser named.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     expect(page.locator(".lf-version")).to_have_text("v1")
@@ -3559,7 +3563,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
     # reader is already on.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     pointer_line = shortcut_bar_text(page)
     assert "walk — marking changes" not in pointer_line, pointer_line
@@ -3592,14 +3596,15 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
 
 
-def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
     """The chooser is a press and a menu rather than a select, which buys the notes
     somewhere they can be read whole and costs the platform's own popup: opening,
     closing, and the keys between. A select came with all of that, so what this
-    asserts is the part that had to be written back — the press toggles rather than
-    only opens, focus lands on the version being read so the walk starts where the
-    reader is, ↑/↓ clamp at the ends, Escape hands focus back to the press it came
-    from, and a click anywhere else closes without navigating.
+    asserts is the part that had to be written back — the pointer route opens through
+    More, focus lands on the version being read so the walk starts where the reader is,
+    ↑/↓ clamp at the ends, Escape closes the replacing panel, and a click anywhere
+    else closes without navigating.
 
     The note is the reason the menu exists at all: a select's closed label is its
     selected option's whole text, so the note had to be on the bar or nowhere, and on
@@ -3612,7 +3617,9 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     _publish(serve.page_dir, 2, INLINE_PAGE, long_note)
     _publish(serve.page_dir, 3, INLINE_PAGE, "third")
     # Pinned to v2, so there is a version either side of the one being read.
-    page = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
+    page = open_page(
+        browser, url.replace("v1.html", "v2.html"), pin=True, color_scheme=color_scheme
+    )
 
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
@@ -3620,9 +3627,29 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
 
-    btn.click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
+    # Versions replaces More rather than covering its own invoker. Escape closes the
+    # one root panel and leaves the page as the keyboard destination.
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    page.locator(".lf-banner-more").click()
+    expect(menu).to_be_hidden()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(btn).to_be_visible()
+    banner_control(page, ".lf-version").click()
+    expect(menu).to_be_visible()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.locator(".lf-banner-more").click()
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(btn).to_be_visible()
+    page.keyboard.press("Escape")
+
+    open_versions(page)
+    expect(menu).to_be_visible()
     # The walk starts on the version being read, not at the top of the list.
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     # The note is the whole note, on its own lines under the version it belongs to.
@@ -3646,11 +3673,12 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
             "resultTypes": ["violations"],
         },
     )
-    assert [
+    serious = [
         v["id"]
         for v in result.response["violations"]
         if v["impact"] in {"serious", "critical"}
-    ] == []
+    ]
+    assert serious == [], json.dumps(result.response["violations"], indent=2)
     # The visible word is part of the accessible name too. This rule is not included by
     # axe's WCAG-tag selection above, so ask for it directly where Compare exists.
     label_result = Axe().run(
@@ -3684,6 +3712,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
+        "data-lf-shelf-open", "false"
+    )
+    # The help layer returns to the visible root disclosure that preceded it. The
+    # independent gV route below works directly from that real landing.
+    expect(page.locator(".lf-banner-more")).to_be_focused()
 
     open_versions(page)
     expect(menu).to_be_visible()
@@ -3751,15 +3786,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
 
-    # A second press is a close, not a re-open: without that the outside-click
-    # handler and the toggle would both run and the menu could never stand.
-    btn.click()
-    expect(menu).to_be_visible()
-    btn.click()
-    expect(menu).to_be_hidden()
-
     # A click on the page closes it and leaves the reader where they were.
-    btn.click()
+    open_versions(page)
     expect(menu).to_be_visible()
     # A point in the page's left margin: outside the column, and well clear of a menu
     # that hangs from the right of the bar over whatever the column has at the top.
@@ -3780,7 +3808,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 
     # A number is the corresponding row's press even when travel is unnecessary: the
     # current row closes the menu just as clicking it does.
-    btn.click()
+    open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("2")
     expect(menu).to_be_hidden()
@@ -3788,7 +3816,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
 
     # Choosing another number is exact historical navigation, including for the newest
     # stamp.
-    btn.click()
+    open_versions(page)
     expect(menu).to_be_visible()
     page.keyboard.press("3")
     page.wait_for_url(re.compile(r"/versions/v3\.html"))
@@ -4125,7 +4153,7 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     menu = page.locator(".lf-version-menu")
     expect(page.locator(".lf-version-row")).to_have_count(2)
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     focused_row = page.locator(".lf-version-row").first
     focused_row.focus()
@@ -4189,7 +4217,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
 
     # The first read sees both the publication and the reply. Hold any crossed read
@@ -4244,7 +4272,9 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
     help_el = page.locator(".lf-command-reference")
+    page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-latest-chip")).to_be_visible()
+    page.keyboard.press("Escape")
 
     # The menu's keys are one declaration, so the reference names this one beside the
     # walk it saves.
@@ -4418,7 +4448,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(chooser).to_have_attribute(
         "aria-label", "v3: comparing with v1; open versions"
     )
-    chooser.click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
         "aria-checked", "true"
     )
@@ -4441,7 +4471,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # Compare is still reachable by keyboard, a Tab off the row it belongs to, and still the
     # toggle the pointer presses.
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').focus()
     page.keyboard.press("Tab")
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
@@ -4619,6 +4649,8 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
         "Review this file as a whole."
     )
+    expect(outlet.locator(".lf-conversation-thread")).to_be_focused()
+    expect(outlet.locator(".lf-conversation-thread textarea")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
@@ -4898,7 +4930,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(2)
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text(
-        ["Outdated", "Outdated"]
+        ["Earlier data", "Earlier data"]
     )
     quote_classes = page.locator(".lf-thread .lf-quote").evaluate_all(
         "quotes => quotes.map(quote => [...quote.classList])"
@@ -4952,23 +4984,20 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator("textarea")).to_be_visible()
-    inline_receipt = thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
-    )
-    panel_receipt = panel_thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
-    )
-    expect(inline_receipt).to_contain_text("✓ Sent")
-    expect(panel_receipt).to_contain_text("✓ Sent")
-    inline_receipt.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
-    panel_receipt.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    # The root message's own workflow line, which each surface holds beside its head.
+    inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    panel_status = panel_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    expect(inline_status).to_have_text("Sent")
+    expect(panel_status).to_have_text("Sent")
+    inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
+    panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_receipt).to_contain_text("✓ Picked up")
-    expect(panel_receipt).to_contain_text("✓ Picked up")
-    expect(inline_receipt).to_have_attribute("data-identity-probe", "inline")
-    expect(panel_receipt).to_have_attribute("data-identity-probe", "panel")
+    expect(inline_status).to_have_text("Picked up")
+    expect(panel_status).to_have_text("Picked up")
+    expect(inline_status).to_have_attribute("data-identity-probe", "inline")
+    expect(panel_status).to_have_attribute("data-identity-probe", "panel")
 
     reply = events_model.append_event(
         serve.page_dir,
@@ -4982,8 +5011,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     told(page)
-    expect(inline_receipt).to_have_count(0)
-    expect(panel_receipt).to_have_count(0)
+    expect(inline_status).to_have_count(0)
+    expect(panel_status).to_have_count(0)
     palette = thread.evaluate(
         """thread => {
           const style = getComputedStyle(thread);
@@ -5010,11 +5039,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
-    # The card releases to whole-panel selection, and the panel to the page. The seat on
-    # the page is not put back, the reader having left it to come here.
-    page.keyboard.press("Escape")
+    # go-to-threads has one destination, the whole panel, whichever thread the reader
+    # stood on to ask for it.
     expect(page.locator(".lf-threads")).to_be_focused()
+    # The panel releases to the page. The seat on the page is not put back, the reader
+    # having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -5150,15 +5179,19 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
-        expect(active).to_contain_text("● Working — checking the inline placement")
-        expect(sent).to_contain_text("✓ Sent")
-        expect(view.locator(":scope > .lf-receipt")).to_have_count(0)
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        expect(active).to_have_text("Working")
+        expect(active).to_have_attribute(
+            "title", "Working · checking the inline placement"
+        )
+        expect(sent).to_have_text("Sent")
+        # The workflow line belongs to a message; the thread view carries none of its own.
+        expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
         expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
@@ -5228,9 +5261,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    # The state narrowing is one radio group, so the chosen member is what it says it is
-    # rather than a toggle's pressed attribute.
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    # The status narrowing is a group of toggles, so the standing member wears its own
+    # pressed state.
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()

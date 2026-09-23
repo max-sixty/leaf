@@ -1,7 +1,8 @@
 # Events and conversation
 
-Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
-`events.jsonl`), and `revision` (the document it was made against). An `id` is
+Every event carries `id`, `ts`, `author`, `kind`, and `seq` (its line number in
+`events.jsonl`). Document-bound events also carry `revision`; page-owned `read`
+does not. An `id` is
 an opaque string matched whole. The append door mints eight hex characters,
 re-rolling any candidate this log already holds, so an id is unique within its
 page and is not a global identifier. The kinds:
@@ -11,6 +12,7 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `read` | user | `POST /api/event` | `messages: [{message, version}]` | acknowledges exact current or historical agent-content versions for this page's one reader; adds no conversation turn or agent work |
 | `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
@@ -75,8 +77,9 @@ watcher's claim record, and identity is the session id, because a display name i
 anyone's to choose.
 
 Everything downstream turns on `author`: `leaf wait` prints user events and the
-banner counts them, so an agent's own comment neither wakes its own watcher nor
-reads as unanswered. Either side can open a thread and either side can close one.
+banner counts only input that requires agent attention, so a `read` neither wakes
+the watcher nor reads as unanswered. An agent's own comment does neither. Either
+side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the reader knows that
 happened, so the reader ordinarily closes a thread; `leaf resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
@@ -119,6 +122,17 @@ Generated children retain the durable ownership established by `creates`, whose
 sorted identity snapshot the server stamps in `generated`.
 
 ## Threads
+
+Reader acknowledgement is separate from thread attention. On a first visit, each
+agent-authored message body, including a failure receipt or authored widget, is unread;
+an agent reaction is not. The original message id names its first content version,
+and each `edit` id names a new one. The browser posts `read` for exact versions after
+presenting and exposing ordinary prose, or when the reader explicitly marks a thread
+read. A later edit is unread even when the prior version was acknowledged. A summary
+does not acknowledge the messages it covers. Read records belong to the page log and
+apply across tabs and document revisions; they never answer a question, settle a
+workflow, or enter agent delivery. The one-reader page assumption is the page's
+current lifecycle, not a per-account scope.
 
 An agent comment opens a question. A substantive reply opens or resumes the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`

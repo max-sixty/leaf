@@ -70,6 +70,7 @@ from render_cases_interaction import (
     trial_family,
 )
 from render_cases_layout import (
+    banner_control,
     token_colour,
     unfolded_button,
 )
@@ -97,6 +98,7 @@ from render_harness import (
     author_test_widget,
     compare_with,
     consume_browser_errors,
+    expect_banner_control_offered,
     holding,
     leaf_page,
     open_page,
@@ -1553,7 +1555,13 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     if quote_anchor:
         expected_anchor["quote"] = "Original source words."
     assert comment["anchor"] == expected_anchor
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
+    assert (
+        page.locator(".lf-thread .lf-anchor-status").evaluate(
+            "el => getComputedStyle(el).borderTopWidth"
+        )
+        == "0px"
+    )
 
 
 def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
@@ -1829,7 +1837,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     expect(version).to_have_text("Draft")
     expect(version).to_have_attribute("title", re.compile(r"^Draft after v1:"))
     expect(version).to_have_attribute("aria-label", "Draft after v1: open versions")
-    version.click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-signoff")).to_have_count(1)
@@ -1908,7 +1916,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     told(page)
     expect(page).to_have_title("Live second")
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     rows = page.locator(".lf-version-row")
     expect(rows).to_have_count(4)
     same_revision = page.locator('.lf-version-row[data-lf-revision="2"]')
@@ -1925,9 +1933,9 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     draft_row.evaluate("row => window.__lfDraftRow = row")
 
     page.keyboard.press("Escape")
-    page.locator(".lf-latest-chip").click()
+    banner_control(page, ".lf-latest-chip").click()
     expect(page).to_have_title("Live third")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(rows).to_have_count(3)
     assert stamped_row.evaluate("row => row === window.__lfStampedRow")
     assert page.evaluate("() => !window.__lfDraftRow.isConnected")
@@ -2051,19 +2059,19 @@ def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
           held: document.querySelector('lf-gloss')?.dataset.readerHeld ?? null,
         })"""
     )
-    assert standing == {"same": True, "held": "open"}, (
-        f"a widget the revision never touched was rebuilt for want of a name: {standing}"
-    )
+    assert standing == {
+        "same": True,
+        "held": "open",
+    }, f"a widget the revision never touched was rebuilt for want of a name: {standing}"
 
 
 def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     """The paragraph a revision rewrote is the only thing the reader gives up.
 
-    A native selection, the focus, and the element a page was handed all belong to
-    nodes rather than to markup, and a revision that rewrites one paragraph says
-    nothing about any of them. So the words change and nothing else does: the selection
-    still reads what it read, over the same text node; whatever held the focus holds it
-    still; the element is still the element; and the chooser says the page moved.
+    A native selection and the element a page was handed belong to nodes rather than
+    markup. The selection still reads what it read over the same text node, the
+    element is still the element, and the chooser says the page moved. Focus follows
+    the reader's route through More to the new-page control.
 
     A standing selection is a composition, so the page waits rather than moving under
     the reader mid-sentence. This is the reader releasing that hold themselves, which
@@ -2105,11 +2113,8 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     told(page)
     expect(page).to_have_title("Prose first")
     chip = page.locator(".lf-latest-chip")
-    expect(chip).to_be_visible()
-    # Pressed without taking the focus off whatever is holding it, which is what a
-    # press with a pointer does and what the assertion below is about.
-    page.evaluate("() => { window.__prFocus = document.activeElement; }")
-    chip.evaluate("el => el.click()")
+    expect_banner_control_offered(chip)
+    banner_control(page, ".lf-latest-chip").click()
 
     expect(page).to_have_title("Prose second")
     expect(page.locator("#pr-edited")).to_have_text(
@@ -2120,19 +2125,19 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
           selection: getSelection().toString(),
           sameNode: getSelection().anchorNode === window.__prNode,
           sameElement: window.__prKept === document.getElementById('pr-kept'),
-          focused: document.activeElement === window.__prFocus,
         })"""
     )
     assert standing == {
         "selection": "account",
         "sameNode": True,
         "sameElement": True,
-        "focused": True,
     }, f"the revision took something the reader was holding: {standing}"
-    # The passage the selection named is the passage it still names, so the box the
-    # reader had open over it is still theirs to send.
+    # The retained selection still names a commentable passage after the reader
+    # leaves the menu; the menu gesture itself need not keep a composer open.
+    page.keyboard.press("Escape")
+    page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("account")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
 
 
@@ -2266,9 +2271,10 @@ def test_a_rewritten_widget_inside_an_exhibit_stays_quoted(browser, serve):
     told(page)
     expect(page).to_have_title("Quoted second")
     expect(page.locator("#qt-b")).to_contain_text("Beta, rewritten")
-    assert page.evaluate(read) == {"choose": False, "label": "Beta, rewritten"}, (
-        "the rewritten widget arrived unquoted"
-    )
+    assert page.evaluate(read) == {
+        "choose": False,
+        "label": "Beta, rewritten",
+    }, "the rewritten widget arrived unquoted"
 
 
 def test_an_authored_class_written_over_two_lines_patches(browser, serve):
@@ -2330,9 +2336,10 @@ def test_media_the_revision_never_mentioned_keeps_its_address(browser, serve):
         "() => ({ src: document.getElementById('md-shot').getAttribute('src'),"
         " loads: window.__mdLoads })"
     )
-    assert standing == {"src": held, "loads": 0}, (
-        f"the revision re-addressed a picture it never mentioned: {standing}"
-    )
+    assert standing == {
+        "src": held,
+        "loads": 0,
+    }, f"the revision re-addressed a picture it never mentioned: {standing}"
 
 
 def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve):
@@ -2662,7 +2669,7 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
 
     stamp_page(serve.page_dir, second, "remove the question")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
     descriptors = page.evaluate(
         """async () => {
           const {readApplication} = await window.__lfRuntimeImport(
@@ -2694,7 +2701,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         f"<h1>Two questions</h1>{second_question}{first_question}",
     )
     page = open_page(browser, live_url(serve(first)))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator(".lf-asks-row")
     expect(rows).to_have_count(2)
 
@@ -2785,7 +2792,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
 
     for action, phase, count in (("open", "open", 1), ("close", "closed", 0)):
         append_command(
@@ -2802,7 +2809,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
         told(page)
         if count:
             expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-            page.locator(".lf-asks").click()
+            banner_control(page, ".lf-asks").click()
         expect(page.locator(".lf-asks-row")).to_have_count(count)
 
 
@@ -2956,7 +2963,7 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
 
     clipped = page.evaluate(clip_heading)
     assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
     page.wait_for_function(BOTH_STAMPS)
@@ -3425,11 +3432,11 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live first")
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
     # An explicit press may override the hold: the live address and the durable panel
     # draft both survive the new document.
-    page.locator(".lf-latest-chip").click()
+    banner_control(page, ".lf-latest-chip").click()
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
     expect(general).to_have_value("Do not replace the page under these words.")
@@ -3898,7 +3905,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live first")
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
     # One read, held open while it still names the first revision. Releasing it below is
     # what sends it, so the server answers it against the log and versions of that
@@ -3931,7 +3938,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         # The chip's own read remains independent of the background read held above. It
         # moves the page to the second revision, then the third revision is written
         # before the held request is released.
-        page.locator(".lf-latest-chip").click()
+        banner_control(page, ".lf-latest-chip").click()
         expect(page).to_have_title("Live second")
         general.focus()
         expect(general).to_be_focused()
@@ -3990,7 +3997,7 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live first")
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    expect_banner_control_offered(page.locator(".lf-latest-chip"))
     assert (
         page.evaluate(
             "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
@@ -4560,7 +4567,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page = open_page(browser, live_url(url))
     fraction = page.locator("#t-feeders > .lf-chips")
     expect(fraction).to_contain_text("1/2 done")
-    expect(page.locator(".lf-asks")).to_be_hidden()  # nothing waits on the reader
+    expect_banner_control_offered(
+        page.locator(".lf-asks"), offered=False
+    )  # nothing waits on the reader
 
     sent = CliRunner().invoke(
         cli_model.cli, ["report", str(d), "t-parser", "status", "status=review"]
@@ -4582,7 +4591,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a reader listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
 
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
@@ -4595,7 +4604,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -4652,7 +4661,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
 
     page.route("**/api/view*", hold_first_view)
     try:
-        page.locator(".lf-version").click()
+        banner_control(page, ".lf-version").click()
         with page.expect_request("**/api/view*"):
             page.locator('.lf-version-diff[data-lf-version="1"]').click()
         holding(page, held, 1, "the first comparison view")
@@ -4714,7 +4723,7 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
 
     expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
@@ -7666,7 +7675,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-filter-toggle").click()
@@ -7864,7 +7873,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     )
     assert available == [True, False]
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     request_row = page.locator('.lf-asks-row[data-lf-at="dedupe-operations-decision"]')
     expect(request_row).to_have_attribute("data-lf-answer-state", "open")
     held = []
@@ -7902,7 +7911,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
     )
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(operations.get_by_role("button")).to_have_count(3)
     assert operations.get_by_role("button").evaluate_all(
         "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'true')"
@@ -8319,7 +8328,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
     page.locator(f'{owner}[data-lf-margin-entry-key="save"]:visible').click()
     round_trip(page)
-    expect(page.get_by_role("button", name="Asks 1/5")).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
+    expect_banner_control_offered(page.locator(".lf-asks"))
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
@@ -8329,7 +8339,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    expect(page.get_by_role("button", name="Asks 0/4")).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/4")
+    expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute(
         "data-lf-reader-override"
@@ -8353,7 +8364,8 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(head).to_contain_text("5 workers")
     expect(head).to_contain_text("1 quiet")
     expect(head).to_contain_text("5 stopped")
-    expect(page.get_by_role("button", name="Asks 0/5")).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
+    expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#hub-plan > .lf-fleet-view")).to_contain_text(
         "Fleet · 5 live workers"
     )
@@ -8638,7 +8650,8 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
         flags=re.DOTALL,
     )
     page = open_page(browser, serve(html))
-    expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
     expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
 
@@ -8665,7 +8678,7 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
     page = open_page(browser, serve(html))
 
     expect(page.locator("#example-commands .lf-request-press")).to_have_count(0)
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -9135,7 +9148,8 @@ customElements.define(\"lf-area\", class extends HTMLElement {
     expect(page.locator("#hub > .lf-stopped-view")).to_contain_text(
         "Custom project goal"
     )
-    expect(page.get_by_role("button", name="Asks 0/1")).to_be_visible()
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_banner_control_offered(page.locator(".lf-asks"))
 
 
 def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, serve):

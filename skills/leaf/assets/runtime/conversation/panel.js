@@ -7,7 +7,6 @@
    in, so its rows shadow these. Every page has this scope: the general box stands and
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. */
-import { landTyping, mayLandTyping } from "../composing/capture.js";
 import { validDrawing } from "../composing/drawing-record.js";
 import {
   loadDraft,
@@ -44,6 +43,8 @@ export function createPanelComposer({
   setPanel,
   panelIsOpen,
   stepThread,
+  firstUnread,
+  unreadCount,
   fabAnchorAt,
   paintDrawings,
 }) {
@@ -93,9 +94,7 @@ export function createPanelComposer({
           return createPageComment(event);
         });
         if (!sent) return;
-        const shouldLand = mayLandTyping(generalInput);
         showThread(sent.id, { focus: false });
-        if (shouldLand) landTyping(generalInput);
       },
     });
     sync();
@@ -179,6 +178,14 @@ export function createPanelComposer({
         control: () => narrowingView.readerControl,
         when: () => runtime.statePhase === "ready" && narrowingView.canToggleReader,
         run: () => narrowingView.toggleReader(),
+      },
+      {
+        id: "thread.unread.first",
+        keys: ["u"],
+        does: "Go to the first unread message",
+        line: "first unread",
+        when: () => unreadCount() > 0,
+        run: firstUnread,
       },
       {
         id: "thread.find",

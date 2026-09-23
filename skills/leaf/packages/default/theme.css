@@ -830,18 +830,9 @@ lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-r
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
 lf-option > .lf-key-badge { position: absolute; inset-inline-start: var(--lf-key-badge-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
-/* The thread multi-question's submit (the module adds it there alone): one press
- * stating the set is whole, since every toggle already reached the agent as it
- * landed. Answered is paint, never a wider word — the pressed control's own line
- * holds still. Keyed on the pressed state the press already wears, because the
- * group's markup is the author's: an `answered` attribute here was the same fact
- * a second time, in a namespace the entry closes (lf-options.js). It held 8px over
- * itself once, from the days a group was options standing apart; the module adds it to a
- * thread question only, every thread question is a live `choose` group, and a live
- * `choose` group is the joined control, whose cells butt. Nothing was left for the margin
- * to detach it from — the grid had been stretching it to the full column all along — so
- * what it drew was a hairline with dead ground under it, on every thread the agent asked
- * a set question in. */
+/* Done completes a multiple-choice Ask. Its pressed state paints the answer without
+ * writing a second copy into the author's markup; it sits as the joined control's
+ * final cell on the page and in a thread. */
 lf-options > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
 /* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
@@ -1049,7 +1040,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
   .lf-another .lf-compose-submit { --lf-icon-action-hit: var(--lf-option-action-size);
                                   inset-inline-end: var(--lf-option-add-seat-inset);
                                   inset-block-end: var(--lf-option-add-seat-inset); }
-  .lf-another .lf-compose-submit[data-lf-empty] { visibility: hidden; }
+  /* Keep an empty Add press visible while it owns focus after submission. */
+  .lf-another .lf-compose-submit[data-lf-empty]:not(:focus) { visibility: hidden; }
   /* The leading column holds the key badge and the gap before the option's
    * words. The badge starts at the ordinary 8px inset and takes
    * --lf-key-badge-size, so changing the utility type grows the
@@ -1065,7 +1057,10 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
                      padding-inline-start: var(--lf-key-badge-col); }
  }
 }
-html.lf-copy lf-options > .lf-another { display: none; }
+html.lf-copy lf-options > :is(.lf-another, lf-options-done) { display: none; }
+@media print {
+  lf-options > :is(.lf-another, lf-options-done) { display: none; }
+}
 /* The row form: a list, so it reads like one. Every row opens at the same column, the
  * mark leads it, and the apparatus that is about somewhere else — the block reference —
  * runs to the line's end.

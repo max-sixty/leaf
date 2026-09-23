@@ -51,6 +51,7 @@ import { retainReaderIntent } from "./reader-intent.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
@@ -329,11 +330,11 @@ export function worksInside(node, container) {
   // `contains` counts an element as containing itself, so the container is ruled out by
   // name — the question is what stands between the two, and a container that is itself
   // a thing to work would otherwise answer with itself and never take a gesture again.
-  // A local receipt is runtime apparatus too. It may deliberately sit in one of
+  // A message workflow line is runtime apparatus too. It may sit in one of
   // this container's declared parts, where the part is otherwise the gesture target;
   // reading or selecting the status must not cast that gesture on its way through.
   const inner = node.closest(
-    [...held, WORKS, "[data-lf-offer]", ".lf-receipt"].join(","),
+    [...held, WORKS, "[data-lf-offer]", ".lf-msg-sending"].join(","),
   );
   return inner && inner !== container && container.contains(inner) ? inner : null;
 }
@@ -427,7 +428,9 @@ export function reachedForWords(el) {
 document.addEventListener(
   "click",
   (ev) => {
-    if (ev.detail === 0) return;
+    // A drag is a pointer's; the keyboard's own activation of the control is not one and
+    // is read the one way every press claim reads it (pointer.js).
+    if (pressIsKeyboardActivation(ev)) return;
     const control = ev.target.closest?.("[data-lf-offer]");
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
@@ -523,9 +526,8 @@ export function reserve(control, labels) {
   // focus off it — onto body, silently, and on no fixed frame: the browser runs that
   // fixup around the layout, not after a turn this owner can count. The measurement is
   // synchronous and invisible, and losing the reader's place is not part of what it was
-  // asked to do. Renewing the banner's reservations across a breakpoint is where this
-  // shows: a reader holding one banner control crosses the fold at 840px and is standing
-  // on nothing.
+  // asked to do. A focused control may be remeasured after its face or typography
+  // changes; it must remain the reader's place throughout.
   const held = document.activeElement === control;
   const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {

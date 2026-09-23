@@ -1,6 +1,6 @@
 /* Notices and announcements.
 
-   News arriving without the reader's send gesture may show a notice and count but does
+   News arriving without the reader's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
    moment's news — a recorded gesture, an arrived version, a refused send — and it
    stands in the bottom status line in place of the current walk position, which returns
@@ -21,8 +21,8 @@ render(nothing, liveEl);
 const NOTICE_MS = 4000;
 
 let noticeTimer = 0;
-let showingBackground = false;
-let waitingBackground = null;
+let showingBackground = null;
+const waitingBackground = [];
 let readerContext = false;
 let readerHoldTimer = 0;
 let noticePresentation = Object.freeze({ message: "", visible: false });
@@ -61,37 +61,75 @@ export function announce(msg) {
 // to v3"), a refusal ("Nothing to send — the box is empty"): the quiet status at the page
 // foot. A sentence that is also a button for four seconds is a target
 // the reader cannot learn.
-function showNotice(msg, background) {
+function showNotice(msg, background = null) {
   presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
-    if (!readerContext && !readerHoldTimer && waitingBackground) {
-      const waiting = waitingBackground;
-      waitingBackground = null;
-      return showNotice(waiting, true);
-    }
+    if (!readerContext && !readerHoldTimer && showBackground(waitingBackground.shift()))
+      return;
     presentNotice(noticePresentation.message, false);
-    showingBackground = false;
+    showingBackground = null;
   }, NOTICE_MS);
+}
+
+// A producer may retire a deferred assertion before it reaches the status line.
+// Skip it without spending a visible interval, then take the next queued group.
+function showBackground(entry) {
+  while (entry) {
+    const message = entry.format(entry.value);
+    if (message) {
+      showNotice(message, entry);
+      return true;
+    }
+    entry = waitingBackground.shift();
+  }
+  return false;
+}
+
+const textBackground = (message) => ({
+  key: "text",
+  value: message,
+  combine: (_older, newer) => newer,
+  format: (value) => value,
+});
+
+// The producer supplies what makes two deferred notices one piece of news. An
+// interrupted displayed entry is older than anything already waiting under its key;
+// ordinary new arrivals are newer. One pending entry per key bounds the backlog.
+function queueBackground(entry, front = false) {
+  const index = waitingBackground.findIndex((waiting) => waiting.key === entry.key);
+  if (index >= 0) {
+    const [waiting] = waitingBackground.splice(index, 1);
+    entry = {
+      ...entry,
+      value: front
+        ? entry.combine(entry.value, waiting.value)
+        : entry.combine(waiting.value, entry.value),
+    };
+  }
+  if (front) waitingBackground.unshift(entry);
+  else waitingBackground.push(entry);
 }
 
 // Reader commands own the next brief interval. Background arrivals wait behind one,
 // while a command can interrupt an arrival and let it return after the acknowledgement.
-// Durable unread state remains on the banner and Threads control throughout.
-export function notice(msg, { background = false, announce: speak = true } = {}) {
+// A held status line coalesces each producer's news; the live region announces it now.
+export function notice(
+  msg,
+  { background = false, announce: speak = true, group = null } = {},
+) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
   if (speak) announce(msg);
-  if (
-    background &&
-    (readerContext || readerHoldTimer || (noticeVisible() && !showingBackground))
-  ) {
-    waitingBackground = msg;
-    return;
+  if (background) {
+    const entry = group ?? textBackground(msg);
+    if (readerContext || readerHoldTimer || noticeVisible())
+      return queueBackground(entry);
+    return showBackground(entry);
   }
-  if (!background && showingBackground) waitingBackground = noticePresentation.message;
-  showNotice(msg, background);
+  if (!background && showingBackground) queueBackground(showingBackground, true);
+  showNotice(msg);
 }
 
 // A semantic walk is an immediate reader command even though its feedback is the live
@@ -99,19 +137,17 @@ export function notice(msg, { background = false, announce: speak = true } = {})
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
   if (noticeVisible()) {
-    if (showingBackground) waitingBackground = noticePresentation.message;
+    if (showingBackground) queueBackground(showingBackground, true);
     clearTimeout(noticeTimer);
     noticeTimer = 0;
     presentNotice(noticePresentation.message, false);
-    showingBackground = false;
+    showingBackground = null;
   }
   clearTimeout(readerHoldTimer);
   readerHoldTimer = setTimeout(() => {
     readerHoldTimer = 0;
-    if (readerContext || noticeVisible() || !waitingBackground) return;
-    const waiting = waitingBackground;
-    waitingBackground = null;
-    showNotice(waiting, true);
+    if (readerContext || noticeVisible() || !waitingBackground.length) return;
+    showBackground(waitingBackground.shift());
   }, ms);
 }
 
@@ -120,14 +156,17 @@ export function holdStatus(ms) {
 export function setNoticeContext(active) {
   readerContext = active;
   if (active && showingBackground) {
-    waitingBackground = noticePresentation.message;
+    queueBackground(showingBackground, true);
     clearTimeout(noticeTimer);
     noticeTimer = 0;
     presentNotice(noticePresentation.message, false);
-    showingBackground = false;
-  } else if (!active && !readerHoldTimer && waitingBackground && !noticeVisible()) {
-    const waiting = waitingBackground;
-    waitingBackground = null;
-    showNotice(waiting, true);
+    showingBackground = null;
+  } else if (
+    !active &&
+    !readerHoldTimer &&
+    waitingBackground.length &&
+    !noticeVisible()
+  ) {
+    showBackground(waitingBackground.shift());
   }
 }

@@ -3,7 +3,7 @@
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
-import { unresolvedAttempts } from "./pending/model.js";
+import { isReadAcknowledgement, unresolvedAttempts } from "./pending/model.js";
 
 export const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -24,6 +24,7 @@ export function createDelivery({
       ledger.nameParent(entry, currentReceipts());
       if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
       const { event } = entry;
+      const reportDelivery = isReadAcknowledgement(event) ? () => {} : notice;
       if (entry.readEvent) return { accepted: entry.readEvent };
       const sent = await Promise.race([
         postEvent(event).then(
@@ -34,7 +35,7 @@ export function createDelivery({
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
-        if (!announced) notice("Connection lost — retrying your change…");
+        if (!announced) reportDelivery("Connection lost — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -45,7 +46,8 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        if (!announced) notice("The server isn't ready yet — retrying your change…");
+        if (!announced)
+          reportDelivery("The server isn't ready yet — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -59,7 +61,8 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        if (!announced) notice("Couldn't read the answer — retrying your change…");
+        if (!announced)
+          reportDelivery("Couldn't read the answer — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -79,10 +82,11 @@ export function createDelivery({
         (!("attempt" in answer) || answer.attempt === event.attempt) &&
         answer.ok === false
       ) {
-        notice(`Couldn't send — ${answer.error || "the server refused it"}`);
+        reportDelivery(`Couldn't send — ${answer.error || "the server refused it"}`);
         return { accepted: null };
       }
-      if (!announced) notice("Server answer was incomplete — retrying your change…");
+      if (!announced)
+        reportDelivery("Server answer was incomplete — retrying your change…");
       announced = true;
       await retryPause();
     }

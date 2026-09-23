@@ -39,6 +39,7 @@ from render_cases_layout import (
     NAMED,
     PAGE_MARKUP,
     aim_targets,
+    banner_control,
     draw_edge,
     edge_settled,
     geometry,
@@ -219,8 +220,9 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => (window.__lfForceMarginRender = false)")
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
+    thread = preview.locator(".lf-conversation-thread")
     reply = preview.locator("textarea")
-    expect(reply).to_be_focused()
+    expect(thread).to_be_focused()
     full = reply.evaluate(
         "node => ({ family: getComputedStyle(node).fontFamily, "
         "size: getComputedStyle(node).fontSize })"
@@ -275,7 +277,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     page.evaluate("() => [...window.__lfHeld].forEach((played) => played.finish())")
     expect(ghost).to_have_count(0)
     expect(preview).to_have_css("opacity", "1")
-    expect(reply).to_be_focused()
+    expect(thread).to_be_focused()
 
 
 def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve):
@@ -1103,7 +1105,7 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
     """
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 700, 900)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     edge_settled(page, EDGES[1])
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
@@ -1664,21 +1666,16 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     assert [e for e in events if e["kind"] == "action"] == []
     # The retained thread names the target the same way the composer named the box. The
     # top-layer margin card stays retired while design mode stands, so the send lands
-    # typing in the ordinary Threads panel instead of a hidden inline reply.
+    # on the thread in the ordinary Threads panel.
     panel = page.locator(".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
         "design · lf-option · opt-shim"
     )
-    panel_reply = panel.locator(".lf-thread textarea:focus")
-    expect(panel_reply).to_have_count(1)
-    expect(panel_reply).to_be_focused()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # Escape takes off one level a press, from where the send left the reader: the
-    # reply box hands them to its thread, the thread to the whole panel, the panel to
-    # the page, and the mode they put on before any of it comes off last.
-    page.keyboard.press("Escape")
     expect(panel.locator(".lf-thread > .lf-thread-summary")).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    # Escape leaves the thread for the whole panel, then the page. The mode they put
+    # on before either surface comes off last.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
@@ -1855,12 +1852,9 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     ]
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-thread textarea")).to_be_focused()
-    # The send opened Threads on the new thread, the card being withheld in the mode,
-    # and left the reader in its reply box: the box hands them to the thread, the
-    # thread to the whole panel, and the panel back to the page.
-    page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-summary").first).to_be_focused()
+    # The send opened Threads on the new thread, the card being withheld in the mode.
+    # The thread hands the reader to the whole panel, and the panel to the page.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
@@ -2952,7 +2946,10 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
-    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    banner_control(
+        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    ).tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
     page.evaluate(RENDERED)
     geometry = page.evaluate("""() => {
@@ -2992,7 +2989,10 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    banner_control(
+        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    ).tap()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})

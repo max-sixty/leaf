@@ -80,6 +80,7 @@ from render_harness import (
     ask_actions_hint,
     compare_with,
     consume_browser_errors,
+    expect_banner_control_offered,
     holding,
     leaf_page,
     open_page,
@@ -2467,6 +2468,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(verify).to_have_css("pointer-events", "auto")
     verify.click()
     expect(page).to_have_url(re.compile(r"#verify$"))
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
     scroll_settled(page)
     frames = page.evaluate("window.lfTocFrames")
     travelled = [position for position in frames if position > 0]
@@ -4181,7 +4183,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     told(page)
     expect(
         page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile("creating deployment-notification"))
+    ).to_have_attribute(
+        "aria-description", re.compile("creating deployment-notification")
+    )
 
     artifact = serve.page_dir / "deployment-notification.html"
     first_artifact = """<!doctype html>
@@ -6429,7 +6433,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
         f"settled text still wears a pending mark: {settled}"
     )
     # The banner's count follows the page: three pending, one decided.
-    expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (2)")
+    expect_banner_control_offered(page.locator(".lf-answer-all"))
 
     # The boundary before reading the shared log: what the press sent has to have a
     # definitive outcome first. The fetch this replaced proved nothing —
@@ -6727,7 +6732,7 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     ).to_be_enabled()
     expect(answer_all).to_have_text("Accept all (2)")
     assert answer_all.evaluate("button => button === window.__lfAnswerAll")
-    answer_all.click()
+    banner_control(page, ".lf-answer-all").click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
@@ -6813,7 +6818,8 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     )
     expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
     # And the page's own count is derived from that, so it comes back too.
-    expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
+    expect(page.locator(".lf-answer-all")).to_have_text("Accept all (3)")
+    expect_banner_control_offered(page.locator(".lf-answer-all"))
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -6963,7 +6969,8 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # Its pair leaves; the surviving content and Undo carry the settled state.
     rejected = second.locator("[data-lf-margin-for='sug-refill'] .lf-sug-reject")
     expect(rejected).to_be_hidden()
-    expect(second.get_by_role("button", name="Accept all (2)")).to_be_visible()
+    expect(second.locator(".lf-answer-all")).to_have_text("Accept all (2)")
+    expect_banner_control_offered(second.locator(".lf-answer-all"))
 
     # Now the race the controls make possible: a window cut off from the log still
     # shows both buttons, so the user can decide the other way there. Two
@@ -6975,7 +6982,8 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # In the log before the reject is clicked, so which one is later is this test's
     # to decide rather than the network's.
     told(second)
-    expect(second.get_by_role("button", name="Accept all (1)")).to_be_visible()
+    expect(second.locator(".lf-answer-all")).to_have_text("Accept all (1)")
+    expect_banner_control_offered(second.locator(".lf-answer-all"))
     unfolded_button(
         third.locator("[data-lf-margin-for='sug-thistle'] .lf-sug-reject")
     ).click()
@@ -7017,7 +7025,7 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
     expect(decisions).to_have_text("Asks 2/5")
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect(decisions).to_have_text("Asks 3/5")
-    expect(page.locator(".lf-answer-all")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
     # And clearing the pick asks again: an empty answer is no answer, which only a
     # reading of what the page carries can say.
@@ -8105,7 +8113,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     page = open_page(browser, url)
     resized(page, 1200, 900)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert len(rows) == 1, rows
@@ -8524,7 +8532,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 1200, 900)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
 
@@ -8559,7 +8567,7 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray holds no rows"
 
-    decisions_control = page.locator(".lf-asks")
+    decisions_control = banner_control(page, ".lf-asks")
     decisions_control.focus()
     page.keyboard.press("Enter")
     expect(tray).to_be_visible()
@@ -8602,7 +8610,7 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
 
     # And closing takes the rest with it, for the reason the docstring gives: a tray
     # that is down is not a list, so it holds nothing to reach and nothing to press.
-    decisions_control.focus()
+    banner_control(page, ".lf-asks").focus()
     page.keyboard.press("Enter")
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
@@ -8613,7 +8621,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
 ):
     """A keyed row follows the published document, not later presentation DOM edits."""
     page = open_page(browser, serve(ASKS_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
 
@@ -8677,7 +8685,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     """Receipt settlement cannot retire optimism before the Ask row has painted it."""
     browser, held = held_events
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     row = page.locator("button.lf-asks-row")
     expect(row).to_have_count(1)
     expect(row.locator(".lf-asks-answer")).to_have_text("")
@@ -8776,7 +8784,7 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     answer_all = page.locator(".lf-answer-all")
     expect(progress).to_have_text("Asks 1/5")
     expect(answer_all).to_have_text("Accept all (1)")
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
     held = []
@@ -8830,7 +8838,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     answer_all = page.locator(".lf-answer-all")
     expect(progress).to_have_text("Asks 1/5")
     expect(answer_all).to_have_text("Accept all (1)")
-    progress.click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
     held = []
@@ -8947,13 +8955,13 @@ def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
     )
     page = open_page(browser, serve(source))
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-answer")).to_have_text("empty")
 
 
 def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
     page.evaluate(
         """async () => {
@@ -9019,7 +9027,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     presses no keys and so never has a tray to restore. It took a reader with the
     tray open pressing reload, which is what this now is."""
     page = open_page(browser, serve(ASKS_PAGE))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     tray = page.locator(".lf-asks-panel")
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
@@ -9096,7 +9104,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     })"""
 
     resized(page, 1200, 800)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
         """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
@@ -9135,7 +9143,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         page.locator(".lf-others-panel"),
     )
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
@@ -9950,9 +9958,10 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     assert remarked["scrolls"] == filled["scrolls"], (
         f"a remark sized the code, so a file that fit its box now scrolls: {remarked}"
     )
-    assert (remarked["short"], remarked["narrow"]) == (0, 0), (
-        f"the rows do not fill their box with a thread among them: {remarked}"
-    )
+    assert (remarked["short"], remarked["narrow"]) == (
+        0,
+        0,
+    ), f"the rows do not fill their box with a thread among them: {remarked}"
 
     page.locator("lf-diff .lf-diff-wrap").click()
     wrapped = page.evaluate(DIFF_ROW_FILL)
@@ -9960,9 +9969,10 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
         wrapped,
         filled,
     )
-    assert (wrapped["short"], wrapped["narrow"]) == (0, 0), (
-        f"wrapped rows do not fill the box they wrapped into: {wrapped}"
-    )
+    assert (wrapped["short"], wrapped["narrow"]) == (
+        0,
+        0,
+    ), f"wrapped rows do not fill the box they wrapped into: {wrapped}"
 
 
 def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_switch_says(

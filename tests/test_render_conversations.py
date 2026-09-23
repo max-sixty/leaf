@@ -4,6 +4,7 @@ import base64
 import io
 import re
 from copy import deepcopy
+from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
@@ -33,6 +34,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     COVERED_TOP,
     EDGES,
+    banner_control,
     button_radius,
     draw_edge,
     edge_settled,
@@ -55,6 +57,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    primed,
     resized,
     round_trip,
     sending,
@@ -262,7 +265,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     expect(
         page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     ).to_have_text("Replying")
-    expect(message.locator(".lf-msg-head .lf-receipt")).to_have_count(0)
+    expect(message.locator(".lf-msg-head .lf-msg-sending")).to_have_count(0)
     page.evaluate(
         "attempt => { window.__streamMessage = document.querySelector("
         '`.lf-msg[data-attempt="${attempt}"]`); }',
@@ -1237,8 +1240,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     click on a page mark does: the panel scrolls the new thread into its scrollport.
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Both send routes then end in the composer the words left, where
-    the rebuild sent a button click's focus somewhere else than ⌘⏎'s."""
+    sight, silently. Focus follows the input route: a button press stays on the
+    button, while the send key stays in the textarea."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1249,15 +1252,16 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
 
     box = page.locator(".lf-general textarea")
     box.fill("Where did my words go?")
+    send = page.locator(".lf-general button")
     with sending(page, "the first comment"):
-        page.locator(".lf-general button").click()  # the route that used to drop focus
+        send.click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
-    expect(box).to_be_focused()
+    expect(send).to_be_focused()
     expect(box).to_have_value("")
 
     box.fill("And the second thought lands the same way.")
@@ -2421,6 +2425,107 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
     ).to_be_focused()
 
 
+def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
+    """Order is the panel's own view, not a filter. Recent puts the thread spoken in
+    last at the top under a day heading. The View control keeps one label whatever is
+    chosen, and a narrowed summary arriving never moves the choices under the press.
+    Reset clears refinements but keeps the order, and with the panel shut t/T still
+    walk the page's order."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    now = datetime.now().astimezone()
+
+    def comment(text, anchor, days_ago):
+        event = {"kind": "comment", "author": "user", "revision": 1, "text": text}
+        if anchor:
+            event["anchor"] = anchor
+        event["ts"] = (now - timedelta(days=days_ago)).isoformat(timespec="seconds")
+        return events_model.append_event(d, event)["id"]
+
+    def day(days_ago):
+        at = now - timedelta(days=days_ago)
+        label = f"{at:%b} {at.day}"
+        return label if at.year == now.year else f"{label}, {at.year}"
+
+    lede = comment("Six weeks reads long.", {"section": "lede"}, 10)
+    cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
+    whole = comment("The whole thing needs a summary.", None, 12)
+    # A reply today makes the oldest thread the most recent one.
+    conversation_model.cmd_reply(
+        d, whole, "Added one at the top.", None, for_event=whole
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    order = page.get_by_role("group", name="Order", exact=True)
+    expect(order.get_by_role("button", name="Page")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    toggle = page.locator(".lf-thread-filter-toggle")
+    expect(toggle).to_have_text("View")
+    order.get_by_role("button", name="Recent").click()
+    expect(toggle).to_have_text("View")
+    assert page.evaluate(LIST_RUNS) == [
+        "§ Today",
+        whole,
+        f"§ {day(3)}",
+        cap,
+        f"§ {day(10)}",
+        lede,
+    ]
+
+    # Order hides nothing, so it is not part of what Reset puts back. The narrowed
+    # summary that the press brings in stands below the choices, not above them.
+    anchored = page.get_by_role("group", name="Location", exact=True).get_by_role(
+        "button", name=re.compile(r"^Anchored")
+    )
+    before = anchored.bounding_box()
+    expect(page.locator(".lf-thread-view")).to_be_hidden()
+    anchored.click()
+    expect(page.locator(".lf-thread-view")).to_be_visible()
+    assert anchored.bounding_box() == before, "the summary moved the choices"
+    shown_runs = LIST_RUNS.replace(".map(", ".filter((n) => !n.hidden).map(", 1)
+    assert page.evaluate(shown_runs)[:2] == [f"§ {day(3)}", cap]
+    page.get_by_role("button", name="Reset thread filters").click()
+    assert page.evaluate(shown_runs)[:2] == ["§ Today", whole]
+    expect(order.get_by_role("button", name="Recent")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+
+    # The panel's walk follows the list it shows.
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-thread[data-id="{whole}"] > .lf-thread-summary')
+    ).to_be_focused()
+
+    # Page order restores the page's runs.
+    order.get_by_role("button", name="Page").click()
+    assert page.evaluate(LIST_RUNS) == [
+        "§ Shipping offline editing",
+        lede,
+        "§ How it works",
+        cap,
+        "§ About the page as a whole",
+        whole,
+    ]
+
+    # The page's walk is the page's order whatever the panel shows.
+    order.get_by_role("button", name="Recent").click()
+    page.locator(".lf-threads-toggle").click()
+    page.locator("body").click()
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    assert (
+        page.evaluate(
+            "() => document.activeElement.closest('[data-thread]').dataset.thread"
+        )
+        == lede
+    )
+
+
 def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve):
     """The order is the page's whether or not the page has an outline; the landmarks are
     the outline's. A page its author wrote no headings into gets the first without the
@@ -3229,21 +3334,22 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_value("Try the south pair again.")
     page.unroute("**/api/event")
 
-    # And it is dressed rather than bare: an unmarked span among a head of muted
-    # metadata would be the same invisibility in another shape.
+    # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(
         """(id) => {
           const head = document.querySelector(`.lf-msg[data-mid="${id}"] .lf-msg-head`);
-          const chip = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          const failure = getComputedStyle(head.querySelector(".lf-msg-failure"));
           return {
-            chip: chip.color,
-            border: chip.borderTopWidth,
+            failure: failure.color,
+            border: failure.borderTopWidth,
+            weight: failure.fontWeight,
             clock: getComputedStyle(head.querySelector("time")).color,
           };
         }""",
         receipt["id"],
     )
-    assert head["chip"] != head["clock"] and head["border"] != "0px"
+    assert head["failure"] != head["clock"]
+    assert head["border"] == "0px" and int(head["weight"]) >= 600
 
 
 def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
@@ -3322,11 +3428,21 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 @pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
 @pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
 def test_a_thread_completion_keeps_the_readers_later_destination(
-    held_events, serve, kind, destination
+    browser, serve, kind, destination
 ):
     """A held thread operation may land only while its original intent still stands."""
-    browser, held = held_events
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    held = []
+
+    def hold_operation(route):
+        if route.request.post_data_json["kind"] == "read":
+            route.continue_()
+        else:
+            held.append(route)
+
+    page = open_page(
+        primed(browser, lambda page: page.route("**/api/event", hold_operation)),
+        serve(FEATURE_GALLERY),
+    )
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3377,12 +3493,21 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         # Accessibility and app focus travel need not emit a pointer or key gesture.
         later.focus()
 
-    held.pop(0).continue_()
+    delivered = held.pop(0)
+    attempt = delivered.request.post_data_json["attempt"]
+    delivered.continue_()
     page.unroute("**/api/event")
     round_trip(page)
     told(page)
     page.wait_for_function(RENDERED)
-    assert events_model.read_events(serve.page_dir)[-1]["kind"] == kind
+    assert (
+        next(
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("attempt") == attempt
+        )["kind"]
+        == kind
+    )
     if destination == "page":
         assert not page.get_by_role("dialog").is_visible()
         expect(changes).to_be_focused()
@@ -3392,7 +3517,9 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         expect(later).to_have_value(
             "The reader is working here now." if destination == "other-thread" else ""
         )
-    elif kind in {"reply", "unresolve"}:
+    elif kind == "reply":
+        expect(thread.get_by_role("button", name="Send", exact=True)).to_be_focused()
+    elif kind == "unresolve":
         expect(thread.locator("textarea")).to_be_focused()
     else:
         expect(
@@ -6095,7 +6222,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-row")).to_have_count(2)
 
 
@@ -6252,7 +6379,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Panel controls similarly unwind the panel, not the unrelated disclosure.
-    page.get_by_role("button", name="Filters", exact=True).focus()
+    page.get_by_role("button", name="View", exact=True).focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(card).to_have_attribute("open", "")

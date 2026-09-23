@@ -27,6 +27,13 @@ import {
   messageText,
 } from "./conversation/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
+import {
+  combineSemanticNews,
+  currentSemanticNews,
+  observeSemanticNews,
+  semanticNewsNotice,
+  semanticNewsReading,
+} from "./semantic-news.js";
 
 export function createStateApplication({
   prepareActivation,
@@ -38,10 +45,10 @@ export function createStateApplication({
   stateSignoff,
   renderOthers,
   accountPending,
-  panelIsOpen,
   paintKeys,
 }) {
-  let agentMsgCount = -1;
+  let observedSemanticNews = null;
+  let presentedNewsReading = null;
   const markupRead = new Set();
   let stateApplying = false;
   let admission = Promise.resolve();
@@ -185,16 +192,27 @@ export function createStateApplication({
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
         accountPending(state.browser.receipts ?? []);
-        const replies = runtime.browser.conversation.threads.flatMap((thread) =>
-          thread.msgs.filter(
-            (message) => message.author === "agent" && message.kind === "reply",
-          ),
-        );
-        if (agentMsgCount >= 0 && replies.length > agentMsgCount && !panelIsOpen())
-          notice(`${replies.at(-1).agent || "Agent"} replied — open Threads`, {
+        // Only the accepted candidate that this full document just presented can
+        // establish news. A queued notice formats against the latest such reading,
+        // so a later answer does not repeat a superseded failure or edit.
+        presentedNewsReading = semanticNewsReading(state);
+        const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
+        observedSemanticNews = reading.observed;
+        if (reading.news.length) {
+          const format = (value) =>
+            semanticNewsNotice(
+              currentSemanticNews(value, presentedNewsReading, observedSemanticNews),
+            );
+          notice(format(reading.news), {
             background: true,
+            group: {
+              key: "semantic-news",
+              value: reading.news,
+              combine: combineSemanticNews,
+              format,
+            },
           });
-        agentMsgCount = replies.length;
+        }
       } catch (error) {
         reportPageError(`State presentation failed: ${error?.message ?? error}`);
         throw error;

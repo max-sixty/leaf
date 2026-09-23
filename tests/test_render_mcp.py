@@ -21,6 +21,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
 )
+from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
     leaf_page,
@@ -390,7 +391,7 @@ def test_process_page_route_runs_the_complete_leaf_interface(
         if resource.startswith(page_server.origin)
     )
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
@@ -463,7 +464,7 @@ window.authoredModulePattern = (/api/);
     expected_root = urlsplit(private["inline_url"]).path.rstrip("/")
     assert nested.evaluate("window.authoredModulePath") == f"{expected_root}/api/state"
     assert nested.evaluate("window.authoredModulePattern.source") == "api"
-    nested.locator(".lf-version").click()
+    banner_control(nested, ".lf-version").click()
     expect(nested.locator(".lf-version-row").first).to_be_focused()
     nested.locator(".lf-version-row").first.press("Escape")
     expect(nested.locator(".lf-version-menu")).to_be_hidden()

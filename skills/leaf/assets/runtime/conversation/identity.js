@@ -1,3 +1,3 @@
-/* Stable identities shared by pending and projected conversation records. */
+/* Namespace for pending conversation records. */
 
 export const PENDING = "pending:";

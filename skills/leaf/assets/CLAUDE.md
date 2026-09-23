@@ -64,10 +64,10 @@ relative to `runtime/` unless stated otherwise.
 | Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js` |
-| Banner, approvals, and control allocation | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
+| Banner, approvals, and fixed primary/menu control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
-| Notices and announcements | `notifications.js`, `keyboard/shortcut-bar.js` |
+| Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
 | Child pages and gallery playback | `specimen.js`, `interaction-gallery.js`, `interaction-gallery-frame.js` |
@@ -133,10 +133,11 @@ Each mutable fact has one writer:
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
 | canonical page activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
+| meaningful new page information | current agent content versions and reader Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded; the first is a quiet baseline. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
-| the narrowing on the thread list | the reader's find words and lifecycle, scope, subject, and detached-placement facets | `renarrow`, `revealThread`, and `widen` |
+| the narrowing and order of the thread list | the reader's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | one hold, taken by whatever reflows the list: `renderThreads` for generated presentation, receipt updates, provisional work, and resolution folds, and `holdThroughDisclosure` for the room the named-details group gives back when a reader opens a card |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |

@@ -29,6 +29,7 @@ class DocumentReading(NamedTuple):
 def read_document(
     page: PageReading,
     threads: dict,
+    data: dict | None = None,
 ) -> DocumentReading:
     """Resolve a document's durable state and its reader's outstanding Asks.
 
@@ -52,6 +53,7 @@ def read_document(
         parser.lf_elements,
         registry,
         {"kind": "page", "revision": revision},
+        data,
     )
     asks = page_ask_readings(
         parser,

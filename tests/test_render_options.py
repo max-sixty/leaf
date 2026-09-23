@@ -515,23 +515,23 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
     # The controls remain in document order: the other mark, then the text box. It keeps
-    # native newlines on both forms of Enter and exposes the shared submit sequence.
+    # Shift+Enter keeps a native newline; Enter submits the option.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     box.fill("Keep both layers")
-    page.keyboard.press("Enter")
+    page.keyboard.press("Shift+Enter")
     page.keyboard.type("Keep them together")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Preserve both histories")
     expect(box).to_have_value(
         "Keep both layers\nKeep them together\nPreserve both histories"
     )
-    expect(box).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
     assert "add and select option" in shortcut_bar_text(page)
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
     expect(added).to_have_css("white-space", "pre-wrap")

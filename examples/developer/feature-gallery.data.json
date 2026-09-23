@@ -6,5 +6,11 @@
       "lines": "1:4"
     }
   },
-  "gallery-latency": 184
+  "gallery-latency": 184,
+  "gallery-jobs": {
+    "rows": [
+      { "id": "indexer", "state": "stopped" },
+      { "id": "notifier", "state": "stopped" }
+    ]
+  }
 }

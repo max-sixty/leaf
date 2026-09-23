@@ -54,6 +54,7 @@ const requestOffers = (element, declaration) => {
 };
 
 const requestBindings = (element, declaration) => {
+  if (declaration["x-request"]?.records) return {};
   const attributes = new Set(
     Object.values(declaration["x-request"]?.verbs ?? {}).flatMap((request) =>
       Object.values(request.bind ?? {}),

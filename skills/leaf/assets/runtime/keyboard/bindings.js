@@ -118,8 +118,8 @@ const GLYPH = {
   Home: "home",
   End: "end",
   Tab: "⇥",
-  // Mod is the platform's own send modifier, and the matcher takes either it or Ctrl
-  // (below): the chip says ⌘⏎ on a Mac and Ctrl+⏎ answers there too. A key that works
+  // Mod is the platform's own modifier, and the matcher takes either it or Ctrl
+  // (below): a chip says ⌘⏎ on a Mac and Ctrl+⏎ answers there too. A key that works
   // beyond what a surface promises is not a surface promising what does not work, which
   // is the rule this layer keeps.
   Mod: MAC ? "⌘" : "Ctrl",
@@ -156,6 +156,14 @@ export const spell = (binding) => {
     return /^\w/.test(glyph) ? `${glyph}+${rest}` : `${glyph}${rest}`;
   }, GLYPH[key] ?? key);
 };
+// A soft keyboard has no Shift key with which to make a newline. A coarse pointer
+// is the available signal for that surface: leave its Return native, while a
+// fine-pointer keyboard can submit with Return and edit with Shift+Return.
+const softKeyboard = () => matchMedia("(pointer: coarse)").matches;
+export const submitBindings = () =>
+  softKeyboard() ? ["Mod+Enter"] : ["Enter", "Mod+Enter"];
+export const submitLabel = () => spell(submitBindings()[0]);
+export const submitHint = () => (softKeyboard() ? "" : submitLabel());
 // Speech keeps every declared modifier explicit. A compact keycap may show Shift+t as T,
 // which is the keyboard's face, while a listener needs the physical press because many
 // speech configurations do not distinguish letter case.

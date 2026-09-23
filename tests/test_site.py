@@ -1631,7 +1631,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
             }"""
     )
     expect(comment_input).to_have_attribute(
-        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
     expect(comment_input).to_have_value(
         re.compile(r"should the practice exercise come before lunch\?")

@@ -136,7 +136,11 @@ def _contract_semantics(registry: dict, contract: str) -> tuple[dict, dict | Non
     registry captured with that document.
     """
     declaration = registry["$data"]["contracts"][contract]
-    return declaration["schema"], declaration.get("fragments")
+    return (
+        declaration["schema"],
+        declaration.get("records") or declaration.get("fragments"),
+        declaration.get("fragments"),
+    )
 
 
 def merge_data_document_readings(
@@ -519,27 +523,26 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         )
     if error is None:
         fragments = declaration.get("fragments")
+        records = declaration.get("records") or fragments
         items = (
-            value.get(fragments["items"])
-            if fragments and isinstance(value, dict)
-            else None
+            value.get(records["items"]) if records and isinstance(value, dict) else None
         )
         if items is not None:
             if not isinstance(items, list):
                 return (
-                    f"source {source!r} contract {contract!r} fragment field "
-                    f"{fragments['items']!r} must be an array"
+                    f"source {source!r} contract {contract!r} record field "
+                    f"{records['items']!r} must be an array"
                 )
             keys = set()
             duplicates = set()
             for index, item in enumerate(items):
-                key = item.get(fragments["key"]) if isinstance(item, dict) else None
+                key = item.get(records["key"]) if isinstance(item, dict) else None
                 if not isinstance(key, str) or not key:
                     return (
                         f"source {source!r} contract {contract!r} fragment item "
-                        f"{index} needs a non-empty string {fragments['key']!r}"
+                        f"{index} needs a non-empty string {records['key']!r}"
                     )
-                if fragments["value"] not in item:
+                if fragments and fragments["value"] not in item:
                     return (
                         f"source {source!r} contract {contract!r} fragment item "
                         f"{index} needs {fragments['value']!r}"

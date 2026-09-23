@@ -512,10 +512,12 @@ same widget method that handles projected state and does not send a gesture or w
 event. The Swipe package's deck module is the worked example.
 
 A widget-owned composition box uses `wireInput()` from `/runtime/widget-api.js`.
-It keeps Enter as a newline and registers Mod+Enter for the contextual action, alongside
-the shared draft persistence, busy state, and shortcut projections. A direct editor that
-needs more commands, such as Save and Cancel, registers those rows on its textarea but
-keeps the same Enter and Mod+Enter meanings.
+It registers Enter for the contextual action on physical keyboards and leaves
+Shift+Enter as a newline. On touch keyboards, Enter stays a newline and the visible
+control submits; Mod+Enter is also available where a modifier key exists. The helper
+also owns shared draft persistence, busy state, and shortcut projections. A direct
+editor that needs more commands, such as Save and Cancel, registers those rows on its
+textarea with the same text-entry meanings.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
@@ -741,6 +743,50 @@ across pages, so a host keying an external operation on it pairs it with the pag
 External evidence produced by the operation belongs in typed page data; the authored
 page changes only when the author saves the resulting plan revision.
 
+For controls projected from data rows, declare `records` on the data contract as its
+top-level array and each row's stable string key. Set `x-request.records` to the
+widget's `x-data` input name. Each verb then declares `unit`, a required detail field
+bound to that record key; `bind` maps other required string detail fields to required
+string fields on the record. The module renders its controls with `projectData`, reads
+`widgetController(holder).request(key)` for that row's reading and dispatch. It sends
+the row detail; Leaf stamps the request with the seat's source revision.
+The verbs are offered once by the projected holder; it has no authored offer children.
+The module gives each generated control a keyboard route.
+
+The append door checks the record and every bound field in the selected source value
+at that data revision. A current source replacement makes a stale press refuse; an
+authored `snapshot` selection remains exact. Pending, failed, and completed attempts
+belong to the document, owner widget, and record key, so one row cannot lock another.
+For `ask: true`, the holder contributes one Ask while any displayed row is ready. It
+does not add an Ask for every row; the page's heading names the set of choices.
+
+```json
+{
+  "$data": { "contracts": { "jobs": {
+    "description": "Jobs the host may restart.",
+    "records": { "items": "rows", "key": "id" },
+    "schema": { "type": "object", "properties": { "rows": {
+      "type": "array", "items": { "type": "object", "properties": {
+        "id": { "type": "string" }, "state": { "type": "string" }
+      }, "required": ["id", "state"] }
+    } }, "required": ["rows"] }
+  } } },
+  "lf-jobs": {
+    "x-data": { "jobs": { "contract": "jobs", "source": "source" } },
+    "x-request": {
+      "records": "jobs",
+      "verbs": { "restart": {
+        "unit": "target",
+        "detail": { "type": "object", "properties": {
+          "target": { "type": "string" }, "state": { "type": "string" }
+        }, "required": ["target", "state"], "additionalProperties": false },
+        "bind": { "target": "id", "state": "state" }
+      } }
+    }
+  }
+}
+```
+
 ## External or derived data
 
 Authored markup says what a version begins with; the event log says what readers and
@@ -868,6 +914,9 @@ sends the array as a lightweight manifest with that payload field omitted; a wid
 `watchData`. A stale current-source revision is refused instead of
 combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
 thousands of files without transferring or rendering every patch first.
+`records` names the same `items` and `key` fields without splitting payload delivery;
+when a contract declares both, they must agree. Both forms validate non-empty,
+unique string keys before a source replacement is accepted.
 
 ```json
 {

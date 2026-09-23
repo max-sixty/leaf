@@ -673,6 +673,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             behind its source.
           </p>
         </section>
+
+        <section id="bg-record-requests">
+          <h3>Requests from data rows</h3>
+          <p>
+            Press Restart on one job. Its request becomes pending while the other
+            remains ready. The Asks tray holds one question for the whole set.
+          </p>
+          <lf-ask id="bg-jobs-question">
+            <h4>Which job needs a restart?</h4>
+            <lf-job-requests id="bg-jobs" source="gallery-jobs"></lf-job-requests>
+          </lf-ask>
+        </section>
       </section>
 
       <section id="bg-default-presentation">
@@ -1077,14 +1089,14 @@ gallery/
                 ></iframe>
                 <kbd
                   class="interaction-keypress"
-                  data-interaction-keypress="⌘/Ctrl + Enter"
+                  data-interaction-keypress="Enter"
                   hidden
                 ></kbd>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
-                Leaf’s real response field submits with ⌘/Ctrl+Enter, then becomes the
-                real inline thread. A seeded comment lets the gallery replay that
+                Leaf’s real response field submits with Enter, then becomes the real
+                inline thread. A seeded comment lets the gallery replay that
                 accepted-send transition without posting another one.
               </figcaption>
             </figure>

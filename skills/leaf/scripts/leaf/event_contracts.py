@@ -515,6 +515,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
                     parser.lf_elements,
                     registry,
                     {"kind": "page", "revision": revision},
+                    view.data,
                 )
             ),
         )
@@ -535,6 +536,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
                     thread.elements,
                     registry,
                     {"kind": "thread"},
+                    view.data,
                 )
             ),
             reading=thread,
@@ -658,7 +660,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
         )
     page = page_reading(document, events, registry, event["revision"])
     threads = build_threads(events, page.within)
-    document_state = read_document(page, threads)
+    document_state = read_document(page, threads, view.data)
     conversation, _reading = browser_conversation(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],

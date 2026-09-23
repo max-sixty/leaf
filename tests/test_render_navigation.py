@@ -174,6 +174,52 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     )
 
 
+def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(READING_REGIONS_PAGE), context=context)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).to_be_visible()
+    expect(panel).to_have_attribute("aria-modal", "true")
+    page.evaluate(
+        """async () => {
+          const { registerReadingArrangement } = await window.__lfRuntimeImport(
+            '/runtime/reading-regions.js');
+          const list = document.querySelector('.lf-threads');
+          const nested = document.createElement('div');
+          nested.id = 'nested-reading';
+          nested.style.cssText = 'height:100px;overflow:auto';
+          nested.innerHTML = '<button id="nested-focus">Nested</button>' +
+            '<div style="height:1000px"></div>';
+          list.append(nested);
+          const filler = document.createElement('div');
+          filler.style.height = '1000px';
+          list.append(filler);
+          const arrangement = registerReadingArrangement({
+            owner: nested, content: nested,
+            regions: [{ id: 'nested-reading', host: nested, body: nested }],
+          });
+          await arrangement.setReadingPosture('bounded');
+        }"""
+    )
+    nested = page.locator("#nested-reading")
+    list_box = page.locator(".lf-threads")
+    page.locator("#nested-focus").focus()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "() => document.querySelector('#nested-reading').scrollTop > 0"
+    )
+    assert list_box.evaluate("box => box.scrollTop") == 0
+
+    panel.get_by_role("button", name="Close threads").focus()
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    assert nested.evaluate("box => box.scrollTop") > 0
+
+
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     workspace = page.locator("#reading-workspace")

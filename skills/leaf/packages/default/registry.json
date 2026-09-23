@@ -95,7 +95,7 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A file-backed text document supplied through Leaf data. `source` binds the page-owned feed. `snapshot` selects an immutable capture; omit it to follow the current value. `language` colors the document with one of $languages. The capture's label and selected line range appear above the exact text. Lines longer than the column wrap, since a capture has no alignment to keep, and print wraps them too so nothing is cut off on paper. Put the widget inside ordinary details or an lf-tab when the document should begin collapsed or in a separate view.",
+    "description": "A file-backed text document supplied through Leaf data. `source` binds the page-owned feed. `language` colors the document with one of $languages. `label` names the document above the exact text; without it the source id does. Lines longer than the column wrap, since a capture has no alignment to keep, and print wraps them too so nothing is cut off on paper. Put the widget inside ordinary details or an lf-tab when the document should begin collapsed or in a separate view.",
     "type": "object",
     "properties": {
       "id": {
@@ -106,9 +106,9 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9-]*$"
       },
-      "snapshot": {
+      "label": {
         "type": "string",
-        "pattern": "^[1-9][0-9]*$"
+        "minLength": 1
       },
       "language": {
         "type": "string"
@@ -121,8 +121,7 @@
     "x-data": {
       "document": {
         "contract": "text-document",
-        "source": "source",
-        "snapshot": "snapshot"
+        "source": "source"
       }
     },
     "x-language": "language",

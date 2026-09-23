@@ -59,18 +59,22 @@ export function documentPoint(left, top) {
 // band a handover is refused against and the band the page paints to are one reading.
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.
+//
+// The element's own document answers, so a specimen can ask it of the containing page's
+// boxes in that page's viewport coordinates.
 export function shownBand(el) {
+  const doc = el.ownerDocument;
   // The root element's border box travels with the document, while its scrollport stays
   // pinned to the viewport. Every other scroller's visible band can be derived from its
   // own box; the root is the platform-defined exception.
-  if (el === document.scrollingElement)
+  if (el === doc.scrollingElement)
     return {
       left: 0,
       top: 0,
-      right: document.documentElement.clientWidth,
-      bottom: document.documentElement.clientHeight,
+      right: doc.documentElement.clientWidth,
+      bottom: doc.documentElement.clientHeight,
     };
-  const s = getComputedStyle(el);
+  const s = doc.defaultView.getComputedStyle(el);
   if (
     s.overflowX === "visible" &&
     s.overflowY === "visible" &&

@@ -256,13 +256,13 @@ const addressableAimTarget = (addressable) => ({
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
 export const anchorForDatum = (datum, fields = {}) => {
-  const dataRevision = Number(datum.dataset.lfSourceRevision);
+  const sourceRevision = datum.dataset.lfSourceRevision;
   return {
     section: datum.dataset.lfProjection,
     datum: datum.dataset.lfDatum,
     ...fields,
-    ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
-      ? { source: datum.dataset.lfSource, data_revision: dataRevision }
+    ...(datum.dataset.lfSource && sourceRevision
+      ? { source: datum.dataset.lfSource, source_revision: sourceRevision }
       : {}),
   };
 };
@@ -319,12 +319,12 @@ export function resolveAnchor(anchor, text = "") {
     const source = sectionOf(anchor);
     const datums = currentDatums(source, anchor.datum);
     const anchoredToData =
-      typeof anchor.source === "string" && Number.isInteger(anchor.data_revision);
+      typeof anchor.source === "string" && typeof anchor.source_revision === "string";
     const basis = datums[0] ?? source;
     const basisMatches =
       !anchoredToData ||
       (basis?.dataset.lfSource === anchor.source &&
-        Number(basis.dataset.lfSourceRevision) === anchor.data_revision);
+        basis.dataset.lfSourceRevision === anchor.source_revision);
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =

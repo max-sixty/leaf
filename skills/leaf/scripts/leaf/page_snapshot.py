@@ -62,7 +62,6 @@ def capture_page_snapshot(
     with PageTransaction(page_dir) as page:
         events = tuple(copy.deepcopy(page.events))
         snapshot_active = copy.deepcopy(active)
-        data = read_data(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(page_dir, list(events))))
         revisions = list_revisions(page_dir)
         artifacts = {
@@ -84,6 +83,7 @@ def capture_page_snapshot(
             )
         artifacts[active["revision"]] = selected
         registry = copy.deepcopy(selected.registry)
+        data = read_data(page_dir, registry)
         layer = copy.deepcopy(registry["$layer"])
         documents = {
             revision: SourceDocument(artifact.html.decode("utf-8"))
@@ -109,13 +109,13 @@ def capture_page_snapshot(
         # revision's.
         snapshot_active["executable"] = artifacts[active["revision"]].executable
         taken = time.time()
-    browser_data = browser_data_from(copy.deepcopy(data), registry)
+    browser_data = browser_data_from(data, registry)
     files_reading = hashlib.sha256(
         repr(
             (
                 document.digest,
                 events[-1]["seq"] if events else 0,
-                data["revision"],
+                data["version"],
                 layer["fingerprint"],
                 versions,
             )

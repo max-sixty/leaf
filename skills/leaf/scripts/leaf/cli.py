@@ -416,7 +416,7 @@ def conversation_summarize(
 
 @cli.group(short_help="Set, capture, or clear page-bound external data.")
 def data() -> None:
-    """Manage current values and immutable file captures."""
+    """Manage each bound source's current value, one JSON file per source."""
 
 
 @data.command("set", short_help="Replace one bound source value.")
@@ -429,11 +429,7 @@ def data() -> None:
     default="-",
     help="JSON value to read (default: stdin)",
 )
-@click.option(
-    "--capture-label",
-    help="also retain this value as an immutable snapshot with the given label",
-)
-def data_set(dir: str, source: str, input_file, capture_label: str | None) -> None:
+def data_set(dir: str, source: str, input_file) -> None:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
@@ -443,10 +439,10 @@ def data_set(dir: str, source: str, input_file, capture_label: str | None) -> No
         raise click.ClickException(
             f"invalid JSON ({error.msg}, line {error.lineno})"
         ) from error
-    cmd_data_set(resolve_dir(dir), source, value, capture_label)
+    cmd_data_set(resolve_dir(dir), source, value)
 
 
-@data.command("capture", short_help="Capture a bound UTF-8 file.")
+@data.command("capture", short_help="Set a bound source from a UTF-8 file.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 @click.option(
@@ -470,26 +466,24 @@ def data_set(dir: str, source: str, input_file, capture_label: str | None) -> No
     metavar="START:END",
     help="one-based inclusive range for text captures",
 )
-@click.option("--label", help="display label (default: file name)")
 def data_capture(
     dir: str,
     source: str,
     input_file: Path,
     capture_format: str,
     lines: str | None,
-    label: str | None,
 ) -> None:
-    """Capture the --file PATH as SOURCE's current value and an immutable snapshot."""
+    """Set SOURCE's current value from FILE, whole, as a line range, or as a diff."""
     from leaf.data import cmd_data_capture
 
-    cmd_data_capture(resolve_dir(dir), source, input_file, lines, label, capture_format)
+    cmd_data_capture(resolve_dir(dir), source, input_file, lines, capture_format)
 
 
-@data.command("clear", short_help="Clear current and unreferenced captures.")
+@data.command("clear", short_help="Remove one source's current value.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
-    """Clear SOURCE while retaining captures selected by durable documents."""
+    """Remove SOURCE's value; the id keeps the contract it was recorded with."""
     from leaf.data import cmd_data_clear
 
     cmd_data_clear(resolve_dir(dir), source)

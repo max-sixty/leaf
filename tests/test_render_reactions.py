@@ -21,6 +21,7 @@ from render_cases_layout import (
 from render_cases_navigation import (
     TARGETS_PAGE,
     pending_text,
+    source_revision,
 )
 from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
@@ -2152,7 +2153,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
             "section": "patch",
             "datum": '["app.py","new",1]',
             "source": "patch",
-            "data_revision": 1,
+            "source_revision": source_revision(serve.page_dir, "patch"),
         },
     )
     reply = events_model.append_event(

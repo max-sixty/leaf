@@ -137,16 +137,14 @@ the user's own tab, since published pages are served rather than exported.
 External data is the other companion state. An example that binds a widget input
 to a source ships `<stem>.data.json`, mapping each page-owned source id to its
 complete current value. A reserved `$captures` object instead maps a source id to
-`file` and optional `format`, `label`, or `lines`; the file is a sibling of the
+`file` and optional `format` or `lines`; the file is a sibling of the
 example. The format defaults to `text`, where `lines` may select an inclusive
 range; a large unified diff stays in its `.patch` source and is captured with
 `"format": "unified-diff"`. Builders apply captures first and then current values
 through `leaf data capture` and `leaf data set`, so binding, contract validation,
-revisioning, live preview, browser sweeps, and the static site all exercise the
+live preview, browser sweeps, and the static site all exercise the
 real doors. `scripts/corpus.py` composes those companions into
-`corpus.data.json` and rebases each selected `snapshot` to that capture's revision
-in the combined data log, so each source page owns only its local snapshot
-numbers.
+`corpus.data.json`.
 
 The cursor is set to the end of the seeded log because a seed is history, not
 news: a cursor at zero hands the next agent session a question the same log

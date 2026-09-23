@@ -227,10 +227,12 @@ The specimen's gutter contains only the content being demonstrated. Keep labels,
 host controls, and instructions about using the specimen outside that gutter;
 instructions that belong to the demonstrated page remain inside it.
 
-The child uses the parent's selected layer and starts with its own event log.
-Enter specimen activates the child; its normal widget controls, keyboard routes,
-comments, and replies work there. Escape closes the child's open controls before
-returning to the surrounding page. Reset creates a fresh page from the template.
+The child uses the parent's selected layer and starts with its own event log. It
+stands in the surrounding page as a block as tall as its content, with only the
+Threads row of its chrome. A click or Tab reaches the child directly; its normal
+widget controls, keyboard routes, comments, and replies work there. Escape closes
+the child's open controls before returning to the surrounding page. Reset creates a
+fresh page from the template.
 Child decisions and comments do not change the parent's log or Ask inventory.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the specimen. A standalone copy keeps the rendered child and its assets as an

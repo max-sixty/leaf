@@ -132,7 +132,7 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | validated source markup before widget upgrade | `stageAuthoredFacets` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
-| external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
+| external data | the page data reading taken latest | `receiveState` replaces the source values; `watchData` delivers each bound source's value to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
 | accepted history | the server event log | the application publisher adopts one complete server answer |

@@ -8,8 +8,11 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 export const initiallyPresented = () => document.body.dataset.lfPresented === "1";
 export const currentPresented = () =>
   initiallyPresented() && validationPresentationReady();
-export const dataApplied = (revision) =>
-  Number(document.body.dataset.lfDataRevision ?? -1) >= revision;
+// A reader holding the server's reading taken at `taken` sees that reading presented,
+// or a later one.
+export const dataApplied = (version, taken) =>
+  document.body.dataset.lfDataVersion === version ||
+  Number(document.body.dataset.lfDataTaken ?? -Infinity) >= taken;
 export const logApplied = (applied) =>
   Number(document.body.dataset.lfApplied ?? -1) >= applied;
 

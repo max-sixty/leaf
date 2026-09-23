@@ -12,8 +12,8 @@ the node's `vocabulary` tag in the shared vocabulary file when needed.
 When `edit.matches_active` is false, the candidate in `index.html` differs from
 the live revision. Its source locations still refer to the active file; reconcile
 the candidate by stable id and content before editing. `inputs` names external
-values and their mutation route: `data set` for live inputs, `capture-and-rebind`
-for pinned inputs. Inspect frozen conversation content with
+values and the source file that holds each; change one with `leaf data set` or by
+rewriting that file. Inspect frozen conversation content with
 `leaf conversation read <page> <id>`; change it through that conversation.
 
 ## Revisions and user-owned words

@@ -57,6 +57,7 @@ from render_cases_navigation import (
     composer_quote,
     mark_point,
     pending_text,
+    source_revision,
     wait_for_pending_mark,
 )
 from render_harness import (
@@ -4614,6 +4615,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             ]
         },
     )
+    revision = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -4645,7 +4647,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "section": "patch",
             "datum": '["app.py","file"]',
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": revision,
         }
     ]
     expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
@@ -4709,7 +4711,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).to_have_attribute("data-lf-datum-label", "app.py · new line 2")
     expect(added).to_have_attribute("aria-description", "app.py · new line 2")
     expect(added).to_have_attribute("data-lf-source", "review-patch")
-    expect(added).to_have_attribute("data-lf-source-revision", "1")
+    revision = source_revision(serve.page_dir, "review-patch")
+    expect(added).to_have_attribute("data-lf-source-revision", revision)
 
     details = page.locator("lf-diff details").first
     summary = details.locator("summary")
@@ -4902,13 +4905,13 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
             "section": "patch",
             "datum": new_key,
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": revision,
         },
         {
             "section": "patch",
             "datum": new_key,
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": revision,
             "quote": "request.token.id",
         },
     ]
@@ -4974,7 +4977,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
                 "section": "patch",
                 "datum": '["app.py","new",1]',
                 "source": "review-patch",
-                "data_revision": 1,
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
         },
     )
@@ -5543,14 +5546,12 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     )
 
 
-def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
-    browser, serve, monkeypatch
-):
-    """A source write is an identity, not its second-resolution wall clock.
+def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(browser, serve):
+    """A source write is an identity, not its second-resolution modification time.
 
     Replacing a manifest inside the same second must discard its prior file keys before
-    fragments use the new data revision. A transient fragment refusal remains local to
-    that disclosure and closing and reopening it retries the exact current file.
+    fragments use the new source revision. A transient fragment refusal remains local
+    to that disclosure and closing and reopening it retries the exact current file.
     """
     authored = leaf_page(
         "changing fragmented diff",
@@ -5558,7 +5559,6 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
         "collapsed><pre></pre></lf-diff>",
     )
     url = serve(authored)
-    monkeypatch.setattr(data_model, "now_iso", lambda: "2026-09-01T06:00:00-07:00")
 
     def manifest(path, old, new):
         return {
@@ -5645,6 +5645,7 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
         ]
     }
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
+    prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
     page.evaluate(
         "window.priorManifest = document.querySelector('#patch').manifestSnapshot"
@@ -5669,7 +5670,8 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
         }"""
     )
     assert result == {
-        "stale": "source review-patch revision 1 changed before loading fragment app.py",
+        "stale": f"source review-patch revision {prior} changed before loading "
+        "fragment app.py",
         "current": replacement,
     }
 

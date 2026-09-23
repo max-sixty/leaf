@@ -56,39 +56,42 @@ A diagram's authored source ids also give the user something to comment on: the
 
 ## Source files and media
 
-Use `lf-text-document` when literal UTF-8 text should remain selectable and
-commentable without copying it into the authored HTML, and `lf-diff` for a
-unified-patch capture. `lf-diff` and the `unified-diff` contract travel in the `diff`
-package: initialize such a page with `leaf page init --package diff <page>`. First
-add a current-data binding so Leaf can give the source its page-lifetime contract:
+Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable
+without copying it into the authored HTML. Use a unified-patch capture with
+`lf-diff`; the diff keeps its per-file view
+and gives each source line a stable comment coordinate. `lf-diff` and the
+`unified-diff` contract travel in the `diff` package: initialize such a page with
+`leaf page init --package diff <page>`. First add a data binding so Leaf can give the
+source its page-lifetime contract:
 
 ```html
-<lf-text-document id="skill-source" source="leaf-skill" language="markdown"></lf-text-document>
+<lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>
 
-<lf-diff id="review-patch" source="pr-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="review-patch" source="pr-patch-8f61c2a" collapsed><pre></pre></lf-diff>
 ```
 
 Then capture the whole UTF-8 text file or an inclusive line range:
 
 ```bash
-leaf data capture <page> leaf-skill --file SKILL.md --label SKILL.md
+leaf data capture <page> leaf-skill --file SKILL.md
 leaf data capture <page> leaf-skill --file SKILL.md --lines 71:102
-leaf data capture <page> pr-patch --file change.patch --format unified-diff \
-  --label "PR at 8f61c2a"
+leaf data capture <page> pr-patch-8f61c2a --file change.patch --format unified-diff
 ```
 
 The `unified-diff` transform validates each file and builds a structured value whose
 `files` array carries its path, change counts, and patch. An entry the widget's
 declaration does not support is refused before capture.
 
-Capture and structured `data set --capture-label` print the data revision they
-retained, one sequence across the page's sources. Before stamping or handing over the
-reviewed page, add that revision as `snapshot` to freeze the capture, as in
-`<lf-diff id="review-patch" source="pr-patch" snapshot="2" collapsed>` after the
-capture that printed `snapshot 2`; omit the attribute when the block should follow
-later captures or `data set` calls. On a served page, the valid unpinned save that
-adds the binding may already have become an interim revision before capture. That is
-expected; the next valid save activates the pinned snapshot.
+A bound widget shows its source's current value, in every version and thread that
+binds it. Evidence a review must keep exactly gets a source id of its own, such as the
+commit in `pr-patch-8f61c2a`, which nothing captures into again; evidence that should
+follow later captures or `data set` calls shares one id. `lf-text-document` shows
+`label` above the text, or the source id without one. Wrap `lf-text-document` in
+ordinary `<details>` or place it in an `lf-tabs` panel when the evidence should start
+collapsed or share a compact frame with alternatives. A bound `lf-diff` keeps one empty
+`<pre></pre>` because that is the shared data-body shape; the captured patch, not that
+element, supplies its text. Add `collapsed` to a large diff so each file starts closed;
+a comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

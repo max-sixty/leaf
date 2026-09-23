@@ -14,12 +14,7 @@ from .structure import SourceDocument, parse_revision
 
 
 class DataError(click.ClickException):
-    """A malformed snapshot store or payload at the page data boundary."""
-
-
-def valid_snapshot_id(value) -> bool:
-    """Whether a selector names a positive decimal data revision."""
-    return isinstance(value, str) and re.fullmatch(r"[1-9][0-9]*", value) is not None
+    """A malformed data store or payload at the page data boundary."""
 
 
 def data_bindings(lf_elements: list, registry: dict):
@@ -35,15 +30,6 @@ def data_bindings(lf_elements: list, registry: dict):
             source = rec["attrs"].get(spec["source"])
             if isinstance(source, str) and re.fullmatch(DATA_SOURCE_NAME, source):
                 yield ordinal, rec, input_name, spec, source
-
-
-def selected_snapshot(rec: dict, spec: dict) -> str | None:
-    """The immutable data revision one seat selects, if it selects one."""
-    attribute = spec.get("snapshot")
-    if attribute is None:
-        return None
-    snapshot = rec["attrs"].get(attribute)
-    return snapshot if valid_snapshot_id(snapshot) else None
 
 
 def declared_data_bindings(
@@ -68,37 +54,6 @@ def declared_data_bindings(
         bindings[source] = contract
         seats[source] = seat
     return bindings, seats, errors
-
-
-def declared_data_snapshot_references(lf_elements: list, registry: dict) -> dict:
-    """Read source-scoped immutable snapshot ids selected by one document."""
-    references = {}
-    for _ordinal, rec, _input_name, spec, source in data_bindings(
-        lf_elements, registry
-    ):
-        if snapshot := selected_snapshot(rec, spec):
-            references.setdefault(source, set()).add(snapshot)
-    return references
-
-
-def data_snapshot_selections(documents: list[tuple[list, str]], registry: dict) -> dict:
-    """Exact immutable selection at each document/widget/input coordinate."""
-    selections = {}
-    for lf_elements, document in documents:
-        for ordinal, rec, input_name, spec, source in data_bindings(
-            lf_elements, registry
-        ):
-            if snapshot := selected_snapshot(rec, spec):
-                coordinate = (
-                    document,
-                    ordinal,
-                    rec["tag"],
-                    rec["attrs"].get("id"),
-                    rec["line"],
-                    input_name,
-                )
-                selections[coordinate] = (source, snapshot)
-    return selections
 
 
 def merge_data_bindings(
@@ -300,25 +255,6 @@ def initial_data_document_readings(
     ]
 
 
-def working_data_documents(
-    page_dir: Path,
-    events: list,
-    *,
-    authored: list | None = None,
-    incoming: list[tuple[list, str]] | None = None,
-) -> list[tuple[list, str]]:
-    """Immutable documents plus the current source and boundary candidates."""
-    documents = page_data_documents(page_dir, events)
-    if authored is None:
-        source = page_dir / "index.html"
-        if source.exists():
-            authored = SourceDocument(source.read_text(encoding="utf-8")).lf_elements
-    if authored is not None:
-        documents.append((authored, "index.html"))
-    documents.extend(incoming or [])
-    return documents
-
-
 def working_data_bindings(
     page_dir: Path,
     registry: dict,
@@ -328,23 +264,6 @@ def working_data_bindings(
     return merge_data_document_readings(
         working_data_document_readings(page_dir, registry, events),
     )
-
-
-def working_data_snapshot_references(
-    page_dir: Path,
-    registry: dict,
-    events: list,
-) -> dict:
-    """Snapshot ids selected by immutable documents and the current source."""
-    references = {}
-    for lf_elements, _document, document_registry in working_data_document_readings(
-        page_dir, registry, events
-    ):
-        for source, snapshots in declared_data_snapshot_references(
-            lf_elements, document_registry
-        ).items():
-            references.setdefault(source, set()).update(snapshots)
-    return references
 
 
 def page_data_binding_inventory(
@@ -382,10 +301,9 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
             source,
             {"contract": spec["contract"], "consumers": []},
         )
-        consumer = {"widget": rec["attrs"].get("id"), "input": input_name}
-        if snapshot := selected_snapshot(rec, spec):
-            consumer["snapshot"] = snapshot
-        binding["consumers"].append(consumer)
+        binding["consumers"].append(
+            {"widget": rec["attrs"].get("id"), "input": input_name}
+        )
     return {source: inventory[source] for source in sorted(inventory)}
 
 
@@ -445,13 +363,13 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str
 def data_binding_errors(
     page_dir: Path,
     registry: dict,
-    stored: dict,
+    contracts: dict[str, str],
     events: list,
     *,
     authored: list | None = None,
     incoming: list[tuple[list, str]] | None = None,
 ) -> list[str]:
-    """Working-document conflicts and standing snapshots that contradict them."""
+    """Working-document conflicts and recorded contracts that contradict them."""
     documents = working_data_document_readings(
         page_dir,
         registry,
@@ -459,41 +377,22 @@ def data_binding_errors(
         authored=authored,
         incoming=incoming,
     )
-    return data_document_errors(documents, stored)
+    return data_document_errors(documents, contracts)
 
 
 def data_document_errors(
-    documents: list[tuple[list, str, dict]], stored: dict
+    documents: list[tuple[list, str, dict]], contracts: dict[str, str]
 ) -> list[str]:
-    """Validate bindings and snapshot selections within one page's document readings."""
+    """Bindings that conflict with each other or with the contract a source id
+    was recorded with."""
     bindings, errors = merge_data_document_readings(documents)
     for source, contract in bindings.items():
-        snapshot = stored["sources"].get(source)
-        if snapshot is not None and snapshot["contract"] != contract:
+        recorded = contracts.get(source)
+        if recorded is not None and recorded != contract:
             errors.append(
-                f"source {source!r} is bound to contract {contract!r}, but its "
-                f"standing snapshot uses {snapshot['contract']!r}; use a new source "
-                "id for the new meaning"
+                f"source {source!r} is bound to contract {contract!r}, but it was "
+                f"recorded with {recorded!r}; use a new source id for the new meaning"
             )
-    for lf_elements, document, document_registry in documents:
-        for _ordinal, rec, input_name, spec, source in data_bindings(
-            lf_elements, document_registry
-        ):
-            selected = selected_snapshot(rec, spec)
-            if selected is None:
-                continue
-            source_store = stored["sources"].get(source)
-            snapshots = (
-                source_store.get("snapshots", {})
-                if isinstance(source_store, dict)
-                else {}
-            )
-            if selected not in snapshots:
-                errors.append(
-                    f"{document} <{rec['tag']}> input `{input_name}` (line "
-                    f"{rec['line']}) selects snapshot {selected!r} from source "
-                    f"{source!r}, but data.json does not contain it"
-                )
     return list(dict.fromkeys(errors))
 
 
@@ -560,17 +459,3 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         f"source {source!r} value is invalid for contract {contract!r} at "
         f"{error.json_path}: {error.message}"
     )
-
-
-def data_contract_errors(stored: dict, registry: dict) -> list[str]:
-    errors = []
-    for source, source_store in stored["sources"].items():
-        contract = source_store["contract"]
-        if "value" in source_store and (
-            error := payload_error(source, contract, source_store["value"], registry)
-        ):
-            errors.append(error)
-        for snapshot_id, snapshot in source_store.get("snapshots", {}).items():
-            if error := payload_error(source, contract, snapshot["value"], registry):
-                errors.append(f"snapshot {snapshot_id}: {error}")
-    return errors

@@ -48,6 +48,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.registry.storage import load_registry
 from leaf.served_state import page as served_page
 from leaf.validation import compatibility as compatibility_model
 from leaf.validation import instances as validation_model
@@ -149,7 +150,6 @@ class ModelPage:
             number: structure_model.SourceDocument(html)
             for number, html in enumerate(revisions, 1)
         }
-        self.data = data_model.empty_data()
         self._packages = packages
         self._registry = registry
 
@@ -164,6 +164,15 @@ class ModelPage:
         """One layer for every revision: a stated page never re-vendors, so no
         revision of it captured a vocabulary different from the rest."""
         return self._registry or model_layer(*self._packages)
+
+    @property
+    def contracts(self) -> dict:
+        """A stated page records no data source."""
+        return {}
+
+    def data(self, registry: dict) -> dict:
+        """A stated page binds no source, so every reading of its data is empty."""
+        return {"version": "", "sources": {}}
 
     @property
     def within(self) -> dict:
@@ -362,6 +371,11 @@ def check(d):
     return CliRunner().invoke(cli_model.cli, ["version", "check", str(d)])
 
 
+def read_page_data(page_dir) -> dict:
+    """Every source the page records, judged against the page's own layer."""
+    return data_model.read_data(page_dir, load_registry(page_dir))
+
+
 def declare_data_input(
     page_dir,
     source,
@@ -371,7 +385,6 @@ def declare_data_input(
     tag="lf-test-data",
     input_name="data",
     guidance=None,
-    snapshot=False,
     activate=True,
 ):
     """Add one typed widget input and bind it in the mutable source."""
@@ -387,22 +400,11 @@ def declare_data_input(
         "properties": {
             "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
-            **(
-                {"snapshot": {"type": "string", "pattern": "^[1-9][0-9]*$"}}
-                if snapshot
-                else {}
-            ),
         },
         "required": ["id", "source"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-data": {
-            input_name: {
-                "contract": contract,
-                "source": "source",
-                **({"snapshot": "snapshot"} if snapshot else {}),
-            }
-        },
+        "x-data": {input_name: {"contract": contract, "source": "source"}},
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))

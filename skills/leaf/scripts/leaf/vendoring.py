@@ -7,11 +7,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .data import empty_data, read_data
 from .data_contracts import (
-    data_contract_errors,
     data_contract_transition_errors,
-    data_snapshot_selections,
     merge_data_bindings,
     page_data_documents,
     working_data_bindings,
@@ -41,10 +38,8 @@ from .registry.contract import read_registry_declarations
 from .registry.page import compose_page_registry
 from .schema import (
     CURSOR_FILE,
-    DATA_FILE,
     EVENTS_FILE,
     LAYER_PLACEHOLDER,
-    MEDIA_DIR,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -192,7 +187,6 @@ def _refuse_vocabulary_drift(
 def _refuse_data_contract_drift(
     page_dir: Path, events: list[dict], incoming: dict
 ) -> None:
-    stored_data = read_data(page_dir)
     # The outgoing registry is historical input, not a contract arriving at the
     # current code's boundary. It may legitimately predate a new kernel invariant;
     # validating it with today's rules would prevent `page init` from replacing the
@@ -214,39 +208,18 @@ def _refuse_data_contract_drift(
             for source, contract in standing_bindings.items()
             if incoming_bindings.get(source) != contract
         ]
-        standing_snapshots = data_snapshot_selections(documents, current)
-        incoming_snapshots = data_snapshot_selections(documents, incoming)
-        selection_changes = [
-            f"{document} <{tag}{'#' + widget if widget else ''}> input `{input_name}` "
-            f"changes immutable snapshot selection from {standing_snapshots.get(seat)} "
-            f"to {incoming_snapshots.get(seat)}"
-            for seat in sorted(
-                set(standing_snapshots) | set(incoming_snapshots), key=repr
-            )
-            for document, _ordinal, tag, widget, _line, input_name in [seat]
-            if incoming_snapshots.get(seat) != standing_snapshots.get(seat)
-        ]
         contract_changes = data_contract_transition_errors(page_dir, events, incoming)
-        if binding_errors or binding_changes or selection_changes or contract_changes:
+        if binding_errors or binding_changes or contract_changes:
             sys.exit(
                 "this page's immutable documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
                     f"  - {error}"
-                    for error in binding_errors
-                    + binding_changes
-                    + selection_changes
-                    + contract_changes
+                    for error in binding_errors + binding_changes + contract_changes
                 )
-                + "\npreserve those bindings and snapshot selectors in the incoming "
-                "registry before re-vendoring."
+                + "\npreserve those bindings in the incoming registry before "
+                "re-vendoring."
             )
-    if data_errors := data_contract_errors(stored_data, incoming):
-        sys.exit(
-            "this page holds external data the incoming layer no longer speaks:\n"
-            + "\n".join(f"  - {error}" for error in data_errors)
-            + "\nclear those sources with `leaf data clear` before re-vendoring."
-        )
 
 
 def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) -> None:
@@ -346,12 +319,7 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
             for name in layer.directory_files[sub]
         ),
     ]
-    directories = {
-        page_dir / "revisions",
-        page_dir / MEDIA_DIR,
-        page_dir / "page",
-        *(page_dir / sub for sub in PACKAGE_DIRS),
-    }
+    directories = {page_dir / sub for sub in PAGE_OWNED_DIRS}
     for target in file_targets:
         for parent in target.parents:
             if parent == page_dir:
@@ -456,12 +424,6 @@ def _commit_layer(
                 "after": 0,
             },
         )
-    # State names this as the canonical values file even before the page binds a
-    # source. Make the empty revision concrete so an agent can always follow the
-    # pointer with an ordinary JSON read; re-vendoring preserves any existing
-    # values exactly as it preserves the event log.
-    if not (page_dir / DATA_FILE).exists():
-        write_json(page_dir / DATA_FILE, empty_data())
     # The append-only log's stable inode is also the successful-init marker and
     # the page transaction lease. Publish it only after the layer and initial
     # status commit, so a failed first write still takes the fresh-init path.

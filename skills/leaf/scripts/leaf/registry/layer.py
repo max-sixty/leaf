@@ -11,12 +11,13 @@ from leaf.schema import (
     ASSETS,
     DATA_CONTRACT_NAME,
     EXTENSION_SCHEMA,
+    GUIDANCE_SCHEMA,
     HTML_NAME,
 )
 
 from .contract import (
-    GUIDANCE_READER,
     RegistryError,
+    json_validator,
     read_registry_declarations,
     unresolved_schema_reference,
 )
@@ -253,7 +254,9 @@ def validate_layer_declarations(
                 "must share their items and key fields"
             )
         guidance_errors = sorted(
-            GUIDANCE_READER.iter_errors(declaration.get("guidance", {})),
+            json_validator(GUIDANCE_SCHEMA).iter_errors(
+                declaration.get("guidance", {})
+            ),
             key=str,
         )
         if guidance_errors:

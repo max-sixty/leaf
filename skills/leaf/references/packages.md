@@ -643,16 +643,6 @@ geometry change, including in-place attribute or style changes. The render gate 
 every record and requires each authored token to resolve. The package owns the stable
 mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
-An `x-state` verb that lets the user add a real child declares
-`creates: {child, words}`. Its fold unit names the detail field carrying the new child's
-canonical element id, `words` names the field carrying its non-empty words, and the detail
-holds exactly those two required fields with no record form. Each added child therefore
-stands on its own coordinate: a later action on another facet leaves it in place, and
-undoing the `add` removes it. The child tag admits the sender through `x-owners`,
-requires only its canonical `id`, and has `x-content: markup`. The append door refuses an
-id the sending document already holds, and version checks enforce the declared tag and
-direct-ownership relation once an author writes the child into the markup.
-
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
@@ -662,6 +652,72 @@ Use `runFromCommandReference: false` only for a parameterized step that cannot b
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
+
+## User state
+
+A widget whose user changes something records each change as an `action` event in the
+page's append-only log. The package writes no storage or server code. It declares verbs
+under the element's `x-state`, and Leaf validates each event at the log's one append
+door, folds the log into current state, gives that state to the module, and lists it
+for the agent under `state` in `leaf page state`.
+
+The swipe package is a small complete example. `packages/swipe/registry.json`
+declares two verbs on `lf-swipe-deck`, and `widgets/lf-swipe-deck.js` subscribes to and
+dispatches them. The `swipe` verb, without its `requires`:
+
+```json
+{
+  "x-state": {
+    "swipe": {
+      "detail": {
+        "type": "object",
+        "properties": {
+          "card": { "type": "string" },
+          "to": { "type": "string" },
+          "index": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["card", "to", "index"],
+        "additionalProperties": false
+      },
+      "facet": "verdict",
+      "unit": "card",
+      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "order": "index" }
+    }
+  }
+}
+```
+
+`detail` is the JSON Schema every event of that verb must satisfy. The owning element,
+the `unit`, and the `facet` together form the fold coordinate. At each coordinate the
+latest surviving action stands, and different coordinates stand side by side. Swiping a
+card again therefore replaces that card's earlier verdict, while verdicts on different
+cards coexist. `unit` is `"widget"` for a verb that states the whole widget's value at
+once, or the detail field naming the element it is per. `record` says how the standing
+state reads in markup: here, the card's position inside a pile. The agent's next
+version writes that state back, and `version check` refuses a version that contradicts
+it without `restated`. The `$keys` entries in `assets/registry.json` define each key
+exactly.
+
+The module reads and writes through `widgetController(owner)`, described under "A
+widget": `subscribe` delivers the authored baseline with the fold applied, and
+`dispatch({kind: "action", verb, detail})` sends a gesture whose result is on screen
+before the server admits it.
+
+A verb may add `requires`, a prerequisite on the widget's Ask; `completion`, which
+answers that Ask when a move empties a container; and `references`, described under "A
+widget". A verb that lets the user add a real child declares `creates: {child, words}`.
+Its fold unit names the detail field carrying the new child's canonical element id,
+`words` names the field carrying its non-empty words, and the detail holds exactly those
+two required fields with no record form. Each added child therefore stands on its own
+coordinate: a later action on another facet leaves it in place, and undoing the `add`
+removes it. The child tag admits the sender through `x-owners`, requires only its
+canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
+document already holds, and version checks enforce the declared tag and
+direct-ownership relation once an author writes the child into the markup.
+
+`x-report` declares the agent's side of the same coordinates: a worker posts a report
+with `leaf report`, and it stands until a version answers it. A user's action at the
+same coordinate outranks it.
 
 ## External requests and receipts
 

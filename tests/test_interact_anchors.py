@@ -1137,7 +1137,10 @@ def test_restating_what_an_earlier_version_took_back_names_that_version(page_dir
 
 
 def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
-    """Recorded meaning cannot make up a declaration the captured revision never had."""
+    """Recorded meaning cannot make up a declaration the captured revision never had.
+
+    The door admitted everything logged against the active revision, so the next
+    revision is where history is checked against the vocabulary again."""
     drafted(page_dir)
     events_model.append_event(
         page_dir,
@@ -1154,6 +1157,9 @@ def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
             },
             "detail": {"text": "Words no layer speaks."},
         },
+    )
+    (page_dir / "index.html").write_text(
+        DRAFTED.replace("<title>t</title>", "<title>t · revised</title>")
     )
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
     assert result.exit_code != 0

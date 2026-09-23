@@ -149,10 +149,10 @@ ACTION_COMPLETION = {
 ACTION_CREATES = {
     "type": "object",
     "properties": {
-        "field": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "child": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+        "words": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["field", "child"],
+    "required": ["child", "words"],
     "additionalProperties": False,
 }
 

@@ -1200,7 +1200,6 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             "widget": "thread-local",
             "action": "choose",
             "detail": {"choice": "chosen"},
-            "generated": [],
             "meaning": {
                 "document": {"kind": "thread"},
                 "coordinate": ["thread-local", "thread-local", "choice"],

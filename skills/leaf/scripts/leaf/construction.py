@@ -154,12 +154,16 @@ def constructed_content(
             prepare(node["content"])
 
     prepare(roots)
-    for unit, children in generated_children(projection.desired, set(by_id)).items():
-        owner = by_id.get(unit)
+    # Created child id → its owner, so a record the owner states reaches the children
+    # other events created as well as the authored ones.
+    created_in = {}
+    for widget, children in generated_children(projection.desired, set(by_id)).items():
+        owner = by_id.get(widget)
         if owner is None:
             continue
         for generated in children:
             identity = generated["id"]
+            created_in[identity] = widget
             child = {
                 "tag": generated["tag"],
                 "attrs": {"id": identity},
@@ -167,7 +171,7 @@ def constructed_content(
                 "source": event_origin(generated["event"]),
                 "edit": {
                     "kind": "generated",
-                    "owner": unit,
+                    "owner": widget,
                     "id": identity,
                     "operation": "author-in-owner",
                 },
@@ -214,7 +218,7 @@ def constructed_content(
                 owner["attrs"][record["attr"]] = value
         elif kind == "attribute":
             for identity, node in by_id.items():
-                generated = node["source"].get("event") == event["id"]
+                generated = created_in.get(identity) == unit
                 if (
                     not generated
                     and recorded_owner(identity, parser.by_id, spoken, registry) != unit

@@ -643,13 +643,15 @@ geometry change, including in-place attribute or style changes. The render gate 
 every record and requires each authored token to resolve. The package owns the stable
 mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
-An `x-state` verb that lets the user add real children declares
-`creates: {field, child}`. The named optional detail field has the canonical
-`{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-owners`, requires only its canonical `id`, and has `x-content: markup`. The append
-transaction records the map's sorted ids in `generated`, allowing historical
-folds to retain their liveness while version checks enforce the declared tag and
-direct-ownership relation.
+An `x-state` verb that lets the user add a real child declares
+`creates: {child, words}`. Its fold unit names the detail field carrying the new child's
+canonical element id, `words` names the field carrying its non-empty words, and the detail
+holds exactly those two required fields with no record form. Each added child therefore
+stands on its own coordinate: a later action on another facet leaves it in place, and
+undoing the `add` removes it. The child tag admits the sender through `x-owners`,
+requires only its canonical `id`, and has `x-content: markup`. The append door refuses an
+id the sending document already holds, and version checks enforce the declared tag and
+direct-ownership relation once an author writes the child into the markup.
 
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget

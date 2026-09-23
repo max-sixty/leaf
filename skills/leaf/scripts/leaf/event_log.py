@@ -97,7 +97,7 @@ def _attempt_payload(event: dict) -> dict:
     return {
         key: value
         for key, value in event.items()
-        if key not in {"id", "ts", "author", "seq", "meaning", "generated"}
+        if key not in {"id", "ts", "author", "seq", "meaning"}
     }
 
 

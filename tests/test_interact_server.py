@@ -1841,7 +1841,7 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
-def test_action_door_owns_generated_child_snapshots(server, page_dir):
+def test_action_door_owns_created_child_meaning(server, page_dir):
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -1857,31 +1857,34 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
         "kind": "action",
         "revision": 1,
         "widget": "delivery",
-        "action": "choose",
-        "detail": {
-            "options": ["delivery-user-z"],
-            "additions": {
-                "delivery-user-z": "After the health check",
-                "delivery-user-a": "Before the maintenance window",
-            },
-        },
+        "action": "add",
+        "detail": {"option": "delivery-user", "text": "After the health check"},
     }
 
     command = {**base, "attempt": "attempt-generated-good"}
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
-    assert accepted["generated"] == ["delivery-user-a", "delivery-user-z"]
-    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery", "selection"]
+    # The created option is the action's own unit, and the stamp names its tag.
+    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery-user", "added"]
+    assert accepted["meaning"]["creates"] == "lf-option"
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     assert json.loads(body)["state"]["events"][-1]["id"] == accepted["id"]
-    for field, value in (("generated", []), ("meaning", accepted["meaning"])):
-        forged = {**base, field: value, "attempt": "attempt-forged-" + field}
-        status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
-        assert status == 400, body
-        assert field in json.loads(body)["error"]
+    forged = {
+        **base,
+        "meaning": accepted["meaning"],
+        "attempt": "attempt-forged-meaning",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
+    assert status == 400, body
+    assert "meaning" in json.loads(body)["error"]
+    # An authored option is not the user's to write into being.
+    authored = {**base, "detail": {"option": "delivery-now", "text": "Now again"}}
+    status, body = fetch(f"{server}/api/event", data=json.dumps(authored).encode())
+    assert status == 400, body
+    assert "already names an authored element" in json.loads(body)["error"]
 
 
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
@@ -2011,7 +2014,6 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": reaction["id"]},
-            "generated": [],
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
                 "coordinate": ["picks", "picks", "selection"],

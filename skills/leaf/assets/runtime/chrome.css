@@ -1063,7 +1063,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact > .lf-thread-root-meta { margin: 12px 8px 0; }
   .lf-thread-compact > .lf-msg { margin: 16px 8px; }
   .lf-thread-compact .lf-msg-head { display: flex; align-items: baseline; gap: 8px; }
-  .lf-thread-root-meta { display: flex; align-items: baseline; gap: 8px; }
+  /* Centered rather than baseline-aligned, so the row's text keeps its place when
+     Mark thread read leaves the actions and the baseline would follow it. */
+  .lf-thread-root-meta { display: flex; align-items: center; gap: 8px; }
   .lf-thread-root-meta > .lf-msg-head { display: contents; }
   .lf-thread-root-meta > b { color: var(--ink); font-size: 11px; font-weight: 600; }
   .lf-thread-root-meta + .lf-msg { margin-top: 4px; }
@@ -1166,10 +1168,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .lf-msg { margin: 16px 0; }
   .lf-msg.agent { position: relative; }
-  .lf-read-boundary { display: flex; align-items: center; gap: 7px; margin: 9px 0 7px;
+  /* Read marks are bookkeeping, so reading a thread must not move what the reader is
+     looking at: every mark is drawn in room the content already leaves, and taking it
+     away changes no box. A boundary is a zero-height block whose margins collapse
+     through it, so it sits at the next message's edge and its label hangs in the gap
+     the messages keep anyway; the unread rail stands in the message's inline margin. */
+  .lf-read-boundary { position: relative; height: 0;
     color: var(--turn-ink); font: 600 10px/1.3 var(--sans); white-space: nowrap; }
-  .lf-read-boundary::before, .lf-read-boundary::after { content: ""; min-width: 8px;
-    flex: 1; border-block-start: 1px solid currentColor; opacity: .42; }
+  .lf-read-boundary > span { position: absolute; inset-inline: 0; bottom: 2px;
+    display: flex; align-items: center; gap: 7px; }
+  /* A boundary that opens its container has no margin above it to collapse with, so it
+     stands at the start of the gap its message keeps, and its label hangs below. */
+  .lf-read-boundary:first-child > span { inset-block: 2px auto; }
+  .lf-read-boundary > span::before, .lf-read-boundary > span::after { content: "";
+    min-width: 8px; flex: 1; border-block-start: 1px solid currentColor; opacity: .42; }
   .lf-thread-compact > .lf-read-boundary { margin-inline: 8px; }
   .lf-summary-messages > .lf-read-boundary { margin-inline-end: 8px; }
   .lf-read-boundary[data-kind="end"] { color: var(--muted-2); font-weight: 500; }
@@ -1179,10 +1191,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
-  .lf-msg.lf-unread { border-inline-start: 2px solid var(--turn-ink);
-    padding-inline-start: 6px; }
-  .lf-thread-root-meta:has(+ .lf-msg.lf-unread) { border-inline-start: 2px solid var(--turn-ink);
-    padding-inline-start: 6px; }
+  /* A border image outset into the inline margin draws the rail and takes no room. */
+  :is(.lf-msg.lf-unread, .lf-thread-root-meta:has(+ .lf-msg.lf-unread)) {
+    border-image: linear-gradient(var(--turn-ink), var(--turn-ink)) 0 0 0 1 / 0 0 0 2px
+      / 0 0 0 6px; }
   /* A failed answer needs to stand apart from the clock without becoming a control. */
   .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
   /* A message body is rendered Markdown, which is why this dresses a box and not a

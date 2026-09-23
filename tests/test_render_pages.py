@@ -27,7 +27,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control
+from render_cases_layout import banner_control, toggle_asks, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -2738,27 +2738,26 @@ def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
     )
 
 
-def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
-    """The thread panel takes 420px of the window, and nothing in CSS can see that — so
+def test_a_wide_widget_gives_the_tray_its_strip(browser, serve):
+    """The Asks tray takes 300px of the window, and nothing in CSS can see that — so
     the room a wide widget spends is measured, and this is the measurement's hard case.
     The strip is handed over as motion, so at the moment the layout is written body still
-    has the width it is leaving: a room read off the box in front of us states one 420px
-    too wide, and the exhibit hangs over the panel that displaced it with a sideways
+    has the width it is leaving: a room read off the box in front of us states one 300px
+    too wide, and the exhibit hangs over the tray that displaced it with a sideways
     scrollbar under it, for as long as it takes something else to remeasure — which, on a
     page nobody resizes again, is the rest of the session.
 
     Straddling the open is the whole of the test. A board already at the shared cap is
     the same 1080px either side of a room read wrongly, so what says the room moved is
-    the exhibit coming down to fit a window that is 420px narrower than the one it was
+    the exhibit coming down to fit a window that is 300px narrower than the one it was
     laid out in."""
-    page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+    page = open_page(browser, serve(with_one_ask(WIDE_AND_NARROW_PAGE)))
     closed = page.evaluate(ROOM_GEOMETRY)
     assert closed["board"]["width"] > closed["column"]["width"], (
         "the board must start wider than the column, or the shrink proves nothing"
     )
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     opened = page.evaluate(ROOM_GEOMETRY)
 
     assert opened["board"]["width"] < closed["board"]["width"], (
@@ -2766,26 +2765,26 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
         f"{opened['board']['width']:.0f}px in {opened['room']['width']:.0f}px of room"
     )
     assert opened["board"]["right"] <= opened["room"]["right"] + 1, (
-        "the exhibit hangs over the panel that displaced it"
+        "the exhibit hangs over the tray that displaced it"
     )
     assert opened["sideways"] == 0, (
-        "the page scrolls sideways with the panel open — the strip was spent twice"
+        "the page scrolls sideways with the tray open — the strip was spent twice"
     )
     assert abs(opened["prose"]["width"] - opened["column"]["width"]) <= 1, (
-        "prose still keeps the column beside an open panel"
+        "prose still keeps the column beside an open tray"
     )
 
     # Closing is the same CSS hand-over in reverse. At every intermediate frame the
     # document and its breakout must agree about the room, or the page briefly scrolls
     # sideways.
-    page.get_by_role("button", name="Close threads").click()
+    page.get_by_role("button", name="Close asks").click()
     assert page.evaluate(
         "() => document.body.scrollWidth <= document.body.clientWidth"
-    ), "the page scrolled sideways while the panel's strip was still coming back"
-    panel_settled(page, open=False)
+    ), "the page scrolled sideways while the tray's strip was still coming back"
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
     closed_again = page.evaluate(ROOM_GEOMETRY)
     assert closed_again["board"]["width"] == closed["board"]["width"], (
-        "the room the panel gave back never reached the exhibit: board "
+        "the room the tray gave back never reached the exhibit: board "
         f"{closed_again['board']['width']:.0f}px, was {closed['board']['width']:.0f}px"
     )
     assert closed_again["sideways"] == 0
@@ -2961,7 +2960,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     is the wide exhibit in the control: it may use the other margins but not the one the
     sticky sidebar can occupy at any scroll position.
 
-    Opening the thread panel narrows the page without changing the viewport. The body's
+    Opening the Asks tray narrows the page without changing the viewport. The body's
     container query sees the resulting content box and returns the aside to the flow. A
     narrow viewport proves the same fallback comes from CSS alone, and print proves
     paper reserves no blank margin for a posture it cannot use."""
@@ -3184,8 +3183,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
 
     page.evaluate("document.scrollingElement.scrollTo(0, 0)")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     cramped = page.evaluate(reading)
     assert cramped["strip"] == 0
     assert cramped["float"] == "none" and cramped["position"] == "static"
@@ -3250,7 +3248,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 <div style="height: 1500px"></div>
 """,
     )
-    url = serve(source)
+    url = serve(with_one_ask(source))
     out = tmp_path / "margin-residents.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -3332,8 +3330,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert roomy["sideways"] == 0
 
     resized(page, 1700, 800)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     panelled = page.evaluate(reading)
     assert [side["float"] for side in panelled["sidebars"]] == ["none", "none"]
     assert panelled["noteFloat"] == "right"

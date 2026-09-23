@@ -127,13 +127,10 @@ def playwright_driver():
     """Playwright, with a driver that never started raised as DriverNotStarted
     rather than as a Playwright private.
 
-    `sync_playwright().__enter__` returns `self._playwright`, which the connection
-    callback assigns. A driver that exits at startup never runs that callback, so
-    the context entry dies on an AttributeError naming that attribute while the
-    real cause sits on the connection's init task — printed afterwards, out of
-    order, as asyncio's `Task exception was never retrieved`. Reading that task is
-    what both names the cause and keeps the second traceback from being printed at
-    all.
+    A driver that exits at startup fails the connection's initialization. Playwright
+    now raises that failure directly; older versions instead raise an AttributeError
+    for the missing `self._playwright` and leave the cause on the init task. Reading
+    that task also keeps asyncio from printing it as an unretrieved exception.
 
     A driver the host named but does not have fails one step earlier, in the spawn,
     and that OSError names the file. It reads as the same DriverNotStarted, so both
@@ -154,6 +151,13 @@ def playwright_driver():
         raise DriverNotStarted(reason) from error
     except OSError as error:
         raise DriverNotStarted(_spawn_failure(manager, error)) from error
+    except Exception as error:
+        # Newer Playwright raises the failed initialization future itself and has
+        # already closed the manager. Check that future so unrelated errors surface.
+        future = manager._connection.playwright_future
+        if not future.done() or future.cancelled() or future.exception() is not error:
+            raise
+        raise DriverNotStarted(str(error).strip().splitlines()[0]) from error
     try:
         yield playwright
     finally:

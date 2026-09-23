@@ -1493,9 +1493,9 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
-    """A media query cannot read a custom property, so the sheets state the covering
-    widths, the strip-taking tray, the width properties, and the Ask stamp as literals
-    while the runtime lays out and paints by the constants. Held equal here rather than
+    """A media query cannot read a custom property, so the sheets state the tray's
+    covering width, the strip-taking tray, the width properties, and the Ask stamp as
+    literals while the runtime lays out and paints by the constants. Held equal here rather than
     trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
@@ -1508,22 +1508,17 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
 
-    panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
     tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
     assert 'covers: () => key !== "asks" || trayCovers(),' in trays
     for spelling in (
-        f"(width <= {panel * 2}px)",
-        f"(width > {panel * 2}px)",
         f"(width <= {tray * 2}px)",
-        "var("
-        + constant(r'^export const THREAD_PANEL_PROP = "([^"]+)";', layout)
-        + ")",
+        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-restore-tray="asks"]',
+        "html[data-lf-restore-asks]",
         'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -1553,7 +1548,6 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     """The classic bootstrap cannot import modules, so the layer gate ties its storage
     and responsive geometry literals to the runtime owners it precedes."""
     assets = schema_model.ASSETS
-    layout = (assets / "runtime" / "chrome-layout.js").read_text()
     trays = (assets / "runtime" / "trays.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     theme = (assets / "theme.css").read_text()
@@ -1568,19 +1562,15 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     auxiliary_surfaces = (assets / "runtime" / "auxiliary-surfaces.js").read_text()
     for pattern, source in (
         (r'^export const AUXILIARY_SURFACE_KEY = "([^"]+)";', auxiliary_surfaces),
-        (r'key: "(lf-thread-panel-width)"', layout),
         (r'key: "(lf-tray-slot-width)"', trays),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem(scope + "{key}")' in bootstrap
 
     for literal in (
-        constant(r"^export const THREAD_PANEL_W = (\d+);", layout),
-        constant(r"^const THREAD_PANEL_MIN = (\d+);", layout),
         constant(r"^const TRAY_SLOT_W = (\d+);", trays),
         constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
-        "data-lf-restore-panel",
-        "data-lf-restore-tray",
+        "data-lf-restore-asks",
     ):
         assert literal in theme
 

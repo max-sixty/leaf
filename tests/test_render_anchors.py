@@ -2469,6 +2469,8 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     taken off the standing selection rather than off what the press changed refuses that
     press as a gesture of its own, and the mark stops opening at all."""
     page = mark_the_first_sentence(browser, serve)
+    # Wide enough that the open panel stands clear of the sentence a gesture extends into.
+    resized(page, 1920, 900)
     take(page)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     wait_for_pending_mark(page)
@@ -4977,6 +4979,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     page = open_page(browser, url, color_scheme=scheme)
+    resized(page, 1920, 900)
     thread = page.locator(
         f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
     )
@@ -5459,7 +5462,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py"]
 
     if activation == "keyboard":
-        resized(page, 600, 900)
+        resized(page, 400, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()

@@ -41,8 +41,8 @@ registry. Use only widget vocabulary shared by those registries. If no shared wi
 fits, ask in prose with `--text` (and `--awaits` on a reply), or use a page widget
 when the question and its answer belong in the final record.
 
-The thread panel is a narrow column beside the page, so a paragraph that reads fine
-in chat is a wall there. A reply says what changed or where to look: a sentence or
+The thread panel is a narrow column over the right of the page, so a paragraph that
+reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or
 two, or one short paragraph or list item per point when there are several. The page
 carries the evidence, and a stamp's changelog carries the full list of changes.
 When a discussion produces a decision or defers work, record the outcome on the page

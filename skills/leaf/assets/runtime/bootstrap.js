@@ -93,22 +93,17 @@
     };
   }
 
-  // User-arranged workspaces are page geometry, so their saved shape must reach the
-  // document before the module graph that builds their contents. The theme consumes
-  // these provisional root facts; restoreUserView replaces them with live state.
+  // The Asks tray is the one surface that takes a strip, so a user who left it open
+  // left page geometry, and its saved shape must reach the document before the module
+  // graph that builds its contents. The theme consumes these provisional root facts;
+  // restoreUserView replaces them with live state. Every other surface stands over the
+  // page and has no shape to hold before it arrives.
   try {
     const scope = root.dataset.lfUserScope ?? "";
     const auxiliarySurface = localStorage.getItem(scope + "lf-auxiliary-surface");
-    if (auxiliarySurface === "threads")
-      root.toggleAttribute("data-lf-restore-panel", true);
-    else if (auxiliarySurface) root.dataset.lfRestoreTray = auxiliarySurface;
+    if (auxiliarySurface === "asks") root.toggleAttribute("data-lf-restore-asks", true);
 
-    const panelWidth = parseFloat(
-      localStorage.getItem(scope + "lf-thread-panel-width"),
-    );
     const trayWidth = parseFloat(localStorage.getItem(scope + "lf-tray-slot-width"));
-    if (panelWidth)
-      root.style.setProperty("--lf-thread-panel-choice", `${panelWidth}px`);
     if (trayWidth) root.style.setProperty("--lf-tray-slot-choice", `${trayWidth}px`);
   } catch {
     // A page that cannot remember still starts in the default arrangement.

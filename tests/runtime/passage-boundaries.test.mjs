@@ -95,6 +95,41 @@ test("a mark the runtime paints is not a change to what the page says", () => {
   assert.equal(pageText(), first, "a painted class leaves the reading standing");
 });
 
+test("the runtime's chrome repainting is not a change to what the page says", () => {
+  document.body.innerHTML =
+    '<main><p>Alpha beta</p></main><div class="lf-ui" id="panel"><p>Panel</p></div>';
+  const first = pageText();
+  assert.doesNotMatch(first.raw, /Panel/);
+  // The panel, the banner and the shortcut bar re-render on nearly every gesture — a drag
+  // on a large page wrote dozens of records, all under `.lf-ui`. The reading skips those
+  // words, so their churn is no reason to walk the page again.
+  const panel = document.querySelector("#panel");
+  panel.innerHTML = "<p>Panel again</p><button>Reply</button>";
+  panel.querySelector("p").firstChild.data = "Panel once more";
+  panel.querySelector("button").setAttribute("data-lf-gen", "");
+  panel.querySelector("button").classList.add("lf-ui");
+  // Chrome the runtime writes into the page's own blocks — a comment count — is chrome too.
+  document
+    .querySelector("main p")
+    .insertAdjacentHTML("beforeend", '<span class="lf-ui">1 comment</span>');
+  assert.equal(pageText(), first, "chrome-only changes leave the reading standing");
+});
+
+test("a label declared inside the chrome is the page's, arriving and leaving", () => {
+  document.body.innerHTML =
+    '<main><p>Alpha</p></main><div class="lf-ui" id="panel"></div>';
+  pageText();
+  const panel = document.querySelector("#panel");
+  panel.insertAdjacentHTML("beforeend", '<span data-lf-said="label">Tab</span>');
+  assert.match(pageText().raw, /Tab/, "a label is read wherever it stands");
+  panel.querySelector("span").removeAttribute("data-lf-said");
+  assert.doesNotMatch(
+    pageText().raw,
+    /Tab/,
+    "and is chrome again once it stops being one",
+  );
+});
+
 // The two inputs the document reports nothing about. An observer sees neither a set the
 // runtime marks a widget's parts into nor a tree behind a shadow boundary, so each has a
 // door in passages.js, and a door that stopped forgetting would leave the reading standing

@@ -30,7 +30,9 @@
    the cell walk fences on, `watchPassageRoot` for a declared shadow stage the walk
    crosses into, and the registry generation, which `pageText` reads each time. A new
    input with no door is a reading that goes stale silently — the mark lands on the
-   words the page used to say.
+   words the page used to say. The reverse holds too: a change lands where the walk
+   reads or it is no change to the reading, by the walk's own rule (`readsUnder`), so
+   the runtime repainting its chrome does not cost the page a walk.
 
    `GENERATED` is `.lf-ui, [data-lf-gen]`. It marks words that are not authored.
    `data-lf-said` is nearer than `.lf-ui` and declares that a label inside
@@ -91,7 +93,7 @@
 export const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 
-import { inUi, overIn, pageShadowRoots, uiInside, upFrom } from "./shadow.js";
+import { SAID, inUi, overIn, pageShadowRoots, uiInside, upFrom } from "./shadow.js";
 import { elementDeclarations, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
@@ -319,13 +321,16 @@ const frameOf = (node) => {
     if (a.localName?.startsWith("lf-")) return a;
   return null;
 };
-const quotable = (root) => {
+// Whether text standing directly under an element is read, within a frame. The walk asks
+// it of each text node's parent, and the page reading's watcher asks it of the place a
+// change landed, so what the reading skips and what it ignores changing are one rule.
+const readsUnder = (frame) => {
   const gone = silenced();
-  const frame = frameOf(root);
-  return (n) => {
-    const el = elementOver(n);
-    return !uiInside(el, frame) && !el.closest(gone);
-  };
+  return (el) => !uiInside(el, frame) && !el.closest(gone);
+};
+const quotable = (root) => {
+  const reads = readsUnder(frameOf(root));
+  return (n) => reads(elementOver(n));
 };
 export const authored = (root) => {
   const frame = frameOf(root);
@@ -705,6 +710,13 @@ export function neighbourhood(origin, fences, at, want, before) {
 // against, and the widget parts the cell walk fences on. The first two a MutationObserver
 // reports; the last two have one door each, below.
 //
+// Reported is not the same as read. The runtime's chrome lives in the same document —
+// the shortcut bar, the banner, the thread panel, the composer — and repaints on nearly
+// every gesture: one drag-select release wrote 38 records, every one of them under
+// `.lf-ui`, and each would have bought a walk the reading never needed. So a record counts
+// only where the reading reads, by the walk's own rule (`readsUnder`) asked of the place
+// the change landed, rather than by a second list of what chrome looks like.
+//
 // `class` is in the filter for one class. `.lf-ui` is what `uiInside` reads and the rest
 // are the runtime's paint — `lf-mark-el` and its neighbours go on and off the page's own
 // elements between anchor passes, and a walk apiece for a class the reading never looks
@@ -728,10 +740,40 @@ const WATCH_READING = {
 let reading = null;
 let readingVocabulary;
 let watcher = null;
+// Whether text standing directly under `over` is in the page's reading. The page's
+// reading is rooted at the body, which is no widget's frame. Anything but an element — a
+// declared shadow root, the document, a node since detached — is answered yes, since
+// over-forgetting costs a walk and under-forgetting costs a mark on words the page no
+// longer says.
+const pageReads = (over) => over?.nodeType !== 1 || readsUnder(null)(over);
+// A declared label is the page's words wherever it stands, chrome included, so a subtree
+// holding one is read whatever its place says.
+const holdsSaid = (node) =>
+  node.nodeType === 1 && (node.matches(SAID) || node.querySelector(SAID) !== null);
+// Whether a node, standing under `over`, can put words in the reading. `uiInside(node,
+// node)` is the walk's rule bounded at the node itself: a node that is `.lf-ui` and holds
+// no label is silent wherever it goes, which is what the panel's re-rendered rows are.
+const speaks = (node, over) =>
+  holdsSaid(node) ||
+  (pageReads(over) && !(node.nodeType === 1 && uiInside(node, node)));
+// Records are read when the queue drains rather than when they were written, so a place
+// is asked about as it stands now. That is still exact: a node that moved between the
+// page and the chrome left a childList record at its page end, which speaks either way.
 const changesTheReading = (record) => {
-  if (record.type !== "attributes" || record.attributeName !== "class") return true;
-  const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
-  return was !== record.target.classList.contains("lf-ui");
+  const { target } = record;
+  if (record.type === "childList")
+    return [...record.addedNodes, ...record.removedNodes].some((n) =>
+      speaks(n, target),
+    );
+  if (record.type === "characterData") return pageReads(target.parentNode);
+  // A marker moved on `target` itself, so its own markers are what is changing and only
+  // its place and its labels answer — including a label it has just stopped being.
+  if (record.attributeName === "class") {
+    const was = /(^|\s)lf-ui(\s|$)/.test(record.oldValue ?? "");
+    if (was === target.classList.contains("lf-ui")) return false;
+  }
+  const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
+  return wasSaid || holdsSaid(target) || pageReads(target.parentNode);
 };
 const forgetReading = () => {
   reading = null;
@@ -890,7 +932,7 @@ export function findQuote(text, quote, anchor, within) {
   // the only lead there is, and one that spent the cap exactly is not worth a term
   // the walk would take anyway.
   const lead = [];
-  for (let spent = 0; words.length > lead.length;) {
+  for (let spent = 0; words.length > lead.length; ) {
     const next = words[lead.length];
     if (lead.length && spent + next.length > LEAD_CAP) break;
     lead.push(next);

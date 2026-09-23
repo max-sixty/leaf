@@ -47,7 +47,6 @@
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the reader operates nested evidence. */
-import { retainReaderIntent } from "./reader-intent.js";
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
@@ -57,9 +56,14 @@ import { iconElement } from "./icons.js";
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
 // widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
-// target geometry before the scroll. A delayed caller passes its original intent;
-// asynchronous listeners inherit that permission through event.detail.mayReveal.
-export function reveal(el, mayReveal = retainReaderIntent()) {
+// target geometry before the scroll. The caller passes the intent its gesture retained
+// (reader-intent.js), and asynchronous listeners inherit that permission through
+// event.detail.mayReveal. There is no default: one taken here would be taken after
+// whatever the caller awaited, which is the late capture that lets stale work move a
+// reader who has since moved on.
+export function reveal(el, mayReveal) {
+  if (typeof mayReveal !== "function")
+    throw new TypeError("reveal needs the intent its gesture retained");
   const chain = [];
   const pending = [];
   for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)

@@ -19,8 +19,9 @@ import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
 import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
-import { summaryRanges } from "./summary-ranges.js";
+import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
+import { visibleBand } from "../geometry.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -78,7 +79,7 @@ export function threadReading(
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
-    unreadCount: thread.unreadCount ?? 0,
+    unreadCount: thread.unread.length,
     id: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
@@ -213,7 +214,7 @@ export class ThreadView {
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
       const scrollport = this.node.closest("leaf-thread-list");
-      const boundary = scrollport?.getBoundingClientRect();
+      const boundary = scrollport && visibleBand(scrollport);
       const beingRead = new Set(
         [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
           .filter((message) => {
@@ -297,28 +298,7 @@ export class ThreadView {
           : "Messages kept open · current work",
       };
     });
-    const boundaries = new Map();
-    let precedingUnread = false;
-    if (panel)
-      for (const range of rangeState) {
-        if (range.kind === "summary" && !range.expanded) {
-          precedingUnread = false;
-          continue;
-        }
-        for (const message of range.kind === "message"
-          ? [range.message]
-          : range.messages) {
-          const boundary = message.unread
-            ? precedingUnread
-              ? null
-              : "new"
-            : precedingUnread
-              ? "end"
-              : null;
-          if (boundary) boundaries.set(message.key, boundary);
-          precedingUnread = Boolean(message.unread);
-        }
-      }
+    const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)

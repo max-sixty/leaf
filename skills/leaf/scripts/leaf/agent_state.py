@@ -23,6 +23,7 @@ from .projection import (
     page_reading,
     retirement_outcomes,
 )
+from .read_state import unread_content
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
@@ -129,13 +130,17 @@ def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | N
 
 
 def _read_active_document(
-    page_dir: Path, events: list, registry: dict, revision: int | None
+    page_dir: Path,
+    events: list,
+    registry: dict,
+    revision: int | None,
+    data: dict | None = None,
 ) -> DocumentReading | None:
     if revision is None:
         return None
     page = page_reading(parse_revision(page_dir, revision), events, registry, revision)
     threads = build_threads(events, page.within)
-    return read_document(page, threads)
+    return read_document(page, threads, data)
 
 
 def _base_state(
@@ -324,7 +329,7 @@ def _write_page_state(
     channel, the effective construction and its mutation owners, authored
     measurements whose live source has run again (`measurement_lag_entries`), the
     open Asks on the page and in threads (the banner's own count), each comment
-    thread's current state,
+    thread's current state and the agent messages in it the reader has not read,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.
@@ -357,10 +362,10 @@ def _write_page_state(
             "session_cwd",
         )
     }
-    document = _read_active_document(page_dir, events, registry, revision)
+    stored_data = read_data(page_dir)
+    document = _read_active_document(page_dir, events, registry, revision, stored_data)
     spoken = document.spoken if document is not None else {}
     threads = build_threads(events, enclosing_of(spoken))
-    stored_data = read_data(page_dir)
     thread_reading = frozen_thread_reading(events, registry)
     requests = request_lifecycles(events)
     state = _base_state(
@@ -391,6 +396,7 @@ def _write_page_state(
         thread_reading.elements,
         registry,
         {"kind": "thread"},
+        stored_data,
     )
     state["asks"] += thread_ask_readings(
         events,
@@ -416,6 +422,13 @@ def _write_page_state(
         )
     ]
     _apply_thread_state(state, thread_reading)
+    # The reader's side between their moves: which of your messages they have not
+    # taken in yet, at their current content version.
+    unread = unread_content(events, threads, thread_reading.thread_by_widget)
+    for conversation in state["conversations"]:
+        conversation["unread"] = [
+            item["message"] for item in unread[conversation["id"]]
+        ]
     if conversation_id is not None:
         selected = next(
             (

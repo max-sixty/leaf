@@ -33,6 +33,7 @@ import {
   LAYOUT,
   PRESENTATION,
   inChrome,
+  landingInsets,
   once,
   relabel,
   scrollerFor,
@@ -401,7 +402,7 @@ customElements.define(
 
     #paint() {
       if (!this.#rows || !this.#scroller || !this.#positions.length) return;
-      const clear = parseFloat(getComputedStyle(this.#scroller).scrollPaddingTop) || 0;
+      const clear = landingInsets(this.#scroller).top;
       const visibleStart = this.#scroller.scrollTop + clear;
       const visibleEnd = this.#scroller.scrollTop + this.#scroller.clientHeight;
       const start = this.#mapPosition(visibleStart);

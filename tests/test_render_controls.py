@@ -10,6 +10,7 @@ from interact_support import (
     append_command,
     record_claim,
 )
+from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -103,6 +104,50 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
+
+
+def test_projected_request_rows_have_independent_buttons(browser, serve):
+    url = serve(FEATURE_GALLERY)
+    data_model.cmd_data_set(serve.page_dir, "gallery-latency", 184)
+    page = open_page(browser, url)
+    source_revision, store_revision = page.evaluate("""() => {
+      const snapshot = document.querySelector('#bg-jobs').snapshot;
+      return [snapshot.revision, snapshot.origin.data_revision];
+    }""")
+    assert source_revision != store_revision
+    rows = page.locator("#bg-jobs p")
+    expect(rows).to_have_count(2)
+    first = rows.nth(0).get_by_role("button", name="Restart")
+    second = rows.nth(1).get_by_role("button", name="Restart")
+    expect(first).to_be_enabled()
+    expect(second).to_be_enabled()
+
+    first.focus()
+    with page.expect_response("**/api/event") as posted:
+        page.keyboard.press("Enter")
+    assert posted.value.status == 200
+    assert posted.value.request.post_data_json["data_revision"] == source_revision
+    expect(first).to_be_disabled()
+    expect(second).to_be_enabled()
+    assert page.evaluate("""async () => {
+      const holder = document.querySelector('#bg-jobs');
+      const {dispatchWidget} = await window.__lfRuntimeImport('/runtime/application.js');
+      const {widgetDescriptor} = await window.__lfRuntimeImport('/runtime/widget-descriptors.js');
+      const descriptor = widgetDescriptor(holder);
+      const duplicate = dispatchWidget(descriptor, {
+        kind: 'request', verb: 'restart',
+        detail: {target: 'indexer', state: 'stopped'},
+      });
+      const missing = dispatchWidget(descriptor, {
+        kind: 'request', verb: 'restart',
+        detail: {target: 'unknown', state: 'stopped'},
+      });
+      return [duplicate, missing];
+    }""") == [None, None]
+    second.click()
+    expect(second).to_be_disabled()
+
+
 TARGETING_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
 )
@@ -3720,60 +3765,6 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == closing_at
-
-
-def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, serve):
-    """The panel's strip reflows the page; the reader stays on the words they were on.
-
-    Narrowing the shell narrows the reading column inside it, so the text re-wraps and
-    the document grows above wherever the reader is standing. The browser's scroll
-    anchoring absorbs that, and nothing in the runtime does: this passes with no script
-    holding the reader's place. That is what makes it the guard. Anchoring is suppressed
-    for any frame in which a box on the anchor's ancestor chain changes a property on the
-    suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
-    is a border and the column does not glide (theme.css, at the body strip). The day
-    either regresses, this goes red.
-
-    A re-wrap moves every paragraph by a different amount, so only one of them can be
-    held. The one the reader's place means is the block under the top of the window,
-    which is the block the platform's own anchoring would have chosen; what is further
-    down has grown taller and is expected to have moved.
-    """
-    page = open_page(browser, serve(LONG_PAGE, comments=2))
-    # Narrow enough that the strip's share of the shell re-wraps this fixture's
-    # paragraphs: the assertion below says so rather than trusting the width.
-    resized(page, 900, 640)
-    page.evaluate("() => document.scrollingElement.scrollTop = 900")
-    # The reader's place: the page's own block under the window's visible top edge, which
-    # the root states as scroll-padding for native focus navigation.
-    at_the_top = """
-    () => {
-      const edge = Number.parseFloat(
-        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
-      const p = [...document.querySelectorAll('main p')]
-        .find((p) => p.getBoundingClientRect().bottom > edge);
-      return p && { id: p.id, top: p.getBoundingClientRect().top };
-    }
-    """
-    reading = page.evaluate(at_the_top)
-    assert reading, "the fixture put no paragraph under the top of the window"
-    tall = page.evaluate("() => document.documentElement.scrollHeight")
-
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
-        "the window is wide enough that the strip reflowed nothing, so nothing is proved"
-    )
-    opened = page.evaluate(at_the_top)
-    assert opened["id"] == reading["id"]
-    assert opened["top"] == pytest.approx(reading["top"], abs=2)
-
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
-    closed = page.evaluate(at_the_top)
-    assert closed["id"] == reading["id"]
-    assert closed["top"] == pytest.approx(reading["top"], abs=2)
 
 
 def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(

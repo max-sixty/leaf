@@ -272,7 +272,7 @@ def request_offer_errors(lf_elements: list, registry: dict) -> list:
     errors = []
     for holder in lf_elements:
         request = registry.get(holder["tag"], {}).get("x-request")
-        if request is None or quoted_in(holder, registry):
+        if request is None or request.get("records") or quoted_in(holder, registry):
             continue
         offered = [
             rec["attrs"][request["offers"][rec["tag"]]]

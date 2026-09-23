@@ -166,6 +166,7 @@ test("thread records project local sending attention", () => {
     awaits_reader: false,
     attention: null,
     bare_reaction: false,
+    unread: [],
     seat: null,
   };
   const [record] = readThreadRecords(
@@ -191,6 +192,7 @@ test("a local prose answer clears accepted reader attention until refusal", () =
     awaits_reader: false,
     attention: { kind: "needs_reader", reason: "recovery", workflow: "failed" },
     bare_reaction: false,
+    unread: [],
     seat: null,
   };
   const reply = {
@@ -249,6 +251,7 @@ test("a frozen message widget keeps its exact workflow in the message and thread
     awaits_agent: false,
     awaits_reader: false,
     bare_reaction: false,
+    unread: [],
     seat: null,
   };
   const document = {

@@ -5764,8 +5764,15 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     page.keyboard.press("Escape")
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
     expect(reply).to_have_attribute("placeholder", "Reply · c")
-    assert reply.evaluate(
-        "box => getComputedStyle(box, '::placeholder').fontFamily"
+    hint = thread.locator(".lf-compose-placeholder")
+    expect(hint).to_be_visible()
+    expect(hint.locator("span")).to_have_text("Reply · ")
+    expect(hint.locator("kbd")).to_have_text("c")
+    assert hint.locator("span").evaluate(
+        "label => getComputedStyle(label).fontFamily"
+    ) == reply.evaluate("box => getComputedStyle(box).fontFamily")
+    assert hint.locator("kbd").evaluate(
+        "key => getComputedStyle(key).fontFamily"
     ) == page.evaluate(
         "() => getComputedStyle(document.body).getPropertyValue('--mono').trim()"
     )

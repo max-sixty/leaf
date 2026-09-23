@@ -20,7 +20,7 @@ export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
 export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
-export { shownBand, shownBox, shownParts } from "./geometry.js";
+export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the reader on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.
@@ -34,7 +34,13 @@ export { conversationInput } from "./conversation/landing.js";
 export { landInConversation } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
-export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
+export {
+  PRESS,
+  labelOf,
+  submitBindings,
+  submitLabel,
+  walkRows,
+} from "./keyboard/bindings.js";
 export {
   commandScope,
   focused,

@@ -19,13 +19,12 @@ import {
   conversationForAttempt,
   isConversationEvent,
   isMessageEvent,
-  isReadAcknowledgement,
   pendingApprovals,
   pendingProjectionEntries,
   pendingReactions,
   pendingRequests,
   pendingSettlements,
-  unreadMessages,
+  pendingMessages as pendingConversationMessages,
   unresolvedAttempts,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/conversation/identity.js";
@@ -64,6 +63,12 @@ interface WireAsk {
   source: string;
   source_tag: string;
   thread: string | null;
+}
+
+/** One exact agent content version, as a Thread's `unread` names it. */
+interface ContentVersion {
+  message: string;
+  version: string;
 }
 
 interface WireAsks {
@@ -162,7 +167,7 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          requests?: { seat: { widget: string }; phase: string }[];
+          requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean }; phase: string }[];
           asks?: WireAsks;
         };
         undo?: { event: Event }[];
@@ -174,7 +179,7 @@ export interface AuthoritativeState {
     conversation: {
       threads: Thread[];
       projection: WireProjection;
-      requests?: { seat: { widget: string }; phase: string }[];
+      requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean }; phase: string }[];
       asks?: WireAsks;
       done?: Event[];
     };
@@ -219,7 +224,7 @@ function normalizedProjection(
 }
 
 const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
-  seat: { document: descriptor.document, widget: descriptor.id },
+  seat: { document: descriptor.document, widget: descriptor.id, unit: descriptor.id },
   attempts: [],
   latest: null,
   phase: "ready",
@@ -391,25 +396,56 @@ function widgetReading(
   );
 
   const request = (declaration["x-request"] ?? null) as {
-    verbs?: Record<string, unknown>;
+    records?: string;
+    verbs?: Record<string, { unit?: string }>;
   } | null;
-  const projectedRequest = pending.find(
-    (entry) => entry.event.kind === "request",
-  )?.event;
+  const pendingRequests = pending
+    .filter((entry) => entry.event.kind === "request")
+    .map((entry) => entry.event);
   const lifecycles =
     descriptor.document.kind === "thread"
       ? root.effective.lifecycle.conversation.requests
       : root.effective.lifecycle.page.requests;
-  const lifecycle = projectedRequest
+  const requestUnits: Record<string, {
+    seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean };
+    phase: string;
+    attempts?: unknown[];
+    latest?: unknown;
+  }> = Object.fromEntries(
+    (lifecycles ?? [])
+      .filter((item) => item.seat.widget === descriptor.id)
+      .map((item) => [item.seat.unit, item]),
+  );
+  for (const event of pendingRequests) {
+    const spec = request?.verbs?.[event.action];
+    const unit = request?.records
+      ? String((event.detail as Record<string, unknown>)[spec?.unit ?? ""])
+      : descriptor.id;
+    requestUnits[unit] = {
+      seat: requestUnits[unit]?.seat ?? {
+        document: descriptor.document,
+        widget: descriptor.id,
+        unit,
+      },
+      attempts: [{ request: event, receipt: null }],
+      latest: { request: event, receipt: null },
+      phase: "pending",
+    };
+  }
+  const lifecycle = !request?.records && pendingRequests.length
     ? {
-        seat: { document: descriptor.document, widget: descriptor.id },
-        attempts: [{ request: projectedRequest, receipt: null }],
-        latest: { request: projectedRequest, receipt: null },
+        seat: { document: descriptor.document, widget: descriptor.id, unit: descriptor.id },
+        attempts: [{ request: pendingRequests[0], receipt: null }],
+        latest: { request: pendingRequests[0], receipt: null },
         phase: "pending",
       }
-    : (lifecycles?.find((item) => item.seat.widget === descriptor.id) ??
-      emptyLifecycle(descriptor));
-  const offered = new Set(descriptor.offers.map(({ verb }) => verb));
+    : (!request?.records ? requestUnits[descriptor.id] : null) ??
+      emptyLifecycle(descriptor);
+  const offered = new Set(
+    request?.records
+      ? Object.keys(request.verbs ?? {})
+      : descriptor.offers.map(({ verb }) => verb),
+  );
   const requests = Object.fromEntries(
     Object.keys(request?.verbs ?? {}).map((verb) => [
       verb,
@@ -420,7 +456,10 @@ function widgetReading(
           root.phase !== "waiting" &&
           !descriptor.quoted &&
           offered.has(verb) &&
-          lifecycle.phase === "ready",
+          (request?.records
+            ? Object.values(requestUnits).some((seat) =>
+                seat.phase === "ready" && seat.seat.offered !== false)
+            : lifecycle.phase === "ready"),
         unavailable: root.effective.hostAvailable
           ? null
           : "no agent or server is available",
@@ -451,6 +490,7 @@ function widgetReading(
     actions,
     requests,
     request: lifecycle,
+    requestUnits,
     delivery: pending.map((entry) => ({
       attempt: entry.event.attempt,
       kind: entry.event.kind,
@@ -482,6 +522,10 @@ export function createSemanticApplication({
     } as SemanticDocument,
     authoritative: null as AuthoritativeState | null,
     unresolved: [] as Event[],
+    // Content versions this tab has marked read and the log has not yet answered for.
+    // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
+    // `unresolved` ledger; each leaves once the answer carrying it is applied.
+    markingRead: [] as ContentVersion[],
     phase: "waiting",
     hostAvailable: true,
     data: { revision: -1, sources: {} },
@@ -493,6 +537,7 @@ export function createSemanticApplication({
         descriptors: new Map(),
       },
       null,
+      [],
       [],
       "waiting",
       true,
@@ -511,6 +556,7 @@ export function createSemanticApplication({
     document: SemanticDocument,
     state: AuthoritativeState | null,
     unresolved: Event[],
+    markingRead: ContentVersion[],
     phase: string,
     hostAvailable: boolean,
   ) {
@@ -554,7 +600,7 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const pendingMessages = unreadMessages(unresolved, receipts);
+    const pendingMessages = pendingConversationMessages(unresolved, receipts);
     const folded = ready
       ? foldThreads(
           state?.browser.conversation.threads ?? [],
@@ -638,18 +684,15 @@ export function createSemanticApplication({
         localWorkflow(entriesByMessage.get(message.id), false),
       ),
       ...unresolved
-        .filter((entry: any) => entry.rejected && !isReadAcknowledgement(entry.event))
+        .filter((entry: any) => entry.rejected)
         .map((entry: any) => localWorkflow(entry, true)),
     ];
-    const pendingReads = unresolved
-      .filter((entry: any) => isReadAcknowledgement(entry.event) && !entry.rejected)
-      .map((entry: any) => entry.event);
     const threads = readThreadRecords(
       obligated,
       document,
       widgets,
       workflows,
-      pendingReads,
+      markingRead,
     );
     return {
       hostAvailable,
@@ -694,6 +737,7 @@ export function createSemanticApplication({
       next.document,
       next.authoritative,
       next.unresolved,
+      next.markingRead,
       next.phase,
       next.hostAvailable,
     );
@@ -817,6 +861,22 @@ export function createSemanticApplication({
     },
     setHostAvailable(hostAvailable: boolean) {
       return publish({ hostAvailable });
+    },
+    markRead(items: ContentVersion[]) {
+      return publish({
+        markingRead: [...publisher.read().markingRead, ...structuredClone(items)],
+      });
+    },
+    settleMarkRead(items: ContentVersion[]) {
+      const remaining = publisher
+        .read()
+        .markingRead.filter(
+          (item) =>
+            !items.some(
+              (done) => done.message === item.message && done.version === item.version,
+            ),
+        );
+      return publish({ markingRead: remaining });
     },
     captureDocument(document: SemanticDocument) {
       if (publisher.read().authoritative)

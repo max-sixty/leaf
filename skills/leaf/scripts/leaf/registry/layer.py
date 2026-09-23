@@ -1,6 +1,7 @@
 """Layer registry composition and contract validation."""
 
 import re
+from functools import cache
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -18,6 +19,17 @@ from .contract import (
 def kernel_event_kinds() -> dict:
     """The fixed event records produced and consumed by Leaf's kernel."""
     return read_registry_declarations(ASSETS / "registry.json")["$events"]["kinds"]
+
+
+@cache
+def bookkeeping_kinds() -> frozenset[str]:
+    """The kinds `$events` declares `bookkeeping`: facts about the reader's view of
+    the page, kept for the page's own readings and never a move the agent answers."""
+    return frozenset(
+        kind
+        for kind, contract in kernel_event_kinds().items()
+        if contract.get("bookkeeping")
+    )
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -186,14 +198,28 @@ def validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration) - {"description", "schema", "guidance", "fragments"}
+            or set(declaration)
+            - {"description", "schema", "guidance", "fragments", "records"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional guidance and fragments"
+                "schema, with optional guidance, records and fragments"
+            )
+        records = declaration.get("records")
+        if records is not None and (
+            not isinstance(records, dict)
+            or set(records) != {"items", "key"}
+            or any(
+                not isinstance(field, str) or not field for field in records.values()
+            )
+            or records["items"] == records["key"]
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} records must name distinct "
+                "non-empty items and key fields"
             )
         fragments = declaration.get("fragments")
         if fragments is not None and (
@@ -207,6 +233,15 @@ def validate_layer_declarations(
             raise RegistryError(
                 f"{path}: $data contract {contract!r} fragments must name distinct "
                 "non-empty items, key, and value fields"
+            )
+        if (
+            records
+            and fragments
+            and any(records[field] != fragments[field] for field in ("items", "key"))
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} records and fragments "
+                "must share their items and key fields"
             )
         guidance_errors = sorted(
             GUIDANCE_READER.iter_errors(declaration.get("guidance", {})),

@@ -1632,6 +1632,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-entry[data-lf-agent-workflow="working"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
+/* Unread agent content marks the entry the way it marks the Threads toggle: a dot
+   painted inside the box the entry already reserves, so it adds no width. */
+.lf-margin-entry[data-lf-unread]::after {
+  content: ""; position: absolute; inset-block-start: 0; inset-inline-end: 0;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
 /* A thread whose next word is the reader's wears the same two channels in blue: the
    glyph and the interior. Agent workflow outranks it, because a carrier the agent has
    picked up or is working on is reporting something happening now, and one interior

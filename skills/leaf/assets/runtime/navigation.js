@@ -10,6 +10,7 @@ import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
+import { landingInsets } from "./geometry.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
 import { announce } from "./notifications.js";
@@ -139,8 +140,7 @@ const stepScroller = (coveringAuxiliaryScroller, inPanel) => {
 function stepReading(amount, unit, coveringAuxiliaryScroller, inPanel) {
   const box = stepScroller(coveringAuxiliaryScroller, inPanel);
   if (unit === "page") {
-    const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
-    amount *= box.clientHeight - clear;
+    amount *= box.clientHeight - landingInsets(box).top;
   }
   const from = holding(box) ? glide.goal : box.scrollTop;
   glideTo(box, from + amount);

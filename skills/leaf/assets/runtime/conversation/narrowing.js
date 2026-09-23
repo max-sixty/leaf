@@ -64,7 +64,7 @@ const ORDER = group("order", "Order", [
   choice("order", "recent", "Recent"),
 ]);
 
-const DEFAULT_INTENT = Object.freeze({
+export const DEFAULT_INTENT = Object.freeze({
   order: "page",
   words: "",
   finding: "",
@@ -146,7 +146,7 @@ const matchesGone = (reading, _thread, threadGroup) =>
 
 // Set one predicate. Counts describe that named subset, while a press on its active
 // control clears it. Both paths share status transitions and their waiting reset.
-function transition(reading, kind, value) {
+export function transition(reading, kind, value) {
   const changes = kind === "gone" ? { onlyGone: value } : { [kind]: value };
   if (kind === "status" && value === "resolved") changes.waiting = "all";
   if (kind === "waiting" && value !== "all" && reading.status === "resolved")
@@ -272,8 +272,10 @@ function emptyReading(reading) {
 
 // Capture reader intent once for the list candidate. Its rows, empty state, summary,
 // counts, selections, availability, and keyboard title all derive from this one value.
-export function narrowingModel(threads, groups = new Map()) {
-  const reading = intent;
+export const narrowingModel = (threads, groups = new Map()) =>
+  narrowingReading(intent, threads, groups);
+
+export function narrowingReading(reading, threads, groups = new Map()) {
   const shown = Object.freeze(
     threads.filter((thread) => includesThread(reading, thread, groups.get(thread))),
   );

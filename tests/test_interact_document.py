@@ -4696,6 +4696,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "title": None,
             "detached_from": None,
             "resolved": None,
+            "unread": [answered["id"]],
         }
     ]
     history = CliRunner().invoke(

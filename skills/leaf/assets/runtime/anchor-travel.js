@@ -14,7 +14,13 @@ import {
   sectionOf,
   suppliedDatum,
 } from "./anchor-resolution.js";
-import { clippedContents, landingBand, shownBox, shownRect } from "./geometry.js";
+import {
+  clippedContents,
+  landingBand,
+  landingInsets,
+  shownBox,
+  shownRect,
+} from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
@@ -101,7 +107,7 @@ export function createAnchorTravel({
     const rect =
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
     const view = shownBox(box);
-    const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const clear = landingInsets(box).top;
     const place =
       where instanceof Range
         ? (view.height - rect.height) / 2
@@ -164,9 +170,9 @@ export function createAnchorTravel({
     if (!seen) return false;
     const box = scrollingBoxFor(holder);
     const view = shownBox(box ?? pageScroller);
-    const style = box && getComputedStyle(box);
-    const clearAbove = parseFloat(style?.scrollPaddingTop) || 0;
-    const clearBelow = parseFloat(style?.scrollPaddingBottom) || 0;
+    const { top: clearAbove, bottom: clearBelow } = box
+      ? landingInsets(box)
+      : { top: 0, bottom: 0 };
     const close = (a, b) => Math.abs(a - b) <= 0.5;
     return (
       destination.top >= view.top + clearAbove - 0.5 &&

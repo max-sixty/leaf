@@ -73,6 +73,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
       awaits_reader: false,
       bare_reaction: reaction,
       seat: pendingSeat(root),
+      unread: [],
     };
     opened.push(thread);
     byName.set(root.id, thread);
@@ -126,27 +127,49 @@ export const awaitsReader = (thread) =>
   !thread.resolved && thread.attention?.kind === "needs_reader";
 export const seatRoot = (thread) => thread.seat;
 
+// When a message last moved: its latest edit, else its own arrival. Every ordering that
+// asks what is newest in a conversation — Recent, the first unread, news — reads this,
+// so an agent message edited today is today's in all of them. A message still being
+// sent carries the clock the reader's gesture gave it and no log position yet.
+export const moved = (message) => ({
+  seq: message.edited?.seq ?? message.seq ?? null,
+  ts: message.edited?.ts ?? message.ts ?? null,
+});
+
+// When a thread last moved: the latest move of any of its turns.
+function lastMovedAt(thread) {
+  let latest = null;
+  for (const message of turns(thread)) {
+    const { ts } = moved(message);
+    if (ts !== null && (latest === null || Date.parse(ts) > Date.parse(latest)))
+      latest = ts;
+  }
+  return latest;
+}
+
 export const threadSummary = (thread) => ({
   topic: thread.title ?? thread.root.body.text.trim(),
   count: turns(thread).length,
-  latest: turns(thread).at(-1)?.ts ?? null,
+  latest: lastMovedAt(thread),
 });
+
+const versionKey = ({ message, version }) => `${message}\u0000${version}`;
 
 /* Public conversation values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
-   captured words, registry identities and current unit state cross this boundary. */
+   captured words, registry identities and current unit state cross this boundary.
+
+   A Thread's `unread` is the server's reading of the agent content versions the reader
+   has not taken in, less those this tab is marking read now: the page draws them read
+   in the turn it sends that, and the answer confirms rather than decides it. */
 export function readThreadRecords(
   threads,
   document,
   widgets,
   workflows,
-  pendingReads = [],
+  markingRead = [],
 ) {
-  const locallyRead = new Set(
-    pendingReads.flatMap((event) =>
-      event.messages.map(({ message, version }) => `${message}\u0000${version}`),
-    ),
-  );
+  const locallyRead = new Set(markingRead.map(versionKey));
   const workflowsByInput = new Map();
   const workflowsByWidget = new Map();
   for (const workflow of workflows) {
@@ -173,6 +196,8 @@ export function readThreadRecords(
     unitsByMessage.set(descriptor.document.message, units);
   }
   return threads.map((thread) => {
+    const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
+    const unreadMessages = new Set(unread.map((item) => item.message));
     const msgs = thread.msgs.map((message) => {
       const record = {};
       for (const field of [
@@ -221,10 +246,7 @@ export function readThreadRecords(
         throw new Error(`Authored message ${message.id} has no captured body`);
       return {
         ...record,
-        contentVersion: message.content_version ?? null,
-        unread:
-          Boolean(message.unread) &&
-          !locallyRead.has(`${message.id}\u0000${message.content_version}`),
+        unread: unreadMessages.has(message.id),
         key: message.attempt ?? message.id,
         body,
         workflows: [
@@ -247,7 +269,7 @@ export function readThreadRecords(
       title: thread.title ?? null,
       root: msgs.find((message) => message.id === thread.root.id),
       msgs,
-      unreadCount: msgs.filter((message) => message.unread).length,
+      unread: Object.freeze(unread),
       anchor: thread.anchor ?? null,
       detached_from: thread.detached_from ?? null,
       resolved: thread.resolved ?? null,

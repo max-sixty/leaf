@@ -122,28 +122,36 @@ function navigationSummary(navigation, model) {
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary class="lf-thread-summary" title=${title}>
     <span class="lf-thread-topic">${title}</span>
-    <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
-    ${
-      model.unreadCount
-        ? html`<span
-            class="lf-thread-unread"
-            aria-label=${`${model.unreadCount} unread`}
-            >${model.unreadCount} unread</span
-          >`
-        : nothing
-    }
+    <span class="lf-thread-meta">
+      ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
+      ${
+        status
+          ? html`<span
+              class="lf-thread-status"
+              data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
+              title=${
+                model.attention?.secondary
+                  ? `${status} · ${model.attention.secondary}`
+                  : status
+              }
+              >${status}</span
+            >`
+          : nothing
+      }
+      ${
+        model.unreadCount
+          ? html`<span
+              class="lf-thread-unread"
+              aria-label=${`${model.unreadCount} unread`}
+              >${model.unreadCount} unread</span
+            >`
+          : nothing
+      }
+    </span>
     <span
       class="lf-thread-count"
       aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
       >${count}</span
-    >
-    <span
-      class="lf-thread-status"
-      data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
-      title=${
-        model.attention?.secondary ? `${status} · ${model.attention.secondary}` : status
-      }
-      >${status}</span
     >
   </summary>`;
 }

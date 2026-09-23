@@ -4,6 +4,7 @@ import base64
 import io
 import re
 from copy import deepcopy
+from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
@@ -2422,6 +2423,107 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
     expect(
         page.locator(f'.lf-thread[data-id="{cap}"] > .lf-thread-summary')
     ).to_be_focused()
+
+
+def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
+    """Order is the panel's own view, not a filter. Recent puts the thread spoken in
+    last at the top under a day heading. The View control keeps one label whatever is
+    chosen, and a narrowed summary arriving never moves the choices under the press.
+    Reset clears refinements but keeps the order, and with the panel shut t/T still
+    walk the page's order."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    now = datetime.now().astimezone()
+
+    def comment(text, anchor, days_ago):
+        event = {"kind": "comment", "author": "user", "revision": 1, "text": text}
+        if anchor:
+            event["anchor"] = anchor
+        event["ts"] = (now - timedelta(days=days_ago)).isoformat(timespec="seconds")
+        return events_model.append_event(d, event)["id"]
+
+    def day(days_ago):
+        at = now - timedelta(days=days_ago)
+        label = f"{at:%b} {at.day}"
+        return label if at.year == now.year else f"{label}, {at.year}"
+
+    lede = comment("Six weeks reads long.", {"section": "lede"}, 10)
+    cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
+    whole = comment("The whole thing needs a summary.", None, 12)
+    # A reply today makes the oldest thread the most recent one.
+    conversation_model.cmd_reply(
+        d, whole, "Added one at the top.", None, for_event=whole
+    )
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    order = page.get_by_role("group", name="Order", exact=True)
+    expect(order.get_by_role("button", name="Page")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    toggle = page.locator(".lf-thread-filter-toggle")
+    expect(toggle).to_have_text("View")
+    order.get_by_role("button", name="Recent").click()
+    expect(toggle).to_have_text("View")
+    assert page.evaluate(LIST_RUNS) == [
+        "§ Today",
+        whole,
+        f"§ {day(3)}",
+        cap,
+        f"§ {day(10)}",
+        lede,
+    ]
+
+    # Order hides nothing, so it is not part of what Reset puts back. The narrowed
+    # summary that the press brings in stands below the choices, not above them.
+    anchored = page.get_by_role("group", name="Location", exact=True).get_by_role(
+        "button", name=re.compile(r"^Anchored")
+    )
+    before = anchored.bounding_box()
+    expect(page.locator(".lf-thread-view")).to_be_hidden()
+    anchored.click()
+    expect(page.locator(".lf-thread-view")).to_be_visible()
+    assert anchored.bounding_box() == before, "the summary moved the choices"
+    shown_runs = LIST_RUNS.replace(".map(", ".filter((n) => !n.hidden).map(", 1)
+    assert page.evaluate(shown_runs)[:2] == [f"§ {day(3)}", cap]
+    page.get_by_role("button", name="Reset thread filters").click()
+    assert page.evaluate(shown_runs)[:2] == ["§ Today", whole]
+    expect(order.get_by_role("button", name="Recent")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+
+    # The panel's walk follows the list it shows.
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-thread[data-id="{whole}"] > .lf-thread-summary')
+    ).to_be_focused()
+
+    # Page order restores the page's runs.
+    order.get_by_role("button", name="Page").click()
+    assert page.evaluate(LIST_RUNS) == [
+        "§ Shipping offline editing",
+        lede,
+        "§ How it works",
+        cap,
+        "§ About the page as a whole",
+        whole,
+    ]
+
+    # The page's walk is the page's order whatever the panel shows.
+    order.get_by_role("button", name="Recent").click()
+    page.locator(".lf-threads-toggle").click()
+    page.locator("body").click()
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    assert (
+        page.evaluate(
+            "() => document.activeElement.closest('[data-thread]').dataset.thread"
+        )
+        == lede
+    )
 
 
 def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve):
@@ -6277,7 +6379,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Panel controls similarly unwind the panel, not the unrelated disclosure.
-    page.get_by_role("button", name="Filters", exact=True).focus()
+    page.get_by_role("button", name="View", exact=True).focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(card).to_have_attribute("open", "")

@@ -916,8 +916,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      whose focus has left the document is a question for whatever reads the selection
      into a quote, not for what the layer paints. */
   :is(.lf-quote, .lf-msg-body, .lf-conversation-body) { user-select: text; -webkit-user-select: text; }
-  /* Search and filter disclosure share one toolbar. A nondefault view keeps its
-     criteria and result count visible even while the filter choices are folded. */
+  /* Search and the View disclosure share one toolbar. A nondefault view keeps its
+     criteria and result count visible even while the choices are folded, below them
+     when open, so a press never moves the choices beside it. */
   leaf-thread-narrowing { display: contents; }
   .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px 6px; }
   .lf-find-box { flex: 1; min-width: 0; }
@@ -926,6 +927,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
   .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
     padding: 0 16px 8px; color: var(--muted); font-size: var(--t-6); }
+  /* One rule closes the header off from the list: under the choices, or under the
+     summary when it follows them. */
+  .lf-thread-filters:not([hidden]) + .lf-thread-view {
+    padding-top: 8px; border-bottom: 1px solid var(--rule); }
+  .lf-thread-filters:not([hidden]):has(+ .lf-thread-view:not([hidden])) {
+    border-bottom: none; }
   .lf-thread-view-summary { flex: 1; min-width: 0; }
   /* A selected box applies one refinement; pressing it again removes it. */
   .lf-thread-filters[hidden], .lf-thread-view[hidden], .lf-thread-filter-group[hidden] { display: none; }

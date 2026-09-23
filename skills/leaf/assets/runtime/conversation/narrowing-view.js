@@ -1,8 +1,10 @@
 /* The thread panel's complete narrowing surface.
  *
  * `narrowing.js` supplies one frozen presentation reading and stable commands. This
- * synchronous light-DOM Lit owner retains the search control and local Filters
- * disclosure while rendering the summary, Reset, and declared facet controls. It
+ * synchronous light-DOM Lit owner retains the search control and local View
+ * disclosure while rendering the order, declared facet controls, summary, and Reset. The
+ * summary follows the choices so that its arrival never moves a choice under the press
+ * that caused it, and the disclosure's label never changes with what is chosen. It
  * never reads its rendering back into reader intent.
  */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
@@ -107,7 +109,7 @@ class ThreadNarrowingView extends HTMLElement {
       ?disabled=${choice.disabled}
       @click=${() => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}
     >
-      ${choice.label} (${choice.amount})
+      ${choice.amount === null ? choice.label : `${choice.label} (${choice.amount})`}
     </button>`;
   }
 
@@ -141,8 +143,20 @@ class ThreadNarrowingView extends HTMLElement {
           aria-controls="lf-thread-filters"
           @click=${() => this.#toggleFilters()}
         >
-          Filters
+          View
         </button>
+      </div>
+      <div
+        class="lf-thread-filters"
+        id="lf-thread-filters"
+        aria-label="Thread view"
+        ?hidden=${!this.#disclosed}
+      >
+        ${repeat(
+          this.#model.groups,
+          (group) => group.kind,
+          (group) => this.#group(group),
+        )}
       </div>
       <div class="lf-thread-view" ?hidden=${this.#model.hidden}>
         <span class="lf-thread-view-summary">${this.#model.summary}</span>
@@ -154,18 +168,6 @@ class ThreadNarrowingView extends HTMLElement {
         >
           Reset
         </button>
-      </div>
-      <div
-        class="lf-thread-filters"
-        id="lf-thread-filters"
-        aria-label="Filter threads"
-        ?hidden=${!this.#disclosed}
-      >
-        ${repeat(
-          this.#model.groups,
-          (group) => group.kind,
-          (group) => this.#group(group),
-        )}
       </div>
     `;
   }

@@ -137,6 +137,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
+- **Tool-result guidance in code:** `hooks/wait-started.json` is static text a
+  shell gate prints after a `leaf wait` launch. If a second piece of guidance
+  needs a tool-result hook, or this one should depend on page state (only while
+  the user owes an Ask), route `PostToolUse` through `leaf hook`, which reads
+  the harness off the session's claims. Codex ignores the hook's `if` filter and
+  runs it on every shell call, so keep a cheap gate ahead of `uv run`.
 - **#28 — Threads slides over:** the panel overlays the page at every width, so
   the page never moves for it; delete the push strip, `COVERING`, and `main`'s
   panel offset. See the [layout model](notes/layout-model.md).

@@ -47,12 +47,16 @@ const conversationReturns = new WeakMap();
 // Keep a whole conversation in view when it fits. A long thread reveals its reply
 // area, including Send and Resolve; an oversized editor reveals only its control.
 // scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing.
-const landingTarget = (held, control) => {
+const landingRoom = (held) => {
   let room = Infinity;
   for (let parent = held.parentElement; parent; parent = parent.parentElement) {
     const band = landingBand(parent);
     if (band) room = Math.min(room, band.bottom - band.top);
   }
+  return room;
+};
+const landingTarget = (held, control) => {
+  const room = landingRoom(held);
   if (shownBox(held).height <= room) return held;
   const reply = control.closest(".lf-compose, .lf-say");
   return reply?.parentElement === held && shownBox(reply).height <= room
@@ -65,6 +69,22 @@ export function revealConversation(held, control, behavior = scrollBehavior()) {
     behavior,
     block: "nearest",
   });
+}
+
+// A send names the message it added, while the composer keeps focus for another reply.
+// Reveal that message once its publication has painted. The editor's old position says
+// nothing about where the new words stand after the thread has grown.
+export function revealReplyMessage(held, attempt) {
+  const message = held.querySelector(
+    `.lf-msg[data-attempt="${CSS.escape(attempt)}"], ` +
+      `.lf-conversation-msg[data-attempt="${CSS.escape(attempt)}"]`,
+  );
+  if (!message) return false;
+  message.scrollIntoView({
+    behavior: scrollBehavior(),
+    block: shownBox(message).height > landingRoom(message) ? "start" : "nearest",
+  });
+  return true;
 }
 
 const conversationInputOf = (held) => {

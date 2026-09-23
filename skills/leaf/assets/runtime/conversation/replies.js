@@ -11,6 +11,8 @@ import {
 } from "../drafts.js";
 import { threadKey } from "./model.js";
 import { focused } from "../keyboard/scopes.js";
+import { retainReaderIntent } from "../reader-intent.js";
+import { whenDocumentPresented } from "../semantic-state.js";
 
 const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 
@@ -36,6 +38,7 @@ export function wireReply(
     liveId = () => t.root.id,
     createReply,
     revealReplyEditor,
+    revealReplyMessage,
     wireInput,
     onDraftLoaded = null,
   },
@@ -56,8 +59,20 @@ export function wireReply(
       tellDraft(draftCtx, v);
     },
     send: (_text, raw, owns) => {
+      const held = input.closest(
+        ".lf-thread, .lf-conversation-thread, .lf-conversation",
+      );
+      const mayReveal =
+        held && (focused() === input || focused() === send)
+          ? retainReaderIntent({ source: held, available: () => held.isConnected })
+          : null;
       const sent = sendReply(t, liveId, raw, owns, createReply);
-      if (sent && (focused() === input || focused() === send)) revealReplyEditor(input);
+      if (sent && mayReveal)
+        void whenDocumentPresented()
+          .then(() => {
+            if (mayReveal()) revealReplyMessage(held, sent.attempt);
+          })
+          .catch(() => {});
     },
   });
   sync();

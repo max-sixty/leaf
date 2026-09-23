@@ -78,6 +78,7 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     shortcut_bar_text,
@@ -3610,12 +3611,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        if landing["scroll"]:
+        # At the scroll limit there is no remaining travel to align a block.
+        if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)
                 for block in landing["blocks"]
             ), f"the long arrival cut through a content block: {landing}"
-        else:
+        elif not landing["scroll"]:
             assert landing["blocks"][0]["top"] >= landing["start"] - 1
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
@@ -9652,6 +9654,55 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     )
 
     round_trip(page)
+
+
+def test_submitting_a_reply_reveals_its_new_message(browser, serve):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Where should this explanation go?")
+    page = open_page(browser, url)
+    resized(page, 800, 520)
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    thread.locator(".lf-thread-summary").click()
+    box = thread.locator(":scope > .lf-compose textarea")
+    box.fill("First point. " * 5 + "\n\nSecond point. " * 4)
+    box.press("ControlOrMeta+Enter")
+    round_trip(page)
+    message = thread.locator(".lf-msg.user").last
+    expect(message).to_contain_text("Second point.")
+    scroll_settled(page, ".lf-threads")
+    shown = message.evaluate(
+        """node => {
+          const list = document.querySelector('.lf-threads').getBoundingClientRect();
+          const message = node.getBoundingClientRect();
+          const top = list.top + parseFloat(getComputedStyle(document.querySelector('.lf-threads')).scrollPaddingTop || 0);
+          return {top: message.top, bottom: message.bottom, bandTop: top, bandBottom: list.bottom};
+        }"""
+    )
+    assert shown["bottom"] - shown["top"] < shown["bandBottom"] - shown["bandTop"]
+    assert shown["top"] >= shown["bandTop"] - 1, shown
+    assert shown["bottom"] <= shown["bandBottom"] + 1, shown
+    expect(box).to_be_focused()
+
+    box.fill("Long reply. " * 90)
+    thread.locator(":scope > .lf-compose .lf-thread-send").click()
+    round_trip(page)
+    long_message = thread.locator(".lf-msg.user").last
+    expect(long_message).to_contain_text("Long reply.")
+    scroll_settled(page, ".lf-threads")
+    long_reading = long_message.evaluate(
+        """node => {
+          const list = document.querySelector('.lf-threads');
+          const band = list.getBoundingClientRect();
+          const top = band.top + parseFloat(getComputedStyle(list).scrollPaddingTop || 0);
+          const message = node.getBoundingClientRect();
+          return {top: message.top, height: message.height, bandTop: top,
+                  room: band.bottom - top};
+        }"""
+    )
+    assert long_reading["height"] > long_reading["room"]
+    assert long_reading["top"] >= long_reading["bandTop"] - 1
+    expect(thread.locator(":scope > .lf-compose .lf-thread-send")).to_be_focused()
 
 
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):

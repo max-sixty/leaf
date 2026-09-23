@@ -3687,10 +3687,10 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
     preview.get_by_role("button", name="Next conversation").click()
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
@@ -4999,7 +4999,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread.locator(".lf-margin-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
-    expect(page.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
     resized(page, 1207, 900)
@@ -5540,16 +5540,13 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
-          const head = preview.querySelector('.lf-margin-preview-head');
           // The first message's head is hoisted out of its message and onto the row the
-          // thread opens with, which carries its Resolve beside the author. The head
-          // itself is `display: contents` there, so the row is what has a box.
+          // thread opens with, which carries its controls beside the author.
           const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
           const reply = thread.querySelector('.lf-reply-disclosure');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const tr = thread.getBoundingClientRect();
-          const hr = head.getBoundingClientRect();
           const mr = metaRow.getBoundingClientRect();
           const rb = reply.getBoundingClientRect();
           const cr = close.getBoundingClientRect();
@@ -5564,8 +5561,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
               left: tr.left + parseFloat(ts.borderLeftWidth)
                 + parseFloat(ts.paddingLeft),
             },
-            head: {top: hr.top, bottom: hr.bottom},
-            metaRow: {top: mr.top},
+            metaRow: {top: mr.top, bottom: mr.bottom},
             reply: {right: rb.right, left: rb.left},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
             closeBorder: getComputedStyle(close).borderTopWidth,
@@ -5585,11 +5581,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         geometry["close"]["bottom"], abs=1
     )
     assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
-    # The card opens on that row rather than above a band of its own: Dismiss is
-    # positioned onto it, so the two share a line.
-    assert geometry["metaRow"]["top"] == pytest.approx(
-        geometry["head"]["top"], abs=1
-    ), geometry
+    # The card opens on the row containing Dismiss and Resolve.
+    assert geometry["metaRow"]["top"] <= geometry["close"]["top"]
+    assert geometry["metaRow"]["bottom"] >= geometry["close"]["bottom"]
     reply_button.click()
     expect(preview.locator("textarea")).to_be_visible()
     page.locator("h1").click()
@@ -6312,7 +6306,7 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     preview = page.locator(".lf-margin-preview")
 
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
     previous = preview.get_by_role("button", name="Previous conversation")
     next_conversation = preview.get_by_role("button", name="Next conversation")
     controls = preview.evaluate(
@@ -6329,8 +6323,11 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     assert controls[".lf-resolve"]["middle"] == pytest.approx(
         controls[".lf-margin-preview-close"]["middle"], abs=1
     ), controls
+    assert controls[".lf-margin-preview-nav"]["middle"] == pytest.approx(
+        controls[".lf-resolve"]["middle"], abs=1
+    ), controls
     assert (
-        controls[".lf-margin-preview-nav"]["middle"] < controls[".lf-resolve"]["middle"]
+        controls[".lf-margin-preview-nav"]["right"] < controls[".lf-resolve"]["left"]
     ), controls
     assert (
         controls[".lf-resolve"]["right"] < controls[".lf-margin-preview-close"]["left"]
@@ -6351,11 +6348,18 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     )
     expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
     next_conversation.click()
-    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview).to_contain_text(second_comment["text"])
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
     expect(previous).to_be_enabled()
     expect(next_conversation).to_be_disabled()
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    previous.click()
+    expect(next_conversation).to_be_visible()
+    expect(
+        preview.get_by_role("button", name="Dismiss conversation view")
+    ).to_be_visible()
+    next_conversation.click()
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
     page.keyboard.press("r")
     told(page)
@@ -7015,12 +7019,12 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     told(page)
     expect(marker.locator(".lf-margin-count")).to_have_text("2")
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
-    expect(page.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("1/2")
     expect(page.locator(".lf-margin-thread")).not_to_contain_text(
         "A second reading arrived while the preview was pinned."
     )
     page.get_by_role("button", name="Next conversation").click()
-    expect(page.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(page.locator(".lf-margin-thread")).to_contain_text(
         "A second reading arrived while the preview was pinned."
     )

@@ -411,7 +411,8 @@ export function mountApplication(dependencies) {
     standsWith: dependencies.margin.standsWith,
     revealConversation: dependencies.margin.revealConversation,
     goToAsk: dependencies.margin.goToAsk,
-    renderMarginThread: (host, thread) => renderMarginThread(host, thread, inlineView),
+    renderMarginThread: (host, thread, controls) =>
+      renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPaint.placedAt,
     showThread: dependencies.showThread,
     scrollToElement: dependencies.anchorTravel.scrollToElement,

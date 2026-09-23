@@ -2489,7 +2489,13 @@ export function createMarginProjection({
     togglePinned(entry, button);
   }
 
-  function openInlineThread(id, { transition = null, onPositioned = null } = {}) {
+  // `unfold: false` is a card that accompanies where the reader stands rather than one
+  // they asked for: it hangs from the cluster's visible marker instead of unfolding the
+  // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
+  function openInlineThread(
+    id,
+    { transition = null, onPositioned = null, unfold = true } = {},
+  ) {
     const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2497,6 +2503,11 @@ export function createMarginProjection({
     if (!entry || designModeActive() || panelIsOpen()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
+    const shown = (control) => (control?.checkVisibility() ? control : null);
+    const marker = unfold
+      ? null
+      : (shown(threadMarginEntry(entry)) ?? shown(rows.get(entry.key)));
+    if (!unfold && !marker) return null;
     const previousForcedOptionsKey = forcedInlineOptionsKey;
     const transfersPreview = previewOpen();
     forcedInlineKey = entry.key;
@@ -2509,7 +2520,7 @@ export function createMarginProjection({
     }
     if (previousForcedOptionsKey && expandedOptionsKey === previousForcedOptionsKey)
       setOptionsOpen(null, false, { preservePreview: transfersPreview });
-    let button = threadMarginEntry(entry);
+    let button = marker ?? threadMarginEntry(entry);
     if (!button?.checkVisibility()) {
       forcedInlineOptionsKey = expandedOptionsKey === entry.key ? null : entry.key;
       if (forcedInlineOptionsKey)
@@ -2665,7 +2676,8 @@ export function createMarginProjection({
       return;
     }
     if (previewOpen() && previewEntry?.key === entry.key) return;
-    if (active.matches(":focus-visible")) openInlineThread(threadIdOf(entry));
+    if (active.matches(":focus-visible"))
+      openInlineThread(threadIdOf(entry), { unfold: false });
     else if (previewOpen()) closePreview();
   }
   // Letting go of a place on the page leaves the reader standing nowhere, which takes

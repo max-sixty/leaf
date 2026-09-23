@@ -129,7 +129,7 @@ def cmd_delivery_claim(
             workflows = {
                 item.get("input"): item
                 for item in state["workflows"]
-                if item["requires_response"] or item["subject"]["kind"] == "widget"
+                if item["answer"] is not None or item["subject"]["kind"] == "widget"
             }
             event = next(
                 (

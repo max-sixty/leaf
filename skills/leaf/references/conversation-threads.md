@@ -92,7 +92,7 @@ captured before a newer reader correction cannot settle the correction. `leaf
 conversation read` exposes the same response on the workflow that its current
 `activity.obligations` names, when the delivery is no longer the freshest reading.
 `activity.obligations` is a list of ids into `workflows`, where each move's stage and
-subject are canonical and `response_address` names the current writer operation.
+subject are canonical and `answer` names the current writer operation.
 Provisional response progress remains separately available as `response`. When the source changed, the reply
 validates and activates it before posting, so an edit and its answer cross one command
 boundary.

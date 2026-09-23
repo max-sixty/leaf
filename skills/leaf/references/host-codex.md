@@ -68,8 +68,9 @@ text through the same reply contract as `leaf reply`; do not run a reply command
 that response. The committed reply retains the thread's standing anchor. Settling that
 move before the commit does not discard the answer: the completed reply keeps its
 response address and reopens the conversation in Open Threads. A later plain
-reply remains pending for the next slice. Version and receipt obligations in the
-current slice still use their explicit `resolve` and `receipt` operations.
+reply remains pending for the next slice. Version, markup, and receipt obligations in
+the current slice still take their explicit operations: a stamped version, `resolve`,
+and `receipt`.
 
 A `leaf-delivery` pointer may instead arrive through Codex's durable local queue with no
 App Server observer left to bind or stream its turn. With nothing to

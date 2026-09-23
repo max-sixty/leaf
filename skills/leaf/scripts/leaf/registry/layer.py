@@ -6,7 +6,13 @@ from functools import cache
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ASSETS, DATA_CONTRACT_NAME, EXTENSION_SCHEMA, HTML_NAME
+from leaf.schema import (
+    ANSWER_KINDS,
+    ASSETS,
+    DATA_CONTRACT_NAME,
+    EXTENSION_SCHEMA,
+    HTML_NAME,
+)
 
 from .contract import (
     GUIDANCE_READER,
@@ -92,20 +98,23 @@ def required_layer_declarations(registry: dict, path):
 
 
 def validate_event_handling(events: dict, kinds: dict, path) -> None:
-    """`$events.handling` is read directly by every event a delivery carries, so a
-    layer that restates a kind is held to the shape the consumer assumes: a
-    declared kind, a non-empty list of clauses, each a non-empty `text` and an
-    optional `when` that is a valid JSON Schema. The complete vendored registry
-    must carry the map; individual kind guidance remains optional."""
-    handling = events.get("handling")
-    if not isinstance(handling, dict) or any(
-        kind not in kinds or not _valid_clauses(clauses)
-        for kind, clauses in handling.items()
-    ):
-        raise RegistryError(
-            f"{path}: $events.handling must map declared kinds to a non-empty list "
-            "of clauses, each a non-empty `text` and an optional `when` schema"
-        )
+    """`$events.handling` and `$events.answering` are read directly by every event
+    a delivery carries, so a layer that restates a kind is held to the shape the
+    consumer assumes: a declared event kind or answer kind, a non-empty list of
+    clauses, each a non-empty `text` and an optional `when` that is a valid JSON
+    Schema. The complete vendored registry must carry both maps; individual kind
+    guidance remains optional."""
+    for key, known in (("handling", kinds), ("answering", ANSWER_KINDS)):
+        declared = events.get(key)
+        if not isinstance(declared, dict) or any(
+            kind not in known or not _valid_clauses(clauses)
+            for kind, clauses in declared.items()
+        ):
+            what = "declared kinds" if key == "handling" else "answer kinds"
+            raise RegistryError(
+                f"{path}: $events.{key} must map {what} to a non-empty list "
+                "of clauses, each a non-empty `text` and an optional `when` schema"
+            )
 
 
 def _valid_clauses(clauses) -> bool:

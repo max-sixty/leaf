@@ -3989,8 +3989,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     reader can watch — restores the same margin entry's activation semantics, in the same
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the margin entry leaves instead of restating widget state.
+
+    The group is single-choice so the pick itself answers the Ask: a tick in a
+    group that waits for Done hands the agent nothing, so it has no receipt.
     """
-    page = open_page(browser, live_url(serve(ASK_PAGE)))
+    single = ASK_PAGE.replace(
+        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+    )
+    page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
     resized(page, 1440, 900)
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
@@ -4283,7 +4289,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     assert working["border"] != "rgba(0, 0, 0, 0)"
     expect(page.get_by_role("button", name=re.compile(r"^Working,"))).to_have_count(1)
 
-    honored = ASK_PAGE.replace(
+    honored = single.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
     )
     stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))

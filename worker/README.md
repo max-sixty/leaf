@@ -323,8 +323,9 @@ streams the final-answer item into its addressed thread and commits that
 same completed text through the canonical reply writer, even if its subscription drops,
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
-pending for the next turn. Version and receipt obligations may share that turn and
-remain explicit `$LEAF resolve` and `$LEAF receipt` operations. There is no second
+pending for the next turn. Version, markup, and receipt obligations may share that
+turn and remain explicit operations: a stamped version, `$LEAF resolve`, and
+`$LEAF receipt`. There is no second
 website reply endpoint or helper. `$LEAF` remains the interface for delivery claims and
 reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.

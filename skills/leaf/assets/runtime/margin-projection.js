@@ -36,8 +36,8 @@
    user stands at, from the target, its cluster, or the card itself, so standing on an
    element and reading its conversation are one place rather than two layers contending
    for focus and presses. Keyboard arrival at a commented element puts the card up
-   beside it; standing elsewhere on the page, letting go, or pressing outside the card,
-   its target, and its cluster takes it down (`followStanding`). Escape from inside the
+   beside it; standing elsewhere on the page, letting go (`declareRelease`), or pressing
+   outside the card, its target, and its cluster takes it down (`followStanding`). Escape from inside the
    card lands on its target.
 
    Placing the card changes its geometry and nothing inside it. The user's place in
@@ -104,7 +104,7 @@ import { compareMarginContributions } from "./margin-entry-model.js";
 import { mapButton } from "./page-map-dialog.js";
 import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { focusDestination, letGo } from "./focus.js";
+import { declareRelease, focusDestination, letGo } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
@@ -2682,24 +2682,13 @@ export function createMarginProjection({
       openInlineThread(threadIdOf(entry), { unfold: false });
     else if (previewOpen()) closePreview();
   }
-  // Letting go of a place on the page leaves the user standing nowhere, which takes
-  // the card with it. Focus leaving the card or the chrome for nothing is the browser
-  // clearing a node rather than the user moving, and a press answers for itself below:
-  // the focus its default action moves lands in the same task, so the press's decision
-  // stands for exactly that task.
-  let pressing = false;
-  function letGoOfStanding(event) {
-    const left = event.composedPath()[0];
-    if (!previewOpen() || pressing || event.relatedTarget) return;
-    if (inChrome(left) && !threadEntryAt(left)) return;
-    queueMicrotask(() => {
-      if (previewOpen() && (focused() ?? document.body) === document.body)
-        closePreview();
-    });
-  }
+  // Letting go of where the user stands leaves them standing nowhere, which takes the
+  // card with it (`declareRelease`). A landing on the page that is not a let-go — `g p`,
+  // a surface closing — leaves the card beside the target it is about.
+  declareRelease(() => {
+    if (previewOpen()) closePreview();
+  });
   function pressAway(event) {
-    pressing = true;
-    setTimeout(() => (pressing = false));
     if (!previewOpen()) return;
     const path = event.composedPath();
     const stands = [preview, hosts.get(previewEntry?.key), targetFor(previewEntry)];
@@ -2817,7 +2806,6 @@ export function createMarginProjection({
     document.addEventListener("focusin", () => queueMicrotask(followStanding), {
       capture: true,
     });
-    document.addEventListener("focusout", letGoOfStanding, { capture: true });
     document.addEventListener("pointerdown", pressAway, { capture: true });
     document.addEventListener(
       "pointerdown",

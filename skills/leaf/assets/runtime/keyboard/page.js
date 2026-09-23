@@ -11,7 +11,7 @@
    one declaration that reads other owners' state — the modes, the captured target, the
    Page Map's rung — so `declareStanding` is the one export, and the boot entry calls it
    once those owners stand. */
-import { letGo, takesLetters } from "../focus.js";
+import { letGo, release, takesLetters } from "../focus.js";
 import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
@@ -141,7 +141,7 @@ export function declareStanding({ askHeld, pageState }) {
         when: () => Boolean(standingFloor()),
         run: () => {
           const floor = standingFloor();
-          if (floor === document.body) letGo();
+          if (floor === document.body) release();
           else floor.focus({ preventScroll: true });
         },
       },

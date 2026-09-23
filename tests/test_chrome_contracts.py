@@ -337,7 +337,10 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
     ) == pytest.approx(before, abs=2)
 
 
-def test_incoming_reply_follows_a_selected_thread_before_later_cards(browser, serve):
+@pytest.mark.parametrize("later_cards", [4, 30])
+def test_incoming_reply_follows_a_selected_thread_before_later_cards(
+    browser, serve, later_cards
+):
     url = serve(LONG_PAGE)
     selected = panel_comment(serve.page_dir, "The conversation I am reading.")
     for index in range(14):
@@ -351,7 +354,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(browser, se
                 "text": f"Selected answer {index}. " * 5,
             },
         )
-    for index in range(4):
+    for index in range(later_cards):
         panel_comment(serve.page_dir, f"A later conversation {index}.")
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
@@ -397,6 +400,58 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(browser, se
         ),
         abs=2,
     )
+
+    card.locator(".lf-msg").last.evaluate(
+        "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    reading_later = threads.evaluate("el => el.scrollTop")
+    also_visible = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": selected,
+            "text": "This short answer is already visible while I read later cards.",
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
+    expect(arriving).to_be_visible()
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(reading_later, abs=2)
+    assert arriving.evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ) < threads.evaluate(
+        "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+    )
+
+    if later_cards == 30:
+        threads.evaluate("el => el.scrollTop += 160")
+        reading_later = threads.evaluate("el => el.scrollTop")
+        assert card.evaluate(
+            "el => el.getBoundingClientRect().bottom"
+        ) < threads.evaluate(
+            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom) - 80"
+        )
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": "A long answer must not pull me back to this conversation. "
+                * 120,
+            },
+        )
+        page.evaluate(
+            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+        )
+        assert threads.evaluate("el => el.scrollTop") == pytest.approx(
+            reading_later, abs=2
+        )
 
 
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):

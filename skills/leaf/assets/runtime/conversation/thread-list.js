@@ -149,9 +149,10 @@ const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
 const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
-// An arriving reply follows the conversation only while its previous last turn is
-// visible near the end of the reader's view. A reader higher in the list keeps the
-// place the list hold chose; another thread's reply never moves this one.
+// The selected conversation's tail runs from its last message through its composer
+// to the card's end. Follow while that tail meets the landing edge and the last
+// message is still visible; its length can change with the draft or later cards.
+const FOLLOW_ROOM = 80;
 function incomingAtLatest(reading, panelIsOpen) {
   if (!panelIsOpen()) return null;
   const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
@@ -182,8 +183,14 @@ function incomingAtLatest(reading, panelIsOpen) {
     );
   const band = landingBand(threadsBox);
   if (!node || !band) return null;
-  const box = node.getBoundingClientRect();
-  if (box.bottom - band.bottom > 80 || box.bottom < band.top) return null;
+  const tailStart = node.getBoundingClientRect().bottom;
+  const tailEnd = card.getBoundingClientRect().bottom;
+  if (
+    tailStart < band.top ||
+    tailStart > band.bottom + FOLLOW_ROOM ||
+    tailEnd < band.bottom - FOLLOW_ROOM
+  )
+    return null;
   return {
     id: incoming.at(-1)?.id ?? nextLatest.id,
     top: threadsBox.scrollTop,
@@ -418,10 +425,13 @@ export async function renderThreads(collection, commands) {
     finishScrollHold(hold, commands.panelIsOpen);
     held = false;
     await prepareFrozenWidgets(current);
-    if (current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2)
-      threadsBox
-        .querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
-        ?.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
+    const newest =
+      current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
+        ? threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
+        : null;
+    const fold = newest && landingBand(threadsBox)?.bottom;
+    if (fold && newest.getBoundingClientRect().bottom > fold)
+      newest.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
   } catch (error) {
     if (!current()) return;
     await retainCommitted(current, reading, error);

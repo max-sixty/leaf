@@ -91,7 +91,7 @@ def preview_slot(tmp_path, monkeypatch):
     yield slot, root / slot
     for page in sorted(root.iterdir()) if root.is_dir() else ():
         if page.is_dir():
-            preview_model.retire_preview(page, discard=False)
+            preview_model.retire_preview(page)
 
 
 def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spawn):
@@ -296,7 +296,8 @@ def test_a_preview_records_real_gestures_outside_the_task(
 
     The selected runtime's temporary server is held by the watcher rather than a
     service record. Its log survives source reloads, while a distinct `--user`
-    slot is claimed for task delivery and cannot be overwritten by an unclaimed one.
+    slot is claimed for task delivery. An unclaimed start in that slot replaces
+    it, releasing the claim with the moves it carried.
     """
     slot, page_dir = preview_slot
     source = tmp_path / "driven.html"
@@ -425,54 +426,38 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert user_event in service_model.unacknowledged(
         events_model.read_events(user_dir), 0
     )
-    user_feedback = (user_dir / "events.jsonl").read_bytes()
-    refused = subprocess.run(
-        [command for command in user_command if command != "--user"],
-        cwd=ROOT,
-        capture_output=True,
-        check=False,
-        text=True,
-        timeout=30,
-    )
-    assert refused.returncode == 1
-    assert "serves its user interaction; add --user to join it" in refused.stderr
-    assert "--reset" in refused.stderr
-    assert (user_dir / "events.jsonl").read_bytes() == user_feedback
     user.close()
 
-    reset_driven = spawn(
-        [
-            *(command for command in user_command if command != "--user"),
-            "--reset",
-        ],
+    replaced = spawn(
+        [command for command in user_command if command != "--user"],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert reset_driven.stdout.readline() == "prepared driven (1 version)\n"
-    assert reset_driven.stdout.readline() == "\n"
-    reset_url = reset_driven.stdout.readline().strip()
-    assert reset_url.startswith("http://127.0.0.1:")
+    assert replaced.stdout.readline() == "prepared driven (1 version)\n"
+    assert replaced.stdout.readline() == "\n"
+    replaced_url = replaced.stdout.readline().strip()
+    assert replaced_url.startswith("http://127.0.0.1:")
     assert (
-        reset_driven.stderr.readline().strip()
+        replaced.stderr.readline().strip()
         == "server   preview (no task claim; stops with its watcher and with this "
         "agent session)"
     )
     assert service_model.page_claim(user_dir) is None
     assert user_event not in events_model.read_events(user_dir)
 
-    reset_page = open_page(browser, reset_url)
-    expect(reset_page.locator(".lf-preview")).to_contain_text(
+    replaced_page = open_page(browser, replaced_url)
+    expect(replaced_page.locator(".lf-preview")).to_contain_text(
         f"Preview · {runtime.name}"
     )
-    expect(reset_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
-    reset_page.close()
+    expect(replaced_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
+    replaced_page.close()
 
-    reset_driven.send_signal(signal.SIGINT)
-    _, reset_stderr = reset_driven.communicate(timeout=10)
-    assert reset_driven.returncode == 130, reset_stderr
-    assert "Traceback" not in reset_stderr
+    replaced.send_signal(signal.SIGINT)
+    _, replaced_stderr = replaced.communicate(timeout=10)
+    assert replaced.returncode == 130, replaced_stderr
+    assert "Traceback" not in replaced_stderr
 
 
 def _reachable(url: str) -> bool:
@@ -543,7 +528,7 @@ def test_a_detached_preview_keeps_its_gestures_out_of_the_stop_hook(
     # server writes no `service.json` to read it off, so a second invocation
     # answers from the slot's own record rather than starting a rival. A string
     # alone would also come back from a watcher that has since died.
-    resumed = subprocess.run(
+    joined = subprocess.run(
         [*command, "--background"],
         cwd=ROOT,
         capture_output=True,
@@ -551,8 +536,8 @@ def test_a_detached_preview_keeps_its_gestures_out_of_the_stop_hook(
         text=True,
         timeout=90,
     )
-    assert resumed.returncode == 0, resumed.stderr
-    assert resumed.stdout.splitlines()[-1] == url
+    assert joined.returncode == 0, joined.stderr
+    assert joined.stdout.splitlines()[-1] == url
     assert _reachable(url)
 
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
@@ -855,10 +840,6 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
             lambda held: not held,
             failure="the released session left its watcher alive",
         )
-        # The slot's own record outlives the watcher, so a later start resumes it.
-        assert json.loads((directory / "preview.json").read_text())["source"] == str(
-            source
-        )
     finally:
         subprocess.run(
             [*command[:-1], "--stop"], check=True, capture_output=True, timeout=30
@@ -944,40 +925,45 @@ def test_preview_watches_runtime_and_source_without_losing_user_state(
     assert (directory / "events.jsonl").stat().st_ino == inode
 
 
-def test_resetting_a_preview_discards_user_state_and_starts_it_fresh(
+def test_restarting_a_preview_discards_its_state_and_starts_it_fresh(
     browser, watched_preview
 ):
-    """Reset replaces the selected preview instead of carrying its event log over."""
+    """A slot's page lives as long as its watcher; the next watcher builds it anew."""
     source, _, directory, command, url = watched_preview
     page = open_page(browser, url)
-    with sending(page, "the user option pick before reset"):
+    with sending(page, "the user option pick before restart"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
     page.close()
 
-    reset = subprocess.run(
-        [*command, "--reset"],
+    stopped = subprocess.run(
+        [*command[:-1], "--stop"],
         cwd=ROOT,
         capture_output=True,
         check=False,
         text=True,
-        timeout=90,
+        timeout=30,
     )
-    assert reset.returncode == 0, reset.stdout + reset.stderr
+    assert stopped.returncode == 0, stopped.stdout + stopped.stderr
+    # A stop leaves what the page collected readable until the next start.
+    assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
+
+    restarted = subprocess.run(
+        command, cwd=ROOT, capture_output=True, check=False, text=True, timeout=90
+    )
+    assert restarted.returncode == 0, restarted.stdout + restarted.stderr
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
-    # The log the reset names is the new watcher's, and only the new watcher's: the
-    # launcher cleared the old one's lines before the worker discarded the slot.
+    # The log the restart names is the new watcher's, and only the new watcher's.
     log = directory.with_name(f"{directory.name}.preview.log")
-    assert f"watch log {log}" in reset.stderr
+    assert f"watch log {log}" in restarted.stderr
     wait_for(
         lambda: log.read_text() if log.exists() else "",
         lambda output: output.count("Watching ") == 1,
-        failure="the reset's watcher did not write to the log it was named",
+        failure="the restarted watcher did not write to the log it was named",
     )
 
-    fresh = open_page(browser, reset.stdout.splitlines()[-1])
+    fresh = open_page(browser, restarted.stdout.splitlines()[-1])
     expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
 
 

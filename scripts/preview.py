@@ -23,23 +23,33 @@ An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
-A source or layer edit stops the preview service, stamps changed source, and restarts
-at the same URL. `watchfiles` owns the watching: it reports which paths changed and
-groups an editor's save batch, so this script only says which paths it follows and
-what each one means. A layer edit also re-vendors, through the normal compatibility
-gate; a source edit alone does not, because vendoring mints a fresh layer generation
-and a revision carrying one is a different program, which the browser can only follow
-into a fresh document. So a prose edit here arrives the way it arrives for a user,
-patched into the page they are standing in. The page log
-and user decisions survive; a refused update stays visible in the terminal
-or background log and is retried after the next edit. Existing slots resume.
-Changing fixture identity or seeded history is refused so a slot keeps its feedback.
-Use `--reset` to discard that feedback and rebuild the slot. `version stamp` lints
-the example on the way past. The browser gate a page normally passes before its URL
-goes out is left to the suite: `version check --render` and
-`test_page_fixture_renders` drive the same `render_version` over the same files, so
-running it here would only repeat what the suite has already said about these exact
-pages.
+A slot's page lives exactly as long as the watcher that built it. A start with no
+watcher holding the slot discards whatever an earlier one left there — page, log,
+claim, and the address its service recorded — and builds the page fresh from the
+fixture, so a preview never carries history the fixture no longer describes and
+never has to refuse one it cannot reconcile. A start whose fixture, runtime, seeded
+history, and `--user` choice match the running watcher joins it and prints where it
+answers; one that differs in any of them stops that watcher and replaces it. The
+page's feedback is what a restart costs. For a `--user` preview that includes any
+move the claim was still carrying: discarding the page releases the claim, so the
+Stop hook stops holding the turn for moves that no longer exist.
+
+Within a watcher's life, a source or layer edit stops the preview service, stamps
+changed source, and restarts at the same URL. `watchfiles` owns the watching: it
+reports which paths changed and groups an editor's save batch, so this script only
+says which paths it follows and what each one means. A layer edit also re-vendors,
+through the normal compatibility gate; a source edit alone does not, because
+vendoring mints a fresh layer generation and a revision carrying one is a different
+program, which the browser can only follow into a fresh document. So a prose edit
+here arrives the way it arrives for a user, patched into the page they are standing
+in. The page log and user decisions survive; a refused update stays visible in the
+terminal or background log and is retried after the next edit. Seeded history is
+installed once, when the page is built, so a change to it is refused until the
+command is run again. `version stamp` lints the example on the way past. The browser
+gate a page normally passes before its URL goes out is left to the suite:
+`version check --render` and `test_page_fixture_renders` drive the same
+`render_version` over the same files, so running it here would only repeat what the
+suite has already said about these exact pages.
 
 Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
@@ -48,13 +58,12 @@ detaches the watcher and returns its URL instead of holding the terminal.
 out of the checkout and out of the way of a developer's standing preview.
 
 A slot is its page directory. The fixture it was built from, the digest of the
-source last stamped into it, and the browser chrome's own preview identity are
-one record in the page's `preview.json`, written only by the watcher that holds
-the slot. A background watcher's log sits beside the directory and belongs to the
-launcher that names it, which clears it on `--reset`. The watcher's lifetime lease
-and a stop's request are page locks in the state home, where the page's transition
-lease already lives, so a discard removes the page and its claim and a stop cannot
-end up waiting on an inode the discard replaced.
+source last stamped into it, where it answers, and the browser chrome's own preview
+identity are one record in the page's `preview.json`, written only by the watcher
+that holds the slot. A background watcher's log sits beside the directory. The
+watcher's lifetime lease and a stop's request are page locks in the state home,
+where the page's transition lease already lives, so a discard removes the page and
+its claim and a stop cannot end up waiting on an inode the discard replaced.
 
 Usage: preview.py [page] [options]  (default: triage-board)
 Stop:  preview.py [page] [--slot name] --stop
@@ -165,11 +174,6 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         action="store_true",
         help="hand this preview to a user: claim the page so presses arrive as feedback",
     )
-    parser.add_argument(
-        "--reset",
-        action="store_true",
-        help="discard this preview's feedback and rebuild it from the fixture",
-    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--background",
@@ -191,8 +195,6 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         parser.error("choose an example name or --source, not both")
     if parsed.user and parsed.export:
         parser.error("--user serves a page; omit --export")
-    if parsed.reset and (parsed.stop or parsed.export):
-        parser.error("--reset starts a fresh preview; omit --stop or --export")
     return parser, parsed
 
 
@@ -343,8 +345,8 @@ def preview_locks(page: Path) -> tuple[Path, Path]:
 
     Both sit in the state home beside the page's own transition lease, because a
     lock inside what it guards is an inode a discard unlinks, and a lock on a
-    replaced inode excludes nobody: a `--reset` would hand a waiting `--stop` an
-    orphaned lock and let it stop the server the reset had just started.
+    replaced inode excludes nobody: a fresh start would hand a waiting `--stop` an
+    orphaned lock and let it stop the server that start had just put up.
     """
     from leaf.leases import page_lock
 
@@ -427,20 +429,6 @@ def identifies(identity: dict | None, expected: dict) -> bool:
     )
 
 
-def crossed_interaction(identity: dict | None, expected: dict) -> str | None:
-    """The interaction a slot already serves, where this command asked for the other.
-
-    A slot keeps its interaction for its life, and the fixture it was built from
-    is usually the same one, so the refusal that covers both reads as a complaint
-    about the fixture. One flag decides this half, and naming it is the remedy.
-    """
-    recorded = (identity or {}).get("interaction")
-    if recorded is None or recorded == expected["interaction"]:
-        return None
-    flag = "add" if recorded == "user" else "drop"
-    return f"serves its {recorded} interaction; {flag} --user to join it"
-
-
 def refused(reason) -> bool:
     """Say why the page the user has is the page that stays up."""
     print(
@@ -477,8 +465,8 @@ def refresh_preview(
     """
     if not identifies(identity, source_identity(source, runtime, user)):
         return refused(
-            "fixture identity or seeded history changed; choose a new --slot to "
-            "preserve feedback, or rerun with --reset to discard it"
+            "seeded history changed; run the preview command again to rebuild "
+            "the page from it, which discards this page's feedback"
         )
     try:
         incoming = source.read_bytes()
@@ -765,32 +753,50 @@ class PreviewService:
         return running_server(self.page) is not None
 
 
-def retire_preview(page: Path, *, discard: bool) -> None:
-    """Wait for the watcher to retire, then optionally discard the preview.
+def retire_preview(page: Path) -> None:
+    """Wait for the watcher to retire and its server to stop.
 
     The stop is a request held open for as long as this command waits, rather
     than a flag written down: the watcher reads it between passes and at every
     point it would restart the server, so an update already running finishes and
     its pending restart is suppressed. A watcher that starts after this returns
     is a preview the developer asked for after asking for this one to stop, and
-    nothing here can be left behind to stop it too.
+    nothing here can be left behind to stop it too. The page stays until the
+    slot's next start, so what it collected can still be read.
+    """
+    from leaf.event_log import flocked
+    from leaf.hosting import cmd_stop
+
+    lease_path, stop_path = preview_locks(page)
+    with flocked(stop_path), flocked(lease_path):
+        cmd_stop(page)
+
+
+def discard_preview(page: Path) -> None:
+    """Remove what an earlier watcher left in this slot, claim included.
+
+    Called with the slot's lease held, so no watcher is serving it. A durable
+    service a `--user` watcher left behind is stopped first, since its record goes
+    with the page. The log is emptied rather than unlinked: a background launcher
+    has already opened it by name as this watcher's output.
     """
     from leaf.event_log import flocked
     from leaf.hosting import cmd_stop
     from leaf.leases import transition_lock
     from leaf.service import PageTransaction, claim_path
 
-    lease_path, stop_path = preview_locks(page)
-    with flocked(stop_path), flocked(lease_path):
+    if page.exists():
         cmd_stop(page)
-        if discard:
-            with flocked(transition_lock(page)):
-                if (page / "events.jsonl").is_file():
-                    with PageTransaction(page):
-                        shutil.rmtree(page)
-                elif page.exists():
-                    shutil.rmtree(page)
-                claim_path(page).unlink(missing_ok=True)
+    with flocked(transition_lock(page)):
+        if (page / "events.jsonl").is_file():
+            with PageTransaction(page):
+                shutil.rmtree(page)
+        elif page.exists():
+            shutil.rmtree(page)
+        claim_path(page).unlink(missing_ok=True)
+    log = preview_log(page)
+    if log.exists():
+        os.truncate(log, 0)
 
 
 def preview_ready(
@@ -809,8 +815,11 @@ def join_running_preview(
     lease_path: Path,
     expected: dict,
     ready_fd: int | None,
-) -> None:
-    """Report where the watcher that already holds this slot serves it, or why not.
+) -> bool:
+    """Report where the watcher holding this slot serves it, or answer False.
+
+    False means that watcher holds another preview — a different fixture, runtime,
+    seeded history, or `--user` choice — and the caller replaces it.
 
     An owner in the middle of an update has no server to name yet, and one still
     preparing a fresh slot has not yet recorded what it is preparing, so the wait
@@ -827,28 +836,20 @@ def join_running_preview(
     while lock_is_held(lease_path):
         identity = slot_identity(page)
         if identity is not None:
-            if crossed := crossed_interaction(identity, expected):
-                raise ValueError(
-                    f"a watcher already owns {page} and {crossed}, or rerun with "
-                    "--reset to replace it"
-                )
             if not identifies(identity, expected):
-                raise ValueError(
-                    f"a watcher already owns {page}; choose a new --slot to "
-                    "preserve it, or rerun with --reset to replace it"
-                )
+                return False
             recorded = read_json(page / "preview.json") or {}
             if url := recorded.get("url"):
                 preview_ready(
                     {
-                        "prepared": f"watching {source.stem} (feedback preserved)",
+                        "prepared": f"watching {source.stem}",
                         "url": url,
                         "note": recorded["note"],
                     },
                     ready_fd,
                     preview_log(page),
                 )
-                return
+                return True
         time.sleep(0.05)
     raise ValueError(f"preview {page} was stopped while starting")
 
@@ -861,37 +862,30 @@ def watch_preview(
     ready_fd: int | None,
     user: bool,
 ) -> None:
-    """Take the slot and serve it, or report the watcher that already holds it."""
+    """Join the watcher serving this preview, or build the slot fresh and serve it."""
     from leaf.leases import take_waiter_lease
-    from leaf.service import PageTransaction
 
     lease_path, stop_path = preview_locks(page)
     expected = source_identity(source, runtime, user)
     lease = take_waiter_lease(lease_path)
     if lease is None:
-        join_running_preview(source, page, lease_path, expected, ready_fd)
-        return
+        if join_running_preview(source, page, lease_path, expected, ready_fd):
+            return
+        retire_preview(page)
+        lease = take_waiter_lease(lease_path)
+        if lease is None:
+            raise ValueError(f"another preview took {page} while this one replaced it")
     with lease:
-        identity = (
-            slot_identity(page)
-            if page.exists()
-            else {**expected, "source_digest": digest(source)}
-        )
-        if crossed := crossed_interaction(identity, expected):
-            raise ValueError(f"{page} {crossed}, or rerun with --reset to rebuild it")
-        if not identifies(identity, expected):
-            raise ValueError(
-                f"{page} contains another fixture or changed seed history; "
-                "choose a new --slot to preserve feedback, or rerun with "
-                "--reset to discard it"
-            )
-        if not user and PageTransaction(page).active_claim is not None:
-            raise ValueError(
-                f"{page} has an active task claim; choose a new --slot to "
-                "preserve it, or rerun with --reset to replace it"
-            )
+        discard_preview(page)
         serve_preview(
-            source, page, launcher, runtime, identity, stop_path, ready_fd, user
+            source,
+            page,
+            launcher,
+            runtime,
+            {**expected, "source_digest": digest(source)},
+            stop_path,
+            ready_fd,
+            user,
         )
 
 
@@ -920,21 +914,16 @@ def serve_preview(
     service = PreviewService(page, launcher, runtime, user)
     changes = None
     try:
-        if page.exists():
-            service.stop()
-            refresh_preview(source, page, launcher, runtime, identity, user)
-            prepared = f"resumed {source.stem} (feedback preserved)"
-        else:
-            page.parent.mkdir(parents=True, exist_ok=True)
-            prepared_page = prepare_page(
-                page,
-                read_fixture(source),
-                partial(leaf, launcher, runtime),
-            )
-            mark_preview(source, page, runtime, identity)
-            prepared = preparation_note(
-                source, prepared_page.data_sources, prepared_page.versions
-            )
+        page.parent.mkdir(parents=True, exist_ok=True)
+        prepared_page = prepare_page(
+            page,
+            read_fixture(source),
+            partial(leaf, launcher, runtime),
+        )
+        mark_preview(source, page, runtime, identity)
+        prepared = preparation_note(
+            source, prepared_page.data_sources, prepared_page.versions
+        )
         if lock_is_held(stop_path):
             raise ValueError(f"preview {page} was stopped while starting")
         ready = service.start()
@@ -1011,7 +1000,6 @@ def start_preview_worker(
     background: bool,
     stop: bool,
     user: bool,
-    reset: bool,
 ) -> None:
     """Run in the selected checkout's uv environment, including --runtime previews.
 
@@ -1043,13 +1031,6 @@ def start_preview_worker(
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
     if user:
         command.append("--user")
-    if reset:
-        # The log is the launcher's: it names it to the developer and hands it to the
-        # watcher as its output, so the old watcher's lines are cleared here rather
-        # than by the worker's discard, which would unlink the file this launcher has
-        # already opened for the new watcher and leave the name pointing nowhere.
-        preview_log(page).unlink(missing_ok=True)
-        command.append("--reset")
     if stop:
         command.append("--stop")
     if not background:
@@ -1084,14 +1065,9 @@ def main() -> None:
         source = args.source.resolve()
         page = preview_directory(source, args.slot, args.user)
         if args.stop:
-            retire_preview(page, discard=False)
+            retire_preview(page)
             print(f"stopped preview {page}", flush=True)
             return
-        if args.reset:
-            # Discarding and serving are one worker, so the slot is free for as
-            # little as it takes to take its lease, and a reset costs one
-            # environment rather than two.
-            retire_preview(page, discard=True)
         watch_preview(
             source,
             page,
@@ -1136,7 +1112,6 @@ def main() -> None:
         args.background,
         args.stop,
         args.user,
-        args.reset,
     )
 
 

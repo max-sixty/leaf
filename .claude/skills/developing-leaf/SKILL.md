@@ -93,11 +93,13 @@ tight semantic container when it has none.
 From the repository root, run `scripts/preview.py <example> --export` for a
 standalone static rendering. Start `scripts/preview.py <example>` for an
 interactive preview: `--background` detaches the watcher and prints its URL,
-and a foreground run holds the terminal. The script watches source and runtime
-edits and preserves feedback at `.tmp/previews/<example>`. Repeating the command
-reuses that preview and prints where it answers now; use `--slot <name>` for
-another copy. A refused update appears in the terminal or the background log named at
-startup. Fix the input and the watcher retries.
+and a foreground run holds the terminal. The page lives at
+`.tmp/previews/<example>` for as long as its watcher does, following source and
+runtime edits at one URL and keeping its feedback across them. Repeating the command
+while the watcher runs prints where it answers; any other start builds the page
+fresh from the fixture at a new URL, discarding what the last watcher left. Use
+`--slot <name>` for another copy. A refused update appears in the terminal or the
+background log named at startup. Fix the input and the watcher retries.
 
 A preview takes no task claim: it serves through the browser suite's process-owned
 server, with the real HTTP and event log, and its presses go nowhere but the page's
@@ -109,29 +111,27 @@ click as an unanswered user move, and the Stop hook holds the turn open for it. 
 preview of either kind owes no watcher, so the per-turn reminder to start one skips
 it. Do not idle a preview to quiet the loop: `idle` closes the page in the browser
 and changes the banner a visual check may be reading.
-`--user` also fixes the address: the durable service records it, so the URL
-survives a stop, while an unclaimed preview's server is its watcher's and a new
-watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
-rebuilds it in the other one. `--reset` discards the slot's `service.json` with the
-rest of the page, and `--slot` names a different page, so after either, hand over
-the URL the command prints. Any other address question about a `--user` preview is
-a served page's, which `<root>/skills/leaf/references/serving-pages.md`, "Address
-and authentication", answers. A subagent's previews stay claimless, and the session
-the user talks to starts any `--user` preview: a subagent's claim is that session's
-claim, so that session's Stop hook would answer for the preview's moves either way.
+A fresh start discards a `--user` page's claim with the rest of it, and with it any
+move the Stop hook was holding the turn for, so answer the user's feedback before
+restarting their preview, and hand over the URL each start prints. A subagent's
+previews stay claimless, and the session the user talks to starts any `--user`
+preview: a subagent's claim is that session's claim, so that session's Stop hook
+would answer for the preview's moves either way.
 
 When finished with a preview, run the matching preview command with `--stop` (and
-`--user` for a user slot); it waits for the watcher and server to stop. Ctrl-C
-stops a foreground preview. A slot refuses a different source or seeded history so
-it keeps the existing page and feedback. Use `--reset` to discard the selected slot
-and rebuild it from the current fixture.
+`--user` for a user slot); it waits for the watcher and server to stop and leaves the
+page readable until the slot's next start. Ctrl-C stops a foreground preview. A start
+that names a different source, runtime, or `--user` choice for a slot another watcher
+holds replaces that watcher. A change to the fixture's seeded history is refused
+while the watcher runs; run the command again to rebuild from it.
 
 ### In Codex
 
 1. Start the preview with `--user`, which serves it at
    `.tmp/previews/<example>-user`. `codex start` claims the page, and the
-   durable service `--user` puts up is what keeps that URL answering for as
-   long as the task lasts.
+   durable service `--user` puts up keeps that URL answering while the watcher
+   runs. A later start of a stopped preview builds a new page, which needs
+   `codex start` again.
 2. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
    browser target and `placement: "right"`.
 3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so
@@ -183,17 +183,17 @@ git worktree add --detach "$baseline_root" "$baseline_commit"
 Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
 Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
-the pair a comparison-specific `<slot>` name; `--reset` removes any state left
-by an earlier run. Add `--user` to both when the pair's URLs go to the user,
+the pair a comparison-specific `<slot>` name; each start replaces whatever an
+earlier run left in it. Add `--user` to both when the pair's URLs go to the user,
 or a comment they leave on either page reaches nobody.
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
   --runtime "$baseline_root" \
-  --slot <slot>-baseline --reset --background
+  --slot <slot>-baseline --background
 "$candidate_root/scripts/preview.py" --source <candidate-source.html> \
   --runtime "$candidate_root" \
-  --slot <slot>-candidate --reset --background
+  --slot <slot>-candidate --background
 ```
 
 Each command verifies the checkout launcher, prepares its independent page,

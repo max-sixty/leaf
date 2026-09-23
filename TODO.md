@@ -96,6 +96,13 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
+- **Give each guidance rule one home.** Around 30 rules are written in two to 14
+  places each, and seven of them already disagree. In almost every disagreement,
+  a short copy (a CLI help string, a delivered clause or a docs paragraph) leaves
+  out a case that the full reference states. Fix the disagreements first, then
+  replace the other copies with pointers.
+  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
+  for each rule.
 
 ## Etc
 

@@ -35,10 +35,11 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
 )
 ACK_BATCH_INSTRUCTION = (
     "If output is truncated, acknowledge nothing; rerun with enough output capacity "
-    "for the whole batch. If you handle the batch yourself, read it fully before "
-    "acknowledging. If forwarding it, wait for durable delivery to its handler. "
-    "Then run `leaf wait --ack <delivery-id>` in the background to acknowledge "
-    "its captured batches and wait for the next batch while the page remains live."
+    "for the whole batch. If you handle the batch yourself, read it fully, then "
+    "acknowledge it before any other work. If forwarding it, or if its guidance "
+    "holds the acknowledgement until a request reaches its executor, acknowledge "
+    "once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the "
+    "background to acknowledge its captured batches and wait for the next batch while the page remains live."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"

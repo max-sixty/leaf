@@ -79,6 +79,13 @@ has tried; settle that before building it.
   where a code span breaks. Compare both in a rendered narrow column before
   choosing the treatment.
 
+### Layout
+
+- **Replace the document/workspace choice with layout axes.** Follow the
+  [layout model](notes/layout-model.md): `lf-grid` in flow for dashboards first
+  (#29), then CSS grid fitting for bounded pages (#30). **Unconfirmed:** that the
+  range where the page and its panes both scroll stays narrow on real pages.
+
 ### The agent's text interface
 
 - **Scale a drawing by the box it was drawn in.** On replay, scale the strokes by

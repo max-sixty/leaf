@@ -82,22 +82,19 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     keys: () => DISCLOSE(focused()),
     does: () =>
       focused()?.matches?.(".lf-thread-summary")
-        ? "Choose another thread"
+        ? "Open this thread"
         : "Open or close it",
     when: () => {
       const summary = focused();
       if (!summary?.matches?.(".lf-thread-summary")) return true;
-      const card = summary.parentElement;
-      return !card.open || threadsBox.navigationThreads().length > 1;
+      return !summary.parentElement.open;
     },
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // standing, and a word fixed at declaration could only ever say one of them.
     line: () =>
       focused()?.matches?.(".lf-thread-summary")
-        ? disclosed(focused())
-          ? "another thread"
-          : "open thread"
+        ? "open thread"
         : disclosed(focused())
           ? "close"
           : "open",

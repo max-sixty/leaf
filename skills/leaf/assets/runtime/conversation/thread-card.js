@@ -437,7 +437,7 @@ export class ThreadView {
     if (
       panel &&
       prior?.unreadCount > model.unreadCount &&
-      standing?.closest?.(".lf-compose")?.closest(".lf-thread") === this.node
+      this.node.querySelector(SAY_BOX) === standing
     )
       queueMicrotask(() => {
         if (focused() === standing && this.#model.id === model.id)

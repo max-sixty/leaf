@@ -6391,10 +6391,12 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     panel_settled(page)
     header.focus()
     page.keyboard.press("Space")
-    expect(card).not_to_have_attribute("open", "")
-    expect(other).to_have_attribute("open", "")
+    expect(card).to_have_attribute("open", "")
+    expect(other).not_to_have_attribute("open", "")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-group:focus")).to_have_count(1)
+    assert page.evaluate(
+        "id => document.activeElement.closest('.lf-thread')?.dataset.id === id", first
+    ), "native focus order skipped the open conversation"
     header.focus()
     page.keyboard.press("c")
     editor = card.get_by_role("textbox", name="Reply", exact=True)

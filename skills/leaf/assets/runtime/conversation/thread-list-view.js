@@ -43,10 +43,9 @@ class ThreadListView extends LitElement {
     event.preventDefault();
     const visible = this.navigationThreads();
     if (!visible.includes(card)) return;
-    const at = visible.indexOf(card);
-    this.#expandedId = card.open
-      ? (visible[at + 1] ?? visible[at - 1] ?? card).dataset.id
-      : card.dataset.id;
+    // An open title is still the reader's focus stop for the conversation. A
+    // second press leaves it selected; choosing another title moves disclosure.
+    this.#expandedId = card.dataset.id;
     this.#showExpanded();
   }
 

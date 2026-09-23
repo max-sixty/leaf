@@ -463,9 +463,32 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     )
     assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
     assert centers[0]["x"] < centers[1]["x"]
+    if thread_count == 2:
+        row = preview.evaluate(
+            """preview => {
+              const meta = preview.querySelector('.lf-thread-root-meta');
+              const middle = selector => {
+                const box = meta.querySelector(selector).getBoundingClientRect();
+                return box.y + box.height / 2;
+              };
+              return {
+                nav: middle('.lf-margin-preview-nav'),
+                author: middle('.lf-conversation-head > b'),
+                actions: middle('.lf-thread-meta-actions'),
+                overflow: meta.scrollWidth - meta.clientWidth,
+              };
+            }"""
+        )
+        assert row["nav"] == pytest.approx(row["actions"], abs=1), row
+        assert row["author"] == pytest.approx(row["actions"], abs=1), row
+        assert row["overflow"] == 0, row
     dismiss.focus()
     resized(page, 1000, 844)
     expect(dismiss).to_be_focused()
+    if thread_count == 2:
+        resolve.focus()
+        page.keyboard.press("Tab")
+        expect(dismiss).to_be_focused()
 
 
 STATE_PAINT = """el => {

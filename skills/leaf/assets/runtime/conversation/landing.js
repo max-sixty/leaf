@@ -201,8 +201,7 @@ const heldThread = () =>
 const resolutionControl = (thread) =>
   thread?.querySelector(
     ":scope .lf-thread-meta-actions > .lf-resolve, " +
-      ":scope > .lf-margin-thread-toolbar > .lf-resolve, " +
-      ":scope > .lf-margin-thread-toolbar > .lf-reopen, " +
+      ":scope .lf-thread-meta-actions > .lf-reopen, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;

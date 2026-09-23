@@ -1501,10 +1501,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-block-start: calc(12px + var(--sp-1));
     align-items: flex-start; flex: none; }
   .lf-margin-preview-head[hidden] { display: none; }
-  .lf-margin-thread-toolbar { position: sticky; z-index: 3; top: 0;
-    display: flex; justify-content: flex-end; align-items: center; gap: 4px;
-    min-height: max(28px, var(--aim-floor)); margin-bottom: 8px;
-    background: var(--paper); }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
@@ -1516,8 +1512,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; }
-  /* The selected conversation scrolls inside the card. In a group, its controls
-     share one sticky toolbar above the author and message. */
+  /* The selected conversation scrolls inside the card. Its first message and
+     controls share one sticky metadata row. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-list {
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     scroll-padding-block: var(--here-ring-room); }
@@ -1540,8 +1536,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     top: 0; padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
     background: var(--paper); }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-multiple .lf-thread-root-meta {
-    position: static; padding-inline-end: 0; }
-  .lf-margin-thread-multiple .lf-thread-meta-actions:empty { display: none; }
+    align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
+    padding-inline-end: 0; }
+  .lf-margin-thread-multiple .lf-thread-root-meta > .lf-conversation-head {
+    display: flex; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .lf-margin-thread-multiple .lf-conversation-head .lf-msg-meta {
+    flex: 1; overflow: hidden; }
+  .lf-margin-thread-multiple .lf-conversation-head .lf-msg-sending {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

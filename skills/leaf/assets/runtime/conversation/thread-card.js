@@ -268,13 +268,13 @@ export class ThreadView {
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
     const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
-    const marginToolbar = model.surface === "margin" ? this.#marginControls : null;
-    this.node.classList.toggle("lf-margin-thread-multiple", Boolean(marginToolbar));
+    const marginControls = model.surface === "margin" ? this.#marginControls : null;
+    this.node.classList.toggle("lf-margin-thread-multiple", Boolean(marginControls));
     let headerActions = null;
-    if (!model.resolved || model.folding) {
+    if (!model.resolved || model.folding || marginControls) {
       this.#metadataActions.className = "lf-thread-meta-actions";
-      const actions = marginToolbar
-        ? []
+      const actions = marginControls
+        ? [settlement, marginControls.close]
         : markRead
           ? [markRead, settlement]
           : [settlement];
@@ -285,8 +285,15 @@ export class ThreadView {
           markRead,
           settlement.parentNode === this.#metadataActions ? settlement : null,
         );
-      if (!marginToolbar && settlement.parentNode !== this.#metadataActions)
-        this.#metadataActions.append(settlement);
+      if (settlement.parentNode !== this.#metadataActions)
+        this.#metadataActions.insertBefore(
+          settlement,
+          marginControls?.close.parentNode === this.#metadataActions
+            ? marginControls.close
+            : null,
+        );
+      if (marginControls && marginControls.close.parentNode !== this.#metadataActions)
+        this.#metadataActions.append(marginControls.close);
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
@@ -363,13 +370,6 @@ export class ThreadView {
       html`
         ${navigationSummary(navigation, model)}
         ${
-          marginToolbar
-            ? html`<div class="lf-margin-thread-toolbar">
-                ${marginToolbar.nav}${settlement}${marginToolbar.close}
-              </div>`
-            : nothing
-        }
-        ${
           model.surface === "outlet"
             ? html`<summary
                 class="lf-conversation-summary lf-ui"
@@ -413,7 +413,7 @@ export class ThreadView {
         ${
           headerActions && messages[0]
             ? html`<div class="lf-thread-root-meta">
-                ${messages[0].header}${headerActions}
+                ${marginControls?.nav ?? nothing}${messages[0].header}${headerActions}
               </div>`
             : nothing
         }
@@ -427,7 +427,7 @@ export class ThreadView {
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved && !model.folding && !marginToolbar
+          model.resolved && !model.folding && !marginControls
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
               >
@@ -617,7 +617,7 @@ export class ThreadView {
       ]);
     }
     const button = this.node.querySelector(
-      ":scope .lf-thread-meta-actions > .lf-resolve, :scope > .lf-margin-thread-toolbar > .lf-resolve, :scope > .lf-margin-thread-toolbar > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+      ":scope .lf-thread-meta-actions > .lf-resolve, :scope .lf-thread-meta-actions > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
     );
     if (button && !this.#keys.has(button)) {
       this.#keys.add(button);

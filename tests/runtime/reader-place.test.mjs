@@ -147,3 +147,24 @@ test("a node the render replaced hands the place across under its identity", () 
   assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "");
   scroller.remove();
 });
+
+test("a node with no identity passes the place to the next candidate, not a stranger", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const nodes = ["", "b"].map((id, index) => item(id, 1000 + index * 150));
+  scroller.append(...nodes);
+  scrollTo(1000);
+  const place = placeKeeper(scroller, {
+    items: ".item",
+    identity: (node) => node.dataset.id,
+  });
+  const hold = place.take();
+  // The unnamed reference leaves; another unnamed row arrives far below.
+  nodes[0].remove();
+  const stranger = item("", 1600);
+  scroller.append(stranger);
+  at.set(nodes[1], 1100);
+  place.finish(hold);
+  assert.equal(scrolled(), 950);
+  assert.equal(nodes[1].getBoundingClientRect().top, 150);
+  scroller.remove();
+});

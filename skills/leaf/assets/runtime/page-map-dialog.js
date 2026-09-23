@@ -68,10 +68,10 @@ dialogSearch.label = "Find an action, status, or location in Page Map";
 dialogSearch.size = "s";
 const dialogList = el("div", "lf-page-map-list");
 // A state update or a search re-renders the open sheet; the row the reader was on holds
-// their place in it (reader-place.js), under the id each row is rendered with.
+// their place in it (reader-place.js), under the map key each row is rendered with.
 const place = placeKeeper(dialogList, {
   items: ".lf-page-map-action",
-  identity: (row) => row.id,
+  identity: (row) => row.dataset.lfMapKey,
   active: () => dialog.open,
 });
 const dialogEmpty = el(

@@ -71,8 +71,10 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     const box = node.getBoundingClientRect();
     return box.width && box.height ? box : null;
   };
+  // A node with no identity (undefined or empty) has no successor to hand across to; it
+  // must not match every other node that lacks one.
   const rendered = (key) =>
-    key == null
+    !key
       ? null
       : [...scroller.querySelectorAll(items)].find(
           (node) => identity(node) === key && heldBox(node),

@@ -2420,7 +2420,7 @@ RECEIPT_DRAFT = leaf_page(
     """
 <h1 id="h">One note</h1>
 <p id="p-open">The invitation still on its way.</p>
-<lf-draft id="d-open"><pre>The sample workshop is in the blue room.</pre></lf-draft>
+<lf-draft id="d-open" needed><pre>The sample workshop is in the blue room.</pre></lf-draft>
 """,
 )
 OPEN_EDIT = {

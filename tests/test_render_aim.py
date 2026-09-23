@@ -1178,11 +1178,7 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
 
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
-    """A transient chrome label paints above the page-level trace it summons.
-
-    The group is single-choice so the pick is handed over and has a receipt: a tick
-    in a group that waits for Done is still the reader's, and has none.
-    """
+    """A transient chrome label paints above the page-level trace it summons."""
     single = ASK_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )

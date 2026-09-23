@@ -16,20 +16,22 @@ Answers are one of:
   completed widget move in frozen thread markup, answered by `leaf reply --for`;
 - `{"kind": "version", "conversation": <thread>}` — a thread the reader opened
   as a request for change, answered by a stamped version and a resolve;
-- `{"kind": "markup", "action": <action>}` — a page action that answers the
-  widget's Ask and the authored markup does not yet record, answered by a stamped
-  version that writes it in;
+- `{"kind": "markup", "action": <action>}` — a page action that is part of its
+  widget's answered Ask and the authored markup does not yet record, answered by
+  a stamped version that writes it in;
 - `{"kind": "receipt", "request": <request>}` — a request, answered by its one
   terminal receipt.
 
-A reader move that does not yet complete the Ask it belongs to — a pick before
-the Done its group declares — hands nothing to the agent, so it is no workflow.
+A reader move on an Ask the reader has not finished answering — a pick before
+the Done its group declares, a swipe before the deck's finish — hands nothing to
+the agent, so it is no workflow; once the Ask is answered, every move in its
+answer is owed.
 Neither is a page action that answers no Ask, such as an edit to a reader-owned
 draft or a moved card: the log carries it onto every later version, and the
 reader is waiting on nobody for it.
 """
 
-from .asks import answers_ask, ask_completion
+from .asks import answers_ask, ask_answered, ask_completion
 from .events import awaits_agent, seat_root, spoken_turns
 from .projection import (
     NO_RECORD,
@@ -327,7 +329,14 @@ def canonical_workflows(
             if (
                 record is None
                 or not answers_ask(record, entry, source["action"])
-                or ask_completion(record, entry, page.projection) is False
+                or not ask_answered(
+                    record,
+                    entry,
+                    page.projection,
+                    page.document.by_id,
+                    page.spoken,
+                    page.registry,
+                )
             ):
                 continue
             unsettled = page_action_unsettled(

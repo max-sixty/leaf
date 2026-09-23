@@ -11356,3 +11356,49 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
     [workflow] = owed(finished)
     assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
     lease.close()
+
+
+DECK_PAGE = PAGE.replace(
+    "</section>",
+    """<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>
+  <lf-swipe-deck id="triage">
+    <lf-swipe-pile id="queue" verdict="unseen">
+      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
+      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
+      <lf-swipe-card id="card-c"><strong>Retry budget</strong></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
+    <lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-ask></section>""",
+)
+
+
+def test_a_finished_deck_owes_every_card_the_reader_sorted(page_dir):
+    """An Ask's answer can span units: a deck's cards are each swiped, and only the
+    last one's `finish` answers the Ask. Before the finish the reader is still
+    answering and the agent owes nothing; once it lands, every sorted card is owed
+    its place in the markup, not only the one that finished the deck."""
+    (page_dir / "index.html").write_text(DECK_PAGE)
+    publish(page_dir)
+
+    def sort(card, index, action="swipe"):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "triage",
+                "action": action,
+                "detail": {"card": card, "to": "keep", "index": index},
+            },
+        )
+
+    sort("card-a", 0)
+    sort("card-b", 1)
+    assert state_json(page_dir)["workflows"] == []
+
+    sort("card-c", 2, action="finish")
+    owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
+    assert owed_cards == ["card-a", "card-b", "card-c"]

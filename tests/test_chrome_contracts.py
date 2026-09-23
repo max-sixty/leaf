@@ -475,12 +475,22 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
                 nav: middle('.lf-margin-preview-nav'),
                 author: middle('.lf-conversation-head > b'),
                 actions: middle('.lf-thread-meta-actions'),
+                authorRight: meta.querySelector('.lf-conversation-head')
+                  .getBoundingClientRect().right,
+                navLeft: meta.querySelector('.lf-margin-preview-nav')
+                  .getBoundingClientRect().left,
+                navRight: meta.querySelector('.lf-margin-preview-nav')
+                  .getBoundingClientRect().right,
+                resolveLeft: meta.querySelector('.lf-resolve')
+                  .getBoundingClientRect().left,
                 overflow: meta.scrollWidth - meta.clientWidth,
               };
             }"""
         )
         assert row["nav"] == pytest.approx(row["actions"], abs=1), row
         assert row["author"] == pytest.approx(row["actions"], abs=1), row
+        assert row["authorRight"] < row["navLeft"], row
+        assert row["navRight"] < row["resolveLeft"], row
         assert row["overflow"] == 0, row
     dismiss.focus()
     resized(page, 1000, 844)

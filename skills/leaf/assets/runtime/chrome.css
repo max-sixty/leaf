@@ -1504,9 +1504,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
-    gap: 4px; color: var(--muted-2); font-size: var(--t-6); }
+    gap: 0; color: var(--muted-2); font-size: 10px; }
   .lf-margin-preview-nav[hidden] { display: none; }
-  .lf-margin-preview-position { margin-inline-end: 2px; }
+  .lf-margin-preview-position { white-space: nowrap; }
   .lf-margin-preview-step { border: 0;
     background: transparent; color: var(--muted); }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);

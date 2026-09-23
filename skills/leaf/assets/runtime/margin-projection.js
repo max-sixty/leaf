@@ -347,7 +347,7 @@ export function createMarginProjection({
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Dismiss conversation view");
   previewClose.title = "Dismiss conversation view (Esc)";
-  const previewNav = el("div", "lf-margin-preview-nav");
+  const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
     "button",
@@ -360,7 +360,7 @@ export function createMarginProjection({
   previewNext.append(iconElement("next", "lf-action-icon"));
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
-  previewNav.append(previewPosition, previewPrevious, previewNext);
+  previewNav.append(previewPrevious, previewPosition, previewNext);
   previewHead.append(previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
@@ -2111,7 +2111,7 @@ export function createMarginProjection({
       previewHead.replaceChildren(previewNav, previewClose);
     previewHead.hidden = multiple;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-    previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;
+    previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;
     previewNext.disabled = selectedIndex === threadItems.length - 1;
     const nodes = selected ? [previewItemNode(selected)] : [];

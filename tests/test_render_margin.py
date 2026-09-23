@@ -22,6 +22,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import (
+    banner_control,
     standing_ring,
     token_colour,
 )
@@ -240,7 +241,7 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
         browser, serve(DUPLICATE_REGION_PAGE, events=DUPLICATE_REGION_COMMENTS)
     )
     resized(page, 390, 760)
-    page.locator(".lf-page-map-toggle").click()
+    banner_control(page, ".lf-page-map-toggle").click()
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
 
     headings = dialog.get_by_role("heading", level=3)
@@ -668,11 +669,11 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     expect(row).to_have_class(re.compile(r"lf-docked"))
 
 
-def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
+def test_a_held_marker_hands_the_reader_to_the_banner_door_when_the_rail_falls(
     browser, serve
 ):
     """A marker the keyboard is on stops being drawn when the shell loses its rail, so
-    the reader is put on the control that still reaches what the marker held.
+    the reader is put on the banner door that still reaches what the marker held.
 
     The browser takes focus off an element it hides, onto body, and whether it does so
     before or after the owner hears that the shell moved is not ordered: a handoff that
@@ -696,7 +697,9 @@ def test_a_held_marker_hands_the_reader_to_the_page_map_when_the_rail_falls(
 
     resized(page, 700, 900)
     expect(marker).to_be_hidden()
-    expect(page.locator(".lf-page-map-toggle")).to_be_focused()
+    expect(
+        page.get_by_role("button", name="More page controls", exact=True)
+    ).to_be_focused()
 
 
 def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
@@ -6275,7 +6278,7 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
           )
         )"""
     )
-    assert controls[".lf-margin-preview-nav"]["middle"] == pytest.approx(
+    assert controls[".lf-resolve"]["middle"] == pytest.approx(
         controls[".lf-margin-preview-close"]["middle"], abs=1
     ), controls
     assert (
@@ -6689,14 +6692,14 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator("body")).to_have_attribute("data-lf-auxiliary-surface", "asks")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     marker.click()
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator("body")).not_to_have_attribute(
         "data-lf-auxiliary-surface", "asks"
     )
@@ -6783,13 +6786,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     resized(page, 390, 760)
     expect(page.locator(".lf-margin-projection")).to_be_hidden()
     toggle = page.locator(".lf-page-map-toggle")
-    expect(toggle).to_be_visible()
     expect(toggle).to_have_text(re.compile(r"Map \(\d+\)"))
-    # The row keeps one order at every width and folds what it cannot fit into its menu;
-    # the index stays on the row itself, one press away, rather than behind the door.
-    assert toggle.evaluate(
-        "button => button.parentElement.matches('.lf-banner-actions')"
-    ), "the small-screen map was folded behind the banner's door"
+    toggle = banner_control(page, ".lf-page-map-toggle")
+    expect(toggle).to_be_visible()
     text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
         """buttons => buttons.map(button => {
           const box = button.getBoundingClientRect();
@@ -6877,7 +6876,7 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
 
     resized(page, 390, 760)
     expect(page.locator(".lf-margin-projection")).to_be_hidden()
-    expect(page.locator(".lf-page-map-toggle")).to_be_visible()
+    expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
 
@@ -6885,7 +6884,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     """The Page Map is one destination while its compact rail changes posture."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 390, 760)
-    page.locator(".lf-page-map-toggle").click()
+    banner_control(page, ".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
 
@@ -6904,7 +6903,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve, h
     """The open dialog is a live projection, not a snapshot from its opening press."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 390, height)
-    page.locator(".lf-page-map-toggle").click()
+    banner_control(page, ".lf-page-map-toggle").click()
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
     expect(actions).to_have_count(5)
@@ -7082,7 +7081,7 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
     expect(
         page.locator('.lf-margin-marker[data-lf-kinds~="change"]')
     ).not_to_have_count(0)
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(0)
 
@@ -7183,17 +7182,18 @@ def test_closing_a_tray_places_the_margin_against_the_released_column(browser, s
     margins_laid_out(page)
     marker = '.lf-margin-marker[data-lf-kinds="comment"]'
     resting = page.locator(marker).bounding_box()["x"]
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     margins_laid_out(page)
     assert page.locator(marker).bounding_box()["x"] != pytest.approx(resting, abs=1)
     # The listener reads after the control's handler, before a repaint can mask a stale
     # margin. The real click is necessary: it exercises focus return and the tray's close.
+    asks = banner_control(page, ".lf-asks")
     page.evaluate(
         """selector => document.addEventListener('click', () => {
           window.trayClosedMargin = document.querySelector(selector).getBoundingClientRect().x;
         }, {once: true})""",
         marker,
     )
-    page.locator(".lf-asks").click()
+    asks.click()
     assert page.evaluate("window.trayClosedMargin") == pytest.approx(resting, abs=1)

@@ -16,8 +16,6 @@ import {
   spanIn,
 } from "../passages.js";
 import { textUnits } from "../text-alignment.js";
-import { focused } from "../keyboard/scopes.js";
-import { takesLetters } from "../focus.js";
 import { anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
 
 // How much of a passage's surroundings an anchor writes down. Only the capture decides
@@ -109,29 +107,6 @@ export const pageSelection = () => {
 // inside it).
 export const leftThePage = (sel = getSelection()) =>
   Boolean(sel) && !sel.isCollapsed && !pageWords(sel.focusNode);
-// Where a send ends is where typing continues, and the reader has the last word on it.
-// A send is a round trip, so this step lands whenever the server answers — long after
-// the gesture on a loaded machine — and focusing a box collapses whatever the page had
-// selected. A passage picked out while the send was in the wire is a later gesture and
-// stands, for the same reason a later edit does. It has less recourse than the edit:
-// nothing re-decides the 💬 until the reader gestures again, so the words in front of
-// them stop being something to comment on, and no surface says why. Stated once, for
-// the three boxes a send can land in, because it is one fact about a send landing.
-// Typing in another box after the send began is the same later gesture. sentFrom
-// distinguishes the box that launched the send from a different live text control.
-//
-// This predicate protects typing and selection. Panel completions also retain their
-// landing intent across the send, so later navigation cancels their reveal or focus.
-export function mayLandTyping(box, sentFrom = box) {
-  const standing = focused();
-  return (
-    !pageSelection() &&
-    (standing === box || standing === sentFrom || !takesLetters(standing))
-  );
-}
-export function landTyping(box, sentFrom = box) {
-  if (mayLandTyping(box, sentFrom)) box?.focus({ preventScroll: true });
-}
 // A drag stops where the hand stopped, not where the reader aimed: a release two glyphs
 // short of a word's end meant the word, and the capture would store the fragment as if
 // the fragment were the point. The pointer path therefore grows outward to word

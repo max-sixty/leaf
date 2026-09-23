@@ -33,6 +33,7 @@ from render_harness import (
     RENDERED,
     SHELL_BOX,
     TOKEN,
+    banner_control,
     leaf_page,
     stamp_page,
 )
@@ -519,7 +520,7 @@ EDGES = [
         name="trays",
         html=lambda: ASKS_PAGE,
         comments=0,
-        stand=lambda page: page.locator(".lf-asks").click(),
+        stand=lambda page: banner_control(page, ".lf-asks").click(),
         region=".lf-asks-panel",
         side="left",
         store="lf-tray-slot-width",
@@ -772,31 +773,8 @@ def unfolded_button(control):
     )
 
 
-def banner_control(page, selector):
-    """The named banner control, brought out from behind the row's menu if needed.
-
-    A window too narrow to hold every control folds the ones it cannot into one menu, so
-    a test that presses a control by name has to say which of the two places it is
-    standing in. Nothing else about it changes: it is the same control, with the same
-    words, the same state paint and the same press. The reading is taken of the page as
-    it is rather than of a width the test assumed, so one call reads the same at 1440 and
-    at 320 — which is the point of there being one order at both.
-    """
-    control = page.locator(selector)
-    expect(control).to_have_count(1)
-    if control.evaluate("el => Boolean(el.closest('.lf-banner-menu'))"):
-        door = page.locator(".lf-banner-more")
-        expect(door).to_be_visible()
-        door.click()
-        expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(control).to_be_visible()
-    return control
-
-
-# The banner's controls in the row's one order. The fold takes a run off the front of
-# the row into the menu, so the menu's contents followed by the row read straight
-# through as that one order. The door itself is not part of that control order, and a
-# control the page has taken away is not part of it either.
+# The banner's controls in their one ranked order: fixed secondary menu seats followed
+# by the primary row. The door itself and controls the page has taken away are omitted.
 BANNER_ORDER = """() => {
   const shelf = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');

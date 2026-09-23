@@ -27,6 +27,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
+from render_cases_layout import banner_control
 from render_cases_navigation import (
     composer_quote,
 )
@@ -723,7 +724,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(reply_draft).to_have_value("keep this unfinished reply")
 
     version_menu = page.locator(".lf-version-menu")
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(version_menu).not_to_contain_text("Rejected version")
     page.keyboard.press("Escape")
 
@@ -735,7 +736,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(notice_el).to_have_text("Codex replied — open Threads")
+    expect(notice_el).to_have_text("Codex replied")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_text("this one does")
 
@@ -956,7 +957,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page = open_page(browser, live_url(url))
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     menu = page.locator(".lf-version-menu")
     row = menu.locator('.lf-version-row[aria-current="true"]')
     expect(row).to_be_focused()
@@ -3078,7 +3079,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
     # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
     resized(page, 1700, 900)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
         """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0
@@ -3112,7 +3113,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"the shortcut bar no longer stands over the map's foot, so the cutoff this page "
         f"accepts has been closed somewhere without the TODO being settled: {geometry}"
     )
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
 
     # The rail claim is monotonic, so narrowing the same page carries its widest

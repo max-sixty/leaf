@@ -109,13 +109,13 @@ import { createVersionController } from "./runtime/version.js";
 import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
 import {
   banner,
-  foldBannerRow,
   isSignoffDeclared,
   loadIcon,
   mountBanner,
   paintApproval,
   renderStatus,
-  reserveBannerControls,
+  setThreadCount,
+  setUnreadThreadCount,
   stateSignoff,
   toggleBtn,
 } from "./runtime/banner.js";
@@ -318,7 +318,9 @@ landing = createConversationLanding({
   scrollToThread: anchorTravel.scrollToThread,
   revealThread: (id) => revealThread(id, app.presentConversation),
 });
-declareThreadKeys(landing.landIn);
+declareThreadKeys(landing.landIn, {
+  markThread: (id) => app.read.markThread(id),
+});
 const anchorControls = createAnchorControls({
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   openThread: (...args) => app.margin.openPageThread(...args),
@@ -404,9 +406,8 @@ app = mountApplication({
       input,
       behavior,
     ),
-  setThreadCount: (count) => {
-    toggleBtn.textContent = count === null ? "Threads" : `Threads (${count})`;
-  },
+  setThreadCount,
+  setUnreadThreadCount,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
@@ -512,6 +513,8 @@ panelComposer = createPanelComposer({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
+  firstUnread: () => app.read.firstUnread(),
+  unreadCount: () => app.read.unread().length,
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
@@ -636,7 +639,6 @@ layout = createChromeLayout({
     shortcutBarEl,
     bottomStatusEl,
   },
-  foldBannerRow,
   scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,
   bottomChromeBoxes,
   reserveListClearance,
@@ -766,7 +768,6 @@ if (!offlineInteractive) {
       }),
     paintApproval: paintVersionApproval,
   });
-  reserveBannerControls();
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
@@ -786,6 +787,7 @@ if (!offlineInteractive) {
   asks.mount();
   app.margin.mount();
   app.mountConversation();
+  app.mountRead();
   mountThreadList(panelIsOpen);
   wireThreadLanding();
   trays.mountTrays();

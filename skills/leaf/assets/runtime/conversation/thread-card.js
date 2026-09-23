@@ -78,6 +78,7 @@ export function threadReading(
   return Object.freeze({
     key: threadKey(thread),
     summary: threadSummary(thread),
+    unreadCount: thread.unreadCount ?? 0,
     id: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
@@ -120,6 +121,15 @@ function navigationSummary(navigation, model) {
   return html`<summary class="lf-thread-summary" title=${title}>
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
+    ${
+      model.unreadCount
+        ? html`<span
+            class="lf-thread-unread"
+            aria-label=${`${model.unreadCount} unread`}
+            >${model.unreadCount} unread</span
+          >`
+        : nothing
+    }
     <span
       class="lf-thread-count"
       aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
@@ -144,6 +154,7 @@ export class ThreadView {
   #summaryResolved = null;
   #keys = new WeakSet();
   #settlements = new Map();
+  #markReadButton = null;
   #metadataActions = document.createElement("span");
   #expandedSummaries = new Set();
   #growing = false;
@@ -236,10 +247,11 @@ export class ThreadView {
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
+    const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
     let headerActions = null;
     if (!model.resolved || model.folding) {
       this.#metadataActions.className = "lf-thread-meta-actions";
-      const actions = [settlement];
+      const actions = markRead ? [markRead, settlement] : [settlement];
       if (
         actions.length !== this.#metadataActions.children.length ||
         actions.some(
@@ -323,7 +335,7 @@ export class ThreadView {
                         <span class="lf-quote-label">${model.quote.label}</span>
                         ${
                           model.quote.outdated
-                            ? html`<span class="lf-anchor-status">Outdated</span>`
+                            ? html`<span class="lf-anchor-status">Earlier data</span>`
                             : nothing
                         }
                       </blockquote>`
@@ -360,7 +372,7 @@ export class ThreadView {
                       : nothing
                   }</span
                 >
-                ${settlement}
+                ${markRead ?? nothing}${settlement}
               </div>`
             : nothing
         }
@@ -368,7 +380,9 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (
+    if (panel && standing === this.#markReadButton && !markRead) {
+      focusThread(this.node, { preventScroll: true });
+    } else if (
       summaryReplacedFocusedMessage &&
       focused() !== standing &&
       standing?.isConnected
@@ -470,6 +484,20 @@ export class ThreadView {
     }
     render(reopen ? state.label : iconTemplate("check", "lf-action-icon"), button);
     return button;
+  }
+
+  #markReadControl() {
+    if (!this.#markReadButton) {
+      const button = offer(
+        "button",
+        "lf-btn lf-mark-read lf-thread-action",
+        "Mark thread read",
+      );
+      button.type = "button";
+      button.onclick = () => this.#commands.read.markThread(this.#model.id);
+      this.#markReadButton = button;
+    }
+    return this.#markReadButton;
   }
 
   #settle = () => {

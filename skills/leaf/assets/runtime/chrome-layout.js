@@ -87,7 +87,6 @@ export const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 export function createChromeLayout({
   panelIsOpen,
   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
-  foldBannerRow,
   scheduleThreadPreviewPosition,
   bottomChromeBoxes,
   reserveListClearance,
@@ -106,11 +105,6 @@ export function createChromeLayout({
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
   function syncLayout() {
-    // How many of the banner's controls stand on its row is a reservation taken from the
-    // row's current box, so it belongs here with the rest of them and it goes first: what
-    // it decides is the banner's own contents, which nothing below reads. The banner is
-    // fixed, so a fold cannot resize the boxes this function is watching.
-    foldBannerRow();
     scheduleThreadPreviewPosition();
     const panelBeside = panelIsOpen() && !panelCovers();
     const overlapsAcross = (one, other) =>

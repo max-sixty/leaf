@@ -90,7 +90,7 @@ A compound widget may own reading regions without being a pane.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row carrying page status and global controls, including controls folded into its overflow disclosure |
+| **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure |
 | **Auxiliary surface** | Chrome opened `beside` or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads |
 | **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position |

@@ -1264,6 +1264,40 @@ def open_versions(page):
     page.keyboard.press("Shift+v")
 
 
+def banner_control(page, selector):
+    """Return a banner control, opening its fixed menu seat when needed.
+
+    Approval and Threads stand on the row; every secondary control stands in More at
+    every width. A caller may already have opened More to press several controls, so do
+    not toggle the native popover shut before returning the retained control.
+    """
+    control = page.locator(selector)
+    expect(control).to_have_count(1)
+    if control.evaluate("el => Boolean(el.closest('.lf-banner-menu'))"):
+        door = page.locator(".lf-banner-more")
+        expect(door).to_be_visible()
+        if not page.locator(".lf-banner-menu").is_visible():
+            door.click()
+        expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(control).to_be_visible()
+    control.scroll_into_view_if_needed()
+    return control
+
+
+def expect_banner_control_offered(control, *, offered=True):
+    """Read whether a retained banner control offers its own seat.
+
+    Secondary controls live under a closed More ancestor, so ordinary visibility reads
+    the ancestor rather than the control. Its own computed display includes both the
+    owner's presence and conditional offer without treating the shelf's news paint as
+    application authority.
+    """
+    if offered:
+        expect(control).not_to_have_css("display", "none")
+    else:
+        expect(control).to_have_css("display", "none")
+
+
 def open_page(
     browser,
     url,
@@ -1721,7 +1755,7 @@ def compare_with(page, version=None):
     that says in words what it changed. With no version named it is the one before the
     version being read — the first Compare in the menu, a row offering one only where it is
     older than this."""
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     press = (
         page.locator(".lf-version-diff").first
         if version is None

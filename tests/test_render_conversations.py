@@ -34,6 +34,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     COVERED_TOP,
     EDGES,
+    banner_control,
     button_radius,
     draw_edge,
     edge_settled,
@@ -56,6 +57,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    primed,
     resized,
     round_trip,
     sending,
@@ -1238,8 +1240,8 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     click on a page mark does: the panel scrolls the new thread into its scrollport.
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Both send routes then end in the composer the words left, where
-    the rebuild sent a button click's focus somewhere else than ⌘⏎'s."""
+    sight, silently. Focus follows the input route: a button press stays on the
+    button, while the send key stays in the textarea."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1250,15 +1252,16 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
 
     box = page.locator(".lf-general textarea")
     box.fill("Where did my words go?")
+    send = page.locator(".lf-general button")
     with sending(page, "the first comment"):
-        page.locator(".lf-general button").click()  # the route that used to drop focus
+        send.click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
-    expect(box).to_be_focused()
+    expect(send).to_be_focused()
     expect(box).to_have_value("")
 
     box.fill("And the second thought lands the same way.")
@@ -3331,21 +3334,22 @@ def test_a_host_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_value("Try the south pair again.")
     page.unroute("**/api/event")
 
-    # And it is dressed rather than bare: an unmarked span among a head of muted
-    # metadata would be the same invisibility in another shape.
+    # The failed answer remains distinct from the muted clock without a chip face.
     head = page.evaluate(
         """(id) => {
           const head = document.querySelector(`.lf-msg[data-mid="${id}"] .lf-msg-head`);
-          const chip = getComputedStyle(head.querySelector(".lf-msg-failure"));
+          const failure = getComputedStyle(head.querySelector(".lf-msg-failure"));
           return {
-            chip: chip.color,
-            border: chip.borderTopWidth,
+            failure: failure.color,
+            border: failure.borderTopWidth,
+            weight: failure.fontWeight,
             clock: getComputedStyle(head.querySelector("time")).color,
           };
         }""",
         receipt["id"],
     )
-    assert head["chip"] != head["clock"] and head["border"] != "0px"
+    assert head["failure"] != head["clock"]
+    assert head["border"] == "0px" and int(head["weight"]) >= 600
 
 
 def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
@@ -3424,11 +3428,21 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 @pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
 @pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
 def test_a_thread_completion_keeps_the_readers_later_destination(
-    held_events, serve, kind, destination
+    browser, serve, kind, destination
 ):
     """A held thread operation may land only while its original intent still stands."""
-    browser, held = held_events
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    held = []
+
+    def hold_operation(route):
+        if route.request.post_data_json["kind"] == "read":
+            route.continue_()
+        else:
+            held.append(route)
+
+    page = open_page(
+        primed(browser, lambda page: page.route("**/api/event", hold_operation)),
+        serve(FEATURE_GALLERY),
+    )
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3479,12 +3493,21 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         # Accessibility and app focus travel need not emit a pointer or key gesture.
         later.focus()
 
-    held.pop(0).continue_()
+    delivered = held.pop(0)
+    attempt = delivered.request.post_data_json["attempt"]
+    delivered.continue_()
     page.unroute("**/api/event")
     round_trip(page)
     told(page)
     page.wait_for_function(RENDERED)
-    assert events_model.read_events(serve.page_dir)[-1]["kind"] == kind
+    assert (
+        next(
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("attempt") == attempt
+        )["kind"]
+        == kind
+    )
     if destination == "page":
         assert not page.get_by_role("dialog").is_visible()
         expect(changes).to_be_focused()
@@ -3494,7 +3517,9 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         expect(later).to_have_value(
             "The reader is working here now." if destination == "other-thread" else ""
         )
-    elif kind in {"reply", "unresolve"}:
+    elif kind == "reply":
+        expect(thread.get_by_role("button", name="Send", exact=True)).to_be_focused()
+    elif kind == "unresolve":
         expect(thread.locator("textarea")).to_be_focused()
     else:
         expect(
@@ -6197,7 +6222,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-row")).to_have_count(2)
 
 

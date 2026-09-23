@@ -781,12 +781,17 @@ def unacknowledged(events: list, cursor: int) -> list:
         if e["seq"] > cursor
         # The user's own, a worker's report, and the page reporting itself
         # broken — the last is the agent's debt exactly as a report is.
-        and (
-            e["author"] == "user"
-            or e["kind"] in ("report", "error")
-            or (e["author"] == "page" and e["kind"] == "action")
-        )
+        and requires_agent_attention(e)
     ]
+
+
+def requires_agent_attention(event: dict) -> bool:
+    """Whether a log event creates host work, rather than reader bookkeeping."""
+    return (
+        (event["author"] == "user" and event["kind"] != "read")
+        or event["kind"] in {"report", "error"}
+        or (event["author"] == "page" and event["kind"] == "action")
+    )
 
 
 def claim_update_sources(status: dict) -> list[dict]:

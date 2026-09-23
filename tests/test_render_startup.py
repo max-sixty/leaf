@@ -73,6 +73,7 @@ from render_harness import (
     compare_with,
     consume_browser_errors,
     displayed,
+    expect_banner_control_offered,
     holding,
     leaf_page,
     nudge,
@@ -1362,9 +1363,9 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
-    expect(page.locator(".lf-asks")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    expect(page.locator(".lf-answer-all")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
     comments = page.get_by_role("button", name=re.compile("^Threads"))
     expect(comments).to_be_enabled()
@@ -1376,14 +1377,14 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     page.wait_for_function(BOTH_STAMPS)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-asks")
-    expect(decisions).to_be_visible()
+    expect_banner_control_offered(decisions)
     expect(decisions).to_have_text("Asks 1/1")
     expect(decisions).to_have_attribute("data-lf-complete", "")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(0)
-    expect(page.locator(".lf-answer-all")).to_be_hidden()
+    expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
 
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
@@ -1733,9 +1734,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
     compare_with(page)
-    page.wait_for_function(
-        "() => document.querySelector('.lf-banner .lf-btn.on') !== null"
-    )
+    page.wait_for_function("() => document.querySelector('.lf-version.on') !== null")
     assert not page.evaluate(
         "document.getElementById('card-x').classList.contains('lf-ins-block')"
     ), "the user's own honored drag marked as a change"
@@ -2868,8 +2867,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 update queued\.$"
+            r"^Claude is working — revising the plan \(.+\)\. " r"1 update queued\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3823,7 +3821,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
         "the comment followed its old display text onto the other datum"
     )
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Outdated")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
     assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
         "revision": 2,

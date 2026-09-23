@@ -840,15 +840,7 @@ def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, reside
 
 
 def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve):
-    """The row keeps state and every destination reachable at any width.
-
-    A narrow viewport is not a cropped desktop toolbar, and it is not a strip of one
-    scrolled off the side of the screen either. The two actions that complete the reading
-    loop are in the first view from a 320px phone through a small tablet; everything else
-    the width cannot hold goes behind one door, in the row's one order, reachable from the
-    keyboard. Above the covering breakpoint the same row folds on the same terms, and the
-    document never gains horizontal overflow.
-    """
+    """Fixed primary and menu seats keep every destination reachable at any width."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -864,9 +856,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     wide_widths = page.evaluate(button_widths)
     resized(page, 320, 844)
     phone_widths = page.evaluate(button_widths)
-    assert all(phone < wide for phone, wide in zip(phone_widths, wide_widths)), (
-        "the covering row's tighter button padding was masked by wide reservations: "
-        f"wide={wide_widths}, phone={phone_widths}"
+    assert phone_widths == wide_widths, (
+        f"primary padding changed their reserved widths: {wide_widths}, {phone_widths}"
     )
     resized(page, 1200, 844)
     assert page.evaluate(button_widths) == wide_widths, (
@@ -898,11 +889,10 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
             "() => document.documentElement.scrollWidth"
             "   === document.documentElement.clientWidth"
         ), "the banner made the page itself scroll sideways"
-        # Nothing hanging off the row's own edge either, at any width: a row that cannot
-        # fit its controls folds them rather than hiding them past a clipped boundary.
+        # Nothing hangs off the fixed primary row's own edge at any width.
         assert page.evaluate(
             "() => { const actions = document.querySelector('.lf-banner-actions');"
-            "        return actions.scrollWidth <= actions.clientWidth; }"
+            "        return actions.scrollWidth <= actions.clientWidth + 1; }"
         ), f"the row at {width}px still hid a control off its own edge"
 
     for width in (320, 390, 768, 900, 1200):
@@ -943,10 +933,9 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         f"the phone row clipped its focused control's ring: {room}"
     )
 
-    # Every control a busy row cannot hold is behind the door, in the row's own order, and
-    # the row itself still has nothing to scroll. The identities do not matter to the
-    # layout contract; register them through the shelf's internal contribution boundary,
-    # just as asynchronous Ask and Page Map owners do.
+    # Every secondary contribution stays behind the door in registration order. The
+    # identities do not matter to the layout contract; register them through the shelf's
+    # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
     page.evaluate(
         """async () => {
           const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
@@ -960,16 +949,6 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
               rank: shelf.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
             });
           }
-          const permanent = document.createElement('button');
-          permanent.className =
-            'lf-ui lf-btn lf-secondary-destination lf-permanent-destination';
-          permanent.textContent = 'Permanent destination';
-          shelf.registerBannerControl({
-            key: 'test-permanent-secondary',
-            control: permanent,
-            rank: shelf.BANNER_CONTROL_RANK.threads + 1,
-            alwaysFolded: true,
-          });
         }"""
     )
     behind = {}
@@ -977,15 +956,11 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         assert_primary_reach(width)
         behind[width] = page.locator(".lf-banner-menu > *").count()
         expect(page.locator(".lf-banner-more")).to_be_visible()
-    # Compared inside one layout. Across the covering breakpoint the two are not
-    # comparable: below it the status has a line of its own and the controls get the
-    # whole width, so a phone row can legitimately hold more of them than a small laptop.
-    assert behind[1600] < behind[900], (
-        "a widening window did not hand controls back past a high-ranked permanent "
-        f"overflow contribution: {behind}"
+    assert len(set(behind.values())) == 1, (
+        f"secondary controls changed seats with viewport width: {behind}"
     )
-    # Take the crowd away and the row takes every ordinary control back. The Leaf
-    # version remains deliberately behind the door at every width. The shelf retains
+    # Take the synthetic controls away. The Leaf version remains deliberately behind
+    # the door at every width. The shelf retains
     # each registered native island in one Lit root; hiding one changes its presentation,
     # not its identity or connection to the document.
     page.evaluate(
@@ -1002,52 +977,10 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # no presence, so inventory and what the reader meets are different readings.
     page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(page.locator(".lf-banner-menu .lf-layer-reference")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(1)
-    expect(page.locator(".lf-permanent-destination")).to_be_attached()
-    # The door freezes the partition while it stands open, so close it before the row
-    # takes another contribution.
+    expect(page.locator(".lf-banner-menu > .lf-version")).to_be_visible()
+    expect(page.locator(".lf-banner-menu > *:visible")).to_have_count(2)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
-
-    reserved = page.evaluate(
-        """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          const control = document.createElement('button');
-          control.className = 'lf-ui lf-btn lf-reserved-destination';
-          control.textContent = 'Reserved destination';
-          control.style.width = '200px';
-          shelf.registerBannerControl({
-            key: 'test-reserved-secondary',
-            control,
-            rank: shelf.BANNER_CONTROL_RANK.threads + 0.5,
-            conditional: true,
-            offered: true,
-            reserved: true,
-          });
-          const identity = control;
-          const offered = control.offsetWidth;
-          shelf.showNews(control, false);
-          await Promise.resolve();
-          const quiet = control.offsetWidth;
-          shelf.showBannerControl(control, false);
-          const retired = control.offsetWidth;
-          shelf.showBannerControl(control, true);
-          const returned = control.offsetWidth;
-          shelf.showBannerControl(control, false);
-          return {
-            offered, quiet, retired, returned,
-            retained: control === identity && control.isConnected,
-          };
-        }"""
-    )
-    assert reserved == {
-        "offered": 200,
-        "quiet": 200,
-        "retired": 0,
-        "returned": 200,
-        "retained": True,
-    }
     expect(page.locator(".lf-banner-more")).to_be_visible()
 
     # The covering Threads panel locks the page behind it, and the row is no longer a
@@ -1079,8 +1012,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.close()
 
-    # A pinned wide page reserves the Latest chip before it first has news, and the phone
-    # row folds it away like any other control it cannot hold. The door says the page has
+    # A pinned page keeps Latest in its menu seat before it first has news. The door says the page has
     # been replaced while it holds that one, because news nobody can see is not news.
     pinned = open_page(browser, url, pin=True)
     resized(pinned, 320, 844)
@@ -1108,7 +1040,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
                   shown: chip.offsetWidth, needed: chip.scrollWidth};
         }"""
     )
-    assert seen["onTheRow"] or seen["behindTheDoor"], (
+    assert not seen["onTheRow"] and seen["behindTheDoor"], (
         f"the phone banner took its page news out of the reader's sight: {seen}"
     )
     positions = pinned.evaluate(
@@ -1138,15 +1070,16 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         "el => ({shown: el.offsetWidth, needed: el.scrollWidth})"
     )
     assert chip_size["shown"] >= chip_size["needed"], (
-        f"the folded phone news control clipped its words: {chip_size}"
+        f"the phone menu news control clipped its words: {chip_size}"
     )
     pinned.keyboard.press("Escape")
     resized(pinned, 1200, 844)
+    pinned.locator(".lf-banner-more").click()
     news_size = pinned.locator(".lf-latest-chip").evaluate(
         "el => ({shown: el.offsetWidth, needed: el.scrollWidth})"
     )
     assert news_size["shown"] >= news_size["needed"], (
-        f"the shown desktop news control clipped its words: {news_size}"
+        f"the desktop menu news control clipped its words: {news_size}"
     )
 
 
@@ -1179,10 +1112,16 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
     door = page.locator(".lf-status-button")
     explanation = page.locator(".lf-status-detail")
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
     door.focus()
     page.keyboard.press("Enter")
     expect(explanation).to_be_visible()
     expect(explanation).to_be_focused()
+    boxes = explanation.evaluate(
+        "detail => ({detail: detail.getBoundingClientRect().top, "
+        "banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom})"
+    )
+    assert boxes["detail"] == pytest.approx(boxes["banner"] + 8, abs=2), boxes
     detail_text = page.evaluate(
         """() => {
           const detail = document.querySelector('.lf-status-detail');
@@ -1271,8 +1210,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         expect(explanation).to_be_hidden()
     resized(page, 1280, 900)
 
-    # Above the floor the sentence is the row's, not a share of it: a control folding
-    # away hands the whole of its room to the line rather than leaving a gap.
+    # Above the floor the sentence and fixed primary controls consume the row exactly.
     room = page.evaluate(
         """() => {
           const status = document.querySelector('.lf-banner-status');
@@ -1290,8 +1228,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         room["inner"], abs=1
     ), f"the banner left room standing between its status and its controls: {room}"
 
-    # The complete real action set still gets its words. Where it does not fit, the row
-    # gives a control to its menu rather than squeezing the ones it keeps.
+    # The fixed primary run keeps complete words and secondary actions remain in More.
     resized(page, 1024, 900)
     crowded = page.evaluate(
         """() => {
@@ -1304,14 +1241,13 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           return {
             row: [...actions.children]
               .filter(c => c !== more && c.getClientRects().length).map(words),
-            folded: menu.children.length,
+            secondary: menu.children.length,
             document: {shown: document.documentElement.clientWidth,
                        needed: document.documentElement.scrollWidth}};
         }"""
     )
-    assert crowded["folded"], (
-        "the wide row folded nothing, so it never reached the cap this test is about and "
-        f"the sentence beside it was never competing for room: {crowded}"
+    assert crowded["secondary"], (
+        f"the fixture registered no secondary controls: {crowded}"
     )
     clipped = [c for c in crowded["row"] if c["shown"] < c["needed"]]
     assert not clipped, f"the crowded row compressed the controls it kept: {clipped}"
@@ -1349,7 +1285,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     resized(page, 1200, 900)
     stamp_page(serve.page_dir, html, "three")
     expect(page.locator(".lf-latest-chip")).to_have_class(re.compile(r"lf-news-shown"))
-    answer_all = page.locator(".lf-answer-all")
+    answer_all = banner_control(page, ".lf-answer-all")
     # The blanket answer decides its decisions one at a time, so the press owes one round
     # trip per decision the control counts. Read that number off the control's own face
     # rather than writing the fixture's arithmetic out here.
@@ -1545,29 +1481,14 @@ STATUS_FIT = """() => {
           actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
 }"""
 
-# A closed menu has no geometry; measure the reserved label on the banner row.
-PREVIEW_WIDTH = """() => {
-  const chip = document.querySelector('.lf-preview');
-  const dirty = chip.textContent.endsWith('+') ? chip.textContent : chip.textContent + '+';
-  const floor = parseFloat(getComputedStyle(chip).minWidth) || 0;
-  const rig = chip.cloneNode(false);
-  rig.textContent = dirty;
-  rig.style.cssText = 'position:absolute;left:-9999px;top:0;min-width:0';
-  document.querySelector('.lf-banner-actions').append(rig);
-  const widest = rig.getBoundingClientRect().width;
-  rig.remove();
-  return {floor, widest};
-}"""
 
-
-def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
-    """Developer diagnostics stay behind the menu and keep their reserved control width."""
+def test_preview_diagnostics_keep_their_fixed_banner_overflow_seat(browser, serve):
+    """Developer diagnostics stay behind More at every width."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
-    # A long checkout name, because that is what a worktree is called and it is the width
-    # that broke this: the chip is not capped any more, so what it costs is real room.
+    # A long checkout name proves secondary words can grow without taking row space.
     url = serve(
         html,
         preview={
@@ -1584,7 +1505,7 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
     page = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
-    for width in (841, 1024, 1440):
+    for width in (320, 841, 1024, 1440):
         resized(page, width, 900)
         standing = page.evaluate(
             """() => {
@@ -1592,7 +1513,7 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
               const menu = document.querySelector('.lf-banner-menu');
               return {inStatus: Boolean(chip.closest('.lf-banner-status')),
                       parent: chip.parentElement.className,
-                      folded: menu.contains(chip),
+                      inMenu: menu.contains(chip),
                       onRow: chip.getClientRects().length > 0,
                       shown: chip.clientWidth, needed: chip.scrollWidth};
             }"""
@@ -1600,48 +1521,9 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
         assert not standing["inStatus"], (
             f"at {width} the preview chip stood inside the status box: {standing}"
         )
-        assert standing["folded"] and not standing["onRow"], (
+        assert standing["inMenu"] and not standing["onRow"], (
             f"at {width} preview diagnostics left the banner overflow: {standing}"
         )
-    # A first read that folds diagnostics must still measure its widest label.
-    resized(page, 841, 900)
-    page.reload()
-    page.wait_for_function(BOTH_STAMPS)
-    resized(page, 1600, 900)
-    swap = page.evaluate(PREVIEW_WIDTH)
-    assert swap["floor"] >= swap["widest"] - 1, (
-        f"the preview chip's reservation is under the wider of its two spellings, so it "
-        f"was measured while the chip was folded away: {swap}"
-    )
-    # A caller may temporarily unfold retained controls to measure one. Refolding a
-    # wide row must still commit the shelf's normalized partition: permanent overflow
-    # is a policy fact even when geometry would not make the fold loop move anything.
-    page.evaluate(
-        """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          shelf.measureBannerControls(() => {});
-        }"""
-    )
-    expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
-    page.locator(".lf-banner-more").click()
-    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
-    page.evaluate(
-        """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          window.__lfDeferredBannerMeasurement = null;
-          shelf.measureBannerControls(() => {
-            const chip = document.querySelector('.lf-preview');
-            window.__lfDeferredBannerMeasurement = chip.closest(".lf-banner-actions, .lf-banner-menu").className;
-          });
-        }"""
-    )
-    assert page.evaluate("() => window.__lfDeferredBannerMeasurement") is None
-    expect(page.locator(".lf-banner-menu .lf-preview")).to_be_visible()
-    page.keyboard.press("Escape")
-    page.wait_for_function("() => window.__lfDeferredBannerMeasurement !== null")
-    assert page.evaluate("() => window.__lfDeferredBannerMeasurement") == (
-        "lf-banner-actions"
-    )
     expect(page.locator(".lf-banner-menu .lf-preview")).to_have_count(1)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -1774,7 +1656,7 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     expect(version).to_have_text("v1")
     expect(version).to_have_attribute("aria-haspopup", "menu")
     expect(version).to_have_attribute("aria-expanded", "false")
-    version.click()
+    banner_control(page, ".lf-version").click()
     expect(version).to_have_attribute("aria-expanded", "true")
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
@@ -1784,55 +1666,46 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     expect(menu.locator(".lf-version-note")).to_have_text("t")
 
 
-def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
-    """An open versions menu keeps the two edges its anchor names, and no others.
-
-    The rule states the menu's top under the button's bottom and its right against the
-    button's right. The popover UA rule states the other two, `inset: 0` with
-    `margin: auto`, and unless the rule takes those back the auto margins centre the box
-    in the band between the anchored edges and the viewport's far corner: at 1200x900 a
-    menu whose anchored top reads as satisfied still opened 400px further down the page
-    and 450px in from the control that opened it. Both edges are therefore read against
-    the button's own box rather than against numbers, because what the anchor promises is
-    a relation and not a coordinate.
-    """
+def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, serve):
+    """Versions shares the banner panel's fixed top and its door's horizontal edge."""
     page = open_page(browser, serve(LONG_PAGE))
     chooser = page.locator(".lf-version")
     expect(chooser).to_be_enabled()
-    chooser.click()
+    banner_control(page, ".lf-version").click()
     menu = page.locator(".lf-version-menu")
     expect(menu).to_be_visible()
     boxes = menu.evaluate(
         """menu => {
-          const button = document.querySelector('.lf-version').getBoundingClientRect();
-          const box = menu.getBoundingClientRect();
-          return {button: {top: button.top, bottom: button.bottom, right: button.right},
-                  menu: {top: box.top, right: box.right, left: box.left}};
-        }"""
+              const button = document.querySelector('.lf-banner-more').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              const box = menu.getBoundingClientRect();
+              return {banner: {bottom: banner.bottom},
+                      button: {top: button.top, bottom: button.bottom, right: button.right},
+                      menu: {top: box.top, right: box.right, left: box.left}};
+            }"""
     )
     assert boxes["menu"]["top"] == pytest.approx(
-        boxes["button"]["bottom"] + 6, abs=2
-    ), f"the versions menu did not hang under the chooser's bottom edge: {boxes}"
+        boxes["banner"]["bottom"] + 6, abs=2
+    ), boxes
     assert boxes["menu"]["right"] == pytest.approx(boxes["button"]["right"], abs=2), (
-        f"the versions menu did not line up with the chooser's right edge: {boxes}"
-    )
-    assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
-        f"the versions menu covered the chooser it hangs from: {boxes}"
+        f"the versions menu did not line up with More's right edge: {boxes}"
     )
 
     resized(page, 320, 844)
     phone = menu.evaluate(
         """menu => {
-          const button = document.querySelector('.lf-version').getBoundingClientRect();
-          const box = menu.getBoundingClientRect();
-          return {button: {bottom: button.bottom, left: button.left},
-                  menu: {top: box.top, right: box.right, left: box.left},
-                  viewport: innerWidth};
-        }"""
+              const button = document.querySelector('.lf-banner-more').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              const box = menu.getBoundingClientRect();
+              return {banner: {bottom: banner.bottom},
+                      button: {bottom: button.bottom, left: button.left},
+                      menu: {top: box.top, right: box.right, left: box.left},
+                      viewport: innerWidth};
+            }"""
     )
     assert phone["menu"]["top"] == pytest.approx(
-        phone["button"]["bottom"] + 6, abs=2
-    ), f"the phone menu left its door vertically: {phone}"
+        phone["banner"]["bottom"] + 6, abs=2
+    ), phone
     assert phone["menu"]["left"] == pytest.approx(phone["button"]["left"], abs=2), (
         f"the phone menu appeared to belong to a control on its right: {phone}"
     )
@@ -1840,15 +1713,18 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
         f"the phone menu left the viewport: {phone}"
     )
 
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    open_versions(page)
+    shortcut = menu.evaluate(
+        "menu => ({top: menu.getBoundingClientRect().top, "
+        "banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom})"
+    )
+    assert shortcut["top"] == pytest.approx(shortcut["banner"] + 6, abs=2), shortcut
 
-def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_leaf):
-    """A phone gets a menu, not a strip of row scrolled off the side of the screen.
 
-    The row used to overflow horizontally with its scrollbar hidden, so four of its seven
-    controls were off a 390px screen with nothing but a half-clipped word to say they
-    were there. Now the row folds: what does not fit goes behind one door, every control
-    is reachable from the keyboard through it, and the row itself has nothing left to
-    scroll."""
+def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other_leaf):
+    """A phone gets fixed primary seats and one keyboard-reachable secondary menu."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -1874,20 +1750,20 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     )
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
-    folded = page.locator(".lf-banner-menu .lf-btn")
-    assert folded.count() > 0, "nothing folded, so this test has no menu to walk"
+    secondary = page.locator(".lf-banner-menu .lf-btn")
+    assert secondary.count() > 0, "the fixture has no secondary menu to walk"
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
-    # Every folded control, from the keyboard, through that one door. The press is the
+    # Every secondary control, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the reader on its first control
     # without anything here focusing it for them.
-    want = folded.evaluate_all(
+    want = secondary.evaluate_all(
         """els => els.filter(el => getComputedStyle(el).display !== 'none' &&
                                    getComputedStyle(el).visibility !== 'hidden')
                      .map(el => (el.getAttribute('aria-label') || el.textContent).trim())"""
     )
-    assert len(want) >= 2, f"only {want} folded, which walks nothing"
+    assert len(want) >= 2, f"only {want} stand in More, which walks nothing"
     more.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-banner-menu")).to_be_visible()
@@ -1916,10 +1792,10 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     expect(more).to_have_attribute("aria-expanded", "false")
 
 
-def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
+def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     browser, serve, other_leaf
 ):
-    """The shelf moves each Lit-faced native control and hands folded focus to its door."""
+    """The fixed menu retains each Lit-faced control and hands off removed focus."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -1929,15 +1805,13 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
     page = open_page(browser, url)
     resized(page, 1440, 900)
     answer_all = page.locator(".lf-answer-all")
-    expect(answer_all).to_be_visible()
+    expect(answer_all).to_be_hidden()
+    expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     page.evaluate(
         "button => { window.__lfBulkControl = button; }", answer_all.element_handle()
     )
-    answer_all.focus()
-
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
-    expect(page.locator(".lf-banner-more")).to_be_focused()
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
     assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
     order = page.evaluate(
@@ -1947,9 +1821,10 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
                           control.matches('.lf-answer-all') ? 'blanket' : null)
           .filter(Boolean)"""
     )
-    assert order == ["map", "blanket"], (
-        f"the shelf changed the established Map-before-blanket order: {order}"
-    )
+    assert order == [
+        "map",
+        "blanket",
+    ], f"the shelf changed the established Map-before-blanket order: {order}"
 
     page.evaluate(
         """async () => {
@@ -1963,7 +1838,6 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
               key: `test-focus-candidate-${i}`,
               control,
               rank: shelf.BANNER_CONTROL_RANK.blanket + i + 1,
-              alwaysFolded: true,
             });
           }
         }"""
@@ -1999,23 +1873,8 @@ def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
     assert page.evaluate(
         "() => Boolean(document.activeElement.closest('.lf-banner-menu'))"
     )
-    page.evaluate(
-        """async () => {
-          const shelf = await window.__lfRuntimeImport('/runtime/banner-shelf.js');
-          for (const control of document.querySelectorAll('.lf-banner-menu > *'))
-            shelf.showBannerControl(control, false);
-          shelf.measureBannerControls(() => {
-            window.__lfMeasuredEmptyBannerMenu = true;
-          });
-        }"""
-    )
     page.keyboard.press("Escape")
-    page.wait_for_function("() => window.__lfMeasuredEmptyBannerMenu === true")
-    expect(page.locator(".lf-banner-more")).to_be_hidden()
-    assert page.evaluate(
-        """() => document.activeElement !== document.body &&
-          Boolean(document.activeElement.closest('.lf-banner-actions'))"""
-    ), "closing an emptied overflow lost focus when its door retired"
+    expect(page.locator(".lf-banner-more")).to_be_visible()
 
 
 def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, serve):
@@ -2438,7 +2297,10 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         ),
     ):
         resized(page, width, 800)
-        page.locator(open_button).click()
+        if open_button == ".lf-asks":
+            banner_control(page, open_button).click()
+        else:
+            page.locator(open_button).click()
         if name == "comments":
             panel_settled(page)
         else:
@@ -2770,7 +2632,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
     comments = ".lf-banner .lf-threads-toggle"
-    accept_all = '.lf-banner [title^="Accept every"]'
+    accept_all = '[title^="Accept every"]'
     page.wait_for_function(
         f"() => document.querySelector('{comments}').textContent === 'Threads (9)'"
     )
@@ -2837,6 +2699,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
             # its room, so its box is exactly what must not have changed here.
             (
                 f"() => !document.querySelector('{accept_all}')"
+                f" || !document.querySelector('{accept_all}')"
                 ".checkVisibility({visibilityProperty: true})"
             ),
         ),
@@ -2853,41 +2716,25 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
-    # A reservation keeps its promise even when the row no longer has room. Every control
-    # that is still on the row keeps every one of its words, instead of collapsing into a
-    # padding-width box containing none of them: the row gives up whole controls to its
-    # menu rather than taking the room out of the ones it keeps.
+    # The two primary controls keep their reserved words when the row narrows.
     holds_its_width = (
         "(names) => Object.fromEntries(names.map((s) => "
         "  [s, document.querySelector('.lf-banner-actions > ' + s)?.offsetWidth ?? null]))"
     )
     named = [
-        ".lf-latest-chip",
-        ".lf-version",
         ".lf-threads-toggle",
         ".lf-signoff",
-        ".lf-answer-all",
-        ".lf-asks",
     ]
     wide = page.evaluate(holds_its_width, named)
     # Narrowed, but not past the covering breakpoint: that row deliberately spends less
     # padding, so its controls are legitimately a few pixels narrower and a comparison
     # across it would read that as the collapse this is about.
     resized(page, 900, 900)
-    # Out of room, witnessed independently of the controls whose widths are the subject:
-    # the door is standing and there is a control behind it.
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-banner-more').hidden"
-        "      && document.querySelector('.lf-banner-menu').children.length > 0"
-    )
     narrow = page.evaluate(holds_its_width, named)
     stayed = {name: width for name, width in narrow.items() if width is not None}
-    assert len(stayed) >= 2, (
-        f"the row folded away all but {stayed}, so it holds nothing to have kept whole"
-    )
+    assert len(stayed) >= 2, f"the primary row lost one of its controls: {stayed}"
     assert stayed == {name: wide[name] for name in stayed}, (
-        "a banner with no room left took it out of a control it kept instead of giving "
-        f"a control to its menu: {stayed} against {wide}"
+        f"a primary control changed width: {stayed} against {wide}"
     )
 
 
@@ -2941,7 +2788,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     page = open_page(browser, url, context=one_reader)
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
-    btn.click()
+    banner_control(page, ".lf-others").click()
     others_panel = page.locator(".lf-others-panel")
     expect(others_panel).to_be_visible()
     # This page heads the list, marked and never a link: the panel reads as the
@@ -2980,38 +2827,15 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
-    expect(btn).to_be_visible()  # closing the panel keeps the standing button
+    expect(btn).to_be_hidden()  # closing the panel keeps the button in its fixed menu
     expect(btn).to_have_text("All leaves (2)")  # and the count
-    # The count's reservation, swept here because this is the one test that ever
-    # renders the button — every other page here runs under an isolated state home, so
-    # neither the press sweep nor the poll test can reach it. The widest label
-    # below a thousand must not move the control.
-    before, widest = page.evaluate(
-        """() => { const b = document.querySelector('.lf-others');
-                   const before = b.offsetWidth;
-                   const face = [...b.childNodes];
-                   b.textContent = 'All leaves (999)';
-                   const widest = b.offsetWidth;
-                   b.replaceChildren(...face);
-                   return [before, widest]; }"""
-    )
-    assert widest == before, (
-        f"'All leaves (999)' grew the button {before}px -> {widest}px: its "
-        "reserve list no longer names the widest Leaves presentation label"
-    )
     expect(btn).to_have_text("All leaves (2)")
 
 
 def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     browser, serve, other_leaf
 ):
-    """The status glyph is the page's own replaceable icon, not a second approximation
-    of it. All leaves begins the action row beside the left tray it opens and Threads ends
-    it beside the right panel, at every width — `test_the_banner_reads_in_one_order_at_
-    every_width` is the order itself; this is the two ends of it standing where their
-    panels are. Crossing into a narrow window does not throw away the control in focus:
-    a control the fold has taken hands the reader the door it went behind, which is
-    where pressing on would find it again."""
+    """The page mark and fixed primary/secondary seats survive every width."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -3035,12 +2859,6 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     )
     page.emulate_media(forced_colors="none")
 
-    # Read across the door, the way BANNER_ORDER reads: the fold takes a run off the front
-    # of the row into the menu, and a control it has taken is still on the row and still
-    # where the order says it is. Off the row alone this was a claim about the face the
-    # suite happens to be running in — the same words set wider leave this width short of
-    # All leaves, and the list came back without its first entry rather than saying the
-    # row had folded one.
     def actions():
         return page.evaluate(
             """() => {
@@ -3055,81 +2873,30 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                }"""
         )
 
-    wide = actions()
-    wide_folded = page.locator(".lf-banner-menu .lf-btn").count()
-    assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
-
-    # Where the left tray's control begins the row — or, where this width has folded it,
-    # the door standing in its place, which is why the door stands at the row's start.
-    # Either way the control for the left tray is reached from the banner's left half.
-    def left_end():
-        folded = page.locator(".lf-others").evaluate(
-            "el => Boolean(el.closest('.lf-banner-menu'))"
+    order = ["others", "latest", "asks", "version", "signoff", "comments"]
+    for width in (1200, 390, 320):
+        resized(page, width, 900)
+        assert actions() == order
+        expect(page.locator(".lf-banner-menu > .lf-others")).to_have_count(1)
+        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
+        expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+        expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
+        fit = page.evaluate(
+            """() => { const actions = document.querySelector('.lf-banner-actions');
+              const threads = document.querySelector('.lf-threads-toggle');
+              const box = threads.getBoundingClientRect();
+              const edge = document.elementFromPoint(box.right - 1, box.top + box.height / 2);
+              return {shown: actions.clientWidth, needed: actions.scrollWidth,
+                      pageShown: document.documentElement.clientWidth,
+                      pageNeeded: document.documentElement.scrollWidth,
+                      threads: {left: box.left, right: box.right,
+                                visible: threads.checkVisibility(),
+                                ownsRightEdge: edge === threads || threads.contains(edge)}}; }"""
         )
-        return page.locator(".lf-banner-more" if folded else ".lf-others")
-
-    others_x = left_end().bounding_box()["x"]
-    comments = page.locator(".lf-threads-toggle").bounding_box()
-    assert others_x < page.viewport_size["width"] / 2, (
-        "the control for the left tray is still sitting in the right half of the banner"
-    )
-    assert comments["x"] + comments["width"] > page.viewport_size["width"] * 0.9, (
-        "the control for the right panel is not standing against that edge"
-    )
-
-    version = page.locator(".lf-version")
-    assert version.bounding_box()["width"] < 100, (
-        "the closed version control still reserved the menu's full draft account"
-    )
-    version.focus()
-    resized(page, 390, 900)
-    # The row narrows by folding rather than by turning round, and what it folds it hands
-    # over rather than drops: the reader is left standing on the control they had, or on
-    # the door it went behind, which is the press that finds it again.
-    #
-    # Which of those two the version is at 390px is a font-width fact rather than this
-    # test's subject, and the two cannot both be pinned: the assertion #209 shipped
-    # reads the version still on the row, and this suite's fonts fold it away. So
-    # the reading follows the control to wherever the fold put it, over a row that has
-    # been made to fold something — refold() hands focus to the door only for a control
-    # that went behind it, and refocuses the control itself otherwise.
-    # `test_a_phone_banner_folds_its_controls_into_one_menu` is the other half: what goes
-    # behind the door, and that there is only ever one door.
-    assert page.locator(".lf-banner-menu > *").count() > 0, (
-        "the 390px row folded nothing at all, so nothing here crossed into a fold"
-    )
-    behind = page.locator(".lf-banner-menu > .lf-version").count() == 1
-    expect(page.locator(".lf-banner-more" if behind else ".lf-version")).to_be_focused()
-
-    resized(page, 1200, 900)
-    # Back on the wide row, and back to exactly what this width holds: narrowing and
-    # widening are reversible, so what the narrow row took is returned and what this width
-    # folds on its own account is still folded. Which of those this face is in decides the
-    # door: nothing behind it and it is quiet, one control behind it and it is standing
-    # where that control would have. Asserting an empty menu here asserted the first case
-    # for every face, and a face that sets these words wider is in the second at this
-    # width and always was.
-    assert actions() == wide, (
-        f"widening did not return the row to what this width holds: {actions()} vs {wide}"
-    )
-    folded_now = page.locator(".lf-banner-menu > *").count()
-    assert folded_now == wide_folded, (
-        f"this width held {wide_folded} controls behind the door before the narrowing "
-        f"and {folded_now} after it"
-    )
-    door = page.locator(".lf-banner-more")
-    if folded_now:
-        expect(door).to_be_visible()
-    else:
-        expect(door).to_be_hidden()
-    # And the control is reachable where it stands: on the row, or through the door that
-    # took it.
-    entry = left_end()
-    entry.focus()
-    expect(entry).to_be_focused()
-    assert actions()[0] == "others" and actions()[-1] == "comments", (
-        f"the two edge controls left their edges: {actions()}"
-    )
+        assert fit["needed"] <= fit["shown"] + 1, fit
+        assert fit["pageShown"] == fit["pageNeeded"], fit
+        assert fit["threads"]["visible"] and fit["threads"]["ownsRightEdge"], fit
+        assert 0 <= fit["threads"]["left"] < fit["threads"]["right"] <= width, fit
 
 
 def test_a_panel_row_follows_its_pages_status_live(
@@ -3778,7 +3545,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
             )
             assert face(control) == (active if peer == name else resting[peer])
 
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect_open("asks")
     if page.locator("main").evaluate("el => el.inert"):
@@ -3799,7 +3566,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     panel_settled(page, open=False)
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
@@ -4044,7 +3811,7 @@ def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serv
     resized(page, 500, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 180")
     document_at = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     tray = page.locator(".lf-asks-panel")
     expect(tray).to_have_class(re.compile(r"\bopen\b"))
     assert page.locator("main").evaluate("el => el.inert")
@@ -4128,7 +3895,7 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
 
         page.get_by_role("button", name=f"Close {name}").click()
         expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
-        expect(door).to_be_focused()
+        expect(page.locator(".lf-banner-more")).to_be_focused()
         assert not page.locator("main").evaluate("el => el.inert")
 
 
@@ -4185,7 +3952,7 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     ), scrim_reading
     page.mouse.click(scrim_reading["point"]["x"], scrim_reading["point"]["y"])
     expect(leaves).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(leaves_door).to_be_focused()
+    expect(page.locator(".lf-banner-more")).to_be_focused()
     expect(scrim).to_be_hidden()
     assert not page.locator("main").evaluate("el => el.inert")
 
@@ -4317,7 +4084,7 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser,
     goes without, and the second tray is the one nobody looks at."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
-    page.locator(".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(24)
     rows.first.focus()
@@ -6371,7 +6138,11 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(".lf-status-button").press("Enter")
                 expect(page.locator(".lf-status-detail")).to_be_focused()
             if opener := RING_SCOPE_OPENER.get(scope):
-                control = page.locator(opener).first
+                control = (
+                    banner_control(page, opener)
+                    if opener in {".lf-asks", ".lf-page-map-toggle"}
+                    else page.locator(opener).first
+                )
                 open_containing_thread(control)
                 control.click()
             for key in keys:
@@ -6735,7 +6506,7 @@ def _each_aim_surface(page, page_dir):
     expect(page.locator(".lf-reopen")).to_be_visible()
     yield
 
-    page.locator(".lf-version").click()
+    banner_control(page, ".lf-version").click()
     expect(page.locator(".lf-version-menu")).to_be_visible()
     yield
     page.keyboard.press("Escape")

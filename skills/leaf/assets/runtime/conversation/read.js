@@ -16,7 +16,7 @@ import { shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
-import { firstUnreadBtn, panel } from "./panel-elements.js";
+import { firstUnreadBtn, panelStandsOver } from "./panel-elements.js";
 import { readThreads } from "./state.js";
 import { under, upFrom } from "../shadow.js";
 
@@ -91,14 +91,11 @@ function visibleInterval(body, clips) {
   const modal = document.querySelector("dialog:modal");
   if (modal && !under(body, modal)) return null;
   const box = body.getBoundingClientRect();
-  // The thread panel stands over the right of the page, so a message it overlaps is not
-  // read however much of it the page's own clips leave.
-  if (
-    panel.open &&
-    !under(body, panel) &&
-    box.right > panel.getBoundingClientRect().left + EPSILON
-  )
-    return null;
+  // A message the open panel stands over most of is under it, not shown. One whose edge
+  // it only reaches still counts as shown, as a line read past a margin note would: the
+  // panel leaves most of every line in view, and it is not one of the clips the
+  // full-width rule below asks about.
+  if (panelStandsOver(body, box)) return null;
   // Sticky run headings are left out of what is shown (geometry.js, visibleBand), so a
   // message hidden under one is not read.
   const shown = shownRect(body, clips);

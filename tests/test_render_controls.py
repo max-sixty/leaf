@@ -81,6 +81,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     SHELL_BOX,
     Traffic,
+    WatchedBrowser,
     _traffic,
     _until,
     consume_browser_errors,
@@ -3968,8 +3969,7 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
 
     # Threads stands over the page at every width. Where it leaves a usable page beside
     # it, there is no scrim and that page stays live; where what it leaves is a sliver —
-    # a 430px phone leaves ten pixels — it covers the page. The window's own width does
-    # not move as the covering lock takes the root's scroll: the gutter is stable.
+    # a 430px phone leaves ten pixels — it covers the page.
     threads_door = page.locator(".lf-threads-toggle")
     threads_door.click()
     panel_settled(page)
@@ -3982,19 +3982,78 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     panel_settled(page)
     expect(scrim).to_be_visible()
     assert page.locator("main").evaluate("el => el.inert")
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
-    open_width = page.evaluate("() => document.documentElement.clientWidth")
-    threads_door.click()
-    panel_settled(page)
-    assert page.evaluate("() => document.documentElement.clientWidth") == open_width, (
-        "taking the covering scroll lock changed the window's width under the panel"
-    )
     resized(page, 1200, 700)
     panel_settled(page)
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     expect(threads_door).to_be_focused()
+
+
+# A classic scrollbar, which the headless shell hides unless both its flag is dropped
+# and the page styles one. A constructed sheet, because the page's CSP refuses an
+# injected <style>.
+CLASSIC_SCROLLBAR = """
+  document.addEventListener('DOMContentLoaded', () => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync('::-webkit-scrollbar { width: 15px; }');
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  });
+"""
+
+
+@pytest.mark.parametrize(("width", "covers"), [(730, True), (745, False)])
+def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
+    browser, _playwright, serve, width, covers
+):
+    """The covering boundary locks the root's scroll, and a classic scrollbar leaves
+    with the lock, widening the root's client box by the bar. Threads covers the page
+    where it leaves less than a usable page (320px) beside it, and the window it asks
+    that of counts the bar, so the answer is the same on both sides of the lock. At
+    745px a reading of the client box would find 310px beside the default panel with
+    the bar and 325px without it, so its answer would turn on whether the lock was
+    already held (measured: it covered, and held the lock that made its own reading
+    wrong). 730px covers on either reading. Each width is read across several syncs (a
+    window resize runs one), and holds the one answer."""
+    shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
+    try:
+        context = WatchedBrowser(shown).new_context(
+            viewport={"width": width, "height": 700}
+        )
+        page = open_page(
+            browser,
+            serve(LONG_PAGE, comments=2),
+            context=context,
+            init_script=CLASSIC_SCROLLBAR,
+        )
+        bar = page.evaluate("() => innerWidth - document.documentElement.clientWidth")
+        assert bar == 15, (
+            f"the page drew no classic scrollbar, so nothing is proved: {bar}"
+        )
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        readings = []
+        for _ in range(4):
+            page.evaluate("() => dispatchEvent(new Event('resize'))")
+            page.evaluate(RENDERED)
+            readings.append(
+                page.evaluate(
+                    """() => ({
+                      modal: document.querySelector('.lf-thread-panel')
+                        .getAttribute('aria-modal') === 'true',
+                      inert: document.querySelector('main').inert,
+                      locked: getComputedStyle(document.scrollingElement).overflowY
+                        === 'hidden',
+                    })"""
+                )
+            )
+        held = {"modal": covers, "inert": covers, "locked": covers}
+        assert readings == [held] * 4, (
+            f"the covering boundary at {width}px did not hold one answer across its "
+            f"lock: {readings}"
+        )
+        context.close()
+    finally:
+        shown.close()
 
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):

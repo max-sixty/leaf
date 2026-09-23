@@ -42,6 +42,18 @@ panelFoot.append(generalRow);
 panel.append(panelHead, narrowingView, threadsFrame, panelFoot);
 
 export const inPanel = (panelIsOpen) => panelIsOpen() && under(focused(), panel);
+// Whether the open panel stands over most of a box on the page — more than half its
+// width. The panel stands over the right of the page without covering it, so a box the
+// width of the column keeps most of itself clear at a desktop window and is read where it
+// stands, while words at the right end of a line, or a box in the right margin, are under
+// it. One reading for everything that asks whether the panel hides a page box: travel
+// making way for its destination (chrome-layout.js) and exposure counting a message read
+// (read.js). A box inside the panel is the panel's own and never under it.
+export function panelStandsOver(node, rect = node.getBoundingClientRect()) {
+  if (!panel.open || under(node, panel)) return false;
+  const edge = panel.getBoundingClientRect().left;
+  return rect.right - Math.max(rect.left, edge) > rect.width / 2;
+}
 
 let readingArrangement = null;
 export function mountPanelReadingRegion() {

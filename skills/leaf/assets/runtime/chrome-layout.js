@@ -47,6 +47,7 @@
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
 import { under } from "./shadow.js";
+import { panelStandsOver } from "./conversation/panel-elements.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
@@ -95,12 +96,14 @@ export function createChromeLayout({
   // beside it is less than a usable page (`PAGE_MIN`): a phone's window by default, or
   // anywhere a user draws it that wide. Asked of the width it stands at rather than of a
   // breakpoint, because what makes the page unusable is how much of it the panel leaves,
-  // and nothing about the window alone says that. The root keeps its scrollbar gutter
-  // under the covering scroll lock (theme.css), so entering the boundary does not widen
-  // the window this reads and flip the answer back.
+  // and nothing about the window alone says that. The window is `innerWidth`, which
+  // counts the root's scrollbar: the covering boundary locks the root's scroll, a classic
+  // scrollbar leaves with it, and a reading of the client width would grow by the bar,
+  // answer that the panel no longer covers, drop the lock, and flip back on every sync.
+  // The panel's own width can only grow as the lock widens its cap, which keeps it
+  // covering.
   const panelCovers = () =>
-    panelIsOpen() &&
-    document.documentElement.clientWidth - commentsEdge.width() < PAGE_MIN;
+    panelIsOpen() && innerWidth - commentsEdge.width() < PAGE_MIN;
   // Whether the open panel hides a destination — an element or a range — on the page:
   // it covers the whole page, or it stands over most of the destination, more than half
   // its width. A block the width of the column keeps most of itself clear of the panel at
@@ -111,10 +114,7 @@ export function createChromeLayout({
     if (!panelIsOpen()) return false;
     const node = where instanceof Range ? where.startContainer : where;
     if (under(node, panel)) return false;
-    if (panelCovers()) return true;
-    const rect = where.getBoundingClientRect();
-    const edge = panel.getBoundingClientRect().left;
-    return rect.right - Math.max(rect.left, edge) > rect.width / 2;
+    return panelCovers() || panelStandsOver(node, where.getBoundingClientRect());
   };
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to a tray is the stylesheet's, and the strip

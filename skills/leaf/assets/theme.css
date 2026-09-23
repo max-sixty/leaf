@@ -510,10 +510,7 @@ body { position: static !important; box-sizing: border-box !important;
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets the body's percentage minimum fill a short
  * viewport while a longer body still overflows it. A standing scrollbar prevents a
- * later height change from recentering the page, and a stable gutter keeps its width
- * when a covering surface locks the scroll, so the page does not reflow 15px under the
- * surface and the runtime's reading of the window does not change as it takes the
- * lock. The server's prepaint bootstrap marks
+ * later height change from recentering the page. The server's prepaint bootstrap marks
  * a live page before its graph has loaded; the bake removes that marker and paper has
  * no fixed chrome. */
 @media screen {
@@ -521,7 +518,6 @@ body { position: static !important; box-sizing: border-box !important;
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
-    scrollbar-gutter: stable;
     scroll-padding-top: calc(var(--lf-banner-h) + 12px);
     scroll-padding-bottom:
       max(var(--here-ring-room), var(--lf-bottom-chrome-clear, 0px));

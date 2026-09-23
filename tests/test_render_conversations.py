@@ -6355,13 +6355,17 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     card = page.locator(f'.lf-thread[data-id="{first}"]')
     other = page.locator(f'.lf-thread[data-id="{second}"]')
     header = card.locator(".lf-thread-summary")
-    expect(card).not_to_have_attribute("open", "")
+    expect(card).to_have_attribute("open", "")
     expect(other).not_to_have_attribute("open", "")
     header.focus()
     page.keyboard.press("Tab")
     assert page.evaluate(
         "() => document.querySelector('.lf-threads').contains(document.activeElement)"
     ), "native focus order left the thread list"
+    other.locator(".lf-thread-summary").focus()
+    page.keyboard.press("Enter")
+    expect(other).to_have_attribute("open", "")
+    expect(card).not_to_have_attribute("open", "")
     header.focus()
     page.keyboard.press("Enter")
     expect(card).to_have_attribute("open", "")
@@ -6388,6 +6392,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     header.focus()
     page.keyboard.press("Space")
     expect(card).not_to_have_attribute("open", "")
+    expect(other).to_have_attribute("open", "")
     page.keyboard.press("Tab")
     expect(page.locator(".lf-group:focus")).to_have_count(1)
     header.focus()

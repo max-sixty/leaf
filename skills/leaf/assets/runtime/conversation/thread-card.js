@@ -420,6 +420,18 @@ export class ThreadView {
     } else if (heldFocus && !this.node.contains(standing) && !panel) {
       this.#commands.landInConversation(this.node.querySelector(SAY_BOX) ?? this.node);
     }
+    // A read receipt removes the unread rail and boundary. On a long answer that
+    // rewraps its prose and can clamp a direct landing in the reply box to a new
+    // scroll limit. Land the still-focused reply against the committed geometry.
+    if (
+      panel &&
+      prior?.unreadCount > model.unreadCount &&
+      standing?.closest?.(".lf-compose")?.closest(".lf-thread") === this.node
+    )
+      queueMicrotask(() => {
+        if (focused() === standing && this.#model.id === model.id)
+          void this.#commands.travel.showThread(model.id);
+      });
     return this.node;
   }
 
@@ -663,7 +675,7 @@ export class ThreadView {
           const kept = openThreads();
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
           if (destination.matches?.(".lf-thread")) {
-            destination.open = true;
+            this.#commands.listRoot.revealNavigation(destination.dataset.id);
             focusThread(destination, { preventScroll: true });
           } else destination.focus({ preventScroll: true });
           mayRestore = travel.retainPanelLanding(destination);

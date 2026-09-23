@@ -2819,6 +2819,7 @@ def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser,
     expect(card(1)).to_have_attribute("open", "")
     card(1).locator(":scope > .lf-thread-summary").click()
     expect(expanded).to_have_count(1)
+    expect(card(2)).to_have_attribute("open", "")
     card(1).locator(":scope > .lf-thread-summary").focus()
     page.keyboard.press("Space")
     expect(expanded).to_have_count(1)

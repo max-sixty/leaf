@@ -77,8 +77,9 @@ has tried; settle that before building it.
 
 - **Replace the document/workspace choice with layout axes.** Follow the
   [layout model](notes/layout-model.md): `lf-grid` in flow for dashboards first
-  (#29), then CSS grid fitting for bounded pages (#30). **Unconfirmed:** that the
-  range where the page and its panes both scroll stays narrow on real pages.
+  (#29), then a two-state `lf-workspace` that picks its posture from its own size
+  (#30). **Unconfirmed:** that one global threshold suits the monitor, comparison and
+  queue-with-detail pages.
 
 ### The agent's text interface
 

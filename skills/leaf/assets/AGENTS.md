@@ -262,8 +262,8 @@ Action prerequisites use the registry's `x-state.requires` declaration. The cont
 paints eligibility, the common browser dispatch checks it, and POST checks the same
 prerequisite against the log under the append lock. Eligibility uses the ordinary Ask
 projection without conversation seats: handing an Ask to the agent does not answer it.
-The registry's `$keys` entries own `requires`, `x-awaits.answers`, and `x-awaits.rollup`;
-`../references/packages.md`, "A widget", owns position-answer completion. Keep those
+The registry's `$state` entry owns `requires` and position-answer `completion`, and
+`$awaits` owns `answers` and `rollup`. Keep those
 readings shared rather than adding an eligibility cache or a browser Ask fold.
 
 The server supplies page and conversation Ask collections through each view's

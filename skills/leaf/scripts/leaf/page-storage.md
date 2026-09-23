@@ -34,7 +34,8 @@ other page files and the external state listed below.
   identity are defined in [layer-registry.md](layer-registry.md).
 
 - `guidance/` — package-owned guidance grouped by audience. Files with the same name
-  concatenate in package order; `page guidance` reads any audience
+  concatenate in package order, each under a heading naming its package;
+  `page guidance` reads any audience
 
 - `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
 

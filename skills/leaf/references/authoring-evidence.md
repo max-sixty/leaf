@@ -30,35 +30,26 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task's nested Ask takes a pick.
 Do not copy the connective sentence from another page.
 
-Use `lf-diagram` for flows, state machines, sequences, class relationships, and ER
-schemas. Agentic Mermaid draws them from Mermaid source, along with many of Mermaid's
-other families, such as Gantt charts, timelines, and mindmaps. Unstyled nodes
-already use Leaf's accent surface. Use `classDef` only for nodes that need to stand
-apart from that baseline, and copy the whole `fill`/`stroke`/`color` set from the
-element declaration, such as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. The renderer also
-honors `stroke-width`; other properties are ignored. `version check --render` reports
-a diagram the renderer refuses or draws empty, not one it draws only in part, so inspect
-each rendered diagram. Without visual access, check the source's labels and relations
+Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
+schemas, and the other Mermaid families its entry lists. It travels in the `diagram`
+package rather than in every page: initialize a page that wants one with
+`leaf page init --package diagram <page>`, then read the entry for styling and where
+its renderer parts from Mermaid. `version check --render` reports a diagram the
+renderer refuses or draws empty, not one it draws only in part, so inspect each
+rendered diagram. Without visual access, check the source's labels and relations
 against the claims it supports, and state those claims in prose or a table beside it
 so the user need not rely on an uninspected picture. Follow `page-authoring.md`,
 "Pre-handover review", for the checks and what remains unverified.
-Quote a label that holds its shape's closing bracket:
-`A["names: list[str]"]`, not `A[names: list[str]]`. The renderer parts from Mermaid in
-places the gate does not see: it draws no `click` or `link` target and no frontmatter
-or sequence `title`, drops a state statement that ends in `;`, labels a state with its
-bare id when a transition names it before `state "…" as S0` declares it, reads an ER
-relationship only in its symbol form (`||--o{`), and draws an entity code such as
-`#36;` as written. Use `lf-chart` rather than
-Mermaid's XY or pie charts for quantities that need Leaf's data-first chart vocabulary:
-a comparison across a few categories, a run over time, a ranking, a composition, or two
-numbers against each other. `lf-diagram` travels in the `diagram` package rather than
-in every page: initialize a page that wants one with
-`leaf page init --package diagram <page>`. `lf-chart` needs no selection. A handful of
-numbers the sentence beside them can carry is prose; a chart is for when the
-shape of the numbers is the point. Use inline SVG only for a bespoke drawing.
-Use `<pre><code class="language-…">` for selectable literal source and `lf-code`
-for a line-numbered walkthrough. The registry's `$languages.names` lists accepted
-language names. Keep logs and transcripts plain when they are not source code.
+
+Use `lf-chart` rather than Mermaid's XY or pie charts for quantities that need Leaf's
+data-first chart vocabulary: a comparison across a few categories, a run over time, a
+ranking, a composition, or two numbers against each other. `lf-chart` needs no
+package. A handful of numbers the sentence beside them can carry is prose; a chart is
+for when the shape of the numbers is the point. Use inline SVG only for a bespoke
+drawing. Use `<pre><code class="language-…">` for selectable literal source and
+`lf-code` for a line-numbered walkthrough. The registry's `$languages.names` lists
+accepted language names. Keep logs and transcripts plain when they are not source
+code.
 
 A diagram's authored source ids also give the user something to comment on: the
 `lf-diagram` entry says which boxes `parts` can open to a comment of their own.
@@ -70,11 +61,7 @@ without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
-`leaf page init --package diff <page>`. The diff brings its own navigation,
-pinned file headers, and soft wrap for a long review, so author none of them. Add
-`review` only when the user is expected to inspect every file and needs persistent
-progress. A patch that supports a higher-level
-decision or targeted comments omits it. First add a data binding so Leaf can give the
+`leaf page init --package diff <page>`. First add a data binding so Leaf can give the
 source its page-lifetime contract:
 
 ```html

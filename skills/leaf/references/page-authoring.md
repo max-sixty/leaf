@@ -12,8 +12,9 @@
 
 ## Read the registry
 
-`<page>/registry.json` is the page's complete vendored vocabulary. List its keys
-without printing the entries:
+`<page>/registry.json` is the vocabulary `page init` vendored; a
+`page/registry.json` the page writes adds to it or replaces its entries ("Page
+behavior"). List the vendored keys without printing the entries:
 
 ```bash
 registry="<page>/registry.json"
@@ -92,15 +93,11 @@ it does not become another kind of page, so its comments and anchors stay put.
   operate its preview. Use an `lf-workspace` of plain panes for task regions that
   must stay visible together with no such relationship, such as a queue beside its
   detail.
-
-`lf-grid` places its direct children as cells. Without `columns` it fits as many
-equal columns as the width allows; `columns="3"` caps that at three, and a template
-such as `columns="1fr 2fr"` gives unequal columns, which stack once the grid is
-narrower than 600px. A grid takes the page's available width, and each cell is a
-frame: text inside keeps the reading measure, while a surface fills the cell. Nest
-a grid in a cell for a cell that spans rows. Let the grid place its cells: page CSS
-that sets a grid's own `display`, `grid-*` or `position` fights it, and `version
-check` says so.
+- **Several views of one artifact** are one `lf-tabs` set: page tabs for
+  project-scale views that share one history, Threads panel, Ask inventory, and
+  revision sequence, and a tabbed section for local alternatives within the
+  surrounding view. The `lf-tabs` entry says which placement makes which, and how to
+  order and retire views.
 
 A log, feed, or long listing bounds its own height with `data-bound="end"`, which
 keeps it on its newest line while the user is at the end and leaves them where
@@ -109,31 +106,12 @@ widgets bound themselves by default. Don't make a box scroll vertically with pag
 CSS: Leaf keeps no reading position in a scroller it did not make, and `version
 check` advises against one.
 
-Use page tabs for project-scale views that belong to one artifact and share one
-history, Threads panel, Ask inventory, and revision sequence, and a tabbed section for
-local alternatives within the surrounding view. The `lf-tabs` entry says which
-placement makes which, and how to order and retire views.
-
-For a root workspace, make `lf-workspace` the sole content element directly inside
-`main`, with the page title in its optional direct native `header`. A workspace used as
-a page tab's sole content element follows the same bounded composition. Its body is
-exactly one element. Put prose in an `lf-pane`; compose multiple named panes with
-one `lf-partition`, where each partition takes two panes or partitions in `columns` or
-`rows`.
-The workspace's optional direct native `footer` follows its body. A pane's direct
-`header` and `footer` frame its reading body; put existing action widgets in the
-footer when they should stay available while the body scrolls. A pane's `label`
-names it for navigation and assistive technology; author a `header` when it needs
-a visible heading. Query the element declarations for their complete markup contracts.
-
-Keep a compound widget's authoring grammar and state ownership together. A
-playground supplies its own controls and preview regions; its Ask still surrounds
-the playground. Structural and compound owners register their reading arrangements so the
-workspace can allocate them directly; a plain wrapper does not carry allocation to
-a registered descendant. An embedded workspace stays within its containing content.
-Constrained windows and standalone copies expose regions in authored order, so
-choose an order that remains useful when stacked. Let Leaf allocate the space;
-page-specific positioning should not be needed to keep a pane or footer reachable.
+A workspace holds its regions in view together only as the page's, or a page tab's,
+sole content element, and elsewhere stays in document flow; the `lf-workspace` entry
+says where the title goes and which elements its body can be. Put prose in an
+`lf-pane`, and several named panes in one `lf-partition`. Let Leaf allocate the
+space: page-specific positioning should not be needed to keep a pane or footer
+reachable.
 
 Choose width separately from document or workspace form. Keep prose at a readable
 measure and let declared visual surfaces use the room their task needs. A wide comparison
@@ -168,9 +146,8 @@ notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves tray, and active-asks tray. Authors declare user asks
-through the registry's Ask sources and surfaces, but do not duplicate that
-chrome or maintain a second list of it in the page.
+shortcuts, live-leaves tray, and active-asks tray, which lists the page's open Asks.
+Do not duplicate that chrome or keep a second list of the Asks in the page.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
 that runs wider than its container and fits an image or SVG to it, so none of them needs a
@@ -204,7 +181,7 @@ instances and arbitrary module state do not survive the reload. Both update path
 wait while the user is composing, dragging, or undoing, has a gesture the server
 has not yet admitted, or has the version menu open.
 
-Page modules follow the behavior-module contract in `references/packages.md`. In
+Page modules follow `references/packages.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection, thread quoting, and export.
 
@@ -281,11 +258,9 @@ template rather than copying rendered controls from the parent. Ordinary
 Give each section, major block, and Leaf element a stable, meaningful `id` at the
 tightest semantic boundary a user can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
-Put a titled section's public id on the `<section>`, not on its heading just for
-`lf-toc`: the heading supplies the link text, while the section fragment arrives at
-the complete title, including an eyebrow. A heading may still need its own id for an
-internal relationship such as `aria-labelledby`; that id is not the section's public
-address.
+Put a titled section's id on the `<section>`, not on its heading, so a link to it
+arrives at the whole title, eyebrow included. An id a heading needs for an internal
+relationship such as `aria-labelledby` is not the section's public address.
 Threads and reading position attach to those ids across versions, and so does a
 user comparing this version with an earlier one: the id is how the comparison
 finds what the block said before, so a rewritten paragraph keeps the id it had.
@@ -310,8 +285,6 @@ The title names the page, and the lede under it carries the finding. A section
 that reaches a finding says it in the heading, briefly enough to scan in an
 `lf-toc` margin; supporting qualifications belong in the opening sentence. A
 `<summary>` and an option's `<strong>` do the same for what they cover.
-When lower-level headings name local controls or evidence rather than page destinations,
-set the `lf-toc`'s `max-level` to the deepest navigational level.
 "Why the prefixes matter" and "What we learned" promise a finding and withhold
 it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.

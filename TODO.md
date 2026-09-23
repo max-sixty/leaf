@@ -114,6 +114,17 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
+- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
+  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
+  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
+  runs it, and a receipt carries no structured result. Its users are Command Hub's
+  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
+  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
+  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
+  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
+  whether its operations stay, either remove requests and recast the remaining
+  operations as Asks, or keep them and cut what only the gallery uses: projected
+  holders (`records`, one seat per data row).
 
 ## Etc
 

@@ -490,30 +490,17 @@ def _export_document(page, request, url: str, name: str) -> str:
         # Read expectations through the same server the browser is applying. A
         # preview freezes that server at one PageSnapshot; rereading page files
         # here could otherwise wait for state the browser cannot receive.
-        state_url = _state_url(page, url)
-
-        def read_state() -> dict:
-            response = request.get(
-                state_url, timeout=render_checks_model.SERVED_TIMEOUT_MS
-            )
-            try:
-                if not response.ok:
-                    raise PlaywrightError(f"state returned {response.status}")
-                try:
-                    return response.json()
-                except ValueError as error:
-                    raise PlaywrightError("state returned invalid JSON") from error
-            finally:
-                response.dispose()
-
-        def data_version() -> str:
-            try:
-                return read_state()["data"]["version"]
-            except (KeyError, TypeError) as error:
-                raise PlaywrightError("state returned an invalid reading") from error
-
-        state = read_state()
+        response = request.get(
+            _state_url(page, url),
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        )
         try:
+            if not response.ok:
+                raise PlaywrightError(f"state returned {response.status}")
+            try:
+                state = response.json()
+            except ValueError as error:
+                raise PlaywrightError("state returned invalid JSON") from error
             readiness = {
                 "pageRoot": _document_url(
                     page,
@@ -533,9 +520,9 @@ def _export_document(page, request, url: str, name: str) -> str:
             }
         except (KeyError, TypeError) as error:
             raise PlaywrightError("state returned an invalid reading") from error
-        failed_stage = wait_for_presentation(
-            page, data_version, readiness["replayedEvents"]
-        )
+        finally:
+            response.dispose()
+        failed_stage = wait_for_presentation(page, state, readiness["replayedEvents"])
         if failed_stage:
             raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
         # A live fragmented widget deliberately keeps unopened payloads out of the

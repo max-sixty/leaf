@@ -528,7 +528,11 @@ export function createSemanticApplication({
     markingRead: [] as ContentVersion[],
     phase: "waiting",
     hostAvailable: true,
-    data: { version: null as string | null, sources: {} as Record<string, unknown> },
+    data: {
+      version: null as string | null,
+      taken: null as number | null,
+      sources: {} as Record<string, unknown>,
+    },
     effective: derive(
       {
         revision: null,
@@ -902,12 +906,13 @@ export function createSemanticApplication({
     },
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted
-    // is older, whichever order the two arrive in.
-    acceptData(data: typeof initial.data, taken: number) {
+    // is older, whichever order the two arrive in. The published data keeps the
+    // `taken` of the reading that brought it, which readiness readers compare.
+    acceptData(data: { version: string; sources: Record<string, unknown> }, taken: number) {
       if (taken < dataTaken) return false;
       dataTaken = taken;
       if (data.version === publisher.read().data.version) return false;
-      publish({ data: structuredClone(data) });
+      publish({ data: { ...structuredClone(data), taken } });
       return true;
     },
     // Whether this answer could be adopted with `revision` showing, asked without

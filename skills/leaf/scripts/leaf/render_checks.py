@@ -1,6 +1,5 @@
 """Named browser probes used by the render and export gates."""
 
-from collections.abc import Callable
 from pathlib import Path
 
 RENDER_VIEWPORT = {"width": 1200, "height": 900}
@@ -142,11 +141,7 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
 
 
 def wait_for_presentation(
-    page,
-    data_version: Callable[[], str],
-    replayed_events: int,
-    *,
-    settled: bool = False,
+    page, state: dict, replayed_events: int, *, settled: bool = False
 ) -> str | None:
     """Wait through the canonical post-upgrade presentation stages.
 
@@ -154,25 +149,13 @@ def wait_for_presentation(
     their own terms. Probe loading errors still surface: a missing observer is not an
     unready page.
 
-    `data_version` reads the server's current data version. The version is a digest
-    with no order, and any process may rewrite a source between the caller's read and
-    the browser's, so a wait that times out asks the server again and waits for the
-    newer version; only a version the server still reports and the page never
-    presented is a stall.
+    `state` is the caller's own `/api/state` reading. Any process may rewrite a source
+    between that read and the browser's, so the data stage is met by the reading's
+    version or by any reading the server took no earlier.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    version = data_version()
-    while True:
-        try:
-            wait_for_probe(page, "dataApplied", version)
-            break
-        except PlaywrightTimeout:
-            current = data_version()
-            if current == version:
-                return "dataApplied"
-            version = current
-    stages = []
+    stages = [("dataApplied", (state["data"]["version"], state["taken"]))]
     if replayed_events:
         stages.append(("logApplied", (replayed_events,)))
     stages.append(("currentPresented", ()))

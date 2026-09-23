@@ -1486,9 +1486,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
 
 def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
-    """Any process may rewrite a source, so the version the gate read first can be one
-    the page has already moved past. A data version is a digest with no order: the
-    wait asks the server again rather than reporting the move as a stall."""
+    """Any process may rewrite a source, so the reading the gate took can hold a
+    version the page has already moved past. A data version is a digest with no
+    order; the page presenting a reading the server took later has caught up."""
     url = serve(
         leaf_page(
             "moving source",
@@ -1498,25 +1498,15 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
-
-    def server_version():
-        return render_gate_scheme.served(page, url, "/api/state").json()["data"][
-            "version"
-        ]
-
-    held = server_version()
+    held = render_gate_scheme.served(page, url, "/api/state").json()
     data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     expect(page.locator("#notes code")).to_have_text("Second.\n")
-    assert server_version() != held
-    page._leaf_probe_timeout_ms = 1_000
-    reads = iter([held])
-
-    assert (
-        render_checks_model.wait_for_presentation(
-            page, lambda: next(reads, None) or server_version(), 0
-        )
-        is None
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-data-version", held["data"]["version"]
     )
+    page._leaf_probe_timeout_ms = 1_000
+
+    assert render_checks_model.wait_for_presentation(page, held, 0) is None
 
 
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(

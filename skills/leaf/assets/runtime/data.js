@@ -39,7 +39,7 @@ const subscriptions = new Set();
 let subscriptionSequence = 0;
 
 export async function notifyDataSubscribers() {
-  const version = runtime.data.version;
+  const { version, taken } = runtime.data;
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
   const regions = current.map((subscription) => subscription.region);
@@ -50,10 +50,15 @@ export async function notifyDataSubscribers() {
   // The version becomes a readiness fact only after every subscriber has settled. A
   // rejected package render is reported at its own boundary rather than turning every
   // later state read into the same page-wide failure. Render checks and export compare
-  // this stamp with the server snapshot, so a data-only page cannot be read while an
-  // asynchronous projection is still pending.
-  if (version !== null && runtime.data.version === version)
+  // this stamp with their own state read, so a data-only page cannot be read while an
+  // asynchronous projection is still pending. Beside the version goes the `taken` of
+  // the reading that brought it: any process may rewrite a source, so the page can move
+  // past the reader's version, and a page presenting a reading taken no earlier than
+  // the reader's has caught up.
+  if (version !== null && runtime.data.version === version) {
     document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataVersion, version);
+    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataTaken, String(taken));
+  }
 }
 
 // A source value remains the server snapshot's to own. Subscribers name one input on

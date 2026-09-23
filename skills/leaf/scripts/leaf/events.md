@@ -21,7 +21,7 @@ page and is not a global identifier. The kinds:
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the reader edited the document through the widget |
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `data_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
-| `receipt` | agent | `leaf receipt` | `request`, `succeeded` or `failed`, `text` | exactly one terminal outcome per accepted request |
+| `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
 | `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named reader events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the reader |
@@ -154,9 +154,9 @@ as an explicit reopen does.
 A host that gives up on a move writes the failure the move's answer takes
 (`conversation.fail_answer`): a reply for a message, including one in a conversation
 that asked for a version, a failed `receipt` for a request, and a failed `pickup` for
-an answer to a page Ask. The reply and the pickup carry `failure`, a nonempty
-host-owned code; a receipt has no field for it and says so in the host's words. Only
-the host writer supplies `failure`, and the panel draws such a reply as a receipt whose head says the message
+an answer to a page Ask. Each carries `failure`, a nonempty host-owned code, which
+is what tells a host's failed receipt from an agent's. Only the host writer supplies
+`failure`, and the panel draws such a reply as a receipt whose head says the message
 answers nothing, since otherwise it is indistinguishable from the answer it stands in
 for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`

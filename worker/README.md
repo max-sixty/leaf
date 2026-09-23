@@ -293,7 +293,7 @@ and records the delivery turn opening, and observes that turn to its terminal st
 pickup is idempotent, so a repeated dispatch does not start the work twice. A boundary
 that gives up appends a failure receipt through the same event log. The
 Worker names a code and nothing else — it sends `{event, failure}` to
-`/_leaf/agent/reply`, where `failure` is `startup_failed` or `rate_limited` — and the
+`/_leaf/agent/fail`, where `failure` is `startup_failed` or `rate_limited` — and the
 adapter validates it, supplies the reader's wording from its own `FAILURE_RECEIPTS`
 declaration, and writes the failure the move's answer takes. `turn_failed` is the third
 code and never crosses that door: a container writes it from its own reading of a turn
@@ -302,7 +302,7 @@ three go through one writer, `write_failure_receipt`, which hands the move to
 `fail_answer`, so every giving-up boundary settles a move the same way whatever it was:
 a message takes a reply carrying `failure`, marked in its head as answering nothing
 rather than reading as the answer it stands in for; a request takes a failed receipt
-in the host's words, which reopens its seat and has no field for the code; an answer
+carrying `failure`, which reopens its seat; an answer
 to a page Ask takes a pickup with phase `failed` carrying `failure`, which hands the
 move back to the reader until they answer again. The deployment verifier retries
 `startup_failed` once and

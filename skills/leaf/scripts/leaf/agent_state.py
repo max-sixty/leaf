@@ -247,10 +247,10 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # answer to its own question as an answer nobody had given, with `asks` reporting
     # the same question answered.
     #
-    # `thread` is the one key that separates them, present on every entry so a reader
-    # of this can take the two halves the same way, and the elements come along so
-    # nothing here names a widget the same object never lists. Both lists are then in
-    # one order rather than two sorted halves.
+    # `conversation` is the one key that separates them, present on every entry so a
+    # reader of this can take the two halves the same way, and the elements come along
+    # so nothing here names a widget the same object never lists. Both lists are then
+    # in one order rather than two sorted halves.
     thread_actions = thread.projection
     thread_byid = thread.by_id
     thread_of = thread.thread_by_widget
@@ -369,13 +369,6 @@ def _write_page_state(
         request_phases=request_phases(thread_requests),
         reading=thread_reading,
     )["reader"]
-    state["asks"] = [
-        {
-            key if key != "thread" else "conversation": value
-            for key, value in ask.items()
-        }
-        for ask in state["asks"]
-    ]
     state["updates"] = canonical_updates(
         document.projection if document is not None else None,
         claims,

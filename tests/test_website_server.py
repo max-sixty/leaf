@@ -1868,11 +1868,12 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     ]
     if answer == "receipt":
         [receipt] = [event for event in events if event["kind"] == "receipt"]
-        assert (receipt["request"], receipt["status"], receipt["agent"]) == (
-            move["id"],
-            "failed",
-            website_server.WEBSITE_AGENT,
-        )
+        assert (
+            receipt["request"],
+            receipt["status"],
+            receipt["failure"],
+            receipt["agent"],
+        ) == (move["id"], "failed", "turn_failed", website_server.WEBSITE_AGENT)
         [lifecycle] = request_lifecycles(events)
         assert lifecycle["phase"] == "ready"
         assert returned == []
@@ -2020,7 +2021,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
 def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
     """The Worker's last-resort receipt reaches a widget gesture too, twice over.
 
-    `/_leaf/agent/reply` is what the Worker calls when it is rate limited or its
+    `/_leaf/agent/fail` is what the Worker calls when it is rate limited or its
     dispatch throws, with whatever event `/api/event` accepted — which can be a
     gesture on a widget frozen into thread markup. That is answered on the
     conversation holding it, so addressing the receipt at the gesture refuses the
@@ -3320,7 +3321,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         ):
             with pytest.raises(urllib.error.HTTPError) as invalid:
                 post(
-                    f"{root}/examples/decision/_leaf/agent/reply",
+                    f"{root}/examples/decision/_leaf/agent/fail",
                     {"event": comment["id"], **refused},
                 )
             assert invalid.value.code == 400
@@ -3342,7 +3343,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
-            f"{root}/examples/decision/_leaf/agent/reply",
+            f"{root}/examples/decision/_leaf/agent/fail",
             {"event": comment["id"], "failure": "startup_failed"},
         )
         reply = read_events(published)[-1]
@@ -3369,7 +3370,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert verify_site.startup_failed(failures)
         assert verify_site.deployment_answer(failures) is None
         repeated, _ = post(
-            f"{root}/examples/decision/_leaf/agent/reply",
+            f"{root}/examples/decision/_leaf/agent/fail",
             {"event": comment["id"], "failure": "startup_failed"},
         )
         assert repeated == appended
@@ -3597,7 +3598,7 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
         )
 
         answer, _ = post(
-            f"{root}/_leaf/agent/reply",
+            f"{root}/_leaf/agent/fail",
             {"event": first["id"], "failure": "rate_limited"},
         )
 

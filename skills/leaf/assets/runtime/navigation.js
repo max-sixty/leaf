@@ -129,16 +129,13 @@ const holding = (box) =>
 const seenScroller = (coveringAuxiliaryScroller) =>
   coveringAuxiliaryScroller() ?? pageScroller;
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
-// panel beside the page; a covering panel remains the only visible region even when
-// focus is still on the banner control that opened it.
-const stepScroller = (coveringAuxiliaryScroller, inPanel) => {
-  const covering = coveringAuxiliaryScroller();
-  if (covering) return covering;
-  const region = readingRegionFor(document.activeElement);
-  return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
-};
-function stepReading(amount, unit, coveringAuxiliaryScroller, inPanel) {
-  const box = stepScroller(coveringAuxiliaryScroller, inPanel);
+// panel or anchored conversation beside the page; a covering panel remains the only
+// visible region even when focus is still on the banner control that opened it.
+const stepScroller = (coveringAuxiliaryScroller) =>
+  coveringAuxiliaryScroller() ??
+  effectiveScroller(readingRegionFor(document.activeElement));
+function stepReading(amount, unit, coveringAuxiliaryScroller) {
+  const box = stepScroller(coveringAuxiliaryScroller);
   if (unit === "page") {
     amount *= box.clientHeight - landingInsets(box).top;
   }
@@ -199,8 +196,7 @@ export function createNavigation({
 }) {
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
-  const move = (amount, unit) =>
-    stepReading(amount, unit, coveringAuxiliaryScroller, inPanel);
+  const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
   const walkThreads = (dir) => stepThread(dir, threadDestinations, panelIsOpen);
 
   // Travel's own page keys. All three remain reachable inside a covering auxiliary

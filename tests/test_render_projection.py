@@ -6295,6 +6295,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     text the comment was made on, and a comment pointing into markup nobody can
     see has to read as detached rather than as a live mark that jumps nowhere."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1920, 900)
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.querySelector('#sug-refill lf-new'));

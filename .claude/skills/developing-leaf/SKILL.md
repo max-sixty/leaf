@@ -112,8 +112,12 @@ and changes the banner a visual check may be reading.
 `--user` also fixes the address: the durable service records it, so the URL
 survives a stop, while an unclaimed preview's server is its watcher's and a new
 watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
-rebuilds it in the other one. A subagent's previews stay claimless, and the session the
-user talks to starts any `--user` preview: a subagent's claim is that session's
+rebuilds it in the other one. `--reset` discards the slot's `service.json` with the
+rest of the page, and `--slot` names a different page, so after either, hand over
+the URL the command prints. Any other address question about a `--user` preview is
+a served page's, which `<root>/skills/leaf/references/serving-pages.md`, "Address
+and authentication", answers. A subagent's previews stay claimless, and the session
+the user talks to starts any `--user` preview: a subagent's claim is that session's
 claim, so that session's Stop hook would answer for the preview's moves either way.
 
 When finished with a preview, run the matching preview command with `--stop` (and
@@ -214,6 +218,9 @@ read `<root>/skills/leaf/references/serving-pages.md` and re-vendor it with the
 checkout launcher. A served page follows that reference's stop, init, start
 sequence. Fix or report a compatibility refusal without falling back to the
 installed plugin.
+
+A page that explains how a Leaf interface behaves lets the reader operate it;
+`references/specimen-explainers.md` covers that pattern.
 
 ## Refresh the public catalog stills
 

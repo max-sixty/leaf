@@ -30,20 +30,9 @@ import { uiInside, under, upFrom } from "./shadow.js";
    declared items with no visible part on which a mark can land. */
 // Where the page's shell ends on the right — the far edge of the room the document has,
 // which is what a margin resident is placed against and what the response surface may not
-// overhang. Body's content box and not its border box, because the strip a standing panel
-// or tray takes is a transparent border (theme.css says why it has to be one), so
-// `getBoundingClientRect().right` is the window's edge rather than the page's. Read live
-// rather than derived from a panel width, since a user may have drawn the edge
-// anywhere and the stylesheet decides whether the strip is taken at all.
-export const shellRight = () => {
-  const body = document.body;
-  const { borderLeftWidth } = getComputedStyle(body);
-  return (
-    body.getBoundingClientRect().left +
-    (Number.parseFloat(borderLeftWidth) || 0) +
-    body.clientWidth
-  );
-};
+// overhang. Nothing takes a strip on the right: the thread panel stands over the page, and
+// the one strip-taking tray yields its room as a border on body's left.
+export const shellRight = () => document.body.getBoundingClientRect().right;
 // Whether two boxes share any pixel. The one spelling of a question three chrome passes
 // ask: placement, badge reservation, and the clear part left of a box behind furniture.
 export const overlaps = (a, b) =>
@@ -370,8 +359,7 @@ export function shownParts(el) {
 // `position: fixed` element clips it, so the ancestors past that one are answering about a
 // flow the element left. Every box in the chrome is behind one — the thread panel is
 // fixed, so a reply box measured through the page flow's ancestors came back wholly clipped
-// away at any window wide enough for the panel to stand beside the page rather than over
-// it. The one caller before this asked
+// away whenever the page had scrolled. The one caller before this asked
 // only about the page's own items, none of which is ever inside a fixed box, which is why
 // the walk could be written as "every ancestor" and read as complete.
 //

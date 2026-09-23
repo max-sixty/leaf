@@ -150,10 +150,11 @@ own bound stay keyboard-reachable through `reach.js` and are not regions.
    query would miss. Bounded rules stay under `@media screen`, so copies and print
    flow.
 
-   Opening Threads never changes the space the page gets: the panel slides over the
-   page at every width, so a comment cannot flip a workspace's posture or rewrap a
-   grid. Today the panel pushes the page aside above 840px and covers it below
-   (`COVERING` in `chrome-layout.js`); both the push and that test go.
+   Opening Threads never changes the space the page gets: the panel stands over the
+   right of the window at every width, so a comment cannot flip a workspace's posture
+   or rewrap a grid. The page beside it stays live; the panel takes the modal covering
+   boundary only where it leaves less than a usable page (320px) beside it
+   (`panelCovers` in `chrome-layout.js`), which a phone window gives it by default.
 
    A probe in Chrome (`frame-probe.html`: banner, `lf-workspace` as a size container,
    four panes with one long, columns `auto-fit minmax(360px, 1fr)`, bounded at
@@ -173,9 +174,10 @@ own bound stay keyboard-reachable through `reach.js` and are not regions.
    changes. Every declared region, the page included, is read this way. This ships
    with design 4, or crossing the threshold loses the user's place.
 6. **Panels slide over the page.** Threads and Leaves overlay the page and never
-   take width from it, so the page is laid out for one width whatever is open. The
-   fixed chrome (banner, left trays, bottom bar) reserves its space as it does today,
-   and no page grid is needed. Blocks still grow out of the column; sidenotes stay
+   take width from it, so the page is laid out for one width whatever is open. Leaves
+   covers the page; Threads leaves it live and covers it only where it leaves less
+   than a usable page beside it. The fixed chrome (banner, the Asks tray's left strip, bottom bar) reserves
+   its space as it does today, and no page grid is needed. Blocks still grow out of the column; sidenotes stay
    floats and margin rows stay positioned beside their lines.
 
 Widgets never choose a posture. `lf-monitor`, `lf-visual-review`, the playground and
@@ -272,11 +274,15 @@ Disadvantages and risks:
   panes hold.
 - **No spans yet.** Layouts where one cell spans rows nest grids, which is more
   markup than a span.
-- **Threads covers part of the page at middle widths.** Between roughly 900 and
-  1300px the panel can sit over the right of the text column, including the passage
-  a thread quotes, and over a workspace's right-hand pane. On wider windows it mostly
-  covers empty margin. Keeping the quoted passage clear is later work that does not
-  touch the layout model.
+- **Threads covers the margin and part of the page below about 1700px.** At those
+  widths the open 420px panel stands over the whole margin rail (markers, suggestion
+  controls, inline conversations) and, below roughly 1300px, the right of the text
+  column, including the passage a thread quotes and a workspace's right-hand pane.
+  The page stays live beside it, but what the panel covers cannot be pressed until it
+  closes: while the panel stands over a rail row the banner offers the Page Map in the
+  rail's place, and a quote whose passage would land under the panel closes it. Only on
+  wider windows does it cover empty margin. Keeping the quoted passage
+  and the rail clear is later work that does not touch the layout model.
 - **Pane markup gets stricter.** Every pane needs one body element.
 - **Continuity has to be rebuilt,** from JS-announced transitions to continuous
   landmark recording.
@@ -339,5 +345,3 @@ Each slice replaces its old path completely.
   and after; delete `readBoundedFit`, `lf-partition`, and the JS minimum-size readers.
 - **#31** Move `lf-visual-review`, the playground and `lf-ask` onto the grid; delete
   `arrangeReadingElement` and the package copies of bounded rules.
-- **#28** Threads slides over the page at every width; delete the push strip,
-  `COVERING`, and `main`'s panel offset.

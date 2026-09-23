@@ -3214,7 +3214,8 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A conversation about a table wants room a conversation about a sentence does not,
     and a tray of long names wants room a tray of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
-    of, and the page yields exactly the strip they leave it.
+    of. Where the region stands beside the page, the page yields exactly the strip they
+    leave it; where it stands over the page, the page yields nothing at any width.
 
     Both sides of that strip are read, because the failure this is written against does
     not show on either alone: a region that resizes while the page keeps yielding the old
@@ -3255,7 +3256,7 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     assert drawn["width"] == edge.wide + 160, (
         f"the edge did not follow the hand: {default} then {drawn}"
     )
-    assert drawn["page"] == drawn["edge"], (
+    assert drawn["page"] == (drawn["edge"] if edge.strip else default["page"]), (
         f"the page yielded a strip of its own rather than the one the region took: {drawn}"
     )
     assert drawn["chosen"] == str(edge.wide + 160), (
@@ -3263,7 +3264,7 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     )
     assert (stepped["width"], stepped["page"]) == (
         drawn["width"] - 24,
-        stepped["edge"],
+        stepped["edge"] if edge.strip else default["page"],
     ), f"the arrow moved something other than the edge and the page with it: {stepped}"
     assert returned["width"] == stepped["width"], (
         f"the width did not survive the reload a version switch makes: {returned}"
@@ -3418,8 +3419,9 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 ):
     """A region may take half of a window it stands beside and no more — the same bargain
     the covering breakpoint strikes one window down, that the page keeps at least what the
-    region takes. A window that shrinks past that is a window, not a retraction: the user
-    said 580 once, and a laptop lid opened narrower is not them saying 400 instead.
+    region takes — and a region over the page may take the window and no more. A window
+    that shrinks past that is a window, not a retraction: the user said 580 once, and a
+    laptop lid opened narrower is not them saying 400 instead.
 
     So the choice and the standing width are two facts. Clamping the stored one would read
     identically on the narrow window and lose the user's answer for good on the wide one
@@ -3443,7 +3445,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     assert squeezed["width"] == stands, (
         f"a {narrow}px window left the page less than the region took: {squeezed}"
     )
-    assert squeezed["page"] == squeezed["edge"], (
+    assert not edge.strip or squeezed["page"] == squeezed["edge"], (
         f"the page yielded a strip the region was not standing in: {squeezed}"
     )
     assert squeezed["chosen"] == str(edge.wide + 160), (

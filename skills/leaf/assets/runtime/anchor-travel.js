@@ -233,6 +233,10 @@ export function createAnchorTravel({
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
+  // Where a thread's travel lands: its first mark, or the element its anchor placed.
+  const threadDestination = (id) =>
+    anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element ?? null;
+
   async function scrollToThread(id, { land = null } = {}) {
     const mayArrive = retainTravel();
     const thread = currentThreads().find((candidate) => candidate.root.id === id);
@@ -246,7 +250,7 @@ export function createAnchorTravel({
       if (!mayArrive()) return false;
     }
 
-    let where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
+    let where = threadDestination(id);
     if (!where) return false;
     let holder = destinationHolder(where);
     if (!holder) return false;
@@ -258,7 +262,7 @@ export function createAnchorTravel({
     // press left it.
     await refreshConversation();
     if (!mayArrive()) return false;
-    where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
+    where = threadDestination(id);
     if (!where) return false;
     holder = destinationHolder(where);
     if (!holder) return false;
@@ -278,5 +282,6 @@ export function createAnchorTravel({
     readableDestination,
     scrollToRange,
     scrollToThread,
+    threadDestination,
   };
 }

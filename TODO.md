@@ -89,6 +89,15 @@ has tried; settle that before building it.
   posture from its own size (#30), then the playground, visual review and Ask onto
   the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
   queue-with-detail pages.
+- **Trim a heading's margin at the top of a page when a block wraps it.** A page
+  whose first block is an `lf-ask` opens 48px lower than one that starts with its
+  own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
+  `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
+  children. Inside a 32rem specimen, that margin plus `main`'s 72px top padding
+  leaves 120px of blank space above the question.
+- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user scrolling an
+  entered `lf-specimen` reported that scrolling got stuck, with no reproduction yet.
+  Settle it after the scrolling changes land.
 
 ### The agent's text interface
 
@@ -171,9 +180,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   front of every tool-result hook, so Leaf can answer more events itself.
   Rewriting the hook path in a compiled language is the further step if that
   is not enough.
-- **#28 — Threads slides over:** the panel overlays the page at every width, so
-  the page never moves for it; delete the push strip, `COVERING`, and `main`'s
-  panel offset. See the [layout model](notes/layout-model.md).
 - **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
   `@layer`; the earlier trial changed chrome styling. See the
   [dependency survey](notes/dependency-survey.md).

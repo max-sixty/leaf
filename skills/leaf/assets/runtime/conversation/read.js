@@ -16,7 +16,7 @@ import { shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
-import { firstUnreadBtn, panel, panelWouldCover } from "./panel-elements.js";
+import { firstUnreadBtn, panelEdgeOver } from "./panel-elements.js";
 import { readThreads } from "./state.js";
 import { under, upFrom } from "../shadow.js";
 
@@ -90,13 +90,16 @@ function visibleInterval(body, clips) {
     if (owner.inert || owner.getAttribute?.("aria-hidden") === "true") return null;
   const modal = document.querySelector("dialog:modal");
   if (modal && !under(body, modal)) return null;
-  if (panel.open && panelWouldCover() && !under(body, panel)) return null;
   const box = body.getBoundingClientRect();
   // Sticky run headings are left out of what is shown (geometry.js, visibleBand), so a
   // message hidden under one is not read.
   const shown = shownRect(body, clips);
   if (!shown || box.width <= 0 || box.height <= 0) return null;
-  if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
+  // The open thread panel stands over the right of the page and occludes what it stands
+  // over, the way a clip cuts what it does not hold: a message reaching under its edge
+  // has not been shown whole, and the full-width rule withholds it.
+  const right = Math.min(shown.right, panelEdgeOver(body));
+  if (shown.left > box.left + EPSILON || right < box.right - EPSILON) return null;
   return {
     interval: [
       Math.max(0, shown.top - box.top),

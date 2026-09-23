@@ -28,7 +28,7 @@ def restatement_errors(
 ) -> list:
     """The other half of the id-survival rule. That one keeps a revision from
     dropping the anchors a user hung on the page; this one keeps it from
-    dropping the decisions they recorded on it. CLAUDE.md carries why the log
+    dropping the decisions they recorded on it. AGENTS.md carries why the log
     outranks the markup and what that cost.
 
     The runtime reconciles every standing action onto every later version, so a

@@ -860,7 +860,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      What hover and focus add is a line drawn over the border, growing a pixel each way
      into room that was already the border's and the region's padding; never a thicker
      border, which would move everything in the region under the pointer that had just
-     arrived (CLAUDE.md, "Layout and motion"). touch-action, so a
+     arrived (AGENTS.md, "Layout and motion"). touch-action, so a
      finger on the edge resizes rather than scrolling the region behind it, and z-index
      because a thread is positioned too and stands later in the panel than this does.
 

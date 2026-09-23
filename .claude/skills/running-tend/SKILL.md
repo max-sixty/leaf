@@ -1,6 +1,6 @@
 ---
 name: running-tend
-description: Project-specific guidance loaded by tend workflows alongside CLAUDE.md.
+description: Project-specific guidance loaded by tend workflows alongside AGENTS.md.
 ---
 
 # Running tend — leaf
@@ -20,7 +20,7 @@ the matching lines without saying which file each came from.
 
 ## Review threshold
 
-Apply `CLAUDE.md`'s **Stage** section to the verdict. Once a change moves Leaf
+Apply `AGENTS.md`'s **Stage** section to the verdict. Once a change moves Leaf
 toward a coherent architecture and its claimed path works, the review is done.
 Reserve findings for architectural seams, cross-runtime invariants, public
 surface traps, regressions on the claimed path, or a central claim or test that
@@ -95,7 +95,7 @@ The review selection supplements the everyday CI gate. A docs-only or
 generated-workflow change may need no additional test; a selected failure
 withholds approval.
 
-For a change that can alter browser startup, apply `CLAUDE.md`'s **Working on the
+For a change that can alter browser startup, apply `AGENTS.md`'s **Working on the
 repository** performance rule. Read the candidate profile from CI and compare it with
 the base. If requests or bytes rise before presentation, check that the PR names the
 user-visible benefit and why the work must happen then.
@@ -121,7 +121,7 @@ Two test-owned failures recur here:
   needs — a panel still widening the document, a scroll still settling, a
   response landed but not yet reconciled. It surfaces at a wait far from the
   read that caused it, so the traceback names the symptom rather than the cause.
-  `tests/CLAUDE.md` already owns the fix under **State races are arrangements,
+  `tests/AGENTS.md` already owns the fix under **State races are arrangements,
   not probabilities** and **A state the page passes through is not a state to
   poll for**: state the ordering, do not repeat the gesture until it happens to
   hold.
@@ -130,7 +130,7 @@ Two test-owned failures recur here:
   itself is one more member. Read the line's history first (`git log -L`). A set
   that has already grown is describing the noise the suite makes rather than the
   behaviour the test names, so the next wording reddens main again.
-  `tests/CLAUDE.md` owns the fix under **A test cannot assert over noise it makes
+  `tests/AGENTS.md` owns the fix under **A test cannot assert over noise it makes
   itself**. The PR is against the test.
 
 ## Weekly: interface sweep

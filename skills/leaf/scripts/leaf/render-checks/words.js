@@ -296,7 +296,7 @@ export function unreadSyntax() {
 // It reads every open root (OPEN_ROOTS) where both word passes stop at the boundary on
 // purpose: which widgets the page holds is the document's question, and settling a
 // staged widget's nesting in a sweep would be writing that contract where nobody would
-// look for it (the layer's CLAUDE.md). So a staged element keeps its declarations and
+// look for it (the layer's AGENTS.md). So a staged element keeps its declarations and
 // gets neither pass, which is exactly where a promised word reaches nobody in silence —
 // reported here, to the module's author, at handover.
 //

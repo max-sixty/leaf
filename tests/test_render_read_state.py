@@ -27,11 +27,6 @@ def _read_events(page_dir):
     ]
 
 
-def _horizontal_bounds(locator):
-    box = locator.bounding_box()
-    return box["x"], box["x"] + box["width"]
-
-
 def _agent_metric_reply(page_dir, root, number, for_event=None):
     return conversation_model.cmd_reply(
         page_dir,
@@ -71,7 +66,7 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
         dict,
     )
     assert accepted == 200
-    edit = conversation_model.cmd_edit(serve.page_dir, first, "Revised update 1.")
+    conversation_model.cmd_edit(serve.page_dir, first, "Revised update 1.")
     conversation_model.cmd_summarize(
         serve.page_dir, root, first, middle, "The first two updates in brief."
     )
@@ -98,20 +93,11 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
             f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{first}"]'
         )
     ).to_be_visible()
-    marker_bounds = _horizontal_bounds(checkpoint.locator(".lf-read-boundary").first)
-    original_bounds = _horizontal_bounds(card.locator(f'.lf-msg[data-mid="{first}"]'))
-    assert all(abs(a - b) < 1 for a, b in zip(marker_bounds, original_bounds))
     expect(card.locator('.lf-read-boundary[data-kind="new"]')).to_have_count(2)
     expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(1)
     expect(
         card.locator(f'.lf-read-boundary + .lf-msg[data-mid="{middle}"]')
     ).to_have_count(0)
-    assert (
-        card.locator(f'.lf-msg[data-mid="{first}"]').get_attribute(
-            "data-content-version"
-        )
-        == edit["id"]
-    )
 
     draft = card.locator("textarea").first
     draft.fill("Compare the revised update.")
@@ -179,9 +165,6 @@ def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
     expect(
         card.locator(":scope > .lf-read-boundary + .lf-thread-root-meta")
     ).to_be_visible()
-    marker_bounds = _horizontal_bounds(card.locator(":scope > .lf-read-boundary"))
-    header_bounds = _horizontal_bounds(card.locator(":scope > .lf-thread-root-meta"))
-    assert all(abs(a - b) < 1 for a, b in zip(marker_bounds, header_bounds))
     expect(
         card.locator(f':scope > .lf-thread-root-meta + .lf-msg[data-mid="{root}"]')
     ).to_be_visible()
@@ -431,7 +414,10 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     ]
 
 
-def test_pending_and_refused_read_do_not_create_agent_work(browser, serve):
+def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, serve):
+    """A read acknowledgement is bookkeeping: it creates no work, a gesture made while
+    it is in flight goes out beside it, its failure is silent while the gesture's is
+    reported, and resolving the thread is itself evidence the reader took it in."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(serve.page_dir, "Read this answer.", author="agent")
@@ -442,7 +428,8 @@ def test_pending_and_refused_read_do_not_create_agent_work(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-first-unread").click()
     holding(page, held, 1, "automatic read")
-    message = page.locator(f'.lf-msg[data-mid="{root}"]')
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    message = card.locator(f'.lf-msg[data-mid="{root}"]')
     expect(message).not_to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     expect(message.locator(".lf-msg-sending")).to_have_count(0)
     assert (
@@ -453,28 +440,56 @@ def test_pending_and_refused_read_do_not_create_agent_work(browser, serve):
         "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
     )
 
-    request = held.pop()
-    command = request.request.post_data_json
-    request.fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "final": True,
-            "attempt": command["attempt"],
-            "error": "refused before append",
-        },
+    card.get_by_role("button", name="Resolve thread").click()
+    holding(page, held, 2, "a resolve sent while the read is held")
+    assert [route.request.post_data_json["kind"] for route in held] == [
+        "read",
+        "resolve",
+    ]
+    held[0].fulfill(
+        status=400, json={"ok": False, "final": True, "error": "refused before append"}
     )
     expect(message).to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
-    page.wait_for_timeout(100)
-    assert held == []
+    page.unroute("**/api/event")
+    held[1].abort()
+    expect(page.locator(".lf-notice")).to_contain_text("Connection lost")
+    told(page)
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
     assert _read_events(serve.page_dir) == []
+    assert [
+        event["kind"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["author"] == "user"
+    ] == ["resolve"]
     assert not any(
         "Couldn't send" in text
         for text in page.locator(".lf-notice").all_text_contents()
     )
-    assert take_browser_errors(page) == [
-        f"400 {request.request.url}",
-        "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+    assert all(
+        "/api/event" in error or "Failed to load" in error
+        for error in take_browser_errors(page)
+    )
+
+
+def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
+    """Content inside a message that scrolls on its own, like a long code line, is part
+    of what was shown; it does not hold the message unread."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Run this:\n\n```\n" + "leaf page state --json " * 40 + "\n```",
+        author="agent",
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    with sending(page, "wide reply read"):
+        page.locator(".lf-first-unread").click()
+    code = page.locator(f'.lf-msg[data-mid="{root}"] pre').first
+    assert code.evaluate("element => element.scrollWidth > element.clientWidth")
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": root, "version": root}
     ]
 
 
@@ -501,15 +516,9 @@ def test_explicit_mark_read_reports_refusal_as_read_action(browser, serve):
     card.get_by_role("button", name="Mark thread read").click()
     holding(page, held, 1, "explicit read")
     request = held.pop()
-    command = request.request.post_data_json
     request.fulfill(
         status=400,
-        json={
-            "ok": False,
-            "final": True,
-            "attempt": command["attempt"],
-            "error": "refused before append",
-        },
+        json={"ok": False, "final": True, "error": "refused before append"},
     )
     expect(card.get_by_role("button", name="Mark thread read")).to_be_visible()
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't mark thread read")

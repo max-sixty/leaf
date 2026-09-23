@@ -4337,7 +4337,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     Each surface is opened by its own key, which is also the assertion that it can be, and
     each is proved standing before axe reads it — a sweep over a surface that never opened
-    is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
+    is a green that means nothing, which is the shape `tests/AGENTS.md` names."""
     url = serve(ADDRESSED_PAGE, comments=1)
     stamp_page(serve.page_dir, ADDRESSED_PAGE, "two")
     page = open_page(browser, url)

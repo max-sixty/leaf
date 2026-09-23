@@ -67,6 +67,7 @@ import {
   syncMarginAgentWorkflow,
   syncMarginEntrySelection,
   syncMarginTurn,
+  syncMarginUnread,
   watchMarginContributions,
 } from "./margin-entries.js";
 import {
@@ -86,6 +87,7 @@ import {
   readingState,
   readingBehavior,
   awaitingReader,
+  unreadIn,
   readingContext,
   clusterProjection,
   marginInventory,
@@ -842,6 +844,7 @@ export function createMarginProjection({
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
       const onReader = attention?.kind === "needs_reader";
+      const unread = thread.unread.length;
       add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
@@ -862,9 +865,14 @@ export function createMarginProjection({
               reason: thread.attention?.reason ?? "workflow",
             }
           : null,
+        unread,
         // Page Map lists each conversation on its own row, so the word goes on the row
         // rather than on an aggregate.
-        ...(onReader ? { mapContext: attention.label } : {}),
+        ...(onReader
+          ? { mapContext: attention.label }
+          : unread
+            ? { mapContext: `${unread} unread` }
+            : {}),
         // Work decorates the conversation control; it never replaces the control's
         // comment face or its disclosure action.
         workflowReceipt: onReader ? null : attention?.workflow,
@@ -1173,9 +1181,9 @@ export function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const readerContext = awaitingReader(choice?.items ?? [])
-      ? readingContext(choice)
-      : null;
+    const items = choice?.items ?? [];
+    const readerContext =
+      awaitingReader(items) || unreadIn(items) ? readingContext(choice) : null;
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${readerContext ? `, ${readerContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
@@ -1529,6 +1537,7 @@ export function createMarginProjection({
     syncReadingRelation(row, choice);
     syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
     syncMarginTurn(row, awaitingReader(choice?.items ?? []));
+    syncMarginUnread(row, unreadIn(choice?.items ?? []));
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1583,7 +1592,10 @@ export function createMarginProjection({
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
-    const readerContext = awaitingReader(choice.items) ? readingContext(choice) : null;
+    const readerContext =
+      awaitingReader(choice.items) || unreadIn(choice.items)
+        ? readingContext(choice)
+        : null;
     presentMarginEntry(
       node,
       marginEntry({
@@ -1605,6 +1617,7 @@ export function createMarginProjection({
     syncReadingRelation(node, choice);
     syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
     syncMarginTurn(node, awaitingReader(choice.items));
+    syncMarginUnread(node, unreadIn(choice.items));
     node.onclick =
       behavior === "status"
         ? null

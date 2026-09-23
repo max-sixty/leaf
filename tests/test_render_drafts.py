@@ -1546,11 +1546,11 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         expect(page.locator(".lf-fab-input")).not_to_be_focused()
         assert composer_quote(page)["text"].strip("“”") == "A short second passage."
     else:
-        expect(thread.locator("textarea")).to_be_focused()
+        expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
 def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
-    """Focus handed to a new reply is not itself a draft; an edit to empty is."""
+    """An untouched reply is not a draft; an edit to empty is."""
     page = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     select_words(page, "#p1")
@@ -1564,9 +1564,12 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
         page.keyboard.press("ControlOrMeta+Enter")
 
     sent = events_model.read_events(serve.page_dir)[-1]
-    reply = page.locator(
-        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"] textarea'
+    thread = page.locator(
+        f'.lf-margin-thread .lf-conversation-thread[data-thread="{sent["id"]}"]'
     )
+    reply = thread.locator("textarea")
+    expect(thread).to_be_focused()
+    thread.get_by_role("button", name="Reply").click()
     expect(reply).to_be_focused()
 
     d = serve.page_dir

@@ -369,8 +369,8 @@ const listNode = (id, preferMessage = false) => {
   const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
   const thread = `.lf-thread[data-id="${CSS.escape(id)}"]`;
   const node = preferMessage
-    ? threadsBox.querySelector(message) ?? threadsBox.querySelector(thread)
-    : threadsBox.querySelector(thread) ?? threadsBox.querySelector(message);
+    ? (threadsBox.querySelector(message) ?? threadsBox.querySelector(thread))
+    : (threadsBox.querySelector(thread) ?? threadsBox.querySelector(message));
   return node?.closest(".lf-thread[hidden]") ? null : node;
 };
 
@@ -517,8 +517,10 @@ export function declareThreadKeys(landIn, read) {
         line: "mark read",
         when: () => {
           const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;
-          return Boolean(id && threadList().find((thread) =>
-            thread.root.id === id && thread.unreadCount));
+          return Boolean(
+            id &&
+            threadList().find((thread) => thread.root.id === id && thread.unreadCount),
+          );
         },
         run: () => {
           const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;

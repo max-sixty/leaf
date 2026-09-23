@@ -4,8 +4,8 @@ import json
 
 from interact_support import fetch, published
 from leaf import conversation as conversation_model
-from leaf import event_log as event_log_model
 from leaf import event_endpoint as endpoint_model
+from leaf import event_log as event_log_model
 from leaf import files as files_model
 from leaf import service as service_model
 
@@ -107,8 +107,11 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     monkeypatch.setattr(endpoint_model, "wait_is_live", lambda *args: False)
     status, answer = endpoint_model.accept_event(
         page_dir,
-        {"kind": "read", "messages": [{"message": message["id"], "version": message["id"]}]},
-        lambda: {},
+        {
+            "kind": "read",
+            "messages": [{"message": message["id"], "version": message["id"]}],
+        },
+        dict,
     )
     assert status == 200, answer
     assert nudges == []
@@ -116,7 +119,7 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     status, body = endpoint_model.accept_event(
         page_dir,
         {"kind": "comment", "revision": 1, "text": "Please continue."},
-        lambda: {},
+        dict,
     )
     assert status == 200, body
     assert nudges == [page_dir.resolve()]

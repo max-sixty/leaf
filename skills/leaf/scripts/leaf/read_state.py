@@ -25,9 +25,7 @@ def reader_message_content(event: dict) -> bool:
 def content_versions(events: list[dict]) -> dict[str, set[str]]:
     """Every exact version that may be acknowledged, including superseded edits."""
     versions = {
-        event["id"]: {event["id"]}
-        for event in events
-        if reader_message_content(event)
+        event["id"]: {event["id"]} for event in events if reader_message_content(event)
     }
     for event in events:
         if event["kind"] == "edit" and event["message"] in versions:

@@ -121,10 +121,15 @@ function navigationSummary(navigation, model) {
   return html`<summary class="lf-thread-summary" title=${title}>
     <span class="lf-thread-topic">${title}</span>
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
-    ${model.unreadCount
-      ? html`<span class="lf-thread-unread" aria-label=${`${model.unreadCount} unread`}
-          >${model.unreadCount} unread</span>`
-      : nothing}
+    ${
+      model.unreadCount
+        ? html`<span
+            class="lf-thread-unread"
+            aria-label=${`${model.unreadCount} unread`}
+            >${model.unreadCount} unread</span
+          >`
+        : nothing
+    }
     <span
       class="lf-thread-count"
       aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
@@ -481,7 +486,11 @@ export class ThreadView {
 
   #markReadControl() {
     if (!this.#markReadButton) {
-      const button = offer("button", "lf-btn lf-mark-read lf-thread-action", "Mark thread read");
+      const button = offer(
+        "button",
+        "lf-btn lf-mark-read lf-thread-action",
+        "Mark thread read",
+      );
       button.type = "button";
       button.onclick = () => this.#commands.read.markThread(this.#model.id);
       this.#markReadButton = button;

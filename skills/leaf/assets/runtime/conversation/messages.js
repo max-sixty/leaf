@@ -292,7 +292,9 @@ export class MessageView {
     highlightBlocks(this.node);
     this.#commands.read.observeBody(
       this.node,
-      this.node.querySelector(panel ? ":scope > .lf-msg-body" : ":scope > .lf-conversation-body"),
+      this.node.querySelector(
+        panel ? ":scope > .lf-msg-body" : ":scope > .lf-conversation-body",
+      ),
       model,
     );
     return this.node;

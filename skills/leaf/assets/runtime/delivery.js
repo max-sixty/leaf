@@ -46,7 +46,8 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        if (!announced) reportDelivery("The server isn't ready yet — retrying your change…");
+        if (!announced)
+          reportDelivery("The server isn't ready yet — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -60,7 +61,8 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        if (!announced) reportDelivery("Couldn't read the answer — retrying your change…");
+        if (!announced)
+          reportDelivery("Couldn't read the answer — retrying your change…");
         announced = true;
         await retryPause();
         continue;
@@ -83,7 +85,8 @@ export function createDelivery({
         reportDelivery(`Couldn't send — ${answer.error || "the server refused it"}`);
         return { accepted: null };
       }
-      if (!announced) reportDelivery("Server answer was incomplete — retrying your change…");
+      if (!announced)
+        reportDelivery("Server answer was incomplete — retrying your change…");
       announced = true;
       await retryPause();
     }

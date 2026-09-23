@@ -10,15 +10,25 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
-    holding, leaf_page, open_page, panel_settled, sending, take_browser_errors, told,
+    holding,
+    leaf_page,
+    open_page,
+    panel_settled,
+    sending,
+    take_browser_errors,
+    told,
 )
 
 
 def _read_events(page_dir):
-    return [event for event in events_model.read_events(page_dir) if event["kind"] == "read"]
+    return [
+        event for event in events_model.read_events(page_dir) if event["kind"] == "read"
+    ]
 
 
-def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(browser, serve):
+def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
+    browser, serve
+):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "An answer for the reader.", author="agent")
     page = open_page(browser, url)
@@ -28,7 +38,9 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(brows
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "aria-label", "Threads (1), 1 unread thread"
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_attribute("data-unread-threads", "")
+    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
+        "data-unread-threads", ""
+    )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -40,7 +52,9 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(brows
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     expect(page.locator(".lf-first-unread")).to_be_hidden()
-    expect(page.locator(".lf-threads-toggle")).not_to_have_attribute("data-unread-threads", "")
+    expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
+        "data-unread-threads", ""
+    )
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
@@ -61,7 +75,7 @@ def test_authored_reply_requires_explicit_read_even_when_open(browser, serve):
         '<lf-options id="read-choice" choose>'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        '</lf-options></lf-ask>',
+        "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -99,16 +113,21 @@ def test_oversized_message_needs_contiguous_traversal_or_explicit_read(browser, 
     panel_settled(page)
     page.locator(".lf-first-unread").click()
     body = page.locator(f'.lf-msg[data-mid="{root}"] .lf-msg-body')
-    assert body.bounding_box()["height"] > page.locator(".lf-threads").bounding_box()[
-        "height"
-    ]
-    page.locator(".lf-threads").evaluate("element => element.scrollTop = element.scrollHeight")
+    assert (
+        body.bounding_box()["height"]
+        > page.locator(".lf-threads").bounding_box()["height"]
+    )
+    page.locator(".lf-threads").evaluate(
+        "element => element.scrollTop = element.scrollHeight"
+    )
     page.wait_for_timeout(100)
     assert _read_events(serve.page_dir) == []
 
     page.locator(".lf-threads").evaluate("element => element.scrollTop = 0")
     page.locator(".lf-threads").hover()
-    list_height = page.locator(".lf-threads").evaluate("element => element.clientHeight")
+    list_height = page.locator(".lf-threads").evaluate(
+        "element => element.clientHeight"
+    )
     for _ in range(100):
         if page.locator(".lf-threads").evaluate(
             "element => element.scrollTop + element.clientHeight >= element.scrollHeight - 1"
@@ -130,15 +149,21 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
     first = events_model.append_event(
         serve.page_dir,
         {
-            "kind": "reply", "author": "agent", "agent": "Agent",
-            "parent": root, "text": "The earlier answer.",
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": root,
+            "text": "The earlier answer.",
         },
     )["id"]
     events_model.append_event(
         serve.page_dir,
         {
-            "kind": "reply", "author": "agent", "agent": "Agent",
-            "parent": root, "text": "The later answer.",
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": root,
+            "text": "The later answer.",
         },
     )
     conversation_model.cmd_summarize(
@@ -162,7 +187,9 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
     expect(card).to_have_attribute("open", "")
     expect(card.locator(f'.lf-msg[data-mid="{first}"]')).to_be_focused()
     expect(card.locator(f'.lf-msg[data-mid="{first}"]')).to_be_visible()
-    expect(card.locator(".lf-thread-checkpoint")).to_have_attribute("data-expanded", "true")
+    expect(card.locator(".lf-thread-checkpoint")).to_have_attribute(
+        "data-expanded", "true"
+    )
 
 
 def test_edit_reopens_only_its_new_content_version(browser, serve):
@@ -204,7 +231,10 @@ def test_pending_and_refused_read_do_not_create_agent_work(browser, serve):
     message = page.locator(f'.lf-msg[data-mid="{root}"]')
     expect(message).not_to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     expect(message.locator(".lf-msg-sending")).to_have_count(0)
-    assert json.loads(page.locator("html").get_attribute("data-lf-traffic"))["pending"] == []
+    assert (
+        json.loads(page.locator("html").get_attribute("data-lf-traffic"))["pending"]
+        == []
+    )
     assert page.evaluate(
         "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
     )
@@ -213,14 +243,21 @@ def test_pending_and_refused_read_do_not_create_agent_work(browser, serve):
     command = request.request.post_data_json
     request.fulfill(
         status=400,
-        json={"ok": False, "final": True, "attempt": command["attempt"],
-              "error": "refused before append"},
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": command["attempt"],
+            "error": "refused before append",
+        },
     )
     expect(message).to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
     page.wait_for_timeout(100)
     assert held == []
     assert _read_events(serve.page_dir) == []
-    assert not any("Couldn't send" in text for text in page.locator(".lf-notice").all_text_contents())
+    assert not any(
+        "Couldn't send" in text
+        for text in page.locator(".lf-notice").all_text_contents()
+    )
     assert take_browser_errors(page) == [
         f"400 {request.request.url}",
         "Failed to load resource: the server responded with a status of 400 (Bad Request)",
@@ -230,11 +267,15 @@ def test_pending_and_refused_read_do_not_create_agent_work(browser, serve):
 def test_explicit_mark_read_reports_refusal_as_read_action(browser, serve):
     url = serve(PANEL_PAGE)
     root = conversation_model.cmd_comment(
-        serve.page_dir, None, None, None, "Choose this answer.",
+        serve.page_dir,
+        None,
+        None,
+        None,
+        "Choose this answer.",
         '<lf-ask id="read-refusal"><h3>Choose</h3>'
         '<lf-options id="read-refusal-options" choose>'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
-        '</lf-options></lf-ask>',
+        "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -249,8 +290,12 @@ def test_explicit_mark_read_reports_refusal_as_read_action(browser, serve):
     command = request.request.post_data_json
     request.fulfill(
         status=400,
-        json={"ok": False, "final": True, "attempt": command["attempt"],
-              "error": "refused before append"},
+        json={
+            "ok": False,
+            "final": True,
+            "attempt": command["attempt"],
+            "error": "refused before append",
+        },
     )
     expect(card.get_by_role("button", name="Mark thread read")).to_be_visible()
     expect(page.locator(".lf-notice")).to_contain_text("Couldn't mark thread read")
@@ -284,7 +329,11 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
       window.__releaseReadPresentation = () => release();
     }""")
     reply = conversation_model.cmd_reply(
-        serve.page_dir, root, "The result is ready.", None, for_event=root,
+        serve.page_dir,
+        root,
+        "The result is ready.",
+        None,
+        for_event=root,
     )
     page.wait_for_function("window.__readHeld === true")
     body = card.locator(f'.lf-msg[data-mid="{reply["id"]}"] .lf-msg-body')
@@ -310,12 +359,16 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
 def test_keyboard_first_unread_and_mark_read_retain_draft_and_focus(browser, serve):
     url = serve(PANEL_PAGE)
     root = conversation_model.cmd_comment(
-        serve.page_dir, None, None, None, "Choose the next step.",
+        serve.page_dir,
+        None,
+        None,
+        None,
+        "Choose the next step.",
         '<lf-ask id="read-decision"><h3>Which way?</h3>'
         '<lf-options id="read-choice" choose>'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        '</lf-options></lf-ask>',
+        "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -362,8 +415,12 @@ def test_read_converges_across_two_tabs(browser, serve):
 
 def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     root = "a1b2c3d4"
-    page = open_page(browser, serve(
-        leaf_page("Offscreen reading practice", f"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Offscreen reading practice",
+                f"""
 <h1>Practice page</h1>
 <div id="read-clip">
 <lf-specimen id="read-practice" label="Read practice">
@@ -372,12 +429,20 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
   </template>
 </lf-specimen>
 </div>
-"""),
-        events=[{
-            "id": root, "kind": "comment", "author": "agent", "agent": "Agent",
-            "revision": 1, "text": "A framed answer for the reader.",
-        }],
-    ))
+""",
+            ),
+            events=[
+                {
+                    "id": root,
+                    "kind": "comment",
+                    "author": "agent",
+                    "agent": "Agent",
+                    "revision": 1,
+                    "text": "A framed answer for the reader.",
+                }
+            ],
+        ),
+    )
     clip = page.locator("#read-clip")
     specimen = page.locator("#read-practice")
     frame = specimen.locator("iframe")
@@ -393,12 +458,16 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
     assert frame.bounding_box()["y"] > 800
 
-    clip.evaluate("element => { element.style.height = '100px'; element.style.overflow = 'hidden'; }")
+    clip.evaluate(
+        "element => { element.style.height = '100px'; element.style.overflow = 'hidden'; }"
+    )
     frame.evaluate("element => element.style.transform = ''")
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
-    clip.evaluate("element => { element.style.height = ''; element.style.overflow = ''; }")
+    clip.evaluate(
+        "element => { element.style.height = ''; element.style.overflow = ''; }"
+    )
     frame.scroll_into_view_if_needed()
     expect(child.locator(".lf-first-unread")).to_be_hidden()
 
@@ -434,11 +503,15 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
     with sending(page, "diff comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     root = next(
-        event["id"] for event in events_model.read_events(serve.page_dir)
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
     reply = conversation_model.cmd_reply(
-        serve.page_dir, root, "The route-line answer is ready.", None,
+        serve.page_dir,
+        root,
+        "The route-line answer is ready.",
+        None,
         for_event=root,
     )
     told(page)
@@ -456,7 +529,9 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
 
 def test_modal_blocks_exposure_until_reader_returns_to_threads(browser, serve):
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "A short answer behind the dialog.", author="agent")
+    root = panel_comment(
+        serve.page_dir, "A short answer behind the dialog.", author="agent"
+    )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

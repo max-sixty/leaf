@@ -12,8 +12,8 @@ from ..events import (
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
-from ..requests import request_lifecycles_for, request_phases
 from ..read_state import read_versions, reader_message_content
+from ..requests import request_lifecycles_for, request_phases
 from .wire import browser_projection
 
 

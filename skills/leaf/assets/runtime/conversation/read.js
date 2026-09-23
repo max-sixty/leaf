@@ -32,7 +32,7 @@ function mergeIntervals(intervals) {
 // Require each containing frame to stand wholly inside its parent's shown region.
 // This is deliberately conservative for a partially visible frame.
 function frameIsFullyVisible() {
-  for (let current = window; current !== current.top; ) {
+  for (let current = window; current !== current.top;) {
     let frame;
     try {
       frame = current.frameElement;
@@ -43,22 +43,39 @@ function frameIsFullyVisible() {
     const owner = frame.ownerDocument.defaultView;
     const box = frame.getBoundingClientRect();
     if (
-      box.width <= 0 || box.height <= 0 ||
-      box.left < 0 || box.top < 0 ||
-      box.right > owner.innerWidth || box.bottom > owner.innerHeight
-    ) return false;
+      box.width <= 0 ||
+      box.height <= 0 ||
+      box.left < 0 ||
+      box.top < 0 ||
+      box.right > owner.innerWidth ||
+      box.bottom > owner.innerHeight
+    )
+      return false;
     const modal = owner.document.querySelector("dialog:modal");
     if (modal && !containsAcross(modal, frame)) return false;
-    for (let ancestor = frame.parentElement ?? frame.getRootNode()?.host;
+    for (
+      let ancestor = frame.parentElement ?? frame.getRootNode()?.host;
       ancestor;
-      ancestor = ancestor.parentElement ?? ancestor.getRootNode()?.host) {
+      ancestor = ancestor.parentElement ?? ancestor.getRootNode()?.host
+    ) {
       const style = owner.getComputedStyle(ancestor);
-      if (ancestor.inert || ancestor.getAttribute?.("aria-hidden") === "true" ||
-          style.visibility === "hidden" || style.display === "none") return false;
-      if (!/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) continue;
+      if (
+        ancestor.inert ||
+        ancestor.getAttribute?.("aria-hidden") === "true" ||
+        style.visibility === "hidden" ||
+        style.display === "none"
+      )
+        return false;
+      if (!/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`))
+        continue;
       const clip = ancestor.getBoundingClientRect();
-      if (box.left < clip.left || box.top < clip.top ||
-          box.right > clip.right || box.bottom > clip.bottom) return false;
+      if (
+        box.left < clip.left ||
+        box.top < clip.top ||
+        box.right > clip.right ||
+        box.bottom > clip.bottom
+      )
+        return false;
     }
     current = owner;
   }
@@ -68,16 +85,22 @@ function frameIsFullyVisible() {
 function hasHiddenInnerScroll(body) {
   return [...body.querySelectorAll("*")].some((element) => {
     const { overflowX, overflowY } = getComputedStyle(element);
-    return (/(auto|scroll|hidden|clip)/.test(overflowY) &&
-      element.scrollHeight > element.clientHeight + EPSILON) ||
+    return (
+      (/(auto|scroll|hidden|clip)/.test(overflowY) &&
+        element.scrollHeight > element.clientHeight + EPSILON) ||
       (/(auto|scroll|hidden|clip)/.test(overflowX) &&
-      element.scrollWidth > element.clientWidth + EPSILON);
+        element.scrollWidth > element.clientWidth + EPSILON)
+    );
   });
 }
 
 function visibleInterval(body, clips) {
   if (!body.checkVisibility()) return null;
-  for (let owner = body; owner; owner = owner.parentElement ?? owner.getRootNode()?.host ?? null)
+  for (
+    let owner = body;
+    owner;
+    owner = owner.parentElement ?? owner.getRootNode()?.host ?? null
+  )
     if (owner.inert || owner.getAttribute?.("aria-hidden") === "true") return null;
   const modal = document.querySelector("dialog:modal");
   if (modal && !containsAcross(modal, body)) return null;
@@ -91,12 +114,18 @@ function visibleInterval(body, clips) {
   // Sticky run headings paint above the list without clipping its scrollport.
   // Subtract their occupied edge so a message hidden under one is not called read.
   const threadList = closestAcross(body, "leaf-thread-list");
-  if (threadList) for (const heading of threadList.querySelectorAll(".lf-pinned")) {
-    if (!heading.checkVisibility()) continue;
-    const cover = heading.getBoundingClientRect();
-    if (cover.left < shown.right && cover.right > shown.left &&
-        cover.top <= top && cover.bottom > top) top = Math.max(top, cover.bottom);
-  }
+  if (threadList)
+    for (const heading of threadList.querySelectorAll(".lf-pinned")) {
+      if (!heading.checkVisibility()) continue;
+      const cover = heading.getBoundingClientRect();
+      if (
+        cover.left < shown.right &&
+        cover.right > shown.left &&
+        cover.top <= top &&
+        cover.bottom > top
+      )
+        top = Math.max(top, cover.bottom);
+    }
   if (bottom <= top) return null;
   return {
     interval: [Math.max(0, top - box.top), Math.min(box.height, bottom - box.top)],
@@ -117,39 +146,54 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
   let presentationGeneration = 0;
   let scheduled = false;
 
-  const unread = () => committedThreads.flatMap((thread) =>
-    thread.msgs.filter((message) => message.unread && message.contentVersion)
-      .map((message) => ({ thread, message })),
-  );
+  const unread = () =>
+    committedThreads.flatMap((thread) =>
+      thread.msgs
+        .filter((message) => message.unread && message.contentVersion)
+        .map((message) => ({ thread, message })),
+    );
   const actionableUnread = () => {
-    const live = new Set(readThreads().threads.flatMap((thread) =>
-      thread.msgs.filter((message) => message.unread && message.contentVersion)
-        .map(keyOf),
-    ));
+    const live = new Set(
+      readThreads().threads.flatMap((thread) =>
+        thread.msgs
+          .filter((message) => message.unread && message.contentVersion)
+          .map(keyOf),
+      ),
+    );
     return unread().filter(({ message }) => live.has(keyOf(message)));
   };
 
   function markThread(id) {
-    const messages = actionableUnread().filter(({ thread }) => thread.root.id === id)
+    const messages = actionableUnread()
+      .filter(({ thread }) => thread.root.id === id)
       .map(({ message }) => message)
       .map(itemOf);
-    if (messages.length) void post(messages).then((accepted) => {
-      if (!accepted) notice("Couldn't mark thread read — try again.");
-    });
+    if (messages.length)
+      void post(messages).then((accepted) => {
+        if (!accepted) notice("Couldn't mark thread read — try again.");
+      });
   }
 
   function firstUnread() {
-    const target = actionableUnread().sort((a, b) =>
-      (a.message.edited?.seq ?? a.message.seq) -
-      (b.message.edited?.seq ?? b.message.seq),
+    const target = actionableUnread().sort(
+      (a, b) =>
+        (a.message.edited?.seq ?? a.message.seq) -
+        (b.message.edited?.seq ?? b.message.seq),
     )[0];
     if (target) void showThread(target.message.id, { focus: "message" });
   }
 
   function scan() {
-    if (!presented || document.visibilityState !== "visible" || !document.hasFocus() ||
-        !frameIsFullyVisible()) return;
-    const candidates = new Map(actionableUnread().map(({ message }) => [keyOf(message), message]));
+    if (
+      !presented ||
+      document.visibilityState !== "visible" ||
+      !document.hasFocus() ||
+      !frameIsFullyVisible()
+    )
+      return;
+    const candidates = new Map(
+      actionableUnread().map(({ message }) => [keyOf(message), message]),
+    );
     if (!candidates.size) return;
     const clips = new Map();
     const completed = new Map();
@@ -162,31 +206,48 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
       }
       const key = `${id}\u0000${version}`;
       const message = candidates.get(key);
-      if (!message || authored || completed.has(key) || refusedAutomatic.has(key) ||
-          hasHiddenInnerScroll(body)) continue;
+      if (
+        !message ||
+        authored ||
+        completed.has(key) ||
+        refusedAutomatic.has(key) ||
+        hasHiddenInnerScroll(body)
+      )
+        continue;
       const visible = visibleInterval(body, clips);
       if (!visible) continue;
       let tracked = coverage.get(body);
-      if (!tracked || tracked.key !== key ||
-          tracked.width !== visible.width ||
-          tracked.height !== visible.height ||
-          tracked.contentHeight !== visible.contentHeight) {
-        tracked = { key, width: visible.width, height: visible.height,
-          contentHeight: visible.contentHeight, intervals: [] };
+      if (
+        !tracked ||
+        tracked.key !== key ||
+        tracked.width !== visible.width ||
+        tracked.height !== visible.height ||
+        tracked.contentHeight !== visible.contentHeight
+      ) {
+        tracked = {
+          key,
+          width: visible.width,
+          height: visible.height,
+          contentHeight: visible.contentHeight,
+          intervals: [],
+        };
         coverage.set(body, tracked);
       }
       tracked.intervals = mergeIntervals([...tracked.intervals, visible.interval]);
-      if (tracked.intervals.length === 1 &&
-          tracked.intervals[0][0] <= EPSILON &&
-          tracked.intervals[0][1] >= visible.height - EPSILON) {
+      if (
+        tracked.intervals.length === 1 &&
+        tracked.intervals[0][0] <= EPSILON &&
+        tracked.intervals[0][1] >= visible.height - EPSILON
+      ) {
         completed.set(key, itemOf(message));
       }
     }
     if (completed.size) {
       const items = [...completed.values()];
       void post(items).then((accepted) => {
-        if (!accepted) for (const item of items)
-          refusedAutomatic.add(`${item.message}\u0000${item.version}`);
+        if (!accepted)
+          for (const item of items)
+            refusedAutomatic.add(`${item.message}\u0000${item.version}`);
       });
     }
   }
@@ -210,11 +271,13 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
       else scheduleScan();
     });
     document.addEventListener("close", scheduleScan, true);
-    addEventListener("blur", () => { coverage = new WeakMap(); });
+    addEventListener("blur", () => {
+      coverage = new WeakMap();
+    });
     addEventListener("load", scheduleScan, true);
     // Moving a specimen frame in its parent changes exposure without a scroll or
     // resize inside the child. Observe each containing frame in its own viewport.
-    for (let current = window; current !== current.top; ) {
+    for (let current = window; current !== current.top;) {
       let frame;
       try {
         frame = current.frameElement;
@@ -223,16 +286,22 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
       }
       if (!frame) break;
       const owner = frame.ownerDocument.defaultView;
-      const observer = new owner.IntersectionObserver(scheduleScan, { threshold: [0, 1] });
+      const observer = new owner.IntersectionObserver(scheduleScan, {
+        threshold: [0, 1],
+      });
       observer.observe(frame);
       frameObservers.push(observer);
       current = owner;
     }
-    addEventListener("pagehide", () => {
-      sizes.disconnect();
-      for (const observer of frameObservers) observer.disconnect();
-      frameObservers.length = 0;
-    }, { once: true });
+    addEventListener(
+      "pagehide",
+      () => {
+        sizes.disconnect();
+        for (const observer of frameObservers) observer.disconnect();
+        frameObservers.length = 0;
+      },
+      { once: true },
+    );
   }
 
   function observeBody(node, body, message) {
@@ -243,7 +312,9 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
       sizes.observe(body);
     }
     renderedBodies.set(node, {
-      body, id: message.id, version: message.contentVersion,
+      body,
+      id: message.id,
+      version: message.contentVersion,
       authored: message.body.authored,
     });
   }
@@ -257,21 +328,27 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
   function present() {
     const generation = presentationGeneration;
     const threads = readThreads().threads;
-    void whenDocumentPresented().then(() => {
-      if (generation !== presentationGeneration) return;
-      committedThreads = threads;
-      presented = true;
-      const current = new Set(unread().map(({ message }) => keyOf(message)));
-      for (const key of refusedAutomatic) if (!current.has(key)) refusedAutomatic.delete(key);
-      const count = unread().length;
-      setUnreadThreadCount(threads.filter((thread) => thread.unreadCount > 0).length);
-      firstUnreadBtn.hidden = count === 0;
-      firstUnreadBtn.textContent = `Unread ${count}`;
-      firstUnreadBtn.setAttribute("aria-label", `${count} unread messages. Go to first unread message`);
-      scheduleScan();
-    }).catch(() => {
-      if (generation === presentationGeneration) coverage = new WeakMap();
-    });
+    void whenDocumentPresented()
+      .then(() => {
+        if (generation !== presentationGeneration) return;
+        committedThreads = threads;
+        presented = true;
+        const current = new Set(unread().map(({ message }) => keyOf(message)));
+        for (const key of refusedAutomatic)
+          if (!current.has(key)) refusedAutomatic.delete(key);
+        const count = unread().length;
+        setUnreadThreadCount(threads.filter((thread) => thread.unreadCount > 0).length);
+        firstUnreadBtn.hidden = count === 0;
+        firstUnreadBtn.textContent = `Unread ${count}`;
+        firstUnreadBtn.setAttribute(
+          "aria-label",
+          `${count} unread messages. Go to first unread message`,
+        );
+        scheduleScan();
+      })
+      .catch(() => {
+        if (generation === presentationGeneration) coverage = new WeakMap();
+      });
   }
 
   function begin() {
@@ -285,6 +362,17 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
     coverage = new WeakMap();
   }
 
-  return { mount, begin, abort, present, scheduleScan, scan, observeBody, forgetBody,
-    markThread, firstUnread, unread };
+  return {
+    mount,
+    begin,
+    abort,
+    present,
+    scheduleScan,
+    scan,
+    observeBody,
+    forgetBody,
+    markThread,
+    firstUnread,
+    unread,
+  };
 }

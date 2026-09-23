@@ -722,29 +722,34 @@ test("read acknowledgement publishes exact unread state without delivery or work
     content_version: "agent-root",
     unread: true,
   };
-  reading.browser.conversation.threads = [{
-    root,
-    msgs: [root],
-    anchor: null,
-    resolved: null,
-    awaits_agent: false,
-    awaits_reader: false,
-    bare_reaction: false,
-    seat: null,
-    summaries: [],
-    attention: null,
-  }];
+  reading.browser.conversation.threads = [
+    {
+      root,
+      msgs: [root],
+      anchor: null,
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: false,
+      bare_reaction: false,
+      seat: null,
+      summaries: [],
+      attention: null,
+    },
+  ];
   app.adopt(reading);
   const message = () => app.read().effective.conversation.all[0].msgs[0];
   assert.equal(message().unread, true);
   assert.equal(message().contentVersion, "agent-root");
   assert.equal(app.read().effective.conversation.all[0].unreadCount, 1);
 
-  app.enqueue({
-    kind: "read",
-    attempt: "read-first",
-    messages: [{ message: "agent-root", version: "agent-root" }],
-  }, "now");
+  app.enqueue(
+    {
+      kind: "read",
+      attempt: "read-first",
+      messages: [{ message: "agent-root", version: "agent-root" }],
+    },
+    "now",
+  );
   assert.equal(message().unread, false);
   assert.equal(app.read().effective.conversation.all[0].unreadCount, 0);
   assert.deepEqual(app.read().effective.delivery, []);
@@ -758,11 +763,14 @@ test("read acknowledgement publishes exact unread state without delivery or work
   edited.browser.conversation.threads[0].msgs[0].content_version = "edit-2";
   edited.browser.conversation.threads[0].msgs[0].edited = { id: "edit-2", seq: 3 };
   app.adopt(edited);
-  app.enqueue({
-    kind: "read",
-    attempt: "late-original",
-    messages: [{ message: "agent-root", version: "agent-root" }],
-  }, "now");
+  app.enqueue(
+    {
+      kind: "read",
+      attempt: "late-original",
+      messages: [{ message: "agent-root", version: "agent-root" }],
+    },
+    "now",
+  );
   assert.equal(message().unread, true);
 });
 

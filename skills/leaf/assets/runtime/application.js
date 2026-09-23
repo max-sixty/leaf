@@ -65,9 +65,8 @@ export function mountApplication(dependencies) {
         isConversationEvent(event) ? messageText(event) : undefined,
       ),
   });
-  const hasPending = () => ledger.snapshot().some(
-    (entry) => entry.event.kind !== "read",
-  );
+  const hasPending = () =>
+    ledger.snapshot().some((entry) => entry.event.kind !== "read");
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,

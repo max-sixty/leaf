@@ -135,7 +135,13 @@ export const threadSummary = (thread) => ({
 /* Public conversation values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary. */
-export function readThreadRecords(threads, document, widgets, workflows, pendingReads = []) {
+export function readThreadRecords(
+  threads,
+  document,
+  widgets,
+  workflows,
+  pendingReads = [],
+) {
   const locallyRead = new Set(
     pendingReads.flatMap((event) =>
       event.messages.map(({ message, version }) => `${message}\u0000${version}`),

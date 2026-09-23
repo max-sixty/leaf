@@ -10,8 +10,14 @@
    select predicates, not exclusive ownership: a thread can await both parties, so
    their counts can overlap and an unrestricted view includes threads awaiting neither.
 
-   The panel title stays fixed. The search row discloses the controls; a narrowed
-   view states its result and active facets even while those controls are closed.
+   Order is the panel's other view question: Page reads the list in the page's order,
+   and Recent puts the thread spoken in last first. It hides nothing, so it is not a
+   narrowing: it has no count, and Reset and a direct arrival keep it. Its day headings
+   say which order the list is in.
+
+   The panel title stays fixed. The search row's View button discloses the controls; a
+   narrowed view states its result and active facets even while those controls are
+   closed.
    Reset restores Open and clears the other refinements and search together.
 
    These are the panel's own view. The page's marks, inline conversation seats and
@@ -53,7 +59,13 @@ const FACETS = Object.freeze([
   group("gone", "Placement", [choice("gone", "gone", "No longer here")]),
 ]);
 
+const ORDER = group("order", "Order", [
+  choice("order", "page", "Page"),
+  choice("order", "recent", "Recent"),
+]);
+
 const DEFAULT_INTENT = Object.freeze({
+  order: "page",
   words: "",
   finding: "",
   status: "open",
@@ -177,6 +189,16 @@ function presentationReading(reading, threads, shown, groups) {
     .filter(Boolean)
     .join(" · ");
 
+  const order = Object.freeze({
+    kind: ORDER.kind,
+    label: ORDER.label,
+    hidden: false,
+    choices: Object.freeze(
+      ORDER.choices.map((declaration) =>
+        entryReading(declaration, reading.order === declaration.value, null, false),
+      ),
+    ),
+  });
   const renderedGroups = FACETS.map((facet) =>
     Object.freeze({
       kind: facet.kind,
@@ -221,7 +243,7 @@ function presentationReading(reading, threads, shown, groups) {
       reading.scope === "all" &&
       reading.subject === "all" &&
       !reading.onlyGone,
-    groups: Object.freeze(renderedGroups),
+    groups: Object.freeze([order, ...renderedGroups]),
     readerAvailable,
     readerTitle:
       reading.waiting === "reader"
@@ -281,6 +303,11 @@ function replaceIntent(changes) {
 }
 
 const chooseFacet = (kind, value, repaintConversation) => {
+  if (kind === "order") {
+    if (intent.order === value) return;
+    replaceIntent({ order: value });
+    return renarrow(repaintConversation);
+  }
   const next = transition(
     intent,
     kind,
@@ -304,9 +331,14 @@ export function mountNarrowing(repaintConversation) {
   });
 }
 
+// Order is kept: it is the reader's view of the list, and hides nothing to recover.
 function clearNarrowing(nextStatus = "open") {
   const changed = narrowed() || intent.status !== nextStatus;
-  intent = Object.freeze({ ...DEFAULT_INTENT, status: nextStatus });
+  intent = Object.freeze({
+    ...DEFAULT_INTENT,
+    status: nextStatus,
+    order: intent.order,
+  });
   narrowingView.setSearchWords("");
   return changed;
 }

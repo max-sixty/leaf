@@ -4,7 +4,7 @@
 let clockSkew = 0;
 let clockReads = null;
 const clockPaints = new Set();
-const serverNow = () => Date.now() + clockSkew;
+export const serverNow = () => Date.now() + clockSkew;
 // When a gesture was made, on the clock every other reading of a message uses. A
 // message this page paints before the log names it still has to say when it was said,
 // and the browser's own clock is the one reading that can disagree with the rest.

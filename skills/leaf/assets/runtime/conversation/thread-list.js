@@ -85,22 +85,31 @@ import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
-import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
+import {
+  inPageOrder,
+  inRecentOrder,
+  pageOutline,
+  recentGroup,
+  threadGroups,
+} from "./placement.js";
 import { narrowingModel, threadSearchReading } from "./narrowing.js";
 import { readThreads } from "./state.js";
 import { threadReading } from "./thread-card.js";
 
 // The open threads, in the order t/T walk either surface. The panel's children are the
 // canonical list: folding a settled thread renames it out of this list in that frame.
+// With the panel shut the walk is the page's, whichever order the panel was left in.
 export const openThreads = ({
   visibleOnly = true,
   panelOpen = threadsBox.checkVisibility(),
-} = {}) =>
-  [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
+} = {}) => {
+  const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
     (thread) =>
       (!visibleOnly || !thread.hidden) &&
       (panelOpen || thread.dataset.resolved !== "true"),
   );
+  return panelOpen ? threads : threadsBox.inPageOrder(threads);
+};
 
 const emptyText =
   "No threads yet. Select any text on the page to comment on it, or use the box below.";
@@ -369,10 +378,14 @@ const rowModel = (all, commands) => {
 
   // Where the reader's own narrowing applies, and the only place it does: the page's
   // marks, the inline conversation seats and the banner's count are readings of the log
-  // and go on saying what the log says. What the panel shows is the panel's business.
-  const ordered = inPageOrder(threads, commands.placedAt);
-  const narrowing = narrowingModel(ordered, group);
+  // and go on saying what the log says. What the panel shows is the panel's business,
+  // and so is the order it shows it in. Under Recent a run is the day its threads last
+  // moved. The page's order is kept either way for the walk with the panel shut.
+  const narrowing = narrowingModel(threads, group);
   const shown = narrowing.shown;
+  const inPage = inPageOrder(threads, commands.placedAt);
+  const recent = narrowing.intent.order === "recent";
+  const ordered = recent ? inRecentOrder(threads) : inPage;
   const rows = [];
   if (!threads.length)
     rows.push(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
@@ -380,12 +393,10 @@ const rowModel = (all, commands) => {
     rows.push(
       Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
     );
-  // Walked in the page's order rather than the log's (inPageOrder), because that is the
-  // order every other reading of these threads is in: the marks down the page and the walk
-  // t/T makes. A thread on its way out still stands between its
-  // neighbours while it folds (foldOut), which is why the walk is over the whole list
-  // with the resolved ones taken at their own place. A folding thread is walked by nothing: the log
-  // has already settled it, and only its room is still here.
+  // Walked in the order the reader chose above. A thread on its way out still stands
+  // between its neighbours while it folds (foldOut), which is why the walk is over the
+  // whole list with the resolved ones taken at their own place. A folding thread is
+  // walked by nothing: the log has already settled it, and only its room is still here.
   //
   // A heading goes in wherever the run changes, so the reader scrolling a list four
   // thousand pixels long is told which part of the page they are reading about — and,
@@ -410,7 +421,7 @@ const rowModel = (all, commands) => {
           outline,
           search: threadSearchReading(t, narrowing.intent.finding),
         }),
-        group: Object.freeze({ ...group.get(t) }),
+        group: Object.freeze(recent ? recentGroup(t) : { ...group.get(t) }),
       }),
     );
   }
@@ -427,6 +438,7 @@ const rowModel = (all, commands) => {
     rows: Object.freeze(rows),
     count: open.length,
     narrowing: narrowing.presentation,
+    pageSeats: new Map(inPage.map((t, i) => [t.root.id, i])),
   });
 };
 
@@ -443,6 +455,7 @@ function configureList(commands) {
       rows: Object.freeze([]),
       count: null,
       narrowing: narrowingModel([], new Map()).presentation,
+      pageSeats: new Map(),
     }),
   );
 }
@@ -571,6 +584,7 @@ export async function renderThreadListUnavailable(text, commands) {
     rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
     count: null,
     narrowing: narrowingModel([], new Map()).presentation,
+    pageSeats: new Map(),
   });
   const hold = takeScrollHold(commands.panelIsOpen);
   let recovered = null;

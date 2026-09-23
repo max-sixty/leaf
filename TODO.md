@@ -35,10 +35,6 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **Let a click inside a specimen enter it.** An idle `lf-specimen` draws a live
-  page, but the wrapper takes every pointer event until the user presses Enter
-  specimen above it, so clicking a field or option does nothing and reads as broken.
-  A first gesture inside the child should enter it and land where it was aimed.
 - **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
   Follow one task through reading, panes, comments, and Threads.
 

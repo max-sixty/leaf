@@ -2539,10 +2539,12 @@ export function createMarginProjection({
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
   function openPageThread(id, { focus = "reply", travel = true } = {}) {
     if (!panelIsOpen()) {
+      // The trip starts before the surface takes focus, which scrolls it into view: the
+      // trip records the place the user leaves, so it has to find them still there.
+      if (travel && claimed(id)) scrollToThread(id);
       const local = focusSurface(id, { focus });
       if (local) {
         closePreview();
-        if (travel) scrollToThread(id);
         return local;
       }
       const thread = openInlineThread(id, {

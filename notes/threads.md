@@ -10,24 +10,6 @@ overlapping summary as the discussion grows. Their contracts live in
 [the package Thread API](../skills/leaf/references/packages.md#widget-local-thread-surfaces).
 The [playground](thread-navigation/README.md) retains the design comparisons.
 
-## Notifications
-
-The canonical workflow already records exact-input delivery, work, response,
-condition, and next actor. The Thread collection supplies stable message identities
-and attention derived from workflows and outstanding reader Asks. The page activity
-reading remains separate, and native requests have their own terminal receipts.
-These are the source facts for notification decisions; no second message-status
-ontology is needed.
-
-Agent reply arrivals now use the identity comparison in
-[`conversation/arrivals.js`](../skills/leaf/assets/runtime/conversation/arrivals.js)
-and the existing status line and live region. The remaining choices are new reader
-obligations, failed or interrupted responses, page availability, and native request
-outcomes. A stage change such as Sent to Picked up, a heartbeat, or a tool step does
-not by itself demand a notification. Compare successive canonical readings using
-stable ids, then choose the status line, accessible announcement, Thread control,
-or another destination. Inspect these before adding a transition bus or new transport.
-
 ## Independent jobs, delegation, and continuation
 
 Develop an ontology for work that outlives the turn or tool that started it: what

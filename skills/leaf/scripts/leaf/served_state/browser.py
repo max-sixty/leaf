@@ -8,6 +8,7 @@ from ..files import list_revisions, revision_path
 from ..projection import canonical_updates, page_reading
 from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
+from ..requests import request_outcomes
 from ..revision_artifact import read_artifact
 from ..structure import SourceDocument
 from ..workflows import canonical_workflows
@@ -203,6 +204,7 @@ def browser_state(
         "conversation": conversation,
         "activity": activity,
         "workflows": workflows,
+        "request_outcomes": request_outcomes(events),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {
             str(event["version"]): event["text"]

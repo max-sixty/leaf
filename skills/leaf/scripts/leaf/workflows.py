@@ -254,6 +254,12 @@ def canonical_workflows(
                     ],
                     "condition": {"kind": "failed", "operation": "response"},
                     "next_actor": "reader",
+                    "response": {
+                        "id": response["id"],
+                        "attempt": response.get("attempt"),
+                        "state": "failed",
+                        "responds": input_id,
+                    },
                 }
             )
             workflows.append(failed)

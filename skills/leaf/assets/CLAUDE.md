@@ -67,7 +67,7 @@ relative to `runtime/` unless stated otherwise.
 | Banner, approvals, and fixed primary/menu control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
-| Notices and announcements | `notifications.js`, `keyboard/shortcut-bar.js` |
+| Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Document presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js` |
 | Child pages and gallery playback | `specimen.js`, `interaction-gallery.js`, `interaction-gallery-frame.js` |
@@ -133,6 +133,7 @@ Each mutable fact has one writer:
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
 | canonical page activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
+| meaningful new page information | current agent content versions and reader Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded; the first is a quiet baseline. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |

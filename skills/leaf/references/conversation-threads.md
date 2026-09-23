@@ -193,6 +193,16 @@ in that thread. An edit is a new content version and becomes unread again. Read 
 belongs to this page's single reader and survives another tab or visit; it does not
 answer an Ask, change **On you**, deliver agent work, or resolve a thread.
 
+## New information
+
+New agent messages and edits, questions and Asks that need the reader, failed or
+interrupted responses, native request outcomes, and an agent becoming active on the
+page announce themselves in the status line and live region after the first complete
+reading. Existing history is quiet on arrival. A background notice waits while the
+reader is acting and does not move focus or scroll. Repeated readings, delivery stages,
+heartbeats, and tool steps do not announce new information. A notice does not mark
+content read or answer an Ask.
+
 ## Summarize a long discussion
 
 When delivered context suggests summarization, read the original messages with

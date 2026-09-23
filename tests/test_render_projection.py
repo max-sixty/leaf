@@ -1910,10 +1910,21 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     assert stamped.exit_code == 0, stamped.output
     told(page)
 
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-general textarea").fill("Keep reading this revision.")
+    # The hold has to outlast the presses this test makes through it. A composer the
+    # reader opened is one of the gestures a revision install defers to; words in a box
+    # the reader merely has focus in are not — the next press takes that focus away, and
+    # the draft store rather than a hold is what carries them across the install
+    # (`skills/leaf/assets/CLAUDE.md`, "Runtime ownership"). Reaching the chooser is
+    # exactly such a press, since every secondary control stands behind More.
+    page.locator("#live-reading").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Keep reading this revision.")
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
+    # The fourth row is the one the third revision brings, so wait on the news that
+    # revision lights rather than on the title, which already said this before the write
+    # and so states no ordering at all.
+    expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
     banner_control(page, ".lf-version").click()

@@ -927,7 +927,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-filter-reset { flex: none; font-size: var(--t-6); }
   .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
     padding: 0 16px 8px; color: var(--muted); font-size: var(--t-6); }
-  .lf-thread-filters:not([hidden]) + .lf-thread-view { padding-top: 8px; }
+  /* One rule closes the header off from the list: under the choices, or under the
+     summary when it follows them. */
+  .lf-thread-filters:not([hidden]) + .lf-thread-view {
+    padding-top: 8px; border-bottom: 1px solid var(--rule); }
+  .lf-thread-filters:not([hidden]):has(+ .lf-thread-view:not([hidden])) {
+    border-bottom: none; }
   .lf-thread-view-summary { flex: 1; min-width: 0; }
   /* A selected box applies one refinement; pressing it again removes it. */
   .lf-thread-filters[hidden], .lf-thread-view[hidden], .lf-thread-filter-group[hidden] { display: none; }

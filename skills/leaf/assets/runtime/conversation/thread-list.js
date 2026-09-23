@@ -393,12 +393,10 @@ const rowModel = (all, commands) => {
     rows.push(
       Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
     );
-  // Walked in the page's order rather than the log's (inPageOrder), because that is the
-  // order every other reading of these threads is in: the marks down the page and the walk
-  // t/T makes. A thread on its way out still stands between its
-  // neighbours while it folds (foldOut), which is why the walk is over the whole list
-  // with the resolved ones taken at their own place. A folding thread is walked by nothing: the log
-  // has already settled it, and only its room is still here.
+  // Walked in the order the reader chose above. A thread on its way out still stands
+  // between its neighbours while it folds (foldOut), which is why the walk is over the
+  // whole list with the resolved ones taken at their own place. A folding thread is
+  // walked by nothing: the log has already settled it, and only its room is still here.
   //
   // A heading goes in wherever the run changes, so the reader scrolling a list four
   // thousand pixels long is told which part of the page they are reading about — and,

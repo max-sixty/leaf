@@ -149,7 +149,7 @@ class ThreadNarrowingView extends HTMLElement {
       <div
         class="lf-thread-filters"
         id="lf-thread-filters"
-        aria-label="Filter threads"
+        aria-label="Thread view"
         ?hidden=${!this.#disclosed}
       >
         ${repeat(

@@ -3,7 +3,7 @@
 import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
 import { pageParts } from "../passages.js";
 import { inChrome, layerPart } from "../passages.js";
-import { serverNow } from "../presence.js";
+import { clockValue, serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
@@ -197,11 +197,12 @@ const DATED_NAME = new Intl.DateTimeFormat("en-US", {
 });
 
 // The run a thread sits in under Recent: the reader's calendar day it last moved on.
-// Rounding absorbs a daylight-saving day that is 23 or 25 hours long.
+// Rounding absorbs a daylight-saving day that is 23 or 25 hours long. Today is read
+// through the shared clock, so the paint holding these headings repaints at midnight.
 export function recentGroup(thread) {
   const now = serverNow();
   const day = dayOf(lastMoved(thread, now));
-  const today = dayOf(now);
+  const today = new Date(clockValue((at) => dayOf(at).getTime()));
   const behind = Math.round((today - day) / 86_400_000);
   const label =
     behind === 0

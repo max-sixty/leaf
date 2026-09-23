@@ -832,8 +832,8 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
         None,
         None,
         "Review this metric.",
-        '<lf-metrics><lf-metric id="root-metric" value="1">Completed steps</lf-metric>'
-        "</lf-metrics>",
+        '<lf-grid id="root-row"><lf-metric id="root-metric" value="1">'
+        "Completed steps</lf-metric></lf-grid>",
     )["id"]
     second = _agent_metric_reply(serve.page_dir, root, 2)
     accepted, _ = endpoint_model.accept_event(

@@ -776,3 +776,77 @@ def test_modal_blocks_exposure_until_reader_returns_to_threads(browser, serve):
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
+
+
+# Every element box in a card, keyed by the element itself, so a later reading
+# compares exactly the nodes that survived.
+_CARD_BOXES = """card => {
+  const boxes = new Map();
+  for (const element of [card, ...card.querySelectorAll("*")]) {
+    const box = element.getBoundingClientRect();
+    boxes.set(element, [box.x, box.y, box.width, box.height].map(Math.round));
+  }
+  return boxes;
+}"""
+
+
+def test_reading_a_thread_moves_nothing_in_it(browser, serve):
+    """Read state is bookkeeping: a read receipt takes a thread's rails, boundaries,
+    labels and Mark read control away without moving anything the reader is looking
+    at. Only a row that loses a label or control may close up sideways."""
+    url = serve(PANEL_PAGE)
+    root = conversation_model.cmd_comment(
+        serve.page_dir,
+        None,
+        None,
+        None,
+        "Review this metric.",
+        '<lf-metrics><lf-metric id="root-metric" value="1">Completed steps</lf-metric>'
+        "</lf-metrics>",
+    )["id"]
+    second = _agent_metric_reply(serve.page_dir, root, 2)
+    accepted, _ = endpoint_model.accept_event(
+        serve.page_dir,
+        {"kind": "read", "messages": [{"message": second, "version": second}]},
+        dict,
+    )
+    assert accepted == 200
+    third = _agent_metric_reply(serve.page_dir, root, 3)
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).to_have_attribute("open", "")
+    expect(card.locator('.lf-read-boundary[data-kind="new"]')).to_have_count(2)
+    expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(1)
+    expect(card.locator(".lf-msg.lf-unread")).to_have_count(2)
+    card.evaluate(f"card => {{ window.__before = ({_CARD_BOXES})(card); }}")
+
+    accepted, _ = endpoint_model.accept_event(
+        serve.page_dir,
+        {
+            "kind": "read",
+            "messages": [{"message": m, "version": m} for m in (root, third)],
+        },
+        dict,
+    )
+    assert accepted == 200
+    told(page)
+    expect(card.locator(".lf-msg.lf-unread")).to_have_count(0)
+    expect(card.locator(".lf-read-boundary")).to_have_count(0)
+    moved = card.evaluate(f"""card => {{
+      const after = ({_CARD_BOXES})(card);
+      const rows = ":is(.lf-thread-summary, .lf-msg-meta, .lf-thread-meta-actions)";
+      const moved = [];
+      for (const [element, box] of window.__before) {{
+        if (!after.has(element) || !element.isConnected) continue;
+        const now = after.get(element);
+        const sideways = element.matches(`${{rows}}, ${{rows}} *`);
+        const kept = sideways ? [1, 3] : [0, 1, 2, 3];
+        if (kept.some(at => now[at] !== box[at]))
+          moved.push(`${{element.tagName}}.${{element.className}} ${{box}} -> ${{now}}`);
+      }}
+      return moved;
+    }}""")
+    assert moved == []

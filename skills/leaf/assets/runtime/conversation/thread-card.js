@@ -427,18 +427,6 @@ export class ThreadView {
     } else if (heldFocus && !this.node.contains(standing) && !panel) {
       this.#commands.landInConversation(this.node.querySelector(SAY_BOX) ?? this.node);
     }
-    // A read receipt removes the unread rail and boundary. On a long answer that
-    // rewraps its prose and can clamp a direct landing in the reply box to a new
-    // scroll limit. Land the still-focused reply against the committed geometry.
-    if (
-      panel &&
-      prior?.unreadCount > model.unreadCount &&
-      this.node.querySelector(SAY_BOX) === standing
-    )
-      queueMicrotask(() => {
-        if (focused() === standing && this.#model.id === model.id)
-          void this.#commands.travel.showThread(model.id);
-      });
     return this.node;
   }
 

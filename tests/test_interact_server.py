@@ -2847,11 +2847,11 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
     assert send("gamma", revision=1)[0] == 400
     assert send("beta", revision=2)[0] == 400
     assert send("gamma", revision=2)[0] == 200
-    gamma = [
+    gamma = next(
         event
         for event in event_model.read_events(page_dir)
         if event["kind"] == "request" and event["meaning"]["unit"] == "gamma"
-    ][0]
+    )
     event_model.append_event(
         page_dir,
         {
@@ -4036,9 +4036,9 @@ def test_temporary_server_close_waits_for_active_request(page_dir, monkeypatch):
         requester.start()
         assert entered.wait(timeout=5), "the server did not accept the request"
         closer.start()
-        assert not closed.wait(
-            timeout=0.1
-        ), "close returned with a request still active"
+        assert not closed.wait(timeout=0.1), (
+            "close returned with a request still active"
+        )
         release.set()
         closer.join(timeout=5)
         requester.join(timeout=5)
@@ -5569,14 +5569,14 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     log.write_text("\n".join(lines), encoding="utf-8")
 
     events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == [
-        "r-kept"
-    ], "the tear took the reply with it, so nothing below is being read"
+    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
+        "the tear took the reply with it, so nothing below is being read"
+    )
     assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == [
-        "c-lost"
-    ], f"the two readings put the reply in different conversations: {list(threads)}"
+    assert list(threads) == ["c-lost"], (
+        f"the two readings put the reply in different conversations: {list(threads)}"
+    )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
     # The surviving message is still the frozen document that owns its widgets.

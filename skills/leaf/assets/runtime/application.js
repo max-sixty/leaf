@@ -298,9 +298,10 @@ export function mountApplication(dependencies) {
         widget: descriptor.id,
         action: command.verb,
         detail: structuredClone(command.detail ?? {}),
-        ...(command.kind === "request" && command.data_revision != null && {
-          data_revision: command.data_revision,
-        }),
+        ...(command.kind === "request" &&
+          command.data_revision != null && {
+            data_revision: command.data_revision,
+          }),
         ...(command.references && {
           references: structuredClone(command.references),
         }),

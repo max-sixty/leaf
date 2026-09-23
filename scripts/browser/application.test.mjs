@@ -278,9 +278,18 @@ test("projected requests expose one lifecycle per data record", () => {
   assert.equal(reading.requestUnits.alpha.phase, "pending");
   assert.equal(reading.requestUnits.beta.phase, "ready");
   assert.equal(reading.requests.restart.available, true);
-  app.enqueue({ kind: "request", widget: "jobs", action: "restart",
-    detail: { target: "beta" }, data_revision: 1, revision: 1,
-    attempt: "pending-beta" }, "now");
+  app.enqueue(
+    {
+      kind: "request",
+      widget: "jobs",
+      action: "restart",
+      detail: { target: "beta" },
+      data_revision: 1,
+      revision: 1,
+      attempt: "pending-beta",
+    },
+    "now",
+  );
   reading = app.selectWidget(rows).read();
   assert.equal(reading.requestUnits.alpha.phase, "pending");
   assert.equal(reading.requestUnits.beta.phase, "pending");

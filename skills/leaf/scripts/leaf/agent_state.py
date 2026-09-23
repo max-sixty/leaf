@@ -129,7 +129,10 @@ def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | N
 
 
 def _read_active_document(
-    page_dir: Path, events: list, registry: dict, revision: int | None,
+    page_dir: Path,
+    events: list,
+    registry: dict,
+    revision: int | None,
     data: dict | None = None,
 ) -> DocumentReading | None:
     if revision is None:

@@ -40,18 +40,20 @@ customElements.define(
           const button = item.querySelector("button");
           const seat = this.controller.request(row.id);
           const paint = (reading) => {
-            button.disabled = !reading.requests.restart.available ||
+            button.disabled =
+              !reading.requests.restart.available ||
               reading.request?.seat.data_revision !== snapshot.revision;
           };
           this.seats.get(row.id)?.();
           this.seats.set(row.id, seat.subscribe(paint));
           paint(seat.read());
-          button.onclick = () => seat.dispatch({
-            kind: "request",
-            verb: "restart",
-            detail: { target: row.id, state: row.state },
-            data_revision: snapshot.revision,
-          });
+          button.onclick = () =>
+            seat.dispatch({
+              kind: "request",
+              verb: "restart",
+              detail: { target: row.id, state: row.state },
+              data_revision: snapshot.revision,
+            });
           return item;
         },
         { snapshot },

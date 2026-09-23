@@ -159,9 +159,7 @@ def full_state(
             else version_descriptors(page_dir, events)
         ),
         "source_error": source_error,
-        "data": (
-            browser_data_from(copy.deepcopy(stored_data), selected_registry)
-        ),
+        "data": (browser_data_from(copy.deepcopy(stored_data), selected_registry)),
         **present,
         "activity": activity,
         "workflows": workflows,

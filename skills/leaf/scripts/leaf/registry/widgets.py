@@ -139,7 +139,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                     _resource, schema_registry = schema_resource_registry(schema)
                     resolver = schema_registry.resolver()
 
-                    def resolved(node):
+                    def resolved(node, resolver=resolver):
                         while isinstance(node, dict) and "$ref" in node:
                             node = resolver.lookup(node["$ref"]).contents
                         return node

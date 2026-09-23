@@ -623,6 +623,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
+  /* Keep the marker's box at every count; filling it must not move the button. */
+  .lf-threads-toggle::after {
+    content: ""; display: inline-block; width: 6px; height: 6px;
+    margin-inline-start: 5px; border-radius: 50%; background: transparent;
+    vertical-align: middle; }
+  .lf-threads-toggle[data-unread-threads]::after { background: var(--accent); }
   /* Horizontally anchored to its own press. Every side the rule does not use is said
      out loud because the popover UA rule is inset: 0 with margin: auto, which otherwise
      centres the menu. */
@@ -884,6 +890,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
   .lf-thread-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  .lf-first-unread { margin-inline-start: auto; margin-inline-end: 8px; color: var(--turn-ink);
+    font-size: var(--t-6); white-space: nowrap; }
   /* The words in here, against the apparatus the root has already answered for: a reply
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a reader copying either is copying what was said rather than the
@@ -1019,7 +1027,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
-  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 3ch 80px;
+  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 3ch 80px;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
@@ -1028,11 +1036,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lf-thread-draft { color: var(--muted); font-size: 10px; }
-  .lf-thread-status { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  .lf-thread-draft { grid-column: 2; color: var(--muted); font-size: 10px; }
+  .lf-thread-unread, .lf-unread-label { color: var(--turn-ink); font-size: 10px;
+    font-weight: 700; white-space: nowrap; }
+  .lf-thread-unread { grid-column: 3; }
+  .lf-thread-status { grid-column: 5; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="reader"] { color: var(--turn-ink); }
-  .lf-thread-count { color: var(--muted); font-size: 11px; text-align: right;
+  .lf-thread-count { grid-column: 4; color: var(--muted); font-size: 11px; text-align: right;
     font-variant-numeric: tabular-nums; }
   /* One inset serves the quote, messages and composer. Author, time and delivery
      form one quiet header. */
@@ -1152,6 +1163,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-msg-head b { font-size: 13px; font-weight: 600; color: var(--ink); }
   .lf-msg time { color: var(--muted-2); }
   .lf-msg-head .lf-edited { color: var(--muted-2); }
+  .lf-msg.lf-unread { border-inline-start: 2px solid var(--turn-ink);
+    padding-inline-start: 6px; }
+  .lf-thread-root-meta:has(+ .lf-msg.lf-unread) { border-inline-start: 2px solid var(--turn-ink);
+    padding-inline-start: 6px; }
   /* A failed answer needs to stand apart from the clock without becoming a control. */
   .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
   /* A message body is rendered Markdown, which is why this dresses a box and not a
@@ -1190,6 +1205,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-general { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
+  .lf-mark-read { font-size: var(--t-6); white-space: nowrap; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
      other side, so it wears the same band when the keyboard reaches it. It was left on

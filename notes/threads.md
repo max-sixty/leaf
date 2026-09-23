@@ -10,7 +10,7 @@ overlapping summary as the discussion grows. Their contracts live in
 [the package Thread API](../skills/leaf/references/packages.md#widget-local-thread-surfaces).
 The [playground](thread-navigation/README.md) retains the design comparisons.
 
-## Notifications and unread state
+## Notifications
 
 The canonical workflow already records exact-input delivery, work, response,
 condition, and next actor. The Thread collection supplies stable message identities
@@ -27,12 +27,6 @@ outcomes. A stage change such as Sent to Picked up, a heartbeat, or a tool step 
 not by itself demand a notification. Compare successive canonical readings using
 stable ids, then choose the status line, accessible announcement, Thread control,
 or another destination. Inspect these before adding a transition bus or new transport.
-
-Unread is a separate fact about what the reader has seen, not a workflow stage or
-the same thing as Needs you. The current `viewed` timestamp means a tab had the page
-visible; it does not say which Thread or reply was read. Define the read boundary and
-lifetime (tab-local or durable) before adding unread counts, First unread, or badges.
-Keep notification coalescing and read state out of the canonical message workflow.
 
 ## Independent jobs, delegation, and continuation
 
@@ -72,5 +66,4 @@ individual oversized messages while preserving opening context, the current
 exchange, outstanding questions, and actionable controls. Search and direct-message
 navigation must reveal hidden matches; new replies and folding must preserve reading
 position. Test recovering an earlier argument and answering the current question
-without hidden obligations or scroll jumps. Keep read-position and unread-state
-decisions with the notification plan above.
+without hidden obligations or scroll jumps.

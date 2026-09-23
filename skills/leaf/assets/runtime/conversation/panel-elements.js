@@ -17,7 +17,11 @@ closeBtn.append(iconElement("cross", "lf-action-icon"));
 closeBtn.title = "Close threads (Esc)";
 closeBtn.setAttribute("aria-label", "Close threads");
 export const panelTitle = el("span", "lf-auxiliary-title", "Threads");
-panelHead.append(panelTitle, closeBtn);
+export const firstUnreadBtn = el("button", "lf-btn lf-first-unread", "Unread");
+firstUnreadBtn.type = "button";
+firstUnreadBtn.hidden = true;
+firstUnreadBtn.title = "Go to first unread message";
+panelHead.append(panelTitle, firstUnreadBtn, closeBtn);
 
 export const narrowingView = createThreadNarrowingView();
 export const findInput = narrowingView.searchInput;

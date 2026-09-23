@@ -33,10 +33,11 @@ import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createConversationPresentation } from "./conversation/presentation.js";
+import { createReadAcknowledgement } from "./conversation/read.js";
 import { renderMarginThread } from "./conversation/inline.js";
 import { conversationBox as buildConversationBox } from "./conversation/box.js";
 import { messageText } from "./conversation/messages.js";
-import { isConversationEvent } from "./pending/model.js";
+import { isConversationEvent, isReadAcknowledgement } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
@@ -64,7 +65,8 @@ export function mountApplication(dependencies) {
         isConversationEvent(event) ? messageText(event) : undefined,
       ),
   });
-  const hasPending = ledger.hasUnresolved;
+  const hasPending = () =>
+    ledger.snapshot().some((entry) => !isReadAcknowledgement(entry.event));
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
@@ -307,6 +309,11 @@ export function mountApplication(dependencies) {
       kind: resolved ? "resolve" : "unresolve",
       parent,
     }) ?? { answer: Promise.resolve(null), presentation: Promise.resolve() };
+  const read = createReadAcknowledgement({
+    post: (messages) => post({ kind: "read", messages }),
+    showThread: dependencies.showThread,
+    setUnreadThreadCount: dependencies.setUnreadThreadCount,
+  });
 
   const replyView = {
     createReply,
@@ -325,6 +332,7 @@ export function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    read,
     showThread: dependencies.showThread,
     landInConversation: dependencies.landInConversation,
   };
@@ -332,6 +340,7 @@ export function mountApplication(dependencies) {
     reply: replyView,
     settlement: settlementView,
     reaction: reactionView,
+    read,
     anchors: {
       isMarked: dependencies.anchorPaint.isMarked,
       placedAt: dependencies.anchorPaint.placedAt,
@@ -398,6 +407,7 @@ export function mountApplication(dependencies) {
     activeActionAnchor: dependencies.activeActionAnchor,
     renderMargin: margin.renderMargin,
     renderSurfaces,
+    read,
   });
 
   const accountPending = (receipts) => {
@@ -499,7 +509,9 @@ export function mountApplication(dependencies) {
     invalidateDom,
     landInConversation: dependencies.landInConversation,
     margin,
+    read,
     mountConversation: conversation.mount,
+    mountRead: read.mount,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     openAsks,
     unansweredAsks,

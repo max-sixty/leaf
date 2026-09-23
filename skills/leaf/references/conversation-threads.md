@@ -179,6 +179,20 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 leaf resolve <page> --to <thread-id>
 ```
 
+## Read a thread
+
+The Threads control keeps the count of active discussions and shows a separate unread
+marker when any thread has unread agent content. Open Threads for each thread's unread
+message count and **Unread** to jump to the first unread message; that action reveals a folded original or a
+filtered resolved thread before moving focus. Reading a whole visible prose reply
+acknowledges that content version. A long reply is acknowledged after its entire body
+has passed through the visible reading area; opening a thread or seeing a summary is
+not enough. Authored interactive content uses **Mark thread read** in the thread card,
+also reachable by keyboard, which acknowledges the current versions of all messages
+in that thread. An edit is a new content version and becomes unread again. Read state
+belongs to this page's single reader and survives another tab or visit; it does not
+answer an Ask, change **On you**, deliver agent work, or resolve a thread.
+
 ## Summarize a long discussion
 
 When delivered context suggests summarization, read the original messages with

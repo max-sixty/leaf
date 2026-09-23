@@ -365,10 +365,12 @@ export function wireThreadLanding() {
 
 // Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
 // and a destination in one is as unreachable as a destination with no node at all.
-const listNode = (id) => {
-  const node = threadsBox.querySelector(
-    `.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`,
-  );
+const listNode = (id, preferMessage = false) => {
+  const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
+  const thread = `.lf-thread[data-id="${CSS.escape(id)}"]`;
+  const node = preferMessage
+    ? (threadsBox.querySelector(message) ?? threadsBox.querySelector(thread))
+    : (threadsBox.querySelector(thread) ?? threadsBox.querySelector(message));
   return node?.closest(".lf-thread[hidden]") ? null : node;
 };
 
@@ -390,7 +392,7 @@ async function showThreadNow(id, focus, revealThread) {
     )
     ?.classList.remove("grow");
   threadsBox.revealNavigation(id);
-  let node = listNode(id);
+  let node = listNode(id, focus === "message");
   const going = node?.closest(".lf-going");
   if (going) {
     finishFold(going.dataset.id);
@@ -398,16 +400,16 @@ async function showThreadNow(id, focus, revealThread) {
     if (!revealed) return false;
     await revealed;
     if (!mayArrive()) return false;
-    node = listNode(id);
+    node = listNode(id, focus === "message");
   } else if (!node) {
     const revealed = revealThread(id);
     if (!revealed) return false;
     await revealed;
     if (!mayArrive()) return false;
-    node = listNode(id);
+    node = listNode(id, focus === "message");
   }
   threadsBox.revealNavigation(id);
-  node = listNode(id);
+  node = listNode(id, focus === "message");
   if (!node || !mayArrive()) return false;
   if (node.closest(".lf-summary-originals[hidden]")) {
     await reveal(node, mayArrive);
@@ -474,7 +476,7 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
  * landing owner — one a test builds to hold a reveal open — is another way of landing,
  * not another set of keys, and declaring from the constructor would let it quietly take
  * the page's. */
-export function declareThreadKeys(landIn) {
+export function declareThreadKeys(landIn, read) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
@@ -506,6 +508,23 @@ export function declareThreadKeys(landIn) {
             : null;
           if (reopen) reopen.click();
           else landIn({ held: thread, box: conversationInput(thread) });
+        },
+      },
+      {
+        id: "thread.read.mark",
+        keys: ["m"],
+        does: "Mark this thread read",
+        line: "mark read",
+        when: () => {
+          const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;
+          return Boolean(
+            id &&
+            threadList().find((thread) => thread.root.id === id && thread.unreadCount),
+          );
+        },
+        run: () => {
+          const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;
+          if (id) read.markThread(id);
         },
       },
       {

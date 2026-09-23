@@ -4314,6 +4314,7 @@ body { font-family: system-ui, sans-serif; }
         <lf-text-document
           id="notification-artifact-source"
           source="notification-artifact"
+          label="deployment-notification.html"
           language="html"
         ></lf-text-document>
       </section>""",
@@ -4324,7 +4325,6 @@ body { font-family: system-ui, sans-serif; }
         serve.page_dir,
         "notification-artifact",
         artifact,
-        label="deployment-notification.html",
     )
     first_result = stamp_page(
         serve.page_dir,
@@ -4403,7 +4403,6 @@ body { font-family: system-ui, sans-serif; }
         serve.page_dir,
         "notification-artifact",
         artifact,
-        label="deployment-notification.html",
     )
     refined_source = result_source.replace(
         "<h1>Review the deployment notification</h1>",
@@ -10345,7 +10344,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
             "datum": '["app/handlers.py","new",81]',
             "quote": _DIFF_TAIL,
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": row.get_attribute("data-lf-source-revision"),
         }
     ), anchors
 

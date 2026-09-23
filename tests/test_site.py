@@ -30,6 +30,7 @@ import pytest
 from conftest import LENT_LINKED_DIRS
 from example_data import catalog_sources, data_operations, example_versions
 from interact_support import running_http_server
+from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import schema as schema_model
@@ -298,7 +299,6 @@ def test_product_pages_are_published_as_complete_page_records(site):
         assert (page / "index.html").read_bytes() == source.read_bytes()
         for name in (
             *schema_model.VENDORED_FILES,
-            "data.json",
             "events.jsonl",
             "status.json",
         ):
@@ -522,7 +522,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         events = read_events(page_dir)
         mappings = files_model.version_revisions(events)
         operations = data_operations(source)
-        stored_data = json.loads((page_dir / "data.json").read_text())
+        contracts = data_model.read_contracts(page_dir)
 
         assert (page_dir / "index.html").read_bytes() == versions[-1].read_bytes()
         assert files_model.published_versions(page_dir, events) == list(
@@ -542,18 +542,13 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             }
         else:
             assert not (page_dir / "cursor.json").exists()
-        assert set(stored_data["sources"]) == {
-            operation["source"] for operation in operations
-        }
+        assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
             if operation["kind"] == "set":
-                assert (
-                    stored_data["sources"][operation["source"]]["value"]
-                    == operation["value"]
-                )
+                stored = data_model.source_file(page_dir, operation["source"])
+                assert json.loads(stored.read_text()) == operation["value"]
 
         for name in (
-            "data.json",
             "events.jsonl",
             "icon.svg",
             "leaf.js",
@@ -2078,14 +2073,13 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     )
 
 
-def test_a_shipped_data_snapshot_opens_in_its_package_projection(
-    site, served_example, browser
-):
+def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
     """The page backend delivers package data through the live state contract."""
-    stored = json.loads((site / "examples" / "command-hub" / "data.json").read_text())
+    stored = data_model.source_file(
+        site / "examples" / "command-hub", "atlas-worktrees"
+    )
     assert (
-        stored["sources"]["atlas-worktrees"]["value"]["tree-w-1"]["branch"]
-        == "atlas/xml-declarations"
+        json.loads(stored.read_text())["tree-w-1"]["branch"] == "atlas/xml-declarations"
     )
 
     _, url = served_example("command-hub")

@@ -351,15 +351,13 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     # windows open under load alone, which is how one page passed at a desk and
     # reported words drawn over words under a full suite ("The page finishes
     # twice", in the layer's own AGENTS.md).
-    failed_stage = wait_for_presentation(
-        page, state["data"]["revision"], applied, settled=True
-    )
+    failed_stage = wait_for_presentation(page, state, applied, settled=True)
     replayed = _projection_was_applied(failed_stage)
     if failed_stage == "dataApplied":
         unsettled = [
             (
-                "the runtime never presented external data revision "
-                f"{state['data']['revision']}"
+                "the runtime never presented external data as current as version "
+                f"{state['data']['version']}"
             )
         ]
     elif failed_stage == "logApplied":

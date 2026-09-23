@@ -63,6 +63,7 @@ from render_cases_navigation import (
     _publish,
     actions,
     live_watcher,
+    source_revision,
 )
 from render_cases_widgets import (
     SCROLLED,
@@ -112,11 +113,11 @@ def test_projected_request_rows_have_independent_buttons(browser, serve):
     url = serve(FEATURE_GALLERY)
     data_model.cmd_data_set(serve.page_dir, "gallery-latency", 184)
     page = open_page(browser, url)
-    source_revision, store_revision = page.evaluate("""() => {
-      const snapshot = document.querySelector('#bg-jobs').snapshot;
-      return [snapshot.revision, snapshot.origin.data_revision];
-    }""")
-    assert source_revision != store_revision
+    jobs_revision = source_revision(serve.page_dir, "gallery-jobs")
+    assert (
+        page.evaluate("() => document.querySelector('#bg-jobs').snapshot.revision")
+        == jobs_revision
+    )
     rows = page.locator("#bg-jobs p")
     expect(rows).to_have_count(2)
     first = rows.nth(0).get_by_role("button", name="Restart")
@@ -128,7 +129,7 @@ def test_projected_request_rows_have_independent_buttons(browser, serve):
     with page.expect_response("**/api/event") as posted:
         page.keyboard.press("Enter")
     assert posted.value.status == 200
-    assert posted.value.request.post_data_json["data_revision"] == source_revision
+    assert posted.value.request.post_data_json["source_revision"] == jobs_revision
     expect(first).to_be_disabled()
     expect(second).to_be_enabled()
     assert page.evaluate("""async () => {

@@ -37,6 +37,9 @@ from render_cases_interaction import (
 from render_cases_layout import (
     serious_axe_violations,
 )
+from render_cases_navigation import (
+    source_revision,
+)
 from render_cases_widgets import (
     CUT_BOXES_PAGE,
 )
@@ -1845,10 +1848,15 @@ def test_export_waits_for_the_snapshot_the_browser_can_receive(
                 "text": "Arrived after the preview snapshot.",
             },
         )
-        data_path = serve.page_dir / "data.json"
-        later_data = json.loads(data_path.read_text(encoding="utf-8"))
-        later_data["revision"] += 1
-        data_path.write_text(json.dumps(later_data), encoding="utf-8")
+        # A source that appears after the snapshot moves the page's data version.
+        files_model.write_json(
+            serve.page_dir / "data.json",
+            {"sources": {"later": {"contract": "text-document"}}},
+        )
+        (serve.page_dir / "data").mkdir(exist_ok=True)
+        files_model.write_json(
+            serve.page_dir / "data" / "later.json", "Arrived after the snapshot."
+        )
 
         exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
 
@@ -2336,7 +2344,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
                 "section": "patch",
                 "datum": '["app.py","new",1]',
                 "source": "review-patch",
-                "data_revision": 1,
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
         },
     )

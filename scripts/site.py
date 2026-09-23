@@ -327,12 +327,15 @@ def write_crawler_directives(assets: Path, routes: list[str]) -> None:
 
 
 def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
-    """Hard-link identical build outputs without changing their public paths."""
+    """Hard-link identical build outputs without changing their public paths.
+
+    `mutable_names` names files, or directories whose files, a served page rewrites;
+    those keep their own inodes."""
     canonical: dict[tuple[int, bytes], Path] = {}
     for path in sorted(
         candidate for candidate in root.rglob("*") if candidate.is_file()
     ):
-        if path.name in mutable_names:
+        if path.name in mutable_names or path.parent.name in mutable_names:
             continue
         body = path.read_bytes()
         identity = (len(body), hashlib.sha256(body).digest())
@@ -492,6 +495,7 @@ def publish_live_shells(
         out,
         mutable_names={
             "cursor.json",
+            "data",
             "data.json",
             "events.jsonl",
             "index.html",

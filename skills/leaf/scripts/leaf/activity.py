@@ -181,7 +181,6 @@ def _canonical_workflows(
         item["stage"] = stage
         item["quiet"] = quiet
         item["dropped"] = dropped
-        item.pop("anchor", None)
         item.pop("fallback_stage", None)
         item.pop("fallback_ts", None)
         result.append(item)

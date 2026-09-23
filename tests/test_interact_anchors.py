@@ -1181,8 +1181,8 @@ def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir)
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '  <lf-diagram id="flow">',
-            '  <lf-metrics><lf-metric id="k-visits" value="312" delta="+41"'
-            ' direction="up-good">daily visits</lf-metric></lf-metrics>\n'
+            '  <lf-grid id="k-row"><lf-metric id="k-visits" value="312" delta="+41"'
+            ' direction="up-good">daily visits</lf-metric></lf-grid>\n'
             '  <lf-diagram id="flow">',
         )
     )

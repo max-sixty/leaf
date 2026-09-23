@@ -1,8 +1,11 @@
 # Layout model
 
 A proposal to replace Leaf's document/workspace choice with shared layout primitives
-composed into task components, with a strong document default. Nothing here has
-shipped. Research at `f8660f72`, 22 September 2026, revised after four independent
+composed into task components, with a strong document default. `lf-grid`, the
+text-or-surface declaration, bounded blocks and the page-CSS advice have shipped, and
+their contracts live in `page-authoring.md` ("Composing a page") and
+`packages.md`; the workspace, the remaining package roots and Threads are the slices
+below. Research at `f8660f72`, 22 September 2026, revised after four independent
 reviews and two browser probes. Where a choice was close, this plan takes the one
 with fewer states and elements, because that is the easier position to change from.
 
@@ -330,19 +333,11 @@ presentation of `lf-tabs`.
 
 Each slice replaces its old path completely.
 
-- **#29** `lf-grid` in flow with cells as frames; the text-or-surface declaration in
-  the registry; blocks that declare their own bound, including following the newest
-  entry; and the `version check` warning for page CSS that makes a box scroll.
-  Rebuild `live-progress` as a document with grids and a bounded log, `command-hub`'s status
-  and fleet sections as tiles, and `lf-metrics` as metric tiles.
-- **#32** Rewrite "Document, page tabs, or workspace" in `page-authoring.md` as the
-  four recipes, and the glossary's workspace terms around frames and posture; land
-  with #29.
 - **#30** `lf-workspace` as a size container where its host gives finite height, the
   pane grammar, and continuous reading continuity for every region, the page
-  included. Compare the monitor, a comparison and a queue beside its detail before
+  included. Compare a comparison and a queue beside its detail before
   and after; delete `readBoundedFit`, `lf-partition`, and the JS minimum-size readers.
-- **#31** Move `lf-monitor`, `lf-visual-review`, the playground and `lf-ask` onto the
-  grid; delete `arrangeReadingElement` and the package copies of bounded rules.
+- **#31** Move `lf-visual-review`, the playground and `lf-ask` onto the grid; delete
+  `arrangeReadingElement` and the package copies of bounded rules.
 - **#28** Threads slides over the page at every width; delete the push strip,
   `COVERING`, and `main`'s panel offset.

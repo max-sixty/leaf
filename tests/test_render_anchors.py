@@ -232,8 +232,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     )
 
 
-def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
-    """A shrinking visible region gives the viewport its draft before it loses focus."""
+def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
+    """A block scrolling out of view gives the viewport its draft before it loses focus."""
     source = next(source for source in EXAMPLES if source.stem == "live-progress")
     page = open_page(browser, serve(source))
     resized(page, 700, 850)
@@ -257,11 +257,11 @@ def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve)
     # Native End on macOS scrolls the page even from its textarea. A smooth scroll can
     # cross this narrow band in one frame or several; put that actual geometry on screen
     # directly so the test cannot miss the point where the region no longer fits a field.
-    page.locator("#lp-release").evaluate(
+    page.locator("#lp-status").evaluate(
         "region => window.scrollTo(0, scrollY + region.getBoundingClientRect().bottom - 20)"
     )
     page.evaluate(RENDERED)
-    assert page.locator("#lp-release").evaluate(
+    assert page.locator("#lp-status").evaluate(
         "region => Math.abs(region.getBoundingClientRect().bottom - 20) < 1"
     )
     expect(field).to_be_visible()

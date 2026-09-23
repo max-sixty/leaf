@@ -76,9 +76,9 @@ has tried; settle that before building it.
 ### Layout
 
 - **Replace the document/workspace choice with layout axes.** Follow the
-  [layout model](notes/layout-model.md): `lf-grid` in flow for dashboards first
-  (#29), then a two-state `lf-workspace` that picks its posture from its own size
-  (#30). **Unconfirmed:** that one global threshold suits the monitor, comparison and
+  [layout model](notes/layout-model.md): a two-state `lf-workspace` that picks its
+  posture from its own size (#30), then the playground, visual review and Ask onto
+  the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
   queue-with-detail pages.
 
 ### The agent's text interface

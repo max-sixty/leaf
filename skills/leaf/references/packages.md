@@ -759,9 +759,9 @@ defineRequestElement("lf-operations", {
 });
 ```
 
-The host uses the durable request id as its idempotency and recovery key, then records
-exactly one outcome with `leaf receipt`. That id is unique within its page rather than
-across pages, so a host keying an external operation on it pairs it with the page.
+The host runs a request as the handling delivered with it says. Its id is unique
+within its page rather than across pages, so a host keying an external operation on it
+pairs it with the page.
 External evidence produced by the operation belongs in typed page data; the authored
 page changes only when the author saves the resulting plan revision.
 
@@ -1151,29 +1151,3 @@ Then put it on the page. A widget is reviewed in place: the version that follows
 comment uses it where the comment asked, and the user comments on it there. From the
 terminal, `/leaf build a timeline widget for the release page` names the layer as its
 subject, and the page it makes shows the widget in use.
-
-## A design comment
-
-The user's design mode (`l` in the browser) marks presentation or interaction intent
-rather than assigning ownership: `"about": "design"`, anchored on the element they
-clicked or the words they selected. The anchor's `section` is a widget's id, or the id of a runtime part —
-`lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
-`lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-command-reference` — and
-`part` names the control the click landed on, where it landed on one (`Accept`,
-`Threads (2)`).
-
-```json
-{
-  "kind": "comment",
-  "about": "design",
-  "version": 3,
-  "anchor": { "section": "feeder-board" },
-  "text": "cards are cramped — give the column a floor"
-}
-```
-
-Inspect the current source owner, then change the page instance unless the affected
-behavior is already reusable or the user asks for broader reach. Re-vendor when the
-change belongs in a package or Leaf, stamp the version, and reply in-thread saying where
-the fix landed. The new version is the answer, on the element the comment was made on.
-A comment naming Leaf itself follows the hand-off above.

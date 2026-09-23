@@ -40,11 +40,12 @@ delivered:
       conversations: []
       handling:
         h1: >-
-          The user asked you to run an operation the page's package defines, once.
-          The request id, with the page, identifies it: after an interruption, check
-          whether it already ran before acting.
+          The user asked you to run an operation the page's package defines; the
+          package's guidance says what it means. The request id, with the page,
+          identifies it: after an interruption, check whether it already ran before
+          acting.
         h2: >-
-          Run it at most once, then record the outcome with exactly one `leaf receipt
+          Run it at most once, then record its outcome with exactly one `leaf receipt
           <page> <request-id> succeeded|failed --text "…"`. The receipt does not
           change the page: refresh any data the page shows, update `index.html`
           to reflect the result, and stamp it if it is worth a note.

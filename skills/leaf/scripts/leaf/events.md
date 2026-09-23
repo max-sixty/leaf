@@ -38,7 +38,8 @@ requires the agent to revise its declared answer state rather than reply.
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. Its first stroke decides
 whether it anchors on an element or on the page, and with it the browser records `box`
-and `says`; `../../references/conversation-threads.md` says how to read the three. The
+and `says`; the drawing's clause in `$events.handling.comment` tells the agent how
+to read the three. The
 browser reads them off the rendered page, which holds words and geometry no file
 reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and

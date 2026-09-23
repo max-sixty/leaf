@@ -10,8 +10,9 @@ LEAF_AGENT="$WORKER" "$LEAF" report "$PAGE" "$TASK" status status=active
 
 If `report` fails, return its exact error through the host task and run no other
 Leaf command. Report the row whenever the activity changes and often enough that
-silence means something; keep it within the roughly quarter-hour working claim
-the page shows. Both `state` and `doing` are required on an agent report.
+silence means something: the page calls out a working row that goes quiet for the
+working grace, about a quarter of an hour. Both `state` and
+`doing` are required on an agent report.
 
 - A blocker moves the agent and task to `blocked`, with the immediate blocker in
   `doing`.
@@ -30,5 +31,6 @@ The reconnect drops the queue, so the retry sends against a closed socket.
 EOF
 ```
 
-Do not run `leaf wait`, change page status, stamp a version, or
-handle an event the coordinator did not route to you.
+These reports and replies to events the coordinator routes to you are your only
+Leaf commands; `leaf wait`, status, versions, and the rest of the page are the
+coordinator's.

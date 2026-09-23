@@ -14,17 +14,16 @@ an area subtree, or project-wide coordination. Give it:
 - the required outcome and constraints
 - the instruction to read `"$LEAF" page guidance "$PAGE" worker`
 
-The coordinator alone runs `leaf wait`, changes page status,
-updates the source, stamps versions, and records `done` after accepting or
-landing the work.
+Workers write only the reports and routed replies their guidance gives them; the
+rest of the page stays with you, as `references/conversation-loop.md`, "Long-running
+work", describes. That includes recording `done` after accepting or landing the work.
 
 If a worker becomes unreachable, start a successor with `leaf page state`. Keep
 completed rows as history, save unreachable nonterminal rows as `idle` without
 `on`, assign the remaining work to a fresh task, and retain its new handle.
 
-A worker's report is provisional page state that a later revision absorbs or
-overrules (`authoring-revisions.md`, "Honor user state"); the page must not end
-with report debt.
+A worker's report reaches you as a delivered event, whose `handling` says how a
+stamped version answers it.
 
 Route an anchored comment only while the assigned row or task is nonterminal and
 its worker handle is reachable. Comments on terminal or unreachable assignments

@@ -7,19 +7,13 @@ widgets. Select the bundled package by name:
 leaf page init --package command-hub <page>
 ```
 
-A command hub has one authored goal tree. Put the outcome in `lf-command`, then
-place each worker once at the narrowest level matching its durable remit. A
-project-wide coordinator sits directly under the command, an area owner under an
-intermediate goal, and a specialist under a leaf. The optional `on` attribute is
-only the worker's current focus.
-
-Put each Ask or input beside the goal it blocks. The package derives the header, stopped-work
-reading, live-worker view, and action record from the tree and log. A
-project-specific goal or worker widget can join the projection through
-`$command.widgets`. Its declared `state` attribute must be backed by exactly one
-widget-unit value record in `x-state` or `x-report`, and its module must present the
-`widgetController` reading. Do not author a role enum, second roster, Asks list,
-progress count, relative report time, or another summary of the same work.
+A command hub has one authored goal tree in `lf-command`, whose entry says where
+each worker sits. The package derives the header, stopped-work reading, live-worker
+view, and action record from the tree and log. Put each Ask
+or input beside the goal it blocks, and author no role enum, progress count,
+relative report time, or other summary of the same work. A project-specific goal or
+worker widget joins the projection through `$command.widgets`, whose entry states
+what it owes.
 
 The coordinating agent reads `leaf page guidance <page> coordinator` before it
 assigns work.

@@ -18,9 +18,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-guidance": {
-      "author": "Put the real operable markup in one lf-target-preview. Keep authored ids and meaningful classes on elements whose identity or shared styling should survive revisions. The submitted action contains structured targets and changes; use each change's target key rather than recovering identity from its prose."
-    },
     "x-upgrade": true,
     "x-awaits": {
       "region": true,

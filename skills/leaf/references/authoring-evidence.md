@@ -32,11 +32,10 @@ Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for flows, state machines, sequences, class relationships, and ER
 schemas. Agentic Mermaid draws them from Mermaid source, along with many of Mermaid's
-other families, such as Gantt charts, timelines, and mindmaps.
-Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf's
-accent surface. Use `classDef` only for nodes that need to stand apart from that
-baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
-as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. The renderer also
+other families, such as Gantt charts, timelines, and mindmaps. Unstyled nodes
+already use Leaf's accent surface. Use `classDef` only for nodes that need to stand
+apart from that baseline, and copy the whole `fill`/`stroke`/`color` set from the
+element declaration, such as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. The renderer also
 honors `stroke-width`; other properties are ignored. `version check --render` reports
 a diagram the renderer refuses or draws empty, not one it draws only in part, so inspect
 each rendered diagram. Without visual access, check the source's labels and relations
@@ -61,10 +60,8 @@ Use `<pre><code class="language-…">` for selectable literal source and `lf-cod
 for a line-numbered walkthrough. The registry's `$languages.names` lists accepted
 language names. Keep logs and transcripts plain when they are not source code.
 
-The authored source ids also provide comment coordinates. A flowchart node or
-subgraph, state or composite state, sequence participant, class, or ER entity listed
-in `parts` takes an individual comment. Edges, sequence messages, and XY marks have no
-stable source id and take comments on the whole drawing.
+A diagram's authored source ids also give the user something to comment on: the
+`lf-diagram` entry says which boxes `parts` can open to a comment of their own.
 
 ## Source files and media
 
@@ -73,13 +70,10 @@ without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
-`leaf page init --package diff <page>`. The user gets
-the rest of a long review without anything authored: each file's header pins under
-the banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
-by file, and a Soft wrap switch in the diff's own header folds lines too long for
-the column — paper takes that wrap whether or not the switch is on, so nothing is
-cut off a printed patch. Add `review` only when the user is expected to inspect
-every file and needs persistent progress. A patch that supports a higher-level
+`leaf page init --package diff <page>`. The diff brings its own navigation,
+pinned file headers, and soft wrap for a long review, so author none of them. Add
+`review` only when the user is expected to inspect every file and needs persistent
+progress. A patch that supports a higher-level
 decision or targeted comments omits it. First add a current-data binding so Leaf
 can give the source its page-lifetime contract:
 
@@ -110,10 +104,7 @@ served page, the valid unpinned save that adds the binding may already have
 become an interim revision before capture. That is expected; the next valid save
 activates the pinned snapshot. Wrap `lf-text-document` in ordinary `<details>` or place
 it in an `lf-tabs` panel when the evidence should start collapsed or share a
-compact frame with alternatives. A bound `lf-diff` keeps one empty `<pre></pre>`
-because that is the shared data-body shape; the captured patch, not that element,
-supplies its text. Add `collapsed` to a large diff so each file starts closed; a
-comment or navigation target still opens the file that owns its line.
+compact frame with alternatives.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

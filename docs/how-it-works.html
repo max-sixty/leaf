@@ -177,7 +177,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           source and records a public version pointing to its revision, served at an
           address such as <code>/versions/v2.html</code>. The live address follows
           revisions; a tab pinned to v1 stays there. Live updates wait while the user is
-          composing or dragging, and preserve their reading position.
+          composing, dragging, or undoing, has a gesture still on its way to the server,
+          or has the version menu open, and preserve their reading position.
         </p>
       </section>
 
@@ -233,9 +234,9 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
         </p>
         <p id="review-meta">
           A page seeking approval declares
-          <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>. That
-          declaration enables the banner's "✓ Looks good" control and versions with the
-          document.
+          <code>&lt;meta name="lf-review" content="sign-off"&gt;</code>, which versions
+          with the document. A stamped version that declares it offers the banner's
+          approval control, enabled once every Ask is answered.
         </p>
         <p id="dogfood">
           This page is running the plugin's own <code>theme.css</code> and widget

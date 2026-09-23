@@ -95,7 +95,7 @@ export function createStateApplication({
 
     const frozenDocuments = [];
     const threadRoots = new Map(
-      (state.browser.conversation.threads ?? []).flatMap((thread) =>
+      state.browser.conversation.threads.flatMap((thread) =>
         thread.msgs.map((message) => [message.id, thread.root.id]),
       ),
     );
@@ -192,7 +192,7 @@ export function createStateApplication({
         await notifyDataSubscribers();
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
-        accountPending(state.browser.receipts ?? []);
+        accountPending(state.browser.receipts);
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,
         // so a later answer does not repeat a superseded failure or edit.

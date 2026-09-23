@@ -106,6 +106,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
+- **Multiplayer:** let several readers share a page, each recorded as themselves.
+  Every browser event is `author: "user"` today, so the log cannot say who moved,
+  commented or voted, and nothing records who has the page open. Claude Code
+  Artifacts store a viewer id on each row and resolve names, faces and presence
+  from the host. Settle reader identity and how it reaches the append door before
+  building a feed or presence on it.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   readers return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the host

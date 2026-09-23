@@ -27,12 +27,11 @@ transport"). Name a page only to pick up a page this session did not serve;
 `leaf wait <page>` claims it.
 
 Start `leaf wait` as a background task and end the turn. Its completion becomes
-host input. Once the complete envelope is in context, your first operation is to
-start `leaf wait --ack <delivery-id>` as the next background task; it acknowledges
-that delivery and waits for another. Then process every event and its capture-time
-`obligation.response` in the order `references/conversation-loop.md` gives under
-"When to write". The event reference owns the complete-batch and acknowledgement
-rules.
+host input. Once the complete envelope is in context, acknowledge it by starting
+`leaf wait --ack <delivery-id>` as the next background task; it acknowledges that
+delivery and waits for another. `references/conversation-loop.md`, "When to write",
+orders the acknowledgement, the replies, and the work. The event reference owns the
+complete-batch and acknowledgement rules.
 
 If a turn ends without answering an acknowledged move, the next prompt hook
 carries that obligation back into context and renews its **Picked up** receipt

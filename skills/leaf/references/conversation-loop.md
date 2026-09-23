@@ -43,7 +43,8 @@ nothing the banner's dot does not already say.
 Reader input comes before the work in hand, in this order:
 
 1. Acknowledge the delivery by the host's receipt route, so the reader's moves read
-   **Picked up**.
+   **Picked up**. Where a package's guidance says to hold the acknowledgement until a
+   request reaches its executor, hand the request over first, then acknowledge.
 2. Reply to each move that owes a reply, before starting the work it asks for. The
    delivered `answering` clause for a reply says how to write the reply now and how
    to report the result later. A host that sends your final message as the reply

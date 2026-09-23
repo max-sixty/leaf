@@ -18,6 +18,6 @@ direct wait has input:
     Leaf needs attention:
     - <page>: 1 update you haven't picked up. Poll the existing shell session — `leaf wait` before the first batch or the rearmed `leaf wait --ack` afterward — with `write_stdin`.
 
-    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably reaches its handler. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
+    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, or if its guidance holds the acknowledgement until a request reaches its executor, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
 
 adapter carries input: null

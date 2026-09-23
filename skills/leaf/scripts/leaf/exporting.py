@@ -52,8 +52,10 @@ from leaf.revision_delivery import delivery_prelude, delivery_sheets, json_scrip
 from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.served_state.service import PageStateService
 from leaf.structure import (
+    EXTERNAL_SOURCES,
     UTF8_BOM,
     SourceDocument,
+    external_reference,
     rel_tokens,
     rewrite_resource_attribute,
 )
@@ -105,7 +107,7 @@ class _AssetInliner:
         return self.resources[url]
 
     def url(self, reference: str, base: str, ancestors: tuple[str, ...]) -> str:
-        if reference.startswith(("#", "data:")):
+        if reference.startswith(("#", "data:")) or external_reference(reference):
             return reference
         url, fragment = urldefrag(urljoin(base, reference))
         resource = self.resource(url)
@@ -216,7 +218,11 @@ def inline_assets(
             if location is None:
                 continue
             attrs = element.attrs
-            if element.tag == "link" and "stylesheet" in rel_tokens(attrs):
+            if (
+                element.tag == "link"
+                and "stylesheet" in rel_tokens(attrs)
+                and not external_reference(attrs["href"])
+            ):
                 url = urljoin(document_url, attrs["href"])
                 resource = assets.resource(url)
                 if resource.mime != "text/css":
@@ -315,6 +321,8 @@ def _bind_authored_modules(html: str, module_urls: dict[str, str], nonce: str) -
         )
         if source := element.attrs.get("src"):
             logical = resolve_dependency(source, "/index.html", module=True)
+            if logical is None:
+                continue  # an external module keeps its address
             span = location.attrs["src"]
             edits.append(
                 (
@@ -347,9 +355,9 @@ def interactive_export_page(
     The import map is an address table, not another runtime: every module is the exact
     captured module with only its parsed local imports rebound to an in-file ``data:``
     URL. The normal application publisher, widgets, and presentation coordinator boot
-    against the embedded authoritative reading. CSP admits only embedded bytes and
-    makes network absence a document guarantee rather than a convention each module
-    must remember.
+    against the embedded authoritative reading. CSP admits embedded bytes and the
+    external origins a page may name, so the file reaches no other network and opens
+    offline wherever the page itself loads nothing from a CDN.
     """
     if SourceDocument(artifact.html.decode("utf-8")).specimens:
         sys.exit(
@@ -389,8 +397,10 @@ def interactive_export_page(
     )
     policy = (
         "default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
-        "connect-src data:; img-src data:; media-src data:; font-src data:; "
-        f"style-src 'unsafe-inline' data:; script-src data: 'nonce-{nonce}'"
+        f"connect-src data: {EXTERNAL_SOURCES}; img-src data: {EXTERNAL_SOURCES}; "
+        f"media-src data:; font-src data: {EXTERNAL_SOURCES}; "
+        f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
+        f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
     )
     escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
     document = SourceDocument(html)

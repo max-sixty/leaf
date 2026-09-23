@@ -199,9 +199,16 @@ page widget may replace the package implementation without restating its declara
 Both choices are fixed in the revision manifest.
 
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
-explorer or playground keeps its code in `page/`. Leaf admits only literal local module
-and stylesheet dependencies it can capture, and refuses network or unresolved imports,
-filesystem escapes, classic scripts, event-handler attributes, and `javascript:` URLs.
+explorer or playground keeps its code in `page/`. Leaf captures literal local module
+and stylesheet dependencies, and refuses unresolved imports, filesystem escapes, classic
+scripts, event-handler attributes, and `javascript:` URLs.
+
+A stylesheet, font, module, or image may also come from Google Fonts or a public script
+CDN, the set a Claude artifact page may use: jsdelivr, cdnjs, unpkg, Tailwind's, and
+jQuery's. Name it by its absolute `https://` URL; the page loads it as written, so it
+arrives only while the reader is online. Load a library as a module — jsdelivr's
+`/+esm` builds one from any npm package — since a classic script is refused. A
+reference to any other origin is refused, and the refusal names the ones admitted.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
 do not turn their contents into source code or markup.

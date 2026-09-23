@@ -624,17 +624,13 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
 
     app.locator("#comment-page").click()
     comment = app.locator("#comment")
-    expect(comment).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
-    assert comment.get_attribute("placeholder") in {
-        "Comment on this page · ⌘⏎",
-        "Comment on this page · Ctrl+⏎",
-    }
-    assert app.locator("#send").get_attribute("title") in {
-        "Send comment (⌘⏎)",
-        "Send comment (Ctrl+⏎)",
-    }
+    expect(comment).to_have_attribute(
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
+    )
+    assert comment.get_attribute("placeholder") == "Comment on this page · ⏎"
+    assert app.locator("#send").get_attribute("title") == "Send comment (⏎)"
     comment.fill("Explain the migration boundary.")
-    comment.press("Enter")
+    comment.press("Shift+Enter")
     comment.type("Keep both layers.")
     comment.press("Shift+Enter")
     comment.type("Preserve both histories.")
@@ -644,7 +640,7 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
     assert not [
         call for call in page.evaluate("window.calls") if call["method"] == "tools/call"
     ]
-    comment.press("ControlOrMeta+Enter")
+    comment.press("Enter")
     page.wait_for_function(
         "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
     )

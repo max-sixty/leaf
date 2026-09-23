@@ -316,7 +316,8 @@ customElements.define(
           {
             id: "draft.save",
             reach: "in an open draft editor",
-            keys: ["Mod+Enter"],
+            keys: ["Enter", "Mod+Enter"],
+            label: "⏎",
             control: () => this.#margin?.control(this.#saveKey()),
             decision: () => (this.#failed ? "Retry" : "Save"),
             does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),

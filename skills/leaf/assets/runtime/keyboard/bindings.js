@@ -118,8 +118,8 @@ const GLYPH = {
   Home: "home",
   End: "end",
   Tab: "⇥",
-  // Mod is the platform's own send modifier, and the matcher takes either it or Ctrl
-  // (below): the chip says ⌘⏎ on a Mac and Ctrl+⏎ answers there too. A key that works
+  // Mod is the platform's own modifier, and the matcher takes either it or Ctrl
+  // (below): a chip says ⌘⏎ on a Mac and Ctrl+⏎ answers there too. A key that works
   // beyond what a surface promises is not a surface promising what does not work, which
   // is the rule this layer keeps.
   Mod: MAC ? "⌘" : "Ctrl",

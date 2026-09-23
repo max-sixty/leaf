@@ -9,7 +9,7 @@ export function EVERYTHING() {
 // compose it, and Mod sequences copy, select, or undo. The editing keys below stay the box's
 // with modifiers too, so Shift+Arrow can extend a selection and Mod+Backspace can delete a
 // word without an ancestor widget turning either into its own action. An exact element
-// scope still stands nearer and can specialise a sequence such as Mod+Enter for send.
+// scope still stands nearer and can specialise Enter for send.
 function CHARACTER(binding) {
   return [...parsed(binding).key].length === 1;
 }

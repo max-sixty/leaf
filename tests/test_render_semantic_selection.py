@@ -231,7 +231,7 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_be_focused()
     shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     expect(shown).to_have_count(2)
-    expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^(⌘⏎|Ctrl\+⏎)$"))
+    expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^⏎$"))
     expect(shown.nth(0)).to_contain_text("comment")
     expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
     expect(shown.nth(1)).to_contain_text("other responses")
@@ -361,7 +361,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
     expect(bar.get_by_role("button", name="Show other responses")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_attribute(
-        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
 
     page.keyboard.press("Escape")

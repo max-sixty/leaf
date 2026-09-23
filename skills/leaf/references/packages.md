@@ -509,10 +509,10 @@ same widget method that handles projected state and does not send a gesture or w
 event. The Swipe package's deck module is the worked example.
 
 A widget-owned composition box uses `wireInput()` from `/runtime/widget-api.js`.
-It keeps Enter as a newline and registers Mod+Enter for the contextual action, alongside
+It keeps Shift+Enter as a newline and registers Enter for the contextual action, alongside
 the shared draft persistence, busy state, and shortcut projections. A direct editor that
 needs more commands, such as Save and Cancel, registers those rows on its textarea but
-keeps the same Enter and Mod+Enter meanings.
+keeps the same Enter and Shift+Enter meanings.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside

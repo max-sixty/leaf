@@ -454,7 +454,7 @@ class _AskReducer:
                 "tag": surface["tag"],
                 "source": source["attrs"].get("id"),
                 "source_tag": source["tag"],
-                "thread": None,
+                "conversation": None,
             }
             for surface, source in pairs
         ]
@@ -618,7 +618,7 @@ def thread_ask_readings(
     asks, awaiting = reducer.result(set())
 
     def seated(items: list) -> list:
-        return [{**ask, "thread": thread_by_id[ask["source"]]} for ask in items]
+        return [{**ask, "conversation": thread_by_id[ask["source"]]} for ask in items]
 
     return {
         "all": seated(reducer.inventory(set())),

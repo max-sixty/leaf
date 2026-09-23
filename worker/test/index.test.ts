@@ -1360,6 +1360,9 @@ describe("website page agent", () => {
     await waitUntil.mock.calls[0][0];
 
     expect(deny).toHaveBeenCalledWith({ key: "203.0.113.2" });
+    expect(containerFetch.mock.calls[1][0].url).toBe(
+      "http://container/examples/triage-board/_leaf/agent/fail",
+    );
     expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: eventId,
       failure: "rate_limited",
@@ -1403,6 +1406,9 @@ describe("website page agent", () => {
     await waitUntil.mock.calls[0][0];
 
     expect(response.status).toBe(200);
+    expect(containerFetch.mock.calls[2][0].url).toBe(
+      "http://container/examples/triage-board/_leaf/agent/fail",
+    );
     expect(await containerFetch.mock.calls[2][0].json()).toEqual({
       event: eventId,
       failure: "startup_failed",

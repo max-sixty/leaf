@@ -399,11 +399,12 @@ app = mountApplication({
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
   retainConversationFocus: () => retainConversationFocus(panelIsOpen),
-  revealReplyEditor: (input, behavior) =>
+  revealReplyEditor: (input, { behavior, block } = {}) =>
     revealConversation(
       input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
       input,
       behavior,
+      block,
     ),
   setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
@@ -672,7 +673,6 @@ trays = createTrays({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],

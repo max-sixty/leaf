@@ -37,8 +37,8 @@ answer, and the finishing move carries the receipt. Once the Ask is answered,
 every move in its answer is owed.
 
 A host that gives up on a move writes the failure its answer takes
-(`conversation.fail_answer`): a reply carrying `failure` in the conversation, a
-failed receipt, or a failed pickup of a page move. A failed receipt is the
+(`conversation.fail_answer`), each carrying `failure`: a reply in the
+conversation, a failed receipt, or a failed pickup of a page move. A failed receipt is the
 request's own outcome and settles it; the other two leave the move a workflow
 answered with a failed response, whose next actor is the reader, until the reader
 moves again or the markup records the move anyway.

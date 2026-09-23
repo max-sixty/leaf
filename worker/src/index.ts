@@ -103,7 +103,7 @@ const agentResultSchemas = {
       thread: z.string().check(z.minLength(1)),
     }),
   ]),
-  reply: z.discriminatedUnion("status", [
+  fail: z.discriminatedUnion("status", [
     settledAgentResultSchema,
     z.object({
       status: z.literal("appended"),
@@ -524,7 +524,7 @@ async function measuredAgentOperation<T>(
 
 function agentRequest(
   params: AgentTaskParams,
-  action: "start" | "reply",
+  action: "start" | "fail",
   body: object,
 ): Request {
   const root = params.route === "/" ? "" : params.route;
@@ -538,7 +538,7 @@ function agentRequest(
 async function askContainer(
   env: Env,
   params: AgentTaskParams,
-  action: "start" | "reply",
+  action: "start" | "fail",
   body: object,
 ): Promise<AgentResult> {
   const response = await getContainer(env.PAGES, params.containerId).fetch(
@@ -583,7 +583,7 @@ async function runAgentTask(
   // The words the reader gets belong to the adapter, which declares them beside the
   // code in `FAILURE_RECEIPTS`; naming the code here is the whole of what this knows.
   return measuredAgentOperation("failure_receipt", params, () =>
-    askContainer(env, params, "reply", {
+    askContainer(env, params, "fail", {
       event: params.eventId,
       failure: "rate_limited",
     }),
@@ -609,7 +609,7 @@ async function dispatchAgentTask(
     });
     try {
       await measuredAgentOperation("failure_receipt", params, () =>
-        askContainer(env, params, "reply", {
+        askContainer(env, params, "fail", {
           event: params.eventId,
           failure: "startup_failed",
         }),

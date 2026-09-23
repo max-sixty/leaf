@@ -60,10 +60,15 @@ const landingTarget = (held, control) => {
     : control;
 };
 
-export function revealConversation(held, control, behavior = scrollBehavior()) {
+export function revealConversation(
+  held,
+  control,
+  behavior = scrollBehavior(),
+  block = "nearest",
+) {
   landingTarget(held, control).scrollIntoView({
     behavior,
-    block: "nearest",
+    block,
   });
 }
 
@@ -364,8 +369,7 @@ const listNode = (id, preferMessage = false) => {
 
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
-// focus at its own words so Tab reaches its controls. A reply send keeps the native
-// focus of its button or editor and only reveals the editor if needed.
+// focus at its own words so Tab reaches its controls.
 async function showThreadNow(id, focus, revealThread) {
   const mayArrive = retainReaderIntent({
     source: focused(),

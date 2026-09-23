@@ -62,7 +62,7 @@ interface WireAsk {
   tag: string;
   source: string;
   source_tag: string;
-  thread: string | null;
+  conversation: string | null;
 }
 
 /** One exact agent content version, as a Thread's `unread` names it. */
@@ -115,7 +115,7 @@ export interface AskRecord {
   tag: string;
   sourceId: string;
   sourceTag: string;
-  thread: string | null;
+  conversation: string | null;
 }
 
 export interface SemanticDocument {
@@ -265,7 +265,7 @@ const askRecord = (ask: WireAsk): AskRecord => ({
   tag: ask.tag,
   sourceId: ask.source,
   sourceTag: ask.source_tag,
-  thread: ask.thread,
+  conversation: ask.conversation,
 });
 
 /* The admitted Ask reading, page asks before conversation asks.
@@ -618,7 +618,7 @@ export function createSemanticApplication({
     // back the independent obligation that still stands in that thread. A refused send
     // hands a conversation the server left with the agent back to the reader, whose
     // Retry it is.
-    const owed = new Set(asks.reader.map((ask) => ask.thread));
+    const owed = new Set(asks.reader.map((ask) => ask.conversation));
     const refused = new Map<string, string>();
     for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
       const message = entry.message;

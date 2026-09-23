@@ -27,7 +27,7 @@ const thread = (id, msgs, attention = null, readerPrompt = null) => ({
     .filter((item) => item.unread !== false)
     .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
 });
-const ask = (id, threadId = null) => ({ id, thread: threadId });
+const ask = (id, conversation = null) => ({ id, conversation });
 const activity = (kind = "away", extra = {}) => ({
   kind,
   held: true,

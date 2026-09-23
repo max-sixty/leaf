@@ -24,12 +24,12 @@ const noAsks = () => ({
   awaiting: {},
   unanswered_awaiting: {},
 });
-const wireAsk = (id, tag, source = id, sourceTag = tag, thread = null) => ({
+const wireAsk = (id, tag, source = id, sourceTag = tag, conversation = null) => ({
   id,
   tag,
   source,
   source_tag: sourceTag,
-  thread,
+  conversation,
 });
 const coordinate = ["choice", "choice", "decision"];
 const action = (attempt, action = "accept") => ({
@@ -1182,7 +1182,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     tag: "lf-ask",
     sourceId: "choice",
     sourceTag: "lf-choice",
-    thread: null,
+    conversation: null,
   };
   assert.deepEqual(app.read().effective.asks, {
     all: [
@@ -1192,7 +1192,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
         tag: "lf-ask",
         sourceId: "frozen-choice",
         sourceTag: "lf-choice",
-        thread: "root-1",
+        conversation: "root-1",
       },
     ],
     reader: [record],

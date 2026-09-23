@@ -623,12 +623,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-  /* Keep the marker's box at every count; filling it must not move the button. */
-  .lf-threads-toggle::after {
-    content: ""; display: inline-block; width: 6px; height: 6px;
-    margin-inline-start: 5px; border-radius: 50%; background: transparent;
-    vertical-align: middle; }
-  .lf-threads-toggle[data-unread-threads]::after { background: var(--accent); }
+  /* Unread is state on the control, so it is painted inside the box the control already
+     reserved — the treatment the news border and the open tint above already use. An
+     inline marker is width instead of paint: the shelf is measured to seat its primary
+     controls on a 320px phone with nothing to spare, so eleven pixels of marker put
+     Threads past the window's edge at every count, whether or not anything was unread. */
+  .lf-threads-toggle { position: relative; }
+  .lf-threads-toggle[data-unread-threads]::after {
+    content: ""; position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
   /* Horizontally anchored to its own press. Every side the rule does not use is said
      out loud because the popover UA rule is inset: 0 with margin: auto, which otherwise
      centres the menu. */

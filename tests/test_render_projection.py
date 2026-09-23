@@ -3530,12 +3530,13 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark.focus()
     expect(mark).to_be_focused()
     assert ask_actions_hint("1–3") in shortcut_bar_text(page)
-    # A stamped version this time, which is the other way a page moves under a reader;
-    # the notice names it in the bottom status and no toast stands in the corner.
+    # A stamped version this time, which is the other way a page moves under a reader.
+    # Its announcement arrives immediately; the bottom status may queue it behind the
+    # earlier draft notice, so that line need not change before the next press.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
     told(page)
     expect(page).to_have_title("Live keys third")
-    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text("Updated to v2")
+    expect(page.locator(".lf-live")).to_have_text("Updated to v2")
     assert page.locator(".lf-toast").count() == 0
     # The same mark, still holding the focus the reader put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.

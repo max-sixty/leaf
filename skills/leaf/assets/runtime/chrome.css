@@ -1509,6 +1509,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-position { white-space: nowrap; }
   .lf-margin-preview-step { border: 0;
     background: transparent; color: var(--muted); }
+  .lf-margin-preview-step:first-child > .lf-action-icon { inset-inline-start: 4px; }
+  .lf-margin-preview-step:last-child > .lf-action-icon { inset-inline-end: 4px; }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; }

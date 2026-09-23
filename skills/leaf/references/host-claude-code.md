@@ -48,13 +48,16 @@ another session.
 ## Session list
 
 Claude Code's session list (`claude agents`) shows a background session as
-Working for as long as a background task runs, `leaf wait` included. It groups
-the session separately, by the closing line of its last chat message, and that
-grouping ignores background tasks: a `needs input:` line files the session under
-Needs input and a `result:` line under Completed. Each time a `leaf wait`
-starts, Leaf's `PostToolUse` hook adds guidance on that ending to the command's
-result (`hooks/wait-started.json`), so it sits beside the reply that closes the
-turn.
+Working for as long as a background task runs, `leaf wait` included; Claude Code
+checks for a running task before anything else, and no reply text changes that
+word. It groups the session separately, by the closing line of its last chat
+message, and that grouping ignores background tasks: a `needs input:` line files
+the session under Needs input and a `result:` line under Completed. A reply with
+neither is left to Claude Code's classifier, which reads a closing like "the
+watcher will pick up new comments" as work in progress, so a session waiting on
+its page stays under Working. Each time a `leaf wait` starts, Leaf's
+`PostToolUse` hook adds guidance on that ending to the command's result
+(`hooks/wait-started.json`), so it sits beside the reply that closes the turn.
 
 ## Subagents
 

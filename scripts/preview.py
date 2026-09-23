@@ -263,8 +263,8 @@ def preparation_note(source: Path, data_sources: int, versions: int) -> str:
 def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
     """Record the preview the browser chrome labels, and mark the page as one.
 
-    The server projects these fields into preview chrome and serves neither this
-    file nor an absolute checkout path.
+    Every field written here reaches the browser: the server hands the file to
+    the page whole. It serves neither the file itself nor an absolute checkout path.
     """
     from leaf.files import write_json
 

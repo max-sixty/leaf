@@ -1,0 +1,150 @@
+# Repository tooling
+
+These scripts are developer tooling: the installed plugin is the whole tracked tree,
+so a host copies these along with it, but nothing under `skills/leaf` reads them at
+runtime. Python tools use the environment pinned by the root `pyproject.toml` and
+`uv.lock`; the browser contributor build uses `package.json` and `package-lock.json`.
+
+Because the payload is the tracked tree, what a script generates lands under `.tmp/`
+unless a committed path is where the output's reader finds it: the vendored bundles
+below, `examples/corpus.html` and its data, the catalog pin the site resolves example
+previews through, and the demo frames the README and the site's cards draw from.
+Evidence, previews, staged sites, and probe results have no such reader, so a run of
+one of them leaves the tracked tree unchanged.
+
+Each script's own docstring and `--help` own its behavior, flags, and lifecycle. This
+file says which script owns what, and the rules that hold across them.
+
+## Examples and previews
+
+- `preview.py [page]` serves one public example or developer fixture as a live page
+  under `.tmp/previews/<source-stem>`, or under `LEAF_PREVIEWS_ROOT` where that names
+  a directory, watching the fixture and the selected runtime.
+  It re-vendors when the layer it watches changed or the source asked for different
+  packages, and copies the source alone otherwise, because vendoring mints a fresh
+  layer generation and the generation is part of what a revision is as executable code.
+  A preview that re-vendored on every save could therefore only ever show a revision
+  arriving as a fresh document, which is the half of the behavior a reader is least
+  likely to be looking for.
+  `--export` writes the browser-drawn result as one standalone file instead.
+  A preview takes no task claim; `--reader` claims the page so a reader's presses
+  reach this session, and `--background` detaches either. `/developing-leaf` states
+  which to choose.
+- `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
+  companion data from the examples, regression pages under `tests/fixtures/pages/`, and the developer feature gallery.
+- `example_assets.py` fetches the immutable `max-sixty/leaf-assets` commit named by
+  `example-previews.json` into `.tmp`; `site.py` calls it when that revision is absent.
+- `example-previews.py`, invoked as `wt refresh-previews`, draws the stills selected by
+  `docs/examples.html` through the live published-example server. It refuses fallback
+  fonts, pushes the complete image set, and updates the tracked commit pin and catalog.
+
+Edit a source page, then regenerate the corpus. `examples/AGENTS.md` owns the fixture
+rules a new or changed example has to meet.
+
+## Website and demo
+
+- `site.py` builds <https://leaf.page/> as complete page directories in `.tmp/site`
+  and their derived live shells in `.tmp/site-assets`, then bundles the public runtime
+  with the website's esbuild dependency. Run `npm ci --prefix worker` first. `--serve`
+  opens the same Wrangler asset and container boundary the deployed site uses and also
+  needs a running Docker.
+  It also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
+  routes, and each page's card. A page's title and description are authored in its own
+  source, and the build refuses one that has neither. The rest of the card — the
+  Open Graph and Twitter declarations and the image — comes from `site_head` in
+  `worker/server.py` and enters Leaf's document composer for both the edge shell and
+  the container response. The canonical link is not the site's: every Leaf
+  document names its own page root, so the three addresses a page answers collapse
+  onto one wherever a page directory is published. Each page's image is named in the
+  manifest, `docs/session-card.png` for a product page and the catalog preview for an
+  example, and `check_links` resolves it the way it resolves an href.
+  `verify-site-local.sh` checks that built output through that boundary and prints the
+  document, widget-upgrade, and presentation milestones with the requests and bytes
+  loaded by presentation. It requires the browser's startup profile to reach the Worker
+  and checks that activating one page leaves a neighboring page on the edge. A failed
+  check prints the Worker's log beside the browser's own account of the page that stopped
+  it. Pull requests run it for review evidence.
+  `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
+  `main`; it runs the local check before the first public operation, then verifies the
+  exact release again after deployment. That production pass also sends one private
+  comment and requires the hosted Codex task to publish a revision and reply. With
+  `verify_site.py --agent`, the verifier prints the request acknowledgement, activity
+  transitions, publication, reply, and changed-page presentation timings. The Worker's
+  `startup_failed` receipt triggers one retry; rate limits and all other
+  unsuccessful endings fail the deployment on the first ask. The gate reads the
+  receipt's `failure` code, never its wording. `worker/README.md` owns the failure
+  contract.
+  `uv run scripts/verify_site.py local` runs the same delivery, App Server, edit,
+  publication,
+  reply, and browser-reload path against the host's Codex login. It bypasses the
+  Cloudflare Worker, container resources, and outbound credential proxy, so
+  it checks agent behavior without measuring production infrastructure.
+  `benchmark-site.py local|ORIGIN` emits that complete journey as one JSON sample:
+  browser presentation, a comment sent through the real Threads composer,
+  acknowledgement and activity, the first agent reply text visible in the open thread,
+  requested publication and durable reply, then the changed page's presentation and
+  revision follow. Both targets run the same HTTP and browser checks. `local` only
+  provisions the canonical Python adapter and explicitly starts its turn; it does not
+  emulate Cloudflare's Worker, container allocation, or routing.
+  `deploy-site-dev.sh` publishes the current checkout to the one standing
+  `leaf-website-dev` Cloudflare environment and runs that benchmark against its
+  `workers.dev` origin. The command always selects the `dev` Wrangler environment;
+  production deployment stays in `publish-site.yaml`.
+  Hosted-agent diagnostics live in Workers Observability. Query its REST API directly
+  with the canonical event id or visible session reference; once the Container starts
+  a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
+  aggregate product telemetry, not a log index.
+- `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
+  photographs of the same staged scene beside it — the README's light and dark
+  session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
+  Keep the latter while the product can make those frames stale.
+
+## MCP Apps probe
+
+`mcp-app/run-direct-probe.sh` bundles the runtime into a `ui://` resource and runs it
+in a pinned checkout of the official reference host; `mcp-app/README.md` owns its
+inputs, flags, and what each run checks. Its evidence is scratch under
+`.tmp/mcp-app/experiments/<number>/`, replaced whenever that number runs again. No
+install reads it, so what survives a run is the part a maintainer copies into
+`notes/mcp-apps/experiments/<number>/results/` because the written-up result cites it.
+
+## Vendored bundles
+
+`browser/build.mjs` owns the TypeScript sources under `scripts/browser/` and the
+committed outputs: one self-contained ES module and its dependency licenses under
+`skills/leaf/assets/vendor/`, plus a source map and build manifest under
+`scripts/browser/generated/` for contributors. The manifest records inputs, exports,
+dependencies, and byte hashes. Run `npm ci`,
+then `npm run build:browser` to regenerate them. `npm run check:browser` typechecks
+and rebuilds in memory, failing if committed outputs are missing or differ;
+`npm run test:browser` exercises reproducibility, stale-output refusal, the import
+gate, and immutable snapshot publication. Node runs only for contributors. Plugin
+installation, page initialization, source activation, and export copy or consume
+the committed browser output without invoking a compiler.
+
+`vendor.py` rebuilds the other third-party bundles — all of them by default, or the
+ones you name. Every pinned version sits in one table there, and each bundle lands in the package whose widget
+imports it, except `mcp-app`, which no widget imports and which lands in
+`skills/leaf/mcp-app/` for an MCP host to read from the install.
+
+`scripts/vendor-src/pierre/` is Pierre's native generator source. Its `shiki-leaf.mjs`
+contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replaces it
+with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every registry
+language before bundling.
+
+A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
+which holds for `marked`, `sortable`, `agentic-mermaid`, `floating-ui`, `highlight`,
+`jsdiff`, and `webawesome`, so a clean `git status` after a run is the check that the
+bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
+dependencies and inherit its ranges, so a diff from one of those can be an upstream
+patch rather than drift.
+
+`webawesome` builds a chrome entry and an optional-widget entry with shared chunks.
+The chrome entry loads the standard search and copy controls; optional widgets
+load their remaining controls on demand. Shared dependencies and scoped theme defaults
+are registered once in the document and declared shadow stages. The chrome entry and
+shared chunks live under `assets/vendor/`; the optional entry remains in the default
+package's vendor directory. Page vendoring composes both into the page's vendor root.
+
+Rerun a bundle after changing its pin or the registry input it reads; do not patch a
+generated bundle or `examples/corpus.html` directly.

@@ -1219,7 +1219,7 @@ def test_the_render_viewport_is_wide_enough_to_have_margins():
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
-    """The corpus floor one level down from tags (examples/CLAUDE.md): where an
+    """The corpus floor one level down from tags (examples/AGENTS.md): where an
     attribute or an enum value changes what a reader sees, a page shows it. The
     batch that raised the corpus to this line surfaced five real defects on the
     day it landed, so the floor ratchets: the next declared attribute joins the

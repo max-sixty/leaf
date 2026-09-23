@@ -2150,7 +2150,7 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     assert not invalid, f"not selectors, so nothing can ask for them: {sorted(invalid)}"
     assert not set(idioms) - held, (
         f"no example holds {', '.join(sorted(set(idioms) - held))}"
-        " — see examples/CLAUDE.md"
+        " — see examples/AGENTS.md"
     )
 
 
@@ -2610,7 +2610,7 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     # Reached the way a reader reaches it. `focus()` alone sets :focus and leaves
     # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
     # — the skip link would then be asked for its resting form and the failure would
-    # talk about `position` (tests/CLAUDE.md).
+    # talk about `position` (tests/AGENTS.md).
     note.evaluate("(n) => n.focus()")
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
@@ -3640,7 +3640,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     asymmetry with no principle behind it, and a live hazard on the side the gate saw:
     a margin trapped in leaf's panel would refuse an author's version over markup they
     did not write, cannot edit, and would hear about in the words of a class no page
-    has. examples/CLAUDE.md names that failure as the reason a gate reading was moved
+    has. examples/AGENTS.md names that failure as the reason a gate reading was moved
     out once already.
 
     So the gate now takes the document's half and this takes the layer's, off the one

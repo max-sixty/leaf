@@ -5121,7 +5121,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     twitch; where apparatus leads something else, that something moves with it —
     a metric's delta sits directly after the value it follows.
 
-    Measured across the recount rather than a redraw, per tests/CLAUDE.md: the
+    Measured across the recount rather than a redraw, per tests/AGENTS.md: the
     transition has to be one the figures actually decide. "1/2 done" to
     "2/2 done" stands 1.61px apart with proportional figures and identical with
     tabular, so deleting the declaration fails this. "0/3 done" to "3/3 done"
@@ -7712,7 +7712,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
     and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
     Space alone took the arrow off both surfaces while the arrow went on opening the
-    tree — the shape `skills/leaf/assets/CLAUDE.md` names as one promise rather than two.
+    tree — the shape `skills/leaf/assets/AGENTS.md` names as one promise rather than two.
 
     Both surfaces of that promise, because a row naming the wrong keys names them wrongly
     on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —

@@ -5077,7 +5077,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     the sweep exactly like a page a test forgot: a held lease under an enabled
     service. The sweep once took its root from the environment before
     `isolated_session` had moved it, and stopped every such server on the
-    machine after every test (tests/CLAUDE.md, "A process the suite starts ends
+    machine after every test (tests/AGENTS.md, "A process the suite starts ends
     with the run").
 
     So a run is made against a home planted the way the developer's is, of the

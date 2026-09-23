@@ -6,10 +6,11 @@
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
-   A new agent turn, or growth of the last one, follows only while the list's place hold
-   names that conversation and its previous last message is visible near the bottom of
-   the panel. Reading earlier turns keeps the place hold, and a reply in another thread
-   does not move this one.
+   A new agent turn, or growth of the last one, follows while the reader has not named
+   another card and the previous last message is visible in the panel's landing band.
+   Where the list scrolls, that conversation's tail must still reach the landing edge.
+   Reading earlier turns keeps the place hold, and a reply in another thread does not
+   move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
    under each (conversation/placement.js). A run's heading is one node kept across

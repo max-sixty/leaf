@@ -467,9 +467,7 @@ export class ThreadView {
             range.messages,
             (message) => message.key,
             (message) =>
-              html`${markerFor(message.key)}${
-                range.nodes[range.messages.indexOf(message)]
-              }`,
+              html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
           )}
         </div>
         ${

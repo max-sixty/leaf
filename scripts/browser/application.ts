@@ -630,8 +630,7 @@ export function createSemanticApplication({
     const acceptedThreads = new Map<string, any>();
     for (const thread of state?.browser.conversation.threads ?? []) {
       acceptedThreads.set(thread.root.id, thread);
-      if (thread.root.attempt)
-        acceptedThreads.set(PENDING + thread.root.attempt, thread);
+      if (thread.root.attempt) acceptedThreads.set(PENDING + thread.root.attempt, thread);
     }
     const answeredWorkflows = new Set(
       pendingMessages

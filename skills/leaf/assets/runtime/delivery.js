@@ -125,25 +125,28 @@ export function createDelivery({
   return { drain };
 }
 
-// Send one bookkeeping event and apply the state its answer carries. Resolves true once
-// that state is applied, false when the server refused it or could not be reached.
+// Send one bookkeeping event and apply the state its answer carries. Resolves
+// "accepted" once that state is applied, "refused" when the server's answer is final,
+// and "unreached" when no complete answer came back, which a later send may still get.
 export async function deliverBookkeeping(event, applyAcceptedState) {
   let response;
   try {
     response = await postEvent(event);
   } catch {
-    return false;
+    return "unreached";
   }
-  if (!response?.ok) return false;
+  if (!response || response.status === 503) return "unreached";
   let answer;
   try {
     answer = await response.json();
   } catch {
-    return false;
+    return "unreached";
   }
-  if (answer?.ok !== true || !answer.state) return false;
-  await applyAcceptedState(answer.state).catch((error) =>
-    console.error("leaf: state in event response", error),
-  );
-  return true;
+  if (response.ok && answer?.ok === true && answer.state) {
+    await applyAcceptedState(answer.state).catch((error) =>
+      console.error("leaf: state in event response", error),
+    );
+    return "accepted";
+  }
+  return answer?.final === true ? "refused" : "unreached";
 }

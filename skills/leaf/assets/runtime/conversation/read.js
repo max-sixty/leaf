@@ -163,8 +163,8 @@ export function createReadTracking({ markRead, showThread }) {
       .filter(({ thread }) => thread.root.id === id)
       .map(({ item }) => item);
     if (items.length)
-      void markRead(items).then((accepted) => {
-        if (!accepted) notice("Couldn't mark thread read — try again.");
+      void markRead(items).then((outcome) => {
+        if (outcome !== "accepted") notice("Couldn't mark thread read — try again.");
       });
   }
 
@@ -230,8 +230,11 @@ export function createReadTracking({ markRead, showThread }) {
     }
     if (completed.size) {
       const items = [...completed.values()];
-      void markRead(items).then((accepted) => {
-        if (!accepted) for (const item of items) refusedAutomatic.add(keyOf(item));
+      // A refusal would be repeated; an answer that never arrived may not be, and the
+      // coverage already gathered sends it again on the next pass.
+      void markRead(items).then((outcome) => {
+        if (outcome === "refused")
+          for (const item of items) refusedAutomatic.add(keyOf(item));
       });
     }
   }

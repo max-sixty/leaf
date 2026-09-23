@@ -973,9 +973,9 @@ Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `anchor`, `deta
 `resolved`, `settling`, `awaits_agent`, `awaits_reader`, `attention`, `workflows`,
 `seat`, `summaries`, and `unread`. `unread` lists `{message, version}` for each agent
 message the reader has not read at its current content version, in log order; the
-Threads panel, banner, and margin paint this same list. `attention` is `null` or names `needs_reader`/`waiting`, its
-reason, and the workflow supplying its detail. A concrete reader Ask takes precedence
-over concurrent agent work; explicit resolution remains separate. Use unresolved
+Threads panel, banner, and margin paint this same list. `attention` is `null` or
+names `needs_reader`/`waiting`, its reason, and the workflow supplying its detail. A
+concrete reader Ask takes precedence over concurrent agent work; explicit resolution remains separate. Use unresolved
 `attention.kind === "needs_reader"` for reader attention, including recovery after a
 failed response. `awaits_reader` is the raw conversation-turn flag and does not include
 that recovery; it is not the presentation authority. `awaits_agent` remains independent,
@@ -984,9 +984,9 @@ are already reflected in the published attention.
 `threadTurns(thread)` selects its ordered displayed turns, including a reaction root
 but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
 turn count, and `latest`, when the Thread last moved: the latest timestamp among its
-turns, where an edited message moved when it was last edited. Its topic uses the agent-chosen `title`, or
-the opening message text while `title` is null. A Thread's `key` and each message's `key` survive
-admission of a pending gesture; `root.id` and message `id` identify the current admitted
+turns, where an edited message moved when it was last edited. Its topic uses the
+agent-chosen `title`, or the opening message text while `title` is null. A Thread's
+`key` and each message's `key` survive admission of a pending gesture; `root.id` and message `id` identify the current admitted
 or provisional record.
 
 Messages carry author, timestamp (`ts`), Markdown source (`text`), `edited` (`{id,

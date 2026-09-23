@@ -5862,12 +5862,17 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
-        # The send left the reader in the new thread's reply box, so the line names the
-        # box's own way out; the card it stands in is the press after that.
-        expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to thread")
         preview_box = preview.bounding_box()
         assert preview_box["x"] >= 0, preview_box
         assert preview_box["x"] + preview_box["width"] <= width, preview_box
+    focus_target = (
+        thread.locator(":scope > .lf-thread-summary") if panel_open else thread
+    )
+    expect(focus_target).to_be_focused()
+    if panel_open:
+        thread.locator("textarea").click()
+    else:
+        thread.get_by_role("button", name="Reply").click()
     expect(thread.locator("textarea")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("textarea")).to_have_value("the next thought")
@@ -5876,12 +5881,11 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         assert passage_after[coordinate] == pytest.approx(
             passage_before[coordinate], abs=1
         )
-    # The send left the reader in the new thread's reply box, and the way out is the
-    # levels it stands in: the box hands them to the thread, and then the surface
-    # holding that thread. What neither does is focus the margin entry the
+    # Reply opened the editor; Escape leaves the box for its thread and then the
+    # surface holding that thread. Neither step focuses the margin entry the
     # card hangs from — or, where no rail stands, the Page Map button — which the reader
     # never stood on and which says its transient label as they arrive.
-    page.keyboard.press("Escape")  # out of the reply box the send landed in
+    page.keyboard.press("Escape")  # out of the reply box the reader opened
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
         # A conversation in Threads releases to whole-panel selection first.
@@ -5903,13 +5907,12 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
 def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     browser, serve, panel_open
 ):
-    """The send leaves the reader two levels down, and each press takes off one.
+    """The send lands on its thread, and each press takes off one level.
 
     `c` opens the box on whatever the reader is standing in without moving them off it,
     and the send carries them into the thread the comment became: a card it puts up, or
-    the thread's place in a panel that was already open. The box hands them to the
-    thread, and the surface holding that thread is the next step, so leaving costs the
-    two presses the descent did. The control `c` was pressed from is not a landing.
+    the thread's place in a panel that was already open. The thread hands them to the
+    surface holding it. The control `c` was pressed from is not a landing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -5931,14 +5934,15 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     preview = page.locator(".lf-margin-preview")
     if panel_open:
         expect(
-            threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
+            threads.locator(f'.lf-thread[data-id="{sent["id"]}"] > .lf-thread-summary')
         ).to_be_focused()
     else:
         expect(preview).to_be_visible()
+        expect(
+            preview.locator(f'.lf-conversation-thread[data-thread="{sent["id"]}"]')
+        ).to_be_focused()
 
-    # The send left the reader in the new thread's reply box: the box hands them to the
-    # thread it belongs to, and the surface holding that thread is the next step.
-    page.keyboard.press("Escape")
+    # The thread releases to the surface holding it.
     page.keyboard.press("Escape")
     if panel_open:
         # In Threads the thread releases to the whole panel, which closes on the next.
@@ -6062,9 +6066,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
         page.keyboard.type("A third thought.")
         with sending(page, "the comment from the control"):
             page.keyboard.press("ControlOrMeta+Enter")
-        expect(card.locator("textarea")).to_be_focused()
-        # Off the reply box and onto the card, where `t` is the walk rather than a letter.
-        card.focus()
+        expect(card).to_be_focused()
     shown = card.get_attribute("data-thread")
 
     page.keyboard.press("t")
@@ -6221,6 +6223,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
     resized(page, 1200, 900)
     send_anchored_comment(page, "Check the January failure mode.")
+    page.locator(".lf-margin-thread").get_by_role("button", name="Reply").click()
 
     narrow = page.evaluate(THREAD_CARD_GEOMETRY)
     assert narrow["innerWidth"] - 8 - narrow["controlsRight"] < narrow["minimum"], (
@@ -6242,6 +6245,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
     resized(page, 1920, 900)
     send_anchored_comment(page, "Check the January failure mode.")
+    page.locator(".lf-margin-thread").get_by_role("button", name="Reply").click()
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["cardWidth"] >= 379, wide

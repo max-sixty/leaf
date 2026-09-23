@@ -2222,7 +2222,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     expect(comments_edge).to_be_focused()
     resized(page, 320, 800)
     assert comments_edge.evaluate("edge => edge.hidden")
-    expect(page.locator(".lf-thread-panel-head .lf-btn")).to_be_focused()
+    expect(page.get_by_role("button", name="Close threads")).to_be_focused()
     assert comments_edge.get_attribute("aria-valuemin") == comments_edge.get_attribute(
         "aria-valuemax"
     )

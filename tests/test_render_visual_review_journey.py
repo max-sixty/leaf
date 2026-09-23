@@ -530,7 +530,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     reader.keyboard.press("Shift+t")
     threads = reader.get_by_role("dialog")
     expect(threads).to_contain_text("Restore Back to releases")
-    expect(threads).to_contain_text("Outdated")
+    expect(threads).to_contain_text("Earlier data")
 
     review_events = [
         event

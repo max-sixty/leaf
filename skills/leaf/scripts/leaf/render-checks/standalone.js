@@ -176,8 +176,8 @@ export function bake() {
   // under .lf-chrome, so it is answered here, in the document and in every open shadow
   // root, before those roots are serialized below.
   //
-  // Two ways one says so, because it has two seats. A thread's own line is built as
-  // `.lf-receipt`. A margin reading becomes a status in place, keeping the seat it held
+  // Two ways one says so, because it has two seats. A message's own workflow line is
+  // `.lf-msg-sending`. A margin reading becomes a status in place, keeping the seat it held
   // as a margin entry, so what names it is the behavior `marginEntry` writes rather than the
   // tag or the class it kept. The marker value cannot answer for either: neither is a
   // press, so `offer` writes the empty one there to stand the pointer hand and the lift
@@ -213,7 +213,7 @@ export function bake() {
   // three live addresses are, and a file is at none of them — carried into a copy that
   // someone then publishes, it would name a route that copy has nothing to do with.
   all(
-    'script, link[rel="canonical"], .lf-chrome, .lf-receipt, .lf-say, ' +
+    'script, link[rel="canonical"], .lf-chrome, .lf-msg-sending, .lf-say, ' +
       'leaf-anchor-note, iframe[data-lf-contained], [data-lf-behavior="status"]',
   ).forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states

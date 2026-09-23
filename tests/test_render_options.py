@@ -1873,7 +1873,7 @@ def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
         "data-lf-icon", "sent"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
-    expect(page.locator("#jobs > .lf-receipt")).to_have_count(0)
+    expect(page.locator("#jobs > .lf-msg-sending")).to_have_count(0)
     receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     with service_model.PageTransaction(d) as transaction:
@@ -2094,8 +2094,8 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     card_button.click()
     expect(page.locator(".lf-live")).to_contain_text("checking the shard")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    expect(page.locator(".lf-thread-panel .lf-receipt")).to_have_count(0)
-    expect(page.locator("#card-migration > .lf-receipt")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-msg-sending")).to_have_count(0)
+    expect(page.locator("#card-migration > .lf-msg-sending")).to_have_count(0)
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
 
     # An unrelated version leaves the card coordinate standing.
@@ -2121,7 +2121,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         completes=("card-migration",),
     )
     wait_for_revision(page, 3)
-    expect(page.locator(".lf-receipt")).to_have_count(0)
+    expect(page.locator(".lf-msg-sending")).to_have_count(0)
 
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
@@ -2583,7 +2583,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
-    expect(page.locator("#rp-live > .lf-receipt")).to_have_count(0)
+    expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
     expect(status).to_have_text("Sent")
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)

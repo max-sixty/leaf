@@ -754,8 +754,8 @@ const holdsSaid = (node) =>
 // node)` is the walk's rule bounded at the node itself: a node that is `.lf-ui` and holds
 // no label is silent wherever it goes, which is what the panel's re-rendered rows are.
 const speaks = (node, over) =>
-  holdsSaid(node) ||
-  (pageReads(over) && !(node.nodeType === 1 && uiInside(node, node)));
+  (pageReads(over) && !(node.nodeType === 1 && uiInside(node, node))) ||
+  holdsSaid(node);
 // Records are read when the queue drains rather than when they were written, so a place
 // is asked about as it stands now. That is still exact: a node that moved between the
 // page and the chrome left a childList record at its page end, which speaks either way.

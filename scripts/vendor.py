@@ -79,6 +79,25 @@ def spec(package: str) -> str:
     return f"{package}@{PINS[package]}"
 
 
+def browser_pins() -> dict[str, str]:
+    """The page payload `scripts/browser/build.mjs` bundles, at `package.json`'s pins.
+
+    Those pins stay in `package.json`, where the contributor build's lock reads them,
+    rather than a second copy here; the build's manifest says which of them reach a
+    page, which is what `--pins` watches. Lit is one: `lit.js` is the page's only copy,
+    and the Web Awesome bundle imports it.
+    """
+    pinned = json.loads((ROOT / "package.json").read_text())["devDependencies"]
+    manifest = json.loads(
+        (ROOT / "scripts/browser/generated/browser-runtime.manifest.json").read_text()
+    )
+    return {
+        package: pinned[package]
+        for package in manifest["bundledDependencies"]
+        if package in pinned
+    }
+
+
 class Copy(NamedTuple):
     package: str
     inside: str  # the file to take out of the published package
@@ -400,7 +419,7 @@ def build_webawesome(work: Path) -> list[Path]:
         "@floating-ui/core",
         "@floating-ui/utils",
     )
-    lit = json.loads((ROOT / "package.json").read_text())["devDependencies"]["lit"]
+    lit = browser_pins()["lit"]
     run(
         "npm",
         "install",
@@ -653,6 +672,10 @@ REBUILDS = {
             "nanoid",
         )
     },
+    # `browser` is `npm run build:browser`. Lit also reruns `webawesome`, whose build
+    # refuses a Lit outside the range Web Awesome declares.
+    "lit": ("browser", "webawesome"),
+    "@preact/signals-core": ("browser",),
     "esbuild": (
         "agentic-mermaid",
         "floating-ui",
@@ -692,6 +715,7 @@ HELD_BY = {
     "@shoelace-style/localize": "@awesome.me/webawesome",
     "composed-offset-position": "@awesome.me/webawesome",
     "nanoid": "@awesome.me/webawesome",
+    "lit": "@awesome.me/webawesome",
 }
 
 
@@ -719,7 +743,7 @@ def newest(package: str, within: str = "latest") -> str:
 
 def report_pins() -> None:
     """Every pin against the newest release it could take, and the bundle to rebuild."""
-    for package, pinned in PINS.items():
+    for package, pinned in {**PINS, **browser_pins()}.items():
         holder = HELD_BY.get(package)
         allowed = (
             run(

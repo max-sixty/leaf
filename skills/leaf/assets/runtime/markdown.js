@@ -41,11 +41,13 @@ export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/marked.esm.js").then((module) => {
     const markdown = new module.Marked({
       breaks: true,
-      // This dialect has no HTML: a tag is text, in a block as in a sentence. Runtime-
+      // This dialect has no HTML: a tag is text wherever it appears. Runtime-
       // supplied Markdown may describe code containing angle brackets, but it never gets
       // an HTML execution door; widgets enter through separately validated markup fields.
       // Declining the tokens, rather than escaping what they matched, keeps a block of
-      // tags the paragraph its lines would otherwise have been.
+      // tags as text with its lines. Marked's paragraph rule still starts a new
+      // paragraph at an unindented block tag, which splits the block without losing a
+      // line; a fence is what keeps markup whole.
       tokenizer: { html: () => undefined, tag: () => undefined },
       renderer: {
         link(token) {

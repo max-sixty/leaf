@@ -4183,7 +4183,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     told(page)
     expect(
         page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
-    ).to_have_attribute("aria-label", re.compile("creating deployment-notification"))
+    ).to_have_attribute(
+        "aria-description", re.compile("creating deployment-notification")
+    )
 
     artifact = serve.page_dir / "deployment-notification.html"
     first_artifact = """<!doctype html>

@@ -265,7 +265,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     expect(
         page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     ).to_have_text("Replying")
-    expect(message.locator(".lf-msg-head .lf-receipt")).to_have_count(0)
+    expect(message.locator(".lf-msg-head .lf-msg-sending")).to_have_count(0)
     page.evaluate(
         "attempt => { window.__streamMessage = document.querySelector("
         '`.lf-msg[data-attempt="${attempt}"]`); }',

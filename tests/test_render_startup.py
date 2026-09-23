@@ -3095,16 +3095,14 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; a receipt says which of the reader's
-    questions it is doing it about. Both are one claim written by one command
-    (`leaf status … --on`), so one check-in keeps the page's line true as well as the
-    thread's.
+    """The banner says what the agent is doing; an exact message workflow says
+    which reader question it is doing it about. A status claim updates both readings.
 
     A reader with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
     answer: the agent said so. What the log holds is what happened, so this is not in
-    it — a sentence somebody rewrites every few minutes is a claim, and it is painted
-    as provisional news rather than as a message, because the answer is still owed.
+    it — a sentence somebody rewrites every few minutes is a claim, painted as
+    provisional news on the message while the answer is still owed.
 
     Nothing deletes the line directly. The agent's next reply answers the claim;
     resolution hides it while the conversation is closed, and reopening reveals it
@@ -3115,18 +3113,16 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    receipts = page.locator(".lf-receipt")
+    workflows = page.locator(".lf-msg-sending")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
-    held_receipt = held_thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{held}"]'
+    held_workflow = held_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    other_workflow = other_thread.locator(
+        ":scope > .lf-thread-root-meta .lf-msg-sending"
     )
-    other_receipt = other_thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{other}"]'
-    )
-    expect(receipts).to_have_count(2)
-    expect(held_receipt).to_contain_text("✓ Sent")
-    held_receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
+    expect(workflows).to_have_count(2)
+    expect(held_workflow).to_have_text("Sent")
+    held_workflow.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     # The old page-wide declaration is deliberately stale: delivery into this exact
     # turn, rather than a fresh status command, must be what changes the shared
@@ -3150,7 +3146,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
-    expect(held_receipt).to_contain_text("✓ Picked up")
+    expect(held_workflow).to_have_text("Picked up")
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
@@ -3158,8 +3154,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
-    expect(other_receipt).to_contain_text("✓ Sent")
+    expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
+    expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working (just now). 1 update waiting."
     )
@@ -3172,7 +3168,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
-    expect(held_receipt).to_contain_text("✓ Picked up")
+    expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working (just now). 1 update waiting."
     )
@@ -3180,7 +3176,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     with service_model.PageTransaction(d) as transaction:
         transaction.close_turn("s")
     told(page)
-    expect(held_receipt).to_contain_text("○ Picked up · turn ended")
+    expect(held_workflow).to_have_text("Turn ended")
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
@@ -3208,19 +3204,20 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
-    expect(receipts).to_have_count(2)
-    expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
-        "● Working — reading the reconnect traces"
+    expect(workflows).to_have_count(2)
+    expect(held_workflow).to_have_text("Working")
+    expect(held_workflow).to_have_attribute(
+        "title", "Working · reading the reconnect traces"
     )
-    expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
-    expect(held_receipt).to_have_count(1)
-    expect(other_receipt).to_have_count(1)
-    expect(other_receipt).to_contain_text("✓ Sent")
+    expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
+    expect(held_workflow).to_have_count(1)
+    expect(other_workflow).to_have_count(1)
+    expect(other_workflow).to_have_text("Sent")
     # The move's state is metadata on the exact outgoing message, closing that row
     # rather than taking a full-width row of its own. Resolve settles the thread, not
     # the message, so it stands in the thread's corner and the row ends here.
-    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
-    assert held_receipt.evaluate(
+    expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
+    assert held_workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     )
@@ -3237,15 +3234,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     told(page)
-    followup_receipt = held_thread.locator(
-        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
-        f'.lf-receipt[data-receipt-id="{followup["id"]}"]'
+    followup_workflow = held_thread.locator(
+        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
-    expect(held_receipt.locator(".lf-receipt-state")).to_have_text(
-        "● Working — reading the reconnect traces"
-    )
-    expect(followup_receipt).to_contain_text("✓ Sent")
-    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
+    expect(held_workflow).to_have_text("Working")
+    expect(followup_workflow).to_have_text("Sent")
+    expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     # A later claim about the page as a whole is not an answer to the thread, so the
@@ -3254,8 +3248,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
-    expect(held_receipt).to_have_count(1)
-    expect(held_receipt).to_contain_text("reading the reconnect traces")
+    expect(held_workflow).to_have_count(1)
+    expect(held_workflow).to_have_attribute(
+        "title", "Working · reading the reconnect traces"
+    )
 
     # The answer is what ends it.
     events_model.append_event(
@@ -3271,31 +3267,29 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     told(page)
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.agent')).to_have_count(1)
-    expect(held_receipt).to_have_count(0)
-    expect(receipts).to_have_count(1)
+    expect(held_workflow).to_have_count(0)
+    expect(workflows).to_have_count(1)
 
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # And a claim the agent renews after answering stands again. With no unanswered
-    # message to own it, the claim uses the root message that identifies the thread;
-    # conversation status never grows a separate footer row.
+    # Once the answer has settled the input, renewed work is conversation activity
+    # in the compact card. It does not invent an unasked message workflow.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    claim_receipt = held_thread.locator(":scope > .lf-thread-root-meta .lf-receipt")
-    expect(held_receipt).to_have_count(0)
-    expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
-    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
-    expect(receipts).to_have_count(2)
+    expect(held_workflow).to_have_count(0)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Working")
+    expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
+    expect(workflows).to_have_count(1)
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(claim_receipt).to_have_count(0)
-    expect(receipts).to_have_count(1)
+    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
+    expect(workflows).to_have_count(1)
 
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
@@ -3304,20 +3298,20 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         d, {"kind": "unresolve", "author": "user", "parent": held}
     )
     told(page)
-    expect(claim_receipt).to_have_count(1)
-    expect(receipts).to_have_count(2)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Working")
+    expect(workflows).to_have_count(1)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(claim_receipt).to_have_count(0)
-    expect(receipts).to_have_count(1)
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("")
+    expect(workflows).to_have_count(1)
 
 
-def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve):
+def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve):
     """The gallery's injected-chrome case exercises the external state it cannot
-    author: exact delivery keeps its receipt while page work retains the independently
+    author: exact delivery keeps its workflow while page work retains the independently
     declared overall state, then falls back to generic work when that declaration waits."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
@@ -3327,7 +3321,7 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Does the banner agree with this receipt?",
+            "text": "Does the banner agree with this workflow?",
         },
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
@@ -3336,15 +3330,17 @@ def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve)
     told(page)
 
     page.keyboard.press("c")
-    receipt = page.locator(f'.lf-thread[data-id="{comment["id"]}"] .lf-receipt')
-    expect(receipt).to_contain_text("✓ Picked up")
+    workflow = page.locator(
+        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
+    )
+    expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working — Writing the page (just now)"
     )
 
     session_model.cmd_status(page_dir, "waiting", "review the gallery")
     told(page)
-    expect(receipt).to_contain_text("✓ Picked up")
+    expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude is working (just now)"
     )
@@ -3403,22 +3399,21 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     )
     page = open_page(browser, url)
     page.keyboard.press("c")
-    receipt = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] '
-        f'> .lf-thread-root-meta .lf-receipt[data-receipt-id="{comment["id"]}"]'
+    workflow = page.locator(
+        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-root-meta .lf-msg-sending'
     )
-    expect(receipt).to_contain_text("○ Waiting for pickup")
-    assert receipt.locator(".lf-receipt-state").evaluate(
-        "node => getComputedStyle(node).color"
-    ) == token_colour(page, "--warn-ink")
+    expect(workflow).to_have_text("Waiting for pickup")
+    expect(workflow).to_have_attribute("title", "Waiting for pickup")
 
 
-def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
-    """A phase change updates colored metadata without moving or replacing it.
+def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
+    browser, serve
+):
+    """A phase change updates message metadata without moving or replacing it.
 
-    The receipt belongs beside the outgoing message's relative time. Heartbeats leave
-    it alone, while a semantic transition changes its words and color in place.
-    Re-inserting the node would replay its live region and any animation it wore."""
+    The workflow belongs beside the outgoing message's relative time. Heartbeats leave
+    it alone, while a semantic transition changes its words in place.
+    Re-inserting the node would lose its identity and could replay presentation."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
     comment = events_model.append_event(
@@ -3433,40 +3428,31 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     page = open_page(browser, url)
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
-    receipt = thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{comment["id"]}"]'
-    )
+    workflow = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
     thread.locator(".lf-thread-summary").click()
-    expect(receipt).to_be_visible()
-    expect(receipt).to_contain_text("✓ Sent")
-    expect(thread.locator(".lf-thread-summary")).not_to_contain_text("Sent")
-    assert receipt.evaluate(
+    expect(workflow).to_be_visible()
+    expect(workflow).to_have_text("Sent")
+    assert workflow.evaluate(
         "node => node.parentElement.matches('.lf-msg-meta') "
         "&& node.previousElementSibling.matches('time')"
     )
-    expect(receipt.locator("time")).to_have_count(0)
-    expect(thread.locator(":scope > .lf-receipt")).to_have_count(0)
-    assert receipt.locator(".lf-receipt-state").evaluate(
-        "node => getComputedStyle(node).color"
-    ) == token_colour(page, "--ok-ink")
-    receipt.evaluate(
+    expect(workflow.locator("time")).to_have_count(0)
+    expect(thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
+    workflow.evaluate(
         """node => {
           node.dataset.identityProbe = 'kept';
-          window.__receiptMoves = 0;
+          window.__workflowMoves = 0;
           new MutationObserver((records) => {
             for (const record of records)
-              if ([...record.removedNodes].includes(node)) window.__receiptMoves += 1;
+              if ([...record.removedNodes].includes(node)) window.__workflowMoves += 1;
           }).observe(node.parentElement, { childList: true });
         }"""
     )
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     told(page)
-    expect(receipt).to_contain_text("✓ Picked up")
+    expect(workflow).to_have_text("Picked up")
     expect(thread.locator(".lf-thread-status")).to_have_text("Picked up")
-    assert receipt.locator(".lf-receipt-state").evaluate(
-        "node => getComputedStyle(node).color"
-    ) == token_colour(page, "--accent")
     active = CliRunner().invoke(
         cli_model.cli,
         [
@@ -3481,8 +3467,12 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     assert active.exit_code == 0, active.output
     page.set_viewport_size({"width": 340, "height": 800})
     told(page)
-    expect(receipt).to_contain_text("● Working — comparing the replacement")
-    assert receipt.evaluate(
+    expect(workflow).to_have_text("Working")
+    expect(workflow).to_have_attribute(
+        "title",
+        "Working · comparing the replacement against every narrow conversation surface",
+    )
+    assert workflow.evaluate(
         """node => {
           const head = node.parentElement;
           return [...head.querySelectorAll(':scope > :is(b, time)')]
@@ -3491,31 +3481,27 @@ def test_a_receipt_changes_phase_in_place_and_then_stands_still(browser, serve):
     ), "long status metadata can shrink the message author or timestamp"
     ticked(page)
     ticked(page)
-    expect(receipt).to_have_attribute("data-identity-probe", "kept")
-    assert page.evaluate("() => window.__receiptMoves") == 0
-    assert receipt.evaluate("node => node.getAnimations({ subtree: true }).length") == 0
+    expect(workflow).to_have_attribute("data-identity-probe", "kept")
+    assert page.evaluate("() => window.__workflowMoves") == 0
+    assert (
+        workflow.evaluate("node => node.getAnimations({ subtree: true }).length") == 0
+    )
 
 
-def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
-    """One page holds one answer to how long is too long, at every seat that shows a
-    claim of work.
-
-    The banner cannot answer for this seat. Every `leaf status … --on` write refreshes
-    the page's own line as well as the thread's, so a fresh claim on one subject keeps
-    the banner green while an older claim on another ages beside the reader's question
-    — the roster's dead-row failure one level down.
-
-    The roster's answer is a point in time on the shared rope, and this says it as the
-    past tense of the same state: a tint alone is silence to whoever is listening rather
-    than looking. Message metadata keeps the message's one timestamp, so the state owns
-    the elapsed time rather than adding another badge beside itself."""
+def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
+    browser, serve, tmp_path
+):
+    """A stale exact-input workflow says so beside its message even while a fresh
+    page-wide claim keeps the banner working. Renewing the claim restores Working;
+    a closed turn matters only when it belongs to the claiming session."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]))
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    work_line = page.locator(".lf-receipt")
-    visible_work_line = work_line.locator(".lf-receipt-state")
+    work_line = page.locator(
+        f'.lf-thread[data-id="{held}"] > .lf-thread-root-meta .lf-msg-sending'
+    )
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
@@ -3551,7 +3537,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(events_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
-    expect(visible_work_line).not_to_contain_text("Was working")
+    expect(work_line).to_have_text("Working")
     expect(work_button).to_have_count(1)
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
@@ -3563,17 +3549,15 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         timespec="seconds"
     )
     claim(quiet_ts)
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Was working")
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Update stale")
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Agent is working — rerunning the failing shard")
     )
-    expect(visible_work_line).to_have_text(
-        re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
-    )
-    expect(work_line.locator(".lf-receipt-live")).to_have_text(
-        "● Was working — reading the reconnect traces"
+    expect(work_line).to_have_text("Update stale")
+    expect(work_line).to_have_attribute(
+        "title", "Update stale · reading the reconnect traces"
     )
     expect(work_line.locator("time")).to_have_count(0)
     expect(held_thread).not_to_have_attribute(
@@ -3583,14 +3567,10 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    expect(work_line.locator(".lf-receipt-state")).to_have_css(
-        "color", token_colour(page, "--muted")
-    )
+    expect(work_line).to_have_css("color", token_colour(page, "--muted"))
 
-    # The other question the banner asks, asked here too: a claim left behind by a turn
-    # that ended is quiet without waiting out the rope. Six minutes is nothing on that
-    # rope — what dates this one is the ending, and the page's own line stays green
-    # beside it because it was written after that ending.
+    # The exact claim is stale when its own turn has ended, even while the newer page
+    # declaration remains active.
     record_claim(
         d,
         id="s",
@@ -3606,13 +3586,11 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(visible_work_line).to_have_text(
-        re.compile(r"^● Was working 6m ago — reading the reconnect traces$")
-    )
+    expect(work_line).to_have_text("Update stale")
     expect(work_line.locator("time")).to_have_count(0)
-    assert work_line.locator(".lf-receipt-state").evaluate(
-        "node => getComputedStyle(node).color"
-    ) == token_colour(page, "--warn-ink")
+    assert work_line.evaluate("node => getComputedStyle(node).color") == token_colour(
+        page, "--muted"
+    )
 
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
@@ -3634,7 +3612,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         ),
         session="page-task",
     )
-    expect(visible_work_line).not_to_contain_text("Was working")
+    expect(work_line).to_have_text("Working")
     expect(work_line.locator("time")).to_have_count(0)
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
@@ -3645,7 +3623,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # than latching on the first time it is late.
     record_claim(d, id="s")
     claim(events_model.now_iso())
-    expect(visible_work_line).not_to_contain_text("Was working")
+    expect(work_line).to_have_text("Working")
     expect(work_line).to_have_count(1)
     expect(held_thread).not_to_have_attribute(
         "data-lf-agent-workflow", re.compile(".+")
@@ -3663,13 +3641,11 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Was working")
-    expect(inline.locator(".lf-receipt-state")).to_have_text(
-        re.compile(r"^● Was working 40m ago — reading the reconnect traces$")
-    )
+    expect(held_thread.locator(".lf-thread-status")).to_have_text("Update stale")
+    expect(inline.locator(".lf-msg-sending")).to_have_text("Update stale")
     expect(inline).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    expect(inline.locator(".lf-receipt-state")).to_have_css(
+    expect(inline.locator(".lf-msg-sending")).to_have_css(
         "color", token_colour(page, "--muted")
     )
 

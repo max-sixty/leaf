@@ -1975,6 +1975,43 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 }
 .lf-toc-target { display: block; width: 1px; height: 0; }
 
+/* lf-activity: the page's history, newest first. One row is an initial, a sentence, and
+ * an optional excerpt under it. The sentence's place is its link or thread button, drawn
+ * as a link either way because both take the reader there; the time sits after it in
+ * the muted voice. A row taken back keeps its place, struck through and marked undone. */
+lf-activity { display: block; margin: var(--sp-3) 0; }
+lf-activity .lf-activity-list { list-style: none; margin: 0; padding: 0;
+  font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+lf-activity .lf-activity-row { display: grid; grid-template-columns: 22px minmax(0, 1fr);
+  column-gap: 10px; padding: 7px 0; border-top: 1px solid var(--rule); }
+lf-activity .lf-activity-row:first-child { border-top: 0; }
+lf-activity .lf-activity-avatar { grid-row: span 2; align-self: start; width: 22px; height: 22px;
+  border-radius: 50%; display: grid; place-items: center; font: 600 var(--t-6) var(--sans);
+  background: var(--accent-tint); color: var(--accent); }
+lf-activity [data-lf-activity-author="user"] > .lf-activity-avatar {
+  background: var(--chip); color: var(--ink-2); }
+lf-activity [data-lf-activity-author="page"] > .lf-activity-avatar {
+  background: var(--field); color: var(--muted); }
+lf-activity .lf-activity-line { margin: 0; overflow-wrap: anywhere; }
+lf-activity .lf-activity-actor { color: var(--ink); font-weight: 600; }
+lf-activity .lf-activity-what { color: var(--ink-2); }
+lf-activity :is(a, button).lf-activity-target { color: var(--accent);
+  text-decoration: underline; text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+lf-activity button.lf-activity-target { appearance: none; background: none; border: 0;
+  padding: 0; margin: 0; font: inherit; text-align: start; cursor: pointer; }
+lf-activity :is(a, button).lf-activity-target:hover { text-decoration-color: currentColor; }
+lf-activity span.lf-activity-target { color: var(--ink-2); }
+lf-activity .lf-activity-time { color: var(--muted); white-space: nowrap; }
+lf-activity .lf-activity-time::before { content: "· "; }
+lf-activity .lf-activity-undone { color: var(--muted); font-size: var(--t-6);
+  border: 1px solid var(--border-2); border-radius: var(--chip-r); padding: 0 4px; }
+lf-activity [data-lf-undone] :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
+  text-decoration: line-through; text-decoration-color: var(--muted); }
+lf-activity .lf-activity-excerpt { grid-column: 2; margin: 2px 0 0; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+lf-activity .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5) var(--sans); }
+
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says

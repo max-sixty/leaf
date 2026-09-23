@@ -334,6 +334,12 @@ continues from there and no `tabindex` is left on the page behind the reader. Wh
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
+A module that takes the reader to a conversation calls `openThread(rootId, {focus})`
+with the root comment's id. It opens the thread where the page shows it, inline beside
+its passage or widget, and in Threads when it has no place on the page, the same choice a
+mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
+its reply box. A place on the page is an ordinary fragment link.
+
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
 transitions, not a Web Animations call a module makes for itself, so `motion` is where a

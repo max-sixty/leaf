@@ -33,7 +33,7 @@ export { conversationBox, consumeThreads } from "./application.js";
 export { readThreads } from "./conversation/state.js";
 export { turns as threadTurns, threadSummary } from "./conversation/model.js";
 export { conversationInput } from "./conversation/landing.js";
-export { landInConversation } from "./application.js";
+export { landInConversation, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export {

@@ -573,6 +573,9 @@ export const landInConversation = (...args) => app().landInConversation(...args)
 export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
+// The one route to a conversation by its root id: the thread's inline destination while
+// it has one, Threads otherwise, the same choice a mark and t/T make.
+export const openThread = (...args) => app().margin.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);

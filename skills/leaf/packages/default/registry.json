@@ -149,6 +149,23 @@
     "x-upgrade": true,
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
+  "lf-activity": {
+    "description": "A feed of what has happened on the page, newest first, read from the event log. Each row names who moved (You for the reader, the agent by its name, Page for a default the page applied), what they did, where, and how long ago: comments and reactions with their opening words, replies, resolutions and reopenings, widget actions worded from each verb's record form, reports, requests and their receipts, published versions with their changelog, and approvals. A gesture the reader took back stays in place marked undone. Read receipts, deliveries, summaries, titles, and errors stay out. The place is the way there: a widget or section row is a fragment link, and a conversation row opens that thread. It shows the latest 50 rows and stores nothing; the log is its only input. Place it when the reader will come back to a page that several hands change over time (a working board, a hub, a long review) and needs to see what moved since they last looked; a page read once does not need one. Put it last in the column or in a pane of its own, write the element empty, and give it a stable id.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
+  },
   "lf-options": {
     "description": "The alternatives in a question the reader answers. Put a live group inside lf-ask, where one ordinary heading states the question and any premise or evidence shared by every alternative can lead into the choices; the group itself contains only options and controls. Children are lf-option elements only. An option leading with a <strong> title becomes a full-width card; put its case and decision-relevant evidence or preview there instead of in separate alternative sections. Bare-label options render as compact rows for alternatives that need no case beyond the label. A row may use `for` only when the choice selects among sections or work items that already exist independently of the decision; do not create sections merely to hold the alternatives. With `choose` (which requires an id), the group draws as one control and takes the reader's pick by click or keyboard. `multiple` (which requires `choose`) allows a set. The marks say \"choose one\" or \"choose any\" to a screen reader; do not repeat that instruction in the question. On the page the last cell is an `Another option` field for an answer the author did not list. It takes the next Ask digit after the authored options when one of the nine addresses remains, or Tab reaches it; Shift+Enter writes a newline, and Enter adds the option on physical keyboards. On touch keyboards, Enter writes a newline and the Add control submits. Adding creates and selects a real option through the same `choose` action, whose optional `additions` maps every generated option id to its words; it does not start a thread. In a thread the thread's reply box already owns that role, and Enter from an option mark continues there. The pick reaches the agent as a `choose` action naming every picked option. A single-choice pick answers its Ask; a multiple-choice Ask stays open until the reader presses Done, whose `answer` action states the set is complete on the page or in a thread. Generated options remain effective across revisions and can receive a separate clarification thread. An author may incorporate one as an ordinary lf-option with the same id and words. Authored `chosen` can record the pick, but a multiple-choice Ask still waits for the reader's Done; replay already preserves the pick, and rewriting a picked option needs `restated`. `settled` (also requiring an id) collapses a retired decision to a disclosure naming the chosen option while preserving every option and anchor.",
     "type": "object",

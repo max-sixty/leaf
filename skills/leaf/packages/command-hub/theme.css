@@ -176,11 +176,6 @@ html.lf-copy lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-wo
     display: block; }
 }
 
-lf-record { display: block; margin: var(--sp-3) 0; }
-lf-record > ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
-lf-record > ol > li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule);
-  color: var(--muted); font: var(--t-6) var(--mono); overflow-wrap: anywhere; }
-
 @container lf-command (width <= 520px) {
   lf-command > .lf-command-head { grid-template-columns: 1fr; align-items: start; }
   .lf-command-facts { justify-content: flex-start; }

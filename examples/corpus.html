@@ -3959,11 +3959,11 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       <section id="hub-record">
         <h2>The record</h2>
         <p>
-          Every consequential gesture lands here in order. Folds are read-only and stay
-          out; comments, pauses, decisions, reports, and releases remain as receipts
-          even after the work around them changes.
+          Every consequential gesture lands here, newest first. Folds are read-only and
+          stay out; comments, pauses, decisions, reports, and releases remain even after
+          the work around them changes, and each row leads back to what it moved.
         </p>
-        <lf-record id="atlas-record"></lf-record>
+        <lf-activity id="atlas-record"></lf-activity>
       </section>
 </lf-tab>
 
@@ -5313,6 +5313,22 @@ gallery/
               <strong>Walk resumed</strong>
             </lf-chronology-entry>
           </lf-chronology>
+        </section>
+
+        <section id="bg-activity-feed">
+          <p class="eyebrow bg-feature-elements">lf-activity</p>
+          <h3>
+            <strong>Activity</strong
+            ><span class="bg-feature-detail">: this page's history, newest first</span>
+          </h3>
+          <p id="bg-activity-guide">
+            The feed reads this page's own log: the seeded conversations, reactions,
+            reader actions, and published versions. The board move near the end was
+            taken back, so its row stays struck through and marked undone. Press a
+            conversation row to open its thread, or a widget row to travel to the
+            widget.
+          </p>
+          <lf-activity id="bg-activity"></lf-activity>
         </section>
 
         <section id="bg-tab-set">

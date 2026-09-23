@@ -1169,6 +1169,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--turn-ink); font: 600 10px/1.3 var(--sans); white-space: nowrap; }
   .lf-read-boundary::before, .lf-read-boundary::after { content: ""; min-width: 8px;
     flex: 1; border-block-start: 1px solid currentColor; opacity: .42; }
+  .lf-thread-compact > .lf-read-boundary { margin-inline: 8px; }
+  .lf-summary-messages > .lf-read-boundary { margin-inline-end: 8px; }
   .lf-read-boundary[data-kind="end"] { color: var(--muted-2); font-weight: 500; }
   /* A speaker belongs to the reading hierarchy; time and delivery are supporting
      metadata. The same sizes and rhythm dress inline conversation in theme.css. */

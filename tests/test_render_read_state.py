@@ -27,6 +27,11 @@ def _read_events(page_dir):
     ]
 
 
+def _horizontal_bounds(locator):
+    box = locator.bounding_box()
+    return box["x"], box["x"] + box["width"]
+
+
 def _agent_metric_reply(page_dir, root, number, for_event=None):
     return conversation_model.cmd_reply(
         page_dir,
@@ -93,6 +98,9 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
             f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{first}"]'
         )
     ).to_be_visible()
+    marker_bounds = _horizontal_bounds(checkpoint.locator(".lf-read-boundary").first)
+    original_bounds = _horizontal_bounds(card.locator(f'.lf-msg[data-mid="{first}"]'))
+    assert all(abs(a - b) < 1 for a, b in zip(marker_bounds, original_bounds))
     expect(card.locator('.lf-read-boundary[data-kind="new"]')).to_have_count(2)
     expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(1)
     expect(
@@ -171,6 +179,9 @@ def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
     expect(
         card.locator(":scope > .lf-read-boundary + .lf-thread-root-meta")
     ).to_be_visible()
+    marker_bounds = _horizontal_bounds(card.locator(":scope > .lf-read-boundary"))
+    header_bounds = _horizontal_bounds(card.locator(":scope > .lf-thread-root-meta"))
+    assert all(abs(a - b) < 1 for a, b in zip(marker_bounds, header_bounds))
     expect(
         card.locator(f':scope > .lf-thread-root-meta + .lf-msg[data-mid="{root}"]')
     ).to_be_visible()

@@ -475,7 +475,10 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     )
     assert named.exit_code == 0, named.output
     cached = events_model.read_events(page_dir)[-1]["id"]
-    assert named.output == f"opened thread {cached}\n"
+    assert named.output == (
+        f"opened thread {cached}\n"
+        f'name it: leaf conversation title {page_dir} {cached} --text "<a few words>"\n'
+    )
 
     replied = runner.invoke(
         cli_model.cli,

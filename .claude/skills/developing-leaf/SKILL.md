@@ -25,6 +25,13 @@ This skill is maintainer workflow, not a second home for product specifications.
 using Leaf read `<root>/skills/leaf/SKILL.md`. Package authors read the public contract
 at `<root>/skills/leaf/references/packages.md`.
 
+## Leave old state out of the handoff
+
+Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
+handoff therefore doesn't tell the user that an existing page, log, or claim
+predates the change, needs re-vendoring, or won't show it, and doesn't list
+reviving that state as follow-up work.
+
 ## Explore an open design
 
 When a new interface leaves a material visual or interaction choice unsettled,

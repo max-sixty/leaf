@@ -262,29 +262,65 @@ export class ThreadView {
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
+    const summaries = new Set(model.summaries.map(({ id }) => id));
+    for (const id of this.#expandedSummaries)
+      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
+    const rangeState = describedRanges.map((range) => {
+      if (range.kind === "message") return range;
+      const forced = Boolean(range.summary.protected?.length);
+      const searchMatch = range.messages.some((message) =>
+        model.search?.messages.includes(message.id),
+      );
+      return {
+        ...range,
+        expanded:
+          forced || searchMatch || this.#expandedSummaries.has(range.summary.id),
+        forced: forced || searchMatch,
+        requiredText: searchMatch
+          ? "Matching messages kept open"
+          : "Messages kept open · current work",
+      };
+    });
+    const boundaries = new Map();
+    let precedingUnread = false;
+    if (panel)
+      for (const range of rangeState) {
+        if (range.kind === "summary" && !range.expanded) {
+          precedingUnread = false;
+          continue;
+        }
+        for (const message of range.kind === "message"
+          ? [range.message]
+          : range.messages) {
+          const boundary = message.unread
+            ? precedingUnread
+              ? null
+              : "new"
+            : precedingUnread
+              ? "end"
+              : null;
+          if (boundary) boundaries.set(message.key, boundary);
+          precedingUnread = Boolean(message.unread);
+        }
+      }
     const messages = model.messages.map((message, index) => {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(message, index === 0 && Boolean(headerActions));
+      view.present(
+        message,
+        index === 0 && Boolean(headerActions),
+        boundaries.get(message.key) ?? null,
+      );
       return { key: message.key, node: view.node, header: view.header };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
-    const summaries = new Set(model.summaries.map(({ id }) => id));
-    for (const id of this.#expandedSummaries)
-      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    const ranges = describedRanges.map((range) => {
+    const ranges = rangeState.map((range) => {
       if (range.kind === "message") {
         const node = messageNodes.get(range.message.key);
         delete node.dataset.lfSummary;
         return { ...range, node };
       }
-      const forced = Boolean(range.summary.protected?.length);
-      const searchMatch = range.messages.some((message) =>
-        model.search?.messages.includes(message.id),
-      );
-      const expanded =
-        forced || searchMatch || this.#expandedSummaries.has(range.summary.id);
       const nodes = range.messages.map((message) => {
         const node = messageNodes.get(message.key);
         node.dataset.lfSummary = range.summary.id;
@@ -292,11 +328,6 @@ export class ThreadView {
       });
       return {
         ...range,
-        expanded,
-        forced: forced || searchMatch,
-        requiredText: searchMatch
-          ? "Matching messages kept open"
-          : "Messages kept open · current work",
         nodes,
       };
     });
@@ -396,6 +427,7 @@ export class ThreadView {
 
   #summaryRange(range) {
     const count = range.messages.length;
+    const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
     const originalsId = `lf-summary-originals-${id}`;
     return html`<section
@@ -404,7 +436,15 @@ export class ThreadView {
       data-expanded=${String(range.expanded)}
     >
       <div class="lf-summary-checkpoint">
-        <div class="lf-summary-label">Summary</div>
+        <div class="lf-summary-label">
+          Summary${
+            unread
+              ? html`<span class="lf-summary-unread">
+                  · ${unread} unread original${unread === 1 ? "" : "s"}</span
+                >`
+              : nothing
+          }
+        </div>
         <div
           class="lf-summary-text"
           .innerHTML=${renderMarkdown(range.summary.text)}

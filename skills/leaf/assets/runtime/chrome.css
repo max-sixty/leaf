@@ -1072,6 +1072,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-checkpoint { margin: 14px 8px; }
   .lf-summary-checkpoint { padding-block: 4px; }
   .lf-summary-label { margin-bottom: 4px; color: var(--muted); font: 500 11px/1.3 var(--sans); }
+  .lf-summary-unread { color: var(--turn-ink); font-weight: 600; }
   .lf-summary-text { font-size: 13px; font-style: italic; line-height: 1.5;
     overflow-wrap: anywhere; user-select: text; }
   .lf-summary-text :is(code, pre) { font-style: normal; }
@@ -1157,6 +1158,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .lf-msg { margin: 16px 0; }
   .lf-msg.agent { position: relative; }
+  .lf-read-boundary { display: flex; align-items: center; gap: 7px; margin: 9px 0 7px;
+    color: var(--turn-ink); font: 600 10px/1.3 var(--sans); white-space: nowrap; }
+  .lf-read-boundary::before, .lf-read-boundary::after { content: ""; min-width: 8px;
+    flex: 1; border-block-start: 1px solid currentColor; opacity: .42; }
+  .lf-read-boundary[data-kind="end"] { color: var(--muted-2); font-weight: 500; }
   /* A speaker belongs to the reading hierarchy; time and delivery are supporting
      metadata. The same sizes and rhythm dress inline conversation in theme.css. */
   .lf-msg-head { display: flex; gap: 8px; align-items: baseline; font-size: var(--t-6); }

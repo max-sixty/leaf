@@ -89,10 +89,10 @@ export function placeThreadEdge(thread, edge) {
 // the active region and share one glide, so mixed or repeated presses add up from
 // the pending goal. Space, Home/End and PageUp/Down stay the browser's own keys.
 //
-// They move the region the reader is reading, which is the thread list wherever the
-// reader stands in the panel or the panel covers the page. Scrolling a region the
-// reader is not in reads to them as the key doing nothing, and then the document is
-// somewhere else when they look back at it.
+// They move the region the reader is reading. The thread list is that region when
+// focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
+// region the reader is not in reads to them as the key doing nothing, and then the
+// document is somewhere else when they look back at it.
 //
 // The step moves at the pace of the browser's own paging keys. Native paging is a quick
 // glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same
@@ -129,11 +129,15 @@ const holding = (box) =>
 const seenScroller = (coveringAuxiliaryScroller) =>
   coveringAuxiliaryScroller() ?? pageScroller;
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
-// panel or anchored conversation beside the page; a covering panel remains the only
-// visible region even when focus is still on the banner control that opened it.
-const stepScroller = (coveringAuxiliaryScroller) =>
-  coveringAuxiliaryScroller() ??
-  effectiveScroller(readingRegionFor(document.activeElement));
+// panel or anchored conversation beside the page. Inside a covering surface the focused
+// region still wins; its own scrollport may be nested in that surface. The covering
+// scrollport catches focus with no region, such as a blurred stop.
+const stepScroller = (coveringAuxiliaryScroller) => {
+  const covering = coveringAuxiliaryScroller();
+  const region = readingRegionFor(document.activeElement);
+  if (covering && !coveringAuxiliarySurface()?.contains(region?.host)) return covering;
+  return effectiveScroller(region);
+};
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
   const box = stepScroller(coveringAuxiliaryScroller);
   if (unit === "page") {

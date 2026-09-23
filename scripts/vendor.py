@@ -222,8 +222,8 @@ def build_jsdiff(work: Path) -> list[Path]:
 def refuse_if_csp_forbids(out: Path) -> None:
     """Delete the bundle and stop, if it carries something the page cannot run.
 
-    A page's CSP is `default-src 'self'`, which allows neither eval nor a lazy
-    chunk, and both of those are one careless import away: d3 carries a
+    The interactive export's CSP admits neither eval nor a chunk it did not
+    embed, and both of those are one careless import away: d3 carries a
     `new Function` in d3-dsv's CSV parser, and Plot reaches for none of d3-dsv
     today. What keeps that true is this check rather than anyone remembering,
     because the failure it prevents is a chart that draws in a developer's page
@@ -444,9 +444,9 @@ def build_plot(work: Path) -> list[Path]:
     ESM but imports d3 by bare specifier; `dist/plot.umd.min.js` leaves d3
     external too, reading a `d3` global the page would have to have loaded first;
     and a CDN's prebuilt ESM (jsdelivr's `+esm`) is smaller than this bundle only
-    because it imports d3 from a second URL, which `default-src 'self'` will not
-    fetch. So the vendored file is one we produce, the same way highlight.js's
-    is: Plot and the parts of d3 it reaches for, bundled to one browser-native
+    because it imports d3 from a second URL, while the layer loads nothing from
+    the network so a chart draws offline and in an export. So the vendored file
+    is one we produce, the same way highlight.js's is: Plot and the parts of d3 it reaches for, bundled to one browser-native
     ESM file with no specifier left in it. The alternative is vendoring d3 whole
     beside it, which is 100KB more and two files whose versions can drift apart.
 

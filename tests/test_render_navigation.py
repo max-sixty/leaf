@@ -9704,7 +9704,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
         }"""
     )
     assert long_reading["height"] > long_reading["room"]
-    assert long_reading["top"] < long_reading["bandBottom"]
+    assert long_reading["bottom"] <= long_reading["bandBottom"] + 1
     assert long_reading["bottom"] > long_reading["bandTop"]
     expect(thread.locator(":scope > .lf-compose .lf-thread-send")).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')

@@ -66,7 +66,6 @@ import {
   createConversationLanding,
   declareThreadKeys,
   revealConversation,
-  revealReplyMessage,
   retainConversationFocus,
   retainPanelLanding,
   standingConversation,
@@ -400,13 +399,13 @@ app = mountApplication({
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
   retainConversationFocus: () => retainConversationFocus(panelIsOpen),
-  revealReplyEditor: (input, behavior) =>
+  revealReplyEditor: (input, { behavior, block } = {}) =>
     revealConversation(
       input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
       input,
       behavior,
+      block,
     ),
-  revealReplyMessage,
   setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,

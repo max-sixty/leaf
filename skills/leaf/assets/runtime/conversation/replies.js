@@ -38,7 +38,6 @@ export function wireReply(
     liveId = () => t.root.id,
     createReply,
     revealReplyEditor,
-    revealReplyMessage,
     wireInput,
     onDraftLoaded = null,
   },
@@ -71,7 +70,9 @@ export function wireReply(
       if (sent && mayReveal)
         void whenDocumentPresented()
           .then(() => {
-            if (mayReveal()) revealReplyMessage(held, sent.attempt, control);
+            // The new turn is above the composer. Landing the composer's foot shows
+            // the turn's end and keeps the focused control in the visible band.
+            if (mayReveal()) revealReplyEditor(control, { block: "end" });
           })
           .catch(() => {});
     },
@@ -89,7 +90,7 @@ export function wireReply(
   input.addEventListener("input", () => {
     if (focused() !== input) return;
     const held = input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
-    if (held) revealReplyEditor(input, "instant");
+    if (held) revealReplyEditor(input, { behavior: "instant" });
   });
   const dispose = mirrorDraft(
     input,

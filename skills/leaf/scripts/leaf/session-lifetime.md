@@ -214,15 +214,15 @@ collecting or offering record standing but inactive until the same session claim
 page again. Acceptance has crossed the external-effect boundary, so its remaining page
 receipts are reconciled before the adapter checks ownership and retires.
 If every website startup retry fails, its deterministic fallback settles the
-triggering event and removes the unaccepted queue record. The immutable payload
+triggering event and removes the unaccepted delivery record. The immutable payload
 remains at its permanent path for a turn whose acceptance may have raced the failed
 response.
 
-Each delivery has one globally addressed immutable envelope and one mutable adapter
-queue record. The queue record carries collecting, offering, or accepted state;
+Each delivery has one globally addressed immutable envelope and one mutable delivery
+record. The record carries collecting, offering, or accepted state;
 after the freeze it retains only the event identities needed for page receipts.
 Once a cursor advances, the
-queue record records that receipt so
+delivery record keeps that receipt so
 reinitializing the same page path cannot revive old transport work; a
 reinitialized page whose events no longer match retires its old batch. The
 adapter has a second lease because a generic wait lease cannot prove its output can
@@ -236,7 +236,7 @@ the connection it started it on. Two connections may resume one thread and both 
 receive everything it says, so the observer passes over a delivery this process is
 carrying rather than answering for it a second time. The CLI remains the interactive
 client for every approval and user-input request.
-Once every batch is acknowledged, only the queue record moves under `history/`;
+Once every batch is acknowledged, only the delivery record moves under `history/`;
 `leaf delivery read <id>` continues to resolve the immutable envelope.
 
 An embedded host that already controls App Server can deliver the same immutable

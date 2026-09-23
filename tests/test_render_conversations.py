@@ -2,6 +2,7 @@
 
 import base64
 import io
+import json
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -106,6 +107,8 @@ def hold_visible_thread_presentation(page, thread_id):
     )
 
 
+# Named from the command's own answer: a page open on this directory appends a
+# bookkeeping `read` of its own, so the log's tail is not reliably this summary.
 def summarize_conversation(page_dir, conversation, first, last, text):
     """Admit one agent summary through the public command door."""
     result = CliRunner().invoke(
@@ -121,10 +124,11 @@ def summarize_conversation(page_dir, conversation, first, last, text):
             last,
             "--text",
             text,
+            "--json",
         ],
     )
     assert result.exit_code == 0, result.output
-    return events_model.read_events(page_dir)[-1]
+    return json.loads(result.output)
 
 
 def append_user_reply(page_dir, parent, text):

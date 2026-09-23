@@ -2026,7 +2026,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
 /* lf-activity: the page's history, newest first. One row is an initial, a sentence, and
  * an optional excerpt under it. The sentence's place is its link or thread button, drawn
- * as a link either way because both take the reader there; the time sits after it in
+ * as a link either way because both take the user there; the time sits after it in
  * the muted voice. A row taken back keeps its place, struck through and marked undone. */
 lf-activity { display: block; margin: var(--sp-3) 0; }
 lf-activity .lf-activity-list { list-style: none; margin: 0; padding: 0;

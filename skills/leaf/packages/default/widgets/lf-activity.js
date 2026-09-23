@@ -1,7 +1,7 @@
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The event log is the only input and this list stores nothing: every reading of
- * `watchHistory` restates the whole feed. A row says who moved (You for the reader, the
+ * `watchHistory` restates the whole feed. A row says who moved (You for the user, the
  * agent's own voice for an agent, Page for what the page did by itself), what they did,
  * the thing they did it to, and how long ago. The thing is the row's way there: a
  * widget or section is an ordinary fragment link, so the browser owns that travel as it
@@ -11,10 +11,10 @@
  *
  * Bookkeeping stays out: `read`, `pickup` (a delivery fact the banner already reports as
  * activity), `summary`, `conversation_title`, and `error`. An `undo` is not its own row;
- * it marks the gesture it took back, which is what a reader scanning the feed needs to
+ * it marks the gesture it took back, which is what a user scanning the feed needs to
  * know about that gesture.
  *
- * Rows are keyed by event id and only new rows are inserted, so a reader tabbing down
+ * Rows are keyed by event id and only new rows are inserted, so a user tabbing down
  * the feed keeps their place when the log grows or the clock moves a timestamp. */
 import {
   agentName,

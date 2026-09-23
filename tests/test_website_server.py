@@ -1164,9 +1164,11 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
     # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
-    # activity fold prefers over Leaf's own claim wording for exactly this reason.
-    instructions = " ".join(website_server.HOSTED_INSTRUCTIONS.split())
-    assert "leaf status" not in instructions
+    # activity fold prefers over Leaf's own claim wording for exactly this reason. The
+    # shared contract describes `leaf status`, so what the agent receives has to hand
+    # the status to the host.
+    instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
+    assert "Leave the page's status to the host" in instructions
     assert "leaf version check" not in instructions
 
 

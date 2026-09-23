@@ -23,7 +23,7 @@ required = ["OPENAI_API_KEY"]
 # it to create a second application against the namespace the first one already holds —
 # DURABLE_OBJECT_ALREADY_HAS_APPLICATION. Naming the standing application keeps the
 # deploy on the modify path. Renaming it would mean deleting the application first,
-# which drops every seated reader session.
+# which drops every seated user session.
 name = "leaf-website-leafexamplesession"
 class_name = "LeafWebsiteSession"
 image = "../Dockerfile.website"

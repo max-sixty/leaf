@@ -2,7 +2,7 @@
    the Threads list itself answers.
 
    Standing in the panel is where its focus is, not merely that it is open: the Threads
-   button is the banner's, so opening by pointer leaves the reader outside, and `g T`, `t`,
+   button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
    Tab or a click on a thread is what puts them in. The thread scope draws one step further
    in, so its rows shadow these. Every page has this scope: the general box stands and
    takes words from the first paint — the offline banner says a comment will not send, not
@@ -112,24 +112,24 @@ export function createPanelComposer({
   const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
 
   // The panel's local route to the contextual Comment capability. From the Threads list
-  // this puts the reader in the page-comment box; page `c` reaches the same box directly,
+  // this puts the user in the page-comment box; page `c` reaches the same box directly,
   // and this is the same contextual intent from a surface whose local `w` and `/` commands
-  // remain useful until the reader asks to write.
+  // remain useful until the user asks to write.
   const PANEL_SAY = {
     id: "comment.write",
     keys: ["c"],
     does: () => generalHint(),
     line: "comment",
-    // Dead while the reader has a passage or an item in hand. `t` is a page key that lands
-    // focus in the panel, so a reader who selected a paragraph and then walked the threads
+    // Dead while the user has a passage or an item in hand. `t` is a page key that lands
+    // focus in the panel, so a user who selected a paragraph and then walked the threads
     // is standing in this scope with their selection still live — and this row, being the
     // innermost, would have taken the press and spent it on the general box, collapsing
-    // the selection as the box took focus. A gesture the reader made outranks the room
+    // the selection as the box took focus. A gesture the user made outranks the room
     // they happen to be standing in, so the row stands down and the page's own c answers,
     // on the passage, saying so on the shortcut bar first.
     //
     // Dead inside a conversation for the same reason read the other way. This scope is
-    // live wherever focus is in the panel, a card the reader has walked to included, and
+    // live wherever focus is in the panel, a card the user has walked to included, and
     // that card's own reply box is a nearer answer to "comment" than the general box is —
     // the one `Enter` reaches from here. A resolved card has no box to be the nearer
     // answer, and standingConversation reads the box rather than the class, so the press
@@ -166,7 +166,7 @@ export function createPanelComposer({
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
         // the same question asked of its widgets (a/A), asked here of the conversation —
-        // so the reader learns one idea and reaches it two ways rather than learning
+        // so the user learns one idea and reaches it two ways rather than learning
         // "needs you" beside it.
         //
         // The shortcut uses the visible control's toggle, including leaving Resolved
@@ -175,9 +175,9 @@ export function createPanelComposer({
         does: () =>
           needsYou() ? "Clear waiting filter" : "Show only the threads waiting on you",
         line: () => (needsYou() ? "clear waiting filter" : "waiting on you"),
-        control: () => narrowingView.readerControl,
-        when: () => runtime.statePhase === "ready" && narrowingView.canToggleReader,
-        run: () => narrowingView.toggleReader(),
+        control: () => narrowingView.userControl,
+        when: () => runtime.statePhase === "ready" && narrowingView.canToggleUser,
+        run: () => narrowingView.toggleUser(),
       },
       {
         id: "thread.unread.first",

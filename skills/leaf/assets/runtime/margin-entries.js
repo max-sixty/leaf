@@ -7,7 +7,7 @@
    and both projections invoke the same current action. Updating replaces the whole
    reading and stable identity is the registration plus entry key.
 
-   Behavior, tone, rank, and interaction state are independent contributor axes. Reader
+   Behavior, tone, rank, and interaction state are independent contributor axes. User
    selection, agent workflow, and whose turn a reading waits on are independent
    presentation fields, written by the projection rather than declared. Ordering follows
    interaction state, then rank, contribution key, and entry key. Registration and DOM
@@ -224,14 +224,14 @@ export function syncMarginEntrySelection(control, selected) {
 // Whose word a reading is waiting on. Projection state like agent workflow, and written
 // the same way: the projection decides it, both surfaces paint the same attribute, and a
 // carrier that stops waiting loses it rather than keeping a stale colour. Only the
-// reader's turn is named, because that is the one a page has to point at; a thread with
+// user's turn is named, because that is the one a page has to point at; a thread with
 // the agent already says so through pickup and work.
-export function syncMarginTurn(control, awaitsReader) {
-  if (awaitsReader) keeps(control, "data-lf-turn", "reader");
+export function syncMarginTurn(control, awaitsUser) {
+  if (awaitsUser) keeps(control, "data-lf-turn", "user");
   else control.removeAttribute("data-lf-turn");
 }
 
-// Whether a reading carries agent content the reader has not taken in: the same
+// Whether a reading carries agent content the user has not taken in: the same
 // Thread `unread` the panel and banner paint, as one attribute both surfaces share.
 export function syncMarginUnread(control, count) {
   if (count) keeps(control, "data-lf-unread", "");
@@ -296,9 +296,9 @@ export function presentMarginEntryHost(
     control.removeAttribute("role");
     if (writesSeat && wasStatus) control.removeAttribute("tabindex");
     if (control.type !== "button") control.type = "button";
-    // A pending action can be the reader's retained place even while it refuses a
+    // A pending action can be the user's retained place even while it refuses a
     // second activation. Native disabled buttons cannot hold that place; the immutable
-    // record and registration enforce refusal while aria exposes it to the reader.
+    // record and registration enforce refusal while aria exposes it to the user.
     if (control.disabled) control.disabled = false;
     keeps(control, "aria-disabled", record.disabled);
   } else if (record.behavior === "status") {

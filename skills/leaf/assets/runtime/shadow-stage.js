@@ -1,7 +1,7 @@
 /* The stage an x-shadow widget renders into. A module never calls attachShadow itself,
    because the marks the runtime paints come from a registry that is the document's while
    the ::highlight() rules styling them are not — they reach no shadow tree. A root
-   attached anywhere else would show words the reader can select and no mark could ever
+   attached anywhere else would show words the user can select and no mark could ever
    paint, which is the one failure this whole capability exists to avoid.
 
    The two sheets arrive differently on purpose. The theme's rules go in as a <style>
@@ -75,7 +75,7 @@ export function shadowStage(host, nodes) {
   watchLayers(root);
   const style = document.createElement("style");
   style.textContent = SHADOW_STARTUP_CSS + shadowRules;
-  // Fragment hydration can add a sheet while the reader uses an existing control.
+  // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);
   // The page reading walks in here at the host's place in the string, and its observer

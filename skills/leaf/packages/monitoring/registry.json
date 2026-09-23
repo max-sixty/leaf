@@ -58,7 +58,7 @@
     "x-example": "<lf-release-actions id=\"release-actions\" candidate=\"checkout-v2\" stable=\"checkout-v1\"><lf-release-action verb=\"rollback\"><strong>Request rollback to checkout-v1</strong> Return all traffic to the verified stable release.</lf-release-action></lf-release-actions>"
   },
   "lf-release-action": {
-    "description": "One reader-facing intervention inside lf-release-actions. The required verb selects the holder's typed request; the authored prose names the operation and states its consequence. The holder owns the control, target binding, and request lifecycle.",
+    "description": "One user-facing intervention inside lf-release-actions. The required verb selects the holder's typed request; the authored prose names the operation and states its consequence. The holder owns the control, target binding, and request lifecycle.",
     "type": "object",
     "properties": {
       "verb": {

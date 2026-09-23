@@ -165,7 +165,7 @@ const GROUPS = [
     ],
   },
   {
-    heading: "Reader interaction",
+    heading: "User interaction",
     summary: "Resting · hover or focus · open · selected",
     specimens: [
       {

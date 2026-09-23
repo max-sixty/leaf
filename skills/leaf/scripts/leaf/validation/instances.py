@@ -352,7 +352,7 @@ def reference_contract_error(
 
 def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -> list:
     """An attribute the registry marks as naming another element (x-refers) that names
-    nothing this version holds. The reader follows it, so a typo is a reference to
+    nothing this version holds. The user follows it, so a typo is a reference to
     nowhere and the markup around it is perfectly well-formed — visible to them and to
     nobody else. Asked of the version rather than of a fragment: a reply's markup
     carries no page to check against, and one of its widgets pointing at the version
@@ -476,7 +476,7 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
     element's own, or its enclosing data element's (lf-note's `at` anchors in its lf-code). The
     modules miss silently in both directions — a reversed range paints nothing, a
     note past the end docks at the block's foot — and version-to-version drift is
-    exactly how one goes stale, so the door refuses what no reader would ever see."""
+    exactly how one goes stale, so the door refuses what no user would ever see."""
     errors = []
     for rec in lf_elements:
         entry = registry.get(rec["tag"]) or {}

@@ -1,20 +1,20 @@
-"""Whether the page's one reader has taken in each piece of agent content.
+"""Whether the page's one user has taken in each piece of agent content.
 
 The log owns the fact, and this module is its one reading. A message's original id and
 each later edit id name distinct content versions; a version stands unread until the
-log holds evidence the reader took it in. Two kinds of evidence count:
+log holds evidence the user took it in. Two kinds of evidence count:
 
 - a `read` event naming that exact version, which the browser posts when the version
-  has been shown to the reader or when they mark its thread read;
-- a reader move in the version's thread logged after the version: a reply or reaction,
+  has been shown to the user or when they mark its thread read;
+- a user move in the version's thread logged after the version: a reply or reaction,
   a resolve or reopen, or an action or request on a widget a message of that thread
-  carries. A move the reader took back with `undo` is no evidence, as it is none
-  for every other fold over the standing log. Answering, resolving and replying are all things a reader does with what
+  carries. A move the user took back with `undo` is no evidence, as it is none
+  for every other fold over the standing log. Answering, resolving and replying are all things a user does with what
   the thread says, so each implies they have read it as it then stood.
 
 An edit is a new version logged after every earlier move, so it reads as unread again
 until fresh evidence arrives. A summary does not mark read what it covers. Unread is
-independent of turn-taking and of the reader's outstanding work: reading never answers
+independent of turn-taking and of the user's outstanding work: reading never answers
 an Ask, and answering one does mark it read.
 """
 
@@ -22,10 +22,10 @@ from .events import taken_back
 from .schema import MESSAGE_KINDS
 
 
-def reader_message_content(event: dict) -> bool:
-    """Whether an admitted message contains agent content the reader can encounter.
+def user_message_content(event: dict) -> bool:
+    """Whether an admitted message contains agent content the user can encounter.
 
-    Failure replies are content too: they tell the reader why a response failed,
+    Failure replies are content too: they tell the user why a response failed,
     even though they are not substantive answers. Token reactions and unadmitted
     stream placeholders are not content versions in the page log.
     """
@@ -44,7 +44,7 @@ def content_version(message: dict) -> str:
 def content_versions(events: list[dict]) -> dict[str, set[str]]:
     """Every exact version a `read` event may name, including superseded edits."""
     versions = {
-        event["id"]: {event["id"]} for event in events if reader_message_content(event)
+        event["id"]: {event["id"]} for event in events if user_message_content(event)
     }
     for event in events:
         if event["kind"] == "edit" and event["message"] in versions:
@@ -69,7 +69,7 @@ def read_contract_error(event: dict, events: list[dict]) -> str | None:
 def unread_content(
     events: list[dict], threads: dict, thread_by_widget: dict[str, str]
 ) -> dict[str, list[dict]]:
-    """Each thread's agent content versions the reader has not taken in, in log order.
+    """Each thread's agent content versions the user has not taken in, in log order.
 
     `threads` is the `build_threads` fold keyed by root id; `thread_by_widget` maps a
     widget carried in a thread message to that thread's root.
@@ -105,7 +105,7 @@ def unread_content(
         unread[root] = [
             {"message": message["id"], "version": version}
             for message in thread["msgs"]
-            if reader_message_content(message)
+            if user_message_content(message)
             and message.get("edited", {}).get("seq", message["seq"]) > moved
             and (message["id"], version := content_version(message)) not in marked
         ]

@@ -192,7 +192,7 @@ export function mountApplication(dependencies) {
       // same value, so this gesture reaches the page on the pass the enqueue opened,
       // before transport. It claims directly rather than through `invalidateDom`: a
       // state application held on some renderer's preparation holds background repaints,
-      // and a reader's own gesture is not one of those — what the page can draw of it
+      // and a user's own gesture is not one of those — what the page can draw of it
       // does not wait for an answer the log has not given.
       // The presentation coordinator reports a failed paint once, for the region that
       // owns it. Observe the pass here so this gesture's own promise carries no

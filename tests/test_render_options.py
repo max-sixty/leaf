@@ -365,7 +365,7 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     round_trip(page)
 
 
-def test_option_words_render_markdown_without_losing_the_reader_draft(browser, serve):
+def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
     source = ASK_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )
@@ -561,7 +561,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     line = shortcut_bar_text(page)
     # The Ask's own numbered actions are what the line offers, under the one context the
     # question owns, with the way out of the standing ahead of them as it is anywhere
-    # the reader is holding something.
+    # the user is holding something.
     assert ask_actions_hint("1–3") in line, line
     assert "let go" in line, line
     option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
@@ -633,7 +633,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
     # The digit acts within the Ask without turning binding selection into focus
-    # navigation; the reader remains on the control they tabbed to.
+    # navigation; the user remains on the control they tabbed to.
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
@@ -644,7 +644,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # unavailable foot. In a phone window the field otherwise lands underneath that line:
     # geometrically in the viewport, but neither visible nor operable as the next stop.
     #
-    # Short enough that the ask's own foot is under the line when the reader arrives, which
+    # Short enough that the ask's own foot is under the line when the user arrives, which
     # is the only arrangement in which the claim can be read at all. With the whole ask on
     # screen a Tab stop is already where the browser would put it, nothing scrolls, and the
     # reading goes green over the travel it is about; the assertion before the presses says
@@ -708,7 +708,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     sharing hairlines: a set of alternatives at one size is what says a decision is
     waiting. Each card's generated mark stands in the state slot at its opening edge
     as an empty ring — the same slot the pick turns it into a compact header state
-    in — because a reader who has not hovered sees none of the frame's other
+    in — because a user who has not hovered sees none of the frame's other
     promises: a blind drive read three cards, found nothing that looked like a
     control, and chose only after a hover happened to shade one. Selection also
     keeps the quiet cell tint.
@@ -736,7 +736,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-shim").evaluate(below) == 1, (
         "the cells share no hairline, so the set reads as one box rather than as cells"
     )
-    # The group's last child is the cell the module appends for the reader's own
+    # The group's last child is the cell the module appends for the user's own
     # option, so the last authored option still draws its line — against that cell,
     # not the group's border.
     assert page.locator("#approach > :last-child").evaluate(below) == 0, (
@@ -756,7 +756,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     )
     assert ring["atOpeningEdge"], f"the ring is not in the card's state slot: {ring}"
 
-    # And a reader arriving by keyboard can see the exact row they landed on. The
+    # And a user arriving by keyboard can see the exact row they landed on. The
     # permanent group frame stays put, the Ask's external location band stands
     # down, and one inset ring belongs to the active row. Reached by Tab rather than
     # focus(), because :focus-visible is a fact about how focus arrived.
@@ -835,7 +835,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme):
-    """Every untaken option keeps a visible boundary before the reader aims at it."""
+    """Every untaken option keeps a visible boundary before the user aims at it."""
     page = open_page(browser, serve(ASK_PAGE), color_scheme=color_scheme)
     readings = page.locator(
         'lf-options[choose] > lf-option:not([chosen]) > .lf-pick[role="checkbox"]'
@@ -918,7 +918,7 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     forms are visible and nothing correct is accused.
 
     Every child shares the joined edge; option cells share a text column. The
-    authored options are the author's, the option the reader writes is the module's,
+    authored options are the author's, the option the user writes is the module's,
     the question and the Done press are the runtime's, and each arrived carrying the
     spacing it wears standing alone."""
     page = open_page(browser, serve(ASK_SHAPES_PAGE))
@@ -930,7 +930,7 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
                const s = getComputedStyle(c);
                const r = c.getBoundingClientRect();
                const next = kids[i + 1];
-               // The ground the reader sees under the cell, which is not the same as
+               // The ground the user sees under the cell, which is not the same as
                // what the cell declares: a cell that paints nothing shows the group's
                // own, and that is how an unpicked option is filled.
                const clear = (v) => !v || v === 'transparent'
@@ -969,9 +969,9 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
         f"{bare}"
     )
 
-    # And they open at one column, which is the half a reader sees first: the question
+    # And they open at one column, which is the half a user sees first: the question
     # hung a whole binding column left of the words it was a question about. Every cell,
-    # the reader's own among them: that cell holds the option they write when none of the
+    # the user's own among them: that cell holds the option they write when none of the
     # authored ones is the answer, so a cell drawn short of the column starts the one box
     # the group takes words in outside the run of boxes the group is. Its own 12px did
     # exactly that, and this line excused it as apparatus. What is compared is the cell,
@@ -980,10 +980,10 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     words = {c["opens"] for c in option_cells}
     assert len(words) == 1, (
         f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
-        "the option the reader writes read as more than one column"
+        "the option the user writes read as more than one column"
     )
 
-    # And the reader's own option is filled the way an option nobody has picked is
+    # And the user's own option is filled the way an option nobody has picked is
     # filled, which is the other half of what says it is one of the answers. A pick
     # colours the cell that holds it and nothing else does, so any other ground here is
     # a state the group hasn't got: the cell wore --field, a tinted band that in this
@@ -992,9 +992,9 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     open_option = next(
         c["ground"] for c in cells if c["what"] == "lf-option" and not c["picked"]
     )
-    reader = next(c for c in cells if "lf-another" in c["what"])
-    assert reader["ground"] == open_option, (
-        f"#{group}'s reader-written option stands on {reader['ground']} where an "
+    user = next(c for c in cells if "lf-another" in c["what"])
+    assert user["ground"] == open_option, (
+        f"#{group}'s user-written option stands on {user['ground']} where an "
         f"unpicked option stands on {open_option}, so it reads as apparatus under the "
         "answers rather than as one of them"
     )
@@ -1003,7 +1003,7 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
 def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     """A specimen is a mention, not a use. The exhibited widgets render at full
     fidelity — that is the whole point of showing one — but wire nothing that
-    would carry the reader's edits back, so an example decision can't be
+    would carry the user's edits back, so an example decision can't be
     answered and an example board can't be dragged. The unquoted copies on the
     same page are the control: they prove the affordances are missing because
     the specimen suppressed them, not because the upgrade failed.
@@ -1173,7 +1173,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
     # And the lift, which needs both groups open to reach: a settled group comes apart
-    # again when the reader opens it, and loose cards answer the pointer by rising where
+    # again when the user opens it, and loose cards answer the pointer by rising where
     # joined cells answer with a wash. Read here rather than with the other two because
     # opening the quoted group is what the lines above are about.
     #
@@ -1207,8 +1207,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         )
 
 
-def test_one_band_says_where_the_reader_is_standing(browser, serve):
-    """The reader's band is drawn once, on the exact option row being worked.
+def test_one_band_says_where_the_user_is_standing(browser, serve):
+    """The user's band is drawn once, on the exact option row being worked.
 
     The Ask retains its semantic location marker, but its exterior outline would
     look like a second group border and vanish as state changes. The active row carries
@@ -1238,7 +1238,7 @@ def test_one_band_says_where_the_reader_is_standing(browser, serve):
 def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     """Pending state does not become a transient second border around options.
 
-    The projection still carries `data-lf-reader-override`; the selected row's check and tint
+    The projection still carries `data-lf-user-override`; the selected row's check and tint
     show the choice while the group's permanent frame stays visually unchanged.
     """
     page = open_page(browser, serve(SPECIMEN_PAGE))
@@ -1247,7 +1247,7 @@ def test_a_pick_keeps_the_group_frame_visually_stable(browser, serve):
     before = group.evaluate(frame)
     mark = page.locator("#l-stage .lf-pick")
     mark.click()
-    expect(group).to_have_attribute("data-lf-reader-override", "1")
+    expect(group).to_have_attribute("data-lf-user-override", "1")
     expect(page.locator("#l-stage")).to_have_attribute("chosen", "")
     assert group.evaluate(frame) == before
 
@@ -1259,7 +1259,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     compact rows and the titled pair as full-width cards stacked down the page.
 
     Two things the lint cannot see. A resting mark shows no word in either form, because
-    an offer states nothing a reader could disagree with. The forms differ in how they
+    an offer states nothing a user could disagree with. The forms differ in how they
     make that offer visible: a compact row needs its leading mark to declare its target,
     while a titled single-choice card is already one framed, divided, hoverable target
     and keeps the corner quiet until it has state to report. A picked row keeps the
@@ -1284,8 +1284,8 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     # Under `choose` the group is one control in every form, and the list was the form
     # that went without: rows draw no border, no fill and no rule between them, so at
     # rest the only thing that ever drew a row's own box was the hover wash — which
-    # arrives after the reader has already had to guess where to aim. The group's edge
-    # and the cells' hairlines are what a reader sees before committing the pointer, and
+    # arrives after the user has already had to guess where to aim. The group's edge
+    # and the cells' hairlines are what a user sees before committing the pointer, and
     # they are the same two rules a card group has always had.
     #
     # The hairline is read as the border it is drawn as. It was read off the cell's
@@ -1345,18 +1345,18 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     )
 
 
-def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
-    """How many a group takes is the one thing about it a reader has to know before
+def test_a_group_says_how_many_of_it_the_user_may_take(browser, serve):
+    """How many a group takes is the one thing about it a user has to know before
     pressing anything, and for a while the page said it nowhere. A `multiple` group drew
     the identical circles a single-pick group draws — the shape every platform uses for
     "one of these" — so the two questions were pixel-for-pixel the same and the only
-    thing that distinguished them was the author remembering to say so in prose. A reader
+    thing that distinguished them was the author remembering to say so in prose. A user
     who took the marks at their word would pick once and expect the next click to replace
     it.
 
     So the mark carries the arity, in both of the registers one control has: its corner
     is round for one and square for any, and its word is "choose one" or "choose any" for
-    a reader who gets no corner. The corner is read as a fraction of the mark's own box,
+    a user who gets no corner. The corner is read as a fraction of the mark's own box,
     because the two are computed in different units (a circle is stated as a percentage of
     a box whose size is stated in px) and the question is the shape rather than either
     number. What is pinned is that they differ and that the single-pick one is a full
@@ -1365,7 +1365,7 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
 
     Arity is not the form, which is why the contrast is card against card. `multiple`
     is orthogonal to whether the options are titled, so a titled group asking "which of
-    these" still needs empty squares the reader can count. A single-choice titled group
+    these" still needs empty squares the user can count. A single-choice titled group
     can leave its radio unpainted because the joined card structure already makes each
     answer a target; the missing circle is therefore a statement about form and arity
     together, not a forgotten selector.
@@ -1382,7 +1382,7 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     assert one == 0.5, "a group taking one option draws something other than a circle"
     assert many < one, (
         "a group taking more than one draws the circle that means 'one of these', so "
-        "nothing on the page says the reader may take a second"
+        "nothing on the page says the user may take a second"
     )
     # Not the list form's rule wearing a card's clothes: the row group agrees with the
     # card group it shares an arity with, against the card group it shares a form with.
@@ -1394,11 +1394,11 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     # group frame, divisions, pointer and aim wash already state where the answer can go.
     dot = "el => getComputedStyle(el, '::before').visibility"
     assert page.locator("#tl-clamp .lf-pick").evaluate(dot) == "visible", (
-        "a card group asking 'which of these' draws no empty boxes, so the reader has "
+        "a card group asking 'which of these' draws no empty boxes, so the user has "
         "nothing to count and no sign a second pick is on offer"
     )
     assert page.locator("#br-steel .lf-pick").evaluate(dot) == "visible", (
-        "a single-choice titled card hides its empty ring, so a reader who has not "
+        "a single-choice titled card hides its empty ring, so a user who has not "
         "hovered sees nothing on it that looks like a control"
     )
 
@@ -1410,11 +1410,11 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
         "#br-steel .lf-pick"
     ).evaluate(box), "the shape that says arity took room from the option beside it"
 
-    # The same statement for a reader who gets no shape. A corner is paint, so all a
+    # The same statement for a user who gets no shape. A corner is paint, so all a
     # screen reader has of a mark is its word, and while that word was "choose" in both
     # arities the pixels above were the page's only account of how many it takes — which
     # is to say, no account at all for anyone listening. Read off the offer rather than
-    # the pick: the offer is the state the reader is in while the question is still open,
+    # the pick: the offer is the state the user is in while the question is still open,
     # which is when knowing costs them a wasted press.
     named = "el => el.getAttribute('aria-label')"
     assert (
@@ -1473,7 +1473,7 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     lays out. The arity a mark wears has to be its own group's, and the shape that says so
     is one an enclosing group could hand down: written as an inherited value, "which of
     these" on the outside would have made "which one" on the inside draw squares, and the
-    reader would be told they may take both of two answers that replace each other.
+    user would be told they may take both of two answers that replace each other.
 
     So each group reaches only as far as the options it owns. This is what stops that
     being an argument: a descendant selector here would pass every other test on this
@@ -1498,7 +1498,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     not confer ownership: a second Ask may stand inside an option as evidence.
 
     The outer Ask must therefore expose only its two choices. Otherwise both numbered
-    command sets collide when the reader navigates there, and the inner question either
+    command sets collide when the user navigates there, and the inner question either
     breaks the shortcut bar or lends its answers to the wrong Ask.
     """
     page = open_page(browser, serve(NESTED_ASK_PAGE))
@@ -1536,18 +1536,18 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
     )
 
     page = open_page(browser, url)
-    expect(page.locator("#outer")).not_to_have_attribute("data-lf-reader-override", "1")
-    expect(page.locator("#inner")).not_to_have_attribute("data-lf-reader-override", "1")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-user-override", "1")
+    expect(page.locator("#inner")).not_to_have_attribute("data-lf-user-override", "1")
     expect(page.locator("#out-drill")).to_have_attribute("chosen", "")
     expect(page.locator("#in-now")).to_have_attribute("chosen", "")
 
 
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
-    """The group takes the pick on the whole option, and the case the reader decides on
+    """The group takes the pick on the whole option, and the case the user decides on
     is argued inside the option. So the two gestures land in the same box, and the
     evidence has to win the ones aimed at it: clicking the comparison once chose that
     option, and its label-routed follow-up cleared it again — two decisions in the log,
-    no state on the page to show for either, and nothing the reader could have seen. The
+    no state on the page to show for either, and nothing the user could have seen. The
     disclosure and the draft chose it outright.
 
     Each gesture is read against its own effect rather than against the absence of a
@@ -1614,7 +1614,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     assert not option.evaluate(picked), "selecting the option's evidence answered it"
 
     assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
-        "the reader working the evidence sent Claude a decision they never made"
+        "the user working the evidence sent Claude a decision they never made"
     )
 
     # And the option's own words still answer it, which is what the card is for.
@@ -1654,7 +1654,7 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     from what its row happens to hold, so a row naming no block comes out eight pixels off
     its neighbours and carries whatever stands beside it along. At the line's end that
     raggedness was the marks'; at the line's start it would be the labels', which is the
-    edge the reader actually runs their eye down."""
+    edge the user actually runs their eye down."""
     page = open_page(browser, serve(ASK_PAGE))
     # Where the ring is painted, and where the row's first authored word is, both against
     # the group. Read as a pair because either alone can be satisfied by the wrong thing:
@@ -1679,7 +1679,7 @@ def test_every_row_hangs_its_mark_at_the_same_column(browser, serve):
     columns = {mark for mark, _word in seen}
     assert len(columns) == 1, (
         f"a row's mark hangs where its own row put it rather than in one column the "
-        f"reader can aim down: {seen}"
+        f"user can aim down: {seen}"
     )
     assert all(mark < word for mark, word in seen), (
         f"a row's mark stands past the words it answers for: {seen}"
@@ -1735,7 +1735,7 @@ def test_a_row_holds_its_mark_still_under_its_own_press(browser, serve):
 
 def test_a_chip_an_option_says_stands_with_the_rest_of_its_words(browser, serve):
     """A chip is the page's words and the apparatus around it is the module's, so the
-    reader — and the file's reading of that same version — find the chip inside the
+    user — and the file's reading of that same version — find the chip inside the
     row's own words rather than out among the row's machinery.
 
     The rule was written against an attribute rendered by `x-says`, where the edge a
@@ -1767,7 +1767,7 @@ def test_one_chip_holds_every_short_fact(browser, serve):
     bottom, so it stood four pixels taller than the chips in a band while matching them
     everywhere else. One rule states the chip now and each wearer adds only where it
     sits, which is why this reads the rendered box rather than the declarations — a
-    wearer is free to restate, and the box is what a reader compares."""
+    wearer is free to restate, and the box is what a user compares."""
     page = open_page(browser, serve(CHIP_PAGE))
     face = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size", "line-height",
@@ -1796,10 +1796,10 @@ def test_one_chip_holds_every_short_fact(browser, serve):
         )
 
 
-def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
+def test_what_a_widget_paints_it_says_to_a_user_listening(browser, serve):
     """A tint is a fact to whoever can see it and nothing at all to whoever can't. A
     task's marker and an event's kind band each carried their whole meaning in colour,
-    so a reader listening was handed every word around the fact and never the fact:
+    so a user listening was handed every word around the fact and never the fact:
     done sounded exactly like blocked.
 
     Declared (x-paints) rather than written into each module, which is what lets it
@@ -1814,7 +1814,7 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
         ("#t-baffles", "blocked"),
     ):
         assert word in page.locator(sel).aria_snapshot(), (
-            f"{sel} paints `{word}` and says nothing of it to a reader listening"
+            f"{sel} paints `{word}` and says nothing of it to a user listening"
         )
     room = page.locator(".lf-quiet").evaluate_all(
         """els => els.map(el => { const r = el.getBoundingClientRect();
@@ -1970,7 +1970,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     expect(page.locator("#br-cedar[chosen]")).to_have_count(1)
     assert _traffic(page).sends == 1, (
         "a second send went out over the first, so which of the two the server appends "
-        "first is the machine's answer rather than the reader's"
+        "first is the machine's answer rather than the user's"
     )
 
     held[0].continue_()
@@ -2257,7 +2257,7 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
 
     The collapse is the same rule at a different scale. A settled group's box goes
     behind the disclosure with its options, because the question is retired until the
-    reader opens it again — and `display: flex` on the class would otherwise outrank
+    user opens it again — and `display: flex` on the class would otherwise outrank
     the hidden attribute and leave a box floating under a collapsed group.
 
     What the options go behind is `hidden="until-found"`, which is find-in-page's to

@@ -1,6 +1,6 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that coordinates one JSON-safe working configuration, one operable preview, one displayed instruction, and one final `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Built-in controls contribute scalar fields; a page module registers structured contributors through `registerContributor(name, defaultSnapshot, {read, apply})` and calls the returned notifier after its gestures. One optional `registerInstructionProvider(values => text)` derives the displayed instruction. Restore, reset, copy, projection, change events, and submission all use the same aggregate values. The page's complete lf-playground declaration gives task-specific values their exact action schema.",
+    "description": "A reusable interactive playground that coordinates one JSON-safe working configuration, one operable preview, one displayed instruction, and one final `choose` action. Put it inside lf-ask when the configuration is a question for the user. Direct children are controls, presets, one preview, and one output. Built-in controls contribute scalar fields; a page module registers structured contributors through `registerContributor(name, defaultSnapshot, {read, apply})` and calls the returned notifier after its gestures. One optional `registerInstructionProvider(values => text)` derives the displayed instruction. Restore, reset, copy, projection, change events, and submission all use the same aggregate values. The page's complete lf-playground declaration gives task-specific values their exact action schema.",
     "type": "object",
     "properties": {
       "id": {
@@ -112,7 +112,7 @@
     "x-upgrade": false
   },
   "lf-playground-choice": {
-    "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the reader.",
+    "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the user.",
     "type": "object",
     "properties": {
       "value": {

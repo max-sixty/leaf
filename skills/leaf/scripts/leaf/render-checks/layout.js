@@ -79,14 +79,14 @@ function marginReading(main) {
     const style = getComputedStyle(el);
     const box = el.getBoundingClientRect();
     // Clipped to nothing is not standing in the margin: the words a page paints for
-    // whoever is listening are a pixel wide and under a reader's notice, so a widget
+    // whoever is listening are a pixel wide and under a user's notice, so a widget
     // drawn across one has taken nothing from anybody.
     return box.width >= 2 && isResident(el, style, box);
   });
   return { isResident, left, residents, right };
 }
 
-// Overflow is acceptable only when the reader can reach it or the box explicitly signals
+// Overflow is acceptable only when the user can reach it or the box explicitly signals
 // the cut. A scroll container may expose content in its scroll direction. `text-overflow`
 // may signal omitted text. Plain clipping does not make content reachable.
 // `misplacedBoxes`, `clippedControls`, and `coveredWords` enforce the distinct geometry,
@@ -97,7 +97,7 @@ function marginReading(main) {
 // actual overflow behavior. Do not exempt a box merely because an ancestor declares
 // `overflow`.
 export function misplacedBoxes() {
-  // shownBand is the runtime's own: what a container lets the reader see of what it
+  // shownBand is the runtime's own: what a container lets the user see of what it
   // holds, or nothing where it shows all of it. Imported rather than restated, so the
   // band a handover is refused against and the band the page paints to cannot come
   // apart — and because `overflow` is one of three ways to draw nothing past an edge.
@@ -106,7 +106,7 @@ export function misplacedBoxes() {
   const main = document.querySelector("main");
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
-  // hidden with opacity or visibility has no box a reader can lose. checkVisibility()
+  // hidden with opacity or visibility has no box a user can lose. checkVisibility()
   // ignores both properties unless they are requested, which made a hidden margin label
   // look like compact-width overflow.
   const pageBox = (el) =>
@@ -120,7 +120,7 @@ export function misplacedBoxes() {
   // the thread panel takes, and an exhibit over that edge is in the margin whether or
   // not the window happened to scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
-  // the reader's window is free to be narrower than this one.
+  // the user's window is free to be narrower than this one.
   const bodyStyle = getComputedStyle(document.body);
   const bodyBox = document.body.getBoundingClientRect();
   // Inside body's border as well as its padding. The strip a standing panel or tray
@@ -265,10 +265,10 @@ export function misplacedBoxes() {
           `margin it grew into — the side that holds it gives no room`,
       );
   }
-  // The other half of excusing a resident: an excuse is only good if the reader can
+  // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —
   // the margin it was placed in, the container that took its overflow — and the
-  // second is worth exactly what the reader can tell from that container. A scroller
+  // second is worth exactly what the user can tell from that container. A scroller
   // answers for what ran out of it on the side it scrolls toward, scrollLeft running
   // from zero to the overflow and never the other way. A box that marks where it cut
   // answers for the rest, the mark being what says there is a rest. And a box that
@@ -276,7 +276,7 @@ export function misplacedBoxes() {
   // table is drawn nowhere and said nowhere either, and every other reading here
   // calls such a page well — checkVisibility() is true of a clipped box, so screen
   // and print agree, and the copy withholds the clip and shows the words the live
-  // page dropped. The reader is the only party who loses them, which is why the
+  // page dropped. The user is the only party who loses them, which is why the
   // question is asked here, where the excuse was granted.
   //
   // Every box and not floats alone. A float is how a resident reaches the margin, so
@@ -427,13 +427,13 @@ export function withheldRoom() {
 
 // A box showing less than it holds across, with nothing on it that says so. Every
 // reading above ends at the same excuse: a scroller answers for what ran out of it,
-// because the reader can reach the rest. That excuse is worth exactly what the reader
+// because the user can reach the rest. That excuse is worth exactly what the user
 // can tell, and on a platform drawing overlay scrollbars it is worth nothing at rest —
 // measured, a twelve-node flowchart in a tab panel showed seven of them at 1200, 1440
 // and 1920, cut 356px of 1026, and every reading here called the page well. It is where
 // WITHHELD_ROOM stops too, that one asking whether the room was there to give and
 // excusing a drawing inside a frame by the zero it inherits: a drawing that genuinely
-// could not fit is a page the layer is content with, and a reader who cannot tell it
+// could not fit is a page the layer is content with, and a user who cannot tell it
 // was cut is not.
 //
 // So the marks are what is asked for, not the scrollbar: the layer paints them on every
@@ -445,7 +445,7 @@ export function withheldRoom() {
 //
 // Across and not down, the axis every reading of a cut here takes, and out of `main` and
 // its declared trees: the panel is shut while the gate reads and a shut box has no
-// boxes. Not a textarea, which scrolls a value its reader is writing.
+// boxes. Not a textarea, which scrolls a value its user is writing.
 export function silentCuts() {
   const main = document.querySelector("main");
   if (!main) return [];
@@ -457,7 +457,7 @@ export function silentCuts() {
       if (!/^(auto|scroll)$/.test(style.overflowX)) continue;
       const short = el.scrollWidth - el.clientWidth;
       if (short <= 1) continue;
-      // The mark is a promise about what the reader can see, so this asks the promise
+      // The mark is a promise about what the user can see, so this asks the promise
       // and not the attribute. A class can outrank the mask while leaving the mark
       // written, which reads as a clean gate and a page that cuts a drawing at its edge
       // saying nothing, the state this reading exists for.
@@ -469,7 +469,7 @@ export function silentCuts() {
         found.push(
           `${at(el)} wears a continuation mark for the ${short}px it is hiding ` +
             `across but draws nothing for it: something outranks the mark's own ` +
-            `rule, so the mark is written and the reader still has no sign`,
+            `rule, so the mark is written and the user still has no sign`,
         );
         continue;
       }
@@ -487,7 +487,7 @@ export function silentCuts() {
 // wrapping can't fit — are in order, and the third is reached through the second: a
 // table scrolls once every column is at its minimum, and a column's minimum is its
 // longest unbreakable run. So whatever wraps in a scrolling table wraps at a word a
-// line, and the reader gets both costs at once: prose a few words to the line down a
+// line, and the user gets both costs at once: prose a few words to the line down a
 // 3174px table, and a scroller for the rest. What scrolls with nothing left to wrap
 // (eight columns of single tokens) is the honest third case and passes.
 //
@@ -508,7 +508,7 @@ export function silentCuts() {
 // descendants too, because a widget's own rule beats an inherited value — a draft's
 // body is `pre-wrap` by the default package's sheet; and not on a textarea, whose
 // value wraps inside a box the table never sized. The gate reads its own page, so the
-// probe changes nothing a reader sees, and later readings measured the same before
+// probe changes nothing a user sees, and later readings measured the same before
 // and after it.
 //
 // The column and not a row or a cell's glyphs, after three readings of line boxes,

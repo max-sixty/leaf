@@ -27,7 +27,7 @@ const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
 function paintStateOrigins(projection) {
   const marks = new Map(
-    [PAGE_PAINT_ATTRIBUTE.readerOverride, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
+    [PAGE_PAINT_ATTRIBUTE.userOverride, PAGE_PAINT_ATTRIBUTE.reported].map((attr) => [
       attr,
       new Set(),
     ]),
@@ -37,8 +37,8 @@ function paintStateOrigins(projection) {
     const target = elementById(unit);
     if (!target || inChrome(target)) continue;
     const attr =
-      origin === "reader"
-        ? PAGE_PAINT_ATTRIBUTE.readerOverride
+      origin === "user"
+        ? PAGE_PAINT_ATTRIBUTE.userOverride
         : PAGE_PAINT_ATTRIBUTE.reported;
     marks.get(attr).add(target);
   }
@@ -231,7 +231,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
       runtime.restoringState = true;
     try {
       const projection = presentCurrent(snapshot);
-      // A drag holds this region open at the reader's own gesture rather than
+      // A drag holds this region open at the user's own gesture rather than
       // committing a document-wide reading their own controller has not taken yet.
       return projectionDeferred() ? PRESENTATION_HELD : projection;
     } finally {

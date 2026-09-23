@@ -3,7 +3,7 @@
 
 Nothing builds them at install time, so they are tracked. The files under
 `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
-`page init` copies them into a page directory and a reader's browser runs them.
+`page init` copies them into a page directory and a user's browser runs them.
 The resource under `skills/leaf/mcp-app/` is read straight from the install by
 an MCP host, so no page carries it.
 
@@ -242,7 +242,7 @@ def refuse_if_csp_forbids(out: Path) -> None:
     `new Function` in d3-dsv's CSV parser, and Plot reaches for none of d3-dsv
     today. What keeps that true is this check rather than anyone remembering,
     because the failure it prevents is a chart that draws in a developer's page
-    and refuses in a reader's.
+    and refuses in a user's.
 
     Bundles call this when their inputs contain no grammar or other data that can
     legitimately carry these strings. Pierre does not: its TextMate grammars contain

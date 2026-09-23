@@ -197,7 +197,7 @@ class CodexHarness(EnvironmentHarness):
         them in can exec a last simple command in place; `leaf … | cat` reported
         the wrapping shell itself, which exits with the pipeline. Recording that
         one would have taken the page's server down a second after the command
-        that started it, and the page would have told its reader no session
+        that started it, and the page would have told its user no session
         holds it while the session sat there working.
 
         Codex has a second shape with no session process at all. The ChatGPT app
@@ -265,7 +265,7 @@ class CodexHarness(EnvironmentHarness):
 @dataclass(frozen=True)
 class EmbeddedHarness(Harness):
     """A host that drives Codex App Server in its own process and starts the
-    turns itself — the shape <https://leaf.page/> runs in its per-reader
+    turns itself — the shape <https://leaf.page/> runs in its per-user
     container.
 
     No environment implies this one: such a host knows what it is and declares
@@ -349,7 +349,7 @@ def message_identity() -> dict:
     name and session id, read from its own environment rather than the page's
     claim record — the claimant is whoever watches the page, and on a page
     several sessions report to, that is usually not the poster. Empty outside a
-    host session: the readers' generic label covers an event with no voice, and
+    host session: the users' generic label covers an event with no voice, and
     a stored placeholder would only impersonate a name."""
     harness = session_harness()
     if harness is None:

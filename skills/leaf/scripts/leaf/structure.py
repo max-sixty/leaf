@@ -225,14 +225,14 @@ class SourceDocument:
         self.inline_scripts = []
         # Executable behavior has one visible source form: a module block. Event
         # attributes and javascript: URLs are recorded here so the static door can
-        # refuse hidden second forms before a reader discovers them by acting.
+        # refuse hidden second forms before a user discovers them by acting.
         self.executable_attributes = []
         # Every <link>, whatever relation it declares. Two checks read these — the one
         # stylesheet a page dresses itself with, and the canonical address only
         # delivery may name — and indexing the tag answers both from one parse.
         self.links = []
         # {name, content, line} per <meta name>, lf- declarations and ordinary
-        # document metadata alike: one index of what the head names, so a reader
+        # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
         self.http_equivs = []  # {equiv, content, line, position, raw} per meta

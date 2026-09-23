@@ -19,7 +19,7 @@
    disposition is `effective` when an update contributes to current state on its semantic
    coordinate, `standing` when it still needs source-specific settlement but is presently
    outranked, and `settled` when that authority answers it. An older unabsorbed report
-   can therefore be standing, and a reader action can mask a report that a version still
+   can therefore be standing, and a user action can mask a report that a version still
    owes an answer. Settled entries remain in the feed when their source retains history.
    A module showing freshness therefore still sees when the log last heard from a worker
    after a stamp absorbs the worker's report.

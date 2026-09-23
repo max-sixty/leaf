@@ -7,7 +7,7 @@
 **Secondary**:
 
 - What is the smallest server-tool boundary that preserves the page directory and append-only log as Leaf's durable record?
-- Can one current, option-shaped reader ask degrade into a useful disposable inline surface?
+- Can one current, option-shaped user ask degrade into a useful disposable inline surface?
 - Which host capabilities are prerequisites, conveniences, or policy-dependent enhancements?
 
 ## Current Status

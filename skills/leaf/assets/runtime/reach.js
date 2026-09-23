@@ -22,7 +22,7 @@ import { LAYOUT } from "./widget-elements.js";
 // than a stop inside it: a 1px transparent button (shadow.css, .lf-mark-note) that
 // leaves the flow for `position: fixed` the moment it takes focus, so standing on it
 // scrolls nothing and leaves everything past the box's edge as unreachable as before.
-// Counting it took the scroll stop off any box a reader had commented on — one comment
+// Counting it took the scroll stop off any box a user had commented on — one comment
 // anchored to a flowchart wider than the window, and the keyboard lost the half of the
 // graph hanging off the right of it.
 //
@@ -38,14 +38,14 @@ import { LAYOUT } from "./widget-elements.js";
 // block. An out-of-flow box is laid out against its containing block, and scrolling
 // makes a box no such thing: a static scroller's absolutely positioned descendant is
 // laid out against the page instead, where the scroller neither carries it as the
-// reader scrolls nor clips it at its edge. The runtime hangs one in every block a
-// comment lands on — the count a reader listening hears, clipped to a pixel
+// user scrolls nor clips it at its edge. The runtime hangs one in every block a
+// comment lands on — the count a user listening hears, clipped to a pixel
 // (.lf-mark-note, and .lf-quiet beside it) — so one comment on the far column of a
 // table wider than the window had the page itself scrolling sideways to reach a word
 // nobody can see. So every static box this finds declaring a scroll is marked, and the
 // theme positions the mark ([data-lf-holds]). Off the declaration and not the
 // measurement below, on purpose: the stop is owed only while something is out of
-// sight, while containment has to hold at whatever width the reader's window turns
+// sight, while containment has to hold at whatever width the user's window turns
 // out to be. Read from the composed box rather than declared beside each overflow
 // rule, so a page author's scroller and a package's are held on the same terms as the
 // theme's own, and nobody is asked to declare anything for the sake of a word they did
@@ -56,7 +56,7 @@ import { LAYOUT } from "./widget-elements.js";
 // which is what the callers above owe this: a scroller a module builds outside its
 // own settlement calls this on the subtree, as it would for the stop.
 // What the platform puts in the tab order without being asked. Exported because the skip
-// link needs the same reading of the banner: "the first thing in there a reader can
+// link needs the same reading of the banner: "the first thing in there a user can
 // stand on" and "does this box already hold a stop" are the one question.
 export const FOCUSABLE =
   'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -87,7 +87,7 @@ const mayScroll = new Set();
 // drawn, a board's columns, a line of code — and on a platform that draws overlay
 // scrollbars the only sign of it is a bar the platform hides until it is used. Measured:
 // a twelve-node flowchart in a tab panel showed seven, cut 356px of 1026 at every window
-// width from 1200 to 1920, with nothing on the page saying so. A reader can guess that a
+// width from 1200 to 1920, with nothing on the page saying so. A user can guess that a
 // line of code continues; nobody can guess a graph does.
 //
 // `paintReach` already asks whether each candidate has something out of sight whenever
@@ -118,7 +118,7 @@ const sideways = new Set();
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
 // opt their bounded body in when they register it. The cue follows remaining content,
 // because the pane's fixed lower edge would otherwise keep promising another part of
-// the reading after the reader reaches the end.
+// the reading after the user reaches the end.
 const downwards = new Set();
 export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
 const readingScrolled = (event) => paintReadingReach(event.currentTarget);
@@ -171,7 +171,7 @@ export function reachScrollers(root) {
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
       // A textarea is out of the continuation marks for its own reason: it scrolls a
-      // value its reader is writing and already knows continues.
+      // value its user is writing and already knows continues.
       if (
         /^(auto|scroll)$/.test(style.overflowX) &&
         !el.matches("textarea") &&
@@ -181,7 +181,7 @@ export function reachScrollers(root) {
         reachSizes.observe(el);
         el.addEventListener("scroll", sidewaysScrolled, { passive: true });
       }
-      // A box that already carries a stop of its own is somewhere the reader can be put,
+      // A box that already carries a stop of its own is somewhere the user can be put,
       // whoever put it there; this sweep neither adds to it nor takes it away.
       if (el.tabIndex >= 0 && !mayScroll.has(el)) continue;
       mayScroll.add(el);
@@ -194,7 +194,7 @@ export function reachScrollers(root) {
     }
   paintReach();
 }
-// Re-read each candidate after layout moves it. A reader who widens the window is owed
+// Re-read each candidate after layout moves it. A user who widens the window is owed
 // the stop's removal as much as its arrival: a box that fits carries nothing to scroll
 // to, and a tab stop on it is a press that goes nowhere. The candidate sets keep the
 // pass to a couple of dozen boxes in the corpus. `tabIndex` and the paint attributes move

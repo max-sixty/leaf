@@ -2,7 +2,7 @@
  * alignment.
  *
  * Two surfaces explain how a text came to say what it says: a draft's own history, and
- * a block's inline version comparison. A reader who meets one has to recognise the
+ * a block's inline version comparison. A user who meets one has to recognise the
  * other, so the runs and the elements they become are stated together
  * here rather than once per surface. Only the paint stays with each surface's sheet,
  * because that is the part that has to differ — a widget's rendering is reached by its
@@ -24,7 +24,7 @@ import { diffArrays } from "/vendor/jsdiff.esm.js";
 // the smallest thing that says where. Two versions of a paragraph differ by having been
 // rewritten, and a word walk over a rewrite matches every "the" and "a" it passes: the
 // spine it finds is real and the reading it produces is shredded — two texts interleaved
-// a word at a time, which no reader can follow and no screen reader can speak. Sentences
+// a word at a time, which no user can follow and no screen reader can speak. Sentences
 // are what a rewrite works in, so a sentence walk marks a rewritten sentence whole and
 // leaves a surviving one alone.
 export const textUnits = new Intl.Segmenter(undefined, { granularity: "word" });
@@ -116,7 +116,7 @@ export function alignInlineText(before, after) {
 
 // The alignment as elements: `same` is plain text, what the later text dropped is a
 // <del>, what it gained an <ins>. Semantic rather than classed, so a copy of the passage
-// and a reader hearing it keep the two apart with no stylesheet.
+// and a user hearing it keep the two apart with no stylesheet.
 export function alignedNodes(runs) {
   return runs.map((run) => {
     const node = document.createElement(

@@ -24,12 +24,12 @@
    banner counts keep reading the whole log. No narrowing is stored: returning to a
    page should not silently hide conversation. Cards remain in the document while
    filtered so reply widgets keep their identity and the rest of the runtime can still
-   read them by id. The list captures one immutable reader intent and checkpoints the
+   read them by id. The list captures one immutable user intent and checkpoints the
    resulting summary and facets with its rows; repainting that reading does not change
    native editing or disclosure state. */
 import { runtime } from "../context.js";
 import { anchorLabel } from "./messages.js";
-import { awaitsAgent, awaitsReader } from "./model.js";
+import { awaitsAgent, awaitsUser } from "./model.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
 import { threadList } from "./state.js";
 
@@ -45,7 +45,7 @@ const FACETS = Object.freeze([
     choice("status", "resolved", "Resolved"),
   ]),
   group("waiting", "Waiting on", [
-    choice("waiting", "reader", "You", "lf-needs"),
+    choice("waiting", "user", "You", "lf-needs"),
     choice("waiting", "agent", "Agent"),
   ]),
   group("scope", "Location", [
@@ -75,10 +75,10 @@ export const DEFAULT_INTENT = Object.freeze({
   onlyGone: false,
 });
 // The narrowing as a value, replaced whole on every change, so a holder can ask whether
-// the reader has changed it since by identity, as `retainNarrowing` does.
+// the user has changed it since by identity, as `retainNarrowing` does.
 let intent = DEFAULT_INTENT;
 export const threadSearchActive = () => Boolean(intent.finding);
-export const needsYou = () => intent.waiting === "reader";
+export const needsYou = () => intent.waiting === "user";
 export const narrowed = () =>
   Boolean(intent.finding) ||
   intent.status !== "open" ||
@@ -112,7 +112,7 @@ const threadWords = (thread, threadGroup) =>
 
 // Exact message matches travel with the same immutable query that admits the card.
 // Presentation can therefore disclose a covered original without reading words back
-// from hidden DOM or turning a temporary search into retained reader disclosure.
+// from hidden DOM or turning a temporary search into retained user disclosure.
 export const threadSearchReading = (thread, finding) =>
   Object.freeze({
     finding,
@@ -132,7 +132,7 @@ const matchesStatus = (reading, thread) =>
   Boolean(thread.resolved) === (reading.status === "resolved");
 const matchesWaiting = (reading, thread) =>
   reading.waiting === "all" ||
-  (reading.waiting === "reader" ? awaitsReader(thread) : awaitsAgent(thread));
+  (reading.waiting === "user" ? awaitsUser(thread) : awaitsAgent(thread));
 const matchesScope = (reading, thread) =>
   reading.scope === "all" ||
   (reading.scope === "page"
@@ -181,7 +181,7 @@ function presentationReading(reading, threads, shown, groups) {
     `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
     reading.waiting === "all"
       ? null
-      : `On ${reading.waiting === "reader" ? "you" : "agent"}`,
+      : `On ${reading.waiting === "user" ? "you" : "agent"}`,
     reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
     reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
     reading.onlyGone ? labelFor("gone", "gone") : null,
@@ -230,10 +230,10 @@ function presentationReading(reading, threads, shown, groups) {
       ),
     }),
   );
-  const readerDestination = transition(reading, "waiting", "reader");
-  const readerAvailable =
-    reading.waiting === "reader" ||
-    rows.some(({ thread, group }) => includesThread(readerDestination, thread, group));
+  const userDestination = transition(reading, "waiting", "user");
+  const userAvailable =
+    reading.waiting === "user" ||
+    rows.some(({ thread, group }) => includesThread(userDestination, thread, group));
   return Object.freeze({
     summary,
     hidden:
@@ -244,11 +244,11 @@ function presentationReading(reading, threads, shown, groups) {
       reading.subject === "all" &&
       !reading.onlyGone,
     groups: Object.freeze([order, ...renderedGroups]),
-    readerAvailable,
-    readerTitle:
-      reading.waiting === "reader"
+    userAvailable,
+    userTitle:
+      reading.waiting === "user"
         ? "Clear waiting filter"
-        : readerAvailable
+        : userAvailable
           ? "Show threads waiting on you"
           : "Nothing shown is waiting on you",
   });
@@ -259,7 +259,7 @@ function emptyReading(reading) {
     ? `No ${reading.status === "all" ? "" : `${reading.status} `}threads match “${reading.finding}”.`
     : reading.scope !== "all" || reading.subject !== "all" || reading.onlyGone
       ? "No threads match these filters."
-      : reading.waiting === "reader"
+      : reading.waiting === "user"
         ? "Nothing is waiting on you."
         : reading.waiting === "agent"
           ? "Nothing is waiting on the agent."
@@ -270,7 +270,7 @@ function emptyReading(reading) {
               : "No threads.";
 }
 
-// Capture reader intent once for the list candidate. Its rows, empty state, summary,
+// Capture user intent once for the list candidate. Its rows, empty state, summary,
 // counts, selections, availability, and keyboard title all derive from this one value.
 export const narrowingModel = (threads, groups = new Map()) =>
   narrowingReading(intent, threads, groups);
@@ -328,12 +328,12 @@ export function mountNarrowing(repaintConversation) {
       renarrow(repaintConversation);
     },
     chooseFacet: (kind, value) => chooseFacet(kind, value, repaintConversation),
-    toggleReader: () => chooseFacet("waiting", "reader", repaintConversation),
+    toggleUser: () => chooseFacet("waiting", "user", repaintConversation),
     reset: () => widen(repaintConversation),
   });
 }
 
-// Order is kept: it is the reader's view of the list, and hides nothing to recover.
+// Order is kept: it is the user's view of the list, and hides nothing to recover.
 function clearNarrowing(nextStatus = "open") {
   const changed = narrowed() || intent.status !== nextStatus;
   intent = Object.freeze({
@@ -347,7 +347,7 @@ function clearNarrowing(nextStatus = "open") {
 
 // A direct destination may replace every panel refinement. A fallible optimistic
 // transition captures this reading before it reveals that destination, so refusal can
-// put back the exact list the reader was operating rather than merely selecting the
+// put back the exact list the user was operating rather than merely selecting the
 // thread's lifecycle again.
 export function retainNarrowing(repaintConversation) {
   const retained = intent;
@@ -363,7 +363,7 @@ export function retainNarrowing(repaintConversation) {
       if (intent !== replacement) return false;
       // The supplied arrival may synchronously reveal the refused thread before its
       // first await, replacing the optimistic intent with another transition-owned one.
-      // Renew the lease after that synchronous work, then reject any reader change that
+      // Renew the lease after that synchronous work, then reject any user change that
       // lands while the arrival is waiting.
       const preparing = before?.();
       const prepared = intent;

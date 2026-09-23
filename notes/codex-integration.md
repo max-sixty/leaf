@@ -30,7 +30,7 @@ The model still decides whether feedback calls for a reply, a revision, or both.
 ## Decide how additional input joins a running turn
 
 Leaf currently gives each delivery slice its own turn. Before adding steering,
-define what a reader should see when their message joins a turn already answering
+define what a user should see when their message joins a turn already answering
 other input: which message the final answer settles, where that answer appears,
 and what remains outstanding if the turn fails.
 
@@ -51,7 +51,7 @@ committing the same answer through both a tool and final-message handling.
 
 ## Broader product choices
 
-These alternatives need a reader-facing purpose before implementation:
+These alternatives need a user-facing purpose before implementation:
 
 - Route several conversations' responses within one Codex turn. This needs explicit
   response targets and a policy for approvals and input requests.

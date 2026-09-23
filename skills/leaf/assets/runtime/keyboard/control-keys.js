@@ -22,7 +22,7 @@ const shortcutIn = (scope, row) =>
 /** The complete route one command advertises, for a control whose own route spans more
  * than one row and so cannot be painted by the pass below. Resolved by command id rather
  * than by row identity: a scope may carry another owner's command as a row of its own —
- * a `g` destination wraps the declaration it stands for — and the route the reader
+ * a `g` destination wraps the declaration it stands for — and the route the user
  * presses is the one that scope prefixes. */
 export function commandShortcut(id) {
   for (const scope of pageScopes())

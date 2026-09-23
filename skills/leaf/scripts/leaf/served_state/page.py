@@ -138,10 +138,10 @@ def full_state(
     return {
         "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads
-        # `Date.now()`, which is the reader's own machine: a laptop an hour out
+        # `Date.now()`, which is the user's own machine: a laptop an hour out
         # calls a claim made this minute an hour stale, on every seat at once, and
         # neither side can tell from the timestamp alone. Sent so the reading is
-        # against the writer's clock rather than the reader's.
+        # against the writer's clock rather than the user's.
         "now": now,
         # How long working may go unheard before it reads as quiet, measured on that
         # clock. Activity below is already read against it; a package dating a

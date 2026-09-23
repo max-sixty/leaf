@@ -5,7 +5,7 @@
    a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
    conversation/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsReader`, `awaitsAgent`) is read from the complete browser Thread: reader
+   (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread: user
    attention is canonical, while agent work can remain concurrent with it. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
@@ -17,9 +17,9 @@ export const turns = (thread) =>
   thread.msgs.filter(
     (message) => message.id === thread.root.id || !isReaction(message),
   );
-// The name for a thread that the log's answer does not change: the reader's own attempt
+// The name for a thread that the log's answer does not change: the user's own attempt
 // where their gesture opened the conversation, else the id the log gave it. Anything
-// that has to outlive that transition with the reader standing in it — a reply draft, a
+// that has to outlive that transition with the user standing in it — a reply draft, a
 // margin row — keys itself by this rather than by the id, which changes when the log
 // answers.
 export const threadKey = (thread) => thread.root.attempt ?? thread.root.id;
@@ -35,13 +35,13 @@ const pendingSeat = (message) =>
     ? null
     : (message.anchor.section ?? null);
 
-// The reader's own pending gestures, folded into the server's threads. A reply joins the
+// The user's own pending gestures, folded into the server's threads. A reply joins the
 // thread it answers; a comment opens one where it was written; settlement changes its
 // state. They leave again when the server accepts or refuses them, so this is a reading
 // of the same outbox and log the server projects rather than a second store beside it.
 //
-// The derived facts a pending thread carries are the ones the reader just made true: the
-// agent owes the next word, the reader owes none, and a thread the reader opened with
+// The derived facts a pending thread carries are the ones the user just made true: the
+// agent owes the next word, the user owes none, and a thread the user opened with
 // words is a conversation rather than a mark. Its attention waits on the newest send,
 // whose local workflow shares the pending message's id; every other thread keeps the
 // attention the server derived.
@@ -53,7 +53,7 @@ const sending = (message) => ({
 
 export function foldThreads(threads, messages, reactions, settlements) {
   if (!messages.length && !reactions.length && !settlements.length) return threads;
-  // A thread the reader opened answers to two names for as long as this tab holds a
+  // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one conversation, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
@@ -66,7 +66,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
   });
   const opened = [];
   // Open both kinds before attaching either kind of reply. The delivery queue lets a
-  // reader answer a locally named root before the server has named it; that root may be
+  // user answer a locally named root before the server has named it; that root may be
   // words or a reaction, independently of whether the answer itself carries a token.
   for (const root of [...messages, ...reactions]) {
     if (root.kind === "reply") continue;
@@ -77,7 +77,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
       msgs: [root],
       resolved: null,
       awaits_agent: !reaction,
-      awaits_reader: false,
+      awaits_user: false,
       bare_reaction: reaction,
       seat: pendingSeat(root),
       unread: [],
@@ -93,7 +93,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
     if (!isReaction(reply)) {
       thread.resolved = null;
       thread.awaits_agent = true;
-      thread.awaits_reader = false;
+      thread.awaits_user = false;
       thread.attention = sending(reply);
     }
   }
@@ -109,7 +109,7 @@ export function foldThreads(threads, messages, reactions, settlements) {
     thread.resolved =
       settlement.kind === "resolve" ? { author: "user", pending: true } : null;
     // Which way the thread is being settled, as well as where it lands. `resolved` alone
-    // cannot say: a reopen leaves it null, exactly as an open thread the reader has not
+    // cannot say: a reopen leaves it null, exactly as an open thread the user has not
     // touched does. Views read this to draw the gesture as unfinished, so it has to be a
     // fact of the published fold — the ledger empties after the answer lands without
     // changing anything else, and a view reading the ledger would keep the state it drew
@@ -131,14 +131,14 @@ export const reactionsAt = (threads, anchor) =>
     .map((thread) => thread.root);
 
 export const awaitsAgent = (thread) => thread.awaits_agent;
-export const awaitsReader = (thread) =>
-  !thread.resolved && thread.attention?.kind === "needs_reader";
+export const awaitsUser = (thread) =>
+  !thread.resolved && thread.attention?.kind === "needs_user";
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
 // asks what is newest in a conversation — Recent, the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
-// sent carries the clock the reader's gesture gave it and no log position yet.
+// sent carries the clock the user's gesture gave it and no log position yet.
 export const moved = (message) => ({
   seq: message.edited?.seq ?? message.seq ?? null,
   ts: message.edited?.ts ?? message.ts ?? null,
@@ -167,7 +167,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary.
 
-   A Thread's `unread` is the server's reading of the agent content versions the reader
+   A Thread's `unread` is the server's reading of the agent content versions the user
    has not taken in, less those this tab is marking read now: the page draws them read
    in the turn it sends that, and the answer confirms rather than decides it. */
 export function readThreadRecords(
@@ -283,7 +283,7 @@ export function readThreadRecords(
       resolved: thread.resolved ?? null,
       settling: thread.settling ?? null,
       awaits_agent: thread.awaits_agent,
-      awaits_reader: thread.awaits_reader,
+      awaits_user: thread.awaits_user,
       attention: thread.attention ?? null,
       workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,

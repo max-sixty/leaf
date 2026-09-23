@@ -1,7 +1,7 @@
 # Playgrounds
 
 Use `lf-playground` when several values or behaviors need to be explored together before
-the reader chooses one configuration. Put it inside `lf-ask`, declare controls and
+the user chooses one configuration. Put it inside `lf-ask`, declare controls and
 optional presets, then include exactly one preview and one output.
 
 Keep ownership at its natural boundary:
@@ -15,9 +15,9 @@ Keep ownership at its natural boundary:
 Interactive page behavior does not by itself justify a package. A page module can define
 custom elements, register structured state with its playground, and derive the output.
 
-The preview is the surface the reader operates. An A/B comparison keeps both candidates
+The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted in that preview and applies each control edit or custom gesture to both. The
-reader should not have to reproduce a drag, scroll, reorder, or input sequence in two
+user should not have to reproduce a drag, scroll, reorder, or input sequence in two
 separate previews. Put measurements that affect the decision beside their candidates and
 update them from the same gesture snapshot.
 
@@ -39,7 +39,7 @@ attribute and public `values` entry stay numeric. A range requires `max`; `min` 
 to zero and `step` defaults to one.
 
 When you have recommendations, offer two to four presets as coherent starting points.
-Name the outcome—`Status strip`, not `Preset 2`—and let the reader tune it afterward.
+Name the outcome—`Status strip`, not `Preset 2`—and let the user tune it afterward.
 
 This comparison keeps two operable candidates in one preview. One edit updates both,
 while `format` identifies the candidate to build:
@@ -106,7 +106,7 @@ custom property is a quoted CSS string; its data attribute contains the unquoted
   [data-candidate="status strip"] { outline: 2px solid var(--accent); }
 ```
 
-The output is the instruction the reader copies and the host receives. Write a complete
+The output is the instruction the user copies and the host receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
 where a selected value makes that task more precise. The action still includes every
 control in `detail.values`, including controls the prose does not repeat.

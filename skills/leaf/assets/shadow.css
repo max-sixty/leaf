@@ -35,7 +35,7 @@
 /* Pressable, said once per layer, and .tag (theme.css) is what it is said against. A
  * chip that opens a section and a badge that counts something were the same object at
  * rest — one ground, one ink, one corner, one size — and the only page that said which
- * was which said it in prose. The reader had to press one to find out.
+ * was which said it in prose. The user had to press one to find out.
  *
  * The marker is the runtime's own, not a new one: `offer` and `selectableOffer` write
  * data-lf-offer on everything a widget builds to be worked, and three passes already
@@ -72,7 +72,7 @@
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
  * the two cannot come apart: a one-shot request that had been answered still wore the
  * full-strength border of a live one and differed only in ink, which greyscale drops and
- * a reader scanning a column of eight of them never sees. Chrome's own .lf-btn says the
+ * a user scanning a column of eight of them never sees. Chrome's own .lf-btn says the
  * same pair for the same reason (chrome.css); this reaches the controls that are
  * not one.
  *
@@ -112,7 +112,7 @@
    than left to whatever each control's type and padding happened to add up to.
    Measured before it existed: a thread's Reopen and the panel's reaction chips stood
    at 20 and 22 pixels, a version's Compare and a command in the reference at about seven —
-   all of them presses a reader has to land on with a mouse, and none of them a
+   all of them presses a user has to land on with a mouse, and none of them a
    control anybody chose the size of.
 
    --aim-floor is the length, and theme.css asks the pointer query that sets it once,
@@ -137,7 +137,7 @@
   min-height: var(--aim-floor); min-width: var(--aim-floor); }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
    the page onto a text field set under 16px as the field takes focus, and leaves the page
-   zoomed once it is done: tapping the comment field jumped the view, then left the reader
+   zoomed once it is done: tapping the comment field jumped the view, then left the user
    panning sideways across a page wider than the screen. The zoom answers the field's
    computed size, so the floor outranks every face a field is given — the layer's own
    13px find box and 14px response field among them — and 1em keeps a field no smaller
@@ -154,7 +154,7 @@
    the chrome's scoped .lf-unseen. It is clipped to nothing because the paint already
    says the same fact to the eye, and its transparent pixel is still a real pointer
    target, so a press reaches the handler Enter reaches. On focus it becomes a
-   skip-link-style control — a reader who hears the count can enter its first thread,
+   skip-link-style control — a user who hears the count can enter its first thread,
    then t/T through the rest — and that second rule states its whole visible form, so
    the transparent resting button adds no paint of its own.
 
@@ -308,7 +308,7 @@ leaf-anchor-note { display: contents; }
 .lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
 .lf-react[aria-busy="true"] { opacity: .55; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
-   a standing token remains visible in a closed message strip as the reader's receipt
+   a standing token remains visible in a closed message strip as the user's receipt
    and eraser. */
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
@@ -369,7 +369,7 @@ leaf-anchor-note { display: contents; }
 /* The layer's marks for a box that shows less than it holds across (reachScrollers, for
  * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
  * is the honest answer when the room ran short, and on a platform drawing overlay
- * scrollbars it is an answer the reader is never given: a flowchart cut 356px of 1026
+ * scrollbars it is an answer the user is never given: a flowchart cut 356px of 1026
  * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
  * line of code announces itself by being a line; a drawing announces nothing, so the box
  * says it.
@@ -378,7 +378,7 @@ leaf-anchor-note { display: contents; }
  * scroll position: inline end at the start, both edges in the middle, and inline start
  * at the end. Masking the box makes the content itself recede instead of casting an
  * unexplained shadow behind it. Focus within removes the mask so the scroller's complete
- * ring and controls painted outside its box remain visible; the reader standing there
+ * ring and controls painted outside its box remain visible; the user standing there
  * already has the platform's scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
@@ -549,9 +549,9 @@ leaf-anchor-note { display: contents; }
 .lf-btn.primary:is(:disabled, [aria-disabled="true"]) {
           opacity: 1; color: var(--muted); background: var(--paper);
           border-color: var(--border-2); }
-/* Standing on a press, in the band everything else the reader stands on is drawn in
+/* Standing on a press, in the band everything else the user stands on is drawn in
    (--here-ring). This was the last place on the product still wearing the browser's own
-   ring: a reader who backed out of the panel landed on Threads in Chrome's blue, beside
+   ring: a user who backed out of the panel landed on Threads in Chrome's blue, beside
    a decision wearing the page's accent, with nothing saying the two rectangles meant
    one thing.
 

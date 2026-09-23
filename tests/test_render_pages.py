@@ -128,7 +128,7 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
 def test_a_shipped_log_replays_its_example_state(browser, serve):
     """An example that ships a companion log opens with its event state.
 
-    Threads and reader decisions are log state: markup alone cannot describe what
+    Threads and user decisions are log state: markup alone cannot describe what
     happened, and `version export` drops the layer that draws it. What an example
     *can* ship is the log itself, beside it, exactly as one that wants a screenshot
     ships the bytes beside it. `scripts/preview.py <example>` then opens with those
@@ -148,7 +148,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     widgets are authored into <main>, and a module that never reached a message
     would have left all eight corpus sweeps green.
 
-    The third is what the reader did to one. A decision on such a widget is folded
+    The third is what the user did to one. A decision on such a widget is folded
     through a projection of its own and replayed into a tree the panel built, and a
     seed carrying the question but not the answer reads only the untouched half —
     which is the same gap as the widget's, one turn further in. It is read against
@@ -309,7 +309,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # An anchor that names an element and quotes nothing marks the box rather
         # than the words, so it makes no range and no highlight: a diagram or a
         # board has no sentence to point at, and a comment on the whole of one is a
-        # shape the corpus otherwise never shows. The class is what the reader
+        # shape the corpus otherwise never shows. The class is what the user
         # follows and what the ring is drawn on, so it is what is read here.
         for event in anchored:
             if event in quoted:
@@ -368,7 +368,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     summary.click()
                 expect(shown).to_be_visible()
                 # Where the registry says the element holds a request for the
-                # reader, whatever answers it has to have been built here too:
+                # user, whatever answers it has to have been built here too:
                 # data-lf-offer is the runtime's own mark for a thing to work, so
                 # this asks the declaration and never the tag.
                 if registry[rec["tag"]].get("x-awaits"):
@@ -415,7 +415,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                         f"{example.stem}: with the panel open, something {finding}: {found}"
                     )
 
-        # And the third thing a log carries: what the reader did to one of those
+        # And the third thing a log carries: what the user did to one of those
         # widgets. A decision on a widget a message carries is folded from thread
         # markup rather than from the version, through a projection of its own
         # (`frozen_thread_reading`), and replayed into a tree the panel built — so
@@ -443,7 +443,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             assert wid in standing, (
                 f"{example.stem}: the log decides #{wid} and the runtime's standing "
                 f"state names only {standing} — the panel's fold reached the gate for "
-                "nothing the reader did"
+                "nothing the user did"
             )
             read_as[wid] = page.locator(f"#{wid}").inner_text()
         page.close()
@@ -892,7 +892,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
-    """A refused resolution restores the reader's reply destination and selection."""
+    """A refused resolution restores the user's reply destination and selection."""
     url = serve(TWIN_V1)
     page_dir = serve.page_dir
     root = events_model.append_event(
@@ -1469,7 +1469,7 @@ def test_a_drawing_that_has_not_drawn_claims_no_room(browser, serve):
     box is the authored source: evidence, which reads at the column's width from the
     column's own edge. The mark is written before any module imports, so this is every
     page's first loading interval and not a corner — the renderer is fetched lazily — and
-    for a page whose module never arrives it is the whole of what the reader sees. Held
+    for a page whose module never arrives it is the whole of what the user sees. Held
     to the room, three sources came out centred at three indents, none of them the
     column's.
 
@@ -1527,7 +1527,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     The narrow read is the other half. With the window closed in, the room genuinely
     runs short, the box scrolls, and the overflow must be laid out where the scroll can
     reach it: an overflow off the start edge is unreachable in any direction, and the
-    drawing's first node is the one a reader follows the graph from."""
+    drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
     # fits after the control rail and a classic scrollbar have both been taken.
@@ -1902,7 +1902,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     print, so paper cannot inherit an empty screen-only strip.
 
     The screen half is read as room rather than as a covered last line, which is where a
-    reader would meet it, because the column's own bottom padding is taller than the line:
+    user would meet it, because the column's own bottom padding is taller than the line:
     nothing is covered either way today, so an assertion about the last block would pass
     with the reservation deleted. The room is what the runtime answers for; the column's
     padding is the theme's to change."""
@@ -1920,7 +1920,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"{room['line']:.0f}px shortcut bar"
     )
 
-    # The covering shelf is taller than the desktop row. A reader can cross that
+    # The covering shelf is taller than the desktop row. A user can cross that
     # breakpoint by rotating or resizing an already-open page, so the flow reservation
     # follows the rendered banner in both directions rather than keeping its startup
     # measurement and either covering the document or leaving a blank strip.
@@ -2337,7 +2337,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
 def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, serve):
     """Where the reading above stops. WITHHELD_ROOM asks whether the room was there to
     give, and a drawing that genuinely could not fit is a page the layer is content with
-    — scrolling being the honest degrade. What it is not content with is a reader who
+    — scrolling being the honest degrade. What it is not content with is a user who
     cannot tell: measured, a twelve-node flowchart in a tab panel showed seven of them at
     1200, 1440 and 1920, cut 356px of its 1026, and every reading in the gate called that
     page well, because the platform's own scrollbar is the whole of the sign and it draws
@@ -2523,7 +2523,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
 
     Asked of the group's own display rather than of its cells' geometry, because a
     420px panel has no room for two columns either way: the stacking rule is what
-    replaces the grid, and it is visible whatever the reader has drawn the panel to."""
+    replaces the grid, and it is visible whatever the user has drawn the panel to."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -2802,7 +2802,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
 
     The width that panel stands at is stated on the root by the same hand, and goes the
     same way — not because a copy reads it, having no panel, but because both numbers
-    belong to a window and a reader that are not this file's. The reading asks for the
+    belong to a window and a user that are not this file's. The reading asks for the
     root's whole style rather than for either name, so the day a third number is stated
     there is the day this says so.
 
@@ -2848,7 +2848,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
 def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     """The page has two claims on its right margin now: a note is read out there, and a
     wide widget expands into it. A widget drawn over a note is the note lost — it is the
-    thing on top — and the reader loses words the page states, which is the same fault
+    thing on top — and the user loses words the page states, which is the same fault
     the clipped-float reading refuses a version for.
 
     The claim is settled at the height it arises and nowhere else, which is what the two
@@ -3045,7 +3045,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert page.evaluate(sideways) == 0
 
     # The real pointer route reveals labels inside the map's settled rectangle. Its
-    # complete reservation and every unrelated box remain fixed under the reader's aim.
+    # complete reservation and every unrelated box remain fixed under the user's aim.
     page.locator("lf-toc").hover()
     page.wait_for_function(
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
@@ -3483,5 +3483,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
-    # The refusal is the subject: a reader without the key is answered 403.
+    # The refusal is the subject: a user without the key is answered 403.
     consume_browser_errors(page, "403")

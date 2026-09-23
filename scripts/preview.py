@@ -13,11 +13,11 @@ The live result is a page, not a picture of one: it takes comments. They cross t
 real HTTP and event-log boundary and settle in the page's log, which is all a
 preview does with them.
 
-`--reader` hands the preview to someone else. It claims the page for this session,
-which puts the page in the session's delivery loop: presses arrive as reader input,
+`--user` hands the preview to someone else. It claims the page for this session,
+which puts the page in the session's delivery loop: presses arrive as user input,
 `leaf wait` carries them, and the Stop hook holds the turn open until each is
 answered. A session driving its own preview would read every gesture it makes back
-as reader input, so nothing claims a preview unless this flag asks for it.
+as user input, so nothing claims a preview unless this flag asks for it.
 
 An example can also ship companion `.jsonl` events and `.data.json` source
 values. The first lets a page arrive mid-conversation; the second supplies the
@@ -29,9 +29,9 @@ groups an editor's save batch, so this script only says which paths it follows a
 what each one means. A layer edit also re-vendors, through the normal compatibility
 gate; a source edit alone does not, because vendoring mints a fresh layer generation
 and a revision carrying one is a different program, which the browser can only follow
-into a fresh document. So a prose edit here arrives the way it arrives for a reader,
+into a fresh document. So a prose edit here arrives the way it arrives for a user,
 patched into the page they are standing in. The page log
-and reader decisions survive; a refused update stays visible in the terminal
+and user decisions survive; a refused update stays visible in the terminal
 or background log and is retried after the next edit. Existing slots resume.
 Changing fixture identity or seeded history is refused so a slot keeps its feedback.
 Use `--reset` to discard that feedback and rebuild the slot. `version stamp` lints
@@ -161,9 +161,9 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         help="stable name for a preview that may coexist with other slots",
     )
     parser.add_argument(
-        "--reader",
+        "--user",
         action="store_true",
-        help="hand this preview to a reader: claim the page so presses arrive as feedback",
+        help="hand this preview to a user: claim the page so presses arrive as feedback",
     )
     parser.add_argument(
         "--reset",
@@ -189,8 +189,8 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parsed = parser.parse_args()
     if parsed.source and parsed.example:
         parser.error("choose an example name or --source, not both")
-    if parsed.reader and parsed.export:
-        parser.error("--reader serves a page; omit --export")
+    if parsed.user and parsed.export:
+        parser.error("--user serves a page; omit --export")
     if parsed.reset and (parsed.stop or parsed.export):
         parser.error("--reset starts a fresh preview; omit --stop or --export")
     return parser, parsed
@@ -257,7 +257,7 @@ def preparation_note(source: Path, data_sources: int, versions: int) -> str:
 
 
 def mark_preview(source: Path, page: Path, runtime: Path, identity: dict) -> None:
-    """Record the whole slot: the preview a reader sees, and the fixture behind it.
+    """Record the whole slot: the preview a user sees, and the fixture behind it.
 
     The first fields are the ones the server projects into preview chrome; the
     identity beside them is this script's own bookkeeping, and the server serves
@@ -295,12 +295,12 @@ def previews_root() -> Path:
     return Path(os.environ.get("LEAF_PREVIEWS_ROOT") or TMP / "previews").resolve()
 
 
-def preview_directory(source: Path, slot: str | None, reader: bool) -> Path:
+def preview_directory(source: Path, slot: str | None, user: bool) -> Path:
     if slot:
         return previews_root() / slot
     # The suffix is part of the name `--slot` carries into the worker, so it comes
     # out of the ceiling rather than past it.
-    suffix = "-reader" if reader else ""
+    suffix = "-user" if user else ""
     stem = re.sub(r"[^A-Za-z0-9._-]", "-", source.stem).strip("._-")
     return previews_root() / ((stem[: 64 - len(suffix)] or "preview") + suffix)
 
@@ -395,7 +395,7 @@ def digest(path: Path) -> str | None:
 
 
 def fixture_seed(source: Path) -> dict:
-    """Seed history is installed once, never replayed over reader feedback."""
+    """Seed history is installed once, never replayed over user feedback."""
     capture_inputs = [
         operation["input_file"]
         for operation in read_fixture(source).data
@@ -410,12 +410,12 @@ def fixture_seed(source: Path) -> dict:
     return {str(path): digest(path) for path in paths}
 
 
-def source_identity(source: Path, runtime: Path, reader: bool) -> dict:
+def source_identity(source: Path, runtime: Path, user: bool) -> dict:
     return {
         "source": str(source),
         "runtime": str(runtime),
         "seed": fixture_seed(source),
-        "interaction": "reader" if reader else "author",
+        "interaction": "user" if user else "author",
     }
 
 
@@ -437,12 +437,12 @@ def crossed_interaction(identity: dict | None, expected: dict) -> str | None:
     recorded = (identity or {}).get("interaction")
     if recorded is None or recorded == expected["interaction"]:
         return None
-    flag = "add" if recorded == "reader" else "drop"
-    return f"serves its {recorded} interaction; {flag} --reader to join it"
+    flag = "add" if recorded == "user" else "drop"
+    return f"serves its {recorded} interaction; {flag} --user to join it"
 
 
 def refused(reason) -> bool:
-    """Say why the page the reader has is the page that stays up."""
+    """Say why the page the user has is the page that stays up."""
     print(
         f"Preview update refused: {reason}. Feedback is preserved; edit the inputs to retry.",
         file=sys.stderr,
@@ -457,14 +457,14 @@ def refresh_preview(
     launcher: Path,
     runtime: Path,
     identity: dict,
-    reader: bool,
+    user: bool,
     vendor: bool = True,
 ) -> bool:
     """Replace only admitted layer/source changes; never recreate the page log.
 
     Runtime updates do not overwrite an agent's direct page edits. If the fixture
     and the live authored source both changed, neither silently wins. A refused
-    update is reported and answered False: the page the reader has stays as it
+    update is reported and answered False: the page the user has stays as it
     was, and the next edit to the inputs is another try.
 
     `vendor` re-copies the layer, which is what a runtime edit needs and what a prose
@@ -475,7 +475,7 @@ def refresh_preview(
     watcher re-vendors when the layer it watches changed, and copies the source alone
     when that is all that changed.
     """
-    if not identifies(identity, source_identity(source, runtime, reader)):
+    if not identifies(identity, source_identity(source, runtime, user)):
         return refused(
             "fixture identity or seeded history changed; choose a new --slot to "
             "preserve feedback, or rerun with --reset to discard it"
@@ -548,7 +548,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     apart because re-copying the layer changes what a revision is as executable code
     while editing the page's own source does not: a fresh layer generation makes the
     next revision a different program, which the browser can only follow into a fresh
-    document, while a prose edit is a revision the reader keeps their page for.
+    document, while a prose edit is a revision the user keeps their page for.
     """
     from leaf.layer import input_paths
 
@@ -668,26 +668,26 @@ class PreviewService:
     """However this preview owns a server, for as long as it wants one up.
 
     A preview holds a process-owned server on a retained address, so no claim or
-    service record outlives its watcher. `--reader` serves the page's durable
+    service record outlives its watcher. `--user` serves the page's durable
     service instead, claimed and started through the selected checkout's launcher
     and revived in place after each update, so the page belongs to this session
-    and the URL a reader was handed survives every reload and every `leaf wait`.
+    and the URL a user was handed survives every reload and every `leaf wait`.
     Nothing else about a preview differs, so the two are told apart here and
     nowhere else in its lifetime.
     """
 
-    def __init__(self, page: Path, launcher: Path, runtime: Path, reader: bool):
+    def __init__(self, page: Path, launcher: Path, runtime: Path, user: bool):
         from leaf.host import session_harness
         from leaf.service import claim_lifetime
 
         self.page = page
         self.launcher = launcher
         self.runtime = runtime
-        self.reader = reader
+        self.user = user
         self.temporary = None
         self.address: dict = {}
         self.claimed = False
-        # A reader preview is reaped through its claim: the serving process
+        # A user preview is reaped through its claim: the serving process
         # exits when the session's lifetime ends, and `running` reads that from
         # the empty service. An unclaimed preview holds its server in a thread of
         # its own and nothing outside it would notice, so it reads the same
@@ -695,14 +695,14 @@ class PreviewService:
         # and a harness states the fields it consumes. Outside an agent host
         # there is no session to outlive and the watcher runs until it is
         # stopped.
-        harness = None if reader else session_harness()
+        harness = None if user else session_harness()
         self.lifetime = None if harness is None else claim_lifetime(page, harness)
 
     def start(self) -> tuple[str, str] | None:
         """Put the server up and report its URL and lifetime note, or None."""
         from leaf.hosting import TemporaryPageServer, start_server
 
-        if not self.reader:
+        if not self.user:
             self.temporary = TemporaryPageServer(self.page, **self.address).start()
             self.address = {
                 "token": self.temporary.token,
@@ -722,7 +722,7 @@ class PreviewService:
         """Take the server down, keeping whatever a restart has to reuse."""
         from leaf.hosting import cmd_stop
 
-        if self.reader:
+        if self.user:
             cmd_stop(self.page)
         elif self.temporary is not None:
             self.temporary.close()
@@ -756,7 +756,7 @@ class PreviewService:
         from leaf.server import running_server
         from leaf.service import claim_is_active
 
-        if not self.reader:
+        if not self.user:
             return (
                 self.temporary is not None
                 and self.temporary.running
@@ -859,14 +859,14 @@ def watch_preview(
     launcher: Path,
     runtime: Path,
     ready_fd: int | None,
-    reader: bool,
+    user: bool,
 ) -> None:
     """Take the slot and serve it, or report the watcher that already holds it."""
     from leaf.leases import take_waiter_lease
     from leaf.service import PageTransaction
 
     lease_path, stop_path = preview_locks(page)
-    expected = source_identity(source, runtime, reader)
+    expected = source_identity(source, runtime, user)
     lease = take_waiter_lease(lease_path)
     if lease is None:
         join_running_preview(source, page, lease_path, expected, ready_fd)
@@ -885,13 +885,13 @@ def watch_preview(
                 "choose a new --slot to preserve feedback, or rerun with "
                 "--reset to discard it"
             )
-        if not reader and PageTransaction(page).active_claim is not None:
+        if not user and PageTransaction(page).active_claim is not None:
             raise ValueError(
                 f"{page} has an active task claim; choose a new --slot to "
                 "preserve it, or rerun with --reset to replace it"
             )
         serve_preview(
-            source, page, launcher, runtime, identity, stop_path, ready_fd, reader
+            source, page, launcher, runtime, identity, stop_path, ready_fd, user
         )
 
 
@@ -903,7 +903,7 @@ def serve_preview(
     identity: dict,
     stop_path: Path,
     ready_fd: int | None,
-    reader: bool,
+    user: bool,
 ) -> None:
     """Serve this slot's page and follow its inputs until something stops it.
 
@@ -917,12 +917,12 @@ def serve_preview(
     from leaf.leases import lock_is_held
     from leaf.service import PageTransaction
 
-    service = PreviewService(page, launcher, runtime, reader)
+    service = PreviewService(page, launcher, runtime, user)
     changes = None
     try:
         if page.exists():
             service.stop()
-            refresh_preview(source, page, launcher, runtime, identity, reader)
+            refresh_preview(source, page, launcher, runtime, identity, user)
             prepared = f"resumed {source.stem} (feedback preserved)"
         else:
             page.parent.mkdir(parents=True, exist_ok=True)
@@ -953,7 +953,7 @@ def serve_preview(
             reported = {path for _, path in next(changes)}
             if serving and not service.running:
                 return  # an explicit service stop or the owning session ended
-            if not serving and reader:
+            if not serving and user:
                 # A refused restart has no service watching the claim's
                 # lifetime. Lost ownership ends this watcher as well.
                 with PageTransaction(page) as state:
@@ -969,7 +969,7 @@ def serve_preview(
             vendored = bool(reported & (watched.layer | current.layer))
             service.stop()
             if refresh_preview(
-                source, page, launcher, runtime, identity, reader, vendor=vendored
+                source, page, launcher, runtime, identity, user, vendor=vendored
             ):
                 roots = layer_inputs(
                     tuple(read_json(page / "registry.json")["$layer"]["packages"])
@@ -1010,7 +1010,7 @@ def start_preview_worker(
     runtime: Path,
     background: bool,
     stop: bool,
-    reader: bool,
+    user: bool,
     reset: bool,
 ) -> None:
     """Run in the selected checkout's uv environment, including --runtime previews.
@@ -1041,8 +1041,8 @@ def start_preview_worker(
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
-    if reader:
-        command.append("--reader")
+    if user:
+        command.append("--user")
     if reset:
         # The log is the launcher's: it names it to the developer and hands it to the
         # watcher as its output, so the old watcher's lines are cleared here rather
@@ -1082,7 +1082,7 @@ def main() -> None:
     if args._worker:
         runtime = args.runtime.resolve()
         source = args.source.resolve()
-        page = preview_directory(source, args.slot, args.reader)
+        page = preview_directory(source, args.slot, args.user)
         if args.stop:
             retire_preview(page, discard=False)
             print(f"stopped preview {page}", flush=True)
@@ -1098,7 +1098,7 @@ def main() -> None:
             runtime / "bin" / "leaf",
             runtime,
             args._ready_fd,
-            args.reader,
+            args.user,
         )
         return
     runtime, launcher = checkout(parser, args.runtime)
@@ -1128,14 +1128,14 @@ def main() -> None:
         print(out.resolve())
         return
 
-    page = preview_directory(source, args.slot, args.reader)
+    page = preview_directory(source, args.slot, args.user)
     start_preview_worker(
         source,
         page,
         runtime,
         args.background,
         args.stop,
-        args.reader,
+        args.user,
         args.reset,
     )
 

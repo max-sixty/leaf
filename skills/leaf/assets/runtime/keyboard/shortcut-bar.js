@@ -4,7 +4,7 @@
    The status keeps navigation state out of the command list. It appears after a
    semantic list walk and briefly takes the accent face when a repeated press cannot move
    from its destination. The bar gives compact hints rather than reproducing the
-   command reference. It walks outward from the reader's innermost scope and drops
+   command reference. It walks outward from the user's innermost scope and drops
    bindings shadowed there. The
    ordinary shortlist is the first live row, then a promotable Escape or the next row.
    At rest on the page that
@@ -16,7 +16,7 @@
    line's order changes. An active sequence instead shows every live row in its scope, so
    computed bindings, ranges, and capability filtering are the same ones dispatch and the
    reference use. Each destination row keeps its complete sequence: its leading steps that
-   match accepted presses take the accent face, while a branch the reader has not taken
+   match accepted presses take the accent face, while a branch the user has not taken
    keeps the ordinary face. Changing progress changes only those faces, not the sequence's
    keys or geometry. A mode's Escape or back row remains a
    separate control rather than appearing as a destination sequence. `lineWhen` may hide only
@@ -34,11 +34,11 @@
    off the rendered box rather than separate numbers to keep in step. A covering thread
    panel makes the line inert background, so that foreground neither moves it nor reserves
    its own list around it. A coarse pointer is drawn no hint line at all — there
-   is no keyboard to advertise, and every hint would name a key the reader cannot press.
+   is no keyboard to advertise, and every hint would name a key the user cannot press.
    A covering-width layout stacks the status above the line. The line, status, and chips
    take no pointer events; the More control does, because it is the pointer route to the
-   reference. Brief reader feedback replaces an ordinal and then restores its live
-   reading; background arrivals queue behind reader feedback and persistent command
+   reference. Brief user feedback replaces an ordinal and then restores its live
+   reading; background arrivals queue behind user feedback and persistent command
    context.
 
    The accessible More control and its `?` binding share one progressive route. The first
@@ -88,7 +88,7 @@ import { walkPosition } from "../walk-position.js";
 
 // The shortcut bar — the register's short rendering. Its fact chips are aria-hidden (the spoken
 // copies are placeholders, announcements, and the reference); More is a real button because
-// a visible door to the complete list should be a door every reader can work.
+// a visible door to the complete list should be a door every user can work.
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
@@ -378,7 +378,7 @@ export function renderShortcutBar(goToStatus) {
   const referenceDoes = word(SHORTCUT_HELP.does);
   const referenceLine = word(SHORTCUT_HELP.line);
   // Read where it is painted, like every other cell. Every destination keeps its complete
-  // sequence while the reader advances through it: completed keys change face, but no key is
+  // sequence while the user advances through it: completed keys change face, but no key is
   // added, removed, or moved. A sequence control such as Escape is a way out of the interaction, not
   // another destination, so it keeps its ordinary one-step face.
   const sequenceScope = complete?.scope;
@@ -459,7 +459,7 @@ export function renderShortcutBar(goToStatus) {
   // below before any row can yield.
   if (shelf) {
     // The way out is the one row the trim may not spend. A shelf covering the page at a
-    // narrow width is exactly where the reader needs it, and the ordinary line already
+    // narrow width is exactly where the user needs it, and the ordinary line already
     // keeps it whatever its rank: the way out sits last in the register's order, so a
     // trim that only counts from the end would drop it first of all.
     const removable = drawn
@@ -495,7 +495,7 @@ export function mountShortcutBar({ setGoToSequence, setReact }) {
     setReact(false);
     advanceShortcutHelp();
   };
-  // A narrower window changes which rows fit even without another reader input.
+  // A narrower window changes which rows fit even without another user input.
   addEventListener("resize", repaint);
   repaint();
 }

@@ -91,7 +91,7 @@ def test_every_published_source_says_what_its_page_is():
         assert len(described) == 1, page.name
         assert described[0].strip(), page.name
         descriptions[page.name] = described[0]
-    # A description repeated across pages tells a reader nothing about which one
+    # A description repeated across pages tells a user nothing about which one
     # they found, and search engines fold the duplicates together.
     assert len(set(descriptions.values())) == len(descriptions)
 
@@ -154,7 +154,7 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
     # Gallery is the core page's own browser-test package rather than a product
-    # package. Every package a reader can opt into gets one catalog entry.
+    # package. Every package a user can opt into gets one catalog entry.
     assert [name.casefold().replace(" ", "-") for _, name in catalog] == [
         name for name in declared if name != "gallery"
     ]
@@ -185,7 +185,7 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
 def test_how_it_works_quotes_the_real_check_and_stamp_lines(page_dir):
     """Both lines the transcript shows an agent, taken from the commands themselves.
 
-    A shown line is a promise about what the reader will see. The changelog is the
+    A shown line is a promise about what the user will see. The changelog is the
     page's own, so the stamp line is generated here with the transcript's text
     rather than pattern-matched — a renamed field or a changed separator has to be
     written into the page before this passes again.
@@ -236,7 +236,7 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():
-    """A shown command is a promise the reader will type it.
+    """A shown command is a promise the user will type it.
 
     The pages narrate the agent's half of the loop and `how-it-works.html` now shows
     it, and a renamed subcommand is what quietly breaks that: the transcript is prose

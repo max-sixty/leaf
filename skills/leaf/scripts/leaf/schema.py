@@ -20,7 +20,7 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
-# The operations that settle a reader move the agent owes, as `workflows` addresses
+# The operations that settle a user move the agent owes, as `workflows` addresses
 # them and `$events.answering` explains them.
 ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
@@ -235,7 +235,7 @@ def _verbs_schema(
 ) -> dict:
     """The shape x-state and x-report share: verbs to
     {detail, facet, unit, record}, differing only in which record forms a
-    channel admits, whether one is required at all, and whether the reader's
+    channel admits, whether one is required at all, and whether the user's
     channel may declare current applicability or the agent's may declare update
     prose."""
     properties = {

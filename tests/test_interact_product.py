@@ -272,7 +272,7 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
 
 
 def test_a_request_holder_offers_at_least_one_command(page_dir):
-    """A ready request seat cannot be an Ask the reader has no way to answer."""
+    """A ready request seat cannot be an Ask the user has no way to answer."""
     registry = registry_storage.load_registry(page_dir)
     empty = (
         '<lf-operations id="host-request" target="goal" worker="worker" '
@@ -402,7 +402,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
 def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     """Every page fixture in the tree passes the real check: each public example and
     developer feature fixture, and each playground a note previews. A note's page
-    is built by nothing else before a reader asks for it, so without this a
+    is built by nothing else before a user asks for it, so without this a
     playground that names media it never committed stays green until preview
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
@@ -644,7 +644,7 @@ def test_no_example_writes_another_example_s_sentences():
     The gesture is shared vocabulary — every board takes a drag, every group takes a
     pick, and the words for those are meant to repeat. The sentence around the gesture
     is not: a page that borrows one is describing another page's work in that page's
-    words, and the corpus is the one place a reader sees them side by side.
+    words, and the corpus is the one place a user sees them side by side.
 
     A batch of them got in at once, and the cause was upstream of the corpus.
     references/authoring-evidence.md's "Interactive and visual evidence" entry
@@ -1072,7 +1072,7 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
     [False, True],
     ids=["pick-before-proposal", "pick-after-proposal"],
 )
-def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
+def test_a_user_pick_cannot_substitute_for_an_authored_version_response(
     page_dir, pick_after_proposal
 ):
     declare_options_version_response(page_dir)
@@ -1391,13 +1391,13 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     session = service_model.page_claim(page_dir)
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
-    # The reader meets each message under the name it carried.
+    # The user meets each message under the name it carried.
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "- **Indexer**: indexing done" in transcript.output
     assert "- **Crawler**: crawl running" in transcript.output
 
 
-def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_dir):
+def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
     source = page_dir / "index.html"
     source.write_text(
         source.read_text().replace(
@@ -1520,10 +1520,10 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
 
     Roots and replies are both messages, and the posting session is their authoring
     identity. The raw log therefore keeps each original and the revision as separate
-    events, while reader-facing folded readings show the latest words with an edited
+    events, while user-facing folded readings show the latest words with an edited
     marker. Exact thread event selection returns the original and edit records without
     copying either into page state. Another agent session — and an agent looking at the
-    reader's words — cannot revise speech that is not its own.
+    user's words — cannot revise speech that is not its own.
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1532,11 +1532,11 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     opened = comment(page_dir, "--text", "The index is still pending.")
     assert opened.exit_code == 0, opened.output
     root = json.loads(opened.output)
-    reader = events_model.append_event(
+    user = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
-            "id": "reader-thread",
+            "id": "user-thread",
             "author": "user",
             "revision": 1,
             "text": "What about the crawl?",
@@ -1549,9 +1549,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "--json",
             str(page_dir),
             "--to",
-            reader["id"],
+            user["id"],
             "--for",
-            reader["id"],
+            user["id"],
             "--text",
             "The crawl is paused.",
         ],
@@ -1595,7 +1595,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     )
     expected = {
         root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],
-        reader["id"]: [reader["id"], reply["id"], revisions[2]["id"]],
+        user["id"]: [user["id"], reply["id"], revisions[2]["id"]],
     }
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
@@ -1623,12 +1623,12 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     )
     assert foreign.exit_code != 0
     assert "belongs to agent session 'worker-1'" in foreign.output
-    reader_edit = CliRunner().invoke(
+    user_edit = CliRunner().invoke(
         cli_model.cli,
-        ["edit", str(page_dir), "--to", reader["id"], "--text", "Changed."],
+        ["edit", str(page_dir), "--to", user["id"], "--text", "Changed."],
     )
-    assert reader_edit.exit_code != 0
-    assert "is not agent-authored" in reader_edit.output
+    assert user_edit.exit_code != 0
+    assert "is not agent-authored" in user_edit.output
     assert events_model.read_events(page_dir) == before
     sessionless = events_model.append_event(
         page_dir,
@@ -1707,7 +1707,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 
 
 def test_export_prints_threads_and_versions(page_dir):
-    # The heading is the page's title as a reader sees it, entities and all.
+    # The heading is the page's title as a user sees it, entities and all.
     titled = PAGE.replace(
         "<title>t</title>", "<title>Cutoff &amp; backfill</title>"
     ).replace(
@@ -1981,7 +1981,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                     operation["label"],
                     operation["format"],
                 )
-        # Published, because the door is only open on a page a reader could be
+        # Published, because the door is only open on a page a user could be
         # holding — which is the state every one of these seeds is written for.
         published = CliRunner().invoke(
             cli_model.cli,
@@ -1994,7 +1994,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             ],
         )
         assert published.exit_code == 0, f"{example.name}: {published.output}"
-        opened = comment(d, "--text", "what a reader would ask")
+        opened = comment(d, "--text", "what a user would ask")
         assert opened.exit_code == 0, opened.output
         root = json.loads(opened.output)["id"]
         for markup in fragments:
@@ -2027,7 +2027,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     """`page state` lists every standing reaction, beside threads that
     leave a bare one out — paint on the page is not a conversation — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
-    prints one as the reader's mark rather than a turn. Its durable token is enough;
+    prints one as the user's mark rather than a turn. Its durable token is enough;
     packages may add an explanation, but the default layer does not prescribe one."""
     published(page_dir)
     bare = events_model.append_event(

@@ -34,13 +34,13 @@ retry key `attempt`, then adds these delivery readings:
 - `subject` is the stable page, conversation, or widget the event changes.
 - `says`, when present, maps each element a widget gesture names to its words: the
   ids in an action's or report's `meaning.depends`, or the widget a request was made
-  on. The words are the authored ones in the document the reader pressed on, which
+  on. The words are the authored ones in the document the user pressed on, which
   is the revision the event names or the frozen message that sent the widget, so a
   later version that rewords an element does not change them. They are that
   document's words and not a reading of the rendered page: what an earlier gesture
   changed, and what a widget's module draws beyond its authored text, are not in
-  them. An element a reader wrote, such as an added option, is in no document: the
-  event's own `detail` carries the words the reader gave it. An element that only
+  them. An element a user wrote, such as an added option, is in no document: the
+  event's own `detail` carries the words the user gave it. An element that only
   encloses another named one is left out, so a pick says its options and a gesture
   naming only its widget says the whole widget. An undo carries the words of the
   gesture it takes back.
@@ -84,7 +84,7 @@ A reaction carries its token, plus `means` when its package defines one.
 
 Long-thread context may include `summary_hint`; a pointer-only host can surface the
 same suggestion as XML. It names a contiguous message range to consider summarizing.
-Treat it as navigation maintenance alongside the reader's request, not a request to
+Treat it as navigation maintenance alongside the user's request, not a request to
 resolve the thread. Follow
 [conversation threads](conversation-threads.md#summarize-a-long-discussion): read
 the covered originals, write the summary, and keep outcomes in the document.
@@ -154,7 +154,7 @@ delivery receipt.
 Acknowledgement is transport receipt, not semantic settlement. Record every
 still-current obligation with the Leaf operation its `response` names, then
 re-enter the host's wait loop: `waiting` after every obligation has been answered and
-the reader owns the next move, `working` while you continue. A plain reply is
+the user owns the next move, `working` while you continue. A plain reply is
 `leaf reply`, except in a Codex task Leaf observes over App Server, where your final
 message is that operation (`references/host-codex-app-server.md`, "Replies").
 `page state` lists every standing reaction under `reactions`; a package-supplied

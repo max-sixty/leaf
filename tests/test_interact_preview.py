@@ -70,7 +70,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     watchfiles watches each root recursively and names the path that changed; the
     watcher decides from that name alone. Any watched path the roots do not cover is
     therefore an input the preview silently stops following. The page directory is the
-    other half: its own writes are a reader's feedback, and watching them would make
+    other half: its own writes are a user's feedback, and watching them would make
     every gesture a reload.
     """
     import preview

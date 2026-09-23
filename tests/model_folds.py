@@ -87,7 +87,7 @@ def reading(
 
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
-    parent by), `seq`, `ts`, `author` (the reader) and `revision` (1) — are filled
+    parent by), `seq`, `ts`, `author` (the user) and `revision` (1) — are filled
     where the test leaves them out.
 
     Each one then goes through the same append door the server admits it through,

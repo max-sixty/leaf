@@ -1,4 +1,4 @@
-/* Passive replay of reader drawings.
+/* Passive replay of user drawings.
  *
  * Gesture capture supplies the active and draft drawings. Conversation presentation
  * supplies threads and readonly anchor placement. This module owns only SVG paint,

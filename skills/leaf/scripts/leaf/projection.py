@@ -244,7 +244,7 @@ def protected_ids(
     Anchored unresolved threads keep their current target; an explicit detachment
     releases it while retaining the thread. Effective standing state keeps its owner
     and fold unit, plus every page id its canonical liveness reading rests on. An older
-    report hidden by a reader action remains in the log, but the action is the state the
+    report hidden by a user action remains in the log, but the action is the state the
     page must preserve.
 
     Declared retirement remains the explicit route for removing decision
@@ -256,7 +256,7 @@ def protected_ids(
     for identity in anchored_ids(events, within):
         needed.setdefault(identity, set()).add("thread")
     for (widget, unit, _facet), (event, _spec) in projection.desired.items():
-        # A reader's action and a worker's report stand the same way and leave
+        # A user's action and a worker's report stand the same way and leave
         # differently: one is retracted, the other absorbed or overruled.
         why = "report" if event["kind"] == "report" else "state"
         for identity in (widget, unit, *action_rests_on(event, within)):
@@ -368,9 +368,9 @@ def state_projection(
 ) -> StateProjection:
     """Project both durable channels onto owner-unit-facet coordinates.
 
-    `actions` holds the last surviving reader action per coordinate. `reports`
+    `actions` holds the last surviving user action per coordinate. `reports`
     keeps every live report there because stamping retires all of them.
-    `desired` gives a reader action precedence over provisional agent news on
+    `desired` gives a user action precedence over provisional agent news on
     the same coordinate.
 
     Both channels share one classification pass over the window. They end by

@@ -103,7 +103,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     the log holds it as, and where it goes instead.
 
     Where it goes is what the log still owes, which is `current_responses`: a
-    reader's press is answered through `--for` until it is answered and not after, a
+    user's press is answered through `--for` until it is answered and not after, a
     request through its receipt, and a resolve or an undo is owed nothing at all. A
     message is the one id whose writer turns on its conversation rather than on
     itself — `--initiates` is refused while the thread owes a response, whichever of

@@ -22,8 +22,8 @@ def _apply_thread_attention(
     workflows: list[dict],
     thread_by_widget: dict[str, str],
 ) -> None:
-    """Attach the shared attention aggregate, with reader Asks taking precedence."""
-    reader_threads = {ask["conversation"] for ask in asks["reader"]}
+    """Attach the shared attention aggregate, with user Asks taking precedence."""
+    user_threads = {ask["conversation"] for ask in asks["user"]}
     stage_rank = {
         "sent": 0,
         "queued": 1,
@@ -74,20 +74,20 @@ def _apply_thread_attention(
         if thread["resolved"]:
             thread["attention"] = None
             continue
-        if thread["root"]["id"] in reader_threads or thread["awaits_reader"]:
+        if thread["root"]["id"] in user_threads or thread["awaits_user"]:
             thread["attention"] = {
-                "kind": "needs_reader",
+                "kind": "needs_user",
                 "reason": "ask",
                 "workflow": None,
             }
             continue
         candidates = by_thread.get(thread["root"]["id"], [])
         if recovery := [
-            workflow for workflow in candidates if workflow["next_actor"] == "reader"
+            workflow for workflow in candidates if workflow["next_actor"] == "user"
         ]:
             workflow = max(recovery, key=priority)
             thread["attention"] = {
-                "kind": "needs_reader",
+                "kind": "needs_user",
                 "reason": "recovery",
                 "workflow": workflow["id"],
             }

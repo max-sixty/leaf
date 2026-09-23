@@ -11,9 +11,9 @@
  *
  * - `row`: Approval and Threads, the page's standing reading loop.
  * - `menu`: every secondary action, in one stable seat behind More.
- * - `gesture`: the next step of something the reader is doing right now, such as
+ * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected. It exists only while that gesture
- *   holds it, and it is the one thing the reader came to the banner for, so it stands
+ *   holds it, and it is the one thing the user came to the banner for, so it stands
  *   on the row in the reading loop's place until the gesture ends. The row has no
  *   room to seat both beside More on a 320px phone, and a step hidden behind More is
  *   two presses on a door nothing points to.
@@ -110,7 +110,7 @@ function paintDoor() {
   const hasMenu = menu.some(visible);
   const news = menu.some((entry) => entry.urgent && visible(entry));
   // Keep the native invoker standing until its open popover has closed. A semantic
-  // update can retire the last visible item while the reader is inside it; closing then
+  // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
   overflowBtn.hidden = !hasMenu && !overflowMenu.matches(":popover-open");
   overflowBtn.toggleAttribute("data-lf-news", news);
@@ -258,10 +258,10 @@ overflowMenu.addEventListener("lf-reveal", () => {
   if (!overflowMenu.matches(":popover-open")) overflowMenu.showPopover();
 });
 
-// The node a reader can actually put focus on to reach this control: the control
+// The node a user can actually put focus on to reach this control: the control
 // itself while it stands on the row, and otherwise the More door holding it. A menu
 // control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
-// no-op, so a caller that hands the reader somewhere has to ask this rather than the
+// no-op, so a caller that hands the user somewhere has to ask this rather than the
 // control. Null means the shelf offers no way in, which happens only off the banner.
 export function bannerControlDoor(control) {
   if (control.isConnected && control.checkVisibility()) return control;

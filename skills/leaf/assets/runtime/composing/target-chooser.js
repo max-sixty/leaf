@@ -140,7 +140,7 @@ export function createTargetChooser({
 
   const matchRenderKey = (identity, index) => `${identity}\u0000${index}`;
 
-  // One reading of the room the reader has, shared by every member of a pass: the clips
+  // One reading of the room the user has, shared by every member of a pass: the clips
   // over their common ancestors are walked once, and admission, exposure, and paint read
   // the same boxes.
   const room = keyBadgePlacement;
@@ -263,7 +263,7 @@ export function createTargetChooser({
       matches = [];
       active = -1;
       document.body.focus({ preventScroll: true });
-      // Search may have travelled to a match, so the map the reader comes back to is read
+      // Search may have travelled to a match, so the map the user comes back to is read
       // again rather than being the one search covered.
       hints.invalidate();
       announce("Choose a target — type a hint, or slash to search the page.");

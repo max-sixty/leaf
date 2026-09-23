@@ -1,8 +1,8 @@
 /* The durable provenance a standing unit carries, derived from the same values that
    render its widget state.
 
-   Each provenance channel gets one reading on a target: independent reader facets
-   collapse to a single one, while reader, report, and restatement stay separate. An
+   Each provenance channel gets one reading on a target: independent user facets
+   collapse to a single one, while user, report, and restatement stay separate. An
    outline property could only show the last of these, and the projection handed to the
    margin has to preserve all three. */
 
@@ -20,14 +20,14 @@ const entry = (id, kind, facet, value = null, record = null) => ({
   value,
 });
 
-test("reader, reported and restated origins stand separately on one unit", () => {
+test("user, reported and restated origins stand separately on one unit", () => {
   const projection = {
     classified: new Map([
-      ["old-reader", { e: { id: "old-reader" }, restated: ["t-parser"] }],
+      ["old-user", { e: { id: "old-user" }, restated: ["t-parser"] }],
     ]),
     desired: new Map([
-      [coordinate("status"), entry("reader-status", "action", "status")],
-      [coordinate("owner"), entry("reader-owner", "action", "owner")],
+      [coordinate("status"), entry("user-status", "action", "status")],
+      [coordinate("owner"), entry("user-owner", "action", "owner")],
       [coordinate("progress"), entry("report-progress", "report", "progress")],
     ]),
   };
@@ -36,7 +36,7 @@ test("reader, reported and restated origins stand separately on one unit", () =>
   // against and the snapshots are never read.
   assert.deepEqual(projectionOrigins(new Map(), projection), [
     { origin: "restated", unit: "t-parser" },
-    { origin: "reader", unit: "t-parser" },
+    { origin: "user", unit: "t-parser" },
     { origin: "reported", unit: "t-parser" },
   ]);
 });
@@ -55,7 +55,7 @@ test("a recorded facet standing at its authored value overrides nothing", () => 
   ]);
   const desired = (value) =>
     new Map([
-      [coordinate("status"), entry("reader-status", "action", "status", value, record)],
+      [coordinate("status"), entry("user-status", "action", "status", value, record)],
     ]);
 
   assert.deepEqual(
@@ -64,6 +64,6 @@ test("a recorded facet standing at its authored value overrides nothing", () => 
   );
   assert.deepEqual(
     projectionOrigins(authored, { classified: new Map(), desired: desired("running") }),
-    [{ origin: "reader", unit: "t-parser" }],
+    [{ origin: "user", unit: "t-parser" }],
   );
 });

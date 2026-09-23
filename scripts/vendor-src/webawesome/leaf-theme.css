@@ -39,8 +39,13 @@
   --wa-form-control-value-color: var(--ink);
 }
 
+/* The field inside each of these is the vendor's native input or textarea, in a shadow
+   root the layer's own field floor (shadow.css) does not reach, so the same floor
+   is passed in as the size the vendor sets its value in: never under --entry-floor,
+   and never smaller than the type around it. */
 :is(wa-input, wa-textarea, wa-number-input) {
   --wa-form-control-background-color: var(--card);
+  --wa-form-control-value-font-size: max(var(--entry-floor), 1em);
 }
 
 /* Compact controls opt into an accessible label without a second visible caption. */

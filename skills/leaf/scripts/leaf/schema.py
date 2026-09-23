@@ -450,6 +450,7 @@ EXTENSION_SCHEMA = {
         },
         "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
+        "x-text-format": {"const": "inline-markdown"},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},

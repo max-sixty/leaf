@@ -484,9 +484,8 @@ lf-options:not(:has(> lf-option > strong)) {
              --lf-option-font: var(--t-5)/1.5 var(--sans);
              font: var(--lf-option-font); }
 lf-option { display: block; position: relative; }
-/* The submitted draft keeps its line breaks when it becomes an option. Restrict this to
- * generated options: authored markup carries formatting whitespace around its prose. */
-lf-option[data-lf-added] { white-space: pre-wrap; }
+/* Markdown prose is an inline island beside the option's authored elements and controls. */
+lf-option > .lf-markdown-words, lf-option > .lf-option-words { white-space: normal; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. The same sentence

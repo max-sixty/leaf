@@ -2,18 +2,17 @@
  * to that draft generation, and the generated option nodes replay reconstructs. */
 import {
   loadDraft,
+  inlineMarkdownFragment,
+  markdownReady,
   offer,
   saveDraft,
   sendDraft,
   notice,
   watchDraft,
   wireInput,
-  wrote,
 } from "/runtime/widget-api.js";
 
 const ANOTHER = "Another option";
-
-const optionLabel = (option) => wrote(option);
 
 export class OptionAddition {
   #host;
@@ -26,6 +25,7 @@ export class OptionAddition {
   #add = null;
   #syncInput = () => {};
   #stopDraftWatch = null;
+  #words = new Map();
 
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -144,11 +144,7 @@ export class OptionAddition {
   }
 
   #additions() {
-    return Object.fromEntries(
-      [...this.#host.querySelectorAll(":scope > lf-option[data-lf-added]")].map(
-        (option) => [option.id, optionLabel(option)],
-      ),
-    );
+    return Object.fromEntries(this.#words);
   }
 
   detailFor(picked) {
@@ -163,6 +159,7 @@ export class OptionAddition {
    * nodes the selection owner still needs to dress with a mark and key scope. */
   reconcile(additions = {}, fallbackBefore = null) {
     const wanted = new Map(Object.entries(additions));
+    this.#words = new Map();
     for (const option of this.#host.querySelectorAll(
       ":scope > lf-option[data-lf-added]",
     ))
@@ -172,19 +169,28 @@ export class OptionAddition {
     for (const [id, text] of wanted) {
       let option = document.getElementById(id);
       if (option && option.parentElement !== this.#host) continue;
+      this.#words.set(id, text);
       if (!option) {
         option = document.createElement("lf-option");
         option.id = id;
         option.dataset.lfAdded = "";
-        option.append(document.createTextNode(text));
         this.#host.insertBefore(option, this.#form ?? fallbackBefore);
         created.push(option);
-      } else if (option.hasAttribute("data-lf-added")) {
-        const words = [...option.childNodes].find(
-          (node) => node.nodeType === Node.TEXT_NODE,
-        );
-        if (words) words.data = text;
-        else option.prepend(document.createTextNode(text));
+      }
+      if (option.hasAttribute("data-lf-added")) {
+        let words = option.querySelector(":scope > .lf-option-words");
+        if (!words) {
+          words = document.createElement("span");
+          words.className = "lf-option-words";
+          words.dataset.lfMarkdownWords = "";
+          option.prepend(words);
+        }
+        const ready = markdownReady();
+        if (words.source !== text || words.markdownReady !== ready) {
+          words.source = text;
+          words.markdownReady = ready;
+          words.replaceChildren(inlineMarkdownFragment(text));
+        }
       }
     }
     return created;

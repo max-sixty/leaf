@@ -163,9 +163,12 @@ When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
 whose `x-awaits.until` applies keeps the reader's Ask open until its declared
-completion verb stands. Interim actions still receive delivery receipts, but
-require no agent reply; completion hands the turn to the agent. Undoing that
-completion returns the Ask to the reader and removes the reply obligation.
+completion verb stands. Interim actions have not been handed over: they carry no
+receipt and require no agent reply, and completion carries the receipt and hands the
+turn to the agent. Undoing that completion returns the Ask to the reader and removes
+the reply obligation. A frozen widget move that answers no Ask, such as a card moved
+on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
+rule `workflows.py` states for page moves.
 
 An open structural Ask anywhere in an unresolved thread keeps it awaiting the
 reader after later prose or a settling reaction. Without one, the latest spoken

@@ -79,6 +79,7 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from leaf.served_state import browser as browser_served_model
 from leaf.served_state import page as served_page
 from page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
@@ -676,6 +677,205 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         "reason": "workflow",
         "workflow": answered["id"],
     }
+
+    # A host that gives up answers the move with a failure reply, which hands it
+    # back to the reader rather than settling it.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "responds": answered["id"],
+            "failure": "turn_failed",
+            "text": "No answer is coming.",
+        },
+    )
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["next_actor"], workflow["condition"]) == (
+        answered["id"],
+        "reader",
+        {"kind": "failed", "operation": "response"},
+    )
+    assert state["activity"]["obligations"] == []
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert thread["attention"] == {
+        "kind": "needs_reader",
+        "reason": "recovery",
+        "workflow": answered["id"],
+    }
+
+
+def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
+    page_dir,
+):
+    """A card moved on a board sent in a reply is a page move in another document:
+    it keeps its delivery receipt, owes the agent nothing, and leaves the thread
+    nobody's turn. A claim makes it Working, and the agent's next turn in the
+    thread takes it in."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
+    registry = json.loads((page_dir / "registry.json").read_text())
+    asked = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Lay the feeder work out on a board.",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "text": "Here is the board.",
+            "markup": registry["lf-board"]["x-example"],
+        },
+    )
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        },
+    )
+
+    def reading():
+        state = page_state(page_dir)
+        [thread] = state["browser"]["conversation"]["threads"]
+        return state, thread["attention"]
+
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
+        moved["id"],
+        {"kind": "widget", "id": "feeder-board"},
+        "sent",
+    )
+    assert workflow["answer"] is None
+    assert state["activity"]["obligations"] == []
+    assert attention is None
+
+    delivery = freeze_events(page_dir, [moved])
+    [event] = delivery["batches"][0]["events"]
+    assert "obligation" not in event
+    claimed = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
+    assert claimed.exit_code == 0, claimed.output
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert workflow["stage"] == "working"
+    assert attention == {
+        "kind": "waiting",
+        "reason": "workflow",
+        "workflow": moved["id"],
+    }
+
+    # A mark is no turn; the agent's next spoken turn takes the move in.
+    events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": asked["id"], "token": "keep"},
+    )
+    state, attention = reading()
+    assert [item["input"] for item in state["workflows"]] == [moved["id"]]
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "initiates": True,
+            "text": "Baffle is in progress now.",
+        },
+    )
+    state, attention = reading()
+    assert state["workflows"] == []
+    assert attention is None
+
+    # Resolution closes the conversation without taking in a move made after it.
+    conversation_model.cmd_resolve(page_dir, asked["id"])
+    later = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+        },
+    )
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["answer"]) == (
+        later["id"],
+        "sent",
+        None,
+    )
+    assert attention is None
+
+
+def test_thread_attention_names_the_workflow_the_thread_waits_on():
+    """A thread's status reads the workflows that keep it the agent's turn. An input
+    a newer one covers still does, so its pickup or a reply streaming to it keeps
+    reading on the thread; a frozen move that owes nothing does not, so its further
+    stage never stands in for the owed reply's."""
+
+    def workflow(id, seq, subject, stage, answer=None):
+        return {
+            "id": id,
+            "seq": seq,
+            "subject": subject,
+            "stage": stage,
+            "answer": answer,
+            "condition": None,
+            "next_actor": "agent",
+        }
+
+    thread = {"id": "root", "kind": "conversation"}
+    board = {"kind": "widget", "id": "board"}
+    owed = {"kind": "reply", "to": "newer", "for": "newer"}
+    cases = [
+        (
+            [
+                workflow("older", 1, thread, "replying"),
+                workflow("newer", 2, thread, "sent", owed),
+            ],
+            "older",
+        ),
+        (
+            [
+                workflow("older", 1, thread, "picked_up"),
+                workflow("newer", 2, thread, "sent", owed),
+            ],
+            "older",
+        ),
+        (
+            [
+                workflow("newer", 1, thread, "sent", owed),
+                workflow("card-move", 2, board, "picked_up"),
+            ],
+            "newer",
+        ),
+    ]
+    for workflows, expected in cases:
+        threads = [{"root": {"id": "root"}, "resolved": None, "awaits_reader": False}]
+        browser_served_model._apply_thread_attention(
+            threads, {"reader": []}, workflows, {"board": "root"}
+        )
+        assert threads[0]["attention"] == {
+            "kind": "waiting",
+            "reason": "workflow",
+            "workflow": expected,
+        }
 
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):

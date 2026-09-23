@@ -3583,7 +3583,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     the panel; none can move to or scroll the covered document. Closing gives a keyboard
     entrant their prior page focus and unchanged document reading back.
     """
-    page = open_page(browser, serve(LONG_PAGE, comments=12))
+    page = open_page(browser, serve(LONG_PAGE, comments=24))
     resized(page, 1000, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 240")
     page.locator("body").focus()
@@ -3595,12 +3595,31 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     draft = "Keep this draft through both auxiliary placements."
     page.locator(".lf-general textarea").fill(draft)
     threads = page.locator(".lf-threads")
+
+    def reading_place():
+        """The list's offset, stated to be the reader's own place rather than its limit.
+
+        A covering sheet gives the list a shorter scrollport than the strip beside the
+        document, so the two placements have different scroll limits. An offset sitting
+        on either one is moved by the crossing for the limit's reason rather than the
+        reader's, and holding it equal across the crossing would assert nothing. The
+        fixture has to be deep enough that the place stands clear of both, so each
+        crossing reads this on the placement it leaves and on the one it arrives at.
+        """
+        held = threads.evaluate(
+            "el => ({at: el.scrollTop, limit: el.scrollHeight - el.clientHeight})"
+        )
+        assert 0 < held["at"] < held["limit"], (
+            f"the list holds no reading place clear of its limit: {held}"
+        )
+        return held["at"]
+
     thread = threads.locator(".lf-thread").nth(5)
     thread.locator(":scope > .lf-thread-summary").focus()
     thread.evaluate("el => el.scrollIntoView({block: 'start'})")
-    list_at = threads.evaluate("el => el.scrollTop")
+    list_at = reading_place()
     identity = thread.get_attribute("data-id")
-    assert identity and list_at > 0, "the fixture established no thread reading place"
+    assert identity, "the fixture established no thread to stand on"
 
     resized(page, 500, 640)
     panel_settled(page)
@@ -3610,7 +3629,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
         page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
     ).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    assert reading_place() == pytest.approx(list_at, abs=1)
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(
@@ -3675,18 +3694,14 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     thread = page.locator(f'.lf-thread[data-id="{identity}"]')
     summary = thread.locator(":scope > .lf-thread-summary")
     summary.focus()
-    list_at = threads.evaluate("el => el.scrollTop")
+    list_at = reading_place()
     resized(page, 1000, 640)
     panel_settled(page)
     assert not page.locator("main").evaluate("el => el.inert")
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
-    # A taller list can no longer retain an offset beyond its new scroll limit.
-    max_scroll = threads.evaluate("el => el.scrollHeight - el.clientHeight")
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(
-        min(list_at, max_scroll), abs=1
-    )
+    assert reading_place() == pytest.approx(list_at, abs=1)
     resized(page, 500, 640)
     panel_settled(page)
     expect(summary).to_be_focused()
@@ -6502,7 +6517,11 @@ def _each_aim_surface(page, page_dir):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    page.locator(f'.lf-thread[data-id="{comment}"] .lf-thread-summary').click()
+    # Narrowing retains the card's disclosure, so the resolved thread comes back open
+    # and a second press on its summary would put the Reopen away again.
+    expect(page.locator(f'.lf-thread[data-id="{comment}"]')).to_have_js_property(
+        "open", True
+    )
     expect(page.locator(".lf-reopen")).to_be_visible()
     yield
 

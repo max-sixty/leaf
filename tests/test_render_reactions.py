@@ -2271,7 +2271,9 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread")).to_have_count(1)
-    page.locator(".lf-thread-summary").click()
+    # Narrowing retains the card's disclosure, so the thread the wait brings back is
+    # open on the strip the reader was working in rather than needing a second press.
+    expect(page.locator(".lf-thread")).to_have_js_property("open", True)
     with sending(page, "the take-back of the ok"):
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]

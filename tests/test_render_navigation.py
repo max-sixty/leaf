@@ -3169,13 +3169,14 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
     page.keyboard.press("w")
-    expect(line).to_contain_text("all threads")
+    # The standing narrowing is what `w` offers to clear, at every level above it.
+    expect(line).to_contain_text("clear waiting filter")
     while not page.evaluate("() => document.activeElement.closest('.lf-thread')"):
         page.keyboard.press("Tab")
-    expect(line).to_contain_text("all threads")
+    expect(line).to_contain_text("clear waiting filter")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
-    expect(line).to_contain_text("all threads")
+    expect(line).to_contain_text("clear waiting filter")
     page.keyboard.press("Escape")
     expect(line).to_contain_text("waiting on you")
     page.keyboard.press("Escape")
@@ -7283,9 +7284,11 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     wait_for_revision(page, 2)
     # Narrowing is interaction-local heap state, and nothing executable changed, so the
     # reader keeps this document and the Resolved narrowing they chose stands in it.
-    # The state narrowing is one radio group, so the chosen member is what it says it is
-    # rather than a toggle's pressed attribute.
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    # The status narrowing is a group of toggles, so the standing member wears its own
+    # pressed state.
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")

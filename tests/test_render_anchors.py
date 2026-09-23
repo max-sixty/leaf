@@ -4984,23 +4984,20 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread).to_have_count(1)
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator("textarea")).to_be_visible()
-    inline_receipt = thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
-    )
-    panel_receipt = panel_thread.locator(
-        f':scope > .lf-thread-root-meta .lf-receipt[data-receipt-id="{root["id"]}"]'
-    )
-    expect(inline_receipt).to_contain_text("✓ Sent")
-    expect(panel_receipt).to_contain_text("✓ Sent")
-    inline_receipt.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
-    panel_receipt.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
+    # The root message's own workflow line, which each surface holds beside its head.
+    inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    panel_status = panel_thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
+    expect(inline_status).to_have_text("Sent")
+    expect(panel_status).to_have_text("Sent")
+    inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
+    panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     with service_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
-    expect(inline_receipt).to_contain_text("✓ Picked up")
-    expect(panel_receipt).to_contain_text("✓ Picked up")
-    expect(inline_receipt).to_have_attribute("data-identity-probe", "inline")
-    expect(panel_receipt).to_have_attribute("data-identity-probe", "panel")
+    expect(inline_status).to_have_text("Picked up")
+    expect(panel_status).to_have_text("Picked up")
+    expect(inline_status).to_have_attribute("data-identity-probe", "inline")
+    expect(panel_status).to_have_attribute("data-identity-probe", "panel")
 
     reply = events_model.append_event(
         serve.page_dir,
@@ -5014,8 +5011,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         },
     )
     told(page)
-    expect(inline_receipt).to_have_count(0)
-    expect(panel_receipt).to_have_count(0)
+    expect(inline_status).to_have_count(0)
+    expect(panel_status).to_have_count(0)
     palette = thread.evaluate(
         """thread => {
           const style = getComputedStyle(thread);
@@ -5042,11 +5039,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(panel_thread.locator(":scope > .lf-thread-summary")).to_be_focused()
-    # The card releases to whole-panel selection, and the panel to the page. The seat on
-    # the page is not put back, the reader having left it to come here.
-    page.keyboard.press("Escape")
+    # go-to-threads has one destination, the whole panel, whichever thread the reader
+    # stood on to ask for it.
     expect(page.locator(".lf-threads")).to_be_focused()
+    # The panel releases to the page. The seat on the page is not put back, the reader
+    # having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
@@ -5182,15 +5179,19 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{question["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
         sent = view.locator(
             f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
             if message_attr == "data-event"
             else f'.lf-msg[{message_attr}="{followup["id"]}"] '
-        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-receipt")
-        expect(active).to_contain_text("● Working — checking the inline placement")
-        expect(sent).to_contain_text("✓ Sent")
-        expect(view.locator(":scope > .lf-receipt")).to_have_count(0)
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) .lf-msg-sending")
+        expect(active).to_have_text("Working")
+        expect(active).to_have_attribute(
+            "title", "Working · checking the inline placement"
+        )
+        expect(sent).to_have_text("Sent")
+        # The workflow line belongs to a message; the thread view carries none of its own.
+        expect(view.locator(":scope > .lf-msg-sending")).to_have_count(0)
         expect(view).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
         assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
@@ -5260,9 +5261,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    # The state narrowing is one radio group, so the chosen member is what it says it is
-    # rather than a toggle's pressed attribute.
-    expect(page.locator('[data-filter-value="resolved"]')).to_be_checked()
+    # The status narrowing is a group of toggles, so the standing member wears its own
+    # pressed state.
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
     page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()

@@ -96,6 +96,27 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
+- **Give each delivery-loop rule one home.** The rules for handling a delivery are
+  written separately in several places, so each change has to be made in every
+  copy:
+  - The order (acknowledge, reply, then work) is in SKILL.md, the "When to write"
+    section of `conversation-loop.md`, `host-claude-code.md`,
+    `ACK_BATCH_INSTRUCTION`, and the reply entry under `$events.answering`.
+  - "A host that sends your final message as the reply" is in
+    `ANSWER_ASK_INSTRUCTION`, the reply entry under `$events.answering`, the
+    "After the batch" section of `event-batches.md`, `conversation-loop.md`, and
+    `host-codex.md`.
+  - The rule for truncated output is in `ACK_BATCH_INSTRUCTION`,
+    `event-batches.md` and `codex-watcher.md`.
+  - The meanings of **Picked up** and **Working** are in `conversation-loop.md`,
+    `event-batches.md` and `host-claude-code.md`.
+
+  Keep the order only in `conversation-loop.md` and the acknowledgement rules only
+  in `event-batches.md`. Have SKILL.md, `host-claude-code.md` and
+  `ACK_BATCH_INSTRUCTION` point to them instead of restating them. Put the
+  host-binding rule only in `host-codex.md`, and let the reply entry under
+  `$events.answering` say only how to write a reply. Generate the delivery sample
+  in `docs/how-it-works.html` from a real delivery instead of copying it by hand.
 
 ## Etc
 

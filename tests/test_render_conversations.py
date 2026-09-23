@@ -4210,8 +4210,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-conversation-body",
         "lf-thread-root-meta",
         "lf-msg-meta",
-        # Inline print hides the live workflow line supplied by the shared theme.
-        "lf-msg-sending",
         # The message's own box. The theme gives the authored and margin-projected copies
         # their spacing while the chrome's scoped rules dress the panel's. The runtime
         # sheet used to name it at document level too, in a `.lf-conversation-msg.lf-ui`

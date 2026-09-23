@@ -84,6 +84,42 @@ def check(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+# How much of a refusal's own words a failure message carries. Long enough for the
+# `<class>: <message>` a Leaf fault answers with and the Worker's own prose, short
+# enough that a page of HTML served by mistake does not become the run log.
+REFUSAL_LIMIT = 400
+
+
+def refusal(response: APIResponse) -> str:
+    """What the refusing server said for itself, ready to follow a status.
+
+    Leaf answers a fault at one boundary and writes its own account into the body:
+    `{"error": "<class>: <message>"}`. That sentence is the whole difference between
+    one 500 and another, and a red run reads it here. The deployed container keeps a
+    `page_fault` copy for its operator, which nothing local and nothing the edge
+    itself refuses has, so the answer this gate was handed is the reading it owes.
+    """
+    said = response.text().strip()
+    if not said:
+        return ""
+    try:
+        stated = json.loads(said).get("error")
+    except (ValueError, AttributeError):
+        stated = None
+    if stated:
+        said = str(stated)
+    if len(said) > REFUSAL_LIMIT:
+        said = f"{said[:REFUSAL_LIMIT]}…"
+    return f": {said}"
+
+
+def answered(response: APIResponse, url: str) -> APIResponse:
+    """Hold one API answer to being an answer, keeping what a refusal said."""
+    if not response.ok:
+        raise RuntimeError(f"{url} returned {response.status}{refusal(response)}")
+    return response
+
+
 def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
     """What a page that never presented has to say for the next reader of a red run.
 
@@ -221,8 +257,7 @@ def activation_read(context, activation: str) -> APIResponse | None:
     response = context.request.get(activation, timeout=120_000)
     if response.status == 503 and response.headers.get("retry-after") is not None:
         return None
-    check(response.ok, f"{activation} returned {response.status}")
-    return response
+    return answered(response, activation)
 
 
 def verify_page(
@@ -298,8 +333,9 @@ def verify_page(
         return startup
 
     state_url = urljoin(url, "api/state")
-    passive_response = context.request.get(state_url, timeout=120_000)
-    check(passive_response.ok, f"{state_url} returned {passive_response.status}")
+    passive_response = answered(
+        context.request.get(state_url, timeout=120_000), state_url
+    )
     check(
         passive_response.headers.get("leaf-session") == "passive",
         f"{state_url} left the edge before interaction",
@@ -318,12 +354,14 @@ def verify_page(
         isinstance(activation_response.json().get("browser"), dict),
         f"{activation} returned no browser projection",
     )
-    state_response = context.request.get(
+    state_response = answered(
+        context.request.get(
+            state_url,
+            headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
+            timeout=120_000,
+        ),
         state_url,
-        headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
-        timeout=120_000,
     )
-    check(state_response.ok, f"{state_url} returned {state_response.status}")
     check(
         state_response.headers.get("leaf-session") == "active",
         f"{state_url} did not reach a private container",
@@ -461,8 +499,7 @@ def user_session(
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load for its agent")
     await_presentation(page, url, failures)
-    passive = context.request.get(state_url, timeout=120_000)
-    check(passive.ok, f"{state_url} returned {passive.status}")
+    passive = answered(context.request.get(state_url, timeout=120_000), state_url)
     if direct_agent:
         reached = passive.headers.get("leaf-release")
         if release is not None and reached != release:
@@ -481,8 +518,9 @@ def user_session(
         f"{activation} did not activate a private container for its agent",
     )
     headers = {"Leaf-Release": release} if release is not None else None
-    state_response = context.request.get(state_url, headers=headers, timeout=120_000)
-    check(state_response.ok, f"{state_url} returned {state_response.status}")
+    state_response = answered(
+        context.request.get(state_url, headers=headers, timeout=120_000), state_url
+    )
     # The edge answers a passive `api/state` with the deployed release whatever the
     # containers run, so the release below reads as this container's own only once
     # the session is known to have left the edge.
@@ -694,10 +732,10 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
     """Run the local adapter's side of the production Worker dispatch."""
     endpoint = urljoin(url, "_leaf/agent/")
     event = {"event": comment["id"]}
-    started = context.request.post(
-        urljoin(endpoint, "start"), data=event, timeout=120_000
+    started = answered(
+        context.request.post(urljoin(endpoint, "start"), data=event, timeout=120_000),
+        f"{endpoint}start",
     )
-    check(started.ok, f"{endpoint}start returned {started.status}")
     reading = started.json()
     check(
         reading.get("status") in {"started", "settled"},
@@ -707,12 +745,14 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
 
 def read_agent_state(context, state_url: str, layer: str, release: str) -> dict:
     """Read the authoritative state for one activated deployment session."""
-    response = context.request.get(
+    response = answered(
+        context.request.get(
+            state_url,
+            headers={"Leaf-Layer": layer, "Leaf-Release": release},
+            timeout=120_000,
+        ),
         state_url,
-        headers={"Leaf-Layer": layer, "Leaf-Release": release},
-        timeout=120_000,
     )
-    check(response.ok, f"{state_url} returned {response.status}")
     return response.json()
 
 

@@ -34,8 +34,7 @@ from interact_support import (
 )
 from leaf import codex as leaf_codex
 from leaf.cli import cli
-from leaf.codex import accept_codex_delivery
-from leaf.codex import queue_records as codex_queues
+from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.conversation import cmd_reply, cmd_resolve
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
@@ -47,6 +46,7 @@ from leaf.requests import request_lifecycles
 from leaf.revision_artifact import Resource
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
+from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
 from websockets.exceptions import ConnectionClosedError
@@ -352,8 +352,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     )
     reserved = []
     monkeypatch.setattr(
-        website_server,
-        "reserve_delivery_reply",
+        "leaf.codex.reserve_delivery_reply",
         lambda *args: reserved.append(args),
     )
     requests = []
@@ -518,7 +517,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     assert [method for method, _ in sent] == ["turn/interrupt", "turn/start"]
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
     assert sent[1][1]["clientUserMessageId"]
-    [(_, queue)] = codex_queues("hosted-thread")
+    [(_, queue)] = delivery_records("hosted-thread")
     assert queue["state"] == "offering"
 
 
@@ -1151,7 +1150,8 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     monkeypatch.setattr(website_server.subprocess, "Popen", popen)
 
     assert host._ensure_server() is not None
-    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    path = launched["options"]["env"]["PATH"].split(os.pathsep)
+    assert shutil.which("leaf", path=path[0]) == website_server.LEAF_COMMAND
     assert "LEAF_REPLY" not in launched["options"]["env"]
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
@@ -1165,10 +1165,12 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
     # run a closing `resolve` and never reply, which `verify_site.py local` caught. The
     # hosted page's sentence comes from the steps App Server watches instead, which the
-    # activity fold prefers over Leaf's own claim wording for exactly this reason.
+    # activity fold prefers over Leaf's own claim wording for exactly this reason. The
+    # shared contract describes `leaf status`, so what the agent receives has to hand
+    # the status to the host.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "$LEAF status" not in instructions
-    assert "$LEAF version check" not in instructions
+    assert "Leave the page's status to the host" in instructions
+    assert "leaf version check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1528,10 +1530,11 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
 @pytest.mark.parametrize(
     "refusal",
     [
-        website_server.AppServerRequestRejected("rejected"),
+        AppServerRequestRejected("rejected"),
         TimeoutError("lost ack"),
+        None,
     ],
-    ids=["refused", "lost"],
+    ids=["refused", "lost", "unnamed"],
 )
 def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     page_dir, monkeypatch, refusal
@@ -1563,6 +1566,8 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
         competing_writer_rejected.append(True)
+        if refusal is None:
+            return {"turn": {}}
         raise refusal
 
     interrupts = []
@@ -1581,7 +1586,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         )
 
     assert interrupts == [("hosted-thread", "")]
-    assert codex_queues("hosted-thread") == []
+    assert delivery_records("hosted-thread") == []
     assert competing_writer_rejected == [True]
     assert website_server.page_claim(page_dir) is None
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
@@ -1950,7 +1955,7 @@ def test_an_interrupt_refused_by_an_idle_thread_is_recorded_not_raised(
         host,
         "_send",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            website_server.AppServerRequestRejected("no active turn to interrupt")
+            AppServerRequestRejected("no active turn to interrupt")
         ),
     )
 
@@ -3141,6 +3146,118 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     ]
 
 
+def test_a_page_fault_is_recorded_where_an_operator_reads_it(
+    page_dir, tmp_path, monkeypatch, capsys
+):
+    """The 500 answers the browser; the container's log is what diagnoses it.
+
+    Cloudflare's own record of a refused request carries its route and its status
+    and nothing about the boundary that refused, so a fault this adapter answers
+    for is unreadable unless the adapter says it on the stream Cloudflare drains.
+    """
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
+    )
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+    def faulting_state(*_args, **_kwargs):
+        raise RuntimeError("the projection could not be read")
+
+    monkeypatch.setattr(served_page, "full_state", faulting_state)
+    with running_http_server(httpd):
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            get(f"{origin}/examples/decision/api/state")
+        assert refused.value.code == 500
+        told = json.loads(refused.value.read())
+
+    assert told == {"error": "RuntimeError: the projection could not be read"}
+    [recorded] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if '"page_fault"' in line
+    ]
+    assert recorded == {
+        "component": "leaf-agent",
+        "event": "page_fault",
+        "route": "/examples/decision",
+        "method": "GET",
+        "path": "/api/state",
+        "error": "RuntimeError",
+        "detail": "the projection could not be read",
+    }
+
+
+def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
+    page_dir, tmp_path, monkeypatch, capsys
+):
+    """A specimen is a page, and its 500 is as unreadable as any other page's.
+
+    The kernel builds the child endpoint itself, so a host that keeps a copy of its
+    faults only keeps it for the routes it built the parent for unless the child is
+    told where that copy goes. The record names the address the browser asked at,
+    which is the parent's, because that is the request the operator is looking for.
+    """
+    source = (page_dir / "index.html").read_text()
+    template = (
+        '<template id="practice" data-specimen><h1>Practice</h1>'
+        '<p id="child-text">A private child page.</p></template>'
+    )
+    (page_dir / "index.html").write_text(
+        source.replace("</main>", template + "</main>")
+    )
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
+    )
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+    def faulting_state(*_args, **_kwargs):
+        raise RuntimeError("the child projection could not be read")
+
+    with running_http_server(httpd):
+        parent = f"{origin}/examples/decision/"
+        state = json.loads(get(f"{parent}api/state")[0])
+        child, _ = post(
+            f"{parent}api/specimens",
+            {"template": "practice"},
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        capsys.readouterr()
+        monkeypatch.setattr(served_page, "full_state", faulting_state)
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            get(f"{origin}{child['url']}api/state")
+        assert refused.value.code == 500
+        told = json.loads(refused.value.read())
+
+    assert told == {"error": "RuntimeError: the child projection could not be read"}
+    [recorded] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if '"page_fault"' in line
+    ]
+    specimen = child["url"].removeprefix("/examples/decision")
+    assert recorded == {
+        "component": "leaf-agent",
+        "event": "page_fault",
+        "route": "/examples/decision",
+        "method": "GET",
+        "path": f"{specimen}api/state",
+        "error": "RuntimeError",
+        "detail": "the child projection could not be read",
+    }
+
+
 @pytest.mark.parametrize("published_revision", [False, True])
 def test_website_specimens_serve_private_pages_without_starting_an_agent(
     page_dir, tmp_path, published_revision
@@ -3749,6 +3866,31 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
     assert "no startup milestone" in early
     assert "widget module 404" in early
+
+
+def test_a_refused_answer_carries_what_the_server_said_about_it():
+    """A status alone cannot separate one 500 from another.
+
+    Run 35906886800 stopped on `api/state returned 500` and left nothing else. The
+    page had written `<class>: <message>` into that body at its one fault boundary,
+    which is where a fault says which boundary refused and why, and the check read
+    the status past it. The server's own words travel with the status instead.
+    """
+    url = "https://leaf.page/examples/triage-board/api/state"
+    assert verify_site.answered(_answered(200), url).status == 200
+
+    with pytest.raises(RuntimeError) as faulted:
+        verify_site.answered(
+            _answered(500, body=json.dumps({"error": "KeyError: 'browser'"})), url
+        )
+    assert str(faulted.value) == f"{url} returned 500: KeyError: 'browser'"
+
+    # The edge refuses in prose rather than in Leaf's fault shape, and a body no
+    # boundary bounded would become the run log rather than a reading in it.
+    with pytest.raises(RuntimeError) as refused:
+        verify_site.answered(_answered(502, body="b" * 4000), url)
+    assert str(refused.value).endswith("…")
+    assert len(str(refused.value)) < len(url) + 600
 
 
 def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
@@ -4476,8 +4618,8 @@ class _Allocation:
         return self.answer
 
 
-def _answered(status: int, headers: dict) -> _Read:
-    answer = _Read({}, "this release is still starting", headers=headers)
+def _answered(status: int, headers: dict | None = None, body: str = "") -> _Read:
+    answer = _Read({}, body, headers=headers)
     answer.ok = status < 400
     answer.status = status
     return answer
@@ -4496,7 +4638,11 @@ def test_the_rollout_answer_is_the_one_503_the_activating_read_waits_on():
     two investigations went to Cloudflare's control plane instead.
     """
     rolling = _Allocation(
-        _answered(503, {"retry-after": "5", "leaf-release": "a" * 64})
+        _answered(
+            503,
+            {"retry-after": "5", "leaf-release": "a" * 64},
+            "this release is still starting",
+        )
     )
 
     assert verify_site.activation_read(rolling, ACTIVATION) is None
@@ -4510,12 +4656,16 @@ def test_a_503_the_worker_did_not_write_is_this_release_failing():
     without the header, and waiting that out would sit on a broken release until the
     workflow's deadline instead of reporting it.
     """
-    broken = _Allocation(_answered(503, {"leaf-session": "active"}))
+    broken = _Allocation(
+        _answered(503, {"leaf-session": "active"}, "the page has no revision 1")
+    )
 
     with pytest.raises(RuntimeError) as failure:
         verify_site.activation_read(broken, ACTIVATION)
 
-    assert str(failure.value) == f"{ACTIVATION} returned 503"
+    assert str(failure.value) == (
+        f"{ACTIVATION} returned 503: the page has no revision 1"
+    )
 
 
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(

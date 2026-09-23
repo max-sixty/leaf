@@ -553,7 +553,11 @@ export class ThreadView {
       id: () => this.#model.id,
       resolved: model.resolved,
       prepareLanding:
-        model.surface === "panel" ? () => this.#prepareLanding(model.resolved) : null,
+        model.surface === "panel"
+          ? () => this.#prepareLanding(model.resolved)
+          : model.surface === "margin" && !model.resolved
+            ? this.#marginControls?.prepareLanding
+            : null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };

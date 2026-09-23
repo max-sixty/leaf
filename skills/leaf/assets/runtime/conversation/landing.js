@@ -13,9 +13,9 @@
    heading. The transient arrival flash belongs to the revealed target — short card,
    reply area, message, or oversized editor — rather than to a long card spanning
    beyond the scrollport. The explicit `t`/`T` walk remains on a thread's native title
-   in the panel and on the card root inline; Enter and Space therefore keep their native
-   disclosure meaning. An accepted anchored comment continues in the open Threads panel,
-   widening a filter that would hide it.
+   in the panel and on the card root inline; Enter and Space choose a closed panel
+   thread while an open one stays selected. An accepted anchored comment continues
+   in the open Threads panel, widening a filter that would hide it.
 
    `backFromBox` and `standingConversation` climb the same conversation relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It

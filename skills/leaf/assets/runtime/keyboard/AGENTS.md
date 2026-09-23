@@ -82,8 +82,8 @@ one thread, reached by the semantic thread walk or focus inside that thread. Esc
 from a reply box returns to its thread, then to the whole panel, preserving disclosures
 and drafts. At the whole-panel level, Escape removes narrowing, then closes the panel.
 A title and its conversation select the same thread. Native focus order runs from the
-title through its open conversation; Enter/Space toggles disclosure, and Comment enters
-the reply box even from a collapsed title.
+title through its open conversation; Enter/Space selects a closed title, leaves an open
+one selected, and Comment enters the reply box even from a collapsed title.
 
 TODO(2026-09-22): Reconcile the page's `t` shortcut with this hierarchy. It jumps directly
 to a page thread, bypassing panel selection. A thread that requires the panel also opens

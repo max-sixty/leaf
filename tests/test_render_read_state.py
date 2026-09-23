@@ -188,13 +188,14 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     browser, serve
 ):
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(serve.page_dir, "An answer for the reader.", author="agent")
     page = open_page(browser, url)
 
     expect(page.locator(".lf-first-unread")).to_have_text("Unread 1")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "aria-label", "Threads (1), 1 unread thread"
+        "aria-label", "Threads (2), 1 unread thread"
     )
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "data-unread-threads", ""
@@ -233,9 +234,23 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     page.reload()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
+
+
+def test_opening_threads_acknowledges_the_first_visible_answer(browser, serve):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "An answer already in view.", author="agent")
+    page = open_page(browser, url)
+    with sending(page, "read from expanded thread"):
+        page.locator(".lf-threads-toggle").click()
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card).to_have_attribute("open", "")
+    expect(page.locator(".lf-first-unread")).to_be_hidden()
+    assert _read_events(serve.page_dir)[-1]["messages"] == [
+        {"message": root, "version": root}
+    ]
 
 
 def test_authored_reply_requires_explicit_read_even_when_open(browser, serve):
@@ -374,6 +389,7 @@ def test_first_unread_reveals_a_resolved_thread_and_covered_original(browser, se
 
 def test_edit_reopens_only_its_new_content_version(browser, serve):
     url = serve(PANEL_PAGE)
+    reader = panel_comment(serve.page_dir, "The earlier reader thread.")
     original = conversation_model.cmd_comment(
         serve.page_dir, None, None, None, "Original answer.", None
     )
@@ -383,7 +399,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     panel_settled(page)
     page.locator(".lf-first-unread").click()
     expect(page.locator(".lf-first-unread")).to_be_hidden()
-    page.locator(f'.lf-thread[data-id="{root}"] > .lf-thread-summary').click()
+    page.locator(f'.lf-thread[data-id="{reader}"] > .lf-thread-summary').click()
     page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
 
     edit = conversation_model.cmd_edit(serve.page_dir, root, "Revised answer.")
@@ -403,6 +419,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
     it is in flight goes out beside it, its failure is silent while the gesture's is
     reported, and resolving the thread is itself evidence the reader took it in."""
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(serve.page_dir, "Read this answer.", author="agent")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -443,7 +460,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
         if event["author"] == "user"
-    ] == ["resolve"]
+    ] == ["comment", "resolve"]
     assert not any(
         "Couldn't send" in text
         for text in page.locator(".lf-notice").all_text_contents()
@@ -458,6 +475,7 @@ def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
     """Content inside a message that scrolls on its own, like a long code line, is part
     of what was shown; it does not hold the message unread."""
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(
         serve.page_dir,
         "Run this:\n\n```\n" + "leaf page state --json " * 40 + "\n```",
@@ -603,6 +621,7 @@ def test_keyboard_first_unread_and_mark_read_retain_draft_and_focus(browser, ser
 
 def test_read_converges_across_two_tabs(browser, serve):
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(serve.page_dir, "The shared reader answer.", author="agent")
     first = open_page(browser, url)
     second = open_page(browser, url)
@@ -735,6 +754,7 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
 
 def test_modal_blocks_exposure_until_reader_returns_to_threads(browser, serve):
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(
         serve.page_dir, "A short answer behind the dialog.", author="agent"
     )

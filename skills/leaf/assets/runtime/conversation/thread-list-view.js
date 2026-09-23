@@ -2,10 +2,10 @@
    Native card roots are retained by stable thread identity. Only their ThreadView
    owns generated descendants; retention re-renders values, never captured DOM.
    Count and narrowing paint share the rows' checkpoint and update boundary.
-   Native named details keep at most one visible thread open while every card retains
-   its message and editor nodes behind its title. Disclosure is mechanical state and
-   never publishes a new application epoch. Narrowing retains that disclosure; opening
-   another named card closes it natively. Explicit arrivals open their target. */
+   The list owns the one expanded visible thread; native named details enforce the
+   same choice in the DOM while cards retain their message and editor nodes. This
+   mechanical state never publishes a new application epoch. Narrowing keeps the
+   selected card when visible and otherwise selects the first visible card. */
 import { LitElement, html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 import { ThreadView } from "./thread-card.js";
@@ -28,19 +28,40 @@ class ThreadListView extends LitElement {
   #rows = [];
   #retaining = false;
   #rollbackFocus = null;
+  #expandedKey = null;
 
-  navigationThreads() {
+  #visibleRows() {
     const eligible = new Set(
       this.model.rows
         .filter(
           (row) =>
             row.kind === "thread" && row.descriptor.visible && !row.descriptor.folding,
         )
-        .map((row) => row.descriptor.id),
+        .map((row) => row.key),
     );
-    return this.#rows
-      .filter((row) => row.kind === "thread" && eligible.has(row.node.dataset.id))
-      .map((row) => row.node);
+    return this.#rows.filter((row) => row.kind === "thread" && eligible.has(row.key));
+  }
+
+  #showExpanded() {
+    const visible = this.#visibleRows();
+    if (!visible.length) return;
+    const chosen = visible.find((row) => row.key === this.#expandedKey) ?? visible[0];
+    this.#expandedKey = chosen.key;
+    chosen.node.open = true;
+  }
+
+  #chooseFromSummary(card, event) {
+    event.preventDefault();
+    const row = this.#visibleRows().find((row) => row.node === card);
+    if (!row) return;
+    // An open title is still the reader's focus stop for the conversation. A
+    // second press leaves it selected; choosing another title moves disclosure.
+    this.#expandedKey = row.key;
+    this.#showExpanded();
+  }
+
+  navigationThreads() {
+    return this.#visibleRows().map((row) => row.node);
   }
 
   // The shown cards in the page's order, whichever order the list stands in.
@@ -54,10 +75,12 @@ class ThreadListView extends LitElement {
       `[data-id="${CSS.escape(id)}"], [data-mid="${CSS.escape(id)}"]`,
     );
     const card = node?.closest(".lf-thread");
+    const row = this.#rows.find((row) => row.kind === "thread" && row.node === card);
     // Narrowing owns hidden rows. Its completed reveal calls back here; opening
     // one before that would paint no disclosure and invalidate the same transition.
-    if (!card || card.hidden) return;
-    card.open = true;
+    if (!row || card.hidden) return;
+    this.#expandedKey = row.key;
+    this.#showExpanded();
   }
 
   constructor() {
@@ -147,6 +170,10 @@ class ThreadListView extends LitElement {
       if (!view) {
         this.#views.set(row.key, (view = new ThreadView("panel", this.#commands.card)));
         view.node.addEventListener("toggle", () => layoutChanged(this));
+        view.node.addEventListener("click", (event) => {
+          if (event.target.closest(".lf-thread-summary")?.parentElement === view.node)
+            this.#chooseFromSummary(view.node, event);
+        });
       }
       let descriptor = row.descriptor;
       const prior = view.model;
@@ -189,6 +216,7 @@ class ThreadListView extends LitElement {
   }
 
   updated() {
+    this.#showExpanded();
     const active = focused();
     const recover = this.#focusListAfterPaint;
     this.#focusListAfterPaint = false;

@@ -64,9 +64,9 @@ widget change. An `/ui-sweep` and a look at a composed page are worth the time;
 a green suite does not judge visual quality.
 
 Reproduce the baseline from a clean checkout of `git merge-base HEAD main`, then
-compare it with the candidate through the workflow below. Every difference that
-a still can show requires one sentence and matched before/after screenshots,
-embedded in the session or presented as one `lf-shot`. A live preview may
+compare it with the candidate through the workflow below. For every difference a still
+can show, include one sentence and matched before/after screenshots in the final
+handoff, embedded in the reply or presented as one `lf-shot`. A live preview may
 accompany the pair, but does not replace it. For an interaction-only change, keep
 both previews live and hand off the labeled URL pair with the action that reveals
 the difference. Add another state or width only when the first comparison cannot

@@ -468,13 +468,9 @@ document.addEventListener(
 // the words stay. Paper is the medium that bargain holds in. A copy divides on the
 // marker's *value* instead, which is a fact about the tag and not about this
 // declaration: bake removes a press by the value `offer` wrote, so an echoed route is
-// empty-valued, slips that pass and stays a real fragment link — while an echo on an
-// `offer("button", …)` would go out of the copy with its words inside it, and nothing
-// would report the loss, because the static-ising pass that would have kept them reads
-// data-lf-said alone. Unreachable while `button()` is the only caller and builds an `a`.
-// The second widget to echo a label off a real press is what makes it reachable, and
-// what has to teach standalone.js's two passes the third answer; it does not belong
-// here, where the label is only being worded.
+// empty-valued, slips that pass and stays a real fragment link, while an echo on an
+// `offer("button", …)`, such as lf-activity's route into a thread, is a press that
+// standalone.js turns into its words, as it does a said label.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it

@@ -5534,16 +5534,13 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
-          const head = preview.querySelector('.lf-margin-preview-head');
           // The first message's head is hoisted out of its message and onto the row the
-          // thread opens with, which carries its Resolve beside the author. The head
-          // itself is `display: contents` there, so the row is what has a box.
+          // thread opens with, which carries its controls beside the author.
           const metaRow = thread.querySelector(':scope > .lf-thread-root-meta');
           const reply = thread.querySelector('.lf-reply-disclosure');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const tr = thread.getBoundingClientRect();
-          const hr = head.getBoundingClientRect();
           const mr = metaRow.getBoundingClientRect();
           const rb = reply.getBoundingClientRect();
           const cr = close.getBoundingClientRect();
@@ -5558,8 +5555,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
               left: tr.left + parseFloat(ts.borderLeftWidth)
                 + parseFloat(ts.paddingLeft),
             },
-            head: {top: hr.top, bottom: hr.bottom},
-            metaRow: {top: mr.top},
+            metaRow: {top: mr.top, bottom: mr.bottom},
             reply: {right: rb.right, left: rb.left},
             close: {top: cr.top, left: cr.left, bottom: cr.bottom},
             closeBorder: getComputedStyle(close).borderTopWidth,
@@ -5579,11 +5575,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
         geometry["close"]["bottom"], abs=1
     )
     assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
-    # The card opens on that row rather than above a band of its own: Dismiss is
-    # positioned onto it, so the two share a line.
-    assert geometry["metaRow"]["top"] == pytest.approx(
-        geometry["head"]["top"], abs=1
-    ), geometry
+    # The card opens on the row containing Dismiss and Resolve.
+    assert geometry["metaRow"]["top"] <= geometry["close"]["top"]
+    assert geometry["metaRow"]["bottom"] >= geometry["close"]["bottom"]
     reply_button.click()
     expect(preview.locator("textarea")).to_be_visible()
     page.locator("h1").click()

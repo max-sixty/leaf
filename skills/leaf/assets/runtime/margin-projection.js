@@ -2113,13 +2113,7 @@ export function createMarginProjection({
     keeps(preview, "data-lf-thread", "");
     keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
-    const multiple = !previewNav.hidden;
-    if (
-      !multiple &&
-      (previewNav.parentNode !== previewHead || previewClose.parentNode !== previewHead)
-    )
-      previewHead.replaceChildren(previewNav, previewClose);
-    previewHead.hidden = multiple;
+    previewHead.hidden = true;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
     previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;
@@ -2178,7 +2172,7 @@ export function createMarginProjection({
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
       sourceItem(item).thread,
-      previewNav.hidden ? null : { nav: previewNav, close: previewClose },
+      { nav: previewNav.hidden ? null : previewNav, close: previewClose },
     );
     node.dataset.lfMarginEntry = item.id;
     node.lfMarginItem = item.id;

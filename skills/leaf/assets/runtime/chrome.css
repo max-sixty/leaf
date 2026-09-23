@@ -1502,13 +1502,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread]:popover-open { display: flex; flex-direction: column; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
-  /* Dismiss rides the conversation's own meta row, where the settlement action sits,
-     so it starts at the card's inset plus the thread's own padding rather than above
-     that row. */
-  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
-    position: absolute; z-index: 3; inset-inline-end: 12px;
-    inset-block-start: calc(12px + var(--sp-1));
-    align-items: flex-start; flex: none; }
   .lf-margin-preview-head[hidden] { display: none; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
@@ -1544,16 +1537,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
   .lf-margin-preview[data-lf-thread] .lf-thread-root-meta { position: sticky; z-index: 2;
-    top: 0; padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
-    background: var(--paper); }
-  .lf-margin-preview[data-lf-thread] .lf-margin-thread-multiple .lf-thread-root-meta {
+    top: 0; background: var(--paper);
     align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
     padding-inline-end: 0; }
-  .lf-margin-thread-multiple .lf-thread-root-meta > .lf-conversation-head {
+  .lf-margin-preview[data-lf-thread] .lf-thread-root-meta > .lf-conversation-head {
     display: flex; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
-  .lf-margin-thread-multiple .lf-conversation-head .lf-msg-meta {
+  .lf-margin-preview[data-lf-thread] .lf-conversation-head .lf-msg-meta {
     flex: 1; overflow: hidden; }
-  .lf-margin-thread-multiple .lf-conversation-head .lf-msg-sending {
+  .lf-margin-preview[data-lf-thread] .lf-conversation-head .lf-msg-sending {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;

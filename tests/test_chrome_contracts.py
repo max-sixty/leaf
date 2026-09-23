@@ -455,6 +455,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     dismiss = preview.get_by_role("button", name="Dismiss conversation view")
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
+    assert dismiss.evaluate("button => button.closest('.lf-thread-root-meta') !== null")
     centers = preview.evaluate(
         """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
           const rect = preview.querySelector(selector).getBoundingClientRect();
@@ -495,10 +496,13 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     dismiss.focus()
     resized(page, 1000, 844)
     expect(dismiss).to_be_focused()
-    if thread_count == 2:
-        resolve.focus()
-        page.keyboard.press("Tab")
-        expect(dismiss).to_be_focused()
+    resolve.focus()
+    page.keyboard.press("Tab")
+    expect(dismiss).to_be_focused()
+    dismiss.focus()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread-summary:focus")).to_have_count(1)
 
 
 STATE_PAINT = """el => {

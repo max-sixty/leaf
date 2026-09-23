@@ -270,18 +270,20 @@ export class ThreadView {
     const settlement = this.#settlement(model);
     const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
-    this.node.classList.toggle("lf-margin-thread-multiple", Boolean(marginControls));
     let headerActions = null;
     if (!model.resolved || model.folding || marginControls) {
       this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = marginControls
-        ? [marginControls.nav, settlement, marginControls.close]
+        ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : markRead
           ? [markRead, settlement]
           : [settlement];
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
-      if (marginControls && marginControls.nav.parentNode !== this.#metadataActions)
+      if (
+        marginControls?.nav &&
+        marginControls.nav.parentNode !== this.#metadataActions
+      )
         this.#metadataActions.prepend(marginControls.nav);
       if (markRead && markRead.parentNode !== this.#metadataActions)
         this.#metadataActions.insertBefore(

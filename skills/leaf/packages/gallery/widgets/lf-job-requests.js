@@ -5,7 +5,7 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       this.controller ??= widgetController(this);
-      this.stopReading ??= this.controller.subscribe(() => this.render());
+      this.seats ??= new Map();
       this.stopData ??= watchData(this, "jobs", (snapshot) => {
         this.snapshot = snapshot;
         this.render();
@@ -13,16 +13,15 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.stopReading?.();
       this.stopData?.();
-      this.stopReading = null;
       this.stopData = null;
+      for (const stop of this.seats?.values() ?? []) stop();
+      this.seats?.clear();
     }
 
     render() {
       const snapshot = this.snapshot;
       if (!snapshot) return;
-      const reading = this.controller.read();
       projectData(
         this,
         snapshot.value.rows,
@@ -39,10 +38,15 @@ customElements.define(
           }
           item.querySelector("strong").textContent = `${row.id} (${row.state})`;
           const button = item.querySelector("button");
-          const seat = reading.requestUnits[row.id];
-          button.disabled = seat?.phase !== "ready" ||
-            seat.seat.data_revision !== snapshot.revision;
-          button.onclick = () => this.controller.dispatch({
+          const seat = this.controller.request(row.id);
+          const paint = (reading) => {
+            button.disabled = !reading.requests.restart.available ||
+              reading.request?.seat.data_revision !== snapshot.revision;
+          };
+          this.seats.get(row.id)?.();
+          this.seats.set(row.id, seat.subscribe(paint));
+          paint(seat.read());
+          button.onclick = () => seat.dispatch({
             kind: "request",
             verb: "restart",
             detail: { target: row.id, state: row.state },
@@ -52,6 +56,11 @@ customElements.define(
         },
         { snapshot },
       );
+      for (const [key, stop] of this.seats) {
+        if (snapshot.value.rows.some((row) => row.id === key)) continue;
+        stop();
+        this.seats.delete(key);
+      }
     }
   },
 );

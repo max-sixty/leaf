@@ -53,6 +53,11 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
     return meaning
 
 
+def request_unit(event: dict, spec: dict) -> str:
+    """The request seat uses the holder unless its verb names a detail field."""
+    return event["detail"][spec["unit"]] if "unit" in spec else event["widget"]
+
+
 def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dict:
     """Stamp server-owned meaning after command validation, under the append lock.
 
@@ -65,13 +70,8 @@ def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dic
     entry = registry[record["tag"]]
     admitted = dict(event)
     if event["kind"] == "request":
-        request = entry["x-request"]
-        spec = request["verbs"][event["action"]]
-        unit = (
-            event["detail"][spec["unit"]]
-            if request.get("records")
-            else event["widget"]
-        )
+        spec = entry["x-request"]["verbs"][event["action"]]
+        unit = request_unit(event, spec)
         admitted["meaning"] = {"document": document, "unit": unit}
     else:
         admitted["meaning"] = state_meaning(event, entry, document)
@@ -110,11 +110,7 @@ def stored_meaning_error(
     expected = (
         {
             "document": document,
-            "unit": (
-                event["detail"][entry["x-request"]["verbs"][event["action"]]["unit"]]
-                if entry["x-request"].get("records")
-                else event["widget"]
-            ),
+            "unit": request_unit(event, entry["x-request"]["verbs"][event["action"]]),
         }
         if event["kind"] == "request"
         else state_meaning(event, entry, document)

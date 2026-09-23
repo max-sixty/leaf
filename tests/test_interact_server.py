@@ -2836,9 +2836,45 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
             ],
         },
     )
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200
+    seats = json.loads(raw)["browser"]["views"]["1"]["document"]["requests"]
+    assert {(seat["seat"]["unit"], seat["phase"]) for seat in seats} == {
+        ("alpha", "completed"),
+        ("beta", "completed"),
+        ("gamma", "ready"),
+    }
     assert send("gamma", revision=1)[0] == 400
     assert send("beta", revision=2)[0] == 400
     assert send("gamma", revision=2)[0] == 200
+    gamma = [
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request" and event["meaning"]["unit"] == "gamma"
+    ][0]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "agent",
+            "request": gamma["id"],
+            "status": "failed",
+            "text": "Try again",
+        },
+    )
+    data_model.cmd_data_set(page_dir, "jobs", {"rows": []})
+    status, raw = fetch(f"{server}/api/state")
+    assert status == 200
+    document = json.loads(raw)["browser"]["views"]["1"]["document"]
+    assert document["asks"]["reader"] == []
+    assert {
+        (seat["seat"]["unit"], seat["phase"], seat["seat"].get("offered", True))
+        for seat in document["requests"]
+    } == {
+        ("alpha", "completed", False),
+        ("beta", "completed", False),
+        ("gamma", "ready", False),
+    }
 
 
 def test_a_thread_request_does_not_reset_when_the_page_revision_changes(

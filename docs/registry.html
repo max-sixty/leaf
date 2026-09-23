@@ -544,28 +544,33 @@
               <details class="reference-more">
                 <summary aria-label="Full x-request contract">Full contract</summary>
                 <p>
-                  <code>offers</code> maps each direct child widget tag to its required
-                  string-enum verb attribute, deriving the commands a particular holder
-                  presents; every live holder must carry at least one such direct offer
-                  and may offer each verb only once. <code>verbs</code> declares every
-                  command's complete detail schema. Optional <code>bind</code> maps
-                  required string detail fields to required immutable string attributes
-                  on this widget, so a crafted request cannot retarget the operation.
+                  Authored holders use <code>offers</code> to name direct child controls;
+                  each live holder offers at least one verb. A projected holder uses
+                  <code>records</code> to name an <code>x-data</code> input whose contract
+                  declares the row array and stable string key; its verbs are offered
+                  without authored children. <code>verbs</code> declares each command's
+                  complete detail schema. <code>bind</code> checks required string detail
+                  fields against immutable holder attributes or required string fields
+                  in the selected record.
                   <code>ask: true</code> makes the ready lifecycle a reader Ask:
                   acceptance hands the turn to the host, pending and completed leave the
                   reader's list, and failure returns it. <code>region: true</code> says
                   the holder supplies the commands but not its own question title, so
                   every matching Leaf element stands inside an x-ask-surface whose
-                  leading direct heading owns the reading and arrival. A page holder has
-                  one lifecycle per revision; a holder in frozen thread markup has one
-                  for that document's whole lifetime. Pending excludes another request,
-                  failure reopens it, and success completes it. Each request is durable
+                  leading direct heading owns the reading and arrival. Every request
+                  has a document, widget, and unit seat. Authored requests use the holder
+                  id as their unit; projected requests use the record key. A page seat
+                  lasts for its revision, while a thread seat lasts for that document.
+                  A projected holder contributes one Ask while any displayed row is
+                  ready. Pending excludes another request on that seat, failure reopens
+                  it, and success completes it. Each request is durable
                   and not undoable because the host may already have acted.
                   <code>leaf receipt</code> appends exactly one linked
                   <code>succeeded</code> or <code>failed</code> outcome, and the widget
-                  controller supplies the holder's server-projected request seat, exact
+                  controller supplies the server-projected request seat, exact
                   request/receipt attempts, latest attempt, and ready/pending/completed
-                  phase to its package module. Leaf transports and validates the
+                  phase to its package module. A projected row reads and dispatches
+                  through <code>request(key)</code> on that controller. Leaf transports and validates the
                   protocol but does not interpret verbs or execute them; package-owned
                   guidance tells the host what each verb means, and external data
                   carries replaceable evidence produced by it.

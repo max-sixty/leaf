@@ -276,6 +276,21 @@ export function mountApplication(dependencies) {
           ? reading.requests[command.verb]
           : null;
     if (!entry?.available) return null;
+    const request = descriptor.declaration["x-request"];
+    if (command.kind === "request" && request?.records) {
+      const field = request.verbs?.[command.verb]?.unit;
+      const unit = command.detail?.[field];
+      const seat = reading.requestUnits?.[unit];
+      if (
+        typeof unit !== "string" ||
+        !unit ||
+        seat?.phase !== "ready" ||
+        seat.seat.offered === false ||
+        !Number.isInteger(command.data_revision) ||
+        seat.seat.data_revision !== command.data_revision
+      )
+        return null;
+    }
     return (
       startPost({
         kind: command.kind,

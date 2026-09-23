@@ -455,6 +455,41 @@ function createWidgetController(owner) {
         }
       };
     },
+    request(unit) {
+      const declaration = descriptor.declaration["x-request"];
+      if (!declaration?.records)
+        throw new TypeError("Widget does not declare record requests");
+      if (typeof unit !== "string" || !unit)
+        throw new TypeError("Request unit must be a non-empty string");
+      const select = (reading) => {
+        const seat = reading.requestUnits[unit] ?? null;
+        return immutable({
+          request: seat,
+          requests: Object.fromEntries(
+            Object.entries(reading.requests).map(([verb, offer]) => [
+              verb,
+              {
+                ...offer,
+                available:
+                  offer.available &&
+                  seat?.phase === "ready" &&
+                  seat.seat.offered !== false,
+              },
+            ]),
+          ),
+        });
+      };
+      return Object.freeze({
+        read: () => select(read()),
+        subscribe: (callback) => this.subscribe((reading) => callback(select(reading))),
+        dispatch: (command) => {
+          const field = declaration.verbs?.[command?.verb]?.unit;
+          if (command?.kind !== "request" || command.detail?.[field] !== unit)
+            throw new TypeError("Request detail must name this unit");
+          return this.dispatch(command);
+        },
+      });
+    },
     dispatch(command) {
       const semantic = ["action", "request"].includes(command?.kind);
       const undo = command?.kind === "undo";
@@ -475,19 +510,6 @@ function createWidgetController(owner) {
       if (semantic) validateReferences(descriptor, command);
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const before = read();
-      const request = descriptor.declaration["x-request"];
-      if (command.kind === "request" && request?.records) {
-        const field = request.verbs[command.verb]?.unit;
-        const unit = command.detail?.[field];
-        const seat = before.requestUnits?.[unit];
-        if (
-          typeof unit !== "string" ||
-          !unit ||
-          seat?.phase !== "ready" ||
-          seat.seat.data_revision !== command.data_revision
-        )
-          return null;
-      }
       if (undo && !undoCandidate(before, command.target)) return null;
       if (
         semantic &&
@@ -571,7 +593,7 @@ export function widgetController(owner) {
     const resolve = () => (implementation ??= createWidgetController(owner));
     controller = Object.freeze(
       Object.fromEntries(
-        ["read", "subscribe", "dispatch", "reference", "defer", "present"].map(
+        ["read", "subscribe", "request", "dispatch", "reference", "defer", "present"].map(
           (method) => [method, (...args) => resolve()[method](...args)],
         ),
       ),

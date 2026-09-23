@@ -118,8 +118,26 @@ def test_projected_request_rows_have_independent_buttons(browser, serve):
     page.keyboard.press("Enter")
     expect(first).to_be_disabled()
     expect(second).to_be_enabled()
+    assert page.evaluate("""async () => {
+      const holder = document.querySelector('#bg-jobs');
+      const {dispatchWidget} = await window.__lfRuntimeImport('/runtime/application.js');
+      const {widgetDescriptor} = await window.__lfRuntimeImport('/runtime/widget-descriptors.js');
+      const descriptor = widgetDescriptor(holder);
+      const duplicate = dispatchWidget(descriptor, {
+        kind: 'request', verb: 'restart',
+        detail: {target: 'indexer', state: 'stopped'},
+        data_revision: holder.snapshot.revision,
+      });
+      const stale = dispatchWidget(descriptor, {
+        kind: 'request', verb: 'restart',
+        detail: {target: 'notifier', state: 'stopped'},
+        data_revision: holder.snapshot.revision - 1,
+      });
+      return [duplicate, stale];
+    }""") == [None, None]
     second.click()
     expect(second).to_be_disabled()
+
 
 TARGETING_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"

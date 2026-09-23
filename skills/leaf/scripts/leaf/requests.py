@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from .asks import quoted_in
+from .event_meaning import request_unit
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
@@ -19,6 +20,7 @@ def request_lifecycle(
     document: dict,
     unit: str | None = None,
     data_revision: int | None = None,
+    offered: bool = True,
 ) -> dict:
     """The canonical lifecycle at one request seat over this event prefix."""
     unit = widget if unit is None else unit
@@ -47,6 +49,7 @@ def request_lifecycle(
             "widget": widget,
             "unit": unit,
             **({"data_revision": data_revision} if data_revision is not None else {}),
+            **({"offered": False} if not offered else {}),
         },
         "attempts": attempts,
         "latest": latest,
@@ -61,8 +64,8 @@ def request_lifecycles_for(
     document: dict,
     data: dict | None = None,
 ) -> list[dict]:
-    """Every declared request seat in one document, occupied or ready."""
-    seats = []
+    """Displayed seats and historical record seats in one document."""
+    seats = {}
     for record in elements:
         request = (registry.get(record["tag"]) or {}).get("x-request")
         if not request:
@@ -70,12 +73,17 @@ def request_lifecycles_for(
         widget = record["attrs"]["id"]
         if request.get("records"):
             if data is not None:
-                seats.extend(
-                    (widget, row["key"], row["revision"])
-                    for row in request_records(record, registry, data)
-                )
+                for row in request_records(record, registry, data):
+                    seats[widget, row["key"]] = (row["revision"], True)
+            for event in events:
+                if (
+                    event["kind"] == "request"
+                    and event["widget"] == widget
+                    and event["meaning"]["document"] == document
+                ):
+                    seats.setdefault((widget, event["meaning"]["unit"]), (None, False))
         else:
-            seats.append((widget, widget, None))
+            seats[widget, widget] = (None, True)
     return [
         request_lifecycle(
             events,
@@ -83,15 +91,18 @@ def request_lifecycles_for(
             unit=unit,
             document=document,
             data_revision=data_revision,
+            offered=offered,
         )
-        for widget, unit, data_revision in dict.fromkeys(seats)
+        for (widget, unit), (data_revision, offered) in seats.items()
     ]
 
 
 def request_phases(lifecycles: list[dict]) -> dict[str, str]:
-    """Request holder id → canonical reader/host lifecycle phase."""
+    """Request holder id → phase among seats the document still offers."""
     phases = {}
     for lifecycle in lifecycles:
+        if lifecycle["seat"].get("offered") is False:
+            continue
         widget = lifecycle["seat"]["widget"]
         phase = lifecycle["phase"]
         if widget not in phases or phase == "ready":
@@ -255,12 +266,8 @@ def request_lifecycle_error(
     lifecycle = request_lifecycle(
         events,
         widget=event["widget"],
-        unit=(
-            event["detail"][
-                registry[record["tag"]]["x-request"]["verbs"][event["action"]]["unit"]
-            ]
-            if registry[record["tag"]]["x-request"].get("records")
-            else event["widget"]
+        unit=request_unit(
+            event, registry[record["tag"]]["x-request"]["verbs"][event["action"]]
         ),
         document={
             "kind": scope,

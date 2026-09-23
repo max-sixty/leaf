@@ -271,6 +271,7 @@ test("projected requests expose one lifecycle per data record", () => {
   accepted.browser.views[1].document.requests = [
     { seat: { widget: "jobs", unit: "alpha", data_revision: 1 }, phase: "pending" },
     { seat: { widget: "jobs", unit: "beta", data_revision: 1 }, phase: "ready" },
+    { seat: { widget: "jobs", unit: "gone", offered: false }, phase: "ready" },
   ];
   app.adopt(accepted);
   let reading = app.selectWidget(rows).read();
@@ -283,6 +284,7 @@ test("projected requests expose one lifecycle per data record", () => {
   reading = app.selectWidget(rows).read();
   assert.equal(reading.requestUnits.alpha.phase, "pending");
   assert.equal(reading.requestUnits.beta.phase, "pending");
+  assert.equal(reading.requestUnits.gone.phase, "ready");
   assert.equal(reading.requests.restart.available, false);
 });
 

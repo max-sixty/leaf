@@ -162,7 +162,7 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number }; phase: string }[];
+          requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean }; phase: string }[];
           asks?: WireAsks;
         };
         undo?: { event: Event }[];
@@ -174,7 +174,7 @@ export interface AuthoritativeState {
     conversation: {
       threads: Thread[];
       projection: WireProjection;
-      requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number }; phase: string }[];
+      requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean }; phase: string }[];
       asks?: WireAsks;
       done?: Event[];
     };
@@ -402,7 +402,7 @@ function widgetReading(
       ? root.effective.lifecycle.conversation.requests
       : root.effective.lifecycle.page.requests;
   const requestUnits: Record<string, {
-    seat: { document?: object; widget: string; unit: string; data_revision?: number };
+    seat: { document?: object; widget: string; unit: string; data_revision?: number; offered?: boolean };
     phase: string;
     attempts?: unknown[];
     latest?: unknown;
@@ -452,7 +452,8 @@ function widgetReading(
           !descriptor.quoted &&
           offered.has(verb) &&
           (request?.records
-            ? Object.values(requestUnits).some((seat) => seat.phase === "ready")
+            ? Object.values(requestUnits).some((seat) =>
+                seat.phase === "ready" && seat.seat.offered !== false)
             : lifecycle.phase === "ready"),
         unavailable: root.effective.hostAvailable
           ? null

@@ -8,7 +8,8 @@ log holds evidence the reader took it in. Two kinds of evidence count:
   has been shown to the reader or when they mark its thread read;
 - a reader move in the version's thread logged after the version: a reply or reaction,
   a resolve or reopen, or an action or request on a widget a message of that thread
-  carries. Answering, resolving and replying are all things a reader does with what
+  carries. A move the reader took back with `undo` is no evidence, as it is none
+  for every other fold over the standing log. Answering, resolving and replying are all things a reader does with what
   the thread says, so each implies they have read it as it then stood.
 
 An edit is a new version logged after every earlier move, so it reads as unread again
@@ -17,6 +18,7 @@ independent of turn-taking and of the reader's outstanding work: reading never a
 an Ask, and answering one does mark it read.
 """
 
+from .events import taken_back
 from .schema import MESSAGE_KINDS
 
 
@@ -80,13 +82,14 @@ def unread_content(
     }
     marked = set()
     latest_move: dict[str, int] = {}
+    withdrawn = taken_back(events)
     for event in events:
         if event["kind"] == "read":
             marked.update(
                 (item["message"], item["version"]) for item in event["messages"]
             )
             continue
-        if event["author"] != "user":
+        if event["author"] != "user" or event["id"] in withdrawn:
             continue
         if event["kind"] in {"reply", "resolve", "unresolve"}:
             root = thread_of_message.get(event["parent"])

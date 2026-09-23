@@ -105,6 +105,13 @@ def test_what_the_reader_does_in_a_thread_acknowledges_what_it_said(page_dir, se
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
+    # A move the reader takes back is no evidence either.
+    status, answer = _post(server, {"kind": "undo", "undoes": _last_id(page_dir)})
+    assert status == 200, answer
+    assert _unread(answer["state"], root) == [{"message": later, "version": later}]
+    status, answer = _post(server, {"kind": "resolve", "parent": root})
+    assert status == 200, answer
+    assert _unread(answer["state"], root) == []
 
     edit = conversation_model.cmd_edit(page_dir, later, "Done, and tested.")
     assert state_json(page_dir)["conversations"][0]["unread"] == [later]

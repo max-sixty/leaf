@@ -2691,17 +2691,28 @@ export function createMarginProjection({
   declareRelease(() => {
     if (previewOpen()) closePreview();
   });
-  function pressAway(event) {
-    if (!previewOpen()) return;
+  // A press away is judged where it starts and acted on where it ends, both outside,
+  // as the platform's light dismissal is: the press's own handlers read the scene
+  // first, so Threads pressed with the card up still carries its thread into the panel.
+  const pressedAway = (event) => {
+    if (!previewOpen()) return false;
     const path = event.composedPath();
-    // A pointer mode reinterprets a press on the page as a stroke or an interface comment,
-    // so there a press stands nowhere but in the card itself.
+    // A pointer mode reinterprets a press on the page as a stroke or an interface
+    // comment, so there a press stands nowhere but in the card itself.
     const stands = pointerModeActive()
       ? [preview]
       : [preview, hosts.get(previewEntry?.key), targetFor(previewEntry)];
-    if (stands.some((node) => node && path.includes(node))) return;
-    if (path.some(inRetainedContext)) return;
-    closePreview();
+    if (stands.some((node) => node && path.includes(node))) return false;
+    return !path.some(inRetainedContext);
+  };
+  let pressStartedAway = false;
+  function pressAway(event) {
+    pressStartedAway = pressedAway(event);
+  }
+  function pressEnded(event) {
+    const away = pressStartedAway && pressedAway(event);
+    pressStartedAway = false;
+    if (away) closePreview();
   }
 
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
@@ -2812,6 +2823,7 @@ export function createMarginProjection({
     // Ahead of the document, where a mode claims its presses before anyone else hears
     // them: whatever a press becomes, it is still the user's attention moving.
     addEventListener("pointerdown", pressAway, { capture: true });
+    addEventListener("pointerup", pressEnded, { capture: true });
     document.addEventListener(
       "pointerdown",
       (event) => {

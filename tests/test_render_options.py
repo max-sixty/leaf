@@ -809,17 +809,15 @@ def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, ques
 
 
 @pytest.mark.parametrize("group", ["cards", "rows"])
-def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
-    browser, serve, group
-):
-    """Read over every cell, not only the question that sent us looking.
+def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
+    """Read over the joined option cells and the full-width Done control.
 
     A group under `choose` is one control: cells sharing edges, divided by a hairline
-    instead of a gap. Two things follow for every one of them, and the question was
+    instead of a gap. Two things follow for every option cell, and the question was
     simply the child that had neither. The line is the whole of what separates a cell
     from the next, so a margin beside it is a second way to say what the line already
-    says and draws a rule floating in a band of nothing. And each cell holds its words
-    off the frame at the column the group reserves, so a cell that opens on the frame
+    says and draws a rule floating in a band of nothing. Each option cell holds its
+    words off the frame at the column the group reserves, so one that opens on the frame
     hangs out of the column its own neighbours share.
 
     Here rather than in the render gate, on the line tests/CLAUDE.md draws: a property
@@ -832,7 +830,7 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     written as `border-top` on the lower cell. Asked here, of the widget itself, both
     forms are visible and nothing correct is accused.
 
-    Every child, because which kinds a group holds is not this test's to know: the
+    Every child shares the joined edge; option cells share a text column. The
     authored options are the author's, the option the reader writes is the module's,
     the question and the Done press are the runtime's, and each arrived carrying the
     spacing it wears standing alone."""
@@ -851,6 +849,7 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
                const clear = (v) => !v || v === 'transparent'
                         || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
                return {
+                 kind: c.tagName.toLowerCase(),
                  what: c.tagName.toLowerCase() + (c.dataset.lfSaid
                         ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
                  opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
@@ -871,12 +870,13 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
         f"cells of #{group} stand apart from the line that joins them: {apart}"
     )
 
-    # Done is a full-width button, so its centered label has no option text column.
-    bare = [
-        c
-        for c in cells
-        if c["opens"] < 0.5 and not c["what"].startswith("lf-options-done")
-    ]
+    # Done spans the control and centers its label, apart from the option text column.
+    done_cells = [c for c in cells if c["kind"] == "lf-options-done"]
+    assert len(done_cells) <= 1
+    if done_cells:
+        assert cells[-1] is done_cells[0], "Done should close the joined control"
+    option_cells = [c for c in cells if c["kind"] != "lf-options-done"]
+    bare = [c for c in option_cells if c["opens"] < 0.5]
     assert not bare, (
         f"cells of #{group} open on the frame while their neighbours hold off it: "
         f"{bare}"
@@ -890,7 +890,7 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     # exactly that, and this line excused it as apparatus. What is compared is the cell,
     # not the caret: a text box holds its words off its own frame, which is the box's and
     # no business of the group's.
-    words = {c["opens"] for c in cells if not c["what"].startswith("lf-options-done")}
+    words = {c["opens"] for c in option_cells}
     assert len(words) == 1, (
         f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
         "the option the reader writes read as more than one column"
@@ -1781,6 +1781,19 @@ def test_a_multiple_page_ask_waits_for_done(browser, serve):
     round_trip(page)
     expect(asks).to_have_text("Asks 2/3")
     expect(page.locator("#bracket .lf-done")).to_have_count(0)
+
+
+def test_an_authored_multiple_pick_still_waits_for_done(browser, serve):
+    authored_pick = ASK_PAGE.replace(
+        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
+    )
+    page = open_page(browser, serve(authored_pick))
+    expect(page.locator("#job-mounts")).to_have_attribute("chosen", "")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+
+    page.locator("#jobs .lf-done").click()
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/3")
 
 
 def test_a_pick_states_the_whole_set(browser, serve):

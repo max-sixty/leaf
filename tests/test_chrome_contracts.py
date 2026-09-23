@@ -288,6 +288,49 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(earlier_place, abs=2)
 
 
+def test_incoming_reply_follows_when_the_panel_has_unfilled_room(browser, serve):
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "A short conversation.")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "A short first answer.",
+        },
+    )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    assert threads.evaluate("el => el.scrollHeight - el.clientHeight") == 0
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "A long answer should bring its newest words into view. " * 120,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    assert message.evaluate("el => el.getBoundingClientRect().bottom") == pytest.approx(
+        threads.evaluate(
+            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+        ),
+        abs=2,
+    )
+
+
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
     url = serve(LONG_PAGE)
     other = panel_comment(serve.page_dir, "An earlier conversation.")
@@ -452,6 +495,53 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
         assert threads.evaluate("el => el.scrollTop") == pytest.approx(
             reading_later, abs=2
         )
+
+
+def test_a_later_cards_reader_stays_at_the_list_end(browser, serve):
+    url = serve(LONG_PAGE)
+    selected = panel_comment(serve.page_dir, "The conversation above.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": f"Earlier answer {index}. " * 5,
+            },
+        )
+    for index in range(4):
+        panel_comment(serve.page_dir, f"A later conversation {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{selected}"]')
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    threads = page.locator(".lf-threads")
+    threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    before = threads.evaluate("el => el.scrollTop")
+    assert before > 0
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": selected,
+            "text": "A long answer should not pull me from the later cards. " * 120,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(before, abs=2)
 
 
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):

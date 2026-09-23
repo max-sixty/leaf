@@ -150,8 +150,8 @@ const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
 // The selected conversation's tail runs from its last message through its composer
-// to the card's end. Follow while that tail meets the landing edge and the last
-// message is still visible; its length can change with the draft or later cards.
+// to the card's end. Follow while that tail meets the reachable reading edge and the
+// last message is still visible; its length can change with the draft or later cards.
 const FOLLOW_ROOM = 80;
 function incomingAtLatest(reading, panelIsOpen) {
   if (!panelIsOpen()) return null;
@@ -183,12 +183,17 @@ function incomingAtLatest(reading, panelIsOpen) {
     );
   const band = landingBand(threadsBox);
   if (!node || !band) return null;
+  // An unfilled list has no content at the viewport's bottom to scroll toward.
+  const contentEnd = threadsBox
+    .querySelector(":scope > :nth-last-child(1 of :not([hidden]))")
+    .getBoundingClientRect().bottom;
+  const edge = Math.min(band.bottom, contentEnd);
   const tailStart = node.getBoundingClientRect().bottom;
   const tailEnd = card.getBoundingClientRect().bottom;
   if (
     tailStart < band.top ||
-    tailStart > band.bottom + FOLLOW_ROOM ||
-    tailEnd < band.bottom - FOLLOW_ROOM
+    tailStart > edge + FOLLOW_ROOM ||
+    tailEnd < edge - FOLLOW_ROOM
   )
     return null;
   return {

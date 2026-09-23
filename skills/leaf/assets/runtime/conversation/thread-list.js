@@ -6,6 +6,9 @@
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
+   A new agent turn, or growth of the last one, follows only while that conversation's
+   previous last message was at the foot of the visible list. Reading earlier turns
+   keeps the place hold, and a reply in another thread does not move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
    under each (conversation/placement.js). A run's heading is one node kept across
@@ -60,7 +63,8 @@
 import { scrollBehavior } from "../motion.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
 import { placeKeeper } from "../user-place.js";
-import { PINNED, declareCoverRoom } from "../geometry.js";
+import { PINNED, declareCoverRoom, visibleBand } from "../geometry.js";
+import { retainUserIntent } from "../user-intent.js";
 import { conversational, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
@@ -144,6 +148,48 @@ const listPlace = (panelIsOpen) =>
 const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
 const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
+
+// An arriving reply follows the conversation only while its previous last turn is
+// already at the foot of the reader's view. A reader higher in the list keeps the
+// place the list hold chose; another thread's reply never moves this one.
+function incomingAtLatest(reading, panelIsOpen) {
+  if (!panelIsOpen()) return null;
+  const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
+  const prior = threadsBox.committedReading.rows.find(
+    (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
+  )?.descriptor;
+  const next = reading.rows.find(
+    (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
+  )?.descriptor;
+  if (!prior || !next) return null;
+  const known = new Set(prior.messages.map((message) => message.key));
+  const incoming = next.messages.filter(
+    (message) => message.author === "agent" && !known.has(message.key),
+  );
+  const latest = prior.messages.at(-1);
+  const nextLatest = next.messages.at(-1);
+  const grown =
+    latest?.key === nextLatest?.key &&
+    nextLatest?.author === "agent" &&
+    latest.body.text !== nextLatest.body.text;
+  if (!incoming.length && !grown) return null;
+  const node =
+    latest &&
+    card.querySelector(
+      latest.attempt
+        ? `.lf-msg[data-attempt="${CSS.escape(latest.attempt)}"]`
+        : `.lf-msg[data-mid="${CSS.escape(latest.id)}"]`,
+    );
+  const band = visibleBand(threadsBox);
+  if (!node || !band) return null;
+  const bottom = node.getBoundingClientRect().bottom;
+  if (bottom < band.bottom - 80 || bottom > band.bottom + 2) return null;
+  return {
+    id: incoming.at(-1)?.id ?? nextLatest.id,
+    top: threadsBox.scrollTop,
+    current: retainUserIntent({ available: panelIsOpen }),
+  };
+}
 
 // One immutable presentation reading contains the rows, count, and narrowing paint.
 // The list checkpoints it only when the whole conversation batch commits; retention
@@ -339,6 +385,7 @@ export async function renderThreads(collection, commands) {
   const current = () => generation === renderGeneration;
   let reading = rowModel(all, commands);
   configureList(commands);
+  const incoming = incomingAtLatest(reading, commands.panelIsOpen);
   const hold = takeScrollHold(commands.panelIsOpen);
   let held = true;
   let recovered = null;
@@ -371,6 +418,10 @@ export async function renderThreads(collection, commands) {
     finishScrollHold(hold, commands.panelIsOpen);
     held = false;
     await prepareFrozenWidgets(current);
+    if (current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2)
+      threadsBox
+        .querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
+        ?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   } catch (error) {
     if (!current()) return;
     await retainCommitted(current, reading, error);

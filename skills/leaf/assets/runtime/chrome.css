@@ -1106,7 +1106,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
+  /* The draft's words start and wrap in the same measure as a sent message.
+     The field border sits outside that measure; Send occupies the space below
+     the last line instead of narrowing every line of the draft. */
+  .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
+  .lf-thread-compact > .lf-compose textarea {
+    font-size: 13px; line-height: 1.5;
+    padding-inline: 7px;
+    padding-block-end: calc(var(--lf-icon-action-hit) + 12px);
+  }
+  .lf-thread-compact > .lf-compose textarea:placeholder-shown {
+    padding-inline-end: calc(var(--lf-icon-action-hit) + 12px);
+    padding-block-end: var(--lf-compose-pad-block);
+  }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the

@@ -87,6 +87,9 @@ class ThreadListView extends LitElement {
     super();
     this.model = EMPTY_MODEL;
   }
+  get committedReading() {
+    return this.#committedModel;
+  }
   createRenderRoot() {
     return this;
   }

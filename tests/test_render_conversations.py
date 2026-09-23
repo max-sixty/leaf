@@ -6288,7 +6288,7 @@ def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     overran = False
     for line in range(24):
         page.keyboard.type(f"line {line} of a reply that keeps growing the box")
-        page.keyboard.press("Enter")
+        page.keyboard.press("Shift+Enter")
         overran = card.bounding_box()["height"] > room
         if overran:
             break

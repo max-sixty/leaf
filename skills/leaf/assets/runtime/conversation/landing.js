@@ -64,26 +64,28 @@ const landingTarget = (held, control) => {
     : control;
 };
 
-export function revealConversation(held, control, behavior = scrollBehavior()) {
+export function revealConversation(
+  held,
+  control,
+  behavior = scrollBehavior(),
+  block = "nearest",
+) {
   landingTarget(held, control).scrollIntoView({
     behavior,
-    block: "nearest",
+    block,
   });
 }
 
-// A send names the message it added, while the composer keeps focus for another reply.
-// Reveal that message once its publication has painted. The editor's old position says
-// nothing about where the new words stand after the thread has grown.
-export function revealReplyMessage(held, attempt) {
+// A send leaves focus in the composer. Land its foot at the end of the available band:
+// the new message sits immediately above it, so a short one is fully visible and an
+// oversized one shows its tail without putting the focused control out of view.
+export function revealReplyMessage(held, attempt, control) {
   const message = held.querySelector(
     `.lf-msg[data-attempt="${CSS.escape(attempt)}"], ` +
       `.lf-conversation-msg[data-attempt="${CSS.escape(attempt)}"]`,
   );
   if (!message) return false;
-  message.scrollIntoView({
-    behavior: scrollBehavior(),
-    block: shownBox(message).height > landingRoom(message) ? "start" : "nearest",
-  });
+  revealConversation(held, control, scrollBehavior(), "end");
   return true;
 }
 
@@ -383,8 +385,7 @@ const listNode = (id, preferMessage = false) => {
 
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
-// focus at its own words so Tab reaches its controls. A reply send keeps the native
-// focus of its button or editor and only reveals the editor if needed.
+// focus at its own words so Tab reaches its controls.
 async function showThreadNow(id, focus, revealThread) {
   const mayArrive = retainReaderIntent({
     source: focused(),

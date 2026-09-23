@@ -3611,7 +3611,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        # At the scroll limit there is no remaining travel to align a block.
+        # At the scroll limit the list cannot align an earlier block with its start.
+        # The reply target and line crossing checks still cover that arrival.
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)
@@ -9684,6 +9685,7 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     assert shown["top"] >= shown["bandTop"] - 1, shown
     assert shown["bottom"] <= shown["bandBottom"] + 1, shown
     expect(box).to_be_focused()
+    in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-compose textarea')
 
     box.fill("Long reply. " * 90)
     thread.locator(":scope > .lf-compose .lf-thread-send").click()
@@ -9697,13 +9699,15 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
           const band = list.getBoundingClientRect();
           const top = band.top + parseFloat(getComputedStyle(list).scrollPaddingTop || 0);
           const message = node.getBoundingClientRect();
-          return {top: message.top, height: message.height, bandTop: top,
-                  room: band.bottom - top};
+          return {top: message.top, bottom: message.bottom, height: message.height,
+                  bandTop: top, bandBottom: band.bottom, room: band.bottom - top};
         }"""
     )
     assert long_reading["height"] > long_reading["room"]
-    assert long_reading["top"] >= long_reading["bandTop"] - 1
+    assert long_reading["top"] < long_reading["bandBottom"]
+    assert long_reading["bottom"] > long_reading["bandTop"]
     expect(thread.locator(":scope > .lf-compose .lf-thread-send")).to_be_focused()
+    in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
 
 
 def test_touch_return_keeps_newlines_until_the_reader_taps_submit(browser, serve):

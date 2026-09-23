@@ -66,11 +66,12 @@ export function wireReply(
         held && (focused() === input || focused() === send)
           ? retainReaderIntent({ source: held, available: () => held.isConnected })
           : null;
+      const control = focused() === send ? send : input;
       const sent = sendReply(t, liveId, raw, owns, createReply);
       if (sent && mayReveal)
         void whenDocumentPresented()
           .then(() => {
-            if (mayReveal()) revealReplyMessage(held, sent.attempt);
+            if (mayReveal()) revealReplyMessage(held, sent.attempt, control);
           })
           .catch(() => {});
     },

@@ -9470,7 +9470,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     box = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(box).not_to_be_focused()
-    expect(box).to_have_attribute("placeholder", "Comment… · c")
+    expect(box).to_have_attribute("placeholder", "Comment… c")
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", "Comment on the page"
     )
@@ -9559,7 +9559,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.locator(".lf-threads-toggle").click()
     general = page.locator(".lf-general textarea")
     replies = page.locator(".lf-thread textarea")
-    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    assert general.get_attribute("placeholder") == "Comment on the page c"
     page.get_by_role("searchbox", name="Find in threads").focus()
     shortcut_bar_text(page)
     assert general.get_attribute("placeholder") == "Comment on the page"
@@ -9593,7 +9593,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
         "(thread.querySelector(':scope > .lf-thread-summary') ?? thread).focus(); }"
     )
     shortcut_bar_text(page)
-    assert replies.nth(1).get_attribute("placeholder") == "Reply · c"
+    assert replies.nth(1).get_attribute("placeholder") == "Reply c"
     page.keyboard.press("c")
     expect(replies.nth(1)).to_be_focused()
     shortcut_bar_text(page)

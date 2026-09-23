@@ -18,7 +18,7 @@
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
    opened. Page Map and Go-to arrivals activate the exact visible control;
-   they do not choose another action for the reader.
+   they do not choose another action for the user.
 
    The thread card stands by its owning cluster, or, where the rail has no room for that
    cluster, by the page target the cluster is about. `thread-card-geometry.js` states
@@ -32,11 +32,11 @@
    complete inline conversation view; the Threads panel remains the complete index and
    takes over when already open.
 
-   Placing the card changes its geometry and nothing inside it. The reader's place in
+   Placing the card changes its geometry and nothing inside it. The user's place in
    its transcript is the list's own scroll, which the browser holds through reflow; only
    a gesture moves it — a landing through `revealConversation`, a send revealing the
    reply, a step to another thread starting it at the top. Every state read places the
-   card, so a scroll written there would move a reader partway up the transcript on each
+   card, so a scroll written there would move a user partway up the transcript on each
    status the agent writes.
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
@@ -86,7 +86,7 @@ import {
   readingFace,
   readingState,
   readingBehavior,
-  awaitingReader,
+  awaitingUser,
   unreadIn,
   readingContext,
   clusterProjection,
@@ -135,7 +135,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
-import { placeKeeper } from "./reader-place.js";
+import { placeKeeper } from "./user-place.js";
 import {
   isLiveWorkflow,
   isPageWidgetWorkflow,
@@ -329,7 +329,7 @@ export function createMarginProjection({
     if (!stands && preview.matches(":popover-open")) closePreview();
     // Both orderings answer: where the fixup has not landed the live reading holds, and
     // where it has, the remembered one does. Requiring body of the remembered reading
-    // bounds the handoff to the hide — a reader who left the margin some other way,
+    // bounds the handoff to the hide — a user who left the margin some other way,
     // with no `focusin` to land anywhere, keeps wherever they went.
     if (
       !stands &&
@@ -368,7 +368,7 @@ export function createMarginProjection({
   preview.append(previewList);
   let previewReadingArrangement = null;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
-  // the reader's place in it under the event id it is rendered with (reader-place.js).
+  // the user's place in it under the event id it is rendered with (user-place.js).
   const previewPlace = placeKeeper(previewList, {
     items: ".lf-conversation-msg[data-event]",
     identity: (message) => message.dataset.event,
@@ -558,7 +558,7 @@ export function createMarginProjection({
   }
   const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   // A core reading can change between a disclosure and a status while retaining the
-  // reader's place. Its stable span owns the native-like press it needs while actionable;
+  // user's place. Its stable span owns the native-like press it needs while actionable;
   // ordinary contributed commands remain native buttons.
   const readingControl = (className) => {
     const control = offer("span", className);
@@ -708,7 +708,7 @@ export function createMarginProjection({
     )
       return false;
     // A row the rail has no room for is withheld and has no box. A card placed against
-    // that empty box stood in the boundary's corner over the words the reader pressed,
+    // that empty box stood in the boundary's corner over the words the user pressed,
     // and read as detached before it had stood anywhere, so no scroll could dismiss it.
     // It stands by the row's target instead. A row whose target is not shown is withheld
     // too, and that target has no box to stand by either.
@@ -810,7 +810,7 @@ export function createMarginProjection({
     if (!label) return null;
     return {
       kind:
-        receipt.next_actor === "reader" || receipt.condition
+        receipt.next_actor === "user" || receipt.condition
           ? "waiting"
           : ["working", "replying"].includes(receipt.stage)
             ? "activity"
@@ -843,12 +843,12 @@ export function createMarginProjection({
       const target = placedAt(id)?.element;
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
-      const onReader = attention?.kind === "needs_reader";
+      const onUser = attention?.kind === "needs_user";
       const unread = thread.unread.length;
       add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
-        // reader just opened is known by its attempt until the log names it, and a row
+        // user just opened is known by its attempt until the log names it, and a row
         // whose identity changed there would be rebuilt — taking with it the reply box
         // the send had just put them in.
         id: marginThreadItem(thread),
@@ -859,7 +859,7 @@ export function createMarginProjection({
         // The Thread record already combines server attention with the local workflow
         // overlay. Margin and Page Map carry that reading rather than deriving another
         // answer from raw turn or workflow fields.
-        readerAttention: onReader
+        userAttention: onUser
           ? {
               label: attention.label,
               reason: thread.attention?.reason ?? "workflow",
@@ -868,14 +868,14 @@ export function createMarginProjection({
         unread,
         // Page Map lists each conversation on its own row, so the word goes on the row
         // rather than on an aggregate.
-        ...(onReader
+        ...(onUser
           ? { mapContext: attention.label }
           : unread
             ? { mapContext: `${unread} unread` }
             : {}),
         // Work decorates the conversation control; it never replaces the control's
         // comment face or its disclosure action.
-        workflowReceipt: onReader ? null : attention?.workflow,
+        workflowReceipt: onUser ? null : attention?.workflow,
         activate: () => showThread(id),
       });
     }
@@ -974,7 +974,7 @@ export function createMarginProjection({
         ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
         // What a Change reading holds, where the comparison kept the base version's
         // words for this block: pressing it splices dropped text into the current
-        // passage and paints additions there, so the reader learns what changed without
+        // passage and paints additions there, so the user learns what changed without
         // travelling to the other version and back. Where it kept none, the press is the
         // travel it always was, and `discloses` answering null is what says so — to the
         // margin entry's relation, to the shortcut bar's word for the press, and to the
@@ -1094,7 +1094,7 @@ export function createMarginProjection({
     scrollToElement(target, scrollBehavior(), "nearest");
     // The account goes to the bottom notice rather than to the live region alone:
     // a Change margin entry's target is usually already on screen, so the scroll moves nothing
-    // and a press that only announced was, to a sighted reader, a press that did nothing.
+    // and a press that only announced was, to a sighted user, a press that did nothing.
     notice(account);
   }
 
@@ -1185,9 +1185,9 @@ export function createMarginProjection({
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const items = choice?.items ?? [];
-    const readerContext =
-      awaitingReader(items) || unreadIn(items) ? readingContext(choice) : null;
-    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${readerContext ? `, ${readerContext}` : ""}`;
+    const userContext =
+      awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+    const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
@@ -1355,7 +1355,7 @@ export function createMarginProjection({
     if (!targetFor(entry) || !control) return false;
     scrollToElement(targetFor(entry), undefined, "nearest");
     // Arrive before activation, then use the exact visible margin entry's own press. A generated
-    // route never chooses among the cluster's actions on the reader's behalf.
+    // route never chooses among the cluster's actions on the user's behalf.
     focusForNavigation(control);
     control.click();
     return true;
@@ -1539,7 +1539,7 @@ export function createMarginProjection({
     row.removeAttribute("aria-pressed");
     syncReadingRelation(row, choice);
     syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
-    syncMarginTurn(row, awaitingReader(choice?.items ?? []));
+    syncMarginTurn(row, awaitingUser(choice?.items ?? []));
     syncMarginUnread(row, unreadIn(choice?.items ?? []));
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
@@ -1595,8 +1595,8 @@ export function createMarginProjection({
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
-    const readerContext =
-      awaitingReader(choice.items) || unreadIn(choice.items)
+    const userContext =
+      awaitingUser(choice.items) || unreadIn(choice.items)
         ? readingContext(choice)
         : null;
     presentMarginEntry(
@@ -1605,7 +1605,7 @@ export function createMarginProjection({
         key: `reading:${choice.key}`,
         icon: face.icon,
         label,
-        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${readerContext ? `, ${readerContext}` : ""}`,
+        accessibleLabel: `${label} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
         context: readingContext(choice),
         behavior,
         rank: "reading",
@@ -1619,7 +1619,7 @@ export function createMarginProjection({
     keeps(node, "data-lf-kinds", choice.kind);
     syncReadingRelation(node, choice);
     syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
-    syncMarginTurn(node, awaitingReader(choice.items));
+    syncMarginTurn(node, awaitingUser(choice.items));
     syncMarginUnread(node, unreadIn(choice.items));
     node.onclick =
       behavior === "status"
@@ -1786,10 +1786,10 @@ export function createMarginProjection({
   function moveHost(host, move) {
     const held = host.contains(document.activeElement) ? document.activeElement : null;
     // Moving a focused expanded cluster between the hanging rail and document flow
-    // synchronously emits focusout. That is a placement transition, not the reader
+    // synchronously emits focusout. That is a placement transition, not the user
     // leaving the cluster, so keep the options state machine from treating it as an
     // instruction to fold the controls it just exposed — and say the same thing to every
-    // other reader of where the reader stands, which is what `placingChrome` is for.
+    // other reader of where the user stands, which is what `placingChrome` is for.
     const wasSettlingOptionsFocus = settlingOptionsFocus;
     const wasPlacingChrome = runtime.placingChrome;
     settlingOptionsFocus = true;
@@ -1801,7 +1801,7 @@ export function createMarginProjection({
       settlingOptionsFocus = wasSettlingOptionsFocus;
       runtime.placingChrome = wasPlacingChrome;
     }
-    // The one case where the placement did move the reader: the control they were
+    // The one case where the placement did move the user: the control they were
     // standing on did not survive it, so focus is wherever the removal left it and the
     // standing paint is owed the news the guard above withheld.
     if (held && document.activeElement !== held) repaint();
@@ -2108,7 +2108,7 @@ export function createMarginProjection({
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
-    // Another thread starts at its top; the same one re-rendering keeps the reader's place.
+    // Another thread starts at its top; the same one re-rendering keeps the user's place.
     const arriving = previewThreadItem !== (selected?.id ?? null);
     const hold = arriving ? null : previewPlace.take();
     if (arriving) previewList.scrollTop = 0;
@@ -2293,7 +2293,7 @@ export function createMarginProjection({
     clearThreadTransition();
     const button = previewMarginEntry;
     // A cluster the walk unfolded to hang the view from folds with the view; one the
-    // reader unfolded stays, and is its own rung.
+    // user unfolded stays, and is its own rung.
     const forcedOptionsKey = forcedInlineOptionsKey;
     pinnedKey = null;
     forcedInlineKey = null;
@@ -2331,9 +2331,9 @@ export function createMarginProjection({
     dismiss: () => closePreview(),
   };
 
-  // The card, which is a native layer the reader is either inside or standing at the
+  // The card, which is a native layer the user is either inside or standing at the
   // entry of. It is hoisted into the chrome while anchored to a passage, so it counts as
-  // chrome for which surface holds focus and as page-anchored for where the reader
+  // chrome for which surface holds focus and as page-anchored for where the user
   // lands, and one press closes it.
   function keyboardRung({ atFocus = true } = {}) {
     const active = focused();
@@ -2349,7 +2349,7 @@ export function createMarginProjection({
       root: preview,
       does: "Dismiss the conversation view",
       says: "dismiss conversation",
-      // Where it lands turns on whether a level of the reader's own stands under it. A
+      // Where it lands turns on whether a level of the user's own stands under it. A
       // cluster they unfolded themselves is that level, and it folds the moment focus
       // leaves the margin, so the close hands them back to the entry the card hangs
       // from and the fold is the next press. With no such cluster — the walk's own
@@ -2366,7 +2366,7 @@ export function createMarginProjection({
       // for a host that has gone or an entry whose own state holds its actions open.
       // Hiding the popover hands focus back to the control that opened it, which after
       // a walk is a control in the cluster the card has since left. That return is
-      // transit rather than the reader arriving, and the landing below moves them on
+      // transit rather than the user arriving, and the landing below moves them on
       // from it in the same press, so the cluster is told not to read it as their
       // leaving — otherwise one press would take the card and the cluster together.
       out: () => {
@@ -2389,7 +2389,7 @@ export function createMarginProjection({
     };
   }
 
-  // The cluster the reader unfolded is page-side state rather than a layer of the card,
+  // The cluster the user unfolded is page-side state rather than a layer of the card,
   // so it answers from the ladder wherever they are standing — the card they opened from
   // it lands them out on the page, and the fold would otherwise be reachable only by
   // Tabbing back into the margin. It comes off after anything standing over the page and
@@ -2397,8 +2397,8 @@ export function createMarginProjection({
   // which is the container it is part of.
   //
   // Once a contribution is engaged, its complete and escape controls are open because of
-  // semantic state rather than because the reader disclosed the secondary tray. That
-  // state consumes the earlier disclosure step: Escape leaves the action the reader is
+  // semantic state rather than because the user disclosed the secondary tray. That
+  // state consumes the earlier disclosure step: Escape leaves the action the user is
   // standing on instead of first pretending to close controls that remain open by
   // contract.
   function optionsRung() {
@@ -2535,7 +2535,7 @@ export function createMarginProjection({
   // itself.
   //
   // A press on marked words passes `travel: false`: the words are already under the
-  // reader's hand, and centring them moves everything the reader was looking at. The
+  // user's hand, and centring them moves everything the user was looking at. The
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
   function openPageThread(id, { focus = "reply", travel = true } = {}) {
     if (!panelIsOpen()) {
@@ -2570,7 +2570,7 @@ export function createMarginProjection({
   // The margin packs its rows a frame after anything moves them — a row registering,
   // the column resizing under a diagram that finished or a disclosure that opened — and
   // the card was placed from its cluster when it opened. margin-layout.js says when it has
-  // moved the rows, and the card follows in that same frame, so a reader never sees it
+  // moved the rows, and the card follows in that same frame, so a user never sees it
   // standing above or below where its controls used to be.
 
   // Standing selection belongs to the reading, not to focus or a particular feature's
@@ -2619,7 +2619,7 @@ export function createMarginProjection({
     return conversations.length === 1 ? conversations[0] : null;
   };
   // A live revision replaces the browser document, so DOM identity cannot carry a
-  // reader standing in retained margin chrome. Carry the target and margin-entry keys
+  // user standing in retained margin chrome. Carry the target and margin-entry keys
   // instead; this owner alone can revalidate those keys against the new projection and
   // reopen the transient preview that supplied the focused control.
   function captureStanding() {

@@ -45,7 +45,7 @@ def _render_version_attempt(
     a drawing scrolling beside an empty margin the page had room in,
     a table that scrolls sideways with a cell in it wrapped,
     words the user can read and can't select, words drawn on top of other words, code
-    coloured in an ink the reader cannot tell from the code around it — each
+    coloured in an ink the user cannot tell from the code around it — each
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached

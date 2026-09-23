@@ -27,7 +27,7 @@ PROTECTED_REMEDIES = {
         "or resolve it"
     ),
     "state": (
-        "the reader's standing state rests on each: keep the element inside its "
+        "the user's standing state rests on each: keep the element inside its "
         "widget, and the widget may go anywhere on the page, such as a collapsed "
         "section of finished work. To drop it instead, put `restated` on the "
         "rewritten element the state rests on, stamp that version, and drop it in "
@@ -203,7 +203,7 @@ def continuity_errors(
         )
     if misplaced:
         errors.append(
-            "authored reader-generated ids must be direct children of their "
+            "authored user-generated ids must be direct children of their "
             f"sending widgets with the declared child tag: {misplaced}"
         )
     return errors, dropped_advice

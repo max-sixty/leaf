@@ -13,7 +13,7 @@ export const DESIGN_MODE_KEY = "lf-design-mode";
 
 // The name a design target wears — under the pointer, in the composer, beside its
 // thread. A widget is its tag and id, because both are what a fix is written against; a
-// page element takes the reader's word for its kind; a runtime part is its name, the id
+// page element takes the user's word for its kind; a runtime part is its name, the id
 // minus the runtime's prefix.
 export function designName(element) {
   if (layerPart(element)) return element.id.replace(/^lf-/, "").replace(/-/g, " ");

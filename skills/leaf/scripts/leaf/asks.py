@@ -55,7 +55,7 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
 
 
 def answers_ask(record: dict, entry: dict, verb: str) -> bool:
-    """Whether a reader's verb on one authored widget is part of that widget's own
+    """Whether a user's verb on one authored widget is part of that widget's own
     Ask's answer: the authored instance asks, and the verb writes the facet one of
     its answer verbs, or the completion verb `until` names, writes. A swipe on a
     deck that `finish` answers is part of the answer as much as the finish is. A
@@ -74,7 +74,7 @@ def ask_completion(rec: dict, entry: dict, projection: StateProjection) -> bool 
     """Whether an Ask's explicit completion verb stands.
 
     None leaves completion to ordinary answer records. When `until` applies,
-    its standing verb decides whether the reader still owes an answer. In a
+    its standing verb decides whether the user still owes an answer. In a
     frozen thread it also determines which widget moves require an agent response.
     """
     until = (entry.get("x-awaits") or {}).get("until")
@@ -153,7 +153,7 @@ def ask_answered(
     spk: dict,
     registry: dict,
 ) -> bool:
-    """Whether the reader's own gestures answer this Ask: its standing completion
+    """Whether the user's own gestures answer this Ask: its standing completion
     verb where `until` applies, and otherwise one of its answer verbs."""
     completed = ask_completion(rec, entry, projection)
     if completed is not None:
@@ -170,7 +170,7 @@ def seat_with_agent(
     seat, and one whose attributes miss the predicate has none placed on this
     instance either — so an element anchor written onto some other widget reaches
     nothing here. The seat's placement asks the same question of the same
-    declaration, so the cell the reader can see and the request this takes off their
+    declaration, so the cell the user can see and the request this takes off their
     list are one."""
     declaration = entry.get("x-conversation")
     unit = rec["attrs"].get("id")
@@ -394,7 +394,7 @@ class _AskReducer:
     def _surfaces(self, records):
         """Each visible ask as `(surface, source)`.
 
-        The surface is the reading and arrival region the reader is sent to; the
+        The surface is the reading and arrival region the user is sent to; the
         source is the widget that answers. They are the same record unless an
         `x-ask-surface` holder encloses it. One surface stands for one ask, so a
         later source inside a region already listed is dropped.
@@ -418,7 +418,7 @@ class _AskReducer:
         return pairs
 
     def inventory(self, settled_away: set[str]) -> list:
-        """Every active Ask, including ones the reader has answered.
+        """Every active Ask, including ones the user has answered.
 
         An action Ask remains active while its authored `when` holds, even after
         one of its answer verbs has state. A request Ask remains the instruction
@@ -490,12 +490,12 @@ def page_awaiting_values(
     roll-ups through a nested plan without originating one.
 
     An x-request.ask instance is local exactly while its canonical lifecycle is ready.
-    Its pending and completed phases hand the turn away from the reader; failure
+    Its pending and completed phases hand the turn away from the user; failure
     returns the lifecycle to ready and therefore reopens the ask.
 
     No conversation seat answers anything here, so this is whether the ask is
     answered at all — what an action's `requires` reads. `page_ask_readings` is
-    where a reader's own seats come in.
+    where a user's own seats come in.
     """
     passages = page_passages(
         document, registry, retirement_outcomes(projection.actions, registry)
@@ -526,18 +526,18 @@ def page_ask_readings(
 ) -> dict:
     """Every ask reading of one document, folded over one shared setup.
 
-    A document is read for three answers at once: the reader's own list, the same
+    A document is read for three answers at once: the user's own list, the same
     question with no conversation seats (what an action's `requires` asks), and the
     inventory of every active Ask. They differ only in `with_agent` and
     `settled_away`; the declared records, their holders, and their local conditions
     are one computation behind all three.
 
-    `with_agent` is what separates the reader's list from the rest. Given
+    `with_agent` is what separates the user's list from the rest. Given
     `seats_with_agent`, an ask whose own conversation seat holds a thread the agent
-    owes an answer to is not one the reader has to deal with, whatever its state.
+    owes an answer to is not one the user has to deal with, whatever its state.
     The same fold with no seats says whether the ask is answered at all: a
     conversation does not answer a question the widget still holds no state for, and
-    refusing the pick over the reader's own remark would refuse them the answer they
+    refusing the pick over the user's own remark would refuse them the answer they
     were asked for.
     """
     reducer = _AskReducer(
@@ -550,11 +550,11 @@ def page_ask_readings(
         thread=False,
         request_phases=request_phases,
     )
-    reader, awaiting = reducer.result(with_agent)
+    user, awaiting = reducer.result(with_agent)
     unanswered, unanswered_awaiting = reducer.result(set())
     return {
         "all": reducer.inventory(settled_away or set()),
-        "reader": reader,
+        "user": user,
         "unanswered": unanswered,
         "awaiting": awaiting,
         "unanswered_awaiting": unanswered_awaiting,
@@ -589,11 +589,11 @@ def thread_ask_readings(
     A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
     A widget with an action ask or request ask can stand in a thread. `until`
-    holds a matching action ask open until the reader has posted the verb it names,
+    holds a matching action ask open until the user has posted the verb it names,
     while a request ask follows its frozen-document request lifecycle.
 
     Frozen thread markup seats no conversation of its own — the thread's reply box
-    is already where the reader answers — so the reader's list and the unanswered
+    is already where the user answers — so the user's list and the unanswered
     list are one reading here. `page_ask_readings` is where the seats separate them.
 
     `settled` is the root ids of the closed threads, whose asks went with them —
@@ -622,7 +622,7 @@ def thread_ask_readings(
 
     return {
         "all": seated(reducer.inventory(set())),
-        "reader": seated(asks),
+        "user": seated(asks),
         "unanswered": seated(asks),
         "awaiting": awaiting,
         "unanswered_awaiting": awaiting,

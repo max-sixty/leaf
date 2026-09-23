@@ -18,7 +18,7 @@ import { at } from "./locate.js";
 // resolves to content-visibility, which checkVisibility reports as visible while the
 // box measures zero. That collapse is the point of a closed tab; the collapse being
 // hunted here is the one nothing asked for.
-// A control drawn where no reader can reach it. `TINY_BOXES` asks whether a widget got a
+// A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
 // difference is which failure each catches: a widget with no box is a widget that didn't
 // render, and a control with a box its own container clips away is a widget that rendered
@@ -27,7 +27,7 @@ import { at } from "./locate.js";
 // It is the failure with no witness. Nothing overflows the page, so the sideways-scroll
 // check is quiet; nothing is past the column, so that gate is quiet; the words are in a
 // text node and technically selectable, so the unreachable-words gate is quiet. What the
-// reader gets is a question with no visible way to answer it — which is exactly what
+// user gets is a question with no visible way to answer it — which is exactly what
 // shipped: a `choose` group in its row form states `width: 100%` on options that a
 // live-page rule gives a 30px keyboard-address rail, and under the default box-sizing
 // those are the row's width *plus* its padding, so every row ran 28px wider than the
@@ -76,7 +76,7 @@ export function clippedControls() {
       // is about and would wave every one of them through. What separates a
       // board, whose columns run past it and are reached by dragging, from a
       // group that swallowed its own pick marks is whether the box offers the
-      // reader a way in: auto and scroll do, hidden and clip do not. Paint
+      // user a way in: auto and scroll do, hidden and clip do not. Paint
       // containment clips both axes while `overflow` computes `visible`
       // (MISPLACED_BOXES reads the same fact for its ancestors), and it denies
       // the way in exactly where the axis has no scroller of its own.
@@ -105,7 +105,7 @@ export function clippedControls() {
           break;
         }
       }
-      // And the walk stops at the first box the reader can move. Above a
+      // And the walk stops at the first box the user can move. Above a
       // scroller, a control outside an ancestor's rect is a control that ancestor
       // will show once the scroller is dragged, so measuring it there would
       // report a press that is one gesture away as one drawn nowhere.
@@ -143,7 +143,7 @@ export function tinyBoxes(declarations) {
     .filter((box) => box.h < 10 || (!inline.has(box.tag) && box.w < 40));
 }
 
-// An element the reader can see and no mark can be shown on. The gate presses no keys, so
+// An element the user can see and no mark can be shown on. The gate presses no keys, so
 // it never watches the Ask walk paint a ring or a comment paint an outline. It can still
 // read whether either would have had anywhere to land, which is the same fault one step
 // earlier, before it turns into a mark nobody can see.
@@ -153,7 +153,7 @@ export function tinyBoxes(declarations) {
 // empty one every rect starts as — zero-sized, at the document's origin, a real-looking
 // answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
 // aimed at it lands at the top of the page: a page whose open decisions were all suggestions
-// answered `d` by appearing to do nothing at all, and that reached its reader rather than
+// answered `d` by appearing to do nothing at all, and that reached its user rather than
 // this gate. The runtime answers it by hanging a mark on the boxes an element shows
 // through (shownParts) — which leaves one case that answer cannot reach, an element whose
 // words are in no child element at all, where there is nothing to hang anything on.
@@ -175,7 +175,7 @@ export function unmarkableElements() {
     if (el.namespaceURI !== HTML) continue;
     if (el.closest(".lf-chrome")) continue;
     const box = shownBox(el);
-    // Nothing on screen is nothing to mark, and nothing the reader can point at
+    // Nothing on screen is nothing to mark, and nothing the user can point at
     // either: a collapsed tab's contents, a slot a decision retired.
     if (!(box.width && box.height)) continue;
     if (shownParts(el).length) continue;
@@ -197,7 +197,7 @@ export function unmarkableElements() {
 // text node, so a selection can't cover it. The runtime says the attributes the
 // registry marks x-says, and a widget's module says the rest (a chip row, a
 // heading that doubles as a list's accessible name); either way, none of an
-// element's own attribute values should still be reaching the reader as
+// element's own attribute values should still be reaching the user as
 // generated content.
 //
 // Or it can leave them under .lf-ui with nothing said about whose words they are.
@@ -261,9 +261,9 @@ export function unreachableWords() {
     if (speaks(el) || el.closest(CONTROL)) continue;
     // A message workflow line is runtime chrome about its owning widget, not authored
     // words of that widget. Its subject is the anchor; the provisional sentence
-    // deliberately is not another passage the reader can thread.
+    // deliberately is not another passage the user can thread.
     if (el.closest(".lf-msg-sending")) continue;
-    // .lf-quiet is words for a reader listening, clipped to nothing: not on
+    // .lf-quiet is words for a user listening, clipped to nothing: not on
     // screen, so there is nothing here the eye can see and the pointer can't
     // reach — the failure this check exists for. [hidden] is the other half of
     // that same silence and the one the runtime reaches for where a clip cannot
@@ -271,7 +271,7 @@ export function unreachableWords() {
     // root its link stands in, shadow roots included, and .lf-quiet's rule is a
     // document stylesheet that no shadow tree adopts. The attribute is safe to
     // read as "not shown" because the browser drops it on the reveal — a
-    // hidden="until-found" word the reader finds is a word this check sees
+    // hidden="until-found" word the user finds is a word this check sees
     // again, at the moment it is on screen. The two sibling checks that ask what
     // a box shows (render-checks/widgets.js, render-checks/standalone.js) spell
     // the same pair.

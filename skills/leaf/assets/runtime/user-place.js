@@ -1,13 +1,13 @@
-/* Holding the reader's place in a scroll container while its contents change.
+/* Holding the user's place in a scroll container while its contents change.
 
-   A surface that re-renders a list the reader may be scrolled into takes a place hold
+   A surface that re-renders a list the user may be scrolled into takes a place hold
    around the change: `placeKeeper(scroller, {items, identity})` names the nodes that
    can mark a place and the identity each is rendered under, and its `take` / `finish`
    pair brackets one mutation. The document itself needs none of this: its scroller is
    the platform's, and native scroll anchoring holds it (theme.css, at the body strip).
 
    The place is one reference node and its offset in the scroller's content. The
-   reference is chosen by what the reader last named: the item under the pointer while
+   reference is chosen by what the user last named: the item under the pointer while
    the pointer is over the scroller, then the item holding focus, then the items in the
    scroller's visible band (`visibleBand`, so an item wholly under a stuck heading is not
    where anyone is reading) from the top down. Every candidate is recorded, so when the
@@ -18,7 +18,7 @@
    node hands its state across itself).
 
    The correction follows only reflow: adding `scrollTop` to a node's viewport top gives
-   its content offset, which a reader's scroll does not change, so a wheel, a key, or a
+   its content offset, which a user's scroll does not change, so a wheel, a key, or a
    deliberate landing during the hold is never fought. A scroll-limit clamp the browser
    applied because content shrank is identified by the falling limit and the scroller
    standing exactly on it, and is not paid for twice.

@@ -17,12 +17,12 @@
  * sits under the name and the author's sentence, one shape per agent to run an eye down.
  *
  * The line's words are the page's, not the runtime's: plain spans carrying
- * data-lf-gen, exactly as lf-task's done-fraction chip is, so the reader can select
+ * data-lf-gen, exactly as lf-task's done-fraction chip is, so the user can select
  * and quote what the row says. Generated, so the version diff looks away; unmarked as
  * chrome, so the anchor pass does not. A quote on the elapsed line detaches when the
  * minute turns, which is the same bargain a quote on a computed fraction already
  * makes, and the alternative — marking it chrome — would put a word on screen that
- * the reader can read and not point at.
+ * the user can read and not point at.
  *
  * Rebuilding is idempotent: renderState states the absolute attribute, and the common
  * update projection hands the declared activity clause to this row, so a reload, a
@@ -74,7 +74,7 @@ function heard(el, updates) {
   const effective = reports.findLast((update) => update.disposition === "effective");
   sayDoing(row, effective?.text ?? null);
   // What this worker last said, or — where it has never said anything — when the row
-  // claiming it exists was put in front of the reader, which is the longest we can
+  // claiming it exists was put in front of the user, which is the longest we can
   // honestly say we have heard nothing. `saidAt` for that: the version's publish for a
   // row on the page, and the message's own clock for a roster an agent sent in a reply,
   // where the page's publish would have the row certifying workers against a moment
@@ -96,7 +96,7 @@ function heard(el, updates) {
   const ts = newest?.ts ?? saidAt(el);
   const stale = ts && el.getAttribute("state") === "working" && quietSince(ts);
   // In place, and only where the words actually differ. This runs on every poll for
-  // every row on the page, and the row is a thing the reader is invited to select and
+  // every row on the page, and the row is a thing the user is invited to select and
   // point at: a span removed and rebuilt every two seconds takes the selection whose
   // endpoint was in it, drops focus off the reference beside it, and swallows a click
   // that straddles the swap — the failure "Paint; don't wrap" is about, arrived at by
@@ -142,7 +142,7 @@ function say(row, cls, text, before) {
 /* The state, in the gutter every row shares. A word rather than a dot: a tree's marker
  * sits beside a title that already says what the work is, so paint alone carries there
  * (lf-task, x-paints), and a roster is a set of rows alike in everything but this — a
- * colour with no word on it is a legend the reader has to hold in their head across
+ * colour with no word on it is a legend the user has to hold in their head across
  * five of them, and silence to whoever is listening rather than looking.
  *
  * In a gutter, because the question a roster answers is which of these five, and an
@@ -222,7 +222,7 @@ customElements.define(
         heard(this, updateSequence(this)),
       );
       // The shared clock refreshes this when its displayed age changes and touches
-      // one text node when it does, rather than rebuilding a row the reader may have
+      // one text node when it does, rather than rebuilding a row the user may have
       // their pointer in.
       this.#stop ??= watchUpdates(this, (updates) => heard(this, updates));
     }

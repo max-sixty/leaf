@@ -121,7 +121,7 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
                 "states": {},
                 "kind": kind,
                 "title": f"The {route} page",
-                "description": f"What a reader does at {route}.",
+                "description": f"What a user does at {route}.",
                 "image": "/media/card.png",
             }
             for route, (directory, kind) in pages.items()
@@ -298,14 +298,14 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
 def test_agent_logs_are_structured_and_content_free(capsys):
     website_server.log_agent(
         "container_start_completed",
-        eventId="reader-event",
+        eventId="user-event",
         durationMs=125,
     )
 
     assert json.loads(capsys.readouterr().out) == {
         "component": "leaf-agent",
         "event": "container_start_completed",
-        "eventId": "reader-event",
+        "eventId": "user-event",
         "durationMs": 125,
     }
 
@@ -402,12 +402,12 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
                         "page": str(page_dir),
                         "events": [
                             {
-                                "id": "reader-event",
+                                "id": "user-event",
                                 "obligation": {
                                     "response": {
                                         "kind": "reply",
-                                        "to": "reader-event",
-                                        "for": "reader-event",
+                                        "to": "user-event",
+                                        "for": "user-event",
                                     }
                                 },
                             }
@@ -429,7 +429,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         lambda socket, thread, pending, event: interrupted.append((thread, event)),
     )
 
-    thread_id = host.attach(page_dir, "reader-event")
+    thread_id = host.attach(page_dir, "user-event")
 
     assert thread_id == "hosted-thread"
     assert requests == [
@@ -442,11 +442,11 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             },
         )
     ]
-    # However the thread was left, the reader's message starts a turn of its own.
+    # However the thread was left, the user's message starts a turn of its own.
     # A thread still running one has it stopped first, since that turn is answering
     # into a container that stopped watching it.
     assert interrupted == (
-        [("hosted-thread", "reader-event")] if status == "active" else []
+        [("hosted-thread", "user-event")] if status == "active" else []
     )
     assert started == [("socket", page_dir, "hosted-thread", process, [])]
     assert reserved == []
@@ -461,7 +461,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
 
     Every follower stops its own turn before it stops, so a thread that resumes
     active is one whose container died mid-turn: that turn answers into nothing and
-    holds the thread against the reader waiting behind it. App Server takes the
+    holds the thread against the user waiting behind it. App Server takes the
     interrupt without a turn id and says the turn ended on the same subscription,
     which is what makes the thread the new delivery's.
     """
@@ -634,7 +634,7 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
         RuntimeError("Codex App Server did not start a turn: refused"),
         # The connection's own class, which descends from `Exception` alone: a start
         # can fail on the handshake or a dropped socket before it reaches the turn,
-        # and the reader is owed the same receipt either way.
+        # and the user is owed the same receipt either way.
         ConnectionClosedError(None, None),
     ],
     ids=["refused", "disconnected"],
@@ -648,7 +648,7 @@ def test_a_continuation_that_cannot_start_receipts_the_move_it_was_for(
     Worker's dispatch is over and the `startup_failed` receipt it writes when a start
     throws cannot reach this one. Nothing scans for the move again either — the scan
     that would find it is the one that just produced it — so a start that throws here
-    leaves the reader on a turn that never began unless this writes the receipt.
+    leaves the user on a turn that never began unless this writes the receipt.
     """
     comment = append_event(
         page_dir,
@@ -684,7 +684,7 @@ def test_a_move_queued_behind_one_that_could_not_start_is_reached_too(
     turn are two obligations, both answered `started` on that turn's thread. The
     ending is the only scan either gets: one that stopped at the first failure would
     leave the second with no delivery, no dispatch and nothing coming, which reads as
-    `listening` until the reader sends a third.
+    `listening` until the user sends a third.
     """
     comments = [
         append_event(page_dir, {"kind": "comment", "author": "user", "text": text})
@@ -894,7 +894,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     assert delivered["obligation"]["response"]["kind"] == response_kind
     replacements = {
         str(page_dir): "/page",
-        event["id"]: "reader-event",
+        event["id"]: "user-event",
         event["ts"]: "2026-09-22T10:00:00-07:00",
         payload["id"]: "00000001",
         str(payload["created_at"]): "1790096400.0",
@@ -908,7 +908,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     )
     snapshot.check(
         yaml_document(
-            "Actual outgoing App Server requests for an admitted reader event.\n"
+            "Actual outgoing App Server requests for an admitted user event.\n"
             "Only the page path, event/delivery identities, and timestamps are pinned.\n"
             "toolOutput.output is the complete serialized delivery the agent receives.",
             recorded,
@@ -971,7 +971,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         ),
     )
     assert host._start_thread(
-        page_dir, type("Process", (), {"pid": 41})(), "reader-event"
+        page_dir, type("Process", (), {"pid": 41})(), "user-event"
     ) == ("hosted-thread")
     assert requests == [
         (
@@ -1252,7 +1252,7 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     assert prewarm_started.wait(timeout=STATED_TIMEOUT)
     attached = []
     request = threading.Thread(
-        target=lambda: attached.append(host.attach(page_dir, "reader-event"))
+        target=lambda: attached.append(host.attach(page_dir, "user-event"))
     )
     request.start()
     assert calls == [None]
@@ -1292,12 +1292,12 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
     monkeypatch.setattr(host, "_start_thread", start_thread)
     attached = []
     first = threading.Thread(
-        target=lambda: attached.append(host.attach(page_dir, "reader-event"))
+        target=lambda: attached.append(host.attach(page_dir, "user-event"))
     )
 
     def attach_second():
         second_called.set()
-        attached.append(host.attach(page_dir, "reader-event"))
+        attached.append(host.attach(page_dir, "user-event"))
 
     second = threading.Thread(target=attach_second)
     first.start()
@@ -1533,7 +1533,7 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
     ],
     ids=["refused", "lost"],
 )
-def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
+def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     page_dir, monkeypatch, refusal
 ):
     """A dispatch that cannot name a turn withdraws, rather than going looking.
@@ -1543,7 +1543,7 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
     provider is told to stop whatever it started, and the delivery gives the
     moves back — both the offer and the reply seat it reserved, because either
     left standing blocks the `startup_failed` receipt this raise asks the Worker
-    for, and that receipt is what invites the reader to send again.
+    for, and that receipt is what invites the user to send again.
     """
     comment = append_event(
         page_dir,
@@ -1587,14 +1587,14 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
     assert activity["observed_kind"] is None
     assert [item["stage"] for item in activity["obligations"]] == ["sent"]
-    # The seat is free, so the Worker's own receipt reaches the reader.
+    # The seat is free, so the Worker's own receipt reaches the user.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
         is not None
     )
 
 
-def test_an_acknowledged_start_answers_a_reader_with_no_turn_started_notification(
+def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     page_dir, monkeypatch
 ):
     """App Server's answer to `turn/start` is the binding, not a timing record.
@@ -1683,7 +1683,7 @@ def test_an_acknowledged_start_answers_a_reader_with_no_turn_started_notificatio
 def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     page_dir, monkeypatch
 ):
-    """A turn can end well and still leave the reader with nothing.
+    """A turn can end well and still leave the user with nothing.
 
     App Server reports a turn completed whether or not it wrote a final answer, so
     the move it was given can outlive it settled by nobody. The follower that took
@@ -1821,10 +1821,10 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
 
     The hosted site starts a turn for every move that owes an answer: a message, a
     request, an answer to a page Ask. Each takes the failure its own answer takes,
-    and each leaves the next step with the reader, so none stays owed with no turn
+    and each leaves the next step with the user, so none stays owed with no turn
     coming for it. A request's failed receipt is its lifecycle's own outcome and
     reopens its seat. A pick keeps standing on the page, and the workflow says it was
-    not answered until the reader answers again. A conversation that asked for a
+    not answered until the user answers again. A conversation that asked for a
     version is told in that conversation.
     """
     move = owed_move(page_dir)
@@ -1890,13 +1890,13 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
     [workflow] = returned
     assert workflow["condition"] == {"kind": "failed", "operation": "response"}
-    assert (workflow["next_actor"], workflow["answer"]) == ("reader", None)
+    assert (workflow["next_actor"], workflow["answer"]) == ("user", None)
 
 
-def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_reader(
+def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_user(
     page_dir, monkeypatch
 ):
-    """A dispatch holds the reader's request open, so it does not wait forever.
+    """A dispatch holds the user's request open, so it does not wait forever.
 
     The turn being stopped belongs to a container that is already gone. If App
     Server does not report it ended, this start raises, the Worker receipts the
@@ -1919,7 +1919,7 @@ def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_reader(
     monkeypatch.setattr(host, "_send", send)
 
     with pytest.raises(RuntimeError, match="did not stop"):
-        host._end_unfollowed_turn(Socket(), "hosted-thread", [], "reader-event")
+        host._end_unfollowed_turn(Socket(), "hosted-thread", [], "user-event")
 
     assert sent == ["turn/interrupt"]
 
@@ -1954,7 +1954,7 @@ def test_an_interrupt_refused_by_an_idle_thread_is_recorded_not_raised(
         ),
     )
 
-    host._interrupt("hosted-thread", "app-server-turn", eventId="reader-event")
+    host._interrupt("hosted-thread", "app-server-turn", eventId="user-event")
 
     [record] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert record["event"] == "turn_interrupt_failed"
@@ -1972,7 +1972,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     running, answering into nobody, and its pickup of this move stops every other
     writer from receipting it. So the follower that took the move is the one that
     has to close both: `turn/interrupt` for the turn, and the receipt that tells
-    the reader to send again — which the move's own pickup would otherwise refuse,
+    the user to send again — which the move's own pickup would otherwise refuse,
     leaving the page showing a message picked up by a turn that is gone.
     """
     comment = append_event(
@@ -2025,7 +2025,7 @@ def test_a_host_failure_receipt_answers_a_gesture_on_its_conversation(page_dir):
     dispatch throws, with whatever event `/api/event` accepted — which can be a
     gesture on a widget frozen into thread markup. That is answered on the
     conversation holding it, so addressing the receipt at the gesture refuses the
-    one write whose whole job is to leave the reader something.
+    one write whose whole job is to leave the user something.
 
     The Worker repeats that request, so the second call has to answer with the first
     receipt. Once the first has settled the gesture, nothing outside the log can say
@@ -2564,9 +2564,9 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     """Silence past the bound ends the turn, because nothing else can end it.
 
     The subscription that has gone quiet is the one that would carry the turn's
-    completion, so waiting longer only holds the reader on a page that says the
+    completion, so waiting longer only holds the user on a page that says the
     agent is working. The turn is stopped, its reading comes off the page, and the
-    reader is told no answer is coming.
+    user is told no answer is coming.
     """
     comment = append_event(
         page_dir,
@@ -2842,7 +2842,7 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
         False,
     )
     # The page the turn left cannot take the answer, and closing the turn on it is
-    # what raised — so the receipt is the only thing the reader can still be given,
+    # what raised — so the receipt is the only thing the user can still be given,
     # and it is owed exactly where the rest of the account failed.
     [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert receipt["failure"] == "turn_failed"
@@ -2949,7 +2949,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     `DeliveryReply` guards only the commit of a completed answer: setting the state
     and releasing the binding open page transactions of their own, and the turn's own
     work may have left that page unopenable. The turn has ended either way, and until
-    its Leaf turn closes the page tells its reader the agent is working, with nothing
+    its Leaf turn closes the page tells its user the agent is working, with nothing
     but the claim's grace to correct it — and the move it was carrying goes without
     the receipt that says no answer is coming.
     """
@@ -3267,7 +3267,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         # which Asks a revision holds rather than folding the declarations again.
         assert set(view["browser"]["views"][str(revision)]["document"]["asks"]) == {
             "all",
-            "reader",
+            "user",
             "unanswered",
             "awaiting",
             "unanswered_awaiting",
@@ -3436,7 +3436,7 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
 def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
     page_dir, tmp_path
 ):
-    """What a reader posting into a draining rollout gets back.
+    """What a user posting into a draining rollout gets back.
 
     A container carries the layer of the image it runs, so a session allocated on a
     previous image answers a newer generation with its own rather than with state.
@@ -3560,7 +3560,7 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
         assert agent_host.attached == []
 
 
-def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
+def test_an_agent_reply_is_dropped_when_a_newer_user_turn_overtakes_it(
     page_dir, tmp_path
 ):
     site = tmp_path / "site"
@@ -3737,7 +3737,7 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     """The site gate's own timeout says nothing; the message it raises has to.
 
     A red `Measure the bundled release in Chrome` step carried only Playwright's
-    wait, so a reader could not tell which of the three pages stalled, nor whether
+    wait, so a user could not tell which of the three pages stalled, nor whether
     widget upgrade or the first state read was the one that never answered.
     """
     stalled = verify_site.unpresented(
@@ -3755,7 +3755,7 @@ def test_an_undrawn_reply_says_whether_the_page_took_the_answer_in():
     """A reply the container admitted and the panel never drew has one open question.
 
     `publish-site` failed on a turn whose every server record was healthy — it published
-    its revision, replied, and went back to listening — while the reader's panel held an
+    its revision, replied, and went back to listening — while the user's panel held an
     agent bubble with no words in it. The gate reported the message nodes and nothing
     else, and that snapshot is the same whether the page stopped asking, asked and never
     got an answer, or took the answer in and drew nothing. The page paints the reading it
@@ -4314,7 +4314,7 @@ class _DeployedPage:
 
 
 class _DeployedContainer:
-    """The private container one activated reader session reaches, serving `release`."""
+    """The private container one activated user session reaches, serving `release`."""
 
     def __init__(self, release: str, page: _DeployedPage):
         self.release = release

@@ -1,13 +1,13 @@
 /* Meaningful news from complete, accepted page readings.
 
-   The server owns conversation content, reader obligations, request lifecycles,
+   The server owns conversation content, user obligations, request lifecycles,
    response conditions, and page activity. This module compares those readings after
    presentation. It remembers which source versions were observed, not a second
    account of what the page currently means.
 
    New agent content is the server's `unread` reading, the same one the Threads panel
    and banner paint: a version is news the first time this tab sees it unread, and
-   never once the reader has taken it in, here or in another tab. What the reader has
+   never once the user has taken it in, here or in another tab. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
@@ -42,12 +42,12 @@ function unreadContent(conversation) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-function readerObligations(page, conversation) {
+function userObligations(page, conversation) {
   const held = new Map();
-  for (const ask of page.asks.reader)
+  for (const ask of page.asks.user)
     held.set(JSON.stringify(["page", ask.id]), { source: ask.id, thread: null });
   const askedThreads = new Set();
-  for (const ask of conversation.asks.reader) {
+  for (const ask of conversation.asks.user) {
     held.set(JSON.stringify(["thread", ask.conversation, ask.id]), {
       source: ask.id,
       thread: ask.conversation,
@@ -56,15 +56,15 @@ function readerObligations(page, conversation) {
   }
   for (const thread of conversation.threads) {
     if (
-      thread.attention?.kind === "needs_reader" &&
+      thread.attention?.kind === "needs_user" &&
       thread.attention.reason === "ask" &&
       !askedThreads.has(thread.root.id) &&
-      thread.reader_prompt
+      thread.user_prompt
     )
       held.set(
-        JSON.stringify(["thread-turn", thread.root.id, thread.reader_prompt.version]),
+        JSON.stringify(["thread-turn", thread.root.id, thread.user_prompt.version]),
         {
-          source: thread.reader_prompt.message,
+          source: thread.user_prompt.message,
           thread: thread.root.id,
         },
       );
@@ -100,7 +100,7 @@ const agentAvailable = (activity) =>
 
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.conversation);
-  const obligations = readerObligations(reading.page, reading.conversation);
+  const obligations = userObligations(reading.page, reading.conversation);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -153,7 +153,7 @@ export function observeSemanticNews(prior, reading) {
     observed.obligationEpisodes.set(key, episode);
     if (!first)
       news.push({
-        kind: "reader_obligation",
+        kind: "user_obligation",
         key: `obligation:${key}:${episode}`,
         sourceKey: key,
         ...obligation,
@@ -172,12 +172,12 @@ export function observeSemanticNews(prior, reading) {
 
 // A waiting status-line notice keeps the historical receipts but drops assertions
 // that the latest successfully presented reading has since superseded. In particular,
-// an answer can replace a failure while the reader's own command holds the line.
+// an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(
     unreadContent(reading.conversation).map(({ version }) => version),
   );
-  const obligations = readerObligations(reading.page, reading.conversation);
+  const obligations = userObligations(reading.page, reading.conversation);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {
@@ -189,7 +189,7 @@ export function currentSemanticNews(news, reading, observed) {
         const current = failures.get(item.key.slice("response:".length));
         return current ? [{ ...item, condition: current.kind }] : [];
       }
-      case "reader_obligation":
+      case "user_obligation":
         return obligations.has(item.sourceKey) ? [item] : [];
       case "agent_available":
         return agentAvailable(reading.activity) &&
@@ -215,7 +215,7 @@ export function semanticNewsNotice(news) {
   const content = byKind("agent_content");
   const failures = byKind("response_failure");
   const requests = byKind("request_outcome");
-  const obligations = byKind("reader_obligation");
+  const obligations = byKind("user_obligation");
   const availability = byKind("agent_available");
   const clauses = [];
 

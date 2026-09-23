@@ -2,7 +2,7 @@ name: publish-site
 
 # Every product and example route uses one build through a Cloudflare Worker origin:
 # immutable documents and browser assets at the edge, and the canonical Python Leaf
-# server for per-reader API state.
+# server for per-user API state.
 
 on:
   push:

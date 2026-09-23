@@ -21,7 +21,7 @@
 import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { under } from "./shadow.js";
-import { readerStore } from "./storage.js";
+import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 
 export const AUXILIARY_SURFACE_KEY = "lf-auxiliary-surface";
@@ -206,11 +206,11 @@ export function createAuxiliarySurfaces({
     sync();
     syncLayout();
     afterChange();
-    if (remember) readerStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
+    if (remember) userStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
   }
 
   function restore() {
-    const key = readerStore.get(AUXILIARY_SURFACE_KEY);
+    const key = userStore.get(AUXILIARY_SURFACE_KEY);
     select(controllers.has(key) ? key : null, { remember: false, phase: "arrival" });
   }
 

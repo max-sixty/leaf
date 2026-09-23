@@ -1,4 +1,4 @@
-/* This module owns reader travel. */
+/* This module owns user travel. */
 import { clampedRow } from "./keyboard/bindings.js";
 import {
   inPanel as panelFocusIsInside,
@@ -62,7 +62,7 @@ function stepThread(
   }
   // Both halves of the press go where they were pointed. The list lands the thread off
   // the focus it is about to take, so a press at either end of the walk, which names the
-  // thread the reader already stands on, moves no focus and gives the list nothing to
+  // thread the user already stands on, moves no focus and gives the list nothing to
   // land: the press lands that thread itself. The page half travels either way.
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
@@ -76,7 +76,7 @@ function stepThread(
   );
 }
 
-// Put the comment the reader is standing on against one edge of its list. This is
+// Put the comment the user is standing on against one edge of its list. This is
 // placement inside the panel, not travel to the passage the comment is about, so it
 // moves only the thread scroller and keeps the card's focus. Native scroll placement
 // reads the list's declared scroll-padding, including its sticky heading and focus-ring
@@ -89,10 +89,10 @@ export function placeThreadEdge(thread, edge) {
 // the active region and share one glide, so mixed or repeated presses add up from
 // the pending goal. Space, Home/End and PageUp/Down stay the browser's own keys.
 //
-// They move the region the reader is reading, which is the thread list wherever the
-// reader stands in the panel or the panel covers the page. Scrolling a region the
-// reader is not in reads to them as the key doing nothing, and then the document is
-// somewhere else when they look back at it.
+// They move the region the user is reading. The thread list is that region when
+// focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
+// region the user is not in reads to them as the key doing nothing, and then the
+// document is somewhere else when they look back at it.
 //
 // The step moves at the pace of the browser's own paging keys. Native paging is a quick
 // glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same
@@ -105,22 +105,22 @@ export function placeThreadEdge(thread, edge) {
 // a glide built from smooth writes would never land. A press mid-flight retargets from
 // the goal, so quick presses add their full distances; the goal is clamped, so pressing on
 // at the foot banks no debt for u to press back through; and the step stands down the
-// moment the box moves under another hand — a wheel, a centering — because the reader's
+// moment the box moves under another hand — a wheel, a centering — because the user's
 // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
 // rest of the runtime's motion already gives (scrollBehavior()).
 //
-// The page the step measures is the one the reader can see. The document's box lends its
+// The page the step measures is the one the user can see. The document's box lends its
 // top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
 // exactly so by scrollToElement — is where the box already says how much of itself stands
 // covered. The thread list says the same thing about itself: a stuck run heading covers
 // its top, so a reading-page step there is 60% of what is left rather than 60% of the
-// box, which is the answer the reader wants — a step that landed them under the heading
+// box, which is the answer the user wants — a step that landed them under the heading
 // would be a step onto words they cannot read.
 const SCROLL_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
 // The glide's claim on the box: it holds only while the box is where the glide last
 // wrote it. The tick asks before every write, and a press asks the same question before
-// trusting the goal — the reader can take the box between frames, and a press landing
+// trusting the goal — the user can take the box between frames, and a press landing
 // in that gap otherwise measures from a goal the box has already left.
 const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
@@ -128,12 +128,16 @@ const holding = (box) =>
 // beside it, the document keeps its own top and bottom.
 const seenScroller = (coveringAuxiliaryScroller) =>
   coveringAuxiliaryScroller() ?? pageScroller;
-// Reading-page keys follow the region the reader is working in. Focus can put them in a
-// panel or anchored conversation beside the page; a covering panel remains the only
-// visible region even when focus is still on the banner control that opened it.
-const stepScroller = (coveringAuxiliaryScroller) =>
-  coveringAuxiliaryScroller() ??
-  effectiveScroller(readingRegionFor(document.activeElement));
+// Reading-page keys follow the region the user is working in. Focus can put them in a
+// panel or anchored conversation beside the page. Inside a covering surface the focused
+// region still wins; its own scrollport may be nested in that surface. The covering
+// scrollport catches focus with no region, such as a blurred stop.
+const stepScroller = (coveringAuxiliaryScroller) => {
+  const covering = coveringAuxiliaryScroller();
+  const region = readingRegionFor(document.activeElement);
+  if (covering && !coveringAuxiliarySurface()?.contains(region?.host)) return covering;
+  return effectiveScroller(region);
+};
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
   const box = stepScroller(coveringAuxiliaryScroller);
   if (unit === "page") {
@@ -200,7 +204,7 @@ export function createNavigation({
   const walkThreads = (dir) => stepThread(dir, threadDestinations, panelIsOpen);
 
   // Travel's own page keys. All three remain reachable inside a covering auxiliary
-  // surface: the surface replaces the page the reader is reading rather than ending the
+  // surface: the surface replaces the page the user is reading rather than ending the
   // reading, and t/T follows whichever surface is presenting the threads.
   pageCommand({
     id: "thread.walk",
@@ -221,7 +225,7 @@ export function createNavigation({
       (!coveringAuxiliarySurface() || inPanel()) &&
       !(threadSearchActive() && inPanel()),
     repeat: true,
-    // The walk moves the reader laterally: it is the surface it reaches through, rather
+    // The walk moves the user laterally: it is the surface it reaches through, rather
     // than the walk, that Escape takes off. In the panel it moves focus from card to
     // card and the standing scope lets go of whichever one they end on, back to the
     // list. With the panel shut it stands them on a thread a widget seats on the page,

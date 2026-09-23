@@ -1,6 +1,6 @@
 /* Drawing gesture controller.
  *
- * Draw mode claims primary-pointer drags anywhere on the page until the reader leaves it.
+ * Draw mode claims primary-pointer drags anywhere on the page until the user leaves it.
  * Every drawing belongs to a comment draft. A semantic target under or horizontally
  * alongside a stroke's first point names its anchored draft and remains the conversation
  * coordinate; a stroke with none belongs to the page draft. A stroke joins the drawing its
@@ -63,7 +63,7 @@ const UNDERLINE_REACH = 8;
 // The page's words a drawing stands over, for whoever reads the comment without the page
 // in front of them: from the first shown word inside the ink's extents to the last, as the
 // page reads a quote. That is more than the ink marked, since an arrow says the paragraph
-// it crosses, and the reader's own words say which part they meant. A word counts by the
+// it crosses, and the user's own words say which part they meant. A word counts by the
 // part of it the page shows: a row scrolled out of its container lies under the ink's
 // coordinates and under none of its pixels.
 function wordsUnder(ink) {
@@ -402,7 +402,7 @@ export function createDrawingController({
   // stroke that ended over a control does not also activate it. The claim stands over
   // the whole document until the stroke's compatibility events have passed, so it has to
   // say which presses it is for: a keyboard activation is not one of them (pointer.js).
-  // Eating it silently lost the reader's press — Ctrl+Enter on the composer the stroke
+  // Eating it silently lost the user's press — Ctrl+Enter on the composer the stroke
   // had just opened sent nothing, and nothing said so.
   const compatibilityPress = (event) => {
     if (claimThroughClick && !pressIsKeyboardActivation(event)) claim(event);

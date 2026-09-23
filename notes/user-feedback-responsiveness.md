@@ -1,4 +1,4 @@
-# Responsive reader feedback
+# Responsive user feedback
 
 Status: target contract. The lifecycle exists in parts, but the complete ordering and
 latency objectives are not yet implemented or measured. Move each stable rule into its
@@ -6,13 +6,13 @@ owning runtime, protocol reference, skill, or test as it lands, then delete this
 
 ## Goal
 
-Reader input should produce useful visible feedback before Leaf or its agent begins the
-work that input caused. The reader should never have to infer from silence whether a
+User input should produce useful visible feedback before Leaf or its agent begins the
+work that input caused. The user should never have to infer from silence whether a
 gesture was recorded, reached the agent, or is being acted on.
 
 Responsiveness is first an ordering guarantee and then a latency goal:
 
-1. Paint the result of the reader's gesture.
+1. Paint the result of the user's gesture.
 2. Show the strongest delivery or ownership fact Leaf can prove.
 3. Begin the substantive work.
 4. Keep the visible state current until a durable result settles the input.
@@ -33,14 +33,14 @@ resolution rather than substantive work; the work claim is the next operation.
   performed to answer the input. Transport reads needed to learn the page and subject
   are not substantive work.
 - **Settlement** is the durable reply, revision, request receipt, resolution, or declared
-  action that answers the exact reader input.
+  action that answers the exact user input.
 
 ## Lifecycle
 
 Each stage strengthens the previous reading. Later work may not make an earlier stage
 disappear unless stronger evidence replaces it.
 
-| Stage | Writer and evidence | Reader-visible result | Ordering requirement |
+| Stage | Writer and evidence | User-visible result | Ordering requirement |
 | --- | --- | --- | --- |
 | Gesture | Browser pending ledger | The semantic result appears immediately | Same rendering turn as the gesture, before the POST completes |
 | Admission | Leaf event door | The accepted subject says **Sent**; refusal restores authoritative state and explains the failure | Before any delivery attempt |
@@ -48,8 +48,8 @@ disappear unless stronger evidence replaces it.
 | Turn entry | Direct delivery or App Server observer records `opened` | The subject says **Picked up**; the banner retains overall page activity and separate delivery counts | As part of opening the turn, without waiting for model output |
 | Work selection | Agent work claim | The selected subject says **Active**; the banner says what the agent is doing and retains any queued count | The agent's first operation for an actionable delivery, after address resolution and before substantive work |
 | Progress | Agent status or observed host activity | The banner replaces the work detail when the operation materially changes; queued and active receipts remain visible | Publish the new phase before starting it |
-| Result | Append-only event, revision, or terminal request receipt | The page or thread shows the durable outcome; the triggering obligation leaves the outstanding count | Before claiming completion or asking the reader for another move |
-| Handoff | Agent waiting declaration | The banner names the concrete answer wanted from the reader, or invites comments when there is no specific ask | Only after every obligation taken by the turn is settled |
+| Result | Append-only event, revision, or terminal request receipt | The page or thread shows the durable outcome; the triggering obligation leaves the outstanding count | Before claiming completion or asking the user for another move |
+| Handoff | Agent waiting declaration | The banner names the concrete answer wanted from the user, or invites comments when there is no specific ask | Only after every obligation taken by the turn is settled |
 
 The transport owns **Queued** and **Picked up** because it can prove them without model
 judgment. The agent owns **Active** and the work detail because selecting the work and
@@ -94,14 +94,14 @@ They should be revised from phase traces rather than relaxed to make a test pass
 | Status or durable result write → browser paint | Next state application; target under 1 s |
 
 Time to complete the requested work has no universal budget. The contract is that the
-reader sees which phase the work is in while that time passes. A long operation renews
+user sees which phase the work is in while that time passes. A long operation renews
 or changes its detail when the phase changes; it does not emit timer-driven chatter.
 
 ## Failure behavior
 
 - An offline browser retains the local result and says that it is waiting to send.
 - A refused event restores authoritative state and leaves a useful error at the surface
-  where the reader acted.
+  where the user acted.
 - Queue acceptance never implies turn entry. A queued receipt remains queued until a
   carrier observes the exact turn or the agent makes a local work claim.
 - Turn entry never implies settlement. Only a durable Leaf operation answers an
@@ -117,7 +117,7 @@ The contract should be proved at its owners rather than by one fragile full-stac
 
 1. Projection tests arrange sent, queued, opened, active, stale, and settled evidence and
    assert the canonical activity reading, including work plus a newer queue.
-2. Browser tests perform the reader gesture for local feedback and inject later durable
+2. Browser tests perform the user gesture for local feedback and inject later durable
    transitions through the real server, asserting the rendered receipt and banner after
    each causal edge.
 3. Agent evals inspect the tool trace for a direct delivery, a queued pointer, a

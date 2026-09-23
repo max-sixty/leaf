@@ -427,7 +427,7 @@ function sizeComment() {
 // selection's own toString() gives back the rendering: the theme uppercases a table
 // header and an eyebrow, and a <br> or a display:block span breaks a run the page's own
 // words run together. An anchor written from that names a passage no reading of the
-// mapped revision can find, and the reader is told the page never said the words in front
+// mapped revision can find, and the user is told the page never said the words in front
 // of them. So the characters come from the text nodes, and one space goes wherever the
 // enclosing text block changes, using the tag vocabulary Python owns and sends as
 // textBlocks. The collapse is JS's whitespace class, which passages.py spells out as

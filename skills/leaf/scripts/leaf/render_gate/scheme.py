@@ -343,7 +343,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,
-    # the unanswered question and the body the reader has since rewritten — a page
+    # the unanswered question and the body the user has since rewritten — a page
     # nobody is shown. The caught-up stamp is the log's answer to that, and the frame
     # it lands in is the first frame of whatever the replay set moving, a replay past
     # the presentation boundary moving rather than teleporting. Both waits are taken in

@@ -179,7 +179,7 @@ def _driver_failure(manager) -> str:
     The reason is an exception on the connection's init task, reachable only
     through Playwright privates. Every reading is optional here and a plain
     sentence stands in for a missing one, because this runs on the path whose
-    whole point is that an attribute error stops being what the reader sees."""
+    whole point is that an attribute error stops being what the user sees."""
     task = getattr(getattr(manager, "_connection", None), "_init_task", None)
     if task is None or not task.done() or task.cancelled():
         return "the driver ended before answering"

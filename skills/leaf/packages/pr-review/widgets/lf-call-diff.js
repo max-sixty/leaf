@@ -241,7 +241,7 @@ customElements.define(
     // descendant of a disclosure as well. So the copy keeps each location as text.
     // The toggle needs nothing here: `offer` marked it, and the bake takes a marked
     // press away on its own. Nor do the counts, which stay, because an account of the
-    // tree is something a reader still wants on paper.
+    // tree is something a user still wants on paper.
     lfPrepareExport() {
       this.preparingExport = true;
       for (const location of this.querySelectorAll(".lf-call-location"))

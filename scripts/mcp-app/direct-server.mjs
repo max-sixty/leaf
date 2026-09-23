@@ -114,7 +114,7 @@ const makeServer = () => {
   );
   tool(
     "leaf_probe_event",
-    "Validate and append a reader gesture through Leaf's normal event door.",
+    "Validate and append a user gesture through Leaf's normal event door.",
     {
       ...view,
       event: z.record(z.string(), z.unknown()),

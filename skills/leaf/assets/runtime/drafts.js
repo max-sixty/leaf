@@ -31,7 +31,7 @@
    flight therefore survives its response.
 
    An active record and a settled tombstone are different records. An empty active
-   `text` means the reader intentionally cleared the box. A tombstone means Send or
+   `text` means the user intentionally cleared the box. A tombstone means Send or
    Cancel settled that generation. The implementation never depends on `removeItem` to
    distinguish them, because deletion can fail independently and could otherwise
    resurrect old words.
@@ -78,7 +78,7 @@ import { PAGE_SCOPE, draftStore } from "./storage.js";
 // is as likely to be closed as any other. Tab-local storage carried a draft through
 // everything but the one gesture nobody thinks of as destructive.
 //
-// So the store is the reader's, and one draft has one copy: every box showing it, in
+// So the store is the user's, and one draft has one copy: every box showing it, in
 // every tab, is a view of the store, and the store's own `storage` event carries a
 // keystroke from the tab that made it to the rest (watchDraft). A copy per tab was the
 // alternative and it fails in the direction that loses words — two tabs each holding a
@@ -318,10 +318,10 @@ function claimDraft(ctx, owns) {
 
 // Both senders below stage the same way, because both draw their result in the document
 // before the log has answered: `post` paints the message in its thread, and a dispatched
-// action paints its projected outcome. So the box stops showing words the reader can now
+// action paints its projected outcome. So the box stops showing words the user can now
 // see standing, while the record keeps them — one copy of the words on screen, and a
 // generation still owed an answer. Acceptance settles exactly that generation. A refusal
-// withdraws the result and lifts the mask, so the box the reader typed in has the words
+// withdraws the result and lifts the mask, so the box the user typed in has the words
 // again; the record stood in the store throughout, which is what a tab that went down
 // with the send recovers from.
 const standGesture = (ctx, current) => {
@@ -358,7 +358,7 @@ export async function sendDraft(ctx, owns, send) {
 }
 
 // A message, whose result is the words themselves. `post` stages and paints it before it
-// returns, so the caller continues against a thread the reader can already see and the
+// returns, so the caller continues against a thread the user can already see and the
 // round trip happens behind them.
 //
 // The returned handle names the message the send drew. It is what a caller opens or

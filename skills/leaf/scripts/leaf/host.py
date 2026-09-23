@@ -46,7 +46,8 @@ class Harness:
       host's Stop and prompt hooks. It is the one carrier that stops while its
       session lives on, which is why it is the one with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
-      holding the adapter lease.
+      holding the adapter lease. It queues each delivery with `codex queue`, or
+      starts its turn over the task's App Server when Leaf can reach one.
     - An embedded host drives Codex App Server itself and starts the turns;
       nothing outside it carries input in.
     """
@@ -174,7 +175,8 @@ _POLL_UNIFIED_EXEC = (
 
 
 class CodexHarness(EnvironmentHarness):
-    """Codex: one detached adapter carries every page the task holds.
+    """Codex: one detached adapter carries every page the task holds, over
+    `codex queue` or, when Leaf can reach the task's App Server, that server.
 
     LEAF_SESSION_ID outranks CODEX_THREAD_ID because a worker Codex launches
     with an id of its own means that id, and the thread it happens to run under
@@ -195,7 +197,7 @@ class CodexHarness(EnvironmentHarness):
         them in can exec a last simple command in place; `leaf … | cat` reported
         the wrapping shell itself, which exits with the pipeline. Recording that
         one would have taken the page's server down a second after the command
-        that started it, and the page would have told its reader no session
+        that started it, and the page would have told its user no session
         holds it while the session sat there working.
 
         Codex has a second shape with no session process at all. The ChatGPT app
@@ -243,8 +245,8 @@ class CodexHarness(EnvironmentHarness):
         if listening:
             return f"Poll {_POLL_UNIFIED_EXEC}."
         return (
-            f"Start `leaf codex start {page_dir}` so later updates queue new "
-            "turns in this task."
+            f"Start `leaf codex start {page_dir}` so later updates reach this "
+            "task in new turns."
         )
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
@@ -263,7 +265,7 @@ class CodexHarness(EnvironmentHarness):
 @dataclass(frozen=True)
 class EmbeddedHarness(Harness):
     """A host that drives Codex App Server in its own process and starts the
-    turns itself — the shape <https://leaf.page/> runs in its per-reader
+    turns itself — the shape <https://leaf.page/> runs in its per-user
     container.
 
     No environment implies this one: such a host knows what it is and declares
@@ -347,7 +349,7 @@ def message_identity() -> dict:
     name and session id, read from its own environment rather than the page's
     claim record — the claimant is whoever watches the page, and on a page
     several sessions report to, that is usually not the poster. Empty outside a
-    host session: the readers' generic label covers an event with no voice, and
+    host session: the users' generic label covers an event with no voice, and
     a stored placeholder would only impersonate a name."""
     harness = session_harness()
     if harness is None:

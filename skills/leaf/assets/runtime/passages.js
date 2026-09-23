@@ -7,7 +7,7 @@
 
    Two readings are intentionally different:
 
-   - `says` is what the rendered page tells the reader. It includes registry or
+   - `says` is what the rendered page tells the user. It includes registry or
      module-generated words declared as part of the page. A behavior module reads
      authored or user-facing words with `says`, never raw `textContent`.
    - `wrote` is what the author placed in the version. It excludes generated runtime
@@ -59,7 +59,7 @@
    The search pattern uses only a bounded lead (`LEAD_CAP`) to locate candidates.
    `confirmRest` walks the remainder against passage text. Do not truncate the stored
    quote to satisfy a regular-expression limit; the stored quote is the passage the
-   reader selected.
+   user selected.
 
    Shadow trees: only open roots declared through `x-shadow` join the page reading.
    `pageShadowRoots` (shadow.js) enumerates them. `textNodesUnder` crosses those roots,
@@ -83,10 +83,10 @@
    examines open roots and catches promised words that are absent, clipped, or hidden.
    It also catches a module that replaces declared words after the shared render
    passes. */
-// The page's own text blocks: what a reader takes in as one unit of prose, and the
+// The page's own text blocks: what a user takes in as one unit of prose, and the
 // grain every question about "where in the document is this" is answered at — which
 // passage they are reading, where a walk over Asks starts, what a version diff
-// compares, and which block holds a change the reader has to see in context. A plain
+// compares, and which block holds a change the user has to see in context. A plain
 // constant at module scope rather than a member of the passages object, because a
 // consumer built before that object exists is otherwise reduced to holding a thunk for
 // a string that never varies.
@@ -224,7 +224,7 @@ function silenced() {
 // element has left rather than about where it is standing. A suggestion an agent sent
 // in a reply stands inside the panel, which is chrome, so asked the unbounded way its
 // surviving half counted as apparatus too: one accepted slot emptied it, the anchor a
-// reader had put on it detached, and the mark went out from under a thread that was
+// user had put on it detached, and the mark went out from under a thread that was
 // still open. The same suggestion on the page kept both.
 export function settledAway(el) {
   const retired = retiredSlots();
@@ -324,7 +324,7 @@ export const elementOver = (n) => {
 // *inside* generated chrome. A conversation box's messages are `<p>`s the runtime built,
 // on the page, inside the group they belong to — and `diffBlocks` reads every block on the
 // page, so bounded at the block each of them stopped being generated and the version diff
-// painted the reader's own comments as changes to the document.
+// painted the user's own comments as changes to the document.
 const frameOf = (node) => {
   for (let a = node?.nodeType === 1 ? node : upFrom(node); a; a = upFrom(a))
     if (a.localName?.startsWith("lf-")) return a;
@@ -346,7 +346,7 @@ export const authored = (root) => {
   return (n) => !overIn(n.nodeType === 1 ? n : elementOver(n), GENERATED, frame);
 };
 // The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
+// open shadow root (x-shadow) shows the user what its shadow tree holds, and a host's
 // own children stop rendering the moment it has one. A TreeWalker sees none of that — it
 // stops dead at the boundary — so the walk is written out, and it is the same walk in
 // both directions: a host's shadow root stands in for its children, a <slot> stands for
@@ -444,7 +444,7 @@ export const elementFromPointAcross = (x, y) => {
 // write, and `elementById` above is what widened that: a mark placed on a staged element
 // sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
 // the mark outlive the reason for it. The runtime's own marks are read back this way, and
-// so is a control the reader can stand on, for the same reason: both are wherever the
+// so is a control the user can stand on, for the same reason: both are wherever the
 // markup ended up. Which widgets the page holds is a different question and still the
 // document's:
 // a widget staged inside another's tree is a nesting the registry's x-owners contract
@@ -454,12 +454,12 @@ export const pageQueryAll = (selector) =>
     ...root.querySelectorAll(selector),
   ]);
 
-// The range the reader actually drew. Chrome keeps the legacy Range in the light DOM: a
+// The range the user actually drew. Chrome keeps the legacy Range in the light DOM: a
 // drag wholly inside a widget's shadow tree comes back with `commonAncestorContainer` at
 // BODY and its ends clamped to the host, so `sel.toString()` says the right words while
 // every node the capture would index says the wrong place. That is the one failure mode
 // worth naming twice — not a refusal, which the fence rule turns into a message to the
-// author, but a quote anchored somewhere the reader never pointed.
+// author, but a quote anchored somewhere the user never pointed.
 //
 // `getComposedRanges` is the only thing that answers truthfully, and it answers only for
 // the roots it is handed, which is why the declaration (x-shadow) and not a sweep decides
@@ -485,7 +485,7 @@ export function pageRange(sel) {
 // DOM it renders in place of. `intersectsNode` compares within one tree, so every node
 // inside an x-shadow widget says no to a range drawn out in the document — and a drag
 // from the paragraph above a diff to the one below it would come back holding the two
-// paragraphs joined, with the lines the reader dragged straight over missing from the
+// paragraphs joined, with the lines the user dragged straight over missing from the
 // quote and still sitting between them in the reading, so the search could never find
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
@@ -898,7 +898,7 @@ export function spanIn(reading, segments) {
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // How much of a quote the search compiles into its pattern. The bound is the pattern's,
 // never the passage's: one expression covering every word of a long passage is a term
-// per character, and V8 refuses to compile one that long at all — a ceiling a reader
+// per character, and V8 refuses to compile one that long at all — a ceiling a user
 // reaches by selecting a page and pressing c. Measured on the corpus: 1.3ms at this
 // length, 11.6ms at five thousand characters, and a SyntaxError at twelve. So the lead
 // finds the candidates and the rest of the quote is walked against the text from each,
@@ -975,7 +975,7 @@ export function findQuote(text, quote, anchor, within) {
   return found ? spanOf(origin, found.from, found.to) : [];
 }
 
-// Every occurrence of a reader's search, as passages in the page reading. This is not
+// Every occurrence of a user's search, as passages in the page reading. This is not
 // anchor resolution: a search is allowed to find repeated words, while a stored anchor
 // must identify one occurrence or detach. It does keep the passage reader's other rules —
 // elastic whitespace and element edges, and no match crossing an opaque passage fence —

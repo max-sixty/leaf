@@ -60,7 +60,7 @@ def capture_anchor(
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words. `additions` supplies the declared
-    children of standing events, so reader-created elements are reachable before
+    children of standing events, so user-created elements are reachable before
     an author incorporates them in source."""
     if part and not section:
         raise ValueError("--part needs --section to name its visual")

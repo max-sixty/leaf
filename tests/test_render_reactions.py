@@ -679,11 +679,11 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     browser, serve
 ):
     """A raise stands the choices in the target's own fold, so putting them down folds
-    that cluster back rather than leaving an empty fold for the reader to close. Only the
+    that cluster back rather than leaving an empty fold for the user to close. Only the
     cluster this raise unfolded, and only where it did the unfolding: the put-down runs on
     every disarm, a reply strip's included, and that one never raised the margin at all —
     `marginOffer?.unregister()` is written for exactly that case. Folding on the strength
-    of the disarm alone took away a layer the gesture had never put on, from a reader
+    of the disarm alone took away a layer the gesture had never put on, from a user
     working in the panel with their own `…` open out on the page."""
     url = serve(SUGGESTION_PAGE)
     root = panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
@@ -705,7 +705,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     more.click()
     expect(item).to_have_attribute("data-lf-options-open", "")
 
-    # The reader's own fold, and a reaction on a reply whose surface is that reply's
+    # The user's own fold, and a reaction on a reply whose surface is that reply's
     # strip: the disarm has no fold of its own to put back and must leave theirs alone.
     page.locator(".lf-thread-summary").click()
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
@@ -720,7 +720,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # Nor does the raise that finds the fold already open: standing the choices in a
-    # cluster the reader unfolded for themselves borrows it, and `openMarginEntryOptions` is
+    # cluster the user unfolded for themselves borrows it, and `openMarginEntryOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
     item.locator('[data-lf-margin-entry-key="accept"]').focus()
     page.keyboard.press("e")
@@ -747,7 +747,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(more).to_be_visible()
 
 
-def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser, serve):
+def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, serve):
     """Disarming a response does not redirect focus or a press to its former target."""
     url = serve(SUGGESTION_PAGE)
     panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
@@ -762,7 +762,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
         expect(refill.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
         expect(refill).to_have_attribute("data-lf-options-open", "")
 
-    # The choices go when the reader leaves for another target, without pulling focus
+    # The choices go when the user leaves for another target, without pulling focus
     # back to the cluster whose temporary responses are being removed.
     raise_choices_on_refill()
     thistle_accept.focus()
@@ -1008,7 +1008,7 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     assert bounds["y"] + bounds["height"] <= room["bottom"], (room, bounds)
 
     field.fill(
-        "This paragraph reads well, but the second sentence assumes the reader already "
+        "This paragraph reads well, but the second sentence assumes the user already "
         "knows what the earlier decision was. Could we link it, or restate it in a clause?"
     )
     page.evaluate(RENDERED)
@@ -1027,7 +1027,7 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     expect(field).to_be_visible()
     field.click()
     field.fill(
-        "This paragraph reads well, but the second sentence assumes the reader already "
+        "This paragraph reads well, but the second sentence assumes the user already "
         "knows what the earlier decision was."
     )
     page.evaluate(RENDERED)  # placeFab answers the input a frame later
@@ -1528,7 +1528,7 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
 
 
 def landed(page):
-    """What the reader is standing on, named by whatever identifies it: a leaf class, an
+    """What the user is standing on, named by whatever identifies it: a leaf class, an
     authored id, or the tag. `body` is the page itself, where a landing lets go."""
     return page.evaluate(
         """() => {
@@ -1548,8 +1548,8 @@ def landed(page):
 
 def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser, serve):
     """Opening the bar's other responses re-places it on the anchor already standing. That
-    is the same gesture continuing, not a fresh one that stood the reader nowhere, so the
-    way out still ends on the proxy the bar was opened from — as it does for a reader who
+    is the same gesture continuing, not a fresh one that stood the user nowhere, so the
+    way out still ends on the proxy the bar was opened from — as it does for a user who
     goes straight back out."""
     page_markup = leaf_page(
         "picture gallery",
@@ -1613,7 +1613,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert page.evaluate("() => window.lfScrolledPart") == "new"
 
 
-def test_a_visual_proxy_keeps_reader_standing_across_provider_updates(browser, serve):
+def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, serve):
     """A keyed proxy retains a held press and focus while its label and order change."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.locator(".lf-visual-action").filter(
@@ -1682,7 +1682,7 @@ def test_a_visual_proxy_keeps_reader_standing_across_provider_updates(browser, s
 
 def test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted(browser, serve):
     """Several visuals staged in one declared shadow root share a stable proxy holder.
-    Repainting anchors must not detach and blur the control the reader is standing on."""
+    Repainting anchors must not detach and blur the control the user is standing on."""
     page_markup = leaf_page(
         "shadow pictures",
         """
@@ -1899,7 +1899,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     mouseup or keyup in the page. The new passage replaces the visual target, and
     clearing that passage dismisses the shared action surface.
 
-    The reader takes the page back while the composer's focus handoff is still in
+    The user takes the page back while the composer's focus handoff is still in
     flight, which is the state the press leaves behind: opening Comment marks the
     handoff at once and lands the focus on a later frame. Holding the page's frames
     keeps that gap open for the whole of the selection rather than leaving its width to
@@ -2206,7 +2206,7 @@ def test_a_reopened_message_picker_keeps_the_selected_reaction_visible(
 
 
 def _thread(page_dir):
-    """A thread the agent spoke in last: the reader's question and Claude's answer."""
+    """A thread the agent spoke in last: the user's question and Claude's answer."""
     root = panel_comment(page_dir, "Why forty?", {"section": "how-cap"})
     reply = events_model.append_event(
         page_dir,
@@ -2241,7 +2241,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     assert strip.evaluate("s => s.getBoundingClientRect().height") == 0
     expect(strip.locator(".lf-react")).to_have_count(6)
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
-    # The reader's own message wears no strip: a reaction is on what the agent said.
+    # The user's own message wears no strip: a reaction is on what the agent said.
     expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()  # the waiting-on-you narrowing
@@ -2272,7 +2272,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread")).to_have_count(1)
     # Narrowing retains the card's disclosure, so the thread the wait brings back is
-    # open on the strip the reader was working in rather than needing a second press.
+    # open on the strip the user was working in rather than needing a second press.
     expect(page.locator(".lf-thread")).to_have_js_property("open", True)
     with sending(page, "the take-back of the ok"):
         strip.locator('.lf-react[data-token="keep"]').click()
@@ -2314,9 +2314,9 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     expect(page.locator(".lf-react-open")).to_have_count(0)
     if removal == "filter":
         expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
-    # The reader lands on the list, where Escape lands them and t/T walks on from. The
+    # The user lands on the list, where Escape lands them and t/T walks on from. The
     # disarm's own focus move runs while the list is still hiding the card, so a read of
-    # where the reader stood taken after that loop said they had never been in the list,
+    # where the user stood taken after that loop said they had never been in the list,
     # and left them on body.
     assert page.evaluate(
         "() => document.activeElement === document.querySelector('.lf-threads')"

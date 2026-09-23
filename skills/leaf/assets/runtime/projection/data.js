@@ -59,8 +59,8 @@ import { setChildren } from "../dom-children.js";
 import { under } from "../shadow.js";
 
 // Runtime-supplied data is a third kind of page word: it is neither prose the author
-// put in the version nor apparatus the runtime asks the reader to operate. It belongs
-// in `says` because the reader can point at it, and not in `wrote` because no version
+// put in the version nor apparatus the runtime asks the user to operate. It belongs
+// in `says` because the user can point at it, and not in `wrote` because no version
 // contains it. `projectData` states both facts on each rendered datum: data-lf-gen keeps
 // it out of the authored reading, while data-lf-projection + data-lf-datum give it a
 // logical identity that survives a renderer replacing its nodes.

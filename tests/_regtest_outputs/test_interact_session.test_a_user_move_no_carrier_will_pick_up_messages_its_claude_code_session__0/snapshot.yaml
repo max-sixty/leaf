@@ -1,4 +1,4 @@
-# A real reader POST reaches the Claude Code socket after its watcher died.
+# A real user POST reaches the Claude Code socket after its watcher died.
 # This is the complete user frame, without the separate authentication frame.
 
 socket user frame:

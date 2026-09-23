@@ -19,7 +19,7 @@ import { createAskTrayList } from "./asks/tray-list.js";
 // The left side holds one tray at a time, selected by the shared auxiliary-surface owner.
 // The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
-// page and the reader must keep the target visible. Both entry controls call the same
+// page and the user must keep the target visible. Both entry controls call the same
 // tray setter.
 //
 // Trays declare presentation-time arrival: their first paint needs the state-dependent
@@ -33,9 +33,9 @@ import { createAskTrayList } from "./asks/tray-list.js";
 // reconcile during a transition.
 
 // The trays' edge, on the left, and everything said above said again for it: the width
-// it stands at until the reader moves it, how narrow they may draw it, and the window
+// it stands at until the user moves it, how narrow they may draw it, and the window
 // under which a tray covers the page rather than standing beside it. The same bargain at
-// the same ratio, because a reader who has learned one edge has learned the other.
+// the same ratio, because a user who has learned one edge has learned the other.
 //
 // 220 is where the tray's own row stops being one. A leaf's row spends 45px before any
 // word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
@@ -86,7 +86,7 @@ export const asksBtn = el("button", "lf-btn lf-asks", "");
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, judged by the same `presented` the banner
 // answers with, from the same facts — `others` on /api/state carries them for every
-// live page, and every URL in the list carries only the key this reader already
+// live page, and every URL in the list carries only the key this user already
 // holds, since there is one key for the machine (`host_key`). The current page heads
 // the list as a marked, unlinked row, so the panel reads as the whole machine. A
 // status tray's point is being live, so rows reconcile on every applied state, keyed by URL —
@@ -168,7 +168,7 @@ export function createTrays({
         // Filled before it is shown, so the tray is its own list from the first frame of
         // the slide rather than a blank card that populates a moment later. The way down
         // is the mirror of it, below: emptied once it is hidden, never before, or the
-        // reader watches the list they just closed blank out and an empty card slide away.
+        // user watches the list they just closed blank out and an empty card slide away.
         paint?.();
         panel.classList.add("open");
         if (phase === "gesture")
@@ -248,10 +248,10 @@ export function createTrays({
       () => askRows().length > 0,
     );
   }
-  // A standing tray is one layer of the page the reader put on by pressing its button, so
+  // A standing tray is one layer of the page the user put on by pressing its button, so
   // Escape takes it off again. Whichever tray holds the edge is named by the step, so the
-  // reader is told what the press will take rather than being told "close the tray" over
-  // two of them; the tray's key is the runtime's, and the reader knows the strip by the
+  // user is told what the press will take rather than being told "close the tray" over
+  // two of them; the tray's key is the runtime's, and the user knows the strip by the
   // banner's word. Rooted at the open tray, so the step survives the width at which that
   // tray covers the page and becomes the floor.
   pageRung("tray", () =>
@@ -260,7 +260,7 @@ export function createTrays({
           root: trays.get(currentTray()).panel,
           says: `close ${currentTray()}`,
           does: `Close the ${currentTray()} tray`,
-          // A tray's parent is the document, so its step lands the reader there rather
+          // A tray's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
           out: () => {
             setOpenTray(null, { returnFocus: false });

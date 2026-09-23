@@ -103,7 +103,7 @@ def _print_edits(events: list) -> None:
                     f"{verb} (on {revision_label(events, e['revision'])})"
                 )
             else:
-                # An edit the reader took back is an outcome too, and the same
+                # An edit the user took back is an outcome too, and the same
                 # understatement the other way round: shown as it stands it reads
                 # as final, and left out it reads as never made.
                 took = " — taken back" if e["id"] in withdrawn else ""
@@ -143,7 +143,7 @@ def _thread_heading(thread: dict) -> str:
         head += "  — about the design"
     closed = thread["resolved"]
     if closed and closed["author"] == "agent":
-        # Named where the reader was not the one who closed it. A transcript is
+        # Named where the user was not the one who closed it. A transcript is
         # read away from the page, so the panel's own line saying so is not in it.
         head += "  — resolved by " + closed.get("agent", "Agent")
     elif closed:

@@ -45,7 +45,7 @@ def check_local_claim(state: str, detail: str) -> None:
     """What a local claim needs before it can name a subject.
 
     A local claim says "I am on this now", so the two other states have nothing
-    to put there: `waiting` is the reader's move, and `idle` is the end of the
+    to put there: `waiting` is the user's move, and `idle` is the end of the
     agent's side. Its own function because `idle` takes a different route to the
     same status write, and a claim admitted on one route and refused on the other
     would be reported to the agent as written either way.
@@ -62,7 +62,7 @@ def cmd_status(
     detail: str,
     on: str | None = None,
 ) -> list[dict]:
-    """Write the declaration and return the reader moves still owed an answer,
+    """Write the declaration and return the user moves still owed an answer,
     which the page goes on showing over a `waiting` written ahead of them."""
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, page.events)
@@ -96,7 +96,7 @@ def cmd_delivery_claim(
     under the same log lock, so a stale delivery cannot attach work to a newer
     move merely because both belong to the same thread or widget.
     """
-    # No detail is Leaf speaking for the agent, so the reader hears something the
+    # No detail is Leaf speaking for the agent, so the user hears something the
     # moment their move is taken up. An agent that supplies one has said it itself,
     # whatever words it chose.
     stated = detail is not None
@@ -157,15 +157,15 @@ def cmd_delivery_claim(
             )
 
     selected = f" event {event_id}" if event_id is not None else ""
-    return f"no outstanding reader move{selected} in delivery {delivery_id}"
+    return f"no outstanding user move{selected} in delivery {delivery_id}"
 
 
 def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:
-    """Idle, unless the page still owes its reader an answer.
+    """Idle, unless the page still owes its user an answer.
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
-    reader-facing count, so a worker's report cannot be left standing as
+    user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The check and the transition share the
     log lock, so an event arriving or an acknowledgement advancing the cursor
     orders against them."""

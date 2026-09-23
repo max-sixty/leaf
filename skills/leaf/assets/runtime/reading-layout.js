@@ -165,7 +165,7 @@ function fitRootReadingElement({ owner, readingArrangement, minimumSize }) {
     typeof minimumSize !== "function"
   )
     throw new Error(
-      "leaf: root fitting needs an owner, reading arrangement, and minimum-size reader",
+      "leaf: root fitting needs an owner, reading arrangement, and minimum-size user",
     );
 
   let active = true;
@@ -186,7 +186,7 @@ function fitRootReadingElement({ owner, readingArrangement, minimumSize }) {
      differently based on the posture currently drawn. The temporary style and posture
      writes are restored in the same task, before anything can paint. The root, main,
      and owner heights stay pinned because temporarily removing document-end room or
-     shortening a flow document would otherwise clamp a reader's scroll position. */
+     shortening a flow document would otherwise clamp a user's scroll position. */
   const readBoundedFit = () => {
     const main = owner.closest("body > main");
     const slot = rootReadingSlot(owner);

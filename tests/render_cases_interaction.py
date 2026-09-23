@@ -501,7 +501,7 @@ HOLD_MOTION = """
   };
 """
 # Every shape the decision predicate has to tell apart, on one page: four things the page is
-# waiting on the reader for, and, beneath them, one of each way of not being one. The
+# waiting on the user for, and, beneath them, one of each way of not being one. The
 # four are in document order, because that is the order the walk below must take them in.
 ASKS_PAGE = leaf_page(
     "asks",
@@ -577,7 +577,7 @@ ASK_WITH_CONTEXT_PAGE = leaf_page(
 <lf-ask id="storage-decision">
   <h2 id="storage-heading">What should a full store do?</h2>
   <p id="storage-context-1">The beta never reached the cap, so this is the first
-  reader's experience of it. The observed reopen rate favors eviction.</p>
+  user's experience of it. The observed reopen rate favors eviction.</p>
   <p id="storage-context-2">The options are useful only after that premise is in view;
   arriving straight at them starts in the middle of the question.</p>
   <lf-options id="storage-options" choose>
@@ -596,7 +596,7 @@ ASK_WITH_CONTEXT_PAGE = leaf_page(
 # An ask that cannot declare an arrival region of its own: the change is a phrase inside a
 # sentence, and what explains it is that sentence and the heading over it. One ask, so the
 # clamped walk stays on it and a second press can be asked what it does to a page the
-# reader has already adjusted.
+# user has already adjusted.
 SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
     "suggestion with context",
     f"""
@@ -758,7 +758,7 @@ CONVERSATION_DIFF_PAGE = leaf_page(
 """,
 )
 LIVE_READING = (
-    "The reader is halfway through this account of the cutover and its evidence."
+    "The user is halfway through this account of the cutover and its evidence."
 )
 
 
@@ -845,7 +845,7 @@ def live_url(version_url):
     return version_url.split("/versions/", 1)[0] + f"/?t={TOKEN}"
 
 
-# A live page a reader is mid-press on when the next revision lands: hyperlinks for the
+# A live page a user is mid-press on when the next revision lands: hyperlinks for the
 # generated target map, and a decision whose pick mark the shortcut bar offers digits over.
 # The second revision adds a paragraph above everything and takes the middle link away,
 # so a restored place has moved and a target has gone; the third adds another.
@@ -892,9 +892,9 @@ LIVE_KEYS_DECISION = """<lf-ask id="lk-decision"><h2>Which one?</h2>
   <lf-option id="lk-two">Two</lf-option>
 </lf-options></lf-ask>"""
 
-# A revision that restates the question the reader is answering, which is the revision
+# A revision that restates the question the user is answering, which is the revision
 # they most need to stay with. The Ask keeps its id and its options keep theirs, but every
-# element in it is rewritten, so nothing inside it is the node the reader was holding.
+# element in it is rewritten, so nothing inside it is the node the user was holding.
 LIVE_KEYS_ASK_REWRITTEN = LIVE_KEYS_V1.replace(
     "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
 ).replace(
@@ -908,7 +908,7 @@ LIVE_KEYS_ASK_REWRITTEN = LIVE_KEYS_V1.replace(
     ),
 )
 
-# The apparatus a reader works a question with, all of it named, and all of it inside the
+# The apparatus a user works a question with, all of it named, and all of it inside the
 # widget a revision replaces whole: a field to write in, a box to open, and a box to scroll.
 LIVE_KEYS_APPARATUS = LIVE_KEYS_V1.replace(
     "<h2>Which one?</h2>",
@@ -924,14 +924,14 @@ LIVE_KEYS_APPARATUS_REWRITTEN = LIVE_KEYS_APPARATUS.replace(
 ).replace("<h2>Which one?</h2>", "<h2>Which one, now the costs are in?</h2>")
 
 # And a revision that withdraws the question, which is the one with nowhere to put the
-# reader back.
+# user back.
 LIVE_KEYS_ASK_WITHDRAWN = LIVE_KEYS_V1.replace(
     "<title>Live keys first</title>", "<title>Live keys without it</title>"
 ).replace(LIVE_KEYS_DECISION, '<p id="lk-settled">That one is settled.</p>')
 
 
 # A section that generates no box of its own, holding blocks that carry no id. The
-# reading position's landmark is whichever id stands nearest the block the reader was
+# reading position's landmark is whichever id stands nearest the block the user was
 # on, so the wrapper is it — which is what a suggestion around whole sections is, and
 # what any layer's wrapper may be.
 BOXLESS_SECTION_PAGE = leaf_page(
@@ -1161,7 +1161,7 @@ STANDING_ACTIONS = [
     ("ab-pick", "answer", {}),
     ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "index": 0}),
     ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "index": 0}),
-    ("ab-email", "edit", {"text": "The words as the reader rewrote them."}),
+    ("ab-email", "edit", {"text": "The words as the user rewrote them."}),
     ("ab-sug-410", "accept", {}),
     ("ab-sug-logs", "reject", {}),
     ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "index": 0}),
@@ -1346,7 +1346,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     deep = deep or bare
     if deep:
         # The body is rendered from the widget's own root, so the entry stops
-        # claiming the reader gets it verbatim from the markup.
+        # claiming the user gets it verbatim from the markup.
         declarations["lf-drift"]["x-shadow"] = True
         del declarations["lf-drift"]["x-verbatim"]
     # The registry holds a widget-unit verb to the attribute a version retracts a
@@ -1378,7 +1378,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
 # `settled`, because that is the shape that bites: the summary a retired group collapses
 # to is written by the module and declares its words the page's (`says: true`), which is
 # what lets a quote land on them. A pick mark is not that shape — it names the option for
-# a listening reader and says nothing the page speaks — so a group offering a live pick
+# a listening user and says nothing the page speaks — so a group offering a live pick
 # would leave this case unexercised.
 RETIRED_WIDGET_PAGE = leaf_page(
     "retired",
@@ -1510,7 +1510,7 @@ REF_PAGE = leaf_page(
 </lf-tabs>
 <section id="tail">
 {"".join(f"<p>Tail fill, paragraph {i}, long enough to stand as a landmark of its own.</p>" for i in range(16))}
-<p id="tail-end">The last words on the page, where a reader who read to the end is.</p>
+<p id="tail-end">The last words on the page, where a user who read to the end is.</p>
 </section>
 """,
 )
@@ -1541,12 +1541,12 @@ THREAD_ASKS = [
     },
 ]
 
-# A widget the shipped packages no longer have: one the reader owes an answer on that
+# A widget the shipped packages no longer have: one the user owes an answer on that
 # also seats a conversation of its own. Those two facts together are what produce the
-# layer's one split between the reader's list and the unanswered decisions — a thread
+# layer's one split between the user's list and the unanswered decisions — a thread
 # standing in the seat while the agent has the next word takes the widget off the list
 # without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the reader's cell an add form and dropped `x-conversation`, and
+# pair until 292de9c made the user's cell an add form and dropped `x-conversation`, and
 # both halves of the split are still implemented, still described, and reachable by any
 # package that declares both. So the guard is declared here rather than borrowed from
 # whichever shipped entry happens to carry it: the reading under test is the layer's, and
@@ -1554,7 +1554,7 @@ THREAD_ASKS = [
 SEATED_ASK_TAG = "lf-verdict"
 SEATED_ASK_ENTRY = {
     "description": (
-        "A proposal the reader settles with one press and may talk over first in a seat "
+        "A proposal the user settles with one press and may talk over first in a seat "
         "of its own. `asks` opens the decision; the press settles it."
     ),
     "type": "object",
@@ -1577,7 +1577,7 @@ SEATED_ASK_ENTRY = {
             },
             "facet": "verdict",
             "unit": "widget",
-            # The prerequisite the split is about. Read off the reader's list this
+            # The prerequisite the split is about. Read off the user's list this
             # refuses a press on a widget whose seat is mid-conversation; read off the
             # unanswered decisions, which is what the door owes it, it lets one through.
             "requires": {"target": "self", "awaiting": True},
@@ -1589,7 +1589,7 @@ SEATED_ASK_ENTRY = {
 }
 # The press paints before it sends, which is what `lf-options` does with a pick and the
 # reason the browser door matters as much as the POST one: with the wrong list read here
-# the answer is already on the page, so a refusal is not a refusal the reader can see —
+# the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
 SEATED_ASK_MODULE = """\
 import { conversationBox, offer, once, widgetController } from "/runtime/widget-api.js";

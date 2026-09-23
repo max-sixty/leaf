@@ -9,14 +9,14 @@ another. When `AGENT_PREWARM` is `true`, a browser document navigation also star
 identity's container through `waitUntil`. Asset fetches, API clients, and release probes
 do not prewarm. Setting the variable to `false` keeps read-only visits at the edge. The
 first request that needs private, mutable state reaches the canonical Python Leaf
-server. Containers are keyed by both reader identity and site release, so a deployment
+server. Containers are keyed by both user identity and site release, so a deployment
 may discard ephemeral demo state instead of routing the new site through an older
 container. Cloudflare activates the Worker and its assets before the container image has
 finished rolling out, so a session opened in that window still starts on the previous
 release. The Worker answers for the edge instead of passing that container's reply on:
-the reader is unseated, `GET api/state` returns the published projection, and every other
+the user is unseated, `GET api/state` returns the published projection, and every other
 request waits behind a 503 until the rollout lands. The copied page directories and
-append-only logs remain private to that reader and disappear when Cloudflare replaces the
+append-only logs remain private to that user and disappear when Cloudflare replaces the
 container; no website-only projection or conversation store exists.
 
 The build gives every document, state response, and module graph one release digest.
@@ -28,7 +28,7 @@ The build-generated manifest is the routing authority shared by the Worker and t
 Python adapter, and carries each page's title, description, and card image, which both
 halves compose into the head a crawler and a link preview read. Published media,
 revisions, and version documents stay on the edge; when one of those paths is absent
-from the release, the Worker asks the reader's container only when that page is active.
+from the release, the Worker asks the user's container only when that page is active.
 A private revision with changed executable code needs a fresh browser document because
 the current document cannot redefine custom elements or re-evaluate its module graph.
 The runtime marks that one reload with `_leaf-revision`; the Worker serves it from the
@@ -67,11 +67,11 @@ widget ids, IP addresses, and session cookies:
 | `double2` | `1` when the event needs an agent reply |
 
 The session reference is stable for the browser identity's lifetime, so it links that
-reader's accepted events across pages and visits. It is a support handle rather than a
+user's accepted events across pages and visits. It is a support handle rather than a
 credential; no server endpoint accepts it as session identity.
 
 A retry of an accepted browser attempt writes the same event id again. Count distinct
-ids when measuring reader events:
+ids when measuring user events:
 
 ```sql
 SELECT
@@ -157,7 +157,7 @@ A record that names a failure carries `error`, the exception's class, and `detai
 the sentence the refusing boundary wrote. Without that sentence every rejection from
 one class reads alike, which is the difference between knowing that App Server
 refused and knowing what it refused; the calls behind these records are Leaf's own,
-so the sentence is the provider's account of the call rather than a reader's words.
+so the sentence is the provider's account of the call rather than a user's words.
 It is bounded to its last 500 characters, marked with a leading ellipsis when cut,
 because an exception message is not always a sentence: a spawn that never became
 ready raises with App Server's whole log, whose reason is at its end.
@@ -173,7 +173,7 @@ turn that answered everything it was given writes no such record.
 `container_continuation_receipted` marks a start the Worker's dispatch is not holding
 — a move a follower found waiting when its turn ended — and says whether the
 `startup_failed` receipt it wrote settled that move, so a `container_start_failed` on
-either caller can be read for which of the two answered the reader. One ending can
+either caller can be read for which of the two answered the user. One ending can
 write several, because the scan keeps going past a start it could not make.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
@@ -230,8 +230,8 @@ browser family and major version, platform, and navigation type. `serverMs`,
 browser paint, and Leaf startup time. `outcome` says how the load ended, not how far it
 got: `presented` where the page came up and the document went on to finish loading,
 `failed` where the page declared it could not start, `timeout` where fifteen seconds
-passed without either, and `abandoned` where the reader left first. A page that comes up
-and then stalls on a subresource reports `timeout`, and one the reader leaves in that
+passed without either, and `abandoned` where the user left first. A page that comes up
+and then stalls on a subresource reports `timeout`, and one the user leaves in that
 window reports `abandoned`, both with `presentedMs` set — so `presentedMs` is what says
 whether the page came up, and `outcome` is what says how the record was closed. A startup fault adds `reason`, at most 300 characters, and it
 rides on whichever of those the load reached — the entry module, the theme, the message
@@ -241,9 +241,9 @@ which is the reading that finds a fault nobody here can reproduce; these records
 from browsers this repository cannot run. Apart from that reason the payload contains no
 page content, URL details, cookies, IP addresses, or private session id, and the reason
 itself is the runtime's own words and the release-addressed script they came from, not
-anything the reader wrote — though an exception thrown while handling a value can quote
+anything the user wrote — though an exception thrown while handling a value can quote
 it, so treat the field as the page's words rather than as certainly none of the
-reader's. Filter Observability by the public session reference, route, browser, or
+user's. Filter Observability by the public session reference, route, browser, or
 `loadId`.
 
 The deployed site answers that beacon at the edge, so the container never sees it. A site
@@ -253,10 +253,10 @@ profiles exist only for the deployed release.
 
 Workers Observability is the operational log store. Request-path records carry the
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
-The public reference finds every request from one reader session, and the event id
+The public reference finds every request from one user session, and the event id
 follows one request across the Worker and Container datasets. `turn_start_acknowledged`
 records the RPC result and its Codex `turnId`, and `turn_delivery_bound` the Leaf turn
-opened for it. A turn that ends without its reader's answer records
+opened for it. A turn that ends without its user's answer records
 `turn_failure_reported` with the receipts it wrote, and one stopped by its own follower
 records `turn_interrupted`, or `turn_interrupt_failed` where the provider refused —
 which is ordinarily the turn having ended first. Model records carry that
@@ -271,12 +271,12 @@ Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login
 website config, matching production without changing personal state. Its JSON result
 records `responseVisibleMs` from the first non-empty agent reply the open Threads panel
 actually displays; `repliedMs` is the independent durable-state observation and is not a
-substitute for that reader-visible milestone.
+substitute for that user-visible milestone.
 
-When Leaf accepts a reader message that its canonical activity projection says needs
+When Leaf accepts a user message that its canonical activity projection says needs
 a response, the Worker returns the accepted state and starts the agent dispatch through
 `waitUntil`. The browser does not wait for Container or App Server startup, and there is
-no second scheduler between the request and its already-selected reader container. The
+no second scheduler between the request and its already-selected user container. The
 dispatch reserves source capacity, then asks that container to create or resume one
 Codex App Server task rooted at the actual page directory and deliver the event through
 Leaf's immutable delivery envelope, passed
@@ -285,7 +285,7 @@ Leaf retains that immutable delivery locally and starts it directly after the cu
 turn completes. The website-specific App Server starts
 without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
-cannot turn a small reader response into a full authoring workflow. The hosted task can
+cannot turn a small user response into a full authoring workflow. The hosted task can
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For deferred input it stays subscribed through the active turn, starts
@@ -294,7 +294,7 @@ pickup is idempotent, so a repeated dispatch does not start the work twice. A bo
 that gives up appends a failure receipt through the same event log. The
 Worker names a code and nothing else — it sends `{event, failure}` to
 `/_leaf/agent/fail`, where `failure` is `startup_failed` or `rate_limited` — and the
-adapter validates it, supplies the reader's wording from its own `FAILURE_RECEIPTS`
+adapter validates it, supplies the user's wording from its own `FAILURE_RECEIPTS`
 declaration, and writes the failure the move's answer takes. `turn_failed` is the third
 code and never crosses that door: a container writes it from its own reading of a turn
 it followed to nothing, which is a claim only the code that followed it can make. All
@@ -304,7 +304,7 @@ a message takes a reply carrying `failure`, marked in its head as answering noth
 rather than reading as the answer it stands in for; a request takes a failed receipt
 carrying `failure`, which reopens its seat; an answer
 to a page Ask takes a pickup with phase `failed` carrying `failure`, which hands the
-move back to the reader until they answer again. The deployment verifier retries
+move back to the user until they answer again. The deployment verifier retries
 `startup_failed` once and
 fails immediately on `rate_limited`; it reads the code and never the words, and
 ordinary agent answers omit `failure` entirely.
@@ -316,7 +316,7 @@ cold runtime-filesystem work before a model command. Each App Server turn is bou
 one immutable delivery id carried by the direct request as `clientUserMessageId`, so
 the response to that request names the turn that took it and the follower that watches
 it starts already knowing which turn is its own. A start that names no turn — refused,
-or lost — withdraws its delivery and raises, and the reader gets a `startup_failed`
+or lost — withdraws its delivery and raises, and the user gets a `startup_failed`
 receipt inviting them to send it again. Which side writes it follows who
 asked: the Worker's dispatch for the request it is still holding, and the container
 itself for a move a follower took up when its own turn ended, whose request was
@@ -351,19 +351,19 @@ that move gets: a delivery carries at most one reply-owing move, so messages sen
 during a turn queue as obligations behind it, and one left here has no delivery holding
 it and nothing coming. So the scan runs on what the page still owes rather than on how
 the turn ended, and a start it cannot make is not the end of it — that move takes the
-`startup_failed` receipt, which nobody else can write once the reader's request was
+`startup_failed` receipt, which nobody else can write once the user's request was
 answered `started` on the turn already running, and the scan moves to the next. The
 first start that succeeds ends the chain, since its own follower ends here too.
 
 The container pins the Codex version its App Server protocol was tested against and
-runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
+runs `gpt-5.6-luna` at low reasoning effort. The per-user Cloudflare Container is the
 tool sandbox: nested bubblewrap namespaces are unavailable in that environment, and
-the model has no durable or cross-reader filesystem to reach. Public internet is off.
+the model has no durable or cross-user filesystem to reach. Public internet is off.
 The container receives only a dummy OpenAI credential; a trusted Cloudflare outbound
 handler permits the Responses API request and replaces that dummy value with the
 Worker's `OPENAI_API_KEY`. The actual secret never enters model-visible processes or
 files. One Cloudflare-native brake allows twenty task starts per source IP per minute
-in each Cloudflare location and, under a separate key, twenty model calls per reader
+in each Cloudflare location and, under a separate key, twenty model calls per user
 container per minute. An over-limit turn receives a visible busy reply or a model-rate
 error without sending anything to OpenAI. There is no site-wide quota.
 
@@ -443,5 +443,5 @@ the container before it activates the Worker, and deploys the image by its immut
 registry digest. It then requests an immediate container rollout and drives the public
 site in Chrome. The gate accepts only the exact build release: it checks the passive
 edge presentation, immutable module URLs, and browser errors, then activates that
-reader's private container and verifies that its state has the same release identity. A
+user's private container and verifies that its state has the same release identity. A
 coherent old release cannot satisfy the gate.

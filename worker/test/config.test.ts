@@ -97,7 +97,7 @@ describe("deployment configuration", () => {
     expect(devContainer.instance_type).toBe("basic");
   });
 
-  it("prewarms readers and bounds their task starts and model calls", () => {
+  it("prewarms users and bounds their task starts and model calls", () => {
     expect(config.vars.AGENT_PREWARM).toBe("true");
     expect(config.ratelimits).toEqual([
       {

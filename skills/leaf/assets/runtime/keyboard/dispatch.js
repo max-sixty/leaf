@@ -3,7 +3,7 @@
 
    Scopes nest by focus. `scopesFor` produces the active stack and element scopes are
    spliced where their elements stand. The dispatcher walks innermost first. A scope owns
-   every ordinary binding it declares while the reader stands in that scope, whether or
+   every ordinary binding it declares while the user stands in that scope, whether or
    not the command is currently live. A live command runs and prevents the platform
    default; an unavailable command suppresses outer Leaf meanings but leaves any browser
    default intact. Escape instead continues to the next live semantic unwind. A `native`
@@ -39,7 +39,7 @@
    placeholder. Each box's `aria-label` remains its shortcut-free accessible name.
 
    Escape is an ordinary binding in each row and a semantic ordering in the dispatcher.
-   It unwinds the state standing in front of the reader rather than a history of how they
+   It unwinds the state standing in front of the user rather than a history of how they
    reached it, so nothing here records a press. An active mode and the focused control's
    specific inner step stand first; then the surface holding focus with whatever stands
    inside it, and last the steps rooted outside that surface, in the register's order.
@@ -70,7 +70,7 @@
    the control itself rather than opening it from the page, and every door leaves the same
    way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
    rather than to focus landing on the body: a light dismissal restores nothing on
-   purpose, and a reader who pressed away into the page is not asking to be moved to the
+   purpose, and a user who pressed away into the page is not asking to be moved to the
    control they pressed away from.
 
    When Leaf handles a binding that promises a visible control's activation, its command
@@ -103,12 +103,12 @@ import { nativeLayers } from "./layer-stack.js";
 import { under } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
-// reference lists a scope the page *has* and filters its rows by liveness only where the reader
+// reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = (scope) => !scope.when || scope.when();
-export const readerIn = (scope) => !scope.at || scope.at();
-// Where the reader is first, and what the page has second: both are pure and the and is
+export const userIn = (scope) => !scope.at || scope.at();
+// Where the user is first, and what the page has second: both are pure and the and is
 // the same either way round, but `at` is a class check and a `when` may be the whole event
 // log folded — so the walk asks the cheap question of every scope and the dear one only of
 // the scopes it is already standing in. That is the rule the dispatcher's row loop already
@@ -117,7 +117,7 @@ export const readerIn = (scope) => !scope.at || scope.at();
 // was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
-const standing = (scope) => readerIn(scope) && pageHas(scope);
+const standing = (scope) => userIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
     return [universalCommandReference()];
@@ -138,14 +138,14 @@ const innerEscape = (scope, active) => {
     );
   return scope.escape === "inner" || scope.el === active;
 };
-// Every scope the reader is standing in, innermost first. The whole list: what a nearer
+// Every scope the user is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
 // the list here instead was the same statement made where only one of the two shadowings
 // could be seen.
 //
-// How far a node sits above the reader, or -1 where it is not above them at all. The
-// document is above every reader, at the top of the walk.
+// How far a node sits above the user, or -1 where it is not above them at all. The
+// document is above every user, at the top of the walk.
 const above = (node, active) => {
   let depth = 0;
   for (let up = active; up; up = up.parentNode ?? up.host ?? null) {
@@ -156,7 +156,7 @@ const above = (node, active) => {
 };
 // Containment before kind, the same rule the ladder reads over its own steps. The
 // register's order says which of two steps is the inner one; it cannot say which of them
-// the reader is inside, and a composer left open out on the page is older than the panel
+// the user is inside, and a composer left open out on the page is older than the panel
 // they are reading a thread in however the register ranks the two. So the surface holding
 // focus answers first, with every step rooted inside it, innermost root first — the reply
 // box in a margin card is inside the card, so leaving the box comes before dismissing it
@@ -171,8 +171,8 @@ const escapeOrder = (scopes, active) => {
   const outer = layer.filter((scope) => !inner.includes(scope));
   const root = new Map(outer.map((scope) => [scope, scopeRoot(scope)]));
   const depth = new Map(outer.map((scope) => [scope, above(root.get(scope), active)]));
-  // The innermost surface the reader is standing in, among the ones offering a step. A
-  // scope rooted at the reader's own focus, or at the document, names no surface: the
+  // The innermost surface the user is standing in, among the ones offering a step. A
+  // scope rooted at the user's own focus, or at the document, names no surface: the
   // first is wherever they are and the second is everywhere.
   let surface = null;
   for (const scope of outer) {
@@ -222,7 +222,7 @@ export function stack(binding = null) {
   const auxiliarySurface = coveringAuxiliarySurface();
   // The floor is the newest modal, or a covering auxiliary surface taking modal semantics
   // without the browser's top layer. What it makes inert is out of reach however near the
-  // reader it stands, so a focused control inside a layer keeps the widget ancestors that
+  // user it stands, so a focused control inside a layer keeps the widget ancestors that
   // are inside the floor too and drops the ones outside it. The layers themselves stand
   // above the floor rather than under it, and each takes its own scopes below.
   const floor = modalAt < 0 ? auxiliarySurface : visible[0].root;
@@ -258,7 +258,7 @@ export function stack(binding = null) {
   }
   return ordered(parts);
 }
-// The ownership of every scope nearer the reader than this one, accumulated as either
+// The ownership of every scope nearer the user than this one, accumulated as either
 // walk steps outward. An element scope owns both its broad native claims and every exact
 // binding for which it implements a Leaf invocation. Presentation-only rows have no `run`:
 // they name a native press or reword an outer core handler, so they do not shadow that
@@ -456,7 +456,7 @@ function commandMatching(matches) {
 }
 const commandFor = (id) => commandMatching((command) => command.id === id);
 // A contextual surface asks the dispatcher which of several routes to one capability is
-// reachable from the reader's current scope — `c` on the page and `c` from the Threads
+// reachable from the user's current scope — `c` on the page and `c` from the Threads
 // list both enter the page-comment box, and the box's placeholder names whichever one
 // dispatch would answer. Asked by command id rather than by row, so the surface holds no
 // reference into another scope's declaration. This includes shadowing by native text entry

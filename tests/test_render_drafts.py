@@ -76,10 +76,10 @@ def select_words(page, passage):
     """Triple-click a passage's words, which is not the same point as its box.
 
     Playwright aims at the element's centre, and a short paragraph in a wide column is
-    mostly empty there. The response bar the reader already opened on a neighbouring
+    mostly empty there. The response bar the user already opened on a neighbouring
     passage stands in that empty half — it is placed to keep its own target clear, not
     the page — so a gesture aimed at the centre lands on the field instead of on the
-    words and never reaches the passage. The words are where a reader aims, so the
+    words and never reaches the passage. The words are where a user aims, so the
     click goes to the start of the first line the passage draws."""
     locator = page.locator(passage)
     locator.scroll_into_view_if_needed()
@@ -100,7 +100,7 @@ def select_words(page, passage):
 
 
 def choose_comment_target(page, selector):
-    """Choose one visible element through the reader's target-hint route."""
+    """Choose one visible element through the user's target-hint route."""
     page.locator(selector).scroll_into_view_if_needed()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
@@ -123,7 +123,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve, box
     """The shared field and both drawing-aware variants admit the smallest message.
 
     Each box sends from the one press the shared field dresses, and that press paints
-    nothing of its own: at rest the accent glyph is the whole of what a reader sees, and
+    nothing of its own: at rest the accent glyph is the whole of what a user sees, and
     the disc behind it is a clear 28px that takes the accent tint under the pointer,
     which is why it stays the same size as the target around it grows.
     """
@@ -214,7 +214,7 @@ def test_page_round_trip(browser, serve):
     # Put the new comment's card away before reaching for the board. A sent comment
     # leaves its thread standing in the page margin, and the board is a wide widget
     # whose columns run out into that same band, so the card lands over the column this
-    # drag is aimed at and takes the pointer. A reader sees the card and dismisses it;
+    # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
     # scene about the margin rather than the seam below.
     page.keyboard.press("Escape")  # out of the reply box the send landed in
@@ -749,8 +749,8 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
     consume_browser_errors(page, "400")
 
 
-def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_reader):
-    """An edit is one set of words wherever the reader typed them, and the two halves
+def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_user):
+    """An edit is one set of words wherever the user typed them, and the two halves
     of that fail in opposite directions. A keystroke has to reach the box the other tab
     has open, or two tabs hold two halves of one thought and whichever is closed takes
     its half with it. A settlement has to empty the other box, rather than leave it
@@ -759,8 +759,8 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     A closed box stays closed for a keystroke made elsewhere: news arriving has no
     gesture behind it, and the words are there at the next opening either way."""
     url = serve(JOURNEY_V1)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     first_draft = first.locator("#draft-ops")
     second_draft = second.locator("#draft-ops")
 
@@ -806,13 +806,11 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     assert [event["detail"]["text"] for event in events] == [edited]
 
 
-def test_one_shared_draft_edit_appends_one_action_across_tabs(
-    browser, serve, one_reader
-):
+def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
     """The widget's local busy flag is not the shared edit's ownership boundary."""
     url = serve(JOURNEY_V1)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     first_draft = first.locator("#draft-ops")
     second_draft = second.locator("#draft-ops")
     first_draft.locator(".lf-draft-body").dblclick()
@@ -844,7 +842,7 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(
 
 
 def test_one_shared_added_option_has_one_action_payload_across_tabs(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """A draft attempt owns its action detail as well as its visible words.
 
@@ -853,8 +851,8 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     each tab's DOM would reuse one attempt for two conflicting payloads.
     """
     url = serve(ASK_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
 
     # Model a tab whose latest projection has not reached its neighbour yet. The draft
     # is born here, so this selection is the state the generation records.
@@ -891,7 +889,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     assert _traffic(first).sends == _traffic(second).sends == 1
 
 
-def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_reader):
+def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_user):
     """The general box and a thread's reply box are each one draft with a view in every
     tab. Both directions of the loop are here: words typed in one tab arrive in the
     other's box live, and a send there empties it — the distinction the store's own
@@ -899,8 +897,8 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     The Send button is read with the value, since a mirrored draft the box cannot send
     is words arriving dead."""
     url = serve(LONG_PAGE, comments=1)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     for page in (first, second):
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
@@ -913,8 +911,8 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     )
 
     # The tab doing the typing is the one tab the store says nothing to, which is what
-    # leaves the caret where the reader put it: writing .value on a focused box sends
-    # the caret to the end of it, and a reader typing into the middle of a sentence
+    # leaves the caret where the user put it: writing .value on a focused box sends
+    # the caret to the end of it, and a user typing into the middle of a sentence
     # would watch every keystroke jump there.
     first.locator(".lf-general textarea").click()
     first.keyboard.press("Home")
@@ -945,11 +943,11 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     assert said[-2:] == [reply, typed]
 
 
-def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_reader):
+def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_user):
     """Both tabs may POST the shared generation; its attempt appends it once."""
     url = serve(LONG_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     for page in (first, second):
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
@@ -1008,14 +1006,14 @@ def test_a_sent_comment_stands_in_the_panel_before_the_log_answers(browser, serv
     assertions describe lasts exactly that long. The marked node is what the release is
     read by. A card drawn again under the server's id would look the same and pass every
     assertion about words on a screen, so the mark is the only thing that can tell an
-    adopted card from an identical replacement — and the difference is a reader's place
+    adopted card from an identical replacement — and the difference is a user's place
     in the one they were already standing in.
     """
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     box = page.locator(".lf-general textarea")
-    words = "The comment the reader can already see."
+    words = "The comment the user can already see."
     box.fill(words)
     before = page.locator(".lf-threads > .lf-thread").count()
     held = []
@@ -1142,7 +1140,7 @@ def test_a_sent_reply_stands_in_its_thread_before_the_log_answers(held_events, s
     panel_settled(page)
     thread_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
     thread = page.locator(f'.lf-thread[data-id="{thread_id}"]')
-    words = "The reply the reader can already see."
+    words = "The reply the user can already see."
     thread.locator(".lf-thread-summary").click()
     thread.locator("textarea").fill(words)
     before = thread.locator(".lf-msg").count()
@@ -1188,7 +1186,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     holding(page, held, 1, "the general send")
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending).to_have_count(1)
-    # The card is a native disclosure, so its title is the stop the reader stands on.
+    # The card is a native disclosure, so its title is the stop the user stands on.
     title = pending.locator(":scope > .lf-thread-summary")
     title.focus()
     expect(title).to_be_focused()
@@ -1217,12 +1215,12 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
 
 
 @pytest.mark.parametrize("box", ["seat", "general"])
-def test_every_message_send_says_so_to_a_reader_listening(held_events, serve, box):
-    """A send whose result the reader cannot see still reaches them.
+def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box):
+    """A send whose result the user cannot see still reaches them.
 
-    The message standing in the conversation is the whole acknowledgement for a reader
+    The message standing in the conversation is the whole acknowledgement for a user
     looking at it, which is why no box writes a success notice for it. But neither the
-    seat nor the panel's list is a live region, so for a reader listening to the page
+    seat nor the panel's list is a live region, so for a user listening to the page
     that send would pass in silence. `post` says it once, where a gesture is first known
     to be a message, which is what covers every box that sends one.
     """
@@ -1258,7 +1256,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     A send empties the box it was written in and masks that generation, so this
     document stops showing words it is now showing in the thread. The answer lifts that
     mask — and lifting whichever mask happens to be standing, rather than the one this
-    send put there, lifts a later send's: words the reader is already watching as a
+    send put there, lifts a later send's: words the user is already watching as a
     pending reply go back on offer while that reply is still in flight. The outbox
     delivers in order, so the first answer always lands while the second send is
     unanswered. That makes the window ordinary rather than rare.
@@ -1289,7 +1287,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     holding(page, held, 1, "the first reply send")
     expect(reply).to_have_value("")
 
-    second = "The reply the reader is watching."
+    second = "The reply the user is watching."
     reply.fill(second)
     send.click()
     expect(reply).to_have_value("")
@@ -1331,7 +1329,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     """A later draft keeps its focus and remains visible when a reply arrives.
 
     The long sent message tests reflow above a draft in the same card; the distant
-    card tests a reader who has moved to another conversation.
+    card tests a user who has moved to another conversation.
     """
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE, comments=8))
@@ -1354,7 +1352,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
     if not same_thread:
         page.locator(f'.lf-thread[data-id="{later_id}"] .lf-thread-summary').click()
     later.click()
-    newer = "The later reply keeps the reader here.\n" * (14 if same_thread else 1)
+    newer = "The later reply keeps the user here.\n" * (14 if same_thread else 1)
     later.fill(newer)
     expect(later).to_be_focused()
     in_threads_scrollport(page, f'.lf-thread[data-id="{later_id}"] textarea')
@@ -1487,7 +1485,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     ).first.get_attribute("data-id")
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
     page.locator(f'.lf-thread[data-id="{later_id}"] .lf-thread-summary').click()
-    later.fill("The later reply keeps the reader here.")
+    later.fill("The later reply keeps the user here.")
     later.evaluate("ta => ta.setSelectionRange(9, 9)")
     expect(later).to_be_focused()
 
@@ -1496,7 +1494,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
     expect(later).to_be_focused()
-    expect(later).to_have_value("The later reply keeps the reader here.")
+    expect(later).to_have_value("The later reply keeps the user here.")
     assert later.evaluate("ta => ta.selectionStart") == 9
 
 
@@ -1586,7 +1584,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     reply.fill("A thought I changed my mind about.")
     reply.fill("")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the reader's own comment opened it with (conversation/model.js).
+    # the attempt the user's own comment opened it with (conversation/model.js).
     assert page.evaluate(STORED_DRAFT_TEXT, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
@@ -1620,7 +1618,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the comment send")
 
-    # The reader picks out their next passage while the first send is still in the wire.
+    # The user picks out their next passage while the first send is still in the wire.
     select_words(page, "#p2")
     expect(page.locator(".lf-fab-input")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_value("")
@@ -1631,13 +1629,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     round_trip(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
 
-    # The send landed behind them and left the passage picked out. Read as the reader's
+    # The send landed behind them and left the passage picked out. Read as the user's
     # own next gesture rather than as the button's rendering: the button is a state that
     # only a fresh decision repaints, so it stands wherever the last one left it — while
     # the key that comments on a selection reads the live one, and answers the general
     # box where there is none.
     assert pending_text(page) == "A short second passage.", (
-        "the send's landing lost the passage the reader had picked out"
+        "the send's landing lost the passage the user had picked out"
     )
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -1724,12 +1722,12 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
 
 
 def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """A failed tombstone does not make the next local edit descend from thin air."""
     url = serve(LONG_PAGE)
-    shared = open_page(browser, url, context=one_reader)
-    local = open_page(browser, url, context=one_reader)
+    shared = open_page(browser, url, context=one_user)
+    local = open_page(browser, url, context=one_user)
     for page in (shared, local):
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
@@ -1790,7 +1788,7 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
 
 
 def test_a_stale_question_first_message_cannot_append_across_tabs(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """A stale visible generation refreshes the shared tombstone before POST.
 
@@ -1800,11 +1798,11 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     old in-memory value.
     """
     url = serve(SEATED_QUESTION_PAGE)
-    first = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
     second = open_page(
         browser,
         url,
-        context=one_reader,
+        context=one_user,
         init_script="""addEventListener('storage', event => {
           if (event.key !== 'lf-draft:say:jobs') return;
           try {
@@ -1848,7 +1846,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     assert _traffic(first).sends + _traffic(second).sends == 1
 
 
-def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_reader):
+def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user):
     """Both inline views may POST the shared reply; its attempt appends it once."""
     url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
@@ -1861,8 +1859,8 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
             "text": "Which job should come first?",
         },
     )
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     selector = (
         f"#jobs > .lf-conversation > .lf-conversation-thread"
         f'[data-thread="{root["id"]}"]'
@@ -1893,7 +1891,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
 
 
 def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
     url = serve(SEATED_QUESTION_PAGE)
@@ -1907,8 +1905,8 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
             "text": "What should the order be?",
         },
     )
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     first.locator(".lf-threads-toggle").click()
     panel_settled(first)
     inline = first.locator(
@@ -1949,14 +1947,14 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
 
 
 def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
     url = serve(SEATED_QUESTION_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
     second_say = second.locator("#jobs > .lf-conversation > .lf-say")
     raw = "  Retry this exact answer.  "
@@ -1989,12 +1987,12 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
 
 @pytest.mark.parametrize("newer", [None, "A newer thought must survive."])
 def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
-    browser, serve, one_reader, newer
+    browser, serve, one_user, newer
 ):
     """A final answer belongs to one execution; the accepted log owns the draft."""
     url = serve(SEATED_QUESTION_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
     second_say = second.locator("#jobs > .lf-conversation > .lf-say")
     raw = "The shared generation one tab will accept."
@@ -2072,7 +2070,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
 
 
 def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """The log returns the accepted attempt when its first sender cannot settle it.
 
@@ -2093,8 +2091,8 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     correctly decline to. Both go through `held_stale` rather than a live `page.route`,
     which reaches no poll already in the wire."""
     url = serve(SEATED_QUESTION_PAGE)
-    first = open_page(browser, url, context=held_stale(one_reader))
-    second_held = held_stale(one_reader)
+    first = open_page(browser, url, context=held_stale(one_user))
+    second_held = held_stale(one_user)
     second = open_page(browser, url, context=second_held)
     raw = "One answer survives its sender closing."
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
@@ -2132,11 +2130,11 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
 
 
 def test_an_older_settlement_cannot_erase_a_newer_failed_write(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """A nondurable local generation outranks storage news about its predecessor."""
     url = serve(SEATED_QUESTION_PAGE)
-    other = open_page(browser, url, context=one_reader)
+    other = open_page(browser, url, context=one_user)
     old = "The older persisted answer."
     other_say = other.locator("#jobs > .lf-conversation > .lf-say")
     other_say.locator("textarea").fill(old)
@@ -2144,7 +2142,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     local = open_page(
         browser,
         url,
-        context=one_reader,
+        context=one_user,
         init_script="""Storage.prototype.setItem = function () {
           throw new DOMException('full', 'QuotaExceededError');
         };""",
@@ -2172,14 +2170,14 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
 
 
 def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generation(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """A held older send reconciles its base before writing settlement."""
     url = serve(SEATED_QUESTION_PAGE)
     older = open_page(
         browser,
         url,
-        context=one_reader,
+        context=one_user,
         init_script="""(() => {
           const set = Storage.prototype.setItem;
           let refuse = true;
@@ -2195,7 +2193,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
           }, true);
         })();""",
     )
-    newer_tab = open_page(browser, url, context=one_reader)
+    newer_tab = open_page(browser, url, context=one_user)
     older_say = older.locator("#jobs > .lf-conversation > .lf-say")
     newer_say = newer_tab.locator("#jobs > .lf-conversation > .lf-say")
     old = "The older nondurable answer already in flight."
@@ -2223,14 +2221,14 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
 
 
 def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """Only news from a branch's base may be replaced by that local branch."""
     url = serve(SEATED_QUESTION_PAGE)
     local = open_page(
         browser,
         url,
-        context=one_reader,
+        context=one_user,
         init_script="""(() => {
           const set = Storage.prototype.setItem;
           let refuse = true;
@@ -2247,11 +2245,11 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
           }, true);
         })();""",
     )
-    shared = open_page(browser, url, context=one_reader)
+    shared = open_page(browser, url, context=one_user)
     local_say = local.locator("#jobs > .lf-conversation > .lf-say")
     shared_say = shared.locator("#jobs > .lf-conversation > .lf-say")
     old = "The local write failed before shared storage changed."
-    newer = "The later durable generation owns the reader now."
+    newer = "The later durable generation owns the user now."
     local_say.locator("textarea").fill(old)
     shared_say.locator("textarea").fill(newer)
     local.wait_for_function("() => window.lfDraftNews > 0")
@@ -2262,19 +2260,19 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
 
 
 def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """Send refreshes shared storage instead of trusting a stale durable cache."""
     url = serve(SEATED_QUESTION_PAGE)
     stale = open_page(
         browser,
         url,
-        context=held_stale(one_reader),
+        context=held_stale(one_user),
         init_script="""addEventListener('storage', event => {
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",
     )
-    current = open_page(browser, url, context=one_reader)
+    current = open_page(browser, url, context=one_user)
     stale_say = stale.locator("#jobs > .lf-conversation > .lf-say")
     current_say = current.locator("#jobs > .lf-conversation > .lf-say")
     old = "The stale tab's older generation."
@@ -2295,20 +2293,20 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
 
 
 def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """Cancel refreshes ownership before writing the shared tombstone."""
     url = serve(JOURNEY_V1)
     stale = open_page(
         browser,
         url,
-        context=held_stale(one_reader),
+        context=held_stale(one_user),
         init_script="""addEventListener('storage', event => {
           if (event.key === 'lf-draft:edit:draft-ops')
             event.stopImmediatePropagation();
         }, true);""",
     )
-    current = open_page(browser, url, context=one_reader)
+    current = open_page(browser, url, context=one_user)
     stale_draft = stale.locator("#draft-ops")
     current_draft = current.locator("#draft-ops")
     stale_draft.locator(".lf-draft-body").dblclick()
@@ -2329,7 +2327,7 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
 
 
 def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """Log reconciliation settles only the generation still shared by storage."""
     url = serve(SEATED_QUESTION_PAGE)
@@ -2337,7 +2335,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # rather than an interruption: an earlier poll reconciling this tab onto the newer
     # generation leaves settlement nothing older to be tempted by, so the assertions
     # below would pass while asking nothing rather than fail.
-    stale_held = held_stale(one_reader)
+    stale_held = held_stale(one_user)
     stale = open_page(
         browser,
         url,
@@ -2346,7 +2344,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
           if (event.key === 'lf-draft:say:jobs') event.stopImmediatePropagation();
         }, true);""",
     )
-    current = open_page(browser, url, context=one_reader)
+    current = open_page(browser, url, context=one_user)
     stale_say = stale.locator("#jobs > .lf-conversation > .lf-say")
     current_say = current.locator("#jobs > .lf-conversation > .lf-say")
     old = "The accepted generation cached by the stale tab."
@@ -2404,15 +2402,13 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     assert [event["text"] for event in roots] == [raw]
 
 
-def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
-    browser, serve, one_reader
-):
+def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one_user):
     """Settlement is a record and a log fact; draft cleanup never calls removeItem."""
     url = serve(SEATED_QUESTION_PAGE)
     first = open_page(
         browser,
         url,
-        context=one_reader,
+        context=one_user,
         init_script="""Storage.prototype.removeItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -2424,7 +2420,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
     round_trip(first)
     first.wait_for_function(STORED_DRAFT_SETTLED, arg="say:jobs")
 
-    again = open_page(browser, url, context=one_reader)
+    again = open_page(browser, url, context=one_user)
     # The composer is still standing — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
     expect(again.locator("#jobs > .lf-conversation > .lf-say textarea")).to_have_value(
@@ -2465,19 +2461,19 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
     assert len({event["attempt"] for event in replies}) == 2
 
 
-def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_reader):
+def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_user):
     """The one gesture the tab-local store lost a draft to, and it is the ordinary one:
     every round's reply hands the URL over again, so a page's tabs accumulate and the
     one holding a half-written sentence is as likely to be shut as any other."""
     url = serve(LONG_PAGE)
-    page = open_page(browser, url, context=one_reader)
+    page = open_page(browser, url, context=one_user)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     typed = "Half a thought, and then the tab went."
     page.locator(".lf-general textarea").fill(typed)
     page.close()
 
-    again = open_page(browser, url, context=one_reader)
+    again = open_page(browser, url, context=one_user)
     expect(again.locator(".lf-general textarea")).to_have_value(typed)
 
 
@@ -2485,7 +2481,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     """A press on the banner takes the composer off screen and keeps the words, and for
     a long time that was the whole of it: the bar went, the mark went, no notice and no
     dialog said anything, and the only way back was returning to that version and
-    reselecting that exact passage. Words a reader cannot find again are words they have
+    reselecting that exact passage. Words a user cannot find again are words they have
     lost, whatever localStorage still holds.
 
     So the moment says what became of them and names the address that answers — and the
@@ -2526,11 +2522,11 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     """An image and no words is a draft, and the textarea is the one place it does not
     show: the box keeps the Markdown and the shelf shows the thumbnail. So a reading
     that asks the textarea whether anything is in here answers "empty" about a box the
-    reader can see holds a picture, and the two directions fail in opposite ways — the
+    user can see holds a picture, and the two directions fail in opposite ways — the
     kept notice never appears for a picture put away, and it appears for a picture that
     has just been sent, over a box with nothing left in it.
 
-    Both directions here, and the box the reader opens next, because a shelf that
+    Both directions here, and the box the user opens next, because a shelf that
     outlived its send is an image that rides into the next passage's draft."""
     page = open_page(browser, serve(LONG_PAGE))
     image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
@@ -2568,7 +2564,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
 
     # Sent: the box is empty because the send emptied it, and says nothing about drafts.
     # Every word the status line says through the send, not the one left standing at the
-    # end of it: a wrong sentence four seconds long is one the reader reads.
+    # end of it: a wrong sentence four seconds long is one the user reads.
     page.evaluate("""() => {
       const el = document.querySelector('.lf-notice');
       window.__said = [];
@@ -2622,14 +2618,14 @@ def test_a_held_selection_comment_preserves_a_newer_exact_draft(held_events, ser
     assert comments[0]["attempt"]
 
 
-def test_two_passages_hold_two_composer_drafts(browser, serve, one_reader):
+def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
     """One key for the composer was enough while a draft died with its tab; shared, it
     is a draft on one passage overwriting the words being typed on another. The key is
     the anchor, so the two coexist — and the record says when it was touched, which is
     what a tab arriving to both of them reopens on."""
     url = serve(LONG_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
 
     early = "This paragraph buries the point."
     late = "And this one repeats it."
@@ -2639,12 +2635,12 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_reader):
     expect(second.locator(".lf-composer textarea")).to_have_value(late)
 
     # A tab arriving now: one composer, on the passage touched last.
-    third = open_page(browser, url, context=one_reader)
+    third = open_page(browser, url, context=one_user)
     expect(third.locator(".lf-composer textarea")).to_have_value(late)
 
 
 def test_an_explicit_target_does_not_overwrite_its_existing_draft(
-    browser, serve, one_reader
+    browser, serve, one_user
 ):
     """A deliberate retarget carries words only into an empty passage.
 
@@ -2654,8 +2650,8 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     The target chooser is the real explicit gesture whose carry path owns that choice.
     """
     url = serve(LONG_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
 
     source = "This paragraph buries the point."
     destination = "This later paragraph already has its own note."
@@ -2680,7 +2676,7 @@ def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
     field = page.locator(".lf-fab-input")
 
     choose_comment_target(page, "#p9")
-    field.fill("Words the reader removes.")
+    field.fill("Words the user removes.")
     field.fill("")
     page.keyboard.press("Escape")
 
@@ -2692,9 +2688,9 @@ def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
     expect(field).to_have_value(source)
 
 
-def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_reader):
+def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_user):
     """The composer is a box and a piece of chrome at once, so a second tab owes it
-    more than the words. An emptied box is a box the reader is still holding open and
+    more than the words. An emptied box is a box the user is still holding open and
     must stay up; a settled one has nothing left to be open about and goes down, or the
     other tab is left offering to send words the log already carries.
 
@@ -2702,8 +2698,8 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     tab's words and did not grow to them is one whose text is out of sight — the shape
     of bug a script sizing the box on `input` alone would reintroduce."""
     url = serve(LONG_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
 
     height = "ta => Math.round(ta.getBoundingClientRect().height)"
     compose(first, "#p3")
@@ -2833,7 +2829,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         )
 
     # The disclosure is the platform's to work and the register says so, naming the
-    # press where the reader is standing on it and reading which way it goes off the
+    # press where the user is standing on it and reading which way it goes off the
     # state they can already see.
     history = draft.locator(".lf-draft-history > summary")
     history.focus()
@@ -2868,7 +2864,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
-    expect(draft).to_have_attribute("data-lf-reader-override", "1")
+    expect(draft).to_have_attribute("data-lf-user-override", "1")
 
     events = [
         json.loads(line)
@@ -3216,7 +3212,7 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
     the glide has got to. Taking the box mid-glide — programmatically, because the
     cancel reads positions and any hand looks the same to it, and this one lands at
     a number the assertion can hold — must stand the step down: the next press
-    measures from where the reader left the box, not from the goal it dropped, and a
+    measures from where the user left the box, not from the goal it dropped, and a
     glide that ignored the taking presses on to that goal and fails both reads.
     Pressing on at the foot moves nothing and banks nothing, so u from there
     is one step back."""
@@ -3234,7 +3230,7 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
     ), "the page is too short for these steps to be told apart"
     # A callback's frame timestamp may predate performance.now() in the key handler.
     # Make that browser timing deterministic: a negative first fraction used to write
-    # above the page, get clamped to zero, then cancel the glide as if the reader moved.
+    # above the page, get clamped to zero, then cancel the glide as if the user moved.
     page.evaluate(
         """down => {
       const raf = requestAnimationFrame;
@@ -3290,12 +3286,12 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
         )
 
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
-        "the glide pressed on to its goal after the reader took the box"
+        "the glide pressed on to its goal after the user took the box"
     )
     assert rests_at(lambda: page.keyboard.press(down), 400 + step) == pytest.approx(
         400 + step, abs=1
     ), (
-        "the press after the reader took the box measured from the goal the taking "
+        "the press after the user took the box measured from the goal the taking "
         "had cancelled rather than from where they left it"
     )
 
@@ -3326,7 +3322,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
     walks back out through its own start (stepReading says the rest). At the ends of the box
     that write is one the box clamps, and what the clamp does to the press is a resting
     position the test above reads; in the middle every write lands, the glide arrives
-    exactly where it promised, and the reader is thrown up to most of a page the wrong
+    exactly where it promised, and the user is thrown up to most of a page the wrong
     way on the route — which no resting position can see.
 
     Whether a press loses that race is the platform's to say, so the window is stated
@@ -3398,8 +3394,8 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
     )
 
 
-def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, serve):
-    """Two scroll regions, so d has to pick the one the reader is looking at. Beside the
+def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, serve):
+    """Two scroll regions, so d has to pick the one the user is looking at. Beside the
     page the panel is a column of its own and the keys are the document's. Under the
     breakpoint the sheet covers the page and the page hands scrolling over with it — one
     gesture moves one region, and while the sheet is up that region is its thread list.
@@ -3409,7 +3405,7 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
     page = open_page(browser, serve(LONG_PAGE, comments=40))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # Put the reader on the page before asking which reading region the page gesture chooses.
+    # Put the user on the page before asking which reading region the page gesture chooses.
     page.locator("body").focus()
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
@@ -3454,17 +3450,17 @@ def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, 
     assert threads_now > threads_was, "the sheet did not move for the key it now owns"
 
 
-def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
-    """Which region the keys move is where the reader is standing, and covering is only
+def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
+    """Which region the keys move is where the user is standing, and covering is only
     one of the two ways they come to be standing in the list. Beside the page — the wide
-    window, where the panel takes a strip of its own — a reader working down a long
+    window, where the panel takes a strip of its own — a user working down a long
     conversation presses d and the page behind them steps instead, which is the same
     nothing the covering case was written to prevent: the region they are reading does
     not move, and the document is somewhere else when they look back at it.
 
     One factor separates the two halves here. The window, the layout, the panel and the
     list are the same at both presses; only where the focus stands changes. So the first
-    press is the control that says the layout is beside — the reader stands on the page,
+    press is the control that says the layout is beside — the user stands on the page,
     outside the panel, and the document is theirs to step — and the second is the subject.
     The Go-to sequence then supplies the neighboring
     contrast: focus changes which region d/u page through, but `g g` still names the
@@ -3535,10 +3531,10 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     )
     page_now, threads_now = offsets()
     assert threads_now > threads_was, (
-        "the list the reader is standing in did not move for the key they pressed"
+        "the list the user is standing in did not move for the key they pressed"
     )
     assert page_now == pytest.approx(page_was, abs=1), (
-        "the page stepped behind a reader who was working down the comment list"
+        "the page stepped behind a user who was working down the comment list"
     )
 
     # Both regions now stand away from their top edge. A correct g g returns the page;
@@ -3564,9 +3560,9 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
 def test_the_page_has_one_door_to_a_comparison(browser, serve):
     """`=` marked what changed since the previous version from anywhere on the page, and
     the case for it was that it named no version — "since the last one I saw" is a
-    question a reader has without opening anything. Naming no version is also naming
+    question a user has without opening anything. Naming no version is also naming
     nothing to check, and the two are not the same question: on a page that ships a
-    version whenever the work moves, a reader back after a week got v(n-1) and no way to
+    version whenever the work moves, a user back after a week got v(n-1) and no way to
     see that they had. So the door is the menu, where every base says which one it is.
 
     Pressed rather than read off the table, on both sides: a key bound to nothing looks
@@ -3603,13 +3599,13 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
 
 
 def test_the_draft_box_is_its_own_door(browser, serve):
-    """A draft is the one block on a page whose whole purpose is that the reader rewrites
+    """A draft is the one block on a page whose whole purpose is that the user rewrites
     it, and until now the only thing that said so was a pencil in the margin 45px away.
     The block itself ignored a press. The gesture that did open it in place was a
     double-click, which is a thing you have to already know.
 
     So the box is the door, and the caret lands where the press did. Which is a door that
-    has to be opened carefully, because the same words are the page's words: a reader
+    has to be opened carefully, because the same words are the page's words: a user
     drawing across them to quote them ends that drag with a mouseup inside the box, and
     opening on it would throw the selection away at the moment it was finished. That is
     the question `reachedForWords` answers for every other press on the page's own words,
@@ -3628,7 +3624,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     body = draft.locator(".lf-draft-body")
     expect(body).to_have_text(DRAFT_TEXT)
 
-    # A drag across the words takes the words. Read as the selection the reader is left
+    # A drag across the words takes the words. Read as the selection the user is left
     # holding, which is the thing the door would have destroyed.
     box = body.bounding_box()
     line = box["y"] + 8

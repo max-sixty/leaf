@@ -11,7 +11,7 @@ types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
 the inputs an already-open document cannot re-evaluate in place. The HTML
 revision file is the commit marker: the complete bundle is made durable before
-that file appears. Readers never discover a staged or incomplete revision,
+that file appears. Users never discover a staged or incomplete revision,
 including after a process crash.
 """
 
@@ -499,7 +499,7 @@ def _capture_artifact(
     # module graph is evaluated once per document and a custom element is defined
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of
-    # them, and a revision that only edits those should keep the reader's document.
+    # them, and a revision that only edits those should keep the user's document.
     #
     # The vocabulary is digested without `$layer`, which describes the vendoring
     # run rather than the code it installed. Its fingerprint and producer commit
@@ -531,7 +531,7 @@ def _capture_artifact(
         )
     )
     # What each declared widget in the authored page was written as, one digest per id.
-    # A reader's open document keeps the widgets a revision did not rewrite, and only
+    # A user's open document keeps the widgets a revision did not rewrite, and only
     # the capture still holds the markup to say which those are: after upgrade a
     # controller owns every widget's children, so the page cannot answer for itself.
     # Digested from the parsed tree before delivery rewrites resource URLs, so two
@@ -544,9 +544,9 @@ def _capture_artifact(
             continue
         if not registry.get(element.tag, {}).get("x-upgrade"):
             continue
-        # An unnamed widget is as much the reader's as a named one. Without a key it
+        # An unnamed widget is as much the user's as a named one. Without a key it
         # could never answer that its markup was unchanged, so every revision rebuilt
-        # it and took whatever the reader had open in it; `page-authoring.md` never
+        # it and took whatever the user had open in it; `page-authoring.md` never
         # asked an author to name one, and the shipped examples do not.
         name = element.attrs.get("id")
         if not name:

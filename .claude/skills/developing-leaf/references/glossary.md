@@ -1,6 +1,6 @@
 # Leaf glossary
 
-This is the canonical vocabulary for the page a reader sees and operates. Use these
+This is the canonical vocabulary for the page a user sees and operates. Use these
 names in element declarations, JavaScript, CSS, visible copy, tests, examples, and
 references. When an existing name disagrees with this glossary, change the name; do
 not add an alias.
@@ -25,14 +25,14 @@ uses the same word.
 | **Page instance** | One durable page directory, including its source, revisions, selected layer, data, media, and event history |
 | **Package** | One composable source directory containing declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
-| **Reader session** | One browser tab's temporary interaction with a page instance |
+| **User session** | One browser tab's temporary interaction with a page instance |
 
 Core Leaf owns revision activation, scoped serving, executable and inert-input
 boundaries, target identity, event admission, requests, comments, and export modes. A
 package owns reusable declarations, widgets, browser modules, styles, data contracts,
 and guidance. A page instance owns its content, page-local modules, styles, assets, and
-declarations, semantic target choices, drafts, and package selection. A reader session
-owns focus, scroll, selection, and disposable exploration state; durable reader choices
+declarations, semantic target choices, drafts, and package selection. A user session
+owns focus, scroll, selection, and disposable exploration state; durable user choices
 enter the page instance through Leaf's event path.
 
 Use a package when the source is reusable, the Leaf layer for the checked composition
@@ -52,7 +52,7 @@ Do not use *instance* alone for an authored occurrence; use *Leaf element*.
 | **Compound owner** | A Leaf element whose body owns declared direct members |
 | **Compound member** | A Leaf element whose declaration admits one or more direct owner types |
 | **Structural element** | A Leaf element with a declared role in reading structure |
-| **Addressable element** | An authored, identified element eligible as a reader target |
+| **Addressable element** | An authored, identified element eligible as a user target |
 
 An element declaration keeps independent dimensions independent:
 
@@ -95,7 +95,7 @@ A compound widget may own reading regions without being a pane.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a reader's gesture holds a next step, such as Comment on selection after a touch selection, that step stands on the row in Approval and Threads' place |
+| **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection, that step stands on the row in Approval and Threads' place |
 | **Auxiliary surface** | Chrome opened `beside` or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads |
 | **Tray** | A mutually exclusive auxiliary surface admitted by the one left-side tray position |
@@ -144,16 +144,16 @@ spine instead.
 | Term | Identity criterion |
 |---|---|
 | **Scope** | A registered command-applicability and shadowing boundary |
-| **Design mode** | The `l` interaction that reinterprets input for interface comments until the reader exits |
-| **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the reader exits |
+| **Design mode** | The `l` interaction that reinterprets input for interface comments until the user exits |
+| **Draw mode** | The `w` interaction that reinterprets pointer input as a drawing until the user exits |
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
-| **Target chooser** | The `s` interaction that presents addressable elements and ends when the reader chooses one or closes it |
+| **Target chooser** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Standing** | Holding a destination or a control inside it: a conversation on the page or in the panel, an Ask, or authored page content. A panel thread's title and conversation are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
-| **Floor** | The place in a layer where the reader stands on nothing: the page's body, the whole thread panel |
-| **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
-| **Landing** | Where a step leaves the reader: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
+| **Floor** | The place in a layer where the user stands on nothing: the page's body, the whole thread panel |
+| **Unwind** | What Escape takes off, read from what stands in front of the user rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
+| **Landing** | Where a step leaves the user: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
 | **Layer stack** | The one ordered record of the popovers and modal dialogs standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
 | **Binding badge** | A key badge showing a command's currently resolved binding |

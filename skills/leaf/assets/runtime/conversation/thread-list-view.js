@@ -54,7 +54,7 @@ class ThreadListView extends LitElement {
     event.preventDefault();
     const row = this.#visibleRows().find((row) => row.node === card);
     if (!row) return;
-    // An open title is still the reader's focus stop for the conversation. A
+    // An open title is still the user's focus stop for the conversation. A
     // second press leaves it selected; choosing another title moves disclosure.
     this.#expandedKey = row.key;
     this.#showExpanded();

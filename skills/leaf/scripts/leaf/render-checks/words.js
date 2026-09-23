@@ -210,7 +210,7 @@ export function paperVoids() {
 // color(srgb …) in 0–1, and a probe reading one as the other reports a ratio against a
 // colour nothing on the page is. Painting the backgrounds in order composites the
 // translucent ones the way the page does, over the white the browser paints under
-// everything, so a tint over a tint is the colour the reader actually has behind the
+// everything, so a tint over a tint is the colour the user actually has behind the
 // glyphs. A marked passage is not among them: the highlight registry styles glyphs and
 // not boxes, so a mark is no element's background, and it is the user's own paint over a
 // page that had to be legible before they put it there.
@@ -223,7 +223,7 @@ export function paperVoids() {
 // Which shadow roots it crosses into is OPEN_ROOTS' answer (that module says why it
 // crosses at all), which is the choice everything else here makes — colour is
 // asked of what the browser painted, so where it painted is too, and a root a widget
-// attached without declaring one still holds code the reader has to read.
+// attached without declaring one still holds code the user has to read.
 export function unreadSyntax() {
   const cx = document
     .createElement("canvas")
@@ -286,7 +286,7 @@ export function unreadSyntax() {
 // never arrived looks the same as an attribute with nothing to say, and a fact the page
 // paints in colour alone is a fact no measurement of a drawn page has ever read. The
 // registry is what knows the difference — x-says names the attributes whose values are
-// words at the element's edge, x-paints the ones drawn as paint and spoken to a reader
+// words at the element's edge, x-paints the ones drawn as paint and spoken to a user
 // listening (renderQuiet) — so the declaration is what this asks against.
 //
 // Both passes run once at the upgrade, before an async widget's own render lands, so a
@@ -304,7 +304,7 @@ export function unreadSyntax() {
 // Both halves ask the *rendered* page rather than the markup, and a shadow host is why:
 // an element that stages a tree keeps its light DOM in the document and out of every box,
 // so both passes find the host, write there, and leave `textContent` and `querySelector`
-// reporting words the reader will never get. Each half gets to the rendered page its own
+// reporting words the user will never get. Each half gets to the rendered page its own
 // way, because they read different things. Words are `says()`, the layer's one answer to
 // what an element says rather than a second reading spelled here — asked of the host's
 // root where there is one, since the walk behind it substitutes a declared root for a
@@ -315,7 +315,7 @@ export function unreadSyntax() {
 // collapsed card, a tab nobody opened and a shut thread panel all lay out nothing, and
 // their rects report the ancestor rather than the widget. That is the *second* failure
 // here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
-// fault wherever the element stands, since a tab the reader has not opened is a tab they
+// fault wherever the element stands, since a tab the user has not opened is a tab they
 // can open. Splitting them that way is what retired the [hidden] exemption this carried:
 // `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
 // asking whether it renders covers both and the panel besides.
@@ -341,7 +341,7 @@ export function silentWords(declarations) {
         if (!el.hasAttribute(attr)) continue;
         const quiet = el.querySelector(":scope > .lf-quiet");
         // A missing word is the fault, and it is the fault wherever the
-        // element stands: a tab the reader has not opened is still a tab
+        // element stands: a tab the user has not opened is still a tab
         // they can open. What the box is asked for is the second failure,
         // a word the widget wrote and then hid, and that question can only
         // be put to an element that is being laid out — a message in a shut
@@ -350,7 +350,7 @@ export function silentWords(declarations) {
         if (quiet && (quiet.getClientRects().length || !el.checkVisibility())) continue;
         found.push(
           `${at(el)} paints ${attr}="${el.getAttribute(attr)}" ` +
-            `and says nothing a reader listening can hear`,
+            `and says nothing a user listening can hear`,
         );
       }
   }

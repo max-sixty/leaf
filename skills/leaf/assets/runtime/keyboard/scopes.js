@@ -2,10 +2,10 @@
    title for the surfaces that project them.
 
    Standing in a surface is where focus is, not merely that the surface is open. A tray's
-   or panel's own button lives in the banner, so opening by pointer leaves the reader
+   or panel's own button lives in the banner, so opening by pointer leaves the user
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
    text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.
-   The typing scope claims those text-editing keys, so a reader reaches a surface's
+   The typing scope claims those text-editing keys, so a user reaches a surface's
    letters and walks from its list rather than from its composer.
 
    Core registers scopes through internal `keys(el, title, rows)`; package widgets receive
@@ -41,7 +41,7 @@ const unpainted = new Set();
 // its sentences: the tenth grip on a page says what the first one says, so it is one
 // section, while a widget whose keys are declared in two places (a draft's way in, and the
 // editor it opens) contributes to one section from both.
-// Two contributors to one section are live where either is, and the reader is in it where
+// Two contributors to one section are live where either is, and the user is in it where
 // either says so — a `when` or an `at` nobody wrote means always, which is what makes the
 // first contributor's silence carry rather than the second's answer.
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
@@ -90,7 +90,7 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
   // "somewhere to step" and the mode carrying the Escape states "there is a menu", which
   // is what a layer's way out has to hold wherever the layer does.
   //
-  // Asked here rather than at the reader, because the section is built once per open —
+  // Asked here rather than at the user, because the section is built once per open —
   // declaredStack has one caller, showCommandReference — where a `when` may be the whole event log
   // folded and the line's own walk avoids it for exactly that reason.
   if (when && !when()) return;
@@ -124,7 +124,7 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * what lets one declaration feed both surfaces. The scope's is the capability — does this
  * machine have neighbours to walk, does this page have a second version — and it gates the
  * reference. The row's is whether this press would move now — is a card held, has this
- * thread a box to reply into — and it gates the line, where the reader is standing in the
+ * thread a box to reply into — and it gates the line, where the user is standing in the
  * scope and can see the answer. So the reference names Enter wherever the page has
  * threads, and the line offers it only on a focused thread with a reply or reopen action.
  * One `when` answering both left Enter live over the whole page, where the press no-opped.
@@ -433,10 +433,10 @@ document.addEventListener(
   true,
 );
 
-// Where the reader is standing, which is not always what `document.activeElement`
+// Where the user is standing, which is not always what `document.activeElement`
 // answers. Focus inside a shadow tree retargets to the host, while the label transition
 // above can report body or a containing element until its click completes. The register
-// needs the inner element in both cases so its scope stays the one the reader is leaving
+// needs the inner element in both cases so its scope stays the one the user is leaving
 // or working.
 export const focused = () => {
   const active = deepestFocus();
@@ -476,7 +476,7 @@ export function scopesFor(node) {
 }
 // Whether the focused control has claimed Escape for itself. Asked of the control's own
 // scopes and not of the stack, because both callers mean "this press already has an owner
-// where the reader is standing": the sequence refuses to arm there, and focus entering one
+// where the user is standing": the sequence refuses to arm there, and focus entering one
 // disarms it. Every panel and mode in the runtime carries a rung of some kind, so a
 // question asked of the whole stack would answer yes almost everywhere and the sequence would
 // never arm at all.

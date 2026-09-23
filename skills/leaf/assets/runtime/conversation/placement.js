@@ -9,7 +9,7 @@ import { hostIn } from "../shadow.js";
 import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
-// beginning and an end, and the reader walks the conversation the way they walk the
+// beginning and an end, and the user walks the conversation the way they walk the
 // prose it is about: the thread on the lede is the first one, the thread on the punch
 // list is the last, and t/T, the marks out on the page and the panel's own scroll all
 // say the same order. Log order answered a different question — when a
@@ -17,7 +17,7 @@ import { threadSummary } from "./model.js";
 // the message clocks already answer it.
 //
 // The panel's Recent order (below) is the one exception, and only the panel's: the
-// reader asked the list the other question, which thread moved last. The marks and the
+// user asked the list the other question, which thread moved last. The marks and the
 // walk with the panel shut keep the page's order.
 //
 // Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
@@ -37,7 +37,7 @@ import { threadSummary } from "./model.js";
 // Where a thread stands, said in the document's own tree. A passage a widget renders into
 // a declared shadow root is placed inside that root, and `compareDocumentPosition` answers
 // across trees with "disconnected, in an implementation-specific order" — an order no
-// reader has ever seen, and one `contains` cannot correct. The host is the element the
+// user has ever seen, and one `contains` cannot correct. The host is the element the
 // page holds, and where the page holds it is where those words are. A place in no tree at
 // all — an element a version activation has replaced — is no place, which is the same
 // answer an anchor that resolves nowhere gets.
@@ -46,8 +46,8 @@ const inPage = (el) => hostIn(el, document);
 const threadPlace = (t, placedAt) =>
   inPage(placedAt(t.root.id)?.element ?? (t.anchor ? sectionOf(t.anchor) : null));
 
-// Which of two elements the reader reaches first. `compareDocumentPosition` answers for
-// a containing element too — a section reaches the reader before the paragraph inside it
+// Which of two elements the user reaches first. `compareDocumentPosition` answers for
+// a containing element too — a section reaches the user before the paragraph inside it
 // — which is what makes it the whole reading rather than a comparison of two indexes
 // into a list this file would have to keep.
 const pageOrder = (a, b) =>
@@ -72,7 +72,7 @@ export function inPageOrder(threads, placedAt) {
 
 // The page's own outline, in document order. Read off the headings the author wrote
 // rather than off <section> nesting, because both shapes are in the corpus and a heading
-// is the thing a reader navigates by in either — a page written as one flow of h2s has an
+// is the thing a user navigates by in either — a page written as one flow of h2s has an
 // outline just as much as one written as nested sections. The runtime's own chrome
 // contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
 // of the page's outline.
@@ -193,7 +193,7 @@ const DATED_NAME = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-// The run a thread sits in under Recent: the reader's calendar day it last moved on.
+// The run a thread sits in under Recent: the user's calendar day it last moved on.
 // Rounding absorbs a daylight-saving day that is 23 or 25 hours long. Today is read
 // through the shared clock, so the paint holding these headings repaints at midnight.
 export function recentGroup(thread) {

@@ -195,7 +195,7 @@ class RegistryError(click.ClickException):
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
-    stamp had fallen behind the running layer met the reader's click with a dead socket
+    stamp had fallen behind the running layer met the user's click with a dead socket
     and no words. Click renders an escaped one bare, at whichever command reached it, so
     a refusal from here reads like every other refusal this CLI writes."""
 

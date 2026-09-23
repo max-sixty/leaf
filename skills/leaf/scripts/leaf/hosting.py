@@ -83,7 +83,7 @@ class LeafHTTPServer:
 
     `server_id` is this incarnation, which every answer names and a tab watches: a
     replaced server has a log that starts again, so the old DOM has to go. `viewed_at`
-    is when a news stream last wrote the page's reader recency, throttled because it
+    is when a news stream last wrote the page's user recency, throttled because it
     needs a recency rather than a request log. `stopping` is the state a held-open news
     stream reads. A stop has to reach a response that is deliberately never finishing,
     and the stream looks at this between its own looks; uvicorn's graceful shutdown

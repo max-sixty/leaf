@@ -154,7 +154,7 @@ def test_agent_interaction_command_help(regtest):
 
 
 def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
-    """Actual CLI recovery after two reader messages arrive in one delivery."""
+    """Actual CLI recovery after two user messages arrive in one delivery."""
     page = claimed
     publish(page)
     runner = CliRunner()
@@ -167,7 +167,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         text = f"$ leaf {' '.join(args)}\nexit: {code}\n{result.output}"
         text = text.replace(str(page), "/page")
         for number, event_id in enumerate(ids, 1):
-            text = text.replace(event_id, f"reader-{number}")
+            text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
     record(["reply", str(page), "--text", "Answer"], 1)
@@ -694,6 +694,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/event-batches.md",
         "skills/leaf/references/host-claude-code.md",
         "skills/leaf/references/host-codex.md",
+        "skills/leaf/references/host-codex-app-server.md",
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
@@ -2003,7 +2004,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     # What hands a test something the browser fixture will close: the fixtures built
     # on it, and `opened_tab`, whose tab is made readable and so reports into the
     # collector that fixture reads.
-    lending = {"browser", "iphone", "held_events", "one_reader", "opened_tab"}
+    lending = {"browser", "iphone", "held_events", "one_user", "opened_tab"}
     owners = {
         "Popen": ("spawn", {"conftest.py"}),
         "mkdtemp": ("socket_dir", {"interact_support.py"}),
@@ -2846,7 +2847,7 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
 def test_init_revendors_a_page_an_earlier_leaf_left_behind(page_dir):
     """A page an earlier Leaf vendored is readable again through `page init`.
 
-    Re-vendoring is the only move the reader has, so the refusal names it and
+    Re-vendoring is the only move the user has, so the refusal names it and
     `page init` takes it."""
     publish(page_dir)
     revision = interact_files.latest_revision(page_dir)

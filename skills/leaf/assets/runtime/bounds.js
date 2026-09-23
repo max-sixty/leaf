@@ -1,12 +1,12 @@
 /* A block bounded at its end (x-bound or data-bound="end", painted as data-lf-bound)
    follows its newest entry: it opens at the end, and what arrives there stays in view
-   while the reader is at the end. A reader who scrolls back stays where they stopped,
+   while the user is at the end. A user who scrolls back stays where they stopped,
    since a log that pulls them down while they are reading an earlier line is a log they
    cannot read; returning to the end resumes following.
 
-   Whether the reader is at the end is read from their scroll, not from the content: by
+   Whether the user is at the end is read from their scroll, not from the content: by
    the time content has changed, the box's scroll height has already moved past a
-   reader who was at the end a moment ago. A scroll event can also trail the change it
+   user who was at the end a moment ago. A scroll event can also trail the change it
    answers by a frame, so a box standing above where this module last put it has been
    scrolled back even before its event arrives. The theme bounds the box; this module
    only holds its place, so a copy with no script keeps the bound and opens at the top.

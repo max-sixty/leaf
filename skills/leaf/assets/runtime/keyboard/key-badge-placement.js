@@ -9,12 +9,12 @@
    and painted against the same chrome.
 
    Two readings of a member's usable box stand here, and what differs between them is
-   which box they start from rather than what the reader can see of it. `badgeBox` starts
+   which box they start from rather than what the user can see of it. `badgeBox` starts
    at the member's own corner — the corner a badge hangs off, which for an inline run that
    wraps is not the middle of its bounds. `visibleBounds` starts at the member's whole box,
    which is how the target chooser both admits a member and seats its chip. Both are then
    held clear of the same room by `clearBox` and tested by the same `exposes`, so both maps
-   promise the reader the same thing by "visible". `clearPart` answers for a box with no
+   promise the user the same thing by "visible". `clearPart` answers for a box with no
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { banner } from "../banner.js";
@@ -23,12 +23,12 @@ import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { overlaps, shownParts, shownRect, startsAt } from "../geometry.js";
 import { under } from "../shadow.js";
 
-// The top of the room the reader has. Chrome above the page covers what it stands over
+// The top of the room the user has. Chrome above the page covers what it stands over
 // without clipping those boxes, so every reading of usable room starts below it.
 export const chromeTop = () => banner.getBoundingClientRect().bottom;
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
-// box began above the room the reader has, which a chip hung on the surviving corner
+// box began above the room the user has, which a chip hung on the surviving corner
 // needs in order to say so.
 const rect = (left, top, right, bottom, sourceTop = top) =>
   right > left && bottom > top
@@ -49,10 +49,10 @@ export function keyBadgePlacement() {
   const chrome = bottomChromeBoxes();
   const kept = [...chrome];
 
-  // What the reader can see of a box: the window, less the banner standing over its top.
+  // What the user can see of a box: the window, less the banner standing over its top.
   //
   // Chrome at the foot stays in it, so a map's members are never decided by it: the bar
-  // states the armed map's own keys and changes width as the reader filters them, so a map
+  // states the armed map's own keys and changes width as the user filters them, so a map
   // that read it would lose members as it armed and swap codes as its own legend grew. A
   // chip that would land there is moved by the placement pass instead (`spreadHints`,
   // hints.js), which keeps the route where dropping the member loses it.
@@ -142,7 +142,7 @@ export function keyBadgePlacement() {
         )
       : null;
 
-  // Whether the reader can see what this box was measured from. Geometry cannot answer it:
+  // Whether the user can see what this box was measured from. Geometry cannot answer it:
   // a panel, a tray, a fixed sheet or an ordinary page box covers a member without clipping
   // its rectangle. Ask the rendered stack inside the box, and make the member itself answer,
   // a cover being exactly the case where something else does. Most chrome answers, which is

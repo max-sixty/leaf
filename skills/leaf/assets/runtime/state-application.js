@@ -137,7 +137,7 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
-      // Pending deferral is rechecked by activates. An installation edits the reader's
+      // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate
       // that could not be adopted is dropped here, with the page still whole.

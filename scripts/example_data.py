@@ -59,7 +59,7 @@ def example_versions(source: Path) -> list[Path]:
     The example's own file is its current version, and for most examples that is the
     whole list. One that was revised ships each earlier version as
     the source directory's `versions/<stem>.vN.html`; every builder stamps this list in
-    order, so the page a reader opens carries the version chooser, the changes-since
+    order, so the page a user opens carries the version chooser, the changes-since
     marks, and a thread opened against the document before the revision.
     """
     priors = sorted(

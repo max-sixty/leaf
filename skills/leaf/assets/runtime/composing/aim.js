@@ -132,7 +132,7 @@ export function createAim({
       // let them differ: the browser resolves a press from its own dispatch, elementFromPoint
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
-      // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
+      // A user ⌥-pressing on that seam was outlined one option and commented on the next.
       const choosing = targetChooser.active() && !inChrome(ev.target);
       claimedPress = choosing
         ? { chooser: aimTargetAt(ev.composedPath()[0]) }

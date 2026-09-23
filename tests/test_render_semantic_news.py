@@ -20,7 +20,7 @@ from render_cases_interaction import (
 from render_harness import FEATURE_GALLERY, open_page, sending, told
 
 
-def test_new_reply_and_reader_question_share_one_notice_without_moving_focus(
+def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     browser, serve
 ):
     url = serve(PANEL_PAGE)
@@ -97,7 +97,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     request.addfinalizer(lease.close)
     attempt = service_model.delivery_reply_attempt("delivery-interrupted")
     with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_status("waiting", "User feedback")
         transaction.set_stream_reply(
             "codex-thread", "leaf-turn", root, root, attempt, None, "Draft", "active"
         )

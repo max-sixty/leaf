@@ -25,13 +25,13 @@
  *    indent a draft like any other child content without the indentation becoming part
  *    of the draft's text.
  * 2. renderState states absolute values — the whole body, never a patch — so replay is
- *    idempotent and two tabs converge on the last write. Reader edits remain effective
+ *    idempotent and two tabs converge on the last write. User edits remain effective
  *    across revisions. The runtime marks an effective body that differs from authored
- *    text with data-lf-reader-override.
+ *    text with data-lf-user-override.
  *
  * Editing has two doors: the box itself, which opens the editor with the caret where the
  * press landed, or the ✎ button (the door the keyboard uses). The block being its own
- * door is what a reader finds without being told — the ✎ sits in the margin, 45px from
+ * door is what a user finds without being told — the ✎ sits in the margin, 45px from
  * the words it edits, and the gesture that used to open the box in place was a
  * double-click nothing advertised. The draft
  * contributes that disclosure to its target's shared margin entry cluster. Save and Cancel
@@ -43,7 +43,7 @@
  * successful send or explicit Cancel, so reload, version switch, server death and the
  * tab's own close all recover. The text goes in bare, an empty edit being a real
  * replacement the store keeps and only a settlement removing the key — the store's rule,
- * not this widget's exception to it. One edit has one copy across the reader's tabs
+ * not this widget's exception to it. One edit has one copy across the user's tabs
  * (watchDraft): an open box follows the words being typed in another, a settled draft
  * closes the box it left behind, and a closed one stays closed.
  * A send owns the shared draft generation until its response, as every composer does:
@@ -193,7 +193,7 @@ customElements.define(
       this.#watchReading();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
-      // that the reader rewrites it, so a press anywhere in it opens the editor with the
+      // that the user rewrites it, so a press anywhere in it opens the editor with the
       // caret where they pressed — the ✎ is 45px away in the margin, and a double-click
       // is a gesture nothing on the block advertised.
       //
@@ -202,7 +202,7 @@ customElements.define(
       // in it. What the guard means is "a thing to work", so it reads the marker that
       // says so and not the chrome face, which is a look and would answer by coincidence.
       //
-      // A drag that ended on these words was the reader taking them, not opening
+      // A drag that ended on these words was the user taking them, not opening
       // anything: the same complaint `reachedForWords` is for, and the same answer, which
       // is why it is asked here rather than reimplemented. Opening on the drag's mouseup
       // would throw the selection away at the moment it was finished.
@@ -218,7 +218,7 @@ customElements.define(
 
       // One edit, however many tabs are open on the page. An open box follows what is
       // typed in another; a closed one stays closed, because news arriving has no gesture
-      // behind it and the box would open under whatever the reader is doing here — it
+      // behind it and the box would open under whatever the user is doing here — it
       // takes up the words at the next opening either way (#open reads the store). A
       // settlement is the case that does move this tab: the words are sent or discarded,
       // so an open box holding them has nothing left to hold, and closing it lets replay
@@ -265,8 +265,8 @@ customElements.define(
       // source-authored body. A live revision's replacement nodes connect before their
       // atomic document adoption and deliberately receive no partial semantic reading.
       //
-      // An edit coming back is not the reader arriving, though, so the box does not take
-      // the focus. A revision that rewrote this draft connects it again while the reader
+      // An edit coming back is not the user arriving, though, so the box does not take
+      // the focus. A revision that rewrote this draft connects it again while the user
       // stands somewhere else, and news with no gesture behind it moves nobody — the same
       // reason `#watchDraft` leaves a closed box closed. On a page that has just loaded,
       // startup hands the focus to the page after this runs either way.
@@ -558,8 +558,8 @@ customElements.define(
       });
       // The disclosure scope is what works this box, so this binds no `run` and only says
       // the word — one more contributor to the section the draft's other two declare,
-      // since the reader standing here is still on a draft. Both cells are read where they
-      // are painted: which way the press goes is something the reader can see, and which
+      // since the user standing here is still on a draft. Both cells are read where they
+      // are painted: which way the press goes is something the user can see, and which
       // keys it takes is the scope's own answer for where this box is standing.
       commands(summary, "On a draft", [
         {
@@ -640,7 +640,7 @@ customElements.define(
     #close(discard) {
       if (!this.#ta) return;
       if (discard) clearEdit(this.id);
-      // Only where the reader was standing in it. A close this tab's own gesture made
+      // Only where the user was standing in it. A close this tab's own gesture made
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.

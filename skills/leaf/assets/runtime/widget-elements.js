@@ -46,7 +46,7 @@
    container's own module put there — an option's pick mark, a gloss's own mark — so the
    caller names that apparatus, which is the container's to press. The answer otherwise
    fails closed: declining one ambiguous container gesture is safer than recording a
-   choice while the reader operates nested evidence. */
+   choice while the user operates nested evidence. */
 import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
@@ -58,10 +58,10 @@ import { upFrom } from "./shadow.js";
 // inactive tab. Opening what the platform owns (details) and letting a container
 // widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
 // target geometry before the scroll. The caller passes the intent its gesture retained
-// (reader-intent.js), and asynchronous listeners inherit that permission through
+// (user-intent.js), and asynchronous listeners inherit that permission through
 // event.detail.mayReveal. There is no default: one taken here would be taken after
 // whatever the caller awaited, which is the late capture that lets stale work move a
-// reader who has since moved on.
+// user who has since moved on.
 export function reveal(el, mayReveal) {
   if (typeof mayReveal !== "function")
     throw new TypeError("reveal needs the intent its gesture retained");
@@ -129,7 +129,7 @@ export function keepsHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;
 }
 
-// The reader's hand on a widget, in the layer's own word: a drag the log has not taken
+// The user's hand on a widget, in the layer's own word: a drag the log has not taken
 // yet. The class is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's `z` row — a row no widget declares, and therefore the one
 // no widget would think to repaint. So the paint is owed here, where the class is
@@ -172,7 +172,7 @@ export const layoutChanged = (el) => {
 //
 // A widget upgrades wherever the runtime connects it, and not every one of those places
 // is drawn. A message body is built for every comment the log carries and connected
-// whether or not the reader has opened the panel, and a shut panel is `display: none`:
+// whether or not the user has opened the panel, and a shut panel is `display: none`:
 // every box beneath it is zero. `once` then refuses the second upgrade that would put
 // it right, and the body is cached for the life of the tab and never rebuilt — so a
 // zero taken there is indistinguishable from a measurement and stands for good. A pick
@@ -234,7 +234,7 @@ export function quoted(el) {
 // open, a player to start. Browser-native interactive content, the ARIA widget roles,
 // and the platform's explicit focus/edit/drag markers are one boundary shared by every
 // gesture owner. `summary` stands for `details`, because only the summary is the press and
-// the body under it is prose the reader may point at like any other. Nothing embedded
+// the body under it is prose the user may point at like any other. Nothing embedded
 // (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
 // listing them would guard a gesture no listener out here can see.
 // Anchors distinguishes an authored tab stop from one reachScrollers added to expose
@@ -295,7 +295,7 @@ export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
 // It exists because an option's case is now argued inside the option — a screenshot pair
 // to flip, a disclosure to open, tabs to walk — while the whole card is what takes the
 // pick. Reading the evidence then cast a vote: a click on a tab chose that option, and one
-// on a shot's `after` radio chose it and cleared it again, two decisions the reader never
+// on a shot's `after` radio chose it and cleared it again, two decisions the user never
 // made and only the log to show for them. Fail closed, because a pick is sent the moment
 // it is made: a gesture nobody can prove was a choice is not one.
 //
@@ -304,7 +304,7 @@ export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
 // this container is made of (x-owners) — declared rather than listed, so the twelfth
 // widget is covered by its entry and a widget whose gesture lands on its own words rather
 // than on chrome (a press on lf-draft's own box) is covered with the rest. Inert ones go
-// in with them: a diagram is evidence the reader studies with the pointer on it, and which
+// in with them: a diagram is evidence the user studies with the pointer on it, and which
 // evidence happens to carry a control is nothing they can see.
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
@@ -418,7 +418,7 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // Which is a reading rather than this listener's own business, because the same press
 // reaches things `offer` never made: the panel's quote, whose press travels the page to
 // the passage, and the list's landing, which moves the card the words are on. Each was
-// the same complaint in its own place — the reader drew across the words to take them
+// the same complaint in its own place — the user drew across the words to take them
 // and the page went somewhere.
 // It asks only where the selection stopped, and not whether a press happened at all:
 // which presses can be a drag is each caller's own question. A click carries the answer
@@ -529,9 +529,9 @@ export function reserve(control, labels) {
   // Standing the control out of flow hides it, and hiding a focused element takes the
   // focus off it — onto body, silently, and on no fixed frame: the browser runs that
   // fixup around the layout, not after a turn this owner can count. The measurement is
-  // synchronous and invisible, and losing the reader's place is not part of what it was
+  // synchronous and invisible, and losing the user's place is not part of what it was
   // asked to do. A focused control may be remeasured after its face or typography
-  // changes; it must remain the reader's place throughout.
+  // changes; it must remain the user's place throughout.
   const held = document.activeElement === control;
   const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {

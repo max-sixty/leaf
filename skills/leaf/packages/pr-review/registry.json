@@ -155,7 +155,7 @@
     "x-example": "<lf-pull-request id=\"reviewed-pr\" source=\"pr-1842\" snapshot=\"7\"></lf-pull-request>"
   },
   "lf-call-diff": {
-    "description": "A commentable, unified call-tree diff supplied by an analysis host. Author an empty element with an id, bind its required `document` input through `source`, point `diff` at the exact `lf-diff` evidence, and optionally pin an immutable data revision through `snapshot`. The widget groups CallDiff's adjacent unchanged, removed, and added tree items under collapsible changed roots instead of redrawing two independently laid-out graphs. Each rendered row is a stable projected datum, so a reader can comment on one item or select its exact text; source coordinates navigate to a matching line in the bound patch.",
+    "description": "A commentable, unified call-tree diff supplied by an analysis host. Author an empty element with an id, bind its required `document` input through `source`, point `diff` at the exact `lf-diff` evidence, and optionally pin an immutable data revision through `snapshot`. The widget groups CallDiff's adjacent unchanged, removed, and added tree items under collapsible changed roots instead of redrawing two independently laid-out graphs. Each rendered row is a stable projected datum, so a user can comment on one item or select its exact text; source coordinates navigate to a matching line in the bound patch.",
     "type": "object",
     "properties": {
       "id": {

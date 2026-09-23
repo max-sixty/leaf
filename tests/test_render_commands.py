@@ -764,7 +764,7 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
 
 
 def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
-    """A reader's before → after → before choice survives the deferred import."""
+    """A user's before → after → before choice survives the deferred import."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -800,7 +800,7 @@ def test_a_shot_still_flips_with_every_script_removed(
     rendered DOM with the scripts dropped and every press a handler answered taken out
     with them — the upgrade has already run, so the frames are there, and this switch
     survives that pass because the browser is what works it. A slider would have
-    frozen at whatever the reader left it on; `:has(:checked)` is CSS, and the browser
+    frozen at whatever the user left it on; `:has(:checked)` is CSS, and the browser
     owns a checkbox's state, so its transparent box over the image goes on being the
     target in a file with nothing running.
 
@@ -909,7 +909,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     has put its label somewhere the user cannot go. `selectableOffer` is the explicit
     exception for such page words, and this says when a widget needed it.
 
-    Both are about a word the reader was shown, so the check asks that first. The
+    Both are about a word the user was shown, so the check asks that first. The
     runtime's external-link note is the case that made it say so: an aria-describedby
     target the browser reads out and the page never paints, put inside whatever root
     its link stands in — a shadow tree included, where .lf-quiet's clip does not
@@ -983,7 +983,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     """The x-paints half of the same gate, and the line it draws between two silences.
 
     A widget may paint a fact — `kind="failure"` is a visual state and no text node —
-    and it owes a reader who is listening the same fact in words. The runtime
+    and it owes a user who is listening the same fact in words. The runtime
     writes that word, so what is left to check is whether anything drew it. Asking
     is asking for a box, and only an element that is being laid out has one to give:
     a disclosure nobody opened, a tab nobody switched to and a shut thread panel
@@ -992,7 +992,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
 
     So the two silences part here, and this holds one of them: a word drawn nowhere
     on a page that is on screen is reported, and the same widget behind a fold is
-    not, there being nothing to measure and the fold being the reader's to open.
+    not, there being nothing to measure and the fold being the user's to open.
     That exemption is what lets a widget riding a message out, in
     `test_render_leaves_a_widget_riding_a_reply_out_of_that_reading`.
 
@@ -1013,7 +1013,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     ]
     assert sorted(set(found)) == [
         (
-            '<lf-chronology-entry id=p-seen> paints kind="failure" and says nothing a reader '
+            '<lf-chronology-entry id=p-seen> paints kind="failure" and says nothing a user '
             "listening can hear"
         )
     ], found

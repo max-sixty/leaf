@@ -1,6 +1,6 @@
 /* Notices and announcements.
 
-   News arriving without the reader's send gesture may show a notice but does
+   News arriving without the user's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
    moment's news — a recorded gesture, an arrived version, a refused send — and it
    stands in the bottom status line in place of the current walk position, which returns
@@ -23,8 +23,8 @@ const NOTICE_MS = 4000;
 let noticeTimer = 0;
 let showingBackground = null;
 const waitingBackground = [];
-let readerContext = false;
-let readerHoldTimer = 0;
+let userContext = false;
+let userHoldTimer = 0;
 let noticePresentation = Object.freeze({ message: "", visible: false });
 let invalidateNoticePresentation = null;
 
@@ -60,13 +60,13 @@ export function announce(msg) {
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
 // to v3"), a refusal ("Nothing to send — the box is empty"): the quiet status at the page
 // foot. A sentence that is also a button for four seconds is a target
-// the reader cannot learn.
+// the user cannot learn.
 function showNotice(msg, background = null) {
   presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
-    if (!readerContext && !readerHoldTimer && showBackground(waitingBackground.shift()))
+    if (!userContext && !userHoldTimer && showBackground(waitingBackground.shift()))
       return;
     presentNotice(noticePresentation.message, false);
     showingBackground = null;
@@ -112,7 +112,7 @@ function queueBackground(entry, front = false) {
   else waitingBackground.push(entry);
 }
 
-// Reader commands own the next brief interval. Background arrivals wait behind one,
+// User commands own the next brief interval. Background arrivals wait behind one,
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // A held status line coalesces each producer's news; the live region announces it now.
 export function notice(
@@ -124,15 +124,14 @@ export function notice(
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg);
-    if (readerContext || readerHoldTimer || noticeVisible())
-      return queueBackground(entry);
+    if (userContext || userHoldTimer || noticeVisible()) return queueBackground(entry);
     return showBackground(entry);
   }
   if (!background && showingBackground) queueBackground(showingBackground, true);
   showNotice(msg);
 }
 
-// A semantic walk is an immediate reader command even though its feedback is the live
+// A semantic walk is an immediate user command even though its feedback is the live
 // ordinal rather than a timed notice. Hold arriving news for one boundary interval;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
@@ -143,10 +142,10 @@ export function holdStatus(ms) {
     presentNotice(noticePresentation.message, false);
     showingBackground = null;
   }
-  clearTimeout(readerHoldTimer);
-  readerHoldTimer = setTimeout(() => {
-    readerHoldTimer = 0;
-    if (readerContext || noticeVisible() || !waitingBackground.length) return;
+  clearTimeout(userHoldTimer);
+  userHoldTimer = setTimeout(() => {
+    userHoldTimer = 0;
+    if (userContext || noticeVisible() || !waitingBackground.length) return;
     showBackground(waitingBackground.shift());
   }, ms);
 }
@@ -154,7 +153,7 @@ export function holdStatus(ms) {
 // Persistent command context outranks background news and pauses its visible interval.
 // A foreground notice may still replace the context briefly, then the context returns.
 export function setNoticeContext(active) {
-  readerContext = active;
+  userContext = active;
   if (active && showingBackground) {
     queueBackground(showingBackground, true);
     clearTimeout(noticeTimer);
@@ -163,7 +162,7 @@ export function setNoticeContext(active) {
     showingBackground = null;
   } else if (
     !active &&
-    !readerHoldTimer &&
+    !userHoldTimer &&
     waitingBackground.length &&
     !noticeVisible()
   ) {

@@ -47,12 +47,16 @@ another session.
 ## Session list
 
 Claude Code's session list (`claude agents`) groups a background session by how
-its last chat message ends. When a turn ends with the page's status `waiting` on
-a concrete ask, end the reply with a `needs input:` line stating that ask, so the
-list groups the session with those waiting on the user rather than those
-working. The list reads the line only when it stands on its own outside a code
-block, its ask runs 200 characters or fewer, and no more than two paragraphs or
-about 800 characters follow it.
+its last chat message ends. When a turn ends waiting on something only the user
+can give, whether an answer on the page or a decision about other work, end the
+reply with a `needs input:` line stating it, so the list groups the session with
+those waiting on the user rather than those working. The list reads the line
+only when it stands on its own outside a code block, its ask runs 200 characters
+or fewer, and no more than two paragraphs or about 800 characters follow it.
+
+The line moves only the group. The row's own status word reads Working for as
+long as a background task runs, `leaf wait` included, and no reply text changes
+it.
 
 ## Subagents
 

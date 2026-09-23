@@ -121,13 +121,25 @@ export function visibleBand(scroller) {
 export function landingBand(scroller) {
   const band = shownBand(scroller);
   if (!band) return null;
+  const inset = landingInsets(scroller);
+  return {
+    left: band.left + inset.left,
+    top: band.top + inset.top,
+    right: band.right - inset.right,
+    bottom: band.bottom - inset.bottom,
+  };
+}
+// How far each edge of `landingBand` stands in from the scroller's shown band: the
+// `scroll-padding` it declares. Callers that measure from the scroller's own box take
+// the clearance here rather than reading the style themselves.
+export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
   const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
   return {
-    left: band.left + inset("Left"),
-    top: band.top + inset("Top"),
-    right: band.right - inset("Right"),
-    bottom: band.bottom - inset("Bottom"),
+    top: inset("Top"),
+    right: inset("Right"),
+    bottom: inset("Bottom"),
+    left: inset("Left"),
   };
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when

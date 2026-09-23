@@ -6285,8 +6285,11 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     assert controls[".lf-resolve"]["middle"] == pytest.approx(
         controls[".lf-margin-preview-close"]["middle"], abs=1
     ), controls
+    assert controls[".lf-margin-preview-nav"]["middle"] == pytest.approx(
+        controls[".lf-resolve"]["middle"], abs=1
+    ), controls
     assert (
-        controls[".lf-margin-preview-nav"]["middle"] < controls[".lf-resolve"]["middle"]
+        controls[".lf-margin-preview-nav"]["right"] < controls[".lf-resolve"]["left"]
     ), controls
     assert (
         controls[".lf-resolve"]["right"] < controls[".lf-margin-preview-close"]["left"]
@@ -6312,6 +6315,13 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
     expect(previous).to_be_enabled()
     expect(next_conversation).to_be_disabled()
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    previous.click()
+    expect(next_conversation).to_be_visible()
+    expect(
+        preview.get_by_role("button", name="Dismiss conversation view")
+    ).to_be_visible()
+    next_conversation.click()
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
     page.keyboard.press("r")
     told(page)

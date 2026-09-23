@@ -463,6 +463,9 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     )
     assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
     assert centers[0]["x"] < centers[1]["x"]
+    dismiss.focus()
+    resized(page, 1000, 844)
+    expect(dismiss).to_be_focused()
 
 
 STATE_PAINT = """el => {

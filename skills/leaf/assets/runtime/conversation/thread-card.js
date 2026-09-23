@@ -1,7 +1,8 @@
 /* One synchronous Lit owner for complete panel, page, outlet and margin threads.
 
-   Immutable descriptors contain generated presentation only. Retained native editors
-   and frozen message widgets keep their mechanical lifetime outside those values.
+   Immutable descriptors contain generated presentation only. Retained native editors,
+   margin controls and frozen message widgets keep their mechanical lifetime outside
+   those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
@@ -173,6 +174,7 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #growing = false;
   #navigation = null;
+  #marginControls = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -196,6 +198,10 @@ export class ThreadView {
 
   setNavigation(navigation) {
     this.#navigation = navigation;
+  }
+
+  setMarginControls(controls) {
+    this.#marginControls = controls;
   }
 
   get model() {
@@ -262,10 +268,16 @@ export class ThreadView {
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
     const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
+    const marginToolbar = model.surface === "margin" ? this.#marginControls : null;
+    this.node.classList.toggle("lf-margin-thread-multiple", Boolean(marginToolbar));
     let headerActions = null;
     if (!model.resolved || model.folding) {
       this.#metadataActions.className = "lf-thread-meta-actions";
-      const actions = markRead ? [markRead, settlement] : [settlement];
+      const actions = marginToolbar
+        ? []
+        : markRead
+          ? [markRead, settlement]
+          : [settlement];
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
       if (markRead && markRead.parentNode !== this.#metadataActions)
@@ -273,7 +285,7 @@ export class ThreadView {
           markRead,
           settlement.parentNode === this.#metadataActions ? settlement : null,
         );
-      if (settlement.parentNode !== this.#metadataActions)
+      if (!marginToolbar && settlement.parentNode !== this.#metadataActions)
         this.#metadataActions.append(settlement);
       headerActions = this.#metadataActions;
     }
@@ -351,6 +363,13 @@ export class ThreadView {
       html`
         ${navigationSummary(navigation, model)}
         ${
+          marginToolbar
+            ? html`<div class="lf-margin-thread-toolbar">
+                ${marginToolbar.nav}${settlement}${marginToolbar.close}
+              </div>`
+            : nothing
+        }
+        ${
           model.surface === "outlet"
             ? html`<summary
                 class="lf-conversation-summary lf-ui"
@@ -408,7 +427,7 @@ export class ThreadView {
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved && !model.folding
+          model.resolved && !model.folding && !marginToolbar
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
               >
@@ -598,7 +617,7 @@ export class ThreadView {
       ]);
     }
     const button = this.node.querySelector(
-      ":scope .lf-thread-meta-actions > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+      ":scope .lf-thread-meta-actions > .lf-resolve, :scope > .lf-margin-thread-toolbar > .lf-resolve, :scope > .lf-margin-thread-toolbar > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
     );
     if (button && !this.#keys.has(button)) {
       this.#keys.add(button);

@@ -343,6 +343,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     # delivered gesture names is pinned past the bound; eliding it leaves an
     # action naming ids nothing in the envelope spells out, which is the defect
     # this whole reading exists to fix, surviving in the long-thread case.
+    summaries_for = active_summaries(events, threads)
     carried = []
     for t in named:
         if t not in threads:
@@ -360,7 +361,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             if fragment.by_id.keys() & spoken_for
         )
         digest = thread_digest(threads[t], delivered, pin)
-        summaries = active_summaries(events, t, threads[t])
+        summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}
         # Keep the newest exchange verbatim. The suggested range is one exact,

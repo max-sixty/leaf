@@ -450,9 +450,10 @@ The causal helpers:
   and ended, reads of `/api/state` asked and heard, and the outbox's attempts with
   no outcome yet. It counts attempts, so a retry is a second send. The ledger is
   the document's: a navigation starts it over with the page that carries it.
-- `round_trip(page)` waits until every event attempt sent by that page has a
-  definitive outcome. A request failure alone is not final because the page may
-  retry the same attempt.
+- `round_trip(page)` waits until every post the page issued has ended and every
+  event attempt in its outbox has a definitive outcome. A request failure alone is
+  not final because the page may retry the same attempt, and a bookkeeping event
+  such as `read` never enters the outbox, so it is over only when its post is.
 - `sending(page, what)` encloses a gesture whose own event the assertion behind
   it reads: it waits for one further send to enter the wire and then for its
   trip, so the read cannot answer with the event that stood before the gesture.

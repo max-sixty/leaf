@@ -1,7 +1,6 @@
 /* The option the author did not list: its durable words, the complete choice bound
  * to that draft generation, and the generated option nodes replay reconstructs. */
 import {
-  focused,
   loadDraft,
   offer,
   saveDraft,
@@ -71,14 +70,14 @@ export class OptionAddition {
     this.#input.rows = 1;
     this.#input.setAttribute("aria-label", ANOTHER);
     this.#add = offer("button", "lf-btn", "Add");
-    this.#add.setAttribute("aria-label", "Add option");
+    this.#add.setAttribute("aria-label", "Add and select option");
     this.#bindingBadge = offer("span", "lf-key-badge");
     this.#bindingBadge.setAttribute("aria-hidden", "true");
     this.#input.value = loadDraft(this.#context) ?? "";
     this.#form.append(this.#bindingBadge, this.#input, this.#add);
     this.#syncInput = wireInput(this.#input, {
-      hint: ANOTHER,
-      sends: "add option",
+      hint: "Another option — add to select",
+      sends: "add and select option",
       icon: "add",
       sendBtn: this.#add,
       allowsMedia: () => "Images can be added to comments, not options",
@@ -94,7 +93,6 @@ export class OptionAddition {
 
   #paintEmpty = () => {
     const empty = !this.#input.value.trim();
-    if (empty && focused() === this.#add) this.#input.focus();
     this.#add.toggleAttribute("data-lf-empty", empty);
   };
 
@@ -142,7 +140,7 @@ export class OptionAddition {
       const detail = { options: [...picked], additions };
       return this.#commit(detail, attempt);
     });
-    if (accepted) notice(`Added “${text}” — sent`);
+    if (accepted) notice(`Added and selected “${text}” — sent`);
   }
 
   #additions() {

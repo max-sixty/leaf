@@ -1,6 +1,6 @@
 """Canonical workflows for exact reader inputs and proactive subject work."""
 
-from .asks import thread_completion
+from .asks import ask_completion
 from .events import awaits_agent, seat_root, spoken_turns
 from .projection import (
     NO_RECORD,
@@ -320,7 +320,7 @@ def canonical_workflows(
             if not thread or thread["resolved"]:
                 continue
             record = conversation.by_id[source["widget"]]
-            completed = thread_completion(
+            completed = ask_completion(
                 record, page.registry[record["tag"]], conversation.projection
             )
             settled = any(

@@ -3,9 +3,8 @@
 
 The corpus is derived test content — edit an example, regression page, or the
 developer feature gallery and rerun this script (tests fail on a stale corpus). Each page's
-<main> body keeps its ids but not its document-level contents sidebar, and snapshot
-selectors are rebased onto the combined data log. Every source must therefore keep
-its ids disjoint, which this script enforces.
+<main> body keeps its ids but not its document-level contents sidebar. Every source
+must therefore keep its ids disjoint, which this script enforces.
 Usage: corpus.py  (no arguments; writes examples/corpus.html)
 """
 
@@ -87,14 +86,10 @@ FOOT = """\
 """
 
 
-SNAPSHOTTED_TAG = re.compile(r'<lf-[a-z-]+\b[^>]*\bsnapshot="[1-9][0-9]*"[^>]*>')
-
-
-def composed_data() -> tuple[dict, dict[str, int]]:
-    """Compose sources and map each capture to its revision in the combined log."""
+def composed_data() -> dict:
+    """Compose every example's captures and current values into one companion."""
     sources = {}
     captures = {}
-    capture_revisions = {}
     for source, _ in TABS:
         companion = source.with_suffix(".data.json")
         if not companion.exists():
@@ -114,27 +109,11 @@ def composed_data() -> tuple[dict, dict[str, int]]:
                     )
                 continue
             captures[name] = corpus_spec
-            capture_revisions[name] = len(captures)
         for name, value in document.items():
             if name in sources and sources[name] != value:
                 sys.exit(f"corpus examples contribute conflicting data source {name!r}")
             sources[name] = value
-    data = ({"$captures": captures} if captures else {}) | sources
-    return data, capture_revisions
-
-
-def rebase_snapshots(body: str, capture_revisions: dict[str, int]) -> str:
-    """Keep a pinned capture selected after independent data logs are combined."""
-
-    def rebase(match):
-        tag = match.group()
-        source = re.search(r'\bsource="([^"]+)"', tag)
-        if source is None or source.group(1) not in capture_revisions:
-            return tag
-        revision = capture_revisions[source.group(1)]
-        return re.sub(r'\bsnapshot="[1-9][0-9]*"', f'snapshot="{revision}"', tag)
-
-    return SNAPSHOTTED_TAG.sub(rebase, body)
+    return ({"$captures": captures} if captures else {}) | sources
 
 
 def build() -> str:
@@ -153,7 +132,6 @@ def build() -> str:
             f"{sorted(path.name for path in developer_pages ^ declared_developer_pages)}"
         )
 
-    _, capture_revisions = composed_data()
     owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
     authored_assets = []
@@ -181,7 +159,6 @@ def build() -> str:
         body = text[
             text.index("<main>") + len("<main>") : text.rindex("</main>")
         ].strip()
-        body = rebase_snapshots(body, capture_revisions)
         # The tab's label is the example's own eyebrow, title-cased, so embedding both
         # makes the panel say its name twice. On screen the strip carries it; wherever
         # there is no strip — unupgraded, in print, in a copy — the theme paints the
@@ -199,8 +176,7 @@ def build() -> str:
 
 def build_data() -> dict:
     """Compose the package sources needed by the examples embedded in the corpus."""
-    data, _ = composed_data()
-    return data
+    return composed_data()
 
 
 def build_events() -> str:

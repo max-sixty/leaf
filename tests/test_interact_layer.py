@@ -33,6 +33,7 @@ from interact_support import (
     shipped_payload,
 )
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -68,6 +69,7 @@ EXPECTED_PAGE_DIRECTORIES = (
     "vendor",
     "guidance",
     "media",
+    "data",
     "page",
 )
 
@@ -1021,10 +1023,6 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
-    assert interact_files.read_json(page_dir / "data.json") == {
-        "revision": 0,
-        "sources": {},
-    }
 
 
 def test_init_and_revendoring_preserve_the_page_owned_contribution(
@@ -1796,11 +1794,13 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["source"]["live"] is False
     assert "write index.html first" in state["source"]["error"]
     assert state["event_seq"] == 0
-    assert state["data"] == {"file": "data.json", "revision": 0}
-    assert interact_files.read_json(page / state["data"]["file"]) == {
-        "revision": 0,
-        "sources": {},
-    }
+    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert (
+        data_model.read_data(page, json.loads((page / "registry.json").read_text()))[
+            "sources"
+        ]
+        == {}
+    )
 
 
 def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
@@ -4331,7 +4331,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         "request": {
             "contract": "pull-request",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
@@ -4340,7 +4339,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         "document": {
             "contract": "text-document",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert (page / "widgets" / "lf-call-diff.js").is_file()
@@ -4366,7 +4364,6 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         "run": {
             "contract": "visual-run",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"

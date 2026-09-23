@@ -1,15 +1,14 @@
 /* The accepted external data and its watchers.
 
-   The browser keeps the accepted data revision independently from `lastEventSeq`,
-   because overlapping poll and POST responses can order the authorities differently.
-   `watchData(widget, input, callback)` delivers a clone of `{source, contract,
-   revision, updated, value, origin}` for current, a clone with `snapshot`, `label`, and
-   optional `lines` for a selected capture, or `null` before a bound current value
-   exists. It redelivers only when that source revision changes; overlapping reads await
-   the same in-flight rendering before stamping readiness. Its synchronous time readings
-   refresh independently of data delivery. Modules project the result into the authored
-   seat; they do not fetch it, mutate the accepted copy, or keep a hidden current-value
-   map of their own.*/
+   The browser orders data readings by when the server took them, independently of
+   `lastEventSeq`, because overlapping poll and POST responses can order the authorities
+   differently. `watchData(widget, input, callback)` delivers a clone of `{source,
+   contract, revision, updated, value, origin}`, or `null` while the bound source has no
+   readable value. It redelivers only when that source revision changes; overlapping
+   reads await the same in-flight rendering before stamping readiness. Its synchronous
+   time readings refresh independently of data delivery. Modules project the result
+   into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
+   hidden current-value map of their own.*/
 
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import {
@@ -22,42 +21,39 @@ import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
 import { layerHeaders, reportPageError, sameDelivery } from "./layer-client.js";
 
-export function acceptData(candidate) {
+export function acceptData(candidate, taken) {
   if (
     !candidate ||
     typeof candidate !== "object" ||
     Array.isArray(candidate) ||
-    !Number.isInteger(candidate.revision) ||
-    candidate.revision < 0 ||
+    typeof candidate.version !== "string" ||
     !candidate.sources ||
     typeof candidate.sources !== "object" ||
     Array.isArray(candidate.sources)
   )
-    throw new TypeError(
-      "state data must carry a non-negative integer revision and sources",
-    );
-  return applicationState.acceptData(candidate);
+    throw new TypeError("state data must carry a version and sources");
+  return applicationState.acceptData(candidate, taken);
 }
 
 const subscriptions = new Set();
 let subscriptionSequence = 0;
 
 export async function notifyDataSubscribers() {
-  const revision = runtime.data.revision;
+  const version = runtime.data.version;
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
   const regions = current.map((subscription) => subscription.region);
   await whenApplicationRegionsPresented(
     regions,
-    () => runtime.data.revision === revision,
+    () => runtime.data.version === version,
   );
-  // The revision becomes a readiness fact only after every subscriber has settled. A
+  // The version becomes a readiness fact only after every subscriber has settled. A
   // rejected package render is reported at its own boundary rather than turning every
   // later state read into the same page-wide failure. Render checks and export compare
   // this stamp with the server snapshot, so a data-only page cannot be read while an
   // asynchronous projection is still pending.
-  if (revision >= 0 && runtime.data.revision === revision)
-    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataRevision, String(revision));
+  if (version !== null && runtime.data.version === version)
+    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
 
 // A source value remains the server snapshot's to own. Subscribers name one input on
@@ -82,14 +78,10 @@ export function watchData(element, input, callback) {
     throw new Error(
       `watchData(${element.localName}, ${input}) input is not declared by this widget`,
     );
-  // Markup owns the binding and optional immutable selection. Capture both at mount so
-  // module code cannot turn a live attribute mutation into an unvalidated rebind.
-  // Version activation mounts a new element and therefore establishes a new
-  // subscription when authored markup changes.
+  // Markup owns the binding. Capture it at mount so module code cannot turn a live
+  // attribute mutation into an unvalidated rebind. Version activation mounts a new
+  // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
-  const selected = declaration.snapshot
-    ? element.getAttribute(declaration.snapshot)
-    : null;
   const paint = clocked(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
@@ -115,8 +107,9 @@ export function watchData(element, input, callback) {
     paint.stop();
     presentation.disconnect();
   }
-  const deliver = (snapshot, mounting = false) => {
-    const revision = snapshot?.revision ?? null;
+  // `revision` is the source's, which a source whose value fails its contract also
+  // has: its `null` delivery stands until the file changes again.
+  const deliver = (snapshot, revision, mounting = false) => {
     if (!delivered || deliveredRevision !== revision) {
       if (snapshot)
         snapshot.origin = {
@@ -124,8 +117,6 @@ export function watchData(element, input, callback) {
           source,
           contract: declaration.contract,
           revision: snapshot.revision,
-          data_revision: runtime.data.revision,
-          ...(selected ? { snapshot: selected } : {}),
         };
       // Claim this source revision before invoking package code so a synchronous
       // failure or re-entrant notification cannot redeliver the same failed value.
@@ -140,47 +131,27 @@ export function watchData(element, input, callback) {
     return completion;
   };
   const update = (sourceStore, mounting = false) => {
-    if (!source) {
-      return deliver(null, mounting);
-    }
     if (sourceStore && sourceStore.contract !== declaration.contract)
       throw new Error(
         `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
           `but source ${source} carries ${sourceStore.contract}`,
       );
-    if (!sourceStore) {
-      return deliver(null, mounting);
-    }
-    if (selected) {
-      const snapshot = sourceStore.snapshots?.[selected];
-      if (!snapshot)
-        throw new Error(
-          `watchData(${element.localName}, ${input}) source ${source} has no snapshot ${selected}`,
-        );
-      return deliver(
-        {
-          source,
-          contract: sourceStore.contract,
-          revision: Number(selected),
-          snapshot: selected,
-          ...snapshot,
-        },
-        mounting,
-      );
-    }
-    if (!Object.hasOwn(sourceStore, "value")) {
-      return deliver(null, mounting);
-    }
-    const snapshot = {
-      source,
-      contract: sourceStore.contract,
-      revision: sourceStore.revision,
-      updated: sourceStore.updated,
-      value: sourceStore.value,
-    };
-    if (Object.hasOwn(sourceStore, "label")) snapshot.label = sourceStore.label;
-    if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
-    return deliver(snapshot, mounting);
+    const revision = source ? (sourceStore?.revision ?? null) : null;
+    // A value that fails its contract is the server's reading to report, in `page
+    // state` and `version check`; the page shows the source as holding nothing.
+    if (!source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+      return deliver(null, revision, mounting);
+    return deliver(
+      {
+        source,
+        contract: sourceStore.contract,
+        revision,
+        updated: sourceStore.updated,
+        value: sourceStore.value,
+      },
+      revision,
+      mounting,
+    );
   };
   const updateSafely = (sourceStore) => {
     try {
@@ -189,10 +160,8 @@ export function watchData(element, input, callback) {
       reportPageError(`data subscriber failed: ${error?.message ?? error}`);
     }
   };
-  const selectedRevision = (sourceStore) =>
-    sourceStore ? (selected ? Number(selected) : sourceStore.revision) : null;
   const stage = (sourceStore) => {
-    const revision = selectedRevision(sourceStore);
+    const revision = sourceStore?.revision ?? null;
     if (delivered && deliveredRevision === revision) return;
     pendingDelivery?.settle();
     let settle;
@@ -246,10 +215,10 @@ export async function loadDataFragment(manifest, key) {
     !manifest ||
     typeof manifest.source !== "string" ||
     !manifest.source ||
-    !Number.isInteger(manifest.revision) ||
-    manifest.revision < 1
+    typeof manifest.revision !== "string" ||
+    !manifest.revision
   )
-    throw new TypeError("loadDataFragment needs a source snapshot");
+    throw new TypeError("loadDataFragment needs a source delivery");
   if (typeof key !== "string" || !key)
     throw new TypeError("loadDataFragment key must be a non-empty string");
   const contract = registry.$data?.contracts?.[manifest.contract];
@@ -257,28 +226,21 @@ export async function loadDataFragment(manifest, key) {
     throw new Error(
       `loadDataFragment contract ${manifest.contract} does not declare fragments`,
     );
-  const { source, snapshot } = manifest;
-  if (!snapshot && runtime.data.sources[source]?.revision !== manifest.revision)
+  const { source, revision } = manifest;
+  const current = () => runtime.data.sources[source]?.revision === revision;
+  if (!current())
     throw new Error(
-      `source ${source} revision ${manifest.revision} changed before loading fragment ${key}`,
+      `source ${source} revision ${revision} changed before loading fragment ${key}`,
     );
-  const revision = runtime.data.revision;
   if (offlineInteractive) {
-    const stored = offlineData();
-    if (!stored || stored.revision !== revision)
-      throw new Error("interactive export data does not match its frozen state");
-    const sourceStore = stored.sources?.[source];
-    if (!sourceStore || sourceStore.contract !== manifest.contract)
-      throw new Error("interactive export fragment does not match its source");
-    const selected = snapshot ? sourceStore.snapshots?.[snapshot] : sourceStore;
+    const reading = offlineData()?.sources?.[source];
     if (
-      !selected ||
-      (snapshot
-        ? Number(snapshot) !== manifest.revision
-        : sourceStore.revision !== manifest.revision)
+      !reading ||
+      reading.contract !== manifest.contract ||
+      reading.revision !== revision
     )
-      throw new Error("interactive export fragment does not match its revision");
-    const items = selected.value?.[contract.fragments.items];
+      throw new Error("interactive export fragment does not match its source");
+    const items = reading.value?.[contract.fragments.items];
     const matches = Array.isArray(items)
       ? items.filter((item) => item?.[contract.fragments.key] === key)
       : [];
@@ -286,12 +248,7 @@ export async function loadDataFragment(manifest, key) {
       throw new Error("interactive export fragment does not match its key");
     return structuredClone(matches[0][contract.fragments.value]);
   }
-  const params = new URLSearchParams({
-    data_revision: String(revision),
-    source,
-    key,
-  });
-  if (snapshot) params.set("snapshot", snapshot);
+  const params = new URLSearchParams({ source, source_revision: revision, key });
   const response = await fetch(pageUrl(`api/data?${params}`), {
     headers: layerHeaders(),
   });
@@ -307,11 +264,12 @@ export async function loadDataFragment(manifest, key) {
     answer.revision !== revision ||
     answer.source !== source ||
     answer.contract !== manifest.contract ||
-    answer.key !== key ||
-    (snapshot ? answer.snapshot !== snapshot : Object.hasOwn(answer, "snapshot"))
+    answer.key !== key
   )
     throw new Error("data fragment response does not match its request");
-  if (runtime.data.revision !== revision)
-    throw new Error(`data revision ${revision} changed while loading fragment ${key}`);
+  if (!current())
+    throw new Error(
+      `source ${source} revision ${revision} changed while loading fragment ${key}`,
+    );
   return structuredClone(answer.value);
 }

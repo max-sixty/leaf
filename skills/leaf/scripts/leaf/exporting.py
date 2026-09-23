@@ -514,7 +514,7 @@ def _export_document(page, request, url: str, name: str) -> str:
                     'link[rel="stylesheet"][data-lf-runtime]',
                     "document has no runtime theme",
                 ),
-                "dataRevision": state["data"]["revision"],
+                "dataVersion": state["data"]["version"],
                 "replayedEvents": sum(
                     event["kind"] in ("action", "report") for event in state["events"]
                 ),
@@ -524,7 +524,7 @@ def _export_document(page, request, url: str, name: str) -> str:
         finally:
             response.dispose()
         failed_stage = wait_for_presentation(
-            page, readiness["dataRevision"], readiness["replayedEvents"]
+            page, readiness["dataVersion"], readiness["replayedEvents"]
         )
         if failed_stage:
             raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")

@@ -141,7 +141,7 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
 
 
 def wait_for_presentation(
-    page, data_revision: int, replayed_events: int, *, settled: bool = False
+    page, data_version: str, replayed_events: int, *, settled: bool = False
 ) -> str | None:
     """Wait through the canonical post-upgrade presentation stages.
 
@@ -151,7 +151,7 @@ def wait_for_presentation(
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    stages = [("dataApplied", (data_revision,))]
+    stages = [("dataApplied", (data_version,))]
     if replayed_events:
         stages.append(("logApplied", (replayed_events,)))
     stages.append(("currentPresented", ()))

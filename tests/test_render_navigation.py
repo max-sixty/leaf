@@ -1275,27 +1275,22 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
     expect(restart).to_be_disabled()
 
 
-def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
-    browser, serve
-):
-    """One captured source supplies a following view, a snapshot, and provenance."""
+def test_the_feature_gallery_exercises_live_external_data(browser, serve):
+    """One captured source supplies a following view under its authored label."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     live = page.locator("#bg-source-live")
-    frozen = page.locator("#bg-source-snapshot")
     original = (
         '[route]\nname = "covered terrace"\ndistance_km = 1.8\nstatus = "sample"\n'
     )
 
     expect(live.locator("code")).to_have_text(original)
-    expect(frozen.locator("code")).to_have_text(original)
-    expect(frozen.locator("figcaption")).to_have_text(
-        "feature-gallery-source.toml at sample-1 · lines 1–4 · snapshot 1"
+    expect(live.locator("figcaption")).to_have_text(
+        "feature-gallery-source.toml · lines 1–4"
     )
 
     changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
     data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
     expect(live.locator("code")).to_have_text(changed)
-    expect(frozen.locator("code")).to_have_text(original)
     expect(page.locator("#bg-measurement-guide")).to_contain_text(
         "measurement is behind its source"
     )
@@ -1321,7 +1316,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
                 "section": "pr-exact-patch",
                 "datum": target.get_attribute("data-lf-datum"),
                 "source": target.get_attribute("data-lf-source"),
-                "data_revision": int(target.get_attribute("data-lf-source-revision")),
+                "source_revision": target.get_attribute("data-lf-source-revision"),
             },
         },
     )

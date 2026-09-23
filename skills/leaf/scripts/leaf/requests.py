@@ -19,7 +19,7 @@ def request_lifecycle(
     widget: str,
     document: dict,
     unit: str | None = None,
-    data_revision: int | None = None,
+    source_revision: str | None = None,
     offered: bool = True,
 ) -> dict:
     """The canonical lifecycle at one request seat over this event prefix."""
@@ -48,7 +48,11 @@ def request_lifecycle(
             "document": document,
             "widget": widget,
             "unit": unit,
-            **({"data_revision": data_revision} if data_revision is not None else {}),
+            **(
+                {"source_revision": source_revision}
+                if source_revision is not None
+                else {}
+            ),
             **({"offered": False} if not offered else {}),
         },
         "attempts": attempts,
@@ -90,10 +94,10 @@ def request_lifecycles_for(
             widget=widget,
             unit=unit,
             document=document,
-            data_revision=data_revision,
+            source_revision=source_revision,
             offered=offered,
         )
-        for (widget, unit), (data_revision, offered) in seats.items()
+        for (widget, unit), (source_revision, offered) in seats.items()
     ]
 
 
@@ -145,32 +149,19 @@ def request_document(event: dict, page, thread):
 
 
 def request_records(record: dict, registry: dict, data: dict) -> list[dict]:
-    """Rows in the exact source selection bound by one authored widget."""
+    """Rows in the current value of the source one authored widget binds."""
     entry = registry[record["tag"]]
     binding = entry["x-data"][entry["x-request"]["records"]]
     source = record["attrs"].get(binding["source"])
-    source_store = data["sources"].get(source) if source else None
-    if source_store is None:
-        return []
-    snapshot_attr = binding.get("snapshot")
-    snapshot_id = record["attrs"].get(snapshot_attr) if snapshot_attr else None
-    selected = (
-        source_store.get("snapshots", {}).get(snapshot_id)
-        if snapshot_id
-        else source_store
-    )
-    if selected is None or "value" not in selected:
+    reading = data["sources"].get(source) if source else None
+    if reading is None or "value" not in reading:
         return []
     contract = registry["$data"]["contracts"][binding["contract"]]
     records = contract.get("records") or contract["fragments"]
-    value = selected["value"]
+    value = reading["value"]
     rows = value.get(records["items"], []) if isinstance(value, dict) else []
     return [
-        {
-            "key": row[records["key"]],
-            "value": row,
-            "revision": int(snapshot_id) if snapshot_id else selected["revision"],
-        }
+        {"key": row[records["key"]], "value": row, "revision": reading["revision"]}
         for row in rows
     ]
 
@@ -235,11 +226,11 @@ def declared_request_error(
         row = next((row for row in rows if row["key"] == unit), None)
         if row is None:
             return f"<{tag}> request unit {unit!r} is not in its displayed data"
-        if event.get("data_revision") != row["revision"]:
+        if event.get("source_revision") != row["revision"]:
             return f"<{tag}> request unit {unit!r} names a stale data revision"
         values = row["value"]
     else:
-        if "data_revision" in event:
+        if "source_revision" in event:
             return f"<{tag}> authored request cannot name a data revision"
         values = record["attrs"]
     for field, attribute in spec.get("bind", {}).items():
@@ -292,9 +283,9 @@ def request_contract_error(
     page = view.document(event["revision"])
     thread = thread_structure(events)
     record, _elements, scope = request_document(event, page, thread)
-    return declared_request_error(event, page, thread, registry, view.data) or (
-        request_lifecycle_error(event, events, scope, registry, record)
-    )
+    return declared_request_error(
+        event, page, thread, registry, view.data(registry)
+    ) or (request_lifecycle_error(event, events, scope, registry, record))
 
 
 def receipt_contract_error(view, event: dict, events: list) -> str | None:

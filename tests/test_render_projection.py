@@ -80,6 +80,7 @@ from render_cases_navigation import (
     composer_quote,
     go_to_address,
     painted,
+    source_revision,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -122,6 +123,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
@@ -130,23 +132,25 @@ VISUAL_REVIEW_GALLERY = next(
 def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     browser, serve
 ):
-    """The two clients read the same accepted content and selected data revision."""
+    """The two clients read the same accepted content and the same source revisions.
+
+    A pin is a source id nothing rewrites: the reviewed copy keeps its revision while
+    the current source moves on, and each widget's origin names its own file's digest.
+    """
     authored = leaf_page(
         "construction parity",
         '<h1 id="title">Review</h1>'
         '<lf-suggestion id="change"><lf-old>Retry twice.</lf-old>'
         "<lf-new>Retry three times.</lf-new></lf-suggestion>"
         '<lf-text-document id="current" source="instructions"></lf-text-document>'
-        '<lf-text-document id="captured" source="instructions"></lf-text-document>',
+        '<lf-text-document id="reviewed" source="reviewed-instructions" '
+        'label="Reviewed"></lf-text-document>',
     )
     url = live_url(serve(authored))
     data_model.cmd_data_set(
-        serve.page_dir, "instructions", "Reviewed instructions.\n", "reviewed"
+        serve.page_dir, "reviewed-instructions", "Reviewed instructions.\n"
     )
-    source = serve.page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace('id="captured"', 'id="captured" snapshot="1"')
-    )
+    data_model.cmd_data_set(serve.page_dir, "instructions", "Earlier instructions.\n")
     data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
     page = open_page(browser, url)
     page.locator(
@@ -174,20 +178,24 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     }
     assert [node["tag"] for node in nodes["change"]["content"]] == ["lf-new"]
     assert nodes["change"]["content"][0]["content"] == ["Retry three times."]
-    for identity, revision, operation in (
-        ("current", 2, "data set"),
-        ("captured", 1, "capture-and-rebind"),
+    for identity, source, value in (
+        ("current", "instructions", "Current instructions.\n"),
+        ("reviewed", "reviewed-instructions", "Reviewed instructions.\n"),
     ):
         binding = nodes[identity]["inputs"]["document"]
+        assert binding["value"] == value
         widget = page.locator(f"#{identity}")
-        expect(widget.locator("code")).to_have_text(binding["value"])
+        expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
             "node => JSON.parse(node.dataset.lfOrigin)"
         )
         assert {**rendered, "path": []} == binding["origin"]
-        assert rendered["revision"] == revision
-        assert rendered["data_revision"] == 2
-        assert binding["edit"]["operation"] == operation
+        assert rendered["revision"] == source_revision(serve.page_dir, source)
+        assert binding["edit"]["file"] == str(
+            data_model.source_file(serve.page_dir, source)
+        )
+    expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
+    expect(page.locator("#current figcaption")).to_have_text("instructions")
 
 
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
@@ -737,15 +745,17 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             },
         ],
     }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", record, "initial visual run")
+    data_model.cmd_data_set(serve.page_dir, "docs-run", record)
     source = serve.page_dir / "index.html"
     source.write_text(
         source.read_text().replace(
             "</main>",
-            '<lf-visual-review id="visual-pinned" source="docs-run" '
-            'snapshot="1"></lf-visual-review></main>',
+            '<lf-visual-review id="visual-pinned" source="docs-run-reviewed">'
+            "</lf-visual-review></main>",
         )
     )
+    # The pinned run is a second source that nothing rewrites.
+    data_model.cmd_data_set(serve.page_dir, "docs-run-reviewed", record)
     page = open_page(browser, url)
     case_thread = events_model.append_event(
         serve.page_dir,
@@ -758,7 +768,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
                 "section": "visual-run",
                 "datum": "run-list",
                 "source": "docs-run",
-                "data_revision": 1,
+                "source_revision": source_revision(serve.page_dir, "docs-run"),
             },
         },
     )
@@ -1501,6 +1511,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
+    original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
     if quote_anchor:
         page.locator("#source code").evaluate(
@@ -1550,7 +1561,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "section": "source",
         "datum": "document",
         "source": "document",
-        "data_revision": 1,
+        "source_revision": original_revision,
     }
     if quote_anchor:
         expected_anchor["quote"] = "Original source words."
@@ -1619,6 +1630,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
+    refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
     reviews = diff.locator(".lf-diff-review")
     expect(reviews.nth(0)).to_have_text("✓ Reviewed")
@@ -1653,7 +1665,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     assert all(
         origin["source"] == "review-patch"
         and origin["input"] == "document"
-        and origin["revision"] == 2
+        and origin["revision"] == refreshed_revision
         for origin in origins
     ), "file and lazy-line datums must retain the revision that built their manifest"
 

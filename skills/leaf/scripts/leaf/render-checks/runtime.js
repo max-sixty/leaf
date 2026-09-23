@@ -8,8 +8,7 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 export const initiallyPresented = () => document.body.dataset.lfPresented === "1";
 export const currentPresented = () =>
   initiallyPresented() && validationPresentationReady();
-export const dataApplied = (revision) =>
-  Number(document.body.dataset.lfDataRevision ?? -1) >= revision;
+export const dataApplied = (version) => document.body.dataset.lfDataVersion === version;
 export const logApplied = (applied) =>
   Number(document.body.dataset.lfApplied ?? -1) >= applied;
 

@@ -1,4 +1,6 @@
 bot_name: leaf-agent
+harness: codex
+model: gpt-6-sol
 merge: yolo
 control_plane_owner: "@max-sixty"
 

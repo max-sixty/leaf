@@ -2636,6 +2636,9 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     and a hand or a grab under the pointer — and every question is put to the markers
     rather than to any widget."""
     url = serve(CORPUS_PAGE)
+    live = open_page(browser, url)
+    live_routes = live.locator(".lf-activity-target").count()
+    live.close()
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -2658,6 +2661,9 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
         toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
+        // A route whose press the copy drops still names where the row happened.
+        activity: [...document.querySelectorAll('.lf-activity-target')]
+            .map(target => target.textContent.trim()),
         presented: document.body.dataset.lfPresented,
         themeMarker: getComputedStyle(document.querySelector('main'))
             .getPropertyValue('--lf-reading-column').trim(),
@@ -2743,9 +2749,11 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
         // The claim a disarmed attribute leaves standing, since a control nothing can
         // work is still a control on the page. What a copy may show of a widget's
         // chrome is one the browser works itself and a label the page speaks through
-        // (data-lf-said); the rest belonged to a runtime the file has not got, so a
-        // mark reading "choose one" invites a user who cannot answer it.
-            inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
+        // (data-lf-said), or a copy of words it says elsewhere (data-lf-echo); the rest
+        // belonged to a runtime the file has not got, so a mark reading "choose one"
+        // invites a user who cannot answer it.
+            inert: [...document.querySelectorAll(
+                '[data-lf-offer]:not([data-lf-said], [data-lf-echo])')]
                 .filter(el => el.checkVisibility() && el.textContent.trim()
                               && !el.matches(':has(input, select, textarea, a[href], button)')
                               // A label may name a native control outside its offered
@@ -2788,6 +2796,10 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     )
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
+    assert live_routes, "the corpus carries no activity feed to read"
+    assert len(state["activity"]) == live_routes and all(state["activity"]), (
+        "an activity row's route left the copy with the words naming its target"
+    )
     assert state["presented"] == "1", "the copy was taken before presentation finished"
     assert state["themeMarker"] == "1", (
         "the theme didn't inline; the copy opens unstyled"

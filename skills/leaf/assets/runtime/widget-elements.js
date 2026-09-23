@@ -52,6 +52,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
+import { upFrom } from "./shadow.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -66,8 +67,7 @@ export function reveal(el, mayReveal) {
     throw new TypeError("reveal needs the intent its gesture retained");
   const chain = [];
   const pending = [];
-  for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
-    chain.push(a);
+  for (let a = el; a; a = upFrom(a)) chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (!mayReveal()) break;
@@ -468,13 +468,9 @@ document.addEventListener(
 // the words stay. Paper is the medium that bargain holds in. A copy divides on the
 // marker's *value* instead, which is a fact about the tag and not about this
 // declaration: bake removes a press by the value `offer` wrote, so an echoed route is
-// empty-valued, slips that pass and stays a real fragment link — while an echo on an
-// `offer("button", …)` would go out of the copy with its words inside it, and nothing
-// would report the loss, because the static-ising pass that would have kept them reads
-// data-lf-said alone. Unreachable while `button()` is the only caller and builds an `a`.
-// The second widget to echo a label off a real press is what makes it reachable, and
-// what has to teach standalone.js's two passes the third answer; it does not belong
-// here, where the label is only being worded.
+// empty-valued, slips that pass and stays a real fragment link, while an echo on an
+// `offer("button", …)`, such as lf-activity's route into a thread, is a press that
+// standalone.js turns into its words, as it does a said label.
 //
 // It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it

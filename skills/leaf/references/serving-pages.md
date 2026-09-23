@@ -38,8 +38,16 @@ so sharing one page URL grants access to every Leaf page on that machine.
 Leaf serves only on networks the machine already joins and creates no public
 tunnel. Binding beyond loopback exposes the port to that network.
 
-`<page>/service.json` is what a restart reproduces an open tab's URL from. Delete
-it only when intentionally deriving a new address and lifetime.
+A page's URL is its host and port, which the first serve records in
+`<page>/service.json`, and the machine's key, which the state home keeps. None of
+them belongs to the server process, so every later serve of the page answers at the
+URL the user already has: a stop and start, a re-vendor, a revival by `leaf wait`,
+or a `server start` after a reboot. `--host` is the one thing that moves a URL: it
+replaces the name and keeps the port. Deleting `service.json` makes the next serve
+derive the address and lifetime again from the session running it, which gives the
+same URL only when that session arrived the same way and the port derived from the
+page's path is free. If another process holds the recorded port, `server start`
+refuses rather than moving.
 
 ## Unreachable URLs and `--host`
 
@@ -77,7 +85,7 @@ leaf server start <page>
 Stopping disables desired service and waits for the old process to retire.
 Initialization preserves the recorded address, lifetime, and page status, and
 writes a new layer epoch so an open tab reloads onto the new layer rather than
-posting into it; restarting restores the same URL.
+posting into it.
 
 ## Page lifetime
 

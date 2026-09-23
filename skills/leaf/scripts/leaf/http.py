@@ -859,7 +859,19 @@ class PageEndpoint:
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:
                 self.body_unread = True
+            self.record_fault(error)
             return self._json({"error": f"{type(error).__name__}: {error}"}, 500)
+
+    def record_fault(self, error: Exception) -> None:
+        """Keep a copy of the fault above for a reader other than this browser.
+
+        The kernel has nowhere to keep one. `hosting.py` reserves this server's
+        streams for the handshake its caller reads, and a detached serve's stderr is
+        a pipe nobody drains, so a route that wrote a line per fault could fill it
+        and stop the page answering. The 500's own body is what Leaf says by
+        default, and it reaches the one person still looking at the page. A host
+        whose streams are read overrides this to keep the operator's copy too.
+        """
 
     def _specimen_request(self) -> Response | None:
         """Enter a child only after its parent transport has authorized this request."""
@@ -882,6 +894,7 @@ class PageEndpoint:
             page_root=f"{self.page_root}/api/specimens/{identity}",
         )
         child.path = inside or "/"
+        child.parent = self
         child.passive = specimen.passive
         child.asset_root = specimen.asset_root
         child.frame_ancestors_policy = (
@@ -1265,6 +1278,14 @@ class SpecimenEndpoint(PageEndpoint):
 
     def authorized(self) -> bool:
         return True
+
+    def record_fault(self, error: Exception) -> None:
+        # `_specimen_request` builds this child, not the host that chose the parent's
+        # class, so wherever the host keeps its copy of a fault is reachable from the
+        # parent alone. Recording there also names the address the browser asked at
+        # rather than the path inside the child, which is the request an operator
+        # reading the fault is looking for.
+        self.parent.record_fault(error)
 
     def _document_asset_root(self, revision: int) -> str:
         return self.asset_root

@@ -38,40 +38,38 @@ from pathlib import Path
 
 from .codex import (
     START_TIMEOUT,
+    AppServerDeliveryUncertain,
     AppServerEvents,
     AppServerReplyStream,
-    AppServerRequestRejected,
     CarriedTurn,
     accept_codex_delivery,
     app_server_connect,
     app_server_delivery_id,
     app_server_handshake,
     app_server_request,
-    app_server_turn_start_params,
     append_batch,
-    archive_queue,
+    archive_record,
     check_app_server_endpoint,
     clear_stream_activity,
     close_stream_turn,
     delivery_lock_path,
-    delivery_queue_state,
+    delivery_record_state,
+    delivery_records,
     delivery_stream_reply_target,
     offer_delivery,
     open_stream_turn,
     project_app_server_activity,
-    queue_path,
-    queue_records,
+    record_path,
     retry_delay,
     session_state_path,
     set_stream_activity,
+    start_app_server_delivery,
     stop_app_server,
     stream_reply_target,
-    write_queue,
+    write_record,
 )
 from .conversation import (
     delivery_reply_reserved,
-    release_delivery_reply,
-    reserve_delivery_reply,
 )
 from .delivery import ReceiptRefused, receive_batch, record_pickup
 from .event_log import flocked, read_cursor
@@ -90,10 +88,6 @@ from .session import Watch, read_watch_pass
 
 QUEUE_TIMEOUT = 20
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-
-
-class AppServerDeliveryUncertain(RuntimeError):
-    """A delivery may have started, but its acknowledgement was lost."""
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -341,10 +335,10 @@ class TaskObserver:
         )
         if delivery_id is None or self._is_carried(delivery_id):
             return
-        path = queue_path(self.thread_id, delivery_id)
+        path = record_path(self.thread_id, delivery_id)
         with flocked(delivery_lock_path(self.thread_id)):
-            queue_record = read_json(path)
-        accept_offered_delivery(self.thread_id, delivery_id, turn_id, queue_record)
+            record = read_json(path)
+        accept_offered_delivery(self.thread_id, delivery_id, turn_id, record)
         target = delivery_stream_reply_target(self.thread_id, delivery_id)
         if target is None:
             return
@@ -367,7 +361,7 @@ class TaskObserver:
         if (
             self.events.turn_id is None
             and delivery_id is not None
-            and delivery_queue_state(self.thread_id, delivery_id) == "offering"
+            and delivery_record_state(self.thread_id, delivery_id) == "offering"
         ):
             # The immutable offered delivery explicitly binds this provider turn.
             # An ordinary late item cannot reopen an ended turn, but the observer
@@ -463,14 +457,14 @@ def accept_offered_delivery(
     session_id: str,
     delivery_id: str,
     turn_id: str,
-    queue_record: dict | None = None,
+    record: dict | None = None,
 ) -> None:
     """Accept the offered delivery against the provider turn known to carry it."""
-    if queue_record is None:
-        path = queue_path(session_id, delivery_id)
+    if record is None:
+        path = record_path(session_id, delivery_id)
         with flocked(delivery_lock_path(session_id)):
-            queue_record = read_json(path)
-    if queue_record is not None and queue_record["state"] == "offering":
+            record = read_json(path)
+    if record is not None and record["state"] == "offering":
         accept_codex_delivery(session_id, turn=turn_id)
 
 
@@ -494,8 +488,6 @@ def start_delivery_turn(
     than a fold left over from notifications another connection happened to see.
     """
     socket = app_server_connect(observer.endpoint)
-    reply_target = None
-    seat_is_free = True
     try:
         buffered: list[dict] = []
         app_server_handshake(socket, 0, "leaf", "Leaf", buffered.append)
@@ -518,43 +510,26 @@ def start_delivery_turn(
             raise RuntimeError(
                 f"the Codex task is not taking turns: {status.get('type', 'unknown')}"
             )
-        reply_target = stream_reply_target(payload)
-        if reply_target is not None:
-            reserve_delivery_reply(session_id, payload["id"], reply_target)
-        try:
-            started = app_server_request(
-                socket,
-                "turn/start",
-                2,
-                app_server_turn_start_params(session_id, payload),
-                buffered.append,
-            )
-        except AppServerRequestRejected:
-            # A definitive refusal before the provider executed anything, so no turn
-            # exists and the seat goes back with the rest.
-            raise
-        except BaseException as error:
-            # The request went out and no answer came back, so a turn carrying this
-            # delivery may be running. The seat stays reserved: until something sees
-            # that turn, no other writer may answer for the delivery, and the
-            # observer adopts the turn the moment it says anything.
-            seat_is_free = False
-            raise AppServerDeliveryUncertain(
-                f"the Codex App Server turn was not acknowledged: {error}"
-            ) from error
-        turn_id = (started.get("turn") or {}).get("id")
-        if not turn_id:
-            raise RuntimeError("Codex App Server returned no turn id")
+        turn_id = start_app_server_delivery(
+            lambda method, params: app_server_request(
+                socket, method, 2, params, buffered.append
+            ),
+            session_id,
+            payload,
+        )
     except BaseException:
-        # Nothing is running that could answer, so the seat reserved for an answer is
-        # given up. Left standing it would block every other writer from telling the
-        # user that nothing is coming.
-        if seat_is_free and reply_target is not None:
-            release_delivery_reply(session_id, payload["id"], reply_target)
+        # An uncertain start keeps its seat reserved, and the observer adopts the
+        # turn the moment it says anything; every other failure has given it back.
         socket.close()
         raise
     return DeliveryTurn(
-        observer, session_id, socket, turn_id, payload["id"], reply_target, buffered
+        observer,
+        session_id,
+        socket,
+        turn_id,
+        payload["id"],
+        stream_reply_target(payload),
+        buffered,
     )
 
 
@@ -647,7 +622,7 @@ def adapter_start_lock_path(session_id: str) -> Path:
 
 
 def capture_batch(session_id: str, reading) -> bool:
-    """Persist one watcher batch in the session's collecting queue."""
+    """Persist one watcher batch in the session's collecting record."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -688,24 +663,24 @@ def _page_acknowledged(batch: dict) -> bool:
     return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
 
 
-def _sync_receipts(path: Path, queue: dict) -> None:
-    """Persist page receipts before archiving completed queue state."""
+def _sync_receipts(path: Path, record: dict) -> None:
+    """Persist page receipts before archiving completed delivery records."""
     changed = False
-    for batch in queue["batches"]:
+    for batch in record["batches"]:
         if not batch["receipted"] and _page_acknowledged(batch):
             batch["receipted"] = True
             changed = True
     if changed:
-        write_queue(path, queue)
+        write_record(path, record)
     else:
-        archive_queue(path, queue)
+        archive_record(path, record)
 
 
 def _record_receipt(path: Path, batch_index: int) -> None:
-    queue = read_json(path)
-    if queue is not None and not queue["batches"][batch_index]["receipted"]:
-        queue["batches"][batch_index]["receipted"] = True
-        write_queue(path, queue)
+    record = read_json(path)
+    if record is not None and not record["batches"][batch_index]["receipted"]:
+        record["batches"][batch_index]["receipted"] = True
+        write_record(path, record)
 
 
 def _recover_receipt(session_id: str) -> bool:
@@ -713,15 +688,15 @@ def _recover_receipt(session_id: str) -> bool:
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        queues = queue_records(session_id)
-        for path, queue in queues:
-            _sync_receipts(path, queue)
+        records = delivery_records(session_id)
+        for path, record in records:
+            _sync_receipts(path, record)
         pending = min(
             (
-                (path, index, dict(batch), queue.get("transport"))
-                for path, queue in queue_records(session_id)
-                if queue["state"] == "accepted"
-                for index, batch in enumerate(queue["batches"])
+                (path, index, dict(batch), record.get("transport"))
+                for path, record in delivery_records(session_id)
+                if record["state"] == "accepted"
+                for index, batch in enumerate(record["batches"])
                 if not batch["receipted"]
             ),
             key=lambda pending: (
@@ -748,7 +723,7 @@ def _offer_queued_delivery(
     """Offer one collecting delivery through the selected Codex transport.
 
     Over App Server the offer is a turn this process starts and then follows, so
-    what this returns says only that the delivery left the queue. Its acceptance,
+    what this returns says only that the delivery left its record. Its acceptance,
     its reply and its receipt are the follower's, and they are written where every
     other carrier writes them.
     """
@@ -762,23 +737,23 @@ def _offer_queued_delivery(
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        queues = queue_records(session_id)
+        records = delivery_records(session_id)
         unoffered = next(
             (
-                (path, queue)
-                for path, queue in queues
-                if queue["state"] in {"collecting", "offering"}
+                (path, record)
+                for path, record in records
+                if record["state"] in {"collecting", "offering"}
             ),
             None,
         )
-        queued = None
+        offered = None
         if unoffered is not None:
-            path, queue = unoffered
-            prepared = offer_delivery(path, queue)
-            queued = prepared.queue_path, queue, prepared
-    if queued is None:
+            path, record = unoffered
+            prepared = offer_delivery(path, record)
+            offered = prepared.record_path, record, prepared
+    if offered is None:
         return False
-    path, _offered, prepared = queued
+    path, _record, prepared = offered
     target = stream_reply_target(prepared.payload)
     if observer is not None:
         delivery_id = prepared.payload["id"]
@@ -803,20 +778,20 @@ def _offer_queued_delivery(
         )
     queue_delivery(codex_path, session_id, prepared.prompt)
     with flocked(lock):
-        queue = read_json(path)
-        if queue is not None and queue["state"] == "offering":
-            queue["state"] = "accepted"
-            queue["transport"] = {"phase": "queued", "turn": None}
-            write_queue(path, queue)
+        record = read_json(path)
+        if record is not None and record["state"] == "offering":
+            record["state"] = "accepted"
+            record["transport"] = {"phase": "queued", "turn": None}
+            write_record(path, record)
     return True
 
 
 def _has_delivery_work(session_id: str) -> bool:
     with flocked(delivery_lock_path(session_id)):
         return any(
-            queue["state"] != "accepted"
-            or any(not batch["receipted"] for batch in queue["batches"])
-            for _, queue in queue_records(session_id)
+            record["state"] != "accepted"
+            or any(not batch["receipted"] for batch in record["batches"])
+            for _, record in delivery_records(session_id)
         )
 
 

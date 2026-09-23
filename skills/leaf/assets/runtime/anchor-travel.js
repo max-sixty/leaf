@@ -24,7 +24,7 @@ import {
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
-import { upFrom } from "./shadow.js";
+import { renderedParent, upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -194,11 +194,7 @@ export function createAnchorTravel({
     if (!targetScroller) return;
     // Reveal nested scrollports without writing the document position, then glide the
     // owning reading region once. A wide pre or diagram needs both axes settled first.
-    for (
-      let box = holder;
-      box && box !== targetScroller;
-      box = box.assignedSlot ?? box.parentElement ?? box.getRootNode()?.host ?? null
-    ) {
+    for (let box = holder; box && box !== targetScroller; box = renderedParent(box)) {
       if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
         continue;
       const band = landingBand(box);
@@ -237,6 +233,10 @@ export function createAnchorTravel({
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
   // handles outlets or fallback placement whose geometry appears only when opened.
+  // Where a thread's travel lands: its first mark, or the element its anchor placed.
+  const threadDestination = (id) =>
+    anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element ?? null;
+
   async function scrollToThread(id, { land = null } = {}) {
     const mayArrive = retainTravel();
     const thread = currentThreads().find((candidate) => candidate.root.id === id);
@@ -250,7 +250,7 @@ export function createAnchorTravel({
       if (!mayArrive()) return false;
     }
 
-    let where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
+    let where = threadDestination(id);
     if (!where) return false;
     let holder = destinationHolder(where);
     if (!holder) return false;
@@ -262,7 +262,7 @@ export function createAnchorTravel({
     // press left it.
     await refreshConversation();
     if (!mayArrive()) return false;
-    where = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
+    where = threadDestination(id);
     if (!where) return false;
     holder = destinationHolder(where);
     if (!holder) return false;
@@ -282,5 +282,6 @@ export function createAnchorTravel({
     readableDestination,
     scrollToRange,
     scrollToThread,
+    threadDestination,
   };
 }

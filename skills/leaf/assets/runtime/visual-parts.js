@@ -6,18 +6,10 @@
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part. */
 
+import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
 
 const registrations = new WeakMap();
-
-const parentAcross = (element) =>
-  element?.parentElement ?? element?.getRootNode()?.host ?? null;
-
-const containsAcross = (ancestor, node) => {
-  for (let current = node; current; current = current.getRootNode()?.host ?? null)
-    if (ancestor.contains(current)) return true;
-  return false;
-};
 
 const words = (value) =>
   String(value ?? "")
@@ -70,14 +62,10 @@ function visualParts(source) {
     const surface = part?.surface ?? element;
     if (!id || /\s/.test(id))
       throw new TypeError(`Visual part ${number} has no single-token id`);
-    if (
-      !(element instanceof Element) ||
-      element === source ||
-      !containsAcross(source, element)
-    )
+    if (!(element instanceof Element) || element === source || !under(element, source))
       throw new TypeError(`Visual part ${id} has no descendant Element`);
     if (!label) throw new TypeError(`Visual part ${id} has no label`);
-    if (!(surface instanceof Element) || !containsAcross(element, surface))
+    if (!(surface instanceof Element) || !under(surface, element))
       throw new TypeError(`Visual part ${id} has no descendant Element surface`);
     if (seenIds.has(id))
       throw new TypeError(`A visual source registered part ${id} twice`);
@@ -101,11 +89,7 @@ export function visualPartAt(source, target, admits = () => true) {
       .filter(admits)
       .map((part) => [part.element, part]),
   );
-  for (
-    let current = target;
-    current && current !== source;
-    current = parentAcross(current)
-  ) {
+  for (let current = target; current && current !== source; current = upFrom(current)) {
     const part = byElement.get(current);
     if (part) return part;
   }

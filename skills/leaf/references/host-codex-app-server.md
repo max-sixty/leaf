@@ -2,18 +2,67 @@
 
 This contract is for a Codex task Leaf reaches over Codex App Server
 (`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
-connects to the task's server as a second client, so it starts the turns that carry
-user input, watches the task's other turns, and takes each turn's opening and final
-messages as its reply. That holds when the task's environment sets
-`LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or when the user
-gave you the task's App Server endpoint. Any other Codex task, the desktop app's included, follows
-`references/host-codex.md`.
+is a client of the task's server: it starts the turns that carry user input and takes
+each turn's opening and final messages as its reply. A terminal task is on App Server when its
+environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or
+when the user gave you the task's App Server endpoint; it hands its own page over, as
+"Hand a page over from a terminal" describes. A host that starts the task itself, as
+leaf.page does, says so in its own instructions and has already handed the page over.
+Any other Codex task, the desktop app's included, follows `references/host-codex.md`.
 
-This transport is experimental. Its protocol and browser path have automated
+## Delivery
+
+New user input reaches you only once the current turn ends, because a delivery
+starts a turn of its own: once the task is idle, Leaf starts one with the complete
+delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
+conversations, presented as one chronological slice per turn. Leaf acknowledges the
+delivery itself once it enters that turn, so this contract leaves no acknowledgement to
+you: run no acknowledgement command, and no `leaf wait` or `leaf wait --ack` while Leaf
+delivers to this task over App Server.
+
+## Replies
+
+Each slice contains at most one plain reply, and your turn's first message and final
+message write it. Before your first tool call, open with a short message to the user:
+the answer, or what you are about to do. Leaf streams it into the addressed thread at
+once, so the user reads it while you work. Later working messages stay in Codex. Your
+final message completes the reply, and Leaf commits the opening and the final message
+together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
+that response, which refuses it as bound to this delivery's final message. The
+committed reply retains the thread's standing anchor, so the delivered instruction to
+move or detach a thread with reply flags does not apply to it. Settling that move
+before the commit does not discard the answer: the completed reply keeps its response
+address and reopens the conversation in Open Threads. A later plain reply remains
+pending for the next slice.
+
+Version, markup, and receipt obligations in the slice still take their explicit
+operations: a stamped version, `resolve`, and `receipt`.
+
+A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
+user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
+turn's messages the same way. Wherever `leaf reply` refuses an event as bound to this
+delivery's final message, answer it there.
+
+## Activity
+
+Plan updates, tool starts, reasoning summaries, and waits for approval or user input
+are watched as the task's current step. Leaf retains thinking, tool use, replying,
+approval waits, and input waits as distinct observations. They describe overall page
+activity; an observed step alone does not claim work on a particular message. A
+sentence declared with `leaf status` stays the page's sentence, and the step stands
+beside it in the banner's disclosure; without a declared sentence for this work, the
+step is the sentence.
+
+## Hand a page over from a terminal
+
+A terminal task reaches App Server through a detached adapter that
+`leaf codex start` leaves running: it connects to the task's server as a second
+client, watches the task's own turns, and starts a delivery's turn once the task is
+idle. This route is experimental. Its protocol and browser path have automated
 coverage, and the normal interactive workflow has been smoke-tested with a real Codex
 App Server and CLI.
 
-## Start the terminal
+### Start the terminal
 
 The normal entry point starts a private Unix-socket App Server and runs the terminal
 client against it:
@@ -40,13 +89,13 @@ From that remote CLI task, pass the same endpoint to `leaf codex start` with
 
 Only absolute Unix socket paths and unauthenticated loopback `ws://` endpoints are
 accepted; keep a socket you supply in a directory only you can reach, as
-`leaf codex launch` does. The loopback WebSocket listener is experimental; do not expose it
-on a network. Keep the CLI open because it is still the interactive client for
+`leaf codex launch` does. The loopback WebSocket listener is experimental; do not
+expose it on a network. Keep the CLI open because it is still the interactive client for
 approvals and user input. The task is still stored in Codex's task history and can be
 resumed later from the CLI or desktop app after the standalone server releases its
 writer; the desktop app is not a live client of this separately started server.
 
-## Full Leaf handoff
+### Full Leaf handoff
 
 Use the canonical browser page by default. Run `leaf server start <page>` and
 retain its exact keyed URL, and hand it over for a local browser. This runs Leaf's
@@ -70,45 +119,3 @@ answer with `leaf reply`.
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
 can take the task's single wait lease, and an unreachable endpoint must be fixed.
-
-## Delivery
-
-New user input reaches you only once the current turn ends, because a delivery
-starts a turn of its own: once the task is idle, Leaf starts one with the complete
-delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
-conversations, presented as one chronological slice per turn. The adapter
-acknowledges the delivery once it enters that turn, so do not run `leaf wait` or
-`leaf wait --ack` while it holds the task.
-
-## Replies
-
-Each slice contains at most one plain reply, and your turn's first message and final
-message write it. Before your first tool call, open with a short message to the user:
-the answer, or what you are about to do. Leaf streams it into the addressed thread at
-once, so the user reads it while you work. Later working messages stay in Codex. Your
-final message completes the reply, and Leaf commits the opening and the final message
-together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
-that response, which refuses it as bound to this delivery's final message. The
-committed reply retains the thread's standing anchor, so the delivered instruction to
-move or detach a thread with reply flags does not apply to it. Settling that move
-before the commit does not discard the answer: the completed reply keeps its response
-address and reopens the conversation in Open Threads. A later plain reply remains
-pending for the next slice.
-
-Version, markup, and receipt obligations in the slice still take their explicit
-operations: a stamped version, `resolve`, and `receipt`.
-
-A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
-user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
-final message the same way. Wherever `leaf reply` refuses an event as bound to this
-delivery's final message, answer it there.
-
-## Activity
-
-Plan updates, tool starts, reasoning summaries, and waits for approval or user input
-are watched as the task's current step. Leaf retains thinking, tool use, replying,
-approval waits, and input waits as distinct observations. They describe overall page
-activity; an observed step alone does not claim work on a particular message. The
-page's sentence stays the one you declare with `leaf status`, and the step stands
-beside it in the banner's disclosure; where you have declared nothing for this work,
-the step is the sentence.

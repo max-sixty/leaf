@@ -21,20 +21,42 @@ export const shadowRootsIn = (root) =>
     .map((host) => host.shadowRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// The parent, crossing a shadow root's boundary on the way up: the one walk every reading
-// that climbs out of a widget takes.
+// The parent, crossing a shadow root's boundary on the way up: the ordinary parent within
+// a tree, and the host where a tree runs out. It is the one walk every reading that
+// climbs out of a widget takes. Every question the runtime asks about where a node sits —
+// which section, which block, which passage cell, whether it is chrome — is asked of the
+// page, and a climb that stops at a shadow root answers about the widget's own markup
+// instead.
 export const upFrom = (node) =>
   node?.parentElement ?? node?.getRootNode()?.host ?? null;
+// The same step through the tree as rendered: a node slotted into a shadow tree renders
+// inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
+export const renderedParent = (node) => node?.assignedSlot ?? upFrom(node);
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
 // document — is asked by every reading that climbs out of a widget, so it is answered
 // here, beside the climb, where geometry.js and widget-elements.js can ask it without
 // importing the passage readings back.
-// Is `node` inside `root`? `Element.contains` stops at a shadow boundary and these
-// readings walk through one, so the climb is the same one `closestAcross` makes.
+// Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
+// boundary and these readings walk through one, so the climb is the same one
+// `closestAcross` makes. The boundary decides whether a quote is found at all: a section
+// holding an x-shadow widget does not `contains` the words that widget renders, so
+// narrowing a search to that section threw away every candidate inside it and the
+// passage resolved to nothing — the anchor captured, the mark never painted.
 export const under = (node, root) => {
   for (let a = node; a; a = a.parentNode ?? a.host ?? null) if (a === root) return true;
   return false;
+};
+
+// What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
+// itself when it is in that tree, else the host of the shadow tree holding it, climbed
+// out until one is. Null when none is: a detached node, or one outside `root`
+// altogether. A shadow tree renders where its host stands, so order and range
+// questions, which the platform answers only within one tree, are asked of this.
+export const hostIn = (node, root) => {
+  let at = node;
+  while (at && at.getRootNode() !== root) at = at.getRootNode().host ?? null;
+  return at;
 };
 
 // The chrome over a node, read within one frame: above the frame it is nobody's, and with

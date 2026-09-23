@@ -6295,6 +6295,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     text the comment was made on, and a comment pointing into markup nobody can
     see has to read as detached rather than as a live mark that jumps nowhere."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1920, 900)
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
@@ -7951,9 +7952,12 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
         "restart succeeded · Started w-9 on the preserved branch"
     )
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "restart succeeded · Deduplicate the corpus snapshot"
-    )
+    # The feed's newest row is the receipt, worded by the offered operation and
+    # leading back to the holder it answered.
+    receipt = page.locator("#atlas-record .lf-activity-row").first
+    expect(receipt).to_contain_text("completed “Restart with a fresh worker” in")
+    expect(receipt).to_contain_text("Started w-9 on the preserved branch")
+    expect(receipt.locator('a[href="#dedupe-operations"]')).to_have_count(1)
 
 
 def test_request_controls_join_presentation_without_replacing_authored_items(
@@ -8259,8 +8263,8 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     told(page)
     stopped = page.locator("#hub-plan > .lf-stopped-view")
     expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "park succeeded · Deduplicate the corpus snapshot"
+    expect(page.locator("#atlas-record .lf-activity-row").first).to_contain_text(
+        "completed “Park it for tomorrow” in"
     )
 
     parked = re.sub(
@@ -8635,7 +8639,9 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     assert "Alice" not in edit["detail"]["text"]
     assert "a@example.test" not in edit["detail"]["text"]
     assert edit["detail"]["text"].count("[redacted]") == 2
-    expect(page.locator("#atlas-record")).to_contain_text("ledger-cargo")
+    saved = page.locator("#atlas-record .lf-activity-row").first
+    expect(saved).to_contain_text("You edited")
+    expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
 
@@ -8879,9 +8885,9 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         conversation.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "sent and paused · Replace the XML parser (goal-parser)"
-    )
+    paused = page.locator("#atlas-record .lf-activity-row").first
+    expect(paused).to_contain_text("You paused Replace the XML parser")
+    expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
         event
         for event in events_model.read_events(d)
@@ -8911,11 +8917,15 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     with sending(page, "the resolution"):
         thread.get_by_role("button", name="Resolve thread", exact=True).click()
     expect(goal).not_to_have_attribute("data-lf-held")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "Released · Replace the XML parser (goal-parser)"
+    released = page.locator("#atlas-record .lf-activity-row").first
+    expect(released).to_contain_text(
+        "You resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)
+    # Taking the resolution back leaves its row where it stood, marked undone.
+    expect(released).to_have_attribute("data-lf-undone", "")
+    expect(released).to_contain_text("undone")
     expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]

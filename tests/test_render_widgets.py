@@ -45,7 +45,9 @@ from render_cases_interaction import (
 )
 from render_cases_layout import (
     banner_control,
+    toggle_asks,
     unfolded_button,
+    with_one_ask,
 )
 from render_cases_navigation import (
     BINDING_BADGE_PAGE,
@@ -284,6 +286,51 @@ def test_root_tabs_reach_the_chosen_contents_and_follow_browser_history(browser,
         evidence_start, abs=2
     )
     expect(evidence).to_be_focused()
+
+
+def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
+    """The root strip sticks under the banner and paints over the document, so what
+    passes under it is not on screen: `shownRect`, the one reading of that, clips a
+    block behind the stuck strip to the strip's foot. The strip never reaches the
+    document's top edge, which the banner holds, so it counts as stuck at the sticky
+    inset it is held at. At the top of the page the strip is in flow and hides nothing."""
+    page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
+    resized(page, 1280, 720)
+    READ = """async () => {
+      const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+      const geometry = await import(
+        new URL('runtime/geometry.js', new URL(entry, location.href)).href
+      );
+      const strip = document
+        .querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect();
+      const behind = document.querySelector('#plan-stages h2');
+      return {
+        strip: {top: strip.top, bottom: strip.bottom},
+        behind: behind.getBoundingClientRect().toJSON(),
+        band: geometry.visibleBand(document.scrollingElement).top,
+        shown: geometry.shownRect(behind, new Map())?.top,
+      };
+    }"""
+    page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    assert page.evaluate(READ)["band"] == 0
+    # Stick the strip, then scroll the heading half under it.
+    page.evaluate("scrollTo({top: 600, behavior: 'instant'})")
+    scroll_settled(page)
+    at = page.evaluate(READ)
+    page.evaluate(
+        "y => scrollTo({top: y, behavior: 'instant'})",
+        page.evaluate("scrollY")
+        + at["behind"]["top"]
+        - at["strip"]["bottom"]
+        + at["behind"]["height"] / 2,
+    )
+    scroll_settled(page)
+    stuck = page.evaluate(READ)
+    assert stuck["strip"]["top"] > 0, stuck
+    assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
+    assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
+    assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
 
 
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
@@ -1147,9 +1194,9 @@ FEED_PAGE = leaf_page(
 def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     browser, serve
 ):
-    """A widget that rebuilds its entries wholesale (lf-record replaces its children on
-    every change) stays on its newest entry while the user is at the end, and leaves
-    a user who scrolled back where they stopped."""
+    """A widget that replaces its children on every change stays on its newest entry
+    while the user is at the end, and leaves a user who scrolled back where they
+    stopped."""
     page = open_page(browser, live_url(serve(FEED_PAGE)))
     rebuild = """count => document.getElementById('feed').replaceChildren(
       ...Array.from({length: count}, (_, i) => Object.assign(
@@ -2158,7 +2205,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <div style="height: 360px"></div>
 """,
     )
-    url = serve(source)
+    url = serve(with_one_ask(source))
     page = open_page(browser, url)
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page")
@@ -2601,12 +2648,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(start).to_have_css("outline-offset", "-2px")
 
     page.locator("body").focus()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     expect(prepare).to_have_css("opacity", "1")
     expect(start).to_be_hidden()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
+    toggle_asks(page, open=False)
 
     resized(page, 700, 900)
     expect(prepare).to_have_css("opacity", "1")
@@ -2705,8 +2750,8 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     """A wrapper that leaves the box tree and returns leaves the map as it found it.
 
     An author whose sidebar has nothing to say on a narrow shell hides it, which is
-    what the developer gallery does; opening Threads takes enough width to cross that
-    floor, so one open-and-close removes the map's whole wrapper and puts it back. The
+    what the developer gallery does; opening the Asks tray takes enough width to cross
+    that floor, so one open-and-close removes the map's whole wrapper and puts it back. The
     map is restored from the page's own posture, not from anything the wrapper
     remembers, because a box that has been away answers a style query with the reading
     it left with: asking the wrapper cost the user the spine for the rest of the
@@ -2729,7 +2774,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
 """,
     )
     context = browser.new_context(viewport={"width": 1200, "height": 900})
-    page = open_page(browser, serve(source), context=context)
+    page = open_page(browser, serve(with_one_ask(source)), context=context)
     toc = page.locator("#contents")
     nav = page.get_by_role("navigation", name="On this page")
     heading = nav.locator(".lf-toc-heading")
@@ -2747,16 +2792,14 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     laid = rows()
     assert laid >= 3, f"the fixture laid only {laid} map rows to begin with"
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     # Read the hidden posture rather than merely waiting the wrapper out. The page reads
     # it too — the map measures its own track on every reflow, hidden or not — and the
     # reading is what leaves the wrapper repeating it after the box comes back.
     expect(page.locator("#route")).to_have_css("display", "none")
     expect(toc).to_have_css("position", "static")
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
+    toggle_asks(page, open=False)
     # The wrapper itself holds no height in this posture — the map inside it is fixed —
     # so its return is a display reading rather than a visible box.
     expect(page.locator("#route")).to_have_css("display", "flow-root")
@@ -6051,11 +6094,14 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     into flow, under the block it decides rather than overlapping the page.
 
     The margin the row hangs in is reserved out of the page shell rather than left
-    over in the window, so the strip a panel takes is what decides the posture. With
-    Threads open at 1400 the shell is 980px and still holds the column and the rail,
-    and the rows keep their line; at 1200 it is 780px and cannot, so they dock under
-    the blocks they decide, the way they would in a window that narrow."""
-    page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
+    over in the window, so the strip a tray takes is what decides the posture. With the
+    Asks tray open at 1400 the shell is 1100px and still holds the column and the rail,
+    and the rows keep their line; at 1100 it is 800px and cannot, so they dock under
+    the blocks they decide, the way they would in a window that narrow. Threads stands
+    over the page and takes no room, so it moves no row."""
+    page = open_page(
+        browser, serve(with_one_ask(SUGGESTION_PAGE)), init_script=HOLD_MOTION
+    )
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
     room = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -6085,16 +6131,14 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         <= 5
     ), "the row must hang on the change's own line, not on the block it follows"
 
-    # The panel takes the right of the window, and the rail survives it wherever the
-    # shell it leaves can hold one: the rows keep their line, clear of the column on one
-    # side and of the panel on the other. Measured after the layout has moved, since
-    # opening the panel resizes the page and the rows re-place on the frame after that.
-    # Under full motion the rows used to dock for the length of the column's glide and
-    # come back at its end; there is no glide now, so both arms go straight to the
-    # settled page.
+    # The tray takes the left of the window, and the rail survives it wherever the
+    # shell it leaves can hold one: the rows keep their line, clear of the column.
+    # Measured after the layout has moved, since opening the tray resizes the page and
+    # the rows re-place on the frame after that. Under full motion the rows used to dock
+    # for the length of the column's glide and come back at its end; there is no glide
+    # now, so both arms go straight to the settled page.
     resized(page, 1400, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     page.wait_for_function(
         "() => [...document.querySelectorAll("
         "'[data-lf-margin-for=sug-refill], [data-lf-margin-for=sug-thistle]')]"
@@ -6105,28 +6149,28 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     for i in range(2):
         rect = margin_rows.nth(i).evaluate(box)
         assert rect["left"] > narrowed and rect["right"] <= room, (
-            "with the panel open the row must still hang between column and panel"
+            "with the tray open the row must still hang between column and window"
         )
 
-    # Take the room away without closing the panel: a 1200px window leaves a 780px
-    # shell, which cannot hold the column and the rail together, so every row docks on
-    # the strip alone — the window is as wide as it was when they hung.
-    resized(page, 1200, 900)
+    # Take the room away without closing the tray: a 1100px window leaves an 800px
+    # shell, which cannot hold the column and the rail together, so every row docks.
+    resized(page, 1100, 900)
     page.wait_for_function(
-        "() => [...document.querySelectorAll('[data-lf-margin-for]')]"
+        "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
         ".every(r => r.classList.contains('lf-docked'))"
     )
 
     # No margin anywhere: every row docks, and nothing spills sideways. Docked is
     # the same box in flow where the row was hoisted to, so it reads as a control
     # line under the block holding the change and never as the one before's.
-    page.get_by_role("button", name="Close threads").click()
-    # The panel gives the room back in one responsive layout, and the column is already
-    # in it. Wait for that before reading the rows against their settled blocks.
-    panel_settled(page, open=False)
+    # The tray gives the room back in one responsive layout, and the column is already
+    # in it. Its slide is held with every other motion here, so what says it closed is
+    # its door rather than its box.
+    banner_control(page, ".lf-asks").click()
+    expect(page.locator(".lf-asks")).to_have_attribute("aria-expanded", "false")
     resized(page, 820, 900)
     page.wait_for_function(
-        "() => [...document.querySelectorAll('[data-lf-margin-for]')]"
+        "() => [...document.querySelectorAll('[data-lf-margin-for^=sug-]')]"
         ".every(r => r.classList.contains('lf-docked'))"
     )
     assert page.evaluate("() => document.body.scrollWidth <= document.body.clientWidth")

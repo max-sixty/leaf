@@ -13,6 +13,7 @@ from interact_support import (
     append_command,
     running_http_server,
 )
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -1481,6 +1482,40 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     assert any("x-verbatim" in failure for failure in failures) is expects_projection
     assert any("never stopped moving" in failure for failure in failures) is (
         failed_stage == "pageSettled"
+    )
+
+
+def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
+    """Any process may rewrite a source, so the version the gate read first can be one
+    the page has already moved past. A data version is a digest with no order: the
+    wait asks the server again rather than reporting the move as a stall."""
+    url = serve(
+        leaf_page(
+            "moving source",
+            '<h1>Notes</h1><lf-text-document id="notes" source="notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page = open_page(browser, url)
+
+    def server_version():
+        return render_gate_scheme.served(page, url, "/api/state").json()["data"][
+            "version"
+        ]
+
+    held = server_version()
+    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    expect(page.locator("#notes code")).to_have_text("Second.\n")
+    assert server_version() != held
+    page._leaf_probe_timeout_ms = 1_000
+    reads = iter([held])
+
+    assert (
+        render_checks_model.wait_for_presentation(
+            page, lambda: next(reads, None) or server_version(), 0
+        )
+        is None
     )
 
 

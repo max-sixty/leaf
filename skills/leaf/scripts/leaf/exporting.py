@@ -490,17 +490,30 @@ def _export_document(page, request, url: str, name: str) -> str:
         # Read expectations through the same server the browser is applying. A
         # preview freezes that server at one PageSnapshot; rereading page files
         # here could otherwise wait for state the browser cannot receive.
-        response = request.get(
-            _state_url(page, url),
-            timeout=render_checks_model.SERVED_TIMEOUT_MS,
-        )
-        try:
-            if not response.ok:
-                raise PlaywrightError(f"state returned {response.status}")
+        state_url = _state_url(page, url)
+
+        def read_state() -> dict:
+            response = request.get(
+                state_url, timeout=render_checks_model.SERVED_TIMEOUT_MS
+            )
             try:
-                state = response.json()
-            except ValueError as error:
-                raise PlaywrightError("state returned invalid JSON") from error
+                if not response.ok:
+                    raise PlaywrightError(f"state returned {response.status}")
+                try:
+                    return response.json()
+                except ValueError as error:
+                    raise PlaywrightError("state returned invalid JSON") from error
+            finally:
+                response.dispose()
+
+        def data_version() -> str:
+            try:
+                return read_state()["data"]["version"]
+            except (KeyError, TypeError) as error:
+                raise PlaywrightError("state returned an invalid reading") from error
+
+        state = read_state()
+        try:
             readiness = {
                 "pageRoot": _document_url(
                     page,
@@ -514,17 +527,14 @@ def _export_document(page, request, url: str, name: str) -> str:
                     'link[rel="stylesheet"][data-lf-runtime]',
                     "document has no runtime theme",
                 ),
-                "dataVersion": state["data"]["version"],
                 "replayedEvents": sum(
                     event["kind"] in ("action", "report") for event in state["events"]
                 ),
             }
         except (KeyError, TypeError) as error:
             raise PlaywrightError("state returned an invalid reading") from error
-        finally:
-            response.dispose()
         failed_stage = wait_for_presentation(
-            page, readiness["dataVersion"], readiness["replayedEvents"]
+            page, data_version, readiness["replayedEvents"]
         )
         if failed_stage:
             raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")

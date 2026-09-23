@@ -352,16 +352,14 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     # reported words drawn over words under a full suite ("The page finishes
     # twice", in the layer's own AGENTS.md).
     failed_stage = wait_for_presentation(
-        page, state["data"]["version"], applied, settled=True
+        page,
+        lambda: served_here("/api/state").json()["data"]["version"],
+        applied,
+        settled=True,
     )
     replayed = _projection_was_applied(failed_stage)
     if failed_stage == "dataApplied":
-        unsettled = [
-            (
-                "the runtime never presented external data version "
-                f"{state['data']['version']}"
-            )
-        ]
+        unsettled = ["the runtime never presented the server's current external data"]
     elif failed_stage == "logApplied":
         unsettled = [
             f"the runtime never finished replaying the log ({applied} action(s))"

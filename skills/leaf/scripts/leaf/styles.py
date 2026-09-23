@@ -372,11 +372,12 @@ def _split_commas(tokens):
     yield part
 
 
-def _subject_tags(tokens) -> set:
-    """The type selectors of each complex selector's subject — the element a rule
-    styles, not an ancestor it names as context. `:is()` and `:where()` pass their
-    arguments through; `:not()` and `:has()` name other elements."""
-    tags = set()
+def _subjects(tokens) -> set:
+    """How each complex selector names its subject — the element a rule styles, not an
+    ancestor it names as context — as `tag`, `#id` and `.class` names. `:is()` and
+    `:where()` pass their arguments through; `:not()` and `:has()` name other
+    elements."""
+    names = set()
     for complex_ in _split_commas(tokens):
         subject, after_combinator = [], False
         for token in complex_:
@@ -396,16 +397,21 @@ def _subject_tags(tokens) -> set:
             continue
         previous = None
         for token in subject:
-            if token.type == "ident" and not (
-                previous is not None
-                and previous.type == "literal"
-                and previous.value in {".", ":"}
-            ):
-                tags.add(token.lower_value)
+            after = (
+                previous.value
+                if previous is not None and previous.type == "literal"
+                else None
+            )
+            if token.type == "ident" and after == ".":
+                names.add(f".{token.value}")
+            elif token.type == "ident" and after != ":":
+                names.add(token.lower_value)
+            elif token.type == "hash":
+                names.add(f"#{token.value}")
             elif token.type == "function" and token.lower_name in {"is", "where"}:
-                tags |= _subject_tags(token.arguments)
+                names |= _subjects(token.arguments)
             previous = token
-    return tags
+    return names
 
 
 def _scrolls(block) -> list:
@@ -439,12 +445,18 @@ def layout_css_advice(parser: SourceDocument, registry: dict) -> list:
         for tag, entry in registry.items()
         if not tag.startswith("$") and entry.get("x-reading-role")
     }
+    # Every name a rule can reach a layout element by on this page: its tag, and the id
+    # each occurrence carries (a widget admits no class).
+    layout = {tag: tag for tag in layout_tags}
+    for rec in parser.lf_elements:
+        if rec["tag"] in layout_tags and (element_id := rec["attrs"].get("id")):
+            layout[f"#{element_id}"] = rec["tag"]
     advice = []
     stated = [
         (
             f"rule `{selector}`",
             block,
-            _subject_tags(tinycss2.parse_component_value_list(selector)),
+            _subjects(tinycss2.parse_component_value_list(selector)),
         )
         for selector, block, _ in css_rules(parser.css)
     ] + [
@@ -458,7 +470,7 @@ def layout_css_advice(parser: SourceDocument, registry: dict) -> list:
                 "in a scroller page CSS makes; bound the block with "
                 "data-bound=start|end instead"
             )
-        if placed := sorted(subjects & layout_tags):
+        if placed := sorted({layout[name] for name in subjects if name in layout}):
             for prop in _places(block):
                 advice.append(
                     f"{where} sets {prop} on <{'>, <'.join(placed)}>, whose geometry "

@@ -173,7 +173,8 @@ implies it. A widget that only holds other blocks, such as tabs or a comparison,
 declares `x-measure: group` and passes the measure through to them. A log or feed declares `x-bound: end` (or `start`) to hold its own height and
 scroll inside it; a page occurrence's `data-bound` overrides that. When the scroller
 should be a box inside the widget, such as a listing under a caption that stays in
-view, the package theme moves the bound there under `[data-lf-bound]`.
+view, the package theme moves the bound there under `[data-lf-bound]` and declares
+`--lf-bound-box: 1` on that box, which is the one Leaf keeps on its newest entry.
 A package whose available surface preserves a drawing's natural
 inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
 distinguish honest source overflow from room withheld by the page; Leaf resets the fact
@@ -225,7 +226,7 @@ only substantive content before it is one native `header` or nothing. In that pl
 `version check` does not advise adding the page-wide outline that would displace it. The
 element's module and theme own its root and embedded presentations.
 
-A structural element declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
+A structural element declares `x-reading-role` as `workspace`, `pane`, `partition`, or `grid` and keeps
 `x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
 a partition requires `direction` with the complete `columns`/`rows` enum. A workspace has
 exactly one direct body element between its optional native `header` and `footer`. A

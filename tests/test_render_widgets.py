@@ -1137,6 +1137,38 @@ def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surfac
     )
 
 
+FEED_PAGE = leaf_page(
+    "A feed that follows its newest entry",
+    """<h1>Feed</h1>
+<div id="feed" data-bound="end"></div>""",
+)
+
+
+def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_reader_scrolls_back(
+    browser, serve
+):
+    """A widget that rebuilds its entries wholesale (lf-record replaces its children on
+    every change) stays on its newest entry while the reader is at the end, and leaves
+    a reader who scrolled back where they stopped."""
+    page = open_page(browser, live_url(serve(FEED_PAGE)))
+    rebuild = """count => document.getElementById('feed').replaceChildren(
+      ...Array.from({length: count}, (_, i) => Object.assign(
+        document.createElement('p'), {textContent: `entry ${i}`})))"""
+    at_end = """() => { const feed = document.getElementById('feed');
+      return feed.scrollHeight > feed.clientHeight
+        && feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 2; }"""
+    page.evaluate(rebuild, 60)
+    page.wait_for_function(at_end)
+    page.evaluate(rebuild, 90)
+    page.wait_for_function(at_end)
+
+    page.locator("#feed").evaluate("feed => feed.scrollTop = 200")
+    page.wait_for_function("() => document.getElementById('feed').scrollTop === 200")
+    page.evaluate(rebuild, 120)
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
+
+
 def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
     """The release escape path names exact releases and waits for a host receipt."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"

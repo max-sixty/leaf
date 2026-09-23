@@ -4677,7 +4677,8 @@ def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
             "<title>t</title>",
             "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
             " main lf-grid { display: flex } lf-grid > p { color: red }"
-            " .wide { overflow-x: auto } lf-grid::before { display: block }</style>",
+            " .wide { overflow-x: auto } lf-grid::before { display: block }"
+            " #cells { grid-template-columns: 1fr }</style>",
         ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
@@ -4689,6 +4690,7 @@ def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
     assert "rule `.feed` sets overflow-y to scroll" in result.output
     assert "sets overflow to scroll" in result.output
     assert "rule `main lf-grid` sets display on <lf-grid>" in result.output
+    assert "rule `#cells` sets grid-template-columns on <lf-grid>" in result.output
     assert "lf-grid > p" not in result.output
     assert ".wide" not in result.output
     assert "lf-grid::before" not in result.output

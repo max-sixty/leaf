@@ -11,9 +11,10 @@
    scrolled back even before its event arrives. The theme bounds the box; this module
    only holds its place, so a copy with no script keeps the bound and opens at the top.
 
-   The box that scrolls is the one holding the bound's height: the bounded element, or
-   the one box inside it a widget's theme bounds instead — a captured document scrolls
-   its listing under a caption that stays put. Each bounded block is watched on its own,
+   The box that scrolls is the bounded element, unless its widget's theme moves the
+   bound to a box inside it and says so there with `--lf-bound-box: 1` — a captured
+   document scrolls its listing under a caption that stays put. The outermost box
+   declaring it is the scroller. Each bounded block is watched on its own,
    for what it holds and for its size, so nothing here runs for a change elsewhere on
    the page; `followBounds` runs after every install and patch to pick up new ones. */
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -25,12 +26,12 @@ const SLACK = 2;
 const followed = new WeakMap();
 
 const atEnd = (box) => box.scrollHeight - box.scrollTop - box.clientHeight <= SLACK;
-const holdsBound = (box) => getComputedStyle(box).maxHeight !== "none";
+const declaresBound = (box) =>
+  getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
 
 function scrollerOf(bounded) {
-  if (holdsBound(bounded)) return bounded;
-  for (const box of bounded.querySelectorAll("*")) if (holdsBound(box)) return box;
-  return null;
+  for (const box of bounded.querySelectorAll("*")) if (declaresBound(box)) return box;
+  return bounded;
 }
 
 function follow(bounded) {
@@ -45,7 +46,6 @@ function follow(bounded) {
       state.box = box;
       state.left = false;
     }
-    if (!box) return;
     if (state.pinned !== null && box.scrollTop < state.pinned - SLACK && !atEnd(box))
       state.left = true;
     if (state.left) return;

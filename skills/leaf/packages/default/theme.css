@@ -2306,7 +2306,7 @@ lf-text-document pre { margin: 0; border: 0; border-radius: 0; white-space: pre-
 @media screen {
   lf-text-document[data-lf-bound] { max-block-size: none; overflow: visible; }
   lf-text-document[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; overscroll-behavior: contain; }
+    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

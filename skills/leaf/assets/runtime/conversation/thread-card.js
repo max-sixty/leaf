@@ -21,6 +21,7 @@ import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
+import { visibleBand } from "../geometry.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -213,7 +214,7 @@ export class ThreadView {
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
       const scrollport = this.node.closest("leaf-thread-list");
-      const boundary = scrollport?.getBoundingClientRect();
+      const boundary = scrollport && visibleBand(scrollport);
       const beingRead = new Set(
         [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
           .filter((message) => {

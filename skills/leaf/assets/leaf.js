@@ -211,7 +211,7 @@ let goToSequence;
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
   focusable: FOCUSABLE,
-  moveContentFrame: (change) => layout.moveContentFrame(change),
+  takeShell: (surface) => layout.takeShell(surface),
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();

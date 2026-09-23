@@ -1,19 +1,11 @@
 /* Retained comment-panel list reconciliation.
 
-   Every change to this list's content holds one live card through it: the renders
-   `renderThreads` drives, and the disclosure the browser drives when a reader opens a
-   card and the named group closes the one that was open. The hold chooses the card
-   under the pointer while the pointer is in the list, then the card containing focus,
-   then the topmost visible card. It records later visible cards before the mutation
-   and refreshes their baselines after each correction, so a live successor can take
-   over if the first leaves or becomes hidden. Receipt updates share the same hold.
-   The list follows changes in the card's content
-   position, keeping reflow out from under the pointer without fighting an intentional
-   scroll. Browser scroll anchoring is disabled only for the life of a hold so those two
-   authorities cannot compensate the same change; outside a held mutation the browser
-   keeps its native safety net. The correction runs after each mutation and on every
-   frame of a resolution fold; fold completion removes its node through
-   `renderThreads`, under the same hold.
+   Every change to this list's content holds the reader's place through it: the renders
+   `renderThreads` drives, receipt updates among them, and the disclosure the browser
+   drives when a reader opens a card and the named group closes the one that was open.
+   The hold is `reader-place.js`'s, keyed by each card's thread; this module decides only
+   which changes take one. A resolution fold is followed frame by frame until it ends,
+   and its completion removes its node through `renderThreads`, under the same hold.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
    under each (conversation/placement.js). A run's heading is one node kept across
@@ -78,8 +70,8 @@
    it is in. */
 import { scrollBehavior } from "../motion.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
-import { pointerAt } from "../pointer.js";
-import { focused } from "../keyboard/scopes.js";
+import { placeKeeper } from "../reader-place.js";
+import { PINNED } from "../geometry.js";
 import { conversational, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
@@ -138,7 +130,7 @@ function paintHeadRoom(panelIsOpen) {
   // opens — a box arriving is a resize — so the measurement lands the moment it means
   // something, which is also the only moment it can be right.
   if (!panelIsOpen()) return;
-  const heads = [...threadsBox.querySelectorAll(".lf-pinned")];
+  const heads = [...threadsBox.querySelectorAll(PINNED)];
   threadsBox.style.setProperty(
     "--lf-head-room",
     `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
@@ -176,167 +168,20 @@ function holdThroughDisclosure(panelIsOpen) {
   );
 }
 
-// Keep one card at the same viewport position while this list changes around it.
-// The pointer is the most recent place the reader named; focus is the standing place
-// when the hand is elsewhere, and the first visible card is the list's own fallback.
-// Capture the later visible cards too, so removing the first choice can hand the hold
-// to the next card without trying to recover its old position after the mutation.
-let activeHold = null;
-const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrollTop;
-const maxScrollTop = () =>
-  Math.max(0, threadsBox.scrollHeight - threadsBox.clientHeight);
-// The box a card can hold the list's place by, or null where it can hold nothing: a
-// fold renames its node out of .lf-thread on the way out, and a narrowing hides one.
-// One statement of it, so what takes a hold and what corrects one cannot disagree over
-// which cards are still standing.
-const heldBox = (card) => {
-  if (
-    !card.isConnected ||
-    !threadsBox.contains(card) ||
-    !card.matches(".lf-thread") ||
-    !card.checkVisibility()
-  )
-    return null;
-  const box = card.getBoundingClientRect();
-  return box.width && box.height ? box : null;
-};
-function takeScrollHold(panelIsOpen) {
-  const priorHold = activeHold;
-  if (priorHold) correctScrollHold(priorHold, panelIsOpen);
-  activeHold = null;
-  if (!panelIsOpen()) {
-    threadsBox.style.removeProperty("overflow-anchor");
-    return null;
-  }
-  const view = threadsBox.getBoundingClientRect();
-  if (!view.width || !view.height) {
-    threadsBox.style.removeProperty("overflow-anchor");
-    return null;
-  }
-  const cards = [...threadsBox.querySelectorAll(".lf-thread")];
-  const boxes = new Map(cards.map((card) => [card, card.getBoundingClientRect()]));
-  const { x, y } = pointerAt();
-  const overList =
-    x >= view.left && x <= view.right && y >= view.top && y <= view.bottom;
-  const underPointer = overList
-    ? document.elementFromPoint(x, y)?.closest?.(".lf-thread")
-    : null;
-  const standing = focused()?.closest?.(".lf-thread");
-  const visible = cards
-    .filter((card) => {
-      const box = boxes.get(card);
-      return (
-        card.checkVisibility() &&
-        box.width &&
-        box.height &&
-        box.bottom > view.top &&
-        box.top < view.bottom
-      );
-    })
-    .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
-  // A fold is a mutation still running, and the hold that took it is the page's one
-  // account of where the reader was standing when it started. The list slides both
-  // ways around a folding card — the room closes under the cards below it and the
-  // cards above come down into it — so the pointer stops naming that place as soon as
-  // the motion begins: read again mid-fold it answers with whatever slid under it,
-  // and a hold taken from that pins the wrong side of the movement while everything
-  // past the fold, the successor the reader was aiming at among it, goes on moving.
-  // A render arriving inside a fold therefore inherits the standing hold's own
-  // reference, which has already handed off past the card that is leaving.
-  // Completion removes the fold's record before its final presentation hides the
-  // node. The standing hold still owns that last reflow, even without a live animation.
-  const inherited = priorHold?.references.find(({ card }) => heldBox(card))?.card;
-  const lead = inherited || underPointer || standing || visible[0];
-  const leadAt = visible.indexOf(lead);
-  const fallbacks =
-    leadAt < 0
-      ? visible
-      : [...visible.slice(leadAt + 1), ...visible.slice(0, leadAt + 1)];
-  const seen = new Set();
-  const references = [inherited, underPointer, standing, ...fallbacks]
-    .filter((card) => {
-      if (!card || !threadsBox.contains(card) || seen.has(card)) return false;
-      seen.add(card);
-      return true;
-    })
-    .map((card) => ({
-      card,
-      contentTop: contentTop(card),
-    }));
-  if (!references.length) {
-    threadsBox.style.removeProperty("overflow-anchor");
-    return null;
-  }
-  activeHold = {
-    references,
-    scrollTop: threadsBox.scrollTop,
-    maxScrollTop: maxScrollTop(),
-  };
-  // This hold is the sole scroll-anchor authority for its mutation. Leaving the
-  // browser's independent anchor enabled can compensate the same reflow twice.
-  threadsBox.style.setProperty("overflow-anchor", "none");
-  return activeHold;
-}
-
-function releaseScrollHold(hold) {
-  if (activeHold !== hold) return;
-  activeHold = null;
-  threadsBox.style.removeProperty("overflow-anchor");
-}
-
-function correctScrollHold(hold, panelIsOpen) {
-  if (activeHold !== hold || !panelIsOpen()) return false;
-  let box = null;
-  const reference = hold.references.find(({ card }) => {
-    box = heldBox(card);
-    return box;
-  });
-  if (!reference) return false;
-  // A card's viewport top moves both when content before it reflows and when the reader
-  // scrolls. Adding scrollTop removes the second term, so this follows only reflow and
-  // never fights a wheel, keyboard landing, narrowing reset, or scrollIntoView.
-  const nextContentTop = box.top + threadsBox.scrollTop;
-  const delta = nextContentTop - reference.contentTop;
-  // Shrinking content can lower the scroll limit before this frame gets to correct
-  // the hold. Chromium clamps the list to that new limit first; treating that forced
-  // scroll as part of the reflow pays for it twice and moves the held card. Remove only
-  // a clamp identified by both the falling limit and the list standing exactly on it.
-  // Other scroll movement remains the reader's and is left intact.
-  const limit = maxScrollTop();
-  const clamped =
-    limit < hold.maxScrollTop &&
-    hold.scrollTop > limit &&
-    threadsBox.scrollTop === limit
-      ? threadsBox.scrollTop - hold.scrollTop
-      : 0;
-  if (delta || clamped) threadsBox.scrollTop += delta - clamped;
-  // Every fallback observed this frame's reflow too. Refresh all live baselines after
-  // the correction, or handing off later would apply movement already paid for while
-  // the primary stood.
-  for (const candidate of hold.references) {
-    const candidateBox = heldBox(candidate.card);
-    if (candidateBox) candidate.contentTop = candidateBox.top + threadsBox.scrollTop;
-  }
-  hold.scrollTop = threadsBox.scrollTop;
-  hold.maxScrollTop = maxScrollTop();
-  return true;
-}
-
-function followScrollHold(hold, panelIsOpen) {
-  if (!correctScrollHold(hold, panelIsOpen)) {
-    releaseScrollHold(hold);
-    return;
-  }
-  if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold, panelIsOpen));
-  else releaseScrollHold(hold);
-}
-
-function finishScrollHold(hold, panelIsOpen) {
-  if (!hold) return;
-  correctScrollHold(hold, panelIsOpen);
-  if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold, panelIsOpen));
-  else releaseScrollHold(hold);
-}
+// The list's place through every change to its content (reader-place.js). A card is
+// rendered under its thread's root id, so a card the render rebuilt hands the place to
+// its successor node, and a folding card, renamed out of `.lf-thread`, hands it to the
+// next card still standing.
+let place = null;
+const listPlace = (panelIsOpen) =>
+  (place ??= placeKeeper(threadsBox, {
+    items: ".lf-thread",
+    identity: (card) => card.dataset.id,
+    active: panelIsOpen,
+  }));
+const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
+const finishScrollHold = (hold, panelIsOpen) =>
+  listPlace(panelIsOpen).finish(hold, hasFolding);
 
 // One immutable presentation reading contains the rows, count, and narrowing paint.
 // The list checkpoints it only when the whole conversation batch commits; retention

@@ -187,10 +187,8 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
-    # Threads are one named-details group, so the resolved card's fold leaves none open
-    # and the reader opens the next one themselves.
-    expect(page.locator(".lf-threads > .lf-thread[open]")).to_have_count(0)
-    second.locator(".lf-thread-summary").click()
+    # Resolving the expanded card narrows it away, and the list hands that expansion
+    # to the next visible thread, so the second resolve stands on an open card.
     expect(second).to_have_attribute("open", "")
     second.locator(".lf-resolve").click()
     holding(page, held, 1, "the second resolution")

@@ -24,10 +24,10 @@ file says which script owns what, and the rules that hold across them.
   packages, and copies the source alone otherwise, because vendoring mints a fresh
   layer generation and the generation is part of what a revision is as executable code.
   A preview that re-vendored on every save could therefore only ever show a revision
-  arriving as a fresh document, which is the half of the behavior a reader is least
+  arriving as a fresh document, which is the half of the behavior a user is least
   likely to be looking for.
   `--export` writes the browser-drawn result as one standalone file instead.
-  A preview takes no task claim; `--reader` claims the page so a reader's presses
+  A preview takes no task claim; `--user` claims the page so a user's presses
   reach this session, and `--background` detaches either. `/developing-leaf` states
   which to choose.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its

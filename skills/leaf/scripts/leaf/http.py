@@ -379,7 +379,7 @@ def supervised_document(
     # already true when the poll is installed, which surfaces as an intermittent red
     # suite rather than as a policy refusal. Leaf's own runtime never evals, so the
     # nonce still decides which script runs. `write_live_shell` composes published
-    # documents here too, so the site's static pages carry the allowance to readers
+    # documents here too, so the site's static pages carry the allowance to users
     # no driver polls.
     csp = (
         PAGE_CSP
@@ -644,7 +644,7 @@ class PageEndpoint:
         looked identical from the agent's side. A hidden tab releases its stream and
         a visible tab whose page has no news never asks again, so presence is written
         from here, throttled — it needs a recency, not a request log — and never from
-        a preview, whose browser is the render gate's rather than the reader's.
+        a preview, whose browser is the render gate's rather than the user's.
 
         Ends on the server stopping; a tab that closes cancels the response, which the
         transport reports without this loop watching the socket for it. `ALIVE_S` is
@@ -698,8 +698,8 @@ class PageEndpoint:
     def authorized(self) -> bool:
         """The key, from the handover URL or from the cookie an earlier request
         set out of it. One arrival is enough: the runtime's own fetches are
-        relative and carry no query, and a reader who reloads or bookmarks the bare
-        address is the same reader. So nothing has to thread the key through the
+        relative and carry no query, and a user who reloads or bookmarks the bare
+        address is the same user. So nothing has to thread the key through the
         page, and `leaf.js` never learns there is one."""
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
@@ -1274,7 +1274,7 @@ class SpecimenEndpoint(PageEndpoint):
             scope = html.escape(self.page_root + "/", quote=True)
             body = re.sub(
                 rb"<html\b",
-                f'<html data-lf-contained data-lf-reader-scope="{scope}"'.encode(),
+                f'<html data-lf-contained data-lf-user-scope="{scope}"'.encode(),
                 body,
                 count=1,
                 flags=re.IGNORECASE,

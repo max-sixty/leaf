@@ -5,7 +5,7 @@
    scene, gives each member an opaque prefix-free code, and paints a chip on it. Typed
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
    Escape gives a letter back. A letter that names nothing is reported and the standing
-   map is left alone, because a mistyped route should not cost the reader the letters
+   map is left alone, because a mistyped route should not cost the user the letters
    they had right. A scroll freezes membership and re-reads it once the scene settles,
    so a target arriving mid-scroll is named at rest rather than on the frame it appears.
    A candidate is revalidated against a fresh reading before it is taken, so a target
@@ -93,7 +93,7 @@ export function spreadHints(
 ) {
   const gap = 2;
   // The browsed hint wears the layer's band (--here-shadow, theme.css), which a face's
-  // own rectangle does not report. Any chip can become the browsed one as the reader
+  // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A
   // barrier — another face, or the shortcut bar — takes the wider of the gap and the band,
@@ -188,7 +188,7 @@ const SETTLE_MS = 80;
    on fixed chrome; they are seated first and become barriers for the coded ones.
    `chrome` reads the standing furniture the placement pass must keep clear.
    A map paints through a scroll once it has stood still long enough to be read: its
-   chips ride with the things they name, so the codes the reader is reading stay where
+   chips ride with the things they name, so the codes the user is reading stay where
    they were read and stay pressable, while membership waits for the scene to settle. A
    map armed into a page already in flight has stood still for nobody, and shows nothing
    until it settles rather than putting codes on a scene that is leaving. */
@@ -206,7 +206,7 @@ export function createHintSession({
   extras = () => [],
 }) {
   let armed = false;
-  // The page has been still for a settle since this map was armed, so the reader has had
+  // The page has been still for a settle since this map was armed, so the user has had
   // the chance to read these codes where they now stand.
   let stood = false;
   let prefix = "";
@@ -219,7 +219,7 @@ export function createHintSession({
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
 
-  // Every way the map is replaced whole puts the reader back at its head, with no letters
+  // Every way the map is replaced whole puts the user back at its head, with no letters
   // typed and nothing heard. Whether the page is moving is a fact about the page rather
   // than about the map, so replacing the map does not end a scroll the page has not
   // ended: only arming and disarming answer for that.
@@ -359,7 +359,7 @@ export function createHintSession({
     // candidate is detached at once, so holding that map would paint nothing
     // indefinitely if the replacement's scroll restoration produces no final scrollend.
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
-    // Only with the map whole: a partly typed code freezes it until the reader
+    // Only with the map whole: a partly typed code freezes it until the user
     // completes or backs out of that prefix, so `hinted()` and `candidates` agree here.
     if (!prefix && !scrolling && (stale || detached || !candidates.length)) {
       candidates = read();

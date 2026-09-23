@@ -102,7 +102,7 @@ def test_the_snapshot_door_refuses_a_passage_no_context_identifies(page_dir):
     """The snapshot resolves nothing; the append gate does, and one gesture must name one
     passage. Two copies of the same words are two answers, so the door refuses rather than
     reading document order as identity — and it names the copies, because extending the
-    selection is what the reader has to do about it. This is the same rule the browser
+    selection is what the user has to do about it. This is the same rule the browser
     keeps by storing neighbours: neither side ever guesses which copy was meant."""
     twice = PAGE.replace(
         "<h2>Plan</h2>",

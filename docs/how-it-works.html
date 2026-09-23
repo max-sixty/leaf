@@ -23,7 +23,7 @@
         <h1>How leaf works</h1>
         <p class="lede" id="lede">
           Leaf serves an authored page alongside an append-only event log. The browser
-          combines them to show the current document, reader choices, and conversations.
+          combines them to show the current document, user choices, and conversations.
           The agent receives feedback through its host's delivery loop and updates the
           page with ordinary file writes.
         </p>
@@ -72,8 +72,8 @@ $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
-# background task completes when the reader sends input
-{"format": "leaf-delivery-v2", "id": "2d5bdcc4", "created_at": 1790100943.144468, "batches": [{"page": "/home/you/review", "through_seq": 3, "conversations": [{"id": "ebe8f367", "title": null, "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The reader already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Continue the work it selects or unblocks, then write it in and stamp a version.", "h4": "Acknowledge this delivery before anything else, by your host contract's route where it leaves acknowledgement to you: until then the reader's message reads Sent or Queued rather than Picked up.", "h5": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title &lt;page&gt; &lt;conversation-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.", "h6": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;`. In a Codex task Leaf observes over App Server, your final message is the reply instead, and `leaf reply` refuses the event. Where you answer with `leaf reply`, reply before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`, where `&lt;address&gt;` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something. Your reply renders as Markdown, so show code or markup in a fenced block."}, "events": [{"kind": "action", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "author": "user", "meaning": {"document": {"kind": "page", "revision": 1}, "coordinate": ["shed", "shed", "selection"], "depends": ["opt-drop", "shed"], "answer": null}, "generated": [], "id": "0b0fd3b7", "ts": "2026-09-22T11:15:42-07:00", "seq": 2, "subject": {"kind": "widget", "id": "shed"}, "conversations": [], "says": {"opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."}, "handling": ["h1", "h2", "h3"], "obligation": {"as_of_seq": 3, "response": {"kind": "markup", "action": "0b0fd3b7"}}}, {"kind": "comment", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "author": "user", "id": "ebe8f367", "ts": "2026-09-22T11:15:42-07:00", "seq": 3, "subject": {"kind": "conversation", "id": "ebe8f367"}, "conversations": ["ebe8f367"], "handling": ["h4", "h5", "h6"], "obligation": {"as_of_seq": 3, "response": {"kind": "reply", "to": "ebe8f367", "for": "ebe8f367"}}}]}]}
+# background task completes when the user sends input
+{"format": "leaf-delivery-v2", "id": "2d5bdcc4", "created_at": 1790100943.144468, "batches": [{"page": "/home/you/review", "through_seq": 3, "conversations": [{"id": "ebe8f367", "title": null, "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Continue the work it selects or unblocks, then write it in and stamp a version.", "h4": "Acknowledge this delivery before anything else, by your host contract's route where it leaves acknowledgement to you: until then the user's message reads Sent or Queued rather than Picked up.", "h5": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title &lt;page&gt; &lt;conversation-id&gt; --text \"&lt;a few words&gt;\"`, so the thread panel lists its subject rather than its opening words.", "h6": "Answer with `leaf reply &lt;page&gt; --for &lt;event-id&gt;`. In a Codex task Leaf observes over App Server, your final message is the reply instead, and `leaf reply` refuses the event. Where you answer with `leaf reply`, reply before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply &lt;page&gt; --to &lt;address&gt; --initiates`, where `&lt;address&gt;` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something. Your reply renders as Markdown, so show code or markup in a fenced block."}, "events": [{"kind": "action", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "author": "user", "meaning": {"document": {"kind": "page", "revision": 1}, "coordinate": ["shed", "shed", "selection"], "depends": ["opt-drop", "shed"], "answer": null}, "generated": [], "id": "0b0fd3b7", "ts": "2026-09-22T11:15:42-07:00", "seq": 2, "subject": {"kind": "widget", "id": "shed"}, "conversations": [], "says": {"opt-drop": "Drop the oldest Keep accepting, and discard the oldest queued work."}, "handling": ["h1", "h2", "h3"], "obligation": {"as_of_seq": 3, "response": {"kind": "markup", "action": "0b0fd3b7"}}}, {"kind": "comment", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed-premise", "quote": "Callers get a 429 immediately"}, "author": "user", "id": "ebe8f367", "ts": "2026-09-22T11:15:42-07:00", "seq": 3, "subject": {"kind": "conversation", "id": "ebe8f367"}, "conversations": ["ebe8f367"], "handling": ["h4", "h5", "h6"], "obligation": {"as_of_seq": 3, "response": {"kind": "reply", "to": "ebe8f367", "for": "ebe8f367"}}}]}]}
 
 # after the complete envelope reaches the agent, start the next background task
 $ leaf wait --ack 2d5bdcc4
@@ -125,11 +125,11 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             no separate work claim.
           </p>
           <p id="response-evidence">
-            Response says what satisfied the reader's move: a reply in its thread, a
-            page revision and resolution, or the outcome of a request. Each delivered
+            Response says what satisfied the user's move: a reply in its thread, a page
+            revision and resolution, or the outcome of a request. Each delivered
             obligation names that operation. Acknowledging receipt or declaring work
-            leaves the obligation open. Once it is answered, the agent names the
-            reader's next move with a waiting status.
+            leaves the obligation open. Once it is answered, the agent names the user's
+            next move with a waiting status.
           </p>
           <p id="receipt-hosts">
             The host owns the receipt boundary. A Codex adapter acknowledges a delivery
@@ -146,7 +146,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           session-lifetime server retires when no live session claims the page. A server
           started from the user's shell, or with <code>--standing</code>, remains
           available until <code>leaf server stop</code>. The banner and tab icon show
-          whether an agent is working, waiting for the reader, or absent.
+          whether an agent is working, waiting for the user, or absent.
         </p>
       </section>
 
@@ -161,7 +161,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
         <p id="agent-render">
           The browser combines the active revision with the log and updates when the
           server announces a change. Replies appear in the thread panel, their passages
-          are highlighted, and the banner reflects the agent's activity. Reader choices
+          are highlighted, and the banner reflects the agent's activity. User choices
           appear immediately and remain effective across later revisions.
         </p>
         <p id="thread-navigation">
@@ -176,8 +176,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           live and shows its diagnostic. <code>version stamp</code> checks the current
           source and records a public version pointing to its revision, served at an
           address such as <code>/versions/v2.html</code>. The live address follows
-          revisions; a tab pinned to v1 stays there. Live updates wait while the reader
-          is composing or dragging, and preserve their reading position.
+          revisions; a tab pinned to v1 stays there. Live updates wait while the user is
+          composing or dragging, and preserve their reading position.
         </p>
       </section>
 
@@ -204,10 +204,10 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           </li>
           <li id="src-widgets">
             <strong><code>lf-*</code> widgets.</strong> Custom elements that say what
-            things are: <code>&lt;lf-options&gt;</code> for a question the reader
-            answers, <code>&lt;lf-board&gt;</code> for work in columns. Attributes carry
-            scalars, children carry prose, a leading <code>&lt;strong&gt;</code> is an
-            item's title, and a JSON-Schema <a href="/registry/">registry</a> keeps the
+            things are: <code>&lt;lf-options&gt;</code> for a question the user answers,
+            <code>&lt;lf-board&gt;</code> for work in columns. Attributes carry scalars,
+            children carry prose, a leading <code>&lt;strong&gt;</code> is an item's
+            title, and a JSON-Schema <a href="/registry/">registry</a> keeps the
             renderer, the linter, and the agent's documentation agreeing about the
             vocabulary.
           </li>
@@ -324,7 +324,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
       </section>
 
       <section id="edits">
-        <h2>Reader choices survive revisions</h2>
+        <h2>User choices survive revisions</h2>
         <p>
           Dragging a card or choosing an option records a structured action. The browser
           applies it immediately, and the agent receives it alongside comments. The log
@@ -332,7 +332,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           same state.
         </p>
         <p id="undo">
-          <code>z</code> withdraws the reader's last undoable gesture; pressing it again
+          <code>z</code> withdraws the user's last undoable gesture; pressing it again
           steps further back. The log records the withdrawal, and the browser redraws
           the state with that gesture excluded. Reloading the page gives the same
           result.
@@ -344,7 +344,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
           can be removed there. Packages declare the available tokens and their meaning.
         </p>
         <p id="decline">
-          To override a reader's choice, the agent marks the rewritten element
+          To override a user's choice, the agent marks the rewritten element
           <code>restated</code> and explains the change in the version note. Without
           that declaration, the recorded choice still applies; a conflicting revision is
           refused.
@@ -377,7 +377,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
         <h2>Validation before publication</h2>
         <p>
           Before activating a revision or stamping a version, Leaf checks the source's
-          structure, vocabulary, dependencies, and standing reader decisions. An invalid
+          structure, vocabulary, dependencies, and standing user decisions. An invalid
           source leaves the last valid revision available. For a finished record,
           <code>version check --render</code> also checks the page in Chrome in both
           color schemes, catching failures such as console errors, invisible widgets,
@@ -395,7 +395,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
         </p>
         <p>
           When the default address is unreachable, the agent can re-serve the page with
-          <code>server start --host NAME</code> on a hostname the reader can reach. Leaf
+          <code>server start --host NAME</code> on a hostname the user can reach. Leaf
           uses the machine's existing networks and creates no public tunnel. The
           <a
             href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/serving-pages.md"

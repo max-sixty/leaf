@@ -236,11 +236,11 @@ erDiagram
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:Reader"><pre>
+<lf-diagram id="exchange" parts="node:User"><pre>
 sequenceDiagram
-  participant Reader
+  participant User
   participant Server
-  Reader-&gt;&gt;Server: Request
+  User-&gt;&gt;Server: Request
 </pre></lf-diagram>
 <lf-diagram id="model" parts="node:Job"><pre>
 classDiagram
@@ -283,11 +283,11 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:Reader"><pre>
+<lf-diagram id="exchange" parts="node:User"><pre>
 sequenceDiagram
-  participant Reader
+  participant User
   participant Server
-  Reader-&gt;&gt;Server: Request
+  User-&gt;&gt;Server: Request
 </pre></lf-diagram>
 <lf-diagram id="model" parts="node:Job"><pre>
 classDiagram
@@ -586,7 +586,7 @@ DRAWING_PLACEMENT = """() => {
     col.axis = (col.left + col.right) / 2;
     const acts = document.querySelector('[data-lf-margin-for="sug-copy"]');
     // The drawing's own rect and the box's. A drawing wider than its box keeps a rect
-    // that runs on past it — the layout's answer, not the reader's — so what is painted
+    // that runs on past it — the layout's answer, not the user's — so what is painted
     // over the margin is the box's edge and what is lost off the scroll's start edge is
     // the drawing's left against the box's.
     const at = (id) => {
@@ -696,7 +696,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
 
 # The same review bound as a manifest of collapsed files, the form a captured patch
 # arrives in on the shipped walkthrough: the module draws the file rows from the manifest
-# alone and parses no line until a reader opens a file, which is where the renderer comes
+# alone and parses no line until a user opens a file, which is where the renderer comes
 # in. One diff and nothing else that draws lines, so what the page asks for at load is
 # the manifest's answer and no other widget's.
 MANIFEST_DIFF_PAGE = leaf_page(
@@ -705,7 +705,7 @@ MANIFEST_DIFF_PAGE = leaf_page(
     + '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>',
 )
 
-# Which of a diff's source lines run past what the reader can see. A row is one line of
+# Which of a diff's source lines run past what the user can see. A row is one line of
 # the patch however many line boxes it takes, and neither box in play is the line: the
 # row is sized to the longest line in its file so its fill reaches the end of it, and the
 # code box is the scrollport. So the room is measured out here — the code box's own width
@@ -713,10 +713,10 @@ MANIFEST_DIFF_PAGE = leaf_page(
 # Range over the row's contents, which is what `_SELECT_IN_ROW` reads for the same reason.
 # Reading the row's own box instead gives every row in a file the file's overhang, which
 # is how this last went wrong: 18 of 24 rows counted cut where one line overflowed, and
-# `widest` named a trailing-context line the reader could see whole. Text wider than the
-# room is text the reader cannot reach without scrolling the file sideways, and on paper,
+# `widest` named a trailing-context line the user could see whole. Text wider than the
+# room is text the user cannot reach without scrolling the file sideways, and on paper,
 # text that is simply gone. `worst` and `widest` are for the failure to say which line and
-# by how much, since "some row overflows" sends its reader back to the browser.
+# by how much, since "some row overflows" sends its user back to the browser.
 DIFF_CLIPPING = """() => {
     const diff = document.querySelector('lf-diff');
     const rows = [];
@@ -742,7 +742,7 @@ DIFF_CLIPPING = """() => {
 # the file's box gives it. A row's green or red is its own background, so it reaches
 # exactly as far as the row's box does: a box narrower than the row's own text is a fill
 # that stops mid-line and leaves the rest of the addition sitting on the file's plain
-# paper, which is what a reader who scrolls sideways finds. `short` counts those and
+# paper, which is what a user who scrolls sideways finds. `short` counts those and
 # `gap` is the worst. `narrow` is the same reading from the other side — a file whose
 # lines all fit must still fill its box rather than end at its longest line. `scrolls`
 # is the population: on a file that does not scroll, `short` is zero for free.
@@ -780,7 +780,7 @@ DIFF_ROW_PLACEMENT = """() => {
     return { files: files.length, lift: Math.min(...lifts), drop: Math.max(...lifts) };
 }"""
 
-# Where the file the reader is in says its name, against the bar it has to clear, and
+# Where the file the user is in says its name, against the bar it has to clear, and
 # where the keyboard just landed. One pass, because every number here means something only
 # against the others. With nothing focused it answers for the first file, so the same
 # reading covers a page nobody has pressed a key on yet.
@@ -1155,7 +1155,7 @@ graph LR
   R[a request arrives at the edge] --> C{is the session cookie still valid?}
   C -->|yes| S[read the session record from Redis]
   S -->|hit| H[hand the request to the application]
-  C -->|no| L[send the reader to the login page]
+  C -->|no| L[send the user to the login page]
 </pre></lf-diagram>
   </lf-tab>
 </lf-tabs>

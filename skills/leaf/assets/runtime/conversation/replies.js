@@ -1,7 +1,7 @@
 /* One reply draft and send lifecycle shared by every view of a thread.
 
    A reply send returns in the gesture that makes it. The send preserves the panel's
-   narrowing and keeps the reader's focus where their gesture left it. */
+   narrowing and keeps the user's focus where their gesture left it. */
 import {
   loadDraft,
   mirrorDraft,
@@ -11,7 +11,7 @@ import {
 } from "../drafts.js";
 import { threadKey } from "./model.js";
 import { focused } from "../keyboard/scopes.js";
-import { retainReaderIntent } from "../reader-intent.js";
+import { retainUserIntent } from "../user-intent.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 
 const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
@@ -63,7 +63,7 @@ export function wireReply(
       );
       const mayReveal =
         held && (focused() === input || focused() === send)
-          ? retainReaderIntent({ source: held, available: () => held.isConnected })
+          ? retainUserIntent({ source: held, available: () => held.isConnected })
           : null;
       const control = focused() === send ? send : input;
       const sent = sendReply(t, liveId, raw, owns, createReply);
@@ -79,11 +79,11 @@ export function wireReply(
   });
   sync();
   onDraftLoaded?.(sync.value());
-  // A box growing under the reader pushes its embedded Send below the list's foot:
+  // A box growing under the user pushes its embedded Send below the list's foot:
   // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
   // the composer with its controls (revealConversation); growth is the same claim made
-  // again. On the reader's own keystrokes and nothing else: a send settling after they
+  // again. On the user's own keystrokes and nothing else: a send settling after they
   // scrolled away, or a draft mirrored from another tab, must not pull the list back.
   // Instant, not smooth — a line typed while the last line's glide is still running
   // lands the list where that glide was going, two lines short of the box it is now.

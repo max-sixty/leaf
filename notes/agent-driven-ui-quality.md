@@ -5,7 +5,7 @@ policy and discovery allocation work from the September 2026 UI quality assessme
 is a planning document, not a product contract. Delete it once the operating model has
 been tried and its surviving rules have moved into the skills and tests that own them.
 
-The goal is to let agents repeatedly find and repair consequential reader-facing
+The goal is to let agents repeatedly find and repair consequential user-facing
 problems without building a Leaf-specific QA application or maintaining an exhaustive
 inventory of pages, controls, states, viewports, and failure modes.
 
@@ -13,8 +13,8 @@ inventory of pages, controls, states, viewports, and failure modes.
 
 The operating model should:
 
-- exercise real rendered controls through ordinary reader gestures;
-- judge complete reader tasks, including interruption, recovery, and return paths;
+- exercise real rendered controls through ordinary user gestures;
+- judge complete user tasks, including interruption, recovery, and return paths;
 - let the agent derive experiments from the current product and code rather than from a
   centrally maintained checklist;
 - repair clear defects in the same run and add a regression at the lowest useful
@@ -27,7 +27,7 @@ The operating model should:
   visual coherence, and architectural ownership to agent judgment.
 
 It should not optimize the number of findings, screenshots, tests, pages visited, or
-matrix cells covered. Those measures can improve while the reader experience does not.
+matrix cells covered. Those measures can improve while the user experience does not.
 
 ## Established operating patterns
 
@@ -35,7 +35,7 @@ matrix cells covered. Those measures can improve while the reader experience doe
 
 Session-based exploratory testing gives a tester a short mission, lets execution and
 evaluation evolve as the tester learns, bounds the investigation, and retains a compact
-record. A charter names a reader goal and risk rather than prescribing steps or expected
+record. A charter names a user goal and risk rather than prescribing steps or expected
 bugs. This is the closest established model for a standing UI sweep. See the
 [GOV.UK exploratory-testing guidance](https://www.gov.uk/service-manual/technology/exploratory-testing),
 [Martin Fowler's summary](https://martinfowler.com/bliki/ExploratoryTesting.html), and
@@ -43,14 +43,14 @@ bugs. This is the closest established model for a standing UI sweep. See the
 
 Risk-based and additional-coverage prioritization provide a way to choose the next
 mission without enumerating the domain. Recent changes, escaped defects, shared
-ownership boundaries, important reader tasks, and contrast with recent missions are
+ownership boundaries, important user tasks, and contrast with recent missions are
 inputs to the decision. The
 [ISTQB Foundation syllabus](https://istqb.org/wp-content/uploads/2024/11/ISTQB_CTFL_Syllabus_v4.0.1.pdf)
 also warns that checklists decay, grow too long, and must change with defect history.
 
 ### Outcome-based agent evaluation
 
-Agent runs should be judged from the resulting environment and reader outcome, not a
+Agent runs should be judged from the resulting environment and user outcome, not a
 required tool-call sequence. Real failures and existing manual checks supply useful
 calibration cases; traces show whether the evaluator is measuring the intended behavior.
 See
@@ -80,7 +80,7 @@ this section are available in the current maintainer environment but do not ship
 Leaf; this note treats their methods as options rather than introducing project
 dependencies on them.
 
-- `/ui-sweep` starts with a cold reading, derives experiments from reader tasks and
+- `/ui-sweep` starts with a cold reading, derives experiments from user tasks and
   ownership relationships, uses real input, compares with the merge base, fixes
   reproduced defects, checks a sibling case, and requires an independent reviewer.
 - `/iteration:norman` gives a context-blind agent a neutral task and observes whether it
@@ -93,7 +93,7 @@ dependencies on them.
 - `/iteration:fisher` can reduce a calibration corpus to one representative miss and
   one discriminating neighbor per claim.
 - `/iteration:goodhart` can check whether mission selection or reporting has become a
-  target instead of evidence of reader quality.
+  target instead of evidence of user quality.
 - `/frontend-design:frontend-design` can guide a genuine visual redesign. It should not
   become the sweep's permanent list of aesthetic criteria.
 
@@ -208,9 +208,9 @@ All viable options can share one small contract.
 
 A mission names:
 
-- the reader's goal;
+- the user's goal;
 - the relationship or responsibility under challenge;
-- one plausible failure and its reader-visible consequence;
+- one plausible failure and its user-visible consequence;
 - the perturbation that distinguishes the hypothesis; and
 - what should change and what must survive.
 
@@ -221,9 +221,9 @@ For example:
 > change; the draft, focus, and reading position should survive.
 
 The mission does not name controls, selectors, or expected defects. The agent discovers
-the route through the same rendered controls a reader would use.
+the route through the same rendered controls a user would use.
 
-A reader-facing change or chartered sweep is complete when the exercised task is
+A user-facing change or chartered sweep is complete when the exercised task is
 discoverable and coherent through the reached forward, failure, recovery, and return
 states. Every concrete anomaly encountered receives one disposition:
 
@@ -243,11 +243,11 @@ Each scheduled run can form candidate missions from existing durable sources:
 
 - changed runtime, theme, registry, example, or ownership relationships;
 - recent UI-fix commits and the sibling compositions where their mechanisms may recur;
-- unresolved reader-facing issues and TODO entries;
+- unresolved user-facing issues and TODO entries;
 - shipped examples unlike the recent Tend runs; and
 - the last few Tend run summaries, including transitions not reached.
 
-The agent chooses the mission with the greatest plausible reader consequence, strongest
+The agent chooses the mission with the greatest plausible user consequence, strongest
 connection to changed or historically fragile behavior, most useful contrast with recent
 runs, and lowest cost to reach decisive evidence. This is qualitative risk and
 information gain, not a score.
@@ -291,11 +291,11 @@ Two perspectives are load-bearing; more roles are optional:
 
 | Perspective | Context | Question |
 | --- | --- | --- |
-| Cold reader | Neutral task and candidate URL; no source, selectors, diagnosis, or author verdict. | Can the reader discover, complete, understand, recover, and return? |
+| Cold user | Neutral task and candidate URL; no source, selectors, diagnosis, or author verdict. | Can the user discover, complete, understand, recover, and return? |
 | Engineering explorer | Source, diff, contracts, history, browser state, baseline, and candidate. | Which relationship failed, where is its canonical owner, and what sibling case distinguishes a general repair? |
 
 A separate visual comparator is useful when the change is primarily visual or the cold
-reader and explorer disagree about hierarchy. A deterministic checker remains useful for
+user and explorer disagree about hierarchy. A deterministic checker remains useful for
 accessibility, console, network, geometry, and final-state facts. Neither replaces the
 two perspectives above.
 
@@ -308,7 +308,7 @@ one determined repair is a product decision.
 ## Stopping and calibration
 
 A repair stops when the original journey and one sibling case pass, the useful lower
-boundary has a regression test, the required checks pass, and an independent reader
+boundary has a regression test, the required checks pass, and an independent user
 accepts the rendered result.
 
 An exploratory mission stops at its charter and time budget after every observed anomaly
@@ -328,7 +328,7 @@ redundant by a stronger contrast.
 An independent GPT-6 Astra review recommended making UI quality a recurring Tend repair
 responsibility rather than adding a QA application. Its proposed split was a
 source-informed investigator and fixer plus a context-blind reviewer. Both start from a
-reader task in the browser; the reviewer receives no author verdict before recording its
+user task in the browser; the reviewer receives no author verdict before recording its
 first route.
 
 The review also recommended short exploratory charters, immediate repair of clear
@@ -367,7 +367,7 @@ remain the questions to test.
 `/ui-sweep` already owns mission derivation, browser evidence, disposition, repair, and
 independent review. `running-tend` invokes it weekly, but its ordinary review threshold
 still stops at the change's claimed path. Add one narrow rule there: an anomaly actually
-encountered while exercising an affected reader journey must receive a disposition even
+encountered while exercising an affected user journey must receive a disposition even
 when it was not in the author's claim. Keep unrelated bounded edge cases outside the
 review threshold.
 
@@ -377,7 +377,7 @@ This is the remaining policy change. Do not copy the rest of `/ui-sweep` into Te
 
 Run a small blinded evaluation with one known historical miss and one intentional or
 invalid control. Give each agent only the charter, candidate, and role-specific context;
-do not reveal the prior verdict. Judge the resulting reader outcome and disposition,
+do not reveal the prior verdict. Judge the resulting user outcome and disposition,
 not the tool-call sequence.
 
 The first useful calibration asks whether the agents can both reproduce the real defect
@@ -387,10 +387,10 @@ same claim. This remains an evaluator suite, not a product-coverage inventory.
 
 ### Bound roles, context, and model cost
 
-Start each mission with one source-informed engineering explorer and one cold reader.
+Start each mission with one source-informed engineering explorer and one cold user.
 Give them fresh page state and non-overlapping responsibilities. The explorer owns
 reproduction, architectural diagnosis, repair, and focused verification; the cold
-reader owns discoverability and rendered acceptance without seeing the proposed verdict.
+user owns discoverability and rendered acceptance without seeing the proposed verdict.
 
 Use a faster agent for concrete route execution and evidence collection. Reserve an
 Astra or other high-reasoning pass for conflicting evidence, an architectural ownership
@@ -419,7 +419,7 @@ one incident does not justify a new checklist clause.
 ### Test continuity with the systems that already exist
 
 For the next repeated missions, make the Tend summary the run receipt. Record the
-mission, reader relationship, page and conditions, reached and unreached transitions,
+mission, user relationship, page and conditions, reached and unreached transitions,
 candidate dispositions, evidence pointers, repair or issue, agent allocation, and
 aggregate cost. A repair remains durable in its PR and regression test. Use a
 `visual-run` only when aligned rendered evidence is itself part of the decision.

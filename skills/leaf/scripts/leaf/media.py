@@ -1,6 +1,6 @@
 """Content-addressed page media ingestion.
 
-Page authors and readers enter through different trust boundaries. ``page media``
+Page authors and users enter through different trust boundaries. ``page media``
 accepts a local file the author chose; the browser upload door accepts untrusted bytes
 and therefore derives the extension from a small raster MIME vocabulary and verifies
 its file signature before both paths meet at the same content-addressed writer.

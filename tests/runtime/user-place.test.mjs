@@ -1,4 +1,4 @@
-/* The reader's place in a scroller, and the band of it they can see.
+/* The user's place in a scroller, and the band of it they can see.
 
    The folds (which candidate holds the place, how far a correction scrolls, what a cover
    takes off a band) are asked directly. The hold itself is asked once over boxes this
@@ -9,11 +9,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { declareCoverRoom, insetBand, visibleBand } from "/runtime/geometry.js";
-import {
-  placeCandidates,
-  placeCorrection,
-  placeKeeper,
-} from "/runtime/reader-place.js";
+import { placeCandidates, placeCorrection, placeKeeper } from "/runtime/user-place.js";
 
 test("the place goes to the pointer, then focus, then the visible from the lead down", () => {
   const visible = ["a", "b", "c", "d"];
@@ -50,7 +46,7 @@ test("a correction follows reflow and pays for a limit clamp only once", () => {
     placeCorrection({ was: 1000, now: 700, scrollTop: 700, limit: 700, held }),
     -100,
   );
-  // Standing short of the limit is the reader's own scroll, not a clamp.
+  // Standing short of the limit is the user's own scroll, not a clamp.
   assert.equal(
     placeCorrection({ was: 1000, now: 1000, scrollTop: 650, limit: 700, held }),
     0,

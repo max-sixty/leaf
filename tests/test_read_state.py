@@ -1,4 +1,4 @@
-"""Reader acknowledgement across the real append door and page projection."""
+"""User acknowledgement across the real append door and page projection."""
 
 import json
 
@@ -59,8 +59,8 @@ def test_read_acknowledges_only_the_named_content_version_without_agent_work(
     assert _unread(answer["state"], original) == []
 
 
-def test_what_the_reader_does_in_a_thread_acknowledges_what_it_said(page_dir, server):
-    """Replying, resolving and answering a widget each imply the reader took the
+def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, server):
+    """Replying, resolving and answering a widget each imply the user took the
     thread in as it stood; an edit after the move is unread again, and the agent reads
     the same fact in page state."""
     published(page_dir)
@@ -105,7 +105,7 @@ def test_what_the_reader_does_in_a_thread_acknowledges_what_it_said(page_dir, se
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
-    # A move the reader takes back is no evidence either.
+    # A move the user takes back is no evidence either.
     status, answer = _post(server, {"kind": "undo", "undoes": _last_id(page_dir)})
     assert status == 200, answer
     assert _unread(answer["state"], root) == [{"message": later, "version": later}]
@@ -154,7 +154,7 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
             "ts": service_model.now_iso(),
             "released": None,
             "activity": "multiplexed",
-            "id": "one-reader-session",
+            "id": "one-user-session",
             "harness": "claude-code",
             "agent": "Agent",
             "turn": "closed-turn",

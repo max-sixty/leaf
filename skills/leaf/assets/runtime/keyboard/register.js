@@ -60,13 +60,13 @@ const STACK = [
 ];
 
 // Each rung names what the press takes off, innermost first. This is the order among
-// siblings; `rung` reads containment over it, so the surface the reader is standing in
+// siblings; `rung` reads containment over it, so the surface the user is standing in
 // comes off before one they are not.
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
-  "margin options", // the margin entry cluster the reader unfolded
+  "margin options", // the margin entry cluster the user unfolded
   "tray", // the tray that holds the edge
-  "narrowing", // the narrowing the reader put on the thread list
+  "narrowing", // the narrowing the user put on the thread list
   "panel", // the thread panel
   "draw mode", // the drawing surface over the page
   "design mode", // the mode that comments on the layer
@@ -88,7 +88,7 @@ const PAGE_COMMANDS = [
   "scroll.move",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the reader can
+  // them: on a narrow window the sequence hides a second way to somewhere the user can
   // already get to, where a walk it crowded out would be the only one.
   "navigation.go-to.open",
   "draw.mode.enter",
@@ -115,7 +115,7 @@ const place = (where, name) => {
 };
 
 /** Declare a scope that stands wherever its own condition holds, rather than where the
- * reader is standing. `name` is the place `STACK` holds for it; `declaration` carries the
+ * user is standing. `name` is the place `STACK` holds for it; `declaration` carries the
  * same fields an element scope does — `title`, `root`, `when`, `at`, `claims`, `escape`,
  * `rows`. Called as the owner is constructed, so a row may close over its state. */
 export function pageScope(name, declaration) {
@@ -169,7 +169,7 @@ function rung() {
 }
 // The page's own Escape, said and run off that one object: each rung states the act, the
 // word the line paints over it, and the sentence the reference lists. The sentence is the
-// rung's for the reason `c`'s is the destination's — the reader can see which branch they
+// rung's for the reason `c`'s is the destination's — the user can see which branch they
 // are in, so a word covering all of them tells them nothing.
 const BACK_OUT = {
   id: "navigation.back",

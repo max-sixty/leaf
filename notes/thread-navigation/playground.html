@@ -408,8 +408,8 @@
         <h2>One message workflow, distinct page state</h2>
         <p id="current-review">
           Messages, thread rows, and margin entries share one workflow reading. Exact
-          input and response bindings preserve newer unanswered messages; standing
-          reader questions survive later informational updates. Independent jobs and
+          input and response bindings preserve newer unanswered messages; standing user
+          questions survive later informational updates. Independent jobs and
           notification subscriptions remain later work.
         </p>
         <p id="workflow-validation">
@@ -473,15 +473,15 @@
           </p>
           <p>
             Show one compact mark beside the message timestamp. Derive thread groups and
-            margin treatment from the same reading and outstanding reader Asks. A reader
-            Ask takes placement precedence while older agent work stays visible as
-            secondary detail. No obligation means no attention mark, not automatic
-            resolution. A settled input normally loses its active-work mark rather than
-            gaining a permanent Answered badge.
+            margin treatment from the same reading and outstanding user Asks. A user Ask
+            takes placement precedence while older agent work stays visible as secondary
+            detail. No obligation means no attention mark, not automatic resolution. A
+            settled input normally loses its active-work mark rather than gaining a
+            permanent Answered badge.
           </p>
           <p>
             A host failure remains visibly Not answered in the transcript. It asks for a
-            resend only until the reader sends again. Stale work loses its active
+            resend only until the user sends again. Stale work loses its active
             treatment, and a fresh response replaces the earlier uncertainty.
           </p>
         </section>
@@ -512,7 +512,7 @@
         <section id="notification-bus-proposal">
           <h3>Defer a typed notification bus</h3>
           <p>
-            Later, workflow changes, new reader Asks, page availability changes, and
+            Later, workflow changes, new user Asks, page availability changes, and
             request outcomes can produce typed events. Notices, accessibility
             announcements, badges, and other consumers can subscribe and decide what to
             show. First check the existing subscription machinery; the bus should report
@@ -666,16 +666,16 @@
           </p>
           <p>
             Sending and Sent share the metadata row so confirmation does not shift the
-            conversation. The local review also checks that collapsed titles retain
-            reader obligations and ongoing agent work. The richer activity ontology
-            remains separate work.
+            conversation. The local review also checks that collapsed titles retain user
+            obligations and ongoing agent work. The richer activity ontology remains
+            separate work.
           </p>
         </section>
         <section id="status-comparison">
           <h2>Keep the next turn visible</h2>
           <p>
-            Collapsed titles show On you when the reader owes the next turn. Ongoing
-            agent work stays visible even when a newer message is queued. Full delivery
+            Collapsed titles show On you when the user owes the next turn. Ongoing agent
+            work stays visible even when a newer message is queued. Full delivery
             details remain with their message.
           </p>
           <lf-shot

@@ -119,11 +119,11 @@ def test_a_refused_message_cannot_present_before_its_conversation_reconciles(
     expect(page.locator(".lf-thread")).to_have_count(0)
 
 
-def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
-    """The gesture with no reverse in front of the reader: a resolved thread folds
+def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
+    """The gesture with no reverse in front of the user: a resolved thread folds
     into the disclosure at the foot of the list, so putting it back by hand means
     opening that, finding it, and pressing Reopen. What `z` writes is a withdrawal
-    naming the resolve — not a second settlement, which would read as the reader
+    naming the resolve — not a second settlement, which would read as the user
     deciding to reopen a thread they had only meant not to close."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
@@ -134,7 +134,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
         if e["kind"] == "comment"
     ]
     comment = comments[0]
-    # The reader has done nothing, so there is nothing to take back — a thread the
+    # The user has done nothing, so there is nothing to take back — a thread the
     # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
     events_model.append_event(
         serve.page_dir,
@@ -215,7 +215,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     a card back on the right list in the wrong place.
 
     The card is told where it goes rather than the board being rebuilt around it,
-    because that state can be stated: the reader watches it travel back, and the
+    because that state can be stated: the user watches it travel back, and the
     grip they were standing on is still under their hands."""
     page = open_page(browser, live_url(serve(BOARD_PAGE)))
     grip = page.locator("#card-baffle .lf-grip")
@@ -283,7 +283,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
 
 
 def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
-    """The walk finds the last thing the reader did by reading the log, so while the
+    """The walk finds the last thing the user did by reading the log, so while the
     page holds a gesture the log has not taken it would name the gesture *before*
     that one — and take the wrong thing back, with the card they had just moved
     left where it was. A machine quick enough closes that window before the next
@@ -321,7 +321,7 @@ def test_z_waits_for_the_gesture_the_log_has_not_taken(browser, serve):
     held[0].continue_()
     round_trip(page)
     undo(page)
-    # The newest move, which is the one the reader would have meant — and the older
+    # The newest move, which is the one the user would have meant — and the older
     # one still stands, where taking back the wrong gesture would have reversed it.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
@@ -1417,10 +1417,10 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
 
 
 def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, serve):
-    """`503` is a wait the reader is told about, not an answer the page could not read.
+    """`503` is a wait the user is told about, not an answer the page could not read.
 
     leaf.page's edge refuses every event with `503` and a plain-text body for the
-    minutes a container image takes to reach a reader's allocation, and the outbox has
+    minutes a container image takes to reach a user's allocation, and the outbox has
     always retried through it. What it said meanwhile came from the JSON decode that
     body fails, which reports the page failing to read an answer the server never sent.
     """
@@ -1551,7 +1551,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
 def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     """The outbox retries an accepted gesture whose response was lost before it
-    sends the next gesture. Both arrive once, in the order the reader made them."""
+    sends the next gesture. Both arrive once, in the order the user made them."""
     page = open_page(browser, serve(BOARD_PAGE))
     requests = []
     accepted = []
@@ -1709,7 +1709,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     it — the edit here, whose authored text comes back with its paragraphs, where
     the facet a comparison reads is collapsed. That is what withdrawing buys over
     stating a counter-gesture: a second press would otherwise land on a statement
-    the first press had just made and put the reader back where they started."""
+    the first press had just made and put the user back where they started."""
     page = open_page(browser, serve(UNDO_PAGE))
     body = page.locator("lf-draft .lf-draft-body")
     authored = body.inner_text()
@@ -1733,7 +1733,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     expect(body).to_have_text(authored)
     assert body.inner_text() == authored
     # Two gestures and two words taking them back, newest first: nothing in the log
-    # claims the reader chose opt-b or typed the authored draft, because they did
+    # claims the user chose opt-b or typed the authored draft, because they did
     # neither — the page derived both from what still stands.
     log = events_model.read_events(serve.page_dir)
     edit, choose = actions(serve.page_dir)
@@ -1789,7 +1789,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
     # the control offers the decision rather than recording it, and the banner
-    # counts the question among the ones still waiting on the reader.
+    # counts the question among the ones still waiting on the user.
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
@@ -1843,7 +1843,7 @@ def test_undo_preserves_the_place_and_restores_passage_marks(browser, serve):
 def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     """The replacement keeps the press's place immediately, not after delivery.
 
-    Once the reader moves elsewhere, the eventual admission cannot pull them back to the
+    Once the user moves elsewhere, the eventual admission cannot pull them back to the
     Undo control that replaced the decision they pressed.
     """
     browser, held = held_events
@@ -1860,8 +1860,8 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     expect(elsewhere).to_be_focused()
 
 
-def test_undo_leaves_a_reader_standing_elsewhere_where_they_are(browser, serve):
-    """Undo from elsewhere changes the decision without moving the reader's focus."""
+def test_undo_leaves_a_user_standing_elsewhere_where_they_are(browser, serve):
+    """Undo from elsewhere changes the decision without moving the user's focus."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     suggestion_control(page, "sug-refill", "accept").click()
     round_trip(page)
@@ -1876,10 +1876,10 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     """The withdrawal pass has to keep the discipline the replay loop keeps, because
     it is replay: a widget the page has painted ahead of the log gets the next poll
     rather than being written over. `lf-draft` says so outright — its renderState
-    returns false while an editor stands, so the reader's unsent words are not yanked
+    returns false while an editor stands, so the user's unsent words are not yanked
     out from under them — and a pass that drops that answer and marks the withdrawal
     answered leaves the tab holding the withdrawn text for the rest of its life, with
-    the reader-origin reading cleared because the fold agrees the edit is gone. A reload
+    the user-origin reading cleared because the fold agrees the edit is gone. A reload
     would show the authored words; this tab never would again."""
     url = serve(UNDO_PAGE)
     one = open_page(browser, url)
@@ -1987,7 +1987,7 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
 def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     """Which version a gesture was made against decides whether `z` is *offered*, and
     says nothing about whether an undo must be *heard*. A tab holding an older version
-    can still gesture — `?pin` is a URL a reader keeps, and a tab mid-composition holds
+    can still gesture — `?pin` is a URL a user keeps, and a tab mid-composition holds
     its version too — so its undo reaches a tab that has moved on, and that tab applied
     the action being withdrawn (replay takes every action up to the version it reads).
 
@@ -2022,7 +2022,7 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
-    """A second tab receives the withdrawal from the log, restores the pending suggestion, and lets the reader decide again."""
+    """A second tab receives the withdrawal from the log, restores the pending suggestion, and lets the user decide again."""
     url = serve(SUGGESTION_PAGE)
     one = open_page(browser, url)
     two = open_page(browser, url)
@@ -2046,7 +2046,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     assert one.evaluate(marks, "sug-refill") == pending
     assert (
         one.evaluate(
-            "() => document.querySelectorAll('[data-lf-reader-override]').length"
+            "() => document.querySelectorAll('[data-lf-user-override]').length"
         )
         == 0
     )
@@ -2064,7 +2064,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
 
 def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve):
-    """Undoing an outer suggestion preserves the nested widget, its selected option, and the reader's independent decision."""
+    """Undoing an outer suggestion preserves the nested widget, its selected option, and the user's independent decision."""
     page = open_page(browser, serve(NESTED_SUGGESTION))
     original = page.locator("#sug-thistle lf-options").element_handle()
     page.locator("#blend-mixed").click()
@@ -2114,7 +2114,7 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
     url = serve(SETTLED_PAGE.replace("</main>", filler + "\n</main>"))
     page = open_page(browser, url)
 
-    page.locator(".lf-settled").click()  # open the settled group, as a reader would
+    page.locator(".lf-settled").click()  # open the settled group, as a user would
     page.wait_for_selector("#opt-strict:visible")
     # A card in the middle column, scrolled just under the banner: narrower than the 320px
     # box and centred on it, which is the geometry the box can swallow whole.
@@ -2147,7 +2147,7 @@ def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
     """Floating UI's scroll observer keeps the field attached to its passage, and the
     viewport holds the field in only while the passage is there: once the passage has
     scrolled away the field goes with it, rather than staying pinned under the banner over
-    whatever the reader scrolled to."""
+    whatever the user scrolled to."""
     page = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2226,7 +2226,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
 ):
     """Opening the thread panel stands the compact field down, so its old absolute
     position cannot create sideways overflow after the page narrows. The words remain
-    the passage's draft and return when the reader selects that passage again."""
+    the passage's draft and return when the user selects that passage again."""
     page = open_page(browser, serve(LONG_PAGE))
     # Start with enough room for the field beside the passage; opening the panel then
     # changes the body's available right edge around that standing float.
@@ -2291,14 +2291,14 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
 
     # Through the page's own readiness rather than the paragraph's arrival in markup:
     # the restore of a standing draft is part of presenting the page, and a gesture made
-    # before that is a gesture the reader could not have made.
+    # before that is a gesture the user could not have made.
     navigate(page, url)
     page.locator("#p").click(click_count=3)
     expect(page.locator("#lf-composer-quote")).to_have_text(f"“{passage}”")
     expect(page.locator(".lf-fab-input")).to_have_value(
         "half-written when the version turned over"
     )
-    # The words come back; the reader's keyboard does not go with them.
+    # The words come back; the user's keyboard does not go with them.
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     quote = composer_quote(page)
     assert quote["text"] == f"“{passage}”", f"the quote says {quote['text']!r}"
@@ -2309,7 +2309,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     drag is a whole gesture rather than a frame: the focus paint lands on the
     mousedown, `fallbackTolerance` fires the drag's start after it, and on a quiet
     board nothing repaints between the pick-up and the drop. So unpainted, the line
-    goes on offering `undo` for as long as the reader holds the card, over a press the
+    goes on offering `undo` for as long as the user holds the card, over a press the
     dispatcher is already refusing. The drop is the same gap read backwards: a card
     put down where it was picked up takes the class off and returns before #send, so
     there is no send downstream to paint in its place."""
@@ -2369,7 +2369,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
 def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
     browser, serve
 ):
-    """A preparation await does not freeze the set of unresolved reader gestures."""
+    """A preparation await does not freeze the set of unresolved user gestures."""
     url = _serve_preparing_thread(serve)
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()

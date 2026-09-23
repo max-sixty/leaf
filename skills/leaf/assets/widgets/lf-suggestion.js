@@ -1,4 +1,4 @@
-/* lf-suggestion: an edit to content the reader has already seen, offered as a
+/* lf-suggestion: an edit to content the user has already seen, offered as a
  * proposal rather than shipped as a fait accompli. Accept or Reject rides the action
  * channel; the next version eventually carries the settled markup.
  *
@@ -44,7 +44,7 @@ const FACE = {
 };
 
 // ---------- word-level emphasis ----------
-// A block replacement asked the reader to eyeball-diff two paragraphs for the words
+// A block replacement asked the user to eyeball-diff two paragraphs for the words
 // that moved. The slots' whole tints stay — they are what a dead copy keeps — and on
 // the live page the words that differ deepen, painted through the highlight registry
 // so no node is wrapped (Paint; don't wrap) and cleared when the suggestion settles.
@@ -84,7 +84,7 @@ function movedWords(before, after) {
 function repaintEmphasis() {
   for (const [kind, name] of Object.entries(EMPHASIS)) {
     const ranges = [...emphasized.values()].flatMap((e) => e[kind]);
-    // Under the comment marks (priority -1): a passage the reader pointed at
+    // Under the comment marks (priority -1): a passage the user pointed at
     // outranks the widget's own emphasis wherever the two overlap.
     CSS.highlights.set(name, Object.assign(new Highlight(...ranges), { priority: -1 }));
   }
@@ -170,7 +170,7 @@ customElements.define(
           // Signals publish before the projection adapter. Keep the currently focused
           // entry until that adapter applies the new state: the next complete reading can
           // hand focus directly to its semantic replacement instead of losing the
-          // reader's place when this subscriber removes it first.
+          // user's place when this subscriber removes it first.
           return;
         }
         this.#refreshMargin();
@@ -390,7 +390,7 @@ customElements.define(
     // A press makes the reversible decision locally and the outbox carries that exact
     // projection until the log accounts for it. A definitive refusal removes the local
     // winner and reconciles the authored state before this continuation paints the repair
-    // controls, so the reader returns to a pending suggestion with Failed, Retry, Cancel.
+    // controls, so the user returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome, focus = null) {
       if (this.#controller.read().state.settlement.value) return Promise.resolve(true);
       if (!this.#controller.read().actions[outcome]?.available)
@@ -409,7 +409,7 @@ customElements.define(
       const comment = this.getAttribute("resolves");
       const detail = outcome === "accept" && comment ? { resolves: comment } : {};
       this.#failed = null;
-      // This decision replaces words the reader may still have selected. Clear that
+      // This decision replaces words the user may still have selected. Clear that
       // page range before moving its nodes, independent of whether activation came from
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
@@ -428,7 +428,7 @@ customElements.define(
         this.#deciding = null;
         this.removeAttribute("aria-busy");
         if (!accepted) {
-          // A definitive refusal is a state the reader can act from. Keep it at the
+          // A definitive refusal is a state the user can act from. Keep it at the
           // target as Failed, Retry, Cancel; there is no detail disclosure because the
           // transport returned no useful detail beyond the notice it already showed.
           this.#failed = { outcome, label };
@@ -558,7 +558,7 @@ customElements.define(
 
     // The retired slot's room, given back as motion rather than taken in a frame. Only
     // where there is room worth following: a slot holding block content is the case that
-    // moves the page, and an inline one swaps a few words inside a line the reader is
+    // moves the page, and an inline one swaps a few words inside a line the user is
     // looking at.
     //
     // Measured before the decision and played after it, so the state the rest of the
@@ -601,14 +601,14 @@ customElements.define(
         };
         // A fold interrupted — the element taken out from under it — rejects
         // `finished`. Caught, so it is not an unhandled rejection, and the hand-back
-        // runs either way. A reader who asked for less motion gets no animation at
+        // runs either way. A user who asked for less motion gets no animation at
         // all (motion returns null), so the hand-back runs at once and the collapse
         // is the frame the decision lands in.
         played ? played.finished.then(done, done) : done();
       };
     }
 
-    // Which slot is which, for a reader listening. A struck red run and a green one
+    // Which slot is which, for a user listening. A struck red run and a green one
     // are the whole of what says "these words are going" and "these are the proposal",
     // and none of it is text: a screen reader reads the sentence twice, the two
     // readings contradicting each other, with nothing to say that either is a change.
@@ -624,7 +624,7 @@ customElements.define(
     //
     // "proposed", because the word is only ever on a slot nobody has decided and has to
     // say so itself. Pendingness was encoded as the word's presence, which is the one
-    // thing no reader can perceive — there is no settled slot alongside to compare it
+    // thing no user can perceive — there is no settled slot alongside to compare it
     // against — and `deletion` is ARIA's name for the act already carried out, so a
     // listener heard a change announced as made while the page was still asking. The
     // theme shows this word wherever the ✓/✗ row is not there to say the same thing.

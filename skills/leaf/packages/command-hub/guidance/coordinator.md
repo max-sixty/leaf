@@ -23,7 +23,7 @@ completed rows as history, save unreachable nonterminal rows as `idle` without
 `on`, assign the remaining work to a fresh task, and retain its new handle.
 
 A worker's report is provisional page state that a later revision absorbs or
-overrules (`authoring-revisions.md`, "Honor reader state"); the page must not end
+overrules (`authoring-revisions.md`, "Honor user state"); the page must not end
 with report debt.
 
 Route an anchored comment only while the assigned row or task is nonterminal and

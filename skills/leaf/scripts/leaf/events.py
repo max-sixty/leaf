@@ -33,7 +33,7 @@ def bare_reaction(thread: dict) -> bool:
 
 
 class UndoReading:
-    """Indexed eligibility for the reader's one-step withdrawals.
+    """Indexed eligibility for the user's one-step withdrawals.
 
     The browser exposes every standing gesture in one reading, so checking each
     candidate by folding the event log again turns a linear state read into a
@@ -100,7 +100,7 @@ class UndoReading:
         if target is None:
             return f"unknown undoes {target_id!r}"
         if target["author"] != "user":
-            return f"{target['kind']} {target['id']} is not the reader's own gesture"
+            return f"{target['kind']} {target['id']} is not the user's own gesture"
         if target["id"] in self.withdrawn:
             return f"{target['id']} has already been taken back"
         if target["kind"] in MESSAGE_KINDS:
@@ -136,11 +136,11 @@ def undo_error(
     Two tabs racing to take back the same event are the one case this refuses
     that nothing is wrong with: the second is a no-op, and refusing it costs a
     notice where accepting it would leave two withdrawals of one gesture in a log
-    whose every other line is something the reader did.
+    whose every other line is something the user did.
 
-    A reaction is the one message a reader takes back rather than answers,
+    A reaction is the one message a user takes back rather than answers,
     and only while it still paints: once a turn answers it the withdrawal
-    would orphan those words, and the reader's move is in the thread that
+    would orphan those words, and the user's move is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the same
     (conversation.js `reactionStanding`).
@@ -179,7 +179,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     thread_for = {}
     messages = {}
     for e in events:
-        # A gesture the reader took back settles nothing, whichever way it settled:
+        # A gesture the user took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
         if e["id"] in withdrawn:
             continue
@@ -220,7 +220,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             # answers it by its own surviving id; the lost one names no message and
             # `leaf reply` says so.
             # `read_events` skips a torn line and keeps reading, and `thread_roots`
-            # resolves such a reply to the lost id for the same reason: a reader who
+            # resolves such a reply to the lost id for the same reason: a user who
             # can see the reply is owed the rest of the page around it. Raising here
             # instead cost the whole page — `page state` exited on the KeyError, and
             # the browser's own walk, which mirrors this one, threw where it builds
@@ -360,21 +360,21 @@ def awaits_agent(thread: dict) -> bool:
 
     The newest non-agent turn waits until an agent reply explicitly records that exact
     event in ``responds``. Mere log order is not settlement: an agent answering an older
-    frozen-widget move after newer reader input must leave that newer input with the
-    agent. This reading deliberately says nothing about whether the reader owes a word:
+    frozen-widget move after newer user input must leave that newer input with the
+    agent. This reading deliberately says nothing about whether the user owes a word:
     an ordinary agent reply may leave the open thread awaiting nobody, while an agent
-    comment, an explicit prose question, or a structured widget Ask awaits the reader.
+    comment, an explicit prose question, or a structured widget Ask awaits the user.
     The runtime's `awaitsAgent` is the same server projection, and it has to be: the
-    panel telling the reader a seated thread is with the agent while the banner counts
+    panel telling the user a seated thread is with the agent while the banner counts
     the same question as theirs is one fact told two ways.
 
-    Not the agent, rather than the reader: `author` is an open string on every message
+    Not the agent, rather than the user: `author` is an open string on every message
     contract, and the two the code writes are `user` and `agent`. A line from anywhere
     else therefore reads as owed an answer, which is the direction to err in — an
     unanswered word is invisible to everyone, while one answer too many costs a reply.
 
     Turns, not marks: a reaction is a mark on a message rather than a word in the
-    conversation, so an `ok` the reader puts on the agent's answer does not hand the
+    conversation, so an `ok` the user puts on the agent's answer does not hand the
     thread back, and a reaction nobody has replied to is no conversation at all. The
     runtime's `awaitsAgent` reads the same list for the same reason."""
     return bool(not thread["resolved"] and unanswered_agent_turn(thread))
@@ -386,7 +386,7 @@ def seat_root(thread: dict) -> str | None:
     An element anchor naming that widget and carrying nothing else, which is the
     runtime's `seatRoot` and the anchor `renderConversations` collects into the seat's
     own view. Narrower than `anchored_ids`, deliberately: a quote anchor points into
-    the widget's words rather than standing in the box it offers, and the reader can
+    the widget's words rather than standing in the box it offers, and the user can
     see the difference — one is a note on a phrase, the other is the cell.
 
     A reply whose root the log lost is its own root, so the thread seats where the
@@ -401,7 +401,7 @@ def seat_root(thread: dict) -> str | None:
 def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a conversation now waiting on the agent.
 
-    A request whose own conversation is with the agent is not one the reader has to
+    A request whose own conversation is with the agent is not one the user has to
     deal with, so an Ask projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
     whether a request is answered passes an empty set instead. The runtime builds the
@@ -409,7 +409,7 @@ def seats_with_agent(threads: dict) -> set[str]:
     cannot disagree about whose turn it is.
 
     Whose thread it is does not enter into it: the agent may open one in the seat too,
-    and once the reader has answered there the question is with the agent either way.
+    and once the user has answered there the question is with the agent either way.
 
     Takes the built fold rather than the log, because every caller already holds one:
     `build_threads` walks the whole log and tests each action against the retraction

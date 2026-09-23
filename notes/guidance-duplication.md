@@ -43,7 +43,7 @@ reference states. Replacing short copies with pointers removes most of the drift
 
 ## Consistent now, by number of copies
 
-- **`restated` retracts a reader decision, with the reason in the version note**
+- **`restated` retracts a user decision, with the reason in the version note**
   (14 copies). They are in `authoring-revisions.md`, `$restated` and several
   `assets`, `default` and `swipe` registry entries, swipe's author guidance,
   `docs/how-it-works.html` and `AGENTS.md`. Home: `$restated`.

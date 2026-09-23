@@ -101,10 +101,10 @@ def delivery_identity(
     """State which revision a delivered document is, and what it is made of.
 
     A later revision reaches an open document as a state reading, and two questions
-    decide what the reader gets. The executable digest says whether this document can
+    decide what the user gets. The executable digest says whether this document can
     take that revision on at all: a running document evaluates a module graph once and
     defines an element once, so new bytes behind either need a fresh one. The widget
-    digests then say which widgets the reader keeps, one per declared widget — by id,
+    digests then say which widgets the user keeps, one per declared widget — by id,
     or by tag and place among the unnamed of that tag — over the markup its author
     wrote. Both travel in the head, where a document knows its own
     answer without asking, and where the revision document a patch already fetches
@@ -160,7 +160,7 @@ def delivery_sheets(
     URLs for that delivery.
 
     The sheets go out as they are written, comments included. They used to be stripped
-    here, which is the one thing that made the text a reader receives differ from the
+    here, which is the one thing that made the text a user receives differ from the
     file a maintainer reads, and a page has no build step to make that difference
     anywhere else. The comments are most of the weight: 62KB of sheet becomes 134KB,
     or 11KB against 39KB over the wire, at the head of every delivered document.

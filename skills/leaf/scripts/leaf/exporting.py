@@ -304,7 +304,7 @@ def _bind_authored_modules(html: str, module_urls: dict[str, str], nonce: str) -
     """Address captured authored modules from a self-contained file.
 
     Each one is also marked with the file's script nonce, which is what separates the
-    blocks this export composed from markup a later reader's inputs write into it.
+    blocks this export composed from markup a later user's inputs write into it.
     """
     root = turbohtml.parse(html, source_locations=True)
     edits = []

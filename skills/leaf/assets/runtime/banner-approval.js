@@ -1,6 +1,6 @@
 /* The Lit-rendered face inside the banner shelf's stable native approval button. The
  * shelf owns the button's identity and position; this owner paints one complete approval
- * reading without replacing the control a reader may be holding. */
+ * reading without replacing the control a user may be holding. */
 import { LitElement, html } from "../vendor/browser-runtime.js";
 
 const TAG = "leaf-banner-approval-face";

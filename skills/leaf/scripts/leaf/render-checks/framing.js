@@ -5,7 +5,7 @@ import { openRoots } from "./open-roots.js";
 // collapses through its parent and is spent between blocks; where the parent draws
 // something at that edge, or holds a formatting context of its own, it cannot get out and
 // is painted as the parent's inset instead. So the number a stylesheet states is not the
-// number a reader sees, and which of the two they get depends on what the author wrote
+// number a user sees, and which of the two they get depends on what the author wrote
 // inside: a card ending in a sentence showed its 16px, the same card ending in a paragraph
 // showed 29. theme.css states the trim and a box opts in where it draws the frame
 // (`--lf-block-frame`); this is what says when one hasn't.

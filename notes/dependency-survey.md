@@ -25,7 +25,7 @@ The standing architectural choices are:
 - Agents author semantic HTML and registered Leaf elements.
 - Comments match rendered text exactly or detach.
 - A page directory remains the durable record and deployment unit.
-- Live revisions preserve reader focus, selection, drafts, disclosures, and position.
+- Live revisions preserve user focus, selection, drafts, disclosures, and position.
 - Leaf accompanies the user's existing Codex task through App Server.
 - Package declarations remain the shared JSON Schema vocabulary read by Python,
   JavaScript, package authors, and generated documentation.

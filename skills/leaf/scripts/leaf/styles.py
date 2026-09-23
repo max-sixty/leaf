@@ -348,7 +348,7 @@ def inline_presentation_override_errors(parser: SourceDocument) -> list:
 
 
 # ---------- page CSS that fights the layout ----------
-# Leaf keeps the reader's place in the regions it knows: the page, a pane, a bounded
+# Leaf keeps the user's place in the regions it knows: the page, a pane, a bounded
 # block. Page CSS stays free inside a block, so these are advice rather than errors: a
 # box the page makes scroll vertically keeps no reading position across a revision or a
 # reflow, and a layout element the page places itself is geometry the layout no longer

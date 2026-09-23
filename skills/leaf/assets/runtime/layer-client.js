@@ -41,7 +41,7 @@ if (documentLayer && documentLayer !== layerGeneration) {
 // by whoever answered last. An answer naming another generation may come from a party a
 // reload will never reach — a website container still starting the release the edge has
 // already moved past — and reloading at each such answer lands on the same document and
-// is told again, so the reader spends the rollout watching the page restart. The probe
+// is told again, so the user spends the rollout watching the page restart. The probe
 // is the document source's own reading, as it is for startup recovery: the page's
 // release-scoped assets are gone once the edge has moved on, and the registry still
 // names this document's layer while it has not.
@@ -127,7 +127,7 @@ export function layerHeaders(headers = {}) {
 
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
-  // Say what is about to happen before it happens. The reader is looking at a page
+  // Say what is about to happen before it happens. The user is looking at a page
   // that re-vendoring has moved out from under, and a tab that reloads itself with
   // nothing said is a page that appears to have lost their place for no reason.
   reloadDelivery("Leaf has been updated — reloading this page.");
@@ -184,7 +184,7 @@ export let revealLayer;
 const layerReady = new Promise((resolve) => (revealLayer = resolve));
 
 // The page's one door to the log, spelled once. Two callers reach it — `post`, which
-// orders the reader's own gestures through it, and the error report below, which
+// orders the user's own gestures through it, and the error report below, which
 // deliberately doesn't — and what they share is the request rather than anything about
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
@@ -248,16 +248,16 @@ export const uploadMedia = async (file) => {
 
 // The page reporting itself broken, to the party who can fix it: the agent
 // authored the page and its widgets, and before this the only route for a
-// live-session fault was the reader pasting a console nobody told them to
+// live-session fault was the user pasting a console nobody told them to
 // open. The event lands in the log as kind "error", author "page" — the
-// watcher hears it beside comments and reports; the reader's pending count
+// watcher hears it beside comments and reports; the user's pending count
 // never claims it. Deduped per message per load (a reload may repeat one —
 // bounded noise over silence), capped so a fault in a loop cannot flood the
 // log, and sent bare rather than through post(): a poll fault reporting
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the reader is looking.
+// failSoft, which puts the message where the user is looking.
 const reportedErrors = new Set();
 export function reportPageError(text) {
   console.error(`leaf: ${text}`);
@@ -274,7 +274,7 @@ export function reportPageError(text) {
 window.addEventListener("error", (e) => {
   // Chrome also puts ResizeObserver loop notices on window.error without an
   // exception. This one live page cannot tell an occasional scheduling notice
-  // from a layout feedback loop, so it persists neither in the reader's log. The
+  // from a layout feedback loop, so it persists neither in the user's log. The
   // render gate and test navigation take one complete confirming reading and
   // report a notice that recurs there.
   if (e.message?.startsWith("ResizeObserver loop")) return;

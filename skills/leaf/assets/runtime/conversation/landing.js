@@ -1,10 +1,10 @@
-/* Landing the reader in a conversation: which node a reveal shows, and where focus
+/* Landing the user in a conversation: which node a reveal shows, and where focus
    goes.
 
    `showThread` reveals a directly requested thread or message. It clears a narrowing
    that hides the destination and finishes an outgoing resolution fold before choosing
    its lifecycle state. A thread reached in the complete panel opens in its reply box;
-   the compact margin view opens on its card and reveals that box only when the reader
+   the compact margin view opens on its card and reveals that box only when the user
    asks to reply. A resolved thread opens on its card. A message takes focus at its own
    words so Tab reaches its controls. A
    thread too tall for its scrollport starts at the earliest complete content block
@@ -20,7 +20,7 @@
    `backFromBox` and `standingConversation` climb the same conversation relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
-   out is the conversation it belongs to whichever of them put the reader in it, and the
+   out is the conversation it belongs to whichever of them put the user in it, and the
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
    supplies the caller-owned return target through `landInConversation`. */
@@ -33,7 +33,7 @@ import { panel, threadsBox } from "./panel-elements.js";
 import { reachedForWords, reveal } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
-import { retainReaderIntent } from "../reader-intent.js";
+import { retainUserIntent } from "../user-intent.js";
 import { focusDestination, readCaret } from "../focus.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
@@ -120,15 +120,15 @@ export const standingConversation = () => {
 };
 export const backFromConversation = (box) => conversationReturns.get(box) ?? null;
 
-// Where a box hands the reader back, however they reached it. This once asked only for
+// Where a box hands the user back, however they reached it. This once asked only for
 // `.lf-thread` and the panel, so the two boxes outside the chrome — a conversation seated
 // on the page, and each thread on that seat — had no relation to return through. The climb
 // is `heldConversation`'s, the same relation contextual `c` uses when it names a thread.
 //
 // A seat holding no thread yet has no standing place of its own. A widget control that
-// explicitly sends the reader into that box can supply its own return through
+// explicitly sends the user into that box can supply its own return through
 // `landInConversation`; a visit reached by Tab still falls through to the page's "let go".
-// Otherwise the question is "can the reader be put here", rather than a list of which two
+// Otherwise the question is "can the user be put here", rather than a list of which two
 // containers happen to be focusable — which is also why a seat that `reachScrollers` makes
 // focusable, having grown a scrollbar and no focusable child, becomes a rung without anyone
 // editing this: the question is the same one, and the answer moved.
@@ -139,10 +139,10 @@ function backFromBox() {
   const route = backFromConversation(focused());
   return route?.target?.isConnected ? route : null;
 }
-// Whether the box the reader is typing in has somewhere to hand them back: the
+// Whether the box the user is typing in has somewhere to hand them back: the
 // conversation it belongs to, or the panel's list where it is the chrome's own box. The
 // page's standing scope asks the same question, since a box with nowhere to go back to
-// is a control the reader is standing on, theirs to let go of.
+// is a control the user is standing on, theirs to let go of.
 export const boxHandsBack = () =>
   Boolean(backFromBox()) || panel.contains(documentFocused());
 
@@ -152,7 +152,7 @@ export const boxHandsBack = () =>
 // the thread a reply belongs to, so Esc then Enter round-trips, or to the list, so t/T walk
 // on from where the backing-out started. Drafts are kept at every rung.
 //
-// A control the reader is standing on rather than writing in keeps that rung without this
+// A control the user is standing on rather than writing in keeps that rung without this
 // scope carrying a second branch for it: the scope claims the keys a box takes and leaves
 // every other press — c, the walks, the versions, the reference — to the scopes behind it.
 pageScope("text entry", {
@@ -182,12 +182,12 @@ pageScope("text entry", {
   ],
 });
 
-// A thread's own keys, live wherever the reader stands in one: the card, the message a
+// A thread's own keys, live wherever the user stands in one: the card, the message a
 // click on its words focuses, the quote, a link in a reply. `r` settles the thread from any
 // of them, since a control, a widget, or a text box that owns a letter is walked first.
 // Enter replies or reopens only from the card, where no control inside has an Enter of its
 // own to lose. The reopen button tells the two states apart; absent a thread, the reference
-// describes the open state readers first meet.
+// describes the open state users first meet.
 const heldThread = () =>
   documentFocused()?.closest(".lf-thread, .lf-conversation-thread") ?? null;
 const resolutionControl = (thread) =>
@@ -220,15 +220,15 @@ function prepareLanding({ held = null, box, route = null }) {
 }
 
 const retainLanding = (source, available, fallback = null) => {
-  return retainReaderIntent({ source, available, fallback });
+  return retainUserIntent({ source, available, fallback });
 };
 
 export const retainPanelLanding = (source, panelIsOpen) =>
   retainLanding(source, panelIsOpen, threadsBox);
 
-// A candidate can remove the reader's direct conversation box before a later renderer
+// A candidate can remove the user's direct conversation box before a later renderer
 // refuses that state. Restore the same logical conversation and caret after its prior
-// view is reconciled, unless a newer reader gesture has taken over.
+// view is reconciled, unless a newer user gesture has taken over.
 export function retainConversationFocus(panelIsOpen) {
   const input = focused();
   const held = input && closestAcross(input, SAYS_IN);
@@ -273,7 +273,7 @@ export function retainConversationFocus(panelIsOpen) {
 // under its heading, which hides its top border and leaves the current card's quiet
 // edge-and-surface cue incomplete.
 // The routes that resolve a thread rather than press one — a page mark's comment note,
-// the thread a resolve or a reopen hands the reader on to — landed only by chance of
+// the thread a resolve or a reopen hands the user on to — landed only by chance of
 // having remembered the line.
 //
 // Focus is the one fact all of them share, so the landing hangs off that and each of
@@ -281,20 +281,20 @@ export function retainConversationFocus(panelIsOpen) {
 // something focus cannot: `stepThread` for the press at either end of the walk, which
 // moves no focus at all; `showThread` for a deliberate arrival, which runs after
 // the focus it follows and wins; `placeThreadEdge` for an explicit edge placement;
-// and `landIn`, which puts the reader in a thread's box and lands the thread around it,
+// and `landIn`, which puts the user in a thread's box and lands the thread around it,
 // the same correction this makes and the reason a reply box reached by key was never
 // the case that was wrong.
 //
 // The thread holding the focus, not the card alone: the current-card paint belongs to
 // the thread and follows `:focus-within`, so the same edge must clear the band whether
-// the reader is standing on the card or writing in its box. `block: "nearest"` moves
+// the user is standing on the card or writing in its box. `block: "nearest"` moves
 // the least that clears the band, so a control at the card's foot comes with it rather
 // than going under.
 //
-// A press is the reader's hand, and it may be the start of a drag across the comment's
+// A press is the user's hand, and it may be the start of a drag across the comment's
 // own words. Focus lands on the way down, so scrolling there takes the words out from
 // under the pointer and the selection runs on past where they stopped — measured at
-// three times the run the reader drew. A press therefore holds its landing until the
+// three times the run the user drew. A press therefore holds its landing until the
 // hand comes up, and gives it up altogether where the press was a drag for the
 // thread's own words: the question `offer` already asks of a click, read the same way,
 // since the selection's focus end is the character the button came up on.
@@ -304,9 +304,9 @@ export function retainConversationFocus(panelIsOpen) {
 // the order holds without a word between them: the landing is a correction under the
 // gesture, and whatever the gesture then asks for is later and wins.
 //
-// What the press lands is where it left the reader, which is not the same question as
-// which thread the focus moved to. A press on the thread the reader is already in
-// moves no focus and so was heard as nothing at all — and that is the reader's own
+// What the press lands is where it left the user, which is not the same question as
+// which thread the focus moved to. A press on the thread the user is already in
+// moves no focus and so was heard as nothing at all — and that is the user's own
 // gesture: they are standing in a comment, the list carries a little, and they press
 // the card to bring it back. Asking the completed gesture instead of the focus event
 // costs a variable rather than buying one, and the walk's own end-of-clamp press is
@@ -333,7 +333,7 @@ const finishPress = (event, shouldLand) => {
     // list, whose hold writes `scrollTop` a frame after (thread-list.js). A write lands
     // on a smooth scroll as a cancellation rather than a supersession, so an animated
     // correction is not superseded by what the gesture asks for next — it is dropped,
-    // and the reader keeps neither the landing nor the place. Arriving before the click
+    // and the user keeps neither the landing nor the place. Arriving before the click
     // is also what lets that hold take its reference from the landed geometry rather
     // than from the band this was still leaving. The `focusin` landing below has no
     // such successor and keeps the shared behavior.
@@ -371,7 +371,7 @@ const listNode = (id, preferMessage = false) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls.
 async function showThreadNow(id, focus, revealThread) {
-  const mayArrive = retainReaderIntent({
+  const mayArrive = retainUserIntent({
     source: focused(),
     available: () => threadsBox.isConnected,
     fallback: threadsBox,

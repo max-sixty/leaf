@@ -1,4 +1,4 @@
-/* The page's evidence that the reader has seen exact agent content.
+/* The page's evidence that the user has seen exact agent content.
 
    Whether a version is unread is the server's reading of the whole log (`read_state`),
    published as each Thread's `unread`; replying, answering and resolving already count
@@ -6,7 +6,7 @@
    visible prose body is marked read once its complete vertical extent has been shown
    without gaps in one rendered surface and one content version. What the body holds
    inside that extent — a wide code block, a scroller of its own — is part of what was
-   shown; geometry cannot say whether the reader read every column of it, and a message
+   shown; geometry cannot say whether the user read every column of it, and a message
    whose contents never let it count would stand unread forever. A widget-authored body
    has hidden states of its own and no general contract for them, so exposure does not
    mark it read: answering its widget does, and so does its thread's Mark read control.

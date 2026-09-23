@@ -1,6 +1,6 @@
-"""Canonical workflows for exact reader inputs and proactive subject work.
+"""Canonical workflows for exact user inputs and proactive subject work.
 
-A workflow is one unsettled reader move the reader has handed over, and it
+A workflow is one unsettled user move the user has handed over, and it
 answers two separate questions about it. `stage` is delivery progress: how far
 the move has reached the agent (Sent, Queued, Picked up, Working, Replying),
 which the margin, the Page Map and a thread's receipt report for every such
@@ -15,7 +15,7 @@ Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
   move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
-- `{"kind": "version", "conversation": <thread>}` — a thread the reader opened
+- `{"kind": "version", "conversation": <thread>}` — a thread the user opened
   as a request for change, answered by a stamped version and a resolve;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
@@ -23,18 +23,18 @@ Answers are one of:
 - `{"kind": "receipt", "request": <request>}` — a request, answered by its one
   terminal receipt.
 
-Two kinds of move are delivered with no answer of their own. A reader input a
+Two kinds of move are delivered with no answer of their own. A user input a
 newer input in the same thread covers is answered through the newest, whose one
 answer settles both. A widget move that answers no Ask, such as an edit to a
-reader-owned draft or a moved card, owes nothing: the log carries it onto every
+user-owned draft or a moved card, owes nothing: the log carries it onto every
 later reading of its document. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 
-A reader move on an Ask the reader has not finished answering — a pick before
+A user move on an Ask the user has not finished answering — a pick before
 the Done its group declares, a swipe before the deck's finish — has not been
-handed over yet, so it is no workflow at all: the reader is still composing the
+handed over yet, so it is no workflow at all: the user is still composing the
 answer, and the finishing move carries the receipt. Once the Ask is answered,
 every move in its answer is owed.
 
@@ -42,7 +42,7 @@ A host that gives up on a move writes the failure its answer takes
 (`conversation.fail_answer`), each carrying `failure`: a reply in the
 conversation, a failed receipt, or a failed pickup of a page move. A failed receipt is the
 request's own outcome and settles it; the other two leave the move a workflow
-answered with a failed response, whose next actor is the reader, until the reader
+answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
@@ -58,9 +58,9 @@ from .projection import (
 
 
 def thread_response_batch(turns: list[dict]) -> tuple[list[dict], dict | None]:
-    """Return the consecutive reader-input batch and its response address.
+    """Return the consecutive user-input batch and its response address.
 
-    A thread exposes one response obligation, addressed by its newest reader
+    A thread exposes one response obligation, addressed by its newest user
     input. Before that address is answered every unresponded input retains its
     own workflow. Answering the newest address settles the batch; answering an
     older address removes only that input while the newer address remains owed.
@@ -74,8 +74,8 @@ def thread_response_batch(turns: list[dict]) -> tuple[list[dict], dict | None]:
         elif (
             newest_before is not None and message.get("responds") == newest_before["id"]
         ):
-            # Answering the batch's newest address settles every reader input
-            # accumulated through it. A later reader input starts a fresh batch.
+            # Answering the batch's newest address settles every user input
+            # accumulated through it. A later user input starts a fresh batch.
             floor = index
             newest_before = None
     standing = turns[floor + 1 :]
@@ -120,7 +120,7 @@ def page_action_unsettled(
     authored record form, whose note is the document's answer to it, and a move
     that owed nothing, which that version has taken in whether or not its markup
     records it. The version must follow the move in the log and supersede the
-    revision it was made on; a note stamped over the very revision the reader
+    revision it was made on; a note stamped over the very revision the user
     acted on was written before the move reached anyone.
     """
     _widget, unit, _facet = coordinate
@@ -148,14 +148,14 @@ def canonical_workflows(
     page: PageReading | None = None,
     events: list | None = None,
 ) -> list[dict]:
-    """The unsettled reader inputs and strongest evidence held for each.
+    """The unsettled user inputs and strongest evidence held for each.
 
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
     means Picked up, and a matching effective work claim means Working. Replies
     and authored state settle the source move, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
-    answered workflow whose next actor is the reader. Consecutive inputs retain distinct
+    answered workflow whose next actor is the user. Consecutive inputs retain distinct
     workflows even though the conversation's single response obligation is
     addressed to the newest one.
     """
@@ -270,8 +270,8 @@ def canonical_workflows(
         }
 
     def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
-        """The move a host failure record returned to the reader: answered, with a
-        failed response, and the reader's to send again."""
+        """The move a host failure record returned to the user: answered, with a
+        failed response, and the user's to send again."""
         returned = workflow(source, target, coordinate, answer=None)
         returned.update(
             {
@@ -290,7 +290,7 @@ def canonical_workflows(
                     }
                 ],
                 "condition": {"kind": "failed", "operation": "response"},
-                "next_actor": "reader",
+                "next_actor": "user",
                 "response": {
                     "id": record["id"],
                     "attempt": record.get("attempt"),
@@ -334,7 +334,7 @@ def canonical_workflows(
         ):
             continue
         # Every exact input keeps its own transport/work evidence. The response
-        # contract deliberately coalesces consecutive reader turns onto the newest
+        # contract deliberately coalesces consecutive user turns onto the newest
         # address, so only that workflow carries the answer.
         answer = (
             {"kind": "version", "conversation": thread_id}
@@ -355,10 +355,10 @@ def canonical_workflows(
                 )
             )
 
-    # Every widget move the reader has handed over keeps its delivery receipt until
+    # Every widget move the user has handed over keeps its delivery receipt until
     # it settles, whether the widget stands in the page or was frozen into thread
     # markup, and only a move in an answered Ask is owed an answer. A move on an Ask
-    # the reader is still answering has not been handed over, so it has no receipt
+    # the user is still answering has not been handed over, so it has no receipt
     # until the finishing move carries one. The two documents differ only in what
     # settles a move and which operation answers an owed one.
     def page_move(coordinate: tuple, source: dict, spec: dict, owed: bool):
@@ -440,10 +440,10 @@ def canonical_workflows(
                 )
             )
 
-    # One receipt per widget and unit, for the reader's newest move on it. A tick and
+    # One receipt per widget and unit, for the user's newest move on it. A tick and
     # the Done press that followed are two facets of one unit, and each minted a line:
     # the thread showed "✓ Sent · just now" twice under one question. The later move
-    # supersedes the earlier for what the reader is owed — that the press landed.
+    # supersedes the earlier for what the user is owed — that the press landed.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a
     # margin entry each in the margin. Chosen before a receipt is minted, so a claim is
     # spent on a move that survives rather than on one dropped here.
@@ -454,7 +454,7 @@ def canonical_workflows(
             newest[key] = source
     # A host that gave up on an owed move recorded the failure its answer takes — a
     # failed pickup for a page move, a failure reply for a frozen one — which hands
-    # the move back to the reader until the move settles or a newer move replaces it.
+    # the move back to the user until the move settles or a newer move replaces it.
     for source, target, coordinate, unsettled, answer in moves:
         if not unsettled or newest[(target["id"], coordinate[1])] is not source:
             continue
@@ -480,7 +480,7 @@ def canonical_workflows(
                 )
             )
 
-    # Keep an explicit claim visible even when there was no preceding reader
+    # Keep an explicit claim visible even when there was no preceding user
     # gesture to grow from. This preserves the useful part of `status --on`
     # without inventing pickup evidence.
     for claim in effective_claims.values():

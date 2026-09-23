@@ -41,7 +41,7 @@ honors `stroke-width`; other properties are ignored. `version check --render` re
 a diagram the renderer refuses or draws empty, not one it draws only in part, so inspect
 each rendered diagram. Without visual access, check the source's labels and relations
 against the claims it supports, and state those claims in prose or a table beside it
-so the reader need not rely on an uninspected picture. Follow `page-authoring.md`,
+so the user need not rely on an uninspected picture. Follow `page-authoring.md`,
 "Pre-handover review", for the checks and what remains unverified.
 Quote a label that holds its shape's closing bracket:
 `A["names: list[str]"]`, not `A[names: list[str]]`. The renderer parts from Mermaid in
@@ -73,12 +73,12 @@ without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
-`leaf page init --package diff <page>`. The reader gets
+`leaf page init --package diff <page>`. The user gets
 the rest of a long review without anything authored: each file's header pins under
 the banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
 by file, and a Soft wrap switch in the diff's own header folds lines too long for
 the column — paper takes that wrap whether or not the switch is on, so nothing is
-cut off a printed patch. Add `review` only when the reader is expected to inspect
+cut off a printed patch. Add `review` only when the user is expected to inspect
 every file and needs persistent progress. A patch that supports a higher-level
 decision or targeted comments omits it. First add a current-data binding so Leaf
 can give the source its page-lifetime contract:

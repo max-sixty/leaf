@@ -15,12 +15,12 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 // placement; script does not derive textarea height from its text. When the surface
 // accepts images, a paste uploads bytes to page media; one that does not says so in a
 // notice, so no box answers a pasted picture with silence. The draft keeps the resulting
-// Markdown, while the textarea shows only the reader's words and a thumbnail projection.
+// Markdown, while the textarea shows only the user's words and a thumbnail projection.
 // So the box holds more than its .value, and wire() returns the seam that says so:
 // sync.value() reads the complete draft, sync.load() replaces it — a stored record, a
 // draft mirrored from another tab, or the emptiness a send leaves — and sync() repaints
 // the send button, the placeholder, and the composer's placement around what stands.
-// Outside this module, .value is the reader's words alone and nothing writes it.
+// Outside this module, .value is the user's words alone and nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 const inputDrafts = new WeakMap();
 
@@ -117,7 +117,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       icon = "send",
       altBtn = null,
       altSend = null,
-      // `true` to take a pasted image; otherwise the sentence the reader is told instead.
+      // `true` to take a pasted image; otherwise the sentence the user is told instead.
       allowsMedia = () => true,
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
@@ -217,7 +217,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
     let uploading = false;
-    // Keep a disabled send reachable so the reader can discover why it will not send;
+    // Keep a disabled send reachable so the user can discover why it will not send;
     // submit() is the behavioral guard and aria-disabled exposes the same state.
     const refresh = () => {
       repaint();
@@ -228,7 +228,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       altBtn?.setAttribute("aria-disabled", disabled);
       layout();
     };
-    // sync() repaints what the box holds. It is not how a draft gets in: what the reader
+    // sync() repaints what the box holds. It is not how a draft gets in: what the user
     // would miss is the words and the pasted images together, and the images show only in
     // the shelf, so a caller writing .value states half a draft. Emptying a box that way
     // left an image standing in a box the runtime then read as still holding something —

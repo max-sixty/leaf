@@ -1412,7 +1412,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
     # Entering copy mode resizes the body, so the root fit answers on a later frame and
     # leaves the unbounded copy in flow posture. The copy is the whole workspace at the
-    # page's width either way: a reader who copies a slower page gets the same evidence.
+    # page's width either way: a user who copies a slower page gets the same evidence.
     expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
     assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
@@ -1677,7 +1677,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
 
     # The filter is a layer of the patch and the box is inside it: the first Escape
     # clears a live query, and the second leaves the box for the patch it filters, which
-    # is the box's container rather than the file header the reader pressed `/` from.
+    # is the box's container rather than the file header the user pressed `/` from.
     summaries.nth(1).focus()
     page.keyboard.press("/")
     expect(search).to_be_focused()
@@ -1764,7 +1764,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 ):
     """A valid save advances the live surface; stamping only changes its label.
 
-    Nothing here is executable, so the reader keeps this document: the next file is
+    Nothing here is executable, so the user keeps this document: the next file is
     fetched while they read, then its authored markup is patched onto the page they
     are standing in. The URL, runtime identity, open chrome, `main` itself, and the
     passage's viewport coordinate therefore survive. Five paragraphs arrive above that
@@ -1911,9 +1911,9 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     told(page)
 
     # The hold has to outlast every press this test makes through it, and it takes both
-    # of the following to get there. A composer the reader opened is one of the gestures
+    # of the following to get there. A composer the user opened is one of the gestures
     # a revision install defers to and does not end when focus moves; words in a box the
-    # reader merely has focus in do, and the draft store rather than a hold is what
+    # user merely has focus in do, and the draft store rather than a hold is what
     # carries those across the install (`skills/leaf/assets/CLAUDE.md`, "Runtime
     # ownership").
     page.locator("#live-reading").click(click_count=3)
@@ -1963,10 +1963,10 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
 def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     """A patch applies the author's difference, not the difference from the page.
 
-    Everything the browser, the runtime, a reader, or a page module has done to a page
+    Everything the browser, the runtime, a user, or a page module has done to a page
     since it loaded makes the page differ from any source, so a patch that reconciled
     the live tree against the arriving revision would take all of it back. Four owners,
-    none of them the author, on one page: the reader's open disclosure, the tokenizer's
+    none of them the author, on one page: the user's open disclosure, the tokenizer's
     spans in a code block, a tab stop `focus.js` lends to land the keyboard somewhere,
     and what a page module built inside an authored container. The revision rewrites one
     paragraph and mentions none of them.
@@ -2042,18 +2042,18 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
 def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
     browser, serve
 ):
-    """An unnamed widget is as much the reader's as a named one.
+    """An unnamed widget is as much the user's as a named one.
 
     Nothing asks an author to name a widget, and the shipped examples do not, so the
     digests each capture records key an unnamed one by its tag and place among the
     others of that tag. Without that key it could never answer that its markup was
-    unchanged, and every revision would rebuild it — taking whatever the reader had
+    unchanged, and every revision would rebuild it — taking whatever the user had
     open in it.
     """
     body = (
         '<h1 id="nm-title">Unnamed</h1>\n'
         '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
-        " the reader is asking about.</p>\n"
+        " the user is asking about.</p>\n"
         '<p id="nm-edited">The cutover has not started.</p>'
     )
     first = leaf_page("Unnamed first", body)
@@ -2064,7 +2064,7 @@ def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
     expect(page.locator("lf-gloss")).to_have_count(1)
     page.evaluate(
         "() => { window.__nmGloss = document.querySelector('lf-gloss');"
-        " window.__nmGloss.dataset.readerHeld = 'open'; }"
+        " window.__nmGloss.dataset.userHeld = 'open'; }"
     )
 
     (serve.page_dir / "index.html").write_text(second)
@@ -2073,7 +2073,7 @@ def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
     standing = page.evaluate(
         """() => ({
           same: window.__nmGloss === document.querySelector('lf-gloss'),
-          held: document.querySelector('lf-gloss')?.dataset.readerHeld ?? null,
+          held: document.querySelector('lf-gloss')?.dataset.userHeld ?? null,
         })"""
     )
     assert standing == {
@@ -2083,15 +2083,15 @@ def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
 
 
 def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
-    """The paragraph a revision rewrote is the only thing the reader gives up.
+    """The paragraph a revision rewrote is the only thing the user gives up.
 
     A native selection and the element a page was handed belong to nodes rather than
     markup. The selection still reads what it read over the same text node, the
     element is still the element, and the chooser says the page moved. Focus follows
-    the reader's route through More to the new-page control.
+    the user's route through More to the new-page control.
 
     A standing selection is a composition, so the page waits rather than moving under
-    the reader mid-sentence. This is the reader releasing that hold themselves, which
+    the user mid-sentence. This is the user releasing that hold themselves, which
     is the one way the case can be reached and the way it is met in practice: they see
     a new page is available and ask for it while their selection stands.
     """
@@ -2099,7 +2099,7 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
         "Prose first",
         """
 <h1 id="pr-title">Prose</h1>
-<p id="pr-kept">The account the reader is halfway through, held across the revision.</p>
+<p id="pr-kept">The account the user is halfway through, held across the revision.</p>
 <p id="pr-edited">The cutover has not started.</p>
 <button id="pr-control" type="button">Inspect</button>
 """,
@@ -2148,8 +2148,8 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
         "selection": "account",
         "sameNode": True,
         "sameElement": True,
-    }, f"the revision took something the reader was holding: {standing}"
-    # The retained selection still names a commentable passage after the reader
+    }, f"the revision took something the user was holding: {standing}"
+    # The retained selection still names a commentable passage after the user
     # leaves the menu; the menu gesture itself need not keep a composer open.
     page.keyboard.press("Escape")
     page.keyboard.press("c")
@@ -2257,7 +2257,7 @@ def test_a_rewritten_widget_inside_an_exhibit_stays_quoted(browser, serve):
     place in the document: whether an exhibit quotes it, which declared elements
     enclose it. The node is not in the document yet when they are taken, so the parent
     it will stand under is stated to them. Without that, a rewritten widget inside an
-    exhibit arrives unquoted and its actions open, and a reader can record a decision
+    exhibit arrives unquoted and its actions open, and a user can record a decision
     against material the page declares as evidence.
     """
     first = leaf_page(
@@ -2435,11 +2435,11 @@ def test_a_revision_reaches_a_paragraph_a_page_module_moved(browser, serve):
 def test_a_same_kind_sibling_inserted_above_an_edited_one_keeps_the_page_whole(
     browser, serve
 ):
-    """The one shape the gap cannot decide, and what it still owes the reader.
+    """The one shape the gap cannot decide, and what it still owes the user.
 
     Insert a paragraph above one the same revision rewrote and there is nothing to
     decide it on: both are paragraphs, neither carries a name, and the words that would
-    have paired them are the words that changed. The reader's node survives either way,
+    have paired them are the words that changed. The user's node survives either way,
     so nothing is torn out from under them, but which of the two the words land in is
     not something this can promise — and it is the diff's answer, not a walk's, so the
     page itself is whole and in order whichever way it falls.
@@ -2485,13 +2485,13 @@ def test_a_same_kind_sibling_inserted_above_an_edited_one_keeps_the_page_whole(
     }, f"the page did not come out whole: {standing}"
 
 
-def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_reader_on_it(
+def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
     browser, serve
 ):
     """The gap between pinned siblings is diffed, not walked in step.
 
     A stretch the revision edited also holds whatever it inserted, and a cursor meets an
-    insertion in the way that costs the reader their node: a heading above the paragraph
+    insertion in the way that costs the user their node: a heading above the paragraph
     they are reading is nothing the cursor can pair with, so it spends the cursor, and
     the paragraph is left with no partner and removed. Nothing is pinned here — the
     revision rewrote the only paragraph in the gap — so the whole answer comes from the
@@ -2543,16 +2543,16 @@ def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_reader_on_i
         "sameParagraph": True,
         "sameNode": True,
         "selection": "cutover",
-    }, f"the inserted heading took the reader's paragraph with it: {standing}"
+    }, f"the inserted heading took the user's paragraph with it: {standing}"
 
 
-def test_a_paragraph_inserted_above_the_reader_does_not_shift_the_ones_below(
+def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
     browser, serve
 ):
     """Unnamed siblings are matched by what they say, not by where they stand.
 
     Walking the two child lists in step is right until something is inserted, and then
-    it is wrong in the way that costs a reader most: every later paragraph pairs with
+    it is wrong in the way that costs a user most: every later paragraph pairs with
     its neighbour, so the one they are reading keeps its node while its words are
     overwritten with the next paragraph's, and the last paragraph goes for want of a
     partner. None of these paragraphs carries an id, which is the case a page of prose
@@ -2618,7 +2618,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     """A widget renders from its authored markup, so a rewritten one cannot be put right
     from outside it: it leaves, and its replacement arrives through capture and upgrade
     like any new element. The question beside it that the revision did not touch is the
-    same element it always was, still holding the reader's focus."""
+    same element it always was, still holding the user's focus."""
     first = leaf_page(
         "Widgets first",
         """
@@ -2868,7 +2868,7 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
     with sending(page, "the seated question"):
         composer.get_by_role("button", name="Send", exact=True).click()
 
-    def reader_asks():
+    def user_asks():
         # The Ask reading is the log's, so ask it of a page that has taken in what the
         # server holds: a trip is over when the outbox empties, one beat before the
         # answer it carried has been applied.
@@ -2880,17 +2880,17 @@ def test_a_live_revision_reapplies_the_authored_conversation_seat_predicate(
             }"""
         )
 
-    assert reader_asks() == []
+    assert user_asks() == []
     stamp_page(serve.page_dir, second, "remove the conversation seat")
     wait_for_revision(page, 2)
-    assert reader_asks() == ["question"]
+    assert user_asks() == ["question"]
 
 
-def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
+def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
     """A partly covered title is the page opening, not a reading place to preserve.
 
     A revision change used the heading as its semantic landmark and restored its exact
-    viewport coordinate. When the reader had moved just far enough for the first title
+    viewport coordinate. When the user had moved just far enough for the first title
     line to sit behind the fixed banner, both an arriving current revision and a chosen
     historical version faithfully restored that broken view: the later line looked like
     the whole heading. The scroller already declares its landable top through
@@ -2974,7 +2974,7 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
     assert live_landed["live"], "revision activation removed the live shell"
     assert live_landed["inset"] == clipped["inset"], live_landed
     assert live_landed["title"]["top"] >= live_landed["inset"], (
-        f"the arriving revision left the heading under reader chrome: {live_landed}"
+        f"the arriving revision left the heading under user chrome: {live_landed}"
     )
     assert live_landed["title"]["top"] > live_landed["chrome"]["bottom"], live_landed
 
@@ -2987,7 +2987,7 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
 
     landed = page.evaluate(heading_position)
     assert landed["title"]["top"] >= landed["inset"], (
-        f"version travel left the heading under reader chrome: {landed}"
+        f"version travel left the heading under user chrome: {landed}"
     )
     assert landed["title"]["top"] > landed["chrome"]["bottom"], landed
 
@@ -3000,7 +3000,7 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     A declared shadow root is allowed to render the page's authored words. If continuity
     searches only light-DOM blocks, it records a raw page offset even though the passage
     resolver can find the rendered words, so material inserted above the widget displaces
-    the reader on the next revision.
+    the user on the next revision.
     """
     monkeypatch.chdir(tmp_path)
     package = author_test_widget(tmp_path, "lf-shadow-reading", upgrade=True)
@@ -3020,7 +3020,7 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 });
 """
     )
-    reading = "The shadow-rendered passage is the reader's stable semantic landmark."
+    reading = "The shadow-rendered passage is the user's stable semantic landmark."
     first = leaf_page(
         "Shadow reading continuity",
         f"""
@@ -3164,7 +3164,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     wait_for_revision(page, 2)
 
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
-    # The revision wrapped the control, so the element the reader was on is gone and
+    # The revision wrapped the control, so the element the user was on is gone and
     # focus went to the page with it. What the region still owes them is the way back
     # to it: revealed rather than shut inside a disclosure they never closed.
     expect(page.locator("#standing-control")).to_be_visible()
@@ -3200,7 +3200,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
     expect(page.locator("#prior-controls")).to_have_attribute("open", "")
     # Reachable, not focused: the revision wrapped the control, so the element the
-    # reader stood on is gone and the region owes them the way back to its replacement.
+    # user stood on is gone and the region owes them the way back to its replacement.
     expect(page.locator("#standing-control")).to_be_visible()
 
 
@@ -3437,7 +3437,7 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
 def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, serve):
     """Unsent words hold an arriving version, but clearing them releases it.
 
-    The chip is news during the hold, not a required confirmation: after the reader
+    The chip is news during the hold, not a required confirmation: after the user
     leaves the textarea, the ordinary poll activates the already-published version.
     """
     version_url = serve(LIVE_V1)
@@ -3493,19 +3493,19 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
 
 
-def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
+def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     browser, serve
 ):
-    """A revision arriving under a reader mid-press keeps their next press live.
+    """A revision arriving under a user mid-press keeps their next press live.
 
     Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
     names the visible targets, and the chips are read off whichever document is standing,
     so the window holds through the revision and the hints land on the new page — minus
-    the hint for a link the revision took away, which is the honest reading. The reader's
+    the hint for a link the revision took away, which is the honest reading. The user's
     standing is the document's: the Ask's actions remain live over a focused pick mark,
     and a revision that leaves that widget's markup alone leaves the mark itself alone,
     so the digit still picks and the bottom status acknowledges it. One revision arrives
-    as a draft and the next as a stamped version, since both bring the page to the reader
+    as a draft and the next as a stamped version, since both bring the page to the user
     by the same door."""
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
@@ -3529,7 +3529,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark.focus()
     expect(mark).to_be_focused()
     assert ask_actions_hint("1–3") in shortcut_bar_text(page)
-    # A stamped version this time, which is the other way a page moves under a reader.
+    # A stamped version this time, which is the other way a page moves under a user.
     # Its announcement arrives immediately; the bottom status may queue it behind the
     # earlier draft notice, so that line need not change before the next press.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -3537,11 +3537,11 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     expect(page).to_have_title("Live keys third")
     expect(page.locator(".lf-live")).to_have_text("Updated to v2")
     assert page.locator(".lf-toast").count() == 0
-    # The same mark, still holding the focus the reader put on it: the revision rewrote
+    # The same mark, still holding the focus the user put on it: the revision rewrote
     # nothing in this widget, so nothing replaced it.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
     assert ask_actions_hint("1–3") in shortcut_bar_text(page), (
-        "the revision took the reader's keys down"
+        "the revision took the user's keys down"
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
@@ -3551,19 +3551,17 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     round_trip(page)
 
 
-def test_a_revision_that_restates_an_ask_leaves_the_reader_standing_in_it(
-    browser, serve
-):
-    """The Ask a reader is working survives the revision that rewrites it.
+def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser, serve):
+    """The Ask a user is working survives the revision that rewrites it.
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
-    still holding the focus the reader put on it. The question they are answering is the
+    still holding the focus the user put on it. The question they are answering is the
     one thing a revision is most likely to rewrite, and rewriting it replaced every node
-    inside — which used to drop the reader onto `body` in the same breath as "Updated
+    inside — which used to drop the user onto `body` in the same breath as "Updated
     to …". An Ask is named by a declared id rather than by a control's shape, so the
-    standing is a lookup: the reader is put back on the Ask, or on the control that
+    standing is a lookup: the user is put back on the Ask, or on the control that
     answers it, according to which of the two they held. A revision that withdraws the
-    Ask has nowhere to put them back, which the tests below cover along with the reader
+    Ask has nowhere to put them back, which the tests below cover along with the user
     who was holding one of its controls.
     """
     version_url = serve(LIVE_KEYS_V1)
@@ -3579,22 +3577,20 @@ def test_a_revision_that_restates_an_ask_leaves_the_reader_standing_in_it(
         "Updated to Draft after v1"
     )
     expect(decision).to_be_focused()
-    # Standing, not a bare tab stop: the Ask's own action routes are live over the reader
+    # Standing, not a bare tab stop: the Ask's own action routes are live over the user
     # again, and the third option the revision brought is among them.
     assert ask_actions_hint("1–4") in shortcut_bar_text(page)
     page.keyboard.press("3")
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
 
-def test_a_restated_ask_returns_a_reader_to_the_question_not_to_a_control(
-    browser, serve
-):
-    """A reader inside the Ask comes back to its opening, never to a guessed control.
+def test_a_restated_ask_returns_a_user_to_the_question_not_to_a_control(browser, serve):
+    """A user inside the Ask comes back to its opening, never to a guessed control.
 
     Which control they were holding is not a thing the Ask can answer: the controls are
     the widget's, most carry no id, and the first one that answers the Ask is the walk's
     landing rule rather than a restore. Handing that back is the failure version.js names
-    — a reader holding the second option would be given the first, and their next press
+    — a user holding the second option would be given the first, and their next press
     would choose it. The Ask's opening holds a lent tab stop rather than a decision, so
     the digits still reach the option they meant and Space decides nothing. Where the
     revision withdraws the question there is nothing to come back to, and `body` is the
@@ -3618,14 +3614,12 @@ def test_a_restated_ask_returns_a_reader_to_the_question_not_to_a_control(
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
 
 
-def test_a_revision_gives_back_the_apparatus_the_reader_was_working_with(
-    browser, serve
-):
+def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, serve):
     """What the author named survives the widget the revision replaced whole.
 
     A patch keeps the nodes a revision did not rewrite, and a widget is never one of
     them: a controller owns its children, so restating the question replaces the field
-    the reader was writing in, the box they had opened and the box they had scrolled.
+    the user was writing in, the box they had opened and the box they had scrolled.
     None of that is in the log, so no projection puts it back. The authored id is what
     makes it recoverable — the same identity the patch matches nodes on — so the carry
     is a lookup, and an element the author left unnamed still keeps nothing.
@@ -3638,7 +3632,7 @@ def test_a_revision_gives_back_the_apparatus_the_reader_was_working_with(
     page.locator("#lk-why").evaluate("el => { el.open = true; }")
     page.locator("#lk-evidence").evaluate("el => { el.scrollTop = 40; }")
     # Put the caret back inside the words rather than at their end, so a restore that
-    # merely refills the field is not mistaken for one that puts the reader back in it.
+    # merely refills the field is not mistaken for one that puts the user back in it.
     note.evaluate("el => el.setSelectionRange(4, 4)")
     expect(note).to_be_focused()
 
@@ -3654,22 +3648,22 @@ def test_a_revision_gives_back_the_apparatus_the_reader_was_working_with(
     assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
     assert page.locator("#lk-why").evaluate("el => el.open") is True
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
-    # Standing in the Ask is where the reader already is, so the Ask restore has nothing
+    # Standing in the Ask is where the user already is, so the Ask restore has nothing
     # to do and does not pull them out of the field onto the question.
     assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
 
-def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
+def test_a_revision_that_opens_a_box_the_user_never_touched_arrives_open(
     browser, serve
 ):
-    """The other half of the carry: what the reader did not change is the author's to say.
+    """The other half of the carry: what the user did not change is the author's to say.
 
     A disclosure has no `defaultOpen` to answer with, so the state the carry reads off the
-    live box is the author's own until the reader moves it. Reading the box alone would
+    live box is the author's own until the user moves it. Reading the box alone would
     carry the outgoing revision's shut over an arriving revision that opens it, and the
-    reader would never see the box the author opened for them — only where it sits inside
+    user would never see the box the author opened for them — only where it sits inside
     a widget the install replaces whole, since a box the patch keeps is already right.
-    The baseline is the authored markup of the revision the reader stands in, so an
+    The baseline is the authored markup of the revision the user stands in, so an
     untouched box is left to the arriving revision while the words they typed still cross.
     """
     opened = LIVE_KEYS_APPARATUS_REWRITTEN.replace(
@@ -3677,7 +3671,7 @@ def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
     )
     version_url = serve(LIVE_KEYS_APPARATUS)
     page = open_page(browser, live_url(version_url))
-    # The reader stands in the widget and writes, but never touches the box: the case is
+    # The user stands in the widget and writes, but never touches the box: the case is
     # about the author's change to it, not theirs.
     note = page.locator("#lk-note")
     note.click()
@@ -3692,16 +3686,16 @@ def test_a_revision_that_opens_a_box_the_reader_never_touched_arrives_open(
         "Which one, now the costs are in?"
     )
     assert page.locator("#lk-why").evaluate("el => el.open") is True
-    # What the reader did put in crosses as before.
+    # What the user did put in crosses as before.
     expect(page.locator("#lk-note")).to_have_value("half a thought")
 
 
-def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, serve):
+def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, serve):
     """An untouched control is the author's to set, whatever kind of control it is.
 
     A tick the author gave no value of its own answers `"on"`, and a range answers its
     midpoint, both against a `defaultValue` the author left empty. Ask the platform's
-    default and every such control reads as reader state on the way out, and arrives
+    default and every such control reads as user state on the way out, and arrives
     written over whatever the next revision authored. The authored node answers the same
     way the live one does, so asking it instead finds nothing to carry.
     """
@@ -3732,7 +3726,7 @@ def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, s
         "50",
         "",
     ]
-    # The reader works the field and leaves both of those alone.
+    # The user works the field and leaves both of those alone.
     note = page.locator("#lk-note")
     note.click()
     note.type("half a thought")
@@ -3746,17 +3740,17 @@ def test_a_revision_gives_values_to_controls_the_reader_never_touched(browser, s
     )
     assert page.locator("#lk-tick").evaluate("el => el.value") == "yes"
     assert page.locator("#lk-dial").evaluate("el => el.value") == "80"
-    # While the field whose value is the reader's own words still crosses.
+    # While the field whose value is the user's own words still crosses.
     expect(page.locator("#lk-note")).to_have_value("half a thought")
 
 
-def test_a_range_the_reader_moved_keeps_its_place_across_a_revision(browser, serve):
-    """The other side of that: a control the reader did move is theirs, whatever its kind.
+def test_a_range_the_user_moved_keeps_its_place_across_a_revision(browser, serve):
+    """The other side of that: a control the user did move is theirs, whatever its kind.
 
-    The authored range still reads its midpoint, so a range the reader dragged disagrees
+    The authored range still reads its midpoint, so a range the user dragged disagrees
     with it and crosses into the widget the revision replaced. A rule keyed on the kind of
     control instead — words carry, the rest do not — keeps the untouched tick and range
-    of the test above from crossing only by leaving every range behind, the reader's drag
+    of the test above from crossing only by leaving every range behind, the user's drag
     included.
     """
     unvalued = (
@@ -3785,15 +3779,15 @@ def test_a_range_the_reader_moved_keeps_its_place_across_a_revision(browser, ser
     assert page.locator("#lk-dial").evaluate("el => el.value") == "17"
 
 
-def test_a_revision_that_rewrites_a_draft_leaves_the_reader_where_they_stand(
+def test_a_revision_that_rewrites_a_draft_leaves_the_user_where_they_stand(
     browser, serve
 ):
-    """A draft's unsent edit comes back with it, and does not take the reader with it.
+    """A draft's unsent edit comes back with it, and does not take the user with it.
 
     Escape sets a draft's edit aside rather than discarding it, and the draft reads the
     edit back from its own store whenever it connects — which a revision rewriting the
     draft makes it do. Getting the words back is right. The editor taking the focus is
-    not, when the reader had put the edit away and gone to stand on something else: the
+    not, when the user had put the edit away and gone to stand on something else: the
     revision is news, and news with no gesture behind it moves nobody.
     """
     draft = '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft>'
@@ -3811,7 +3805,7 @@ def test_a_revision_that_rewrites_a_draft_leaves_the_reader_where_they_stand(
     editor.fill("Ship it, but louder.")
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
-    # The reader goes and stands on the question instead.
+    # The user goes and stands on the question instead.
     pick = page.locator("#lk-one .lf-pick")
     pick.focus()
     expect(pick).to_be_focused()
@@ -3828,8 +3822,8 @@ def test_the_replacing_install_gives_back_the_same_apparatus(browser, serve):
     """A revision that opens a fresh document carries the same named state across.
 
     Nothing of the old document survives here, so every record in the handoff names
-    something the reader would otherwise have lost — there is no held node to skip. The
-    reader was told the same "Updated to …" either way and cannot tell the two installs
+    something the user would otherwise have lost — there is no held node to skip. The
+    user was told the same "Updated to …" either way and cannot tell the two installs
     apart, so neither may answer differently.
     """
     module = """<script type="module">
@@ -3862,8 +3856,8 @@ customElements.define('page-counter', class extends HTMLElement {
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
 
 
-def test_a_withdrawn_ask_leaves_the_reader_on_the_page(browser, serve):
-    """A revision that takes the question away has nowhere to put the reader back."""
+def test_a_withdrawn_ask_leaves_the_user_on_the_page(browser, serve):
+    """A revision that takes the question away has nowhere to put the user back."""
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
     mark = page.locator("#lk-two .lf-pick")
@@ -3876,10 +3870,10 @@ def test_a_withdrawn_ask_leaves_the_reader_on_the_page(browser, serve):
     expect(page.locator("body")).to_be_focused()
 
 
-def test_a_reader_working_an_ask_keeps_it_across_a_replacing_document(browser, serve):
+def test_a_user_working_an_ask_keeps_it_across_a_replacing_document(browser, serve):
     """The fresh-document install hands back the same standing the patch does.
 
-    A revision whose executable identity differs cannot be patched in, so the reader
+    A revision whose executable identity differs cannot be patched in, so the user
     arrives in a new document where nothing they held exists. They were told the same
     "Updated to …" either way and cannot tell the two installs apart, so the Ask rides
     across in the one-use handoff beside their reading position.
@@ -4066,7 +4060,7 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
     """A refusal is an answer the beat has to be able to read.
 
     A page can adopt a newer revision without installing it. The fetch for its document
-    can fail, which is reported and left for the version chip to retry, so the reader
+    can fail, which is reported and left for the version chip to retry, so the user
     stands on the older revision with the newer one named in the state the page applied.
     Every beat from then on asks the same preparation whether it would activate now. When
     a later fetch answers from a layer re-vendored under the page, the preparation refuses
@@ -4149,9 +4143,9 @@ def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
 
 
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
-    """A stamped version follows by navigation, and the reader's place rides across.
+    """A stamped version follows by navigation, and the user's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a
-    module the navigation threw away, so it did not, and the reader was demoted without
+    module the navigation threw away, so it did not, and the user was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
     the third of four Asks when v2 landed, they pressed `a` and were handed the third
     again — after looking slightly back above that Ask, the block at the top of the
@@ -4159,7 +4153,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
 
     So the walk's place travels in the same record as the passage, and the press after
     the version lands is the press they would have made before it. The ring is not owed a
-    record of its own: it is painted from the focus, and the activation hands the reader
+    record of its own: it is painted from the focus, and the activation hands the user
     back the control they were standing on, so the Ask they were in wears it still."""
     url = serve(ASKS_PAGE)
     d = serve.page_dir
@@ -4188,13 +4182,13 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
     expect(page.locator("[data-lf-ask]")).to_have_count(1)
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
-    # prose is on screen above the one the reader was standing on, so a walk reading the
+    # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
     assert page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         return earlier.bottom > 42 && earlier.bottom <= decision.top;
-    }"""), "the reader is at the top of the window, where either reading would do"
+    }"""), "the user is at the top of the window, where either reading would do"
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
@@ -4205,9 +4199,9 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
 
     Read raw, that answer arrives on both sides of the subtraction — once when the
     place is written down and once when it is put back — so the correction came out 0
-    and a restore that had somewhere to land did nothing at all. The reader was left at
+    and a restore that had somewhere to land did nothing at all. The user was left at
     the top of a page they had been thirty paragraphs into. It is quiet twice over: only
-    a reader whose quote the new version rewrote reaches this branch, and a page whose
+    a user whose quote the new version rewrote reaches this branch, and a page whose
     sections all draw boxes never sees it."""
     url = serve(BOXLESS_SECTION_PAGE)
     d = serve.page_dir
@@ -4241,31 +4235,31 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
 
     after = page.evaluate(WRAP_TOP)
     assert abs(after - before) <= 4, (
-        f"the reader left the wrapper's words {before}px from the top of the window and "
+        f"the user left the wrapper's words {before}px from the top of the window and "
         f"was put back at {after}px"
     )
 
 
-def test_the_ring_says_where_the_reader_is_standing(browser, serve):
-    """One ring, meaning one thing: this is where the reader is standing. It is painted
+def test_the_ring_says_where_the_user_is_standing(browser, serve):
+    """One ring, meaning one thing: this is where the user is standing. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
 
     The walk used to write it, and nothing ever took it off. So it said where the walk
     had left them rather than where they were: press `d`, click away, work in the panel
     for ten minutes, and a decision nobody was standing in went on wearing "you are here" —
-    while a reader who had reached the same decision by Tab or by clicking one of its
+    while a user who had reached the same decision by Tab or by clicking one of its
     controls got no ring at all. The same place, marked or not by how they arrived.
 
-    The chrome wears the same band, because a reader who has backed out of the panel is
+    The chrome wears the same band, because a user who has backed out of the panel is
     standing on a button and that is the same fact about them. It wore the browser's own
     ring there, in the browser's blue, a few inches from a decision ringed in the page's
     accent, with nothing saying the two rectangles meant one thing.
 
     A joined options control is the one shape that draws the band somewhere else: it is
     already a framed box, so a ring around the decision *and* one inside it would read as
-    a second border that comes and goes, and while the reader is in the control the exact
+    a second border that comes and goes, and while the user is in the control the exact
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
-    still meaning one thing. An arrival is the other side of that: it stands the reader on
+    still meaning one thing. An arrival is the other side of that: it stands the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
     page = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question-decision")
@@ -4276,7 +4270,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         "solid",
         "2px",
         token_colour(page, "--accent"),
-    ], f"the decision the walk stood the reader on is not ringed: {arrival_ring}"
+    ], f"the decision the walk stood the user on is not ringed: {arrival_ring}"
 
     # One press in, and the band moves to the row rather than doubling: the frame is the
     # control, and a ring around it as well would come and go with the question.
@@ -4290,9 +4284,9 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
         "solid",
         "2px",
         token_colour(page, "--accent"),
-    ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
+    ], f"the row the user is on is not ringed in the page's own band: {row_ring}"
 
-    # A suggestion hangs its ✓ Accept out in the page margin, so a reader working one has
+    # A suggestion hangs its ✓ Accept out in the page margin, so a user working one has
     # two marks for one fact — the ring on the change, the focus band on the margin entry deciding
     # it — and they had better be one band. The margin entry's comes from the runtime's own
     # shared rule, which every press in that margin wears: the suggestion family spelled
@@ -4309,9 +4303,9 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     )
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
-    # same contribution in the options group. The reader is still deciding this change,
+    # same contribution in the options group. The user is still deciding this change,
     # so the ring stays on it. It did not: the secondary control stood nowhere, the band
-    # came off the suggestion for as long as the reader held that control, and returning
+    # came off the suggestion for as long as the user held that control, and returning
     # to ✓ Accept brought it back a frame later — which is also how the read below came
     # to be taken while nothing on the page was ringed at all.
     #
@@ -4321,7 +4315,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.evaluate(RENDERED)
     decision_ring = suggestion.evaluate(RING)
     assert decision_ring == row_ring, (
-        "the decision lost its ring while the reader held one of its own margin "
+        "the decision lost its ring while the user held one of its own margin "
         f"controls: {decision_ring} against {row_ring}"
     )
     # Stable identity is the contribution owner plus entry key, independent of which
@@ -4332,7 +4326,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("Shift+Tab")
     expect(accept).to_be_focused()
     # A decision that is not a joined control wears the ring itself, and it is the band
-    # the row above wore: the two shapes say one thing about the reader.
+    # the row above wore: the two shapes say one thing about the user.
     decision_ring = suggestion.evaluate(RING)
     assert decision_ring == row_ring, (
         "a decision and an options row are drawn in two different bands for the one "
@@ -4353,13 +4347,13 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     expect(question).to_have_attribute("data-lf-ask", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
-    # the reader is working, and an answered one is no longer a question.
+    # the user is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/5")
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
-    # The chrome's own control, which the reader reaches by Tab or by the banner's own
+    # The chrome's own control, which the user reaches by Tab or by the banner's own
     # keys rather than by backing out of the panel — a surface lands them on the page,
     # never on the control that reopens it. What is asserted here is the band the ring
     # is drawn in while they stand there.
@@ -4372,26 +4366,26 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()
     assert toggle.evaluate(RING) == decision_ring, (
-        "the reader standing in the chrome is drawn in some other band than the "
+        "the user standing in the chrome is drawn in some other band than the "
         f"one a decision uses: {toggle.evaluate(RING)} against {decision_ring}"
     )
 
 
-def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
-    """The ladder unwinds from where the reader is, and out on the page the innermost
+def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
+    """The ladder unwinds from where the user is, and out on the page the innermost
     thing they are in is the decision they are standing on. There was no rung for it: `d`
     brought them to a decision, ringed it, and no key took them out again — the one place in
-    the runtime where a press put the reader somewhere with nothing to undo it, and the
+    the runtime where a press put the user somewhere with nothing to undo it, and the
     line said nothing about Escape at all while they stood there.
 
-    What letting go is not is the walk forgetting: the ring says where the reader is and
+    What letting go is not is the walk forgetting: the ring says where the user is and
     the walk keeps its own place, so the next press steps on rather than handing them
     back the decision they just put down.
 
     The landing is `body`, and a short page is where that stopped working. Chrome makes
     a scroll container focusable so the keyboard can scroll it, which is the whole of
     why `body.focus()` ever moved anything here — on a page that fits the window, the
-    call did nothing and the reader stayed on the control the line had just promised to
+    call did nothing and the user stayed on the control the line had just promised to
     take them off."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
@@ -4411,7 +4405,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
     # layer" for every rung, which was true while every rung took a layer of chrome off
-    # the page: standing on a decision is the reader holding something, with no layer over
+    # the page: standing on a decision is the user holding something, with no layer over
     # the page at all, so the two surfaces named one press two ways.
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -4453,13 +4447,13 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     ), "the page still scrolls, so this proves nothing about a short one"
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
-        "letting go left the reader holding the control on a page that fits the window"
+        "letting go left the user holding the control on a page that fits the window"
     )
 
     # A generated Page Map hint arrives the way the walk does and then presses the exact
     # Accept margin entry it names. What unfolds there is that press's own result rather than
     # the arrival's, and the ladder still owes one Escape to let go of where the press
-    # left the reader.
+    # left the user.
     with sending(page, "the addressed suggestion's acceptance"):
         go_to_address(page, "Margin entry", "sug-refill", "accept")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
@@ -4467,7 +4461,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     assert page.evaluate(
         """() => Boolean(document.activeElement.closest(
              '[data-lf-margin-for="sug-refill"]'))"""
-    ), "the address left the reader outside the cluster it pressed"
+    ), "the address left the user outside the cluster it pressed"
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
 
@@ -4483,9 +4477,9 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     never went through scrollIntoView and never drifted.
 
     A section taller than the viewport is the case centring cannot serve at all:
-    put its middle in the middle and the heading the reader was sent to is above
+    put its middle in the middle and the heading the user was sent to is above
     the top edge. It takes the banner clearance instead — read from the same
-    declaration, so the number lives in one place — and the reader starts at the
+    declaration, so the number lives in one place — and the user starts at the
     start."""
     url = serve(TRAVEL_PAGE)
     thread = {
@@ -4511,7 +4505,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
 
     # Centred: the destination the travel computed, which a glide toward it passes
     # through no earlier position that could be mistaken for. Put it wholly out of sight
-    # first: a readable destination now keeps the reader's place.
+    # first: a readable destination now keeps the user's place.
     page.evaluate(
         "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
     )
@@ -4573,11 +4567,11 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
-    Reported update rather than the reader's change. Task status remains work
-    state and never creates a reader request. Then the version that answers the report
+    Reported update rather than the user's change. Task status remains work
+    state and never creates a user request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
     version's own state is what renders, with no provisional mark left on it. Last, the
-    diff against the base version reads the base's state as the reader saw it — report
+    diff against the base version reads the base's state as the user saw it — report
     included — so the overrule marks as a change even though the two files spell the
     same status."""
     url = serve(REPORT_PAGE)
@@ -4587,7 +4581,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(fraction).to_contain_text("1/2 done")
     expect_banner_control_offered(
         page.locator(".lf-asks"), offered=False
-    )  # nothing waits on the reader
+    )  # nothing waits on the user
 
     sent = CliRunner().invoke(
         cli_model.cli, ["report", str(d), "t-parser", "status", "status=review"]
@@ -4597,7 +4591,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
-    expect(task).not_to_have_attribute("data-lf-reader-override", "1")
+    expect(task).not_to_have_attribute("data-lf-user-override", "1")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     report_reading = page.get_by_role(
@@ -4607,7 +4601,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.keyboard.press("Escape")
     assert task.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
     # The marker is paint, so the word beside it (x-paints) has to move with the
-    # attribute or a reader listening is told what the page said a poll ago.
+    # attribute or a user listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
     expect_banner_control_offered(page.locator(".lf-asks"), offered=False)
 
@@ -4640,7 +4634,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(page.locator("#t-feeders > .lf-chips")).to_contain_text("1/2 done")
 
     # The diff's state half, mirror-image: v1's markup also said `active`, but
-    # the reader last saw v1 wearing the report's `done`, so the overrule is a
+    # the user last saw v1 wearing the report's `done`, so the overrule is a
     # change since the base — the report-layered base facet is what says so.
     compare_with(page)
     page.wait_for_function(
@@ -4721,8 +4715,8 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
     `/api/view` and an immutable document are stamped with the captured generation of
     the revision they name, so after a re-vendor the base of a comparison legitimately
     answers for a layer the live page is no longer on. Running that answer through the
-    delivery gate reads it as the page being re-vendored underneath the reader, which it
-    is not: the page refuses its own comparison, and the reader is told the server is
+    delivery gate reads it as the page being re-vendored underneath the user, which it
+    is not: the page refuses its own comparison, and the user is told the server is
     updating.
     """
     url = serve(REPORT_PAGE)
@@ -4753,7 +4747,7 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
     """The half of a roster no version can write down. A standing report states what
     each worker is doing; only the log knows when it last said so, and a page that keeps
-    a fleet is at its least trustworthy exactly when the reader has been away longest.
+    a fleet is at its least trustworthy exactly when the user has been away longest.
     So the row renders elapsed time from the newest report and re-renders on every poll.
 
     Then the case the line exists for: a claim of work nobody has refreshed. It is
@@ -4769,7 +4763,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # like one published a minute ago.
     expect(wren.locator(".lf-heard")).to_contain_text("last heard")
     # The state is a word this module writes rather than paint the runtime speaks, so
-    # a reader listening gets it from the row itself.
+    # a user listening gets it from the row itself.
     assert "working" in wren.aria_snapshot()
 
     sent = CliRunner().invoke(
@@ -4809,7 +4803,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # And it survives the version that answers the report, which is the case the whole
     # line exists for and the one an earlier build could never reach. Publishing absorbs
     # a report by id, so a roster reading standing reports blanked every row at every
-    # publish — and the reader most needs this exactly where that left nothing: a worker
+    # publish — and the user most needs this exactly where that left nothing: a worker
     # that claimed work, had the claim written into the document, and then died. The
     # provisional mark goes, because the document speaks again; the log's memory of who
     # last said anything does not, because no version can speak for that.
@@ -4865,7 +4859,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         with service_model.PageTransaction(d) as transaction:
             transaction.set_status(
                 "working",
-                "checking the reader's question",
+                "checking the user's question",
                 work={
                     "subject": {"kind": "conversation", "id": thread["id"]},
                     "after": claim_floor,
@@ -4885,8 +4879,8 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         "target": {"kind": "conversation", "id": thread["id"]},
         "source": "claim",
         "action": "working",
-        "detail": {"text": "checking the reader's question"},
-        "text": "checking the reader's question",
+        "detail": {"text": "checking the user's question"},
+        "text": "checking the user's question",
         "ts": by_source["claim"]["ts"],
         "log_floor": claim_floor,
         "agent": "Claude",
@@ -5015,7 +5009,7 @@ def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve)
     """The direction a freshness line must never fail in. A row nobody has reported on
     is not of unknown age: its words were asserted when the version landed, and are
     exactly that old. Rendering nothing there was the first build's answer, and it hides
-    the case the reader is most exposed to — a fleet published at six in the evening,
+    the case the user is most exposed to — a fleet published at six in the evening,
     every worker dead by seven, read at eight the next morning. Every row claims work,
     and with no report behind any of them there is no elapsed line to contradict it and
     no call-out: a dead fleet drawn exactly like a fresh one, one section under a banner
@@ -5046,7 +5040,7 @@ def test_a_rosters_clock_keeps_moving_when_the_server_stops_answering(browser, s
 
 
 def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
-    """A row is a thing the reader is invited to select and point at, and it is also
+    """A row is a thing the user is invited to select and point at, and it is also
     the one widget with a reason to touch itself every two seconds. Those pull against
     each other, and the first build lost: the clock re-rendered the whole row, so the
     words under a pointer were a different node on every poll — a selection collapsing
@@ -5131,11 +5125,11 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     """A number the page rewrites unasked must not resize as it does.
 
     The done-fraction is the page's most-moved quantity: a worker reports a leaf
-    and the parent recounts, on a poll, with nothing the reader did to account
+    and the parent recounts, on a poll, with nothing the user did to account
     for the shift. It is apparatus, so it is set in the sans — and the sans gives
     each digit its own width where the serif carrying the prose gives them all
     one, which is why the figures are stated for the apparatus voice and not for
-    the page. The chip is a filled pill, so its own box is what a reader watches
+    the page. The chip is a filled pill, so its own box is what a user watches
     twitch; where apparatus leads something else, that something moves with it —
     a metric's delta sits directly after the value it follows.
 
@@ -5165,7 +5159,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
 
     assert abs(before - after) < 0.05, (
         f"the fraction resized as it recounted, {before}px to {after}px — a box "
-        "the reader was given no gesture to explain"
+        "the user was given no gesture to explain"
     )
 
 
@@ -5293,7 +5287,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
 def test_render_accepts_actions_made_after_the_authored_change(
     browser, serve, introduced
 ):
-    """A reader choosing on r2 does not retroactively contradict r2's authoring."""
+    """A user choosing on r2 does not retroactively contradict r2's authoring."""
     previous = (
         leaf_page("Approach", '<p id="intro">Choose an approach.</p>')
         if introduced
@@ -5484,11 +5478,11 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
 
 
 @pytest.mark.parametrize("authored", [None, "0"])
-def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
+def test_a_user_action_outranks_later_news_on_the_same_coordinate(
     browser, serve, tmp_path, monkeypatch, authored
 ):
     """The projection, not channel replay order, is the DOM's authority. A worker's
-    later count remains report history, but it cannot paint over the reader's action
+    later count remains report history, but it cannot paint over the user's action
     on the same unit and facet; both log records are ready once that one coordinate is
     committed."""
     monkeypatch.chdir(tmp_path)
@@ -6147,7 +6141,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
-        widget.setAttribute("data-lf-reader-override", "probe");
+        widget.setAttribute("data-lf-user-override", "probe");
         const painted = read();
         widget.removeAttribute("data-lf-state");
         const undecided = read();
@@ -6199,7 +6193,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
 
 
-def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
+def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     """A move outlives its notice: the card the user moved stays explicitly
     identified as overriding authored placement in the tab that moved it and in a fresh
     replay alike, because the runtime compares the page's state against the version's
@@ -6218,10 +6212,10 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     expect(page.locator("#card-importer")).to_have_attribute(
-        "data-lf-reader-override", "1"
+        "data-lf-user-override", "1"
     )
     expect(page.locator("#card-notes")).not_to_have_attribute(
-        "data-lf-reader-override", "1"
+        "data-lf-user-override", "1"
     )
     expect(
         page.get_by_role(
@@ -6235,7 +6229,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     # reading and its durable spoken state.
     second = open_page(browser, url)
     expect(second.locator("#card-importer")).to_have_attribute(
-        "data-lf-reader-override", "1"
+        "data-lf-user-override", "1"
     )
     expect(second.locator("#card-importer > .lf-quiet")).to_have_text("your change")
     expect(
@@ -6247,10 +6241,10 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     ).to_be_visible()
     second.keyboard.press("g")
     second.keyboard.press("Shift+m")
-    reader_origin = second.get_by_role(
+    user_origin = second.get_by_role(
         "button", name=re.compile(r"^Open your change: Your change")
     )
-    expect(reader_origin).to_be_visible()
+    expect(user_origin).to_be_visible()
     second.keyboard.press("Escape")
     assert (
         second.locator("#card-importer").evaluate(
@@ -6263,7 +6257,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
         new MutationObserver(records => {
             window.__originWrites.push(...records.map(record => record.target.id));
         }).observe(document.getElementById('work'), {
-            subtree: true, attributes: true, attributeFilter: ['data-lf-reader-override'],
+            subtree: true, attributes: true, attributeFilter: ['data-lf-user-override'],
         });
     }""")
     ticked(second)
@@ -6284,7 +6278,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     # Absence only counts once replay has decided every action.
     third.wait_for_function("() => document.body.dataset.lfApplied === '1'")
     expect(third.locator("#card-importer")).not_to_have_attribute(
-        "data-lf-reader-override", "1"
+        "data-lf-user-override", "1"
     )
     expect(third.locator("#card-importer > .lf-quiet")).to_have_count(0)
     expect(
@@ -6597,10 +6591,10 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     default hide is the whole of its disappearance. Then the one generic hide rule is
     stripped from the vendored theme, standing in for whatever re-shows a retired
     slot (a later layer's rule outranking the default, a module re-showing what it
-    folded): the words stay on screen where the reader can select what no comment
+    folded): the words stay on screen where the user can select what no comment
     can anchor to, and the gate must say so. Then the theme goes back and the
     vendored module marks every trial after the controller publishes: on the undecided
-    spare that is a settlement the log never decided, silencing words the reader can
+    spare that is a settlement the log never decided, silencing words the user can
     still see, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
     monkeypatch.chdir(tmp_path)
@@ -6752,7 +6746,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     page = open_page(browser, url)
     thread = page.locator(".lf-thread .lf-quote").first
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
-    # Pending, the outline hangs on a box the reader can see, and it is read as a box
+    # Pending, the outline hangs on a box the user can see, and it is read as a box
     # rather than as a class: the class sat on the wrapper while the wrapper was
     # display: contents and painted no outline, so the half of this docstring about
     # drawing nothing was true of the attached case too. The wrapper draws its own box
@@ -6837,9 +6831,9 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     assert "**" not in text and "Vec<T>" in text
 
 
-def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader):
+def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
     """A message can point at the page with a fragment link, and the platform is what
-    carries the reader: collapsed content wears hidden="until-found", so the jump
+    carries the user: collapsed content wears hidden="until-found", so the jump
     fires beforematch and the tab holding the target opens itself. That half is
     pinned here rather than implemented — a runtime that starts intercepting these
     presses has to keep doing it, reveal included.
@@ -6861,7 +6855,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
             "text": "See [the bath](#p-bath), not [the old note](#gone).",
         },
     )
-    page = open_page(browser, url, context=one_reader)
+    page = open_page(browser, url, context=one_user)
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread-summary").first.click()
 
@@ -6948,7 +6942,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.wait_for_function(BOTH_STAMPS)
     page.wait_for_function(onscreen, arg="p-bath")
 
-    # The reader moves on, so the fragment is stale by the reload that carries it. The
+    # The user moves on, so the fragment is stale by the reload that carries it. The
     # bath tab stays open across that reload and says nothing about this — a tab
     # remembers its own panel, the same way the position is remembered here.
     page.evaluate(
@@ -7104,13 +7098,13 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             "kind": "action",
             "widget": "reply-body",
             "action": "edit",
-            "detail": {"text": "Reader's exact words.\n"},
+            "detail": {"text": "User's exact words.\n"},
             "revision": 1,
         },
     )
     assert response.ok, response.text()
     told(page)
-    assert body.text_content() == "Reader's exact words.\n"
+    assert body.text_content() == "User's exact words.\n"
     undo(page)
     assert body.text_content() == "First line.\nSecond line."
     assert original.evaluate("node => node === document.getElementById('reply-body')")
@@ -7144,7 +7138,7 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
     )
     revised.locator(".lf-draft-body").click()
     editor = revised.get_by_role("textbox", name="Edit revised-draft")
-    editor.fill("The reader's unsent replacement.\n")
+    editor.fill("The user's unsent replacement.\n")
     editor.press("Escape")
     expect(editor).to_have_count(0)
     assert take_browser_errors(page) == []
@@ -7159,7 +7153,7 @@ def test_live_revision_drafts_wait_for_the_complete_controller_publication(
         "The second revision's newly inserted body."
     )
     expect(revised.get_by_role("textbox", name="Edit revised-draft")).to_have_value(
-        "The reader's unsent replacement.\n"
+        "The user's unsent replacement.\n"
     )
     assert take_browser_errors(page) == []
 
@@ -7243,13 +7237,13 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     body = widget.locator(".lf-draft-body")
     assert body.text_content() == "First line.\nSecond line."
     widget.locator(".lf-draft-body").click()
-    widget.locator("textarea").fill("A reader's exact words.\n")
+    widget.locator("textarea").fill("A user's exact words.\n")
     page.locator(
         '[data-lf-margin-entry-owner="draft:crossed-draft"]'
         '[data-lf-margin-entry-key="save"]:visible'
     ).click()
     round_trip(page)
-    assert body.text_content() == "A reader's exact words.\n"
+    assert body.text_content() == "A user's exact words.\n"
     undo(page)
     assert body.text_content() == "First line.\nSecond line."
     assert original.evaluate(
@@ -7307,7 +7301,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
 
     # Chrome belongs to the thread rather than the page version. Its action therefore
-    # still stands, and is still the reader's newest undoable gesture, after the page
+    # still stands, and is still the user's newest undoable gesture, after the page
     # advances around the conversation.
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
@@ -7321,7 +7315,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
 
 
 def test_a_thread_question_asks_until_answered(browser, serve):
-    """A question in a thread is one of the page's asks — an obligation for the reader
+    """A question in a thread is one of the page's asks — an obligation for the user
         wherever it stands — and `a` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
@@ -7351,7 +7345,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
-    # The box hands the reader back to the conversation it belongs to, which is the
+    # The box hands the user back to the conversation it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")).to_be_focused()
@@ -7420,7 +7414,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     assert actions[-1]["detail"] == {}
 
     # And a second tab reads it off the log, which is the only place it is written.
-    # A reader who made no gesture gets the same pressed press and the same closed
+    # A user who made no gesture gets the same pressed press and the same closed
     # decision — replay is what puts it there, and the one representation is what replay
     # writes, so there is nothing for a version or a markup copy to fall behind.
     other = open_page(browser, url)
@@ -7435,7 +7429,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     other.close()
 
     # Taking back a recordless chrome answer rebuilds its authored controls at once —
-    # the withdrawal is the reader's own gesture on their own widget. The selection is
+    # the withdrawal is the user's own gesture on their own widget. The selection is
     # another facet, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
@@ -7685,7 +7679,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
 def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
-    answer — what went is the page's claim on the reader, who would otherwise carry a
+    answer — what went is the page's claim on the user, who would otherwise carry a
     standing decision for the life of the page and have `d` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
@@ -7733,7 +7727,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     tree — the shape `skills/leaf/assets/AGENTS.md` names as one promise rather than two.
 
     Both surfaces of that promise, because a row naming the wrong keys names them wrongly
-    on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —
+    on both — the line the user sees and the `aria-keyshortcuts` a listener is read —
     and the row is the only thing here either one can be wrong about: the repaint that
     turns them over together is the document's disclosure watch, held up by
     `test_staged_widget_controls_name_the_presses_their_owners_make`, and not anything
@@ -7820,7 +7814,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
 
 
 def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, serve):
-    """A normal note does not consume the goal's stronger pause door. The reader
+    """A normal note does not consume the goal's stronger pause door. The user
     can start a later held thread, whose root remains the one atomic hold fact."""
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
@@ -7879,7 +7873,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     then waits for its exact receipt.
 
     The tray row is the other half: whether the Ask the request stands for is still the
-    reader's is the log's reading, so the row turns over when the request reaches it."""
+    user's is the log's reading, so the row turns over when the request reaches it."""
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
@@ -8367,9 +8361,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/4")
     expect_banner_control_offered(page.locator(".lf-asks"))
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
-    expect(page.locator("#ledger-cargo")).not_to_have_attribute(
-        "data-lf-reader-override"
-    )
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
         "privileged input"
     )
@@ -9020,7 +9012,7 @@ def test_command_hub_keeps_its_command_owners_through_a_live_version(browser, se
     neither evaluate a module twice nor redefine an element. A revision whose code is
     the code already running therefore has nothing to re-run: the document stays, its
     owners stay with it, and the widgets go on answering for themselves rather than
-    being rebuilt around the reader.
+    being rebuilt around the user.
     """
     url = serve(COMMAND_HUB_EXAMPLE)
     page = open_page(browser, live_url(url))
@@ -9184,7 +9176,7 @@ customElements.define(\"lf-area\", class extends HTMLElement {
 
 
 def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, serve):
-    """Two readings of the same fault on one page: the command hub told the reader
+    """Two readings of the same fault on one page: the command hub told the user
     nothing, at rest, about what could be pressed and what had already been.
 
     The chip. A chip that opens a worker list and a badge that counts finished tasks
@@ -9196,7 +9188,7 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
 
     The request. A one-shot request is spent for good the moment its receipt lands, and a
     spent one kept its border at full strength and differed from a live one only by ink -
-    111,106,96 against 28,27,24. Greyscale drops that, and a reader scanning eight presses
+    111,106,96 against 28,27,24. Greyscale drops that, and a user scanning eight presses
     down a column never sees it as a difference at all. The shape cue is the layer's,
     stated once beside the hand it withdraws, so a request that is finished cannot go on
     looking like one that is waiting.

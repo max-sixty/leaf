@@ -5,7 +5,7 @@
  * disclosure while rendering the order, declared facet controls, summary, and Reset. The
  * summary follows the choices so that its arrival never moves a choice under the press
  * that caused it, and the disclosure's label never changes with what is chosen. It
- * never reads its rendering back into reader intent.
+ * never reads its rendering back into user intent.
  */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 import { offer } from "../widget-elements.js";
@@ -19,7 +19,7 @@ class ThreadNarrowingView extends HTMLElement {
   #disclosed = false;
   #model = null;
   #reset = null;
-  #toggleReader = null;
+  #toggleUser = null;
   #searchInput = offer("wa-input", "lf-find-box lf-label-hidden");
 
   constructor() {
@@ -35,28 +35,26 @@ class ThreadNarrowingView extends HTMLElement {
     );
   }
 
-  configure({ changeWords, chooseFacet, initial, reset, toggleReader }) {
+  configure({ changeWords, chooseFacet, initial, reset, toggleUser }) {
     if (this.#changeWords)
       throw new Error("The thread narrowing view is already configured");
     this.#changeWords = changeWords;
     this.#chooseFacet = chooseFacet;
     this.#reset = reset;
-    this.#toggleReader = toggleReader;
+    this.#toggleUser = toggleUser;
     this.present(initial);
   }
 
-  get readerControl() {
-    return this.querySelector(
-      '[data-filter-kind="waiting"][data-filter-value="reader"]',
-    );
+  get userControl() {
+    return this.querySelector('[data-filter-kind="waiting"][data-filter-value="user"]');
   }
 
-  toggleReader() {
-    this.#toggleReader();
+  toggleUser() {
+    this.#toggleUser();
   }
 
-  get canToggleReader() {
-    return this.#model?.readerAvailable ?? false;
+  get canToggleUser() {
+    return this.#model?.userAvailable ?? false;
   }
 
   get searchInput() {
@@ -80,14 +78,14 @@ class ThreadNarrowingView extends HTMLElement {
   }
 
   #resetFilters(event) {
-    // Reset retires its own control; keep the reader at the surviving disclosure.
+    // Reset retires its own control; keep the user at the surviving disclosure.
     if (document.activeElement === event.currentTarget)
       this.querySelector(".lf-thread-filter-toggle")?.focus();
     this.#reset();
   }
 
   #choice(choice) {
-    const keyTitle = choice.kind === "waiting" && choice.value === "reader";
+    const keyTitle = choice.kind === "waiting" && choice.value === "user";
     const classes = [
       "lf-btn",
       "lf-thread-filter",
@@ -103,8 +101,8 @@ class ThreadNarrowingView extends HTMLElement {
       data-filter-kind=${choice.kind}
       data-filter-value=${choice.value}
       aria-pressed=${String(choice.selected)}
-      data-lf-key-title=${keyTitle ? this.#model.readerTitle : nothing}
-      title=${keyTitle ? this.#model.readerTitle : nothing}
+      data-lf-key-title=${keyTitle ? this.#model.userTitle : nothing}
+      title=${keyTitle ? this.#model.userTitle : nothing}
       ?hidden=${choice.hidden}
       ?disabled=${choice.disabled}
       @click=${() => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}

@@ -29,7 +29,7 @@
    modal entry stands; this stack never sees it.
 
    What Escape takes off is not recorded here, and not recorded anywhere: every step is
-   read off the state standing in front of the reader, by the owner of that state, through
+   read off the state standing in front of the user, by the owner of that state, through
    `pageRung` and the scopes each owner declares. `register.js` orders those steps and
    `dispatch.js` resolves one of them per press. This module answers only which native
    layers the browser is holding, because that is the one fact about the scene that its

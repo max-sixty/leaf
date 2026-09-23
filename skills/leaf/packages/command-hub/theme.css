@@ -4,7 +4,7 @@
  * upgrade, because all but the reference move between versions and the elapsed line
  * is computed from the log. Branch evidence comes from the worktree data source.
  *
- * A row and not a card. The reader's question is comparative — which of these five is
+ * A row and not a card. The user's question is comparative — which of these five is
  * stuck, which has gone quiet — and a card puts a border between every pair of things
  * being compared, so the eye has to cross one to make each comparison. Hairlines
  * between rows and one shape per row is what a set read across wants, which is the
@@ -38,7 +38,7 @@ lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--
 .lf-agent-line .lf-cold, .lf-agent-line .lf-heard { margin-left: auto; }
 .lf-agent-line:has(.lf-cold) .lf-heard { margin-left: var(--sp-2); }
 .lf-agent-line .lf-heard { padding-left: var(--sp-3); }
-/* The clause is the row's content, so it is set in the page's own voice: the reader
+/* The clause is the row's content, so it is set in the page's own voice: the user
  * reads it as a sentence, where everything else on the line is apparatus about it. */
 .lf-doing { color: var(--ink-2); }
 .lf-heard { color: var(--muted); white-space: nowrap; font-size: var(--t-6); }

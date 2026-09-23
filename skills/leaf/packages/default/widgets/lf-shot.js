@@ -7,7 +7,7 @@
  * adjustment; its bundle is not on the presentation path, and `afterPresentation` is
  * what holds it there, so the page still answers for the upgrade as an arrival of its
  * own. A click on either image keeps
- * the quick endpoint toggle, while a click on the handle only puts the reader on it.
+ * the quick endpoint toggle, while a click on the handle only puts the user on it.
  * Export unwinds that live comparison and reveals the transparent native checkbox over
  * the image, so a standalone copy still flips with a click or Space.
  * Print stacks both frames.
@@ -120,7 +120,7 @@ customElements.define(
         this.#chose = true;
         this.#paint();
       });
-      // One declaration, two controls: the native checkbox the reader stands on inside
+      // One declaration, two controls: the native checkbox the user stands on inside
       // the widget, and the margin entry the same flip is projected onto. A margin entry
       // is generated elsewhere, so ancestry cannot find this row for it — the capability
       // is how the flip keeps its name on both (`runtime/keyboard/scopes.js`,
@@ -370,7 +370,7 @@ customElements.define(
     // viewports is scaled by two different factors and every line in it lands
     // somewhere new. The flip then says the whole page changed, which is the one
     // failure this widget cannot afford: it is silent, it is convincing, and the
-    // reader has no way to tell it from the truth. Heights may differ freely —
+    // user has no way to tell it from the truth. Heights may differ freely —
     // content reflowing taller is a real thing to see, and it stays registered.
     async register(shots) {
       await Promise.all(shots.map((img) => img.decode().catch(() => {})));

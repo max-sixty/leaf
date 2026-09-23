@@ -5796,8 +5796,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     ), geometry
     assert 319 <= geometry["cardWidth"] <= 460, geometry
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
-    assert page.evaluate("() => window.__firstReplyHint") == "Reply · c"
-    expect(reply).to_have_attribute("placeholder", "Reply · c")
+    assert page.evaluate("() => window.__firstReplyHint") == "Reply c"
+    expect(reply).to_have_attribute("placeholder", "Reply c")
     expect(marker).to_have_attribute("data-lf-target-selected", "")
     expect(marker).to_have_css("border-top-color", token_colour(page, "--accent"))
     expect(reply).to_be_hidden()
@@ -5805,10 +5805,10 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
-    expect(reply).to_have_attribute("placeholder", "Reply · c")
+    expect(reply).to_have_attribute("placeholder", "Reply c")
     hint = thread.locator(".lf-compose-placeholder")
     expect(hint).to_be_visible()
-    expect(hint.locator("span")).to_have_text("Reply · ")
+    expect(hint.locator("span")).to_have_text("Reply ")
     expect(hint.locator("kbd")).to_have_text("c")
     assert hint.locator("span").evaluate(
         "label => getComputedStyle(label).fontFamily"
@@ -5827,7 +5827,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     marker.click()
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
     expect(reply).to_be_visible()
-    expect(reply).to_have_attribute("placeholder", "Reply · c")
+    expect(reply).to_have_attribute("placeholder", "Reply c")
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")

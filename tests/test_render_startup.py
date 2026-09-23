@@ -3306,7 +3306,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("")
+    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
 

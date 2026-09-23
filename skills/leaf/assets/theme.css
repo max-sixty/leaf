@@ -859,26 +859,6 @@ h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
 p { margin: 13px 0; }
 ul, ol { margin: 10px 0; padding-left: 24px; }
 li { margin: 6px 0; }
-/* One sequential step keeps one geometry in options, the shortcut bar, banner controls
- * and the reference. A sequence composes these fixed boxes instead of making spaces
- * inside one keycap carry time. A compact choice label such as g / G remains one
- * decision point. A binding is an available key, so this neutral face is also its
- * complete colour statement; completed steps take the pressed face in chrome.css.
- *
- * The badge is worn on both sides of the chrome's scope line — an option's own corner
- * in the page, and the sequence's hints in the Go-to hint layer — and its box is stated
- * here, after the .lf-ui face it overrides in shadow.css. In chrome.css it outranked
- * a component asking for a different badge, for no reason beyond that sheet being
- * adopted; the chrome's own step keys spell the same list again inside the scope
- * (`.lf-binding-sequence > kbd`), because naming them here would put two private names
- * on the document-level surface the coined-class probe pins. Keep the two lists
- * identical. */
-.lf-key-badge { box-sizing: border-box;
-    min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
-    border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
-    color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
-    line-height: 1.478; text-align: center; white-space: nowrap;
-    display: none; z-index: 1; user-select: none; -webkit-user-select: none; }
 a { color: var(--accent); text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 a:hover { text-decoration-color: currentColor; }

@@ -2266,7 +2266,7 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
 
 
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
-    """A local receipt is live runtime chrome even though its seat is in the page.
+    """A local work claim is live runtime chrome even though its seat is in the page.
     A standalone copy has no agent behind it, so preserving the rendered sentence
     would turn a provisional claim into a frozen lie."""
     work_page = leaf_page(
@@ -2297,7 +2297,6 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
 
-    expect(page.locator(".lf-receipt")).to_have_count(0)
     expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
 
 
@@ -2341,6 +2340,19 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
             },
         },
     )
+    if not resolved:
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "status",
+                str(serve.page_dir),
+                "working",
+                "checking the shard",
+                "--on",
+                root["id"],
+            ],
+        )
+        assert result.exit_code == 0, result.output
     if resolved:
         events_model.append_event(
             serve.page_dir,
@@ -2351,10 +2363,14 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     thread = live.locator(selector)
     expect(thread).to_have_count(1)
     expect(thread.locator("button")).not_to_have_count(0)
+    if not resolved:
+        expect(thread.locator(".lf-msg-sending")).to_have_text("Working")
     live.emulate_media(media="print")
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
     assert (
-        thread.locator("button:visible, textarea:visible, .lf-receipt:visible").count()
+        thread.locator(
+            "button:visible, textarea:visible, .lf-msg-sending:visible"
+        ).count()
         == 0
     )
     live.close()
@@ -2365,7 +2381,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     copy.goto(out.as_uri(), wait_until="load")
     thread = copy.locator(selector)
     expect(thread).to_have_count(1)
-    expect(thread.locator("button, textarea, .lf-receipt")).to_have_count(0)
+    expect(thread.locator("button, textarea, .lf-msg-sending")).to_have_count(0)
     expect(
         copy.locator("script, .lf-chrome, leaf-anchor-note, .lf-mark-note")
     ).to_have_count(0)

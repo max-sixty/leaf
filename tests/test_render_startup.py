@@ -3488,7 +3488,9 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     )
 
 
-def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
+def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
+    browser, serve, tmp_path
+):
     """A stale exact-input workflow says so beside its message even while a fresh
     page-wide claim keeps the banner working. Renewing the claim restores Working;
     a closed turn matters only when it belongs to the claiming session."""

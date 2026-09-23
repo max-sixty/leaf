@@ -264,7 +264,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     expect(
         page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     ).to_have_text("Replying")
-    expect(message.locator(".lf-msg-head .lf-receipt")).to_have_count(0)
+    expect(message.locator(".lf-msg-head .lf-msg-sending")).to_have_count(0)
     page.evaluate(
         "attempt => { window.__streamMessage = document.querySelector("
         '`.lf-msg[data-attempt="${attempt}"]`); }',
@@ -4210,6 +4210,8 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-conversation-body",
         "lf-thread-root-meta",
         "lf-msg-meta",
+        # Inline print hides the live workflow line supplied by the shared theme.
+        "lf-msg-sending",
         # The message's own box. The theme gives the authored and margin-projected copies
         # their spacing while the chrome's scoped rules dress the panel's. The runtime
         # sheet used to name it at document level too, in a `.lf-conversation-msg.lf-ui`

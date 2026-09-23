@@ -4226,15 +4226,15 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
           const {marginEntry, registerMarginContribution} =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.lfReceiptSecondary = registerMarginContribution({
-            key: 'receipt-primary-probe', target: document.querySelector('#jobs'),
+            key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
             read: () => ({entries: [marginEntry({
               key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure',
-              className: 'lf-receipt-primary-probe'
+              className: 'lf-workflow-primary-probe'
             })]}), activate: () => {}
           });
         }"""
     )
-    carrier = page.locator(".lf-receipt-primary-probe")
+    carrier = page.locator(".lf-workflow-primary-probe")
     expect(marker).to_be_hidden()
     expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(carrier).to_have_attribute("aria-description", "Picked up")

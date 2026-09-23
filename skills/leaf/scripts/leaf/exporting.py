@@ -398,7 +398,7 @@ def interactive_export_page(
     policy = (
         "default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
         f"connect-src data: {EXTERNAL_SOURCES}; img-src data: {EXTERNAL_SOURCES}; "
-        f"media-src data:; font-src data: {EXTERNAL_SOURCES}; "
+        f"media-src data: {EXTERNAL_SOURCES}; font-src data: {EXTERNAL_SOURCES}; "
         f"style-src 'unsafe-inline' data: {EXTERNAL_SOURCES}; "
         f"script-src data: 'nonce-{nonce}' {EXTERNAL_SOURCES}"
     )

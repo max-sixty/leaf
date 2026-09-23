@@ -6,26 +6,26 @@ $ leaf reply /page --text Answer
 exit: 1
 cannot infer a reply: this turn's opened delivery holds 2 reply obligations. Read what the page still owes with `leaf page state <page>`; use --for EVENT_ID to answer one, or --to ID --initiates only if that read shows nothing owed
 
-$ leaf reply /page --to reader-1 --text Answer
+$ leaf reply /page --to user-1 --text Answer
 exit: 1
-use --for EVENT_ID to answer reader input; --to ID --initiates starts a new message when no reply is owed
+use --for EVENT_ID to answer user input; --to ID --initiates starts a new message when no reply is owed
 
-$ leaf reply /page --for reader-1 --text Answer
+$ leaf reply /page --for user-1 --text Answer
 exit: 0
-replied in reader-1
+replied in user-1
 
-$ leaf reply /page --for reader-1 --text Answer
+$ leaf reply /page --for user-1 --text Answer
 exit: 1
-event 'reader-1' takes no reply; reader-1 is a comment in this page's log, and nothing is owed for it \u2014 `leaf reply <page> --to reader-1 --initiates` replies to it
+event 'user-1' takes no reply; user-1 is a comment in this page's log, and nothing is owed for it \u2014 `leaf reply <page> --to user-1 --initiates` replies to it
 
-$ leaf reply /page --to reader-1 --initiates --text Follow-up
+$ leaf reply /page --to user-1 --initiates --text Follow-up
 exit: 0
-replied in reader-1
+replied in user-1
 
-$ leaf reply /page --for reader-3 --text Answer
+$ leaf reply /page --for user-3 --text Answer
 exit: 1
-event 'reader-3' takes no reply; reader-3 is a comment in this page's log, and nothing is owed for it \u2014 `leaf reply <page> --to reader-3 --initiates` replies to it
+event 'user-3' takes no reply; user-3 is a comment in this page's log, and nothing is owed for it \u2014 `leaf reply <page> --to user-3 --initiates` replies to it
 
-$ leaf resolve /page --to reader-3
+$ leaf resolve /page --to user-3
 exit: 0
-resolved reader-3
+resolved user-3

@@ -28,7 +28,7 @@
    the available viewport edge.
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it. A region too small for
-   the compact control yields to the viewport so the reader keeps their response.
+   the compact control yields to the viewport so the user keeps their response.
    When the target fills the viewport, the viewport still caps the field. When a
    covering panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
@@ -118,7 +118,7 @@ import { moveScrollerBy } from "../scrolling.js";
 const COMMENT_COMMANDS = ["comment.create", "comment.write"];
 
 const BANNER_CLEAR = 48;
-// Whether the reader's primary pointer is a finger, as the theme's --aim-floor asks it.
+// Whether the user's primary pointer is a finger, as the theme's --aim-floor asks it.
 const coarsePointer = matchMedia("(pointer: coarse)");
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
@@ -267,7 +267,7 @@ export function createResponseSurface({
   // than merely move its old node.
   // `repositioning` is the caller saying it is moving the bar rather than putting it
   // away: it answers the waiters itself once the bar has landed. Answering here would
-  // take them out of the list — one answer drains it — and tell a reader waiting to be
+  // take them out of the list — one answer drains it — and tell a user waiting to be
   // put in the field that the bar has no position, in the middle of giving it one.
   function stopFabPositioning({ reset = false, repositioning = false } = {}) {
     fabPositionEpoch += 1;
@@ -455,7 +455,7 @@ export function createResponseSurface({
     // Keep the response within its pane while that pane can hold the compact control.
     // A resize can narrow the pane; scrolling can leave only a short visible strip.
     // The response is already a viewport-plane overlay, so let the viewport carry it
-    // instead of withdrawing the draft and dropping focus while the reader types.
+    // instead of withdrawing the draft and dropping focus while the user types.
     if (
       regionBounds &&
       (!fabFits(regionBounds) || boundary.height < minimumFabHeight())
@@ -466,7 +466,7 @@ export function createResponseSurface({
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
     const parts = block ? shownParts(block) : [];
-    // Room is a reading of the whole block; clipping changes as the reader scrolls.
+    // Room is a reading of the whole block; clipping changes as the user scrolls.
     // Attachment uses the visible part so the field still meets what is on screen.
     const roomRect =
       union(parts.map((part) => shownBox(part)).filter(Boolean)) || target;
@@ -513,7 +513,7 @@ export function createResponseSurface({
         : "top-end";
     };
     // Choose once for the target's horizontal geometry within a reading boundary. Its
-    // vertical position moves whenever the reader scrolls, but its reachable room does
+    // vertical position moves whenever the user scrolls, but its reachable room does
     // not: visible room and remaining travel trade one-for-one. Keeping that movement
     // out of the cache key prevents scrolling and content growth from re-seating the
     // response while still reconsidering a resized pane or a changed margin rail.
@@ -688,7 +688,7 @@ export function createResponseSurface({
                 }),
               // The viewport holds the bar in only while its target is still there: past
               // that the bar leaves with it, rather than staying pinned to the viewport's
-              // edge over whatever the reader scrolled to. Only the block axis is limited;
+              // edge over whatever the user scrolled to. Only the block axis is limited;
               // the reading boundary still holds the bar in across it.
               shift({
                 ...overflow,
@@ -725,10 +725,10 @@ export function createResponseSurface({
       });
     return true;
   }
-  // Where a bar on this anchor hands the reader back: the control the gesture stood them
+  // Where a bar on this anchor hands the user back: the control the gesture stood them
   // on, or the margin's own proxy for the same anchor where that control has gone, found
   // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
-  // of its own and the reader lands on the page — the element the bar is about is not a
+  // of its own and the user lands on the page — the element the bar is about is not a
   // landing merely for being named, an ⌥-aimed press having never stood them on it.
   const handBackTo = (anchor, origin) =>
     anchor && !anchor.quote && origin
@@ -769,8 +769,8 @@ export function createResponseSurface({
     fabFloating = !fabAnchor || (place && !keptInline);
     // A call that names the anchor already standing and supplies no control is the same
     // bar being re-placed — the other-responses toggle, leaving react mode, a scroll —
-    // rather than a fresh gesture that stood the reader nowhere. It keeps the control the
-    // opening gesture stood them on; otherwise the way out of a bar the reader opened
+    // rather than a fresh gesture that stood the user nowhere. It keeps the control the
+    // opening gesture stood them on; otherwise the way out of a bar the user opened
     // from a proxy would depend on what they did inside it.
     fabOrigin =
       fabAnchor && origin?.isConnected
@@ -875,25 +875,25 @@ export function createResponseSurface({
   // buying a focus landing at the price of five separate questions: escaping an
   // author-written id into a selector, whether the box can take focus at all (a settled
   // group's seat is inside `hidden="until-found"` and silently swallowed the press), which
-  // box when the seat holds several threads, what design mode files, and where the reader
+  // box when the seat holds several threads, what design mode files, and where the user
   // was already standing. One route answers all five by not asking them.
   //
-  // Putting a thing in front of the reader before a box is opened about it, for whichever
+  // Putting a thing in front of the user before a box is opened about it, for whichever
   // route reaches that box: the item `c` names, and the passage a kept draft comes back to.
-  // Both open on a coordinate the reader may have scrolled away from, and a box measured
+  // Both open on a coordinate the user may have scrolled away from, and a box measured
   // against a passage off screen stands beside nothing.
   //
-  // Only where it is not already in front of the reader. Travelling every time moved
+  // Only where it is not already in front of the user. Travelling every time moved
   // the page under someone who could see the thing perfectly well: Tab leaves an item at an
   // edge (`block: nearest`), so centring took the page a third of a viewport with nothing on
   // screen to explain it — on the route this press exists for, and where the ⌥ aim it is the
   // twin of moves nothing at all. The travel is for the standing that has gone stale, focus
   // outliving the scroll that put it there: a box about something off screen is a box about
-  // nothing the reader can see.
+  // nothing the user can see.
   //
   // What the page shows of it, which is the reading the aim's own paint takes
   // (`refreshAim`) — this being its keyboard twin, the two decide "is this in front of the
-  // reader" the same way or they are not twins. An unclipped box alone is the box the item
+  // user" the same way or they are not twins. An unclipped box alone is the box the item
   // would have: an item scrolled out of a board's sideways scroller still reports one
   // inside the window, so a gate reading that called it showing and opened the box on
   // something off screen, which the unconditional travel it replaced never did. A clipped
@@ -904,7 +904,7 @@ export function createResponseSurface({
   // disclosure is never showing and takes the travel, `reveal` with it. Standing on the
   // summary itself is the one motion this drops: the disclosure stays shut and the box
   // opens on it where it is, rather than springing it open and reflowing the page under
-  // the reader who was looking at it.
+  // the user who was looking at it.
   //
   // Instant, and before the box is measured. Placing reads the addressable's box, so that has
   // to be the box the addressable keeps; and opening focuses the textarea, whose
@@ -920,7 +920,7 @@ export function createResponseSurface({
     }
     // A clipped sliver can be enough to offer a viewport-local hint, but not enough to
     // place a response box against. `nearest` reveals it while leaving a target already
-    // in front of the reader exactly where it is.
+    // in front of the user exactly where it is.
     scrollRevealedElement(addressable, "instant", "nearest");
   }
 
@@ -951,7 +951,7 @@ export function createResponseSurface({
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
   // selectionchange out of updateFab: the durable anchor is already captured, and letting
-  // the collapse re-read it as no selection dismisses the field the reader just entered.
+  // the collapse re-read it as no selection dismisses the field the user just entered.
   function focusFabComment() {
     if (!fabAnchor) return;
     clearTimeout(selectionUpdate);
@@ -1049,7 +1049,7 @@ export function createResponseSurface({
   // tab's name runs to within a few pixels of the strip button's padding, so the mouseup
   // lands on chrome while the selection is the page's. The snap runs in the same queued
   // step that raises the field, so the bar lands beside the selection as snapped and
-  // the capture reads the one the reader is looking at — and only for the primary
+  // the capture reads the one the user is looking at — and only for the primary
   // button, because a right button's release precedes its context menu, and growing the
   // selection there rewrites what Copy was aimed at.
   //
@@ -1058,7 +1058,7 @@ export function createResponseSurface({
   // for: it is the drag under way, and `snapSelection` rewrites that drag mid-gesture.
   // Chromium does not resume extending a selection it has been handed through
   // `setBaseAndExtent`, so the pointer's remaining travel is lost and a sweep from
-  // "paragraph" to "carrying" ends up captured as "paragraph" — the reader's own hand
+  // "paragraph" to "carrying" ends up captured as "paragraph" — the user's own hand
   // is slow enough that the step always ran first, and a loaded machine hands out that
   // ordering freely. The press under way owns the selection and queues its own step on
   // its own release, so standing down here drops no work.
@@ -1108,7 +1108,7 @@ export function createResponseSurface({
     fabInputTakingFocus = false;
   };
   // Every handoff lands here. It is marked at once and lands a frame or more later, and
-  // the reader owns the page for the whole of that gap: a passage standing when it lands
+  // the user owns the page for the whole of that gap: a passage standing when it lands
   // that this composer did not open on is theirs, taken since, and focusing the field
   // would collapse it before anything could read it. Standing down releases the mark with
   // it, so the collapse the mark holds out cannot outlive the focus it was holding it for.
@@ -1153,7 +1153,7 @@ export function createResponseSurface({
   // Whether the page's own words stood selected when the shortcut bar was last painted for
   // this press. The bar waits for the release; the Escape rung cannot, because from the
   // first glyph a drag takes, Escape clears the selection rather than letting go of the
-  // control the reader is standing on, and until now nothing repainted the line inside a
+  // control the user is standing on, and until now nothing repainted the line inside a
   // press — the word only became true when the frame the press itself scheduled happened
   // to land after the drag had moved, and stayed a lie for a whole heartbeat when it
   // landed before. Only the crossing is painted: a drag growing a selection that already
@@ -1228,7 +1228,7 @@ export function createResponseSurface({
   // the composer that press just opened. Hence one function, called from both.
   // The two side panels are absent from it on purpose. A float answers the press in front
   // of it and stands down behind it; the thread panel and the leaves tray are
-  // auxiliary surfaces the reader stood up, kept through a reload (AUXILIARY_SURFACE_KEY) and so
+  // auxiliary surfaces the user stood up, kept through a reload (AUXILIARY_SURFACE_KEY) and so
   // through a click all the more — a tray any press removes cannot be watched while
   // working, which is the tray's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
@@ -1338,7 +1338,7 @@ export function createResponseSurface({
       // The captured passage is not asked about here. What the handoff has to survive is
       // the collapse focusing the field causes, and `updateFab` holds that out at the one
       // branch that acts on an empty selection. Restated here it also swallowed the
-      // opposite event: a passage the reader went on to select, arriving while the bar
+      // opposite event: a passage the user went on to select, arriving while the bar
       // still held focus or while its focus was in flight, read as the collapse and was
       // dropped — and the handoff then landed on the field and collapsed the selection,
       // so nothing was left to re-read and the target never moved.
@@ -1364,7 +1364,7 @@ export function createResponseSurface({
       const selection = pageSelection();
       const selected = selection ? selectionAnchor(selection) : null;
       // A drag whose far end left the document is the same release as one that ended holding
-      // nothing: what the reader meant is what the drag had before the pointer crossed out,
+      // nothing: what the user meant is what the drag had before the pointer crossed out,
       // and the range this press remembered is that. Without it, a hand five words along a
       // paragraph overshooting the layer by 40px captured 14,387 characters, marked 22,140,
       // and named the whole document in the field — because past the page's last words the
@@ -1385,7 +1385,7 @@ export function createResponseSurface({
           restored.addRange(completed);
         } else if (escaped) {
           // A drag that crossed out before it covered anything has no passage to offer and
-          // no words to put back. The browser's own selection stays where it is — the reader
+          // no words to put back. The browser's own selection stays where it is — the user
           // can still copy it — and the response surface says nothing about it.
           showFab(null);
           return;
@@ -1411,25 +1411,25 @@ export function createResponseSurface({
       if (drawModeActive()) return;
       if (!pageWords(ev.target)) return;
       // A press that ends holding words it did not begin with took them, and is that
-      // selection's mouseup rather than a click on whatever lies under it: the reader was
+      // selection's mouseup rather than a click on whatever lies under it: the user was
       // reaching for the words, and the 💬 is already up on them (updateFab, on the same
       // mouseup). The same complaint `offer` answers for a press on a control and the
       // thread list for a press on a card (reachedForWords), and it governs the whole of
       // what a click on prose means — the block design mode comments on, and the thread a
       // mark opens. Marked words are where it showed: a gesture inside one travelled to its
       // thread, and with Threads open the reply box it landed in collapsed the selection
-      // the reader had just made, so the words and the 💬 went with it.
+      // the user had just made, so the words and the 💬 went with it.
       //
       // Asked of what this press changed rather than of the standing selection those two
       // have to read, because a mark is a painted range with no element to put the question
       // to — and because the state alone is too strict: a press landing inside words
       // already selected keeps them through its own mousedown, so it would refuse the press
-      // that opens the very mark the reader just picked out. That press is also the only
+      // that opens the very mark the user just picked out. That press is also the only
       // way the two readings can come out the same, since every other gesture moves the
       // selection before its click.
       //
       // Changed, and not "dragged": how far the pointer travelled covers one of the three
-      // ways a reader takes words, and a double-click's second press and a shift-click's
+      // ways a user takes words, and a double-click's second press and a shift-click's
       // extension both arrive here having just taken some without moving it at all.
       const words = pageSelection();
       if (words && words.toString() !== wordsAtPress) return;
@@ -1461,19 +1461,19 @@ export function createResponseSurface({
   }
 
   // ---------- where "comment" goes ----------
-  // The conversation the reader is standing in, and the box it is written in. Three
-  // containers hold one and the reader can stand in any of them: the panel's thread, a
+  // The conversation the user is standing in, and the box it is written in. Three
+  // containers hold one and the user can stand in any of them: the panel's thread, a
   // conversation seated on the page (x-conversation), and each thread inside that seat.
   // They are one question — a press meaning "say something about this" belongs to the box
-  // of the conversation the reader is already in — so they get one reading rather than a
+  // of the conversation the user is already in — so they get one reading rather than a
   // rule for the panel and a different one for the page.
   //
   // One of the three is in the chrome, which is not the exception it looks like: page scope
-  // already crosses there. A page key that takes the reader somewhere owes them an answer
+  // already crosses there. A page key that takes the user somewhere owes them an answer
   // once they are standing there.
   //
   // One aim and then one climb, rather than four cases. The pointer's aim outranks
-  // position, being the more recent thing the reader said; below it the answer walks
+  // position, being the more recent thing the user said; below it the answer walks
   // outward from where they are standing — the nearest conversation's box, then the nearest
   // addressable element, then the page, which is what is left when they are standing
   // nowhere in it. An element anchor answers in its own word (a figure, a card), the way
@@ -1521,7 +1521,7 @@ export function createResponseSurface({
     return {
       ...commenting("page"),
       box: generalInput,
-      // Two steps down and two back: the box hands the reader to the list it belongs
+      // Two steps down and two back: the box hands the user to the list it belongs
       // to, and the panel hands them to the page.
       go: () => {
         setPanel(true);
@@ -1539,25 +1539,25 @@ export function createResponseSurface({
   });
 
   // c goes where commenting happens: a live selection gets the composer (what the floating
-  // button does), an element click's pending 💬 gets that, an open thread the reader is
+  // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
   // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
   // names and focuses the box directly; g T independently names the list. Never the panel's
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
-  // Standing outranks the page and not the pointer: a reader who has just selected words or
+  // Standing outranks the page and not the pointer: a user who has just selected words or
   // raised the 💬 on something has said what they mean more recently than the focus they
   // left behind, which is the order the destination reading above uses.
   pageCommand({
     id: "comment.create",
     keys: ["c"],
-    // The surfaces name the destination in front of the reader rather than the capability:
+    // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
     does: () => commentDestination().does,
     line: () => commentDestination().line,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
-    // on the page instead is not what the reader asked for — so the press waits, and the
+    // on the page instead is not what the user asked for — so the press waits, and the
     // row's own liveness is where that is said rather than a refusal inside run that no
     // surface can see.
     when: () => anchoringIsReady() || !pageSelection(),
@@ -1568,7 +1568,7 @@ export function createResponseSurface({
   });
 
   // The composer's own rung is its own scope rather than the box's, because the box may not
-  // have focus — the reader clicked away and the composer still stands, holding their draft.
+  // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
     at: () => composerOpen,
@@ -1597,9 +1597,9 @@ export function createResponseSurface({
   });
 
   // The first step of the page's Escape ladder: a selection or a captured target is the
-  // innermost thing the reader is holding, and letting it go is one press. Clearing a
+  // innermost thing the user is holding, and letting it go is one press. Clearing a
   // captured target is still available while c and r are the two actions on the thing the
-  // reader just chose, so it keeps its binding and its place in the reference while
+  // user just chose, so it keeps its binding and its place in the reference while
   // yielding the short line's promoted slot to them.
   pageRung("selection", () =>
     pageSelection() || fabAnchorAt()

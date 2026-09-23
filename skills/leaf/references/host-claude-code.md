@@ -14,11 +14,11 @@ leaf server start <page>
 It prints the page's keyed URL on stdout and returns. Hand that exact string
 back. `leaf server run` prints the same URL but never exits, so nothing it says
 reaches you and there is no turn to end. `references/serving-pages.md` owns the
-key, the address it binds, and a URL the reader cannot reach.
+key, the address it binds, and a URL the user cannot reach.
 
 ## Wait loop
 
-New reader input reaches you only between your own operations, at the next tool
+New user input reaches you only between your own operations, at the next tool
 result.
 
 One unnamed `leaf wait` watches every page the host session owns. It prints one
@@ -58,7 +58,7 @@ it by how its last chat message ends. Each time a `leaf wait` starts, Leaf's
 A subagent runs with this session's id and process, and nothing in its
 environment tells Leaf otherwise, so to Leaf it is this session. A page it
 claims, by serving it or naming it to `leaf wait`, is this session's, and this
-session's Stop hook holds its turns open for every reader move there. A
+session's Stop hook holds its turns open for every user move there. A
 `leaf wait` it starts competes for this session's one watcher: it is refused
 while yours runs, and otherwise takes the batches from every page you hold into
 the subagent's context instead of yours. That is why the page stays with you

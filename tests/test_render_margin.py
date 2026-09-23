@@ -138,13 +138,13 @@ DUPLICATE_REGION_PAGE = leaf_page(
   <lf-partition id="duplicate-map-split" direction="columns">
     <lf-pane id="current-pane" label="Current">
       <h2 id="current-deployment">Deployment</h2>
-      <p>The current release remains available to readers.</p>
+      <p>The current release remains available to users.</p>
       <h2 id="current-summary">Summary</h2>
       <p>The current result has one unique subject.</p>
     </lf-pane>
     <lf-pane id="proposed-pane" label="Proposed">
       <h2 id="proposed-deployment">Deployment</h2>
-      <p>The proposed release remains available to readers.</p>
+      <p>The proposed release remains available to users.</p>
     </lf-pane>
   </lf-partition>
 </lf-workspace>
@@ -669,16 +669,16 @@ def test_an_unchanged_viewport_refresh_re_marks_no_docked_row(browser, serve):
     expect(row).to_have_class(re.compile(r"lf-docked"))
 
 
-def test_a_held_marker_hands_the_reader_to_the_banner_door_when_the_rail_falls(
+def test_a_held_marker_hands_the_user_to_the_banner_door_when_the_rail_falls(
     browser, serve
 ):
     """A marker the keyboard is on stops being drawn when the shell loses its rail, so
-    the reader is put on the banner door that still reaches what the marker held.
+    the user is put on the banner door that still reaches what the marker held.
 
     The browser takes focus off an element it hides, onto body, and whether it does so
     before or after the owner hears that the shell moved is not ordered: a handoff that
     reads `document.activeElement` when it hears finds nobody holding the margin about
-    one narrowing in three, and leaves that reader on body. So this asserts the settled
+    one narrowing in three, and leaves that user on body. So this asserts the settled
     end state, and on the reading it replaced it is red at that rate rather than always
     — measured, six of six here and four of five there. The reading it needs is the one
     taken when focus last moved, which no hide can overwrite."""
@@ -707,10 +707,10 @@ def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
 ):
     """The Map is a banner control, so at a width that folds it the button stands behind
     a shut door: it fails `checkVisibility()` and takes no focus. A handoff that asked
-    the button rather than the shelf left the reader on body, since by then the rail has
+    the button rather than the shelf left the user on body, since by then the rail has
     fallen and there is no margin row to fall back to either, and the Versions button the
     last resort named can be folded away just as easily. Asking the shelf answers with
-    the door the reader can actually press."""
+    the door the user can actually press."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -729,7 +729,7 @@ def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
     expect(more).to_be_focused()
 
 
-def test_a_panel_takes_the_markers_and_hands_the_reader_the_map(browser, serve):
+def test_a_panel_takes_the_markers_and_hands_the_user_the_map(browser, serve):
     """The rail is drawn in the shell, so what decides whether the margin stands is the
     room a panel leaves rather than the room the window has. This is the case the
     container query exists for and the one no window query can answer: the window does
@@ -768,7 +768,7 @@ def test_a_panel_takes_the_markers_and_hands_the_reader_the_map(browser, serve):
     expect(marker).to_be_hidden()
     assert page.evaluate(offered), (
         "the panel took the rail's room at an unchanged window and the page offered "
-        "the reader nothing in its place"
+        "the user nothing in its place"
     )
 
     page.get_by_role("button", name="Close threads").click()
@@ -820,10 +820,8 @@ def test_the_rail_is_claimed_only_in_a_shell_that_can_hold_it(browser, serve):
     )
 
 
-def test_an_unchanged_compact_margin_keeps_the_reader_at_the_document_end(
-    browser, serve
-):
-    """Re-laying docked controls cannot pull a reader back from the bottom."""
+def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser, serve):
+    """Re-laying docked controls cannot pull a user back from the bottom."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 700, 500)
     margins_laid_out(page)
@@ -1035,7 +1033,7 @@ def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve)
     expect(marker).to_have_attribute("data-test-clicks", "1")
 
 
-def test_lit_margin_projection_reorders_retained_controls_without_moving_the_reader(
+def test_lit_margin_projection_reorders_retained_controls_without_moving_the_user(
     browser, serve
 ):
     """One keyed Lit owner moves native controls across direct, option, and dock seats."""
@@ -1484,7 +1482,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
 def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     browser, serve
 ):
-    """The gallery keeps every reader-visible margin entry treatment together."""
+    """The gallery keeps every user-visible margin entry treatment together."""
     page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
@@ -1545,7 +1543,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
             "Rank and behavior",
             "Agent workflow",
             "Face anatomy",
-            "Reader interaction",
+            "User interaction",
             "Projection",
         ]
     )
@@ -1734,7 +1732,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
 ):
     """The margin entry specimen shows the stable endpoints and exercises each transition.
 
-    A pending reader action and an external work claim are different facts, so the
+    A pending user action and an external work claim are different facts, so the
     journey holds each one long enough to prove that the former only dims until
     confirmation while the latter keeps its workflow treatment.
     """
@@ -2410,7 +2408,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
 
 
-def test_page_map_keyed_reconciliation_preserves_reader_standing(browser, serve):
+def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
     """A synchronous inventory reorder retains its control, query, scroll, and scope."""
     fixture = leaf_page(
         "Keyed Page Map",
@@ -2593,7 +2591,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     )
     # The hint layer offers the locations on screen, so that is the premise, and the
     # scroll reaches the location's own anchor rather than the section holding it.
-    # `to_be_visible` says a control is laid out, not that the reader can see it, so it
+    # `to_be_visible` says a control is laid out, not that the user can see it, so it
     # passed while gallery content grew between the two and carried this entry out of
     # the scrollport — leaving the case asking for a chip the page was right not to draw.
     expect(show_after).to_be_in_viewport()
@@ -2989,7 +2987,7 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     """Paper takes every injected control out of the page, so the one
     contributor-visibility reading a margin render is built on comes back empty there
     and folds every cluster to nothing. That is a reading of the medium rather than of
-    the page: news arriving while the reader stands in the print preview leaves the
+    the page: news arriving while the user stands in the print preview leaves the
     margin entries where they were, and reaches them when the screen comes back.
 
     The shape is read as markup rather than as visibility, because on paper nothing in
@@ -3429,7 +3427,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
-    # Back on the entry the card hung from, the cluster the reader unfolded being the
+    # Back on the entry the card hung from, the cluster the user unfolded being the
     # level under it and the one the next press folds.
     expect(thread_margin_entry).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
@@ -3469,7 +3467,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
 
 def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, serve):
-    """Which location of how many, and how far down, is how a reader listening places a
+    """Which location of how many, and how far down, is how a user listening places a
     margin entry in the walk. Painted, the same words read as progress toward something, which
     is not what they say, so they belong to the accessible name alone."""
     subject = (
@@ -3503,7 +3501,7 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
 def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     """Page Map includes durable provenance even when the margin has no margin entry for it.
 
-    A reader listening to the margin walk hears only the margin entries they can visit. The
+    A user listening to the margin walk hears only the margin entries they can visit. The
     Page Map count remains the count of every mapped target, including provenance-only
     locations.
     """
@@ -3791,13 +3789,13 @@ def _margin_entry_paint(control):
     }""")
 
 
-def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
+def test_a_thread_waiting_on_the_user_colors_its_margin_entry(browser, serve):
     """Whose turn a conversation is reaches the margin as colour and as a word.
 
-    The reader's own comment is the control: one target, one retained marker, and the
+    The user's own comment is the control: one target, one retained marker, and the
     only thing that changes between the two readings is who spoke last. Pickup is the
     second contrast — the agent taking the work restores its green, because one interior
-    cannot carry two washes and live work is what the reader needs first.
+    cannot carry two washes and live work is what the user needs first.
     """
     page = open_page(browser, live_url(serve(ASK_PAGE, events=[COMMENT_ON_ASK])))
     resized(page, 1440, 900)
@@ -3821,20 +3819,20 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         },
     )
     told(page)
-    expect(marker).to_have_attribute("data-lf-turn", "reader")
+    expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-context")).to_have_text("On you")
     expect(marker).to_have_attribute(
         "aria-label", re.compile(r"^Threads \(2\), On you,")
     )
-    on_reader = _margin_entry_paint(marker)
-    assert on_reader == {
+    on_user = _margin_entry_paint(marker)
+    assert on_user == {
         "background": token_colour(page, "--turn-wash"),
         "icon": token_colour(page, "--turn-ink"),
-    }, "the reader's turn did not colour the Thread marker's icon and interior"
-    assert with_agent["background"] != on_reader["background"], with_agent
+    }, "the user's turn did not colour the Thread marker's icon and interior"
+    assert with_agent["background"] != on_user["background"], with_agent
 
-    # Page Map lists each conversation on its own row, so the reader's own thread is the
+    # Page Map lists each conversation on its own row, so the user's own thread is the
     # control for the agent's beside it.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -3847,7 +3845,7 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
           node.dataset.lfTurn ?? null,
           node.querySelector('.lf-page-map-action-context')?.textContent ?? null,
         ])"""
-    ) == [[None, None], ["reader", "On you"]]
+    ) == [[None, None], ["user", "On you"]]
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
 
@@ -3860,13 +3858,13 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
         delivery_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
-    expect(marker).to_have_attribute("data-lf-turn", "reader")
+    expect(marker).to_have_attribute("data-lf-turn", "user")
     assert _margin_entry_paint(marker) == {
         "background": with_agent["background"],
         "icon": token_colour(page, "--ok-ink"),
-    }, "pickup did not take the carrier back from the reader's turn"
+    }, "pickup did not take the carrier back from the user's turn"
 
-    # Answering is what ends the reader's turn, and the gallery tells a developer to
+    # Answering is what ends the user's turn, and the gallery tells a developer to
     # watch for exactly that. Both agent threads have to be answered, because the
     # aggregate takes the turn of any member.
     for root in roots:
@@ -3985,8 +3983,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     accessibility tree as a status rather than a control and showing no hover fill.
     Hovering the status draws a soft neutral trace to the
     target without making the margin entry respond like a control. The walk still arrives,
-    because the phase is what a reader listening came for. A real claim — work the
-    reader can watch — restores the same margin entry's activation semantics, in the same
+    because the phase is what a user listening came for. A real claim — work the
+    user can watch — restores the same margin entry's activation semantics, in the same
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the margin entry leaves instead of restating widget state.
 
@@ -4066,7 +4064,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     def words_still():
         """The label's reveal is a 90ms transition behind a 90ms delay, so the frame the
-        delay ends on is a box the reader can see drawn at the opacity it is leaving —
+        delay ends on is a box the user can see drawn at the opacity it is leaving —
         which is what `to_be_visible` is satisfied by, and what the paint read behind it
         then reports as the status's own ink. Ask the transitions instead: the call
         flushes pending style, so a reveal that has been started is in the list on the
@@ -4182,14 +4180,14 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         "rows => rows.some(row => row.tabIndex === 0)"
     ), "no margin entry is left for Tab to enter the rail by"
 
-    # The reader listening still reaches the phase through its visible generated hint.
+    # The user listening still reaches the phase through its visible generated hint.
     address_target = marker.evaluate(
         "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
     go_to_address(page, "Margin entry", address_target)
     expect(marker).to_be_focused()
 
-    # Standing there is not the same as being the way in. A repaint under the reader
+    # Standing there is not the same as being the way in. A repaint under the user
     # leaves the rail's one stop on a margin entry that acts, and the status without one.
     page.evaluate("() => window.dispatchEvent(new Event('resize'))")
     page.evaluate(
@@ -4301,7 +4299,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     browser, serve
 ):
-    """Proxy presses preserve a reader's explicit fold until they leave or close it."""
+    """Proxy presses preserve a user's explicit fold until they leave or close it."""
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
@@ -5310,7 +5308,7 @@ LONG_THREAD = [
         "revision": 1,
         "text": "\n\n".join(
             f"{n}. A layer the mouse opened closes to the page, so the Escape that "
-            "follows a click lands where the reader was reading rather than on the "
+            "follows a click lands where the user was reading rather than on the "
             "button they pressed."
             for n in range(1, 13)
         ),
@@ -5353,7 +5351,7 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
 
     Pinned, the reply row stands on the edge the transcript clips to, where the list's
     scroll padding reserves nothing. Both of the row's rings are read: the resting
-    Reply control's from the keyboard, and the text box's once the reader is in it.
+    Reply control's from the keyboard, and the text box's once the user is in it.
     """
     page, preview, transcript = open_long_thread(browser, serve)
     row = preview.locator(".lf-say")
@@ -5378,12 +5376,12 @@ def test_the_margin_reply_pinned_to_the_card_foot_shows_its_whole_ring(browser, 
     assert standing_ring(page)["cuts"] == []
 
 
-def test_agent_status_leaves_the_margin_transcript_where_the_reader_scrolled_it(
+def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
     browser, serve
 ):
     """A state read places the card, and placing the card moves nothing inside it.
 
-    The reader stands in the reply while reading partway up the transcript, then at its
+    The user stands in the reply while reading partway up the transcript, then at its
     end, and the agent's working and waiting statuses arrive meanwhile. Scroll
     anchoring is off on the transcript. It can restore a place a placement disturbed
     within one task: the headless shell restored it in every run, while headed Chrome
@@ -5429,7 +5427,7 @@ def test_agent_status_leaves_the_margin_transcript_where_the_reader_scrolled_it(
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
-def test_the_margin_reply_keeps_its_shape_when_the_reader_enters_it(
+def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(
     browser, serve, color_scheme
 ):
     """The compact reply is the editor at rest, not a differently shaped precursor."""
@@ -5612,15 +5610,15 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     # The card is anchored to a passage and hoisted into the chrome, so it lands the
-    # reader on the page rather than on the marker it hung from, which a `t` from the
+    # user on the page rather than on the marker it hung from, which a `t` from the
     # page would never have stood them on.
     assert page.evaluate("() => document.activeElement === document.body")
     # The walk is over the markers the viewport holds and never scrolls to reach one,
     # which is what this case is named for. So it starts at the first of them and steps
     # down, against the count the walk itself publishes, rather than pressing from
-    # wherever the card left the reader: from the last marker on screen the press
+    # wherever the card left the user: from the last marker on screen the press
     # clamps, and this case used to read that clamp as a walk that had failed to move.
-    # Home is the margin's own key, so the reader has to be in the margin to press it —
+    # Home is the margin's own key, so the user has to be in the margin to press it —
     # the card handed them back to the page, which is not.
     marker.focus()
     page.keyboard.press("Home")
@@ -5906,7 +5904,7 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
 @pytest.mark.parametrize(
     ("width", "panel_open"), [(760, False), (1000, True), (1440, False), (1440, True)]
 )
-def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
+def test_a_new_anchored_comment_keeps_the_users_conversation_view(
     browser, serve, width, panel_open
 ):
     """A send continues in the open panel or beside the passage, keeping the page put."""
@@ -5965,9 +5963,9 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         )
     # Reply opened the editor; Escape leaves the box for its thread and then the
     # surface holding that thread. Neither step focuses the margin entry the
-    # card hangs from — or, where no rail stands, the Page Map button — which the reader
+    # card hangs from — or, where no rail stands, the Page Map button — which the user
     # never stood on and which says its transient label as they arrive.
-    page.keyboard.press("Escape")  # out of the reply box the reader opened
+    page.keyboard.press("Escape")  # out of the reply box the user opened
     page.keyboard.press("Escape")  # out of the conversation it belongs to
     if panel_open:
         # A conversation in Threads releases to whole-panel selection first.
@@ -5991,7 +5989,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
 ):
     """The send lands on its thread, and each press takes off one level.
 
-    `c` opens the box on whatever the reader is standing in without moving them off it,
+    `c` opens the box on whatever the user is standing in without moving them off it,
     and the send carries them into the thread the comment became: a card it puts up, or
     the thread's place in a panel that was already open. The thread hands them to the
     surface holding it. The control `c` was pressed from is not a landing.
@@ -6056,7 +6054,7 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
     """A thread reached through the panel is left by the list it sits in.
 
     The note opens its thread where the thread is indexed: the card with Threads shut,
-    and the thread's place in the list with them open. `t` then walks the reader on to a
+    and the thread's place in the list with them open. `t` then walks the user on to a
     second thread. Letting go of that one lands on the list holding it — the level it is
     part of — and leaves the panel standing. The note is on the page they left when they
     entered the panel, and a walk is not a descent to rewind.
@@ -6080,7 +6078,7 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
         threads.locator(f'.lf-thread[data-id="{second["id"]}"] > .lf-thread-summary')
     ).to_be_focused()
 
-    # The walk moved the reader laterally to a second conversation in Threads. Escape
+    # The walk moved the user laterally to a second conversation in Threads. Escape
     # releases that conversation to the whole panel and then closes the panel; the note
     # that took them there is not a landing.
     page.keyboard.press("Escape")
@@ -6091,7 +6089,7 @@ def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
 
 
 def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve):
-    """The marker lands the reader in a reply box, and the box's level is the thread.
+    """The marker lands the user in a reply box, and the box's level is the thread.
 
     With Threads open the marker carries them to the thread's place in the list and into
     its reply box. Letting go of the box hands them to the thread it belongs to, and the
@@ -6112,7 +6110,7 @@ def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve
         threads.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')
     ).to_be_focused()
 
-    # The box hands the reader back to the thread it belongs to; the marker is Leaf's
+    # The box hands the user back to the thread it belongs to; the marker is Leaf's
     # own control beside the words it marks rather than a place they were standing.
     page.keyboard.press("Escape")
     expect(
@@ -6128,7 +6126,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     `t` walks the card on to the next thread without adding a level, so the one Escape
     still closes it. The landing is the page: neither the note nor the control `c` was
     pressed from is standing any more, and the margin entry the card now hangs from is
-    one the reader never stood on.
+    one the user never stood on.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6155,7 +6153,7 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(card).to_be_focused()
 
-    # The card is the one level standing, and it lands the reader on the page it is
+    # The card is the one level standing, and it lands the user on the page it is
     # anchored to rather than on the margin control it hangs from.
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
@@ -6165,11 +6163,11 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
 def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve):
     """A cluster unfolded on another entry stands beside the card, not under it.
 
-    The card holds the margin's context while it is up, so a cluster the reader unfolded
+    The card holds the margin's context while it is up, so a cluster the user unfolded
     stays open as `t` walks the card on to a thread on a different entry. Landing on the
     entry the card now hangs from would hand the next press a fold belonging to an entry
     somewhere else, so the card lands on the page and the cluster answers after it, at
-    the entry the reader actually unfolded.
+    the entry the user actually unfolded.
     """
     page = open_page(
         browser,
@@ -6206,7 +6204,7 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
 
     # The walk carries the card to a thread whose own margin entry is already standing,
     # so nothing unfolds to hang it from and nothing folds the cluster: the card holds
-    # the margin's context, so the reader's cluster is still open behind it.
+    # the margin's context, so the user's cluster is still open behind it.
     page.keyboard.press("t")
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(options).to_be_visible()
@@ -6231,7 +6229,7 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     The card shows one thread, so the second note or marker changes its contents and
     leaves one card standing, as a pointer press would have after the first card
     light-dismissed. One Escape closes it, and the landing is the page it is anchored
-    to: neither note nor marker is a place the reader was standing.
+    to: neither note nor marker is a place the user was standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6638,7 +6636,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighted(
     browser, serve
 ):
-    """An open card does not own the highlight after the reader aims elsewhere."""
+    """An open card does not own the highlight after the user aims elsewhere."""
     page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     suggestion = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -6734,18 +6732,18 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
 def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_gesture(
     browser, serve
 ):
-    """The reader's first move must not be the gesture that pays for the margin.
+    """The user's first move must not be the gesture that pays for the margin.
 
     Moving a card raises an acknowledgment status at the page edge. Reserved only while
     that status stood, the strip arrived with the move and left again with the undo, and
     the column moved 29px each way — for a reading the page had always been going to
     offer. So the reservation is read off what the page declares, a tag whose registry
     entry has an action or work channel, and the column stands where it will stand
-    before the reader touches anything.
+    before the user touches anything.
 
     Measured on the shipped board rather than a fixture, because the strip is only worth
     reserving where a real page's width, its claims and its exhibits meet; a fixture
-    built to make those agree would prove nothing about any page a reader opens."""
+    built to make those agree would prove nothing about any page a user opens."""
     example = next(page for page in EXAMPLES if page.stem == "triage-board")
     page = open_page(browser, live_url(serve(example)))
     margins_laid_out(page)
@@ -6857,7 +6855,7 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     ), composition
 
 
-def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, serve):
+def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1440, 900)
@@ -6933,7 +6931,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         if violation["impact"] in {"serious", "critical"}
     ] == []
 
-    # A modal's parent is the page it stands over, so Escape lands the reader there
+    # A modal's parent is the page it stands over, so Escape lands the user there
     # whichever door opened the dialog.
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
@@ -6944,9 +6942,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 def test_a_folded_compact_map_closes_its_banner_overflow_with_it(browser, serve):
     """A dialog reached through the banner's overflow leaves that overflow folded.
 
-    Escape lands the reader on the page rather than on the control that exposed the
+    Escape lands the user on the page rather than on the control that exposed the
     door, the dialog's parent being the page it stands over; what the overflow must not
-    do is stay open behind it, promising a door the reader has already been through."""
+    do is stay open behind it, promising a door the user has already been through."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
     more = page.get_by_role("button", name="More page controls", exact=True)
@@ -7122,7 +7120,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, widt
     ), (before, after)
 
 
-def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
+def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
     version_url = serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK])
     page = open_page(browser, live_url(version_url))

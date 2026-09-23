@@ -26,7 +26,7 @@ the adapter below carries input back to this same task.
 Starting the command again for another page adds that page to the same task-wide
 watch, and a completed turn does not stop the adapter.
 
-New reader input reaches you after the current turn ends. The adapter hands each
+New user input reaches you after the current turn ends. The adapter hands each
 delivery to `codex queue`, which queues it as the task's next user message: a
 `leaf-delivery` XML element shown as one line in a code block, naming
 `leaf delivery read <id>`, which resolves the immutable envelope. The adapter

@@ -12,12 +12,12 @@ missing either.
 
 Keep core examples focused and include small pages: a board, a short proposal, or a
 draft can demonstrate Leaf without becoming a product tour. Choose examples for
-reader tasks; the core gallery and focused package pages own exhaustive vocabulary
+user tasks; the core gallery and focused package pages own exhaustive vocabulary
 coverage. Add a
 contents sidebar when the rendered document needs navigation; judge that in the
 browser review.
 
-Every catalog entry must both stand as a coherent artifact for a real reader task and
+Every catalog entry must both stand as a coherent artifact for a real user task and
 make a distinct Leaf capability apparent on the first visit. Subject novelty, length,
 or vocabulary coverage alone does not qualify a page for the catalog.
 
@@ -66,7 +66,7 @@ matched against the authored markup rather than the upgraded page, which also
 keeps each key a working selector.
 
 The floor guarantees the widget appears; which of its shapes appear is a judgment.
-Where an attribute or a content shape changes what a reader sees (an `lf-options`
+Where an attribute or a content shape changes what a user sees (an `lf-options`
 group's form, arity, joining, and `label` vary independently), a page here shows
 that shape, because a rule written against one combination governs the rest
 without saying so.
@@ -110,13 +110,13 @@ authored-content sweeps (above all the one holding two examples to twelve
 consecutive shared words) never read a revision against its own earlier draft.
 
 Two orderings hold. The seed goes in after the first stamp and before any later
-one, so a revised example reads the way it happened: the version, what the reader
+one, so a revised example reads the way it happened: the version, what the user
 said about it, then the version that answered them. The current version is written
 into the page before the data operations, because the data door validates a source
 against the page's markup and the current version is the one that has to bind it.
 
 `log-retention` is the revising example. Its second version rewrites one paragraph
-around a sentence the reader quoted, adds a paragraph and a step, and updates the
+around a sentence the user quoted, adds a paragraph and a step, and updates the
 title and lede to state the exception. The comparison marks five blocks and both
 threads stay attached; unchanged passages stay unmarked.
 `restated` and `overruled` are reachable and no example uses them; each needs a
@@ -124,7 +124,7 @@ decision or report standing in the seeded log that the next version contradicts.
 Write one when there is a page it makes sense on, not to fill the slot.
 
 Event state is the one thing no markup describes, so an example that wants to show
-a thread or a reader decision ships its events as `<stem>.jsonl` beside the page.
+a thread or a user decision ships its events as `<stem>.jsonl` beside the page.
 A thread-bearing log opens mid-conversation; an action-only log replays a page-owned
 decision without inventing a thread. `serve` seeds when handed an example rather than
 markup. The anchor sweep opts out, because it writes its own anchors and compares the
@@ -132,7 +132,7 @@ whole painted mark against exactly those. `ship-review.jsonl` carries a thread. 
 `tests/fixtures/pages/`, `review-queue.jsonl` carries two page-owned decisions and
 `current-proposed-comparison.jsonl` carries the one choice its next version applies.
 The public examples' seeds reach the published site through the session running in
-the reader's own tab, since published pages are served rather than exported.
+the user's own tab, since published pages are served rather than exported.
 
 External data is the other companion state. An example that binds a widget input
 to a source ships `<stem>.data.json`, mapping each page-owned source id to its
@@ -162,7 +162,7 @@ anchor sweep cannot catch it, because that sweep writes its own anchors.
 
 The corpus carries only the conversations its embedded specimens declare in
 `data-specimen-threads`. `scripts/corpus.py` generates their complete histories in
-`corpus.jsonl`; unrelated reader decisions stay unset so the corpus can exercise
+`corpus.jsonl`; unrelated user decisions stay unset so the corpus can exercise
 them. Markup that depends on another conversation (such as `resolves`) needs that
 dependency carried into composed fixtures too.
 
@@ -177,7 +177,7 @@ live half owes both halves.
 
 A seed is also the only way a widget reaches the corpus in a message, since an
 event's `markup` renders in the panel and nowhere else. `ship-review.jsonl`
-carries the shape: an agent question with a `multiple` group, the reader ticking
+carries the shape: an agent question with a `multiple` group, the user ticking
 two of the three and not yet pressing Done, so the group is both decided and still
 asking. The same log carries a screenshot in a message, which is the one place
 `.lf-media-open` — and the `media` ring on it — stands in the corpus at all; it

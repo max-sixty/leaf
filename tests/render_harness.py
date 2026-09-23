@@ -155,7 +155,7 @@ INLINE_PAGE = leaf_page(
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
-them has a break in what the reader sees and none in what the document holds.</p>
+them has a break in what the user sees and none in what the document holds.</p>
 <p id="compound">The setup is in the runbook and the rollback is one flag. When the
 shadow index is ready we set up the comparison job and roll back the old one.</p>
 <p id="cap">{long}&#128512;</p>
@@ -394,7 +394,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
     `test_page_fixtures_pass_check` reads one — a page is what its markup and its
     standing log make together, and a corpus that reads only the markup is reading
     half of it. A thread and any widget a message carries exist nowhere else, so
-    without this every sweep is green over a page the reader never gets.
+    without this every sweep is green over a page the user never gets.
 
     Each call gets its own directory, reached through `serve.page_dir`. Sharing one
     meant a test that serves two examples in a single body re-initialised over the
@@ -576,12 +576,12 @@ def post_event(page, url, **kwargs):
 
 
 # What the page has sent and how much of it has come back, read off the ledger the
-# runtime paints for exactly this reader. The suite once counted the same numbers from
+# runtime paints for exactly this user. The suite once counted the same numbers from
 # outside, on the browser's own request and response events, so that nothing was put
 # inside the thing under test; that watcher was a second representation of the outbox's
 # lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
 # that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states arrival for this reader (`lfUpgraded`,
+# with no deadline. The runtime already states arrival for this user (`lfUpgraded`,
 # `lfApplied`, `lfPresented`) and current readiness through its coordinator; delivery is
 # one more fact it states rather than one the
 # harness infers, and nothing is injected to obtain it.
@@ -886,7 +886,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under
-# the reader and can be made the moment the paint is there; the paint arrives a turn
+# the user and can be made the moment the paint is there; the paint arrives a turn
 # before the trip it was made on is over, so a `z` made on it is a press the dispatcher
 # refuses, and what the refusal leaves behind is the page an assertion on the un-undone
 # state would find anyway. A test cannot tell that from an undo that did the wrong thing:
@@ -1380,9 +1380,9 @@ def opened_tab(page, destination, press, timeout=10_000):
     CDP target list is the durable record of the platform action, so the helper waits there
     for one new page at the expected URL. It closes that target and navigates a controlled
     page in the same context for the arrival assertions. This keeps the product action
-    observable without repeating a reader gesture or leaking the target.
+    observable without repeating a user gesture or leaking the target.
 
-    `page` must belong to an explicitly created context such as `one_reader`. Playwright
+    `page` must belong to an explicitly created context such as `one_user`. Playwright
     refuses `context.new_page()` on the owner context created by `browser.new_page()`,
     which is what `open_page` uses when no context is passed.
     """

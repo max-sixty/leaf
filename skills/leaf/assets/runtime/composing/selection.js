@@ -34,7 +34,7 @@ import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
-import { retainReaderIntent } from "../reader-intent.js";
+import { retainUserIntent } from "../user-intent.js";
 
 import { elementById, inChrome } from "../passages.js";
 
@@ -42,11 +42,11 @@ import { notice } from "../notifications.js";
 import { validDrawing } from "./drawing-record.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 
-// The floating field immediately accepts a comment on the target the reader named.
+// The floating field immediately accepts a comment on the target the user named.
 // Its ellipsis unfolds every other response the target offers. The field is the
 // group's stable primary control; reaction vocabulary changes the choices, not the
 // disclosure or the field's place.
-// One affordance, raised only where the reader has already pointed: a native text
+// One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.setAttribute("role", "group");
@@ -111,7 +111,7 @@ const composerInput = fabInput;
 // The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
 // in AGENTS.md). So what the box is anchored to travels as the box's own description,
 // announced on focus — which is more than the visible quote ever said, since nothing
-// pointed a reader at it.
+// pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerSend = el("button", "lf-btn", "Comment");
 composer.append(composerQuote, suggestRow, composerInput, composerSend);
@@ -186,7 +186,7 @@ export function createSelectionComposer({
       }),
     );
   // One passage's draft record, or null when it holds none. Parsed under its own guard: a
-  // record that no longer parses costs the reader that one draft, where throwing would
+  // record that no longer parses costs the user that one draft, where throwing would
   // cost them the page, at module top level.
   const composerRecord = (ctx) => {
     try {
@@ -201,7 +201,7 @@ export function createSelectionComposer({
     const drawing = composerRecord(composerCtx(anchor))?.drawing;
     return validDrawing(drawing) ? drawing : null;
   };
-  // An open box the reader emptied keeps its record, which is what tells another tab's
+  // An open box the user emptied keeps its record, which is what tells another tab's
   // composer on that passage that this one is merely empty rather than settled — and leaves
   // nothing to reopen on. So the draft to come back to is the most recently touched one
   // that still holds words — and, for a caller that has to land on it rather than merely
@@ -225,7 +225,7 @@ export function createSelectionComposer({
   // placement decide, while a press promising a destination has to know there is one.
   const keptDraft = () => pendingComposer((record) => anchorStands(record.anchor));
   let composerEpoch = 0;
-  // What the box holds that a reader would miss, asked once. The complete draft, because a
+  // What the box holds that a user would miss, asked once. The complete draft, because a
   // pasted image is in it and not in the textarea, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
   // hiding box says about what became of the words, and the word Escape's row shows. They
@@ -370,13 +370,13 @@ export function createSelectionComposer({
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
-    // the box off screen with the reader's sentence in it and left no sign the sentence
+    // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
     // version. Said here rather than at each dismissal because every one of them — an
     // outside press, Escape, a covering panel taking the room — leaves the same state, and
     // every path that discards the words empties the box before hiding it (leaveComposer),
     // so those stay silent. The sentence names the address that brings the draft back,
-    // which is the whole of what the reader needs from this moment.
+    // which is the whole of what the user needs from this moment.
     if (composerOpen && !open && composerHolds())
       notice(
         anchorStands(pendingAnchor)
@@ -390,7 +390,7 @@ export function createSelectionComposer({
     composer.toggleAttribute("data-lf-open", open);
     // An explicit Comment gesture focuses the textarea and drops the native selection, so
     // this mark then becomes the durable pointer to the quoted passage. Automatic passage
-    // selection leaves both readings standing until the reader enters the field.
+    // selection leaves both readings standing until the user enters the field.
     refreshConversation();
     repaint();
   }
@@ -430,7 +430,7 @@ export function createSelectionComposer({
       // Automatic selection merely opens another passage's view. An explicit Comment
       // gesture may instead carry unsent words into an empty passage, which preserves
       // the old Alt-click promise without replacing independent work already held at
-      // the destination or making a reader's next selection silently re-anchor a draft.
+      // the destination or making a user's next selection silently re-anchor a draft.
       const record = text ? null : composerRecord(ctx);
       const carrying =
         carry &&
@@ -526,7 +526,7 @@ export function createSelectionComposer({
     composerEpoch += 1;
     leaveComposer(false);
   }
-  // The composer going down because its draft is spent rather than because the reader
+  // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
   function settleComposer() {
     leaveComposer(false);
@@ -555,13 +555,13 @@ export function createSelectionComposer({
 
   // `g D`: the draft the composer put away, as a place. Hiding the box keeps its words and
   // the only route back was to reselect that exact passage on that exact version — durable
-  // and unreachable, which is the same as lost for a reader who does not know where the
+  // and unreachable, which is the same as lost for a user who does not know where the
   // words went. A destination rather than a page letter: the page's alphabet is small, and
   // what this press does is travel to a passage and open the box standing on it, which is
   // what every other uppercase mnemonic in the sequence does with its own auxiliary surface.
   //
   // Dead while the composer is up, because then the draft is already in front of the
-  // reader and `c` is the press that enters it. Live off the stored record rather than
+  // user and `c` is the press that enters it. Live off the stored record rather than
   // this module's own state: a draft written in another tab, or before a reload, is the
   // same draft and answers the same address.
   //
@@ -579,7 +579,7 @@ export function createSelectionComposer({
       const record = keptDraft();
       if (!record) return;
       // The box is placed against its passage, so the passage has to be somewhere the
-      // reader can see before the box is measured — the same travel `c` makes to an item
+      // user can see before the box is measured — the same travel `c` makes to an item
       // it is about to open a box on.
       bringForward(anchorTargetAt(record.anchor));
       openDraft(record);
@@ -614,7 +614,7 @@ export function createSelectionComposer({
         // Threads is open. Carry the submitted field's geometry into the new card.
         const transition = threadTransitionOrigin(composerInput, visible);
         const epoch = composerEpoch;
-        const currentIntent = retainReaderIntent();
+        const currentIntent = retainUserIntent();
         const sent = sendMessage(
           ctx,
           () => composerCtx(pendingAnchor) === ctx && owns(),
@@ -641,7 +641,7 @@ export function createSelectionComposer({
           currentIntent() &&
           !pageSelection();
         // Land on the sent thread without moving into its reply box. A later gesture
-        // may already have moved the reader elsewhere while presentation was settling.
+        // may already have moved the user elsewhere while presentation was settling.
         const inlineThread =
           shouldReveal && !panelIsOpen()
             ? openInlineThread(sent.id, {

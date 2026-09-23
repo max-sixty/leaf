@@ -3,7 +3,7 @@
 This contract is for a Codex task Leaf reaches over Codex App Server
 (`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
 connects to the task's server as a second client, so it starts the turns that carry
-reader input, watches the task's other turns, and takes each turn's final message as
+user input, watches the task's other turns, and takes each turn's final message as
 its reply. That holds when the task's environment sets `LEAF_CODEX_APP_SERVER`, as a
 `leaf codex launch` terminal does, or when the user gave you the task's App Server
 endpoint. Any other Codex task, the desktop app's included, follows
@@ -73,7 +73,7 @@ can take the task's single wait lease, and an unreachable endpoint must be fixed
 
 ## Delivery
 
-New reader input reaches you only once the current turn ends, because a delivery
+New user input reaches you only once the current turn ends, because a delivery
 starts a turn of its own: once the task is idle, Leaf starts one with the complete
 delivery as a structured `leaf_delivery` tool output. A delivery can span pages and
 conversations, presented as one chronological slice per turn. The adapter

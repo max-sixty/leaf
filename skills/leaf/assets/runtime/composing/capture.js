@@ -1,5 +1,5 @@
 /* This module owns selection capture and snapping: the anchor a selection makes, and
- * the selection the page hands back to the reader. */
+ * the selection the page hands back to the user. */
 import {
   blockOf,
   closestAcross,
@@ -22,7 +22,7 @@ import { anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
 // this; the search asks for whatever a given anchor happens to hold.
 const CONTEXT = 24;
 // The anchor a selection makes: the enclosing section, and the passage as the document
-// holds it. Not the selection's own toString(), which is what the reader sees rendered —
+// holds it. Not the selection's own toString(), which is what the user sees rendered —
 // text-transform uppercases an eyebrow or a table header, and the runtime's own chrome
 // inside the passage comes along — and a quote the search can't find is no highlight while
 // composing and a comment that posts permanently detached. A selection with nothing
@@ -31,7 +31,7 @@ const CONTEXT = 24;
 //
 // The whole of it, however long. A cap here read as an economy and was a claim: the
 // stored quote is the passage, so the mark paints it and the comment is on it, and a
-// reader who selected a paragraph past the cap got a comment on its opening and a
+// user who selected a paragraph past the cap got a comment on its opening and a
 // highlight that shrank to match — silently, on most of the paragraphs a leaf page
 // holds. What the cap was really bounding is the search's pattern, which is where the
 // bound now lives (LEAD_CAP), so nothing has to be given up to keep it cheap.
@@ -56,7 +56,7 @@ export function selectionAnchor(sel) {
       : null;
   // Identity is the context for projected data. Neighbouring display values may reorder
   // or repeat, so storing their words as prefix/suffix would make incidental layout a
-  // second, conflicting answer to which datum the reader selected.
+  // second, conflicting answer to which datum the user selected.
   if (datum) return anchorForDatum(datum, { quote });
   const section = closestAcross(holder, "[id]:not(.lf-ui)")?.id ?? null;
   const reading = pageText();
@@ -104,12 +104,12 @@ export const pageSelection = () => {
 // inside it).
 export const leftThePage = (sel = getSelection()) =>
   Boolean(sel) && !sel.isCollapsed && !pageWords(sel.focusNode);
-// A drag stops where the hand stopped, not where the reader aimed: a release two glyphs
+// A drag stops where the hand stopped, not where the user aimed: a release two glyphs
 // short of a word's end meant the word, and the capture would store the fragment as if
 // the fragment were the point. The pointer path therefore grows outward to word
 // boundaries. When those words are also the opening and closing words of a sentence,
 // the same pass includes its surrounding punctuation. A shorter phrase remains a
-// phrase. Keyboard selections never come here: shift-arrow is the reader being precise.
+// phrase. Keyboard selections never come here: shift-arrow is the user being precise.
 //
 // One end, because the two are the same question asked at two places, and the words are
 // read in the indexed text every other reading of the page uses. That is what keeps a
@@ -173,7 +173,7 @@ function snapSentence(reading, lo, hi) {
   if (!first || !last) return [lo, hi];
   // Sentence punctuation is prose structure. In code, the same glyphs are syntax:
   // the closing brace and quote after a selected interpolation are not part of the
-  // expression the reader selected. Token highlighting makes that boundary especially
+  // expression the user selected. Token highlighting makes that boundary especially
   // visible by putting the delimiters in their own text nodes, but the semantic answer
   // is the same for plain and highlighted code.
   if (closestAcross(first.node, "pre,code")) return [lo, hi];
@@ -270,7 +270,7 @@ function snapSentence(reading, lo, hi) {
 }
 // An end the snap didn't move keeps the boundary the browser gave it: a drag out into
 // chrome ends past the last quotable character, and rewriting that end from the reading
-// would pull the visible selection off words the reader chose to cover. The gesture's
+// would pull the visible selection off words the user chose to cover. The gesture's
 // direction survives too, or the shift-click that next extends the selection would
 // extend it from the wrong end.
 export function snapSelection() {

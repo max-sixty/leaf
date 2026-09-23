@@ -80,10 +80,10 @@ def loopback_note(page_dir: Path) -> str | None:
     over rather than after the user reports a dead link.
 
     A derived address is loopback whenever SSH_CONNECTION is absent, and that is
-    not only a session sitting with its reader: a scheduler, a daemon, or a
+    not only a session sitting with its user: a scheduler, a daemon, or a
     detached background job is remote from the user without having arrived over
     SSH, and takes the same branch. Neither the URL nor the lifetime line says
-    the address is machine-local, so the one reader who cannot report it is the
+    the address is machine-local, so the one user who cannot report it is the
     one who receives it.
 
     Read from the recorded bind rather than from SSH_CONNECTION, because the
@@ -97,7 +97,7 @@ def loopback_note(page_dir: Path) -> str | None:
         return None
     if not local:
         return None
-    return "access   loopback only (re-serve with --host NAME for remote readers)"
+    return "access   loopback only (re-serve with --host NAME for remote users)"
 
 
 def stop_when_service_ends(page_dir: Path) -> None:
@@ -148,7 +148,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     Derived — no `host` — the address is read from SSH_CONNECTION, whose third
     field is this machine as the client just reached it: a route the session
     carrying the request has already demonstrated, rather than a guess about what
-    resolves from where. No SSH_CONNECTION is the same answer for a reader on
+    resolves from where. No SSH_CONNECTION is the same answer for a user on
     this machine: loopback. The server binds that address alone, so the open port
     faces only the network the session crossed.
 
@@ -173,7 +173,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     if host:
         # The record's one door checks what it keeps: a scheme, a port, or a
         # path pasted into --host would mint a URL no browser resolves, handed
-        # to the one reader who can't report it.
+        # to the one user who can't report it.
         try:
             ipaddress.ip_address(host)
         except ValueError:
@@ -204,17 +204,17 @@ def host_key() -> str:
     that outranks the document and replays onto every version after.
 
     One key for the machine rather than one per page, because every page here
-    goes to the same reader — the one person the agent is working with. A page
-    has nothing to keep from another page's reader, which is what lets the
+    goes to the same user — the one person the agent is working with. A page
+    has nothing to keep from another page's user, which is what lets the
     `others` menu link them, and what lets the cookie jar, scoped by host and
     blind to the port, hold one key under one name.
 
     The cost is that handing out any page's URL hands out every page on the
-    machine, present and future. Leaf has one reader; giving it a second
+    machine, present and future. Leaf has one user; giving it a second
     means scoping the key back to the page first.
 
     The cookie is a second copy of that cost: a browser's jar is port-blind, so
-    any server the reader visits on the same host string — a dev server on
+    any server the user visits on the same host string — a dev server on
     localhost:3000 — receives the key with their request. Considered and kept:
     every cookie-borne credential has this property (a port-scoped name or a
     derived value is still delivered to every port and replayable against this
@@ -222,7 +222,7 @@ def host_key() -> str:
     cookie exists for — the page's static asset references (/leaf.js, a module's
     ../leaf.js import) can carry no query, so every asset would need the auth
     the redirect-following request has. The boundary is the host string; a
-    reader on a shared or hostile-local-service machine narrows it by serving
+    user on a shared or hostile-local-service machine narrows it by serving
     on a name other servers don't share (--host).
 
     Linked into place rather than written over, so two first serves racing on a

@@ -10,7 +10,7 @@ writers that put those readings on a claimed page, and the durable records a
 delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-reader's moves and a carrier taking them. One record is offered once, accepted once,
+user's moves and a carrier taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command — so preparing, accepting, opening and abandoning one live
 here rather than beside either carrier. The immutable payload itself belongs to
@@ -702,7 +702,7 @@ def project_app_server_activity(
 ) -> float:
     """Project one notification with the shared streamed-update throttle.
 
-    The writers below are the only place a reader ever sees this, so a caller says
+    The writers below are the only place a user ever sees this, so a caller says
     when to project rather than where to: what it gets back is the throttle's clock,
     which is the one piece of this state a caller has to keep.
     """
@@ -789,13 +789,13 @@ class CarriedTurn:
     readings; one of them is the turn's completion; every other way the read can
     stop composes a terminal of its own, so a turn ends exactly once however it
     ended. What differs is what Leaf calls the turn — the page turn it opens, the
-    seat its answer commits into, the receipt it owes a reader — which each
+    seat its answer commits into, the receipt it owes a user — which each
     carrier opens in `begin` and accounts for in `close`.
 
     `close` runs whatever the answer did. Committing the answer re-reads a page
     the turn's own work may have left unopenable, and the turn has ended either
     way: until the carrier's account of it is written, the page goes on telling
-    its reader the agent is working, with nothing but the claim's fifteen-minute
+    its user the agent is working, with nothing but the claim's fifteen-minute
     grace to correct it.
     """
 
@@ -924,7 +924,7 @@ class CarriedTurn:
         """Record one notification, before its readings reach a page."""
 
     def observe_reply(self, update: dict | None, published: bool) -> None:
-        """Record what one notification put in the reader's reply."""
+        """Record what one notification put in the user's reply."""
 
 
 def session_state_path(session_id: str, suffix: str) -> Path:

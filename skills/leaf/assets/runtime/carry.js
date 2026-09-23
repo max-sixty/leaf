@@ -1,4 +1,4 @@
-/* Mechanical reader state carried across a live document replacement.
+/* Mechanical user state carried across a live document replacement.
  *
  * Capture matches live elements to the outgoing authored source by id and tag. Restore
  * matches those identities in the arriving document and skips nodes the patch retained.
@@ -54,7 +54,7 @@ export function captureCarry(root, authored) {
 }
 
 // Restore values, disclosures, focus and caret in the turn that replaces their nodes,
-// so the reader can keep typing while renderers settle. Only scroll needs the finished
+// so the user can keep typing while renderers settle. Only scroll needs the finished
 // layout; the returned correction runs while the install still owns navigation.
 // Kept nodes never lost their state, and a changed tag is a different control.
 export function restoreCarry(

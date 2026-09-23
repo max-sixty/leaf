@@ -1,4 +1,4 @@
-"""The published site: what the build assembles, and what a reader gets.
+"""The published site: what the build assembles, and what a user gets.
 
 The site is the repo's product pages, examples, and developer feature gallery as live
 Leaf pages, so most of what could go wrong is a path that meant one thing in a checkout
@@ -153,7 +153,7 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
 
     One public origin is two servers in production: `worker/src/index.ts` answers
     `/_leaf-release/<release>/<key>/…` out of the build's sibling asset tree and
-    hands every other route to this adapter, inside the reader's own container.
+    hands every other route to this adapter, inside the user's own container.
     A specimen captures that release namespace as its asset root, so a child page
     this adapter serves names dependencies only the edge holds; a fixture standing
     the adapter up alone serves a document whose runtime nothing answers for.
@@ -198,7 +198,7 @@ def released_site_endpoint(session_site: Path, asset_tree: Path):
 
 @pytest.fixture(scope="module")
 def hosted(site, tmp_path_factory):
-    """One reader's private copy, matching the container boundary in production."""
+    """One user's private copy, matching the container boundary in production."""
     session_site = tmp_path_factory.mktemp("website-session") / "site"
     shutil.copytree(site, session_site)
     httpd = hosting_model.LeafHTTPServer(
@@ -251,7 +251,7 @@ def active_revision_directory(page_dir):
 def opened(page, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
-    banner the reader would not recognize (tests/AGENTS.md)."""
+    banner the user would not recognize (tests/AGENTS.md)."""
     navigate(page, url, wait_until="load")
 
 
@@ -404,7 +404,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
     """The site publishes each page three times over, and says so once.
 
     A page stands at its clean route, at every stamped version, and at every
-    revision. Only the first is a page a reader should be sent to, so every
+    revision. Only the first is a page a user should be sent to, so every
     document a page publishes names that route as its canonical.
     """
     assets = site_build.asset_site(site)
@@ -473,7 +473,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
 
     Every address a page answers is checked, not just its root: the shell and the
     server compose the same transforms, and a route either of them composes
-    differently is one where a reader's page and a crawler's page part company.
+    differently is one where a user's page and a crawler's page part company.
     """
     assets = site_build.asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
@@ -723,7 +723,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
 
     Nothing this document names can load once its release is gone, so recovery has to
     go and get another document. Where what answers is a copy of the same one — an edge
-    or intermediary cache, a reader offline — asking again lands on that same copy, and
+    or intermediary cache, a user offline — asking again lands on that same copy, and
     the page asked for it as fast as the network could carry it. The count is the
     assertion: one replacement, then the probe's own cadence.
     """
@@ -753,7 +753,7 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.wait_for_timeout(4000)
     assert len(documents) == 2, documents
     assert "_leaf-recovered" in documents[1], documents
-    # The mark is the runtime's own and does not stay in front of the reader.
+    # The mark is the runtime's own and does not stay in front of the user.
     assert "_leaf-recovered" not in page.evaluate("location.href")
     expect(banner).to_be_visible()
     consume_browser_errors(page, "404", "Failed to load resource", "error loading")
@@ -762,10 +762,10 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
 def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     served_example, browser
 ):
-    """A fault the page recovers from leaves the reader a working page, not a notice.
+    """A fault the page recovers from leaves the user a working page, not a notice.
 
     The supervisor's notice says the page has not started. A page that loses something
-    on the way up and presents anyway has started, so a reader who is using the page
+    on the way up and presents anyway has started, so a user who is using the page
     would otherwise be reading that Leaf could not start, over a probe request a second
     that no answer ends. The record keeps the fault instead.
     """
@@ -794,7 +794,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     """The round that was already asking when the page came up does not navigate it.
 
     A probe round begins at the fault and ends whenever the source answers, which can
-    be after the page has presented. By then the reader is using the page, so what that
+    be after the page has presented. By then the user is using the page, so what that
     round learned is no longer worth a navigation: it would take a working page out
     from under them.
 
@@ -993,7 +993,7 @@ def test_a_directory_link_with_no_index_stops_the_build(staged_site):
 
 
 def test_a_card_image_that_reaches_nothing_stops_the_build(staged_site):
-    """The one broken image a reader of the site would never run into.
+    """The one broken image a user of the site would never run into.
 
     A card is fetched by whoever unfurls the link, not by the browser showing the
     page, so a preview whose bytes moved out from under its content address fails
@@ -1037,7 +1037,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
     declared wide exhibit whose width the theme resolves from the authored attribute
     rather than the one the runtime paints. Both are therefore settled before the
     module lands, including the margin rail the prepaint bootstrap has already
-    claimed, and a card that resizes or slides under the reader's cursor is the
+    claimed, and a card that resizes or slides under the user's cursor is the
     failure this names.
     """
     boot = []
@@ -1345,7 +1345,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
     ]
     # The live line stands under the persistent controls at every width. The runtime
     # rewrites it as the demo runs, so putting it on their line would move that row
-    # while the reader is aiming at it.
+    # while the user is aiming at it.
     assert gallery.evaluate(
         """gallery => {
                 const toggle = gallery.querySelector('[data-interaction-toggle]');
@@ -1442,14 +1442,14 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
 
 
 def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
-    """A framed replay is a picture, and the reader is standing in the page holding it.
+    """A framed replay is a picture, and the user is standing in the page holding it.
 
     Each frame runs a whole second Leaf page, and a Leaf page arrives: it restores the
-    auxiliary surface this reader last had open and puts them on its own body. Neither is this
-    document's to do. The arrangements are the reader's, read from a store the frame
+    auxiliary surface this user last had open and puts them on its own body. Neither is this
+    document's to do. The arrangements are the user's, read from a store the frame
     shares with the page around it, so restoring them opens an auxiliary surface inside the
     picture that nobody asked this gallery for. The focus is worse, because a document
-    has only one: focus taken into a frame is focus taken off the page the reader is
+    has only one: focus taken into a frame is focus taken off the page the user is
     actually on, which folds their open margin cluster, drops their selection hints and
     leaves the next key they press going somewhere they cannot see.
     """
@@ -1464,7 +1464,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         ),
     )
     page = open_page(browser, serve(FEATURE_GALLERY), context=context)
-    # The reader's own standing intent, written the way a reader writes it. It has to
+    # The user's own standing intent, written the way a user writes it. It has to
     # survive out here for the frames' silence about it to say anything.
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -1516,11 +1516,11 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     assert threads_tab.evaluate("tab => document.activeElement === tab")
 
     # A tab holds focus on its own, so standing there survives anything short of
-    # something else taking it. The places a reader actually addresses mostly do not:
+    # something else taking it. The places a user actually addresses mostly do not:
     # a `g` hint, a version swap and the skip link all land on a heading or a fold
     # that `focusDestination` lent a stop to behind a one-shot blur listener, so a
     # frame that took focus even for a moment would spend the lend and leave nowhere
-    # to put the reader back. The second run stands them where the go-to sequence stands
+    # to put the user back. The second run stands them where the go-to sequence stands
     # them — in the same synchronous step that starts the replay, before any framed
     # call can run — and the destination has to still be theirs when it completes.
     assert (
@@ -1589,7 +1589,7 @@ def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
     """The gallery plays from the last record of a view delivery, not the first.
 
     The observer reports crossings rather than a state, so a stale record read as the
-    current one is never corrected: the gallery a reader scrolled to stays at Ready for
+    current one is never corrected: the gallery a user scrolled to stays at Ready for
     the rest of the page's life. The arrival scroll crosses the gallery out of view and
     back on its own, which is how a loaded machine hands both crossings over together.
     """
@@ -1671,10 +1671,10 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
     )
     assert page.evaluate("localStorage.getItem('lf-auxiliary-surface')") == "threads"
 
-    # Remember this demo beside the reader's open outer workspace, reload, and play
+    # Remember this demo beside the user's open outer workspace, reload, and play
     # as soon as the frame declares itself ready. The contained thread surface may
     # finish rendering after the page's presentation edge; the replay waits for it
-    # instead of failing its first attempt. The reader here still asks for stillness,
+    # instead of failing its first attempt. The user here still asks for stillness,
     # which is what makes the ready state a resting one: a gallery that may move
     # plays itself the moment it is both loaded and on screen, and where the reload's
     # restored reading position leaves it is not something this test arranges.
@@ -2066,10 +2066,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
-    # Painted, not merely resolved: the mark is what puts the reader at the passage.
+    # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
-    # same canonical state a reader can answer where they are standing.
+    # same canonical state a user can answer where they are standing.
     ask = page.locator("#off-slip")
     expect(ask).to_be_visible()
     assert ask.locator("[data-lf-offer]").count() > 0, (
@@ -2097,11 +2097,11 @@ def test_a_shipped_data_snapshot_opens_in_its_package_projection(
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
-    """The real backend stores the reader's anchored words without impersonating an agent."""
+    """The real backend stores the user's anchored words without impersonating an agent."""
     _, url = served_example("triage-board")
     page = open_page(browser, url)
     # What the page opens with, since an example that ships a log opens with
-    # threads already counted. The claim here is that the reader's own comment
+    # threads already counted. The claim here is that the user's own comment
     # adds one, which is a claim about the gesture rather than about the corpus.
     opened_with = page.locator(".lf-thread-panel .lf-thread").count()
     box = page.locator("#triage-lede").bounding_box()
@@ -2161,9 +2161,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
-    expect(page.locator("#heat-first")).to_have_attribute(
-        "data-lf-reader-override", "1"
-    )
+    expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
     assert "heat-opt-floor" in page.evaluate(chosen)
     expect(decisions).to_have_text("Asks 1/1")
     page.reload(wait_until="load")
@@ -2191,7 +2189,7 @@ def test_the_page_backend_answers_the_exact_projection_path(served_example, brow
     assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
-def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
+def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     """Independent page backends do not share their logs or reading positions."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
@@ -2202,7 +2200,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
     # just written and nothing else.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
-    # reader moves it far enough down that the landmark is worth restoring.
+    # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
     )
@@ -2210,7 +2208,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(served_example, browser):
         "the document did not scroll, so the landmark under test was never written"
     )
 
-    # An example that ships no log of its own, so the count there is the reader's
+    # An example that ships no log of its own, so the count there is the user's
     # own doing or nobody's. Asked of the corpus rather than named, since a page
     # that gains a companion log would otherwise turn this into a test of the seed.
     plain = next(

@@ -30,7 +30,7 @@ export function mountKeyboard({
       run(ev);
     }
   });
-  // A focus move is the one change in where the reader is standing that no state writer
+  // A focus move is the one change in where the user is standing that no state writer
   // sees, so it asks for the paint itself — the ring and the line both, which is why one
   // call answers for it. Focus entering a box, or a control that claims Escape, also disarms
   // the sequence — a digit typed in a box is text, and a chip left blooming would promise a
@@ -38,15 +38,15 @@ export function mountKeyboard({
   //
   // Not for a placement, which emits the same pair around a focus that never left: the
   // margin takes a docked cluster out of flow to measure where it can hang and puts it and
-  // the reader back, once per layout pass. Answering that as a move painted the standing
-  // chrome, whose layout pass asked for the next placement, and a page with the reader
+  // the user back, once per layout pass. Answering that as a move painted the standing
+  // chrome, whose layout pass asked for the next placement, and a page with the user
   // standing in a docked cluster laid its margin out on every frame for as long as they
-  // stood there. The reader has not moved and nothing they can see has changed, so there
+  // stood there. The user has not moved and nothing they can see has changed, so there
   // is nothing here to paint.
   document.addEventListener("focusin", () => {
     if (runtime.placingChrome) return;
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
-    // readings of where the reader is standing would refuse to arm somewhere they then
+    // readings of where the user is standing would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
     if (reactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);

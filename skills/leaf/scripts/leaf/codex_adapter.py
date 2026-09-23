@@ -1,7 +1,7 @@
 """The detached process that carries Leaf delivery into later turns of one Codex task.
 
 `leaf codex start` claims a page and leaves this process running behind the turn that
-started it, so a reader's later moves reach the same Codex task instead of waiting for
+started it, so a user's later moves reach the same Codex task instead of waiting for
 the agent to ask again. It owns the session watch: it captures each batch into the
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
@@ -12,7 +12,7 @@ desktop app's. It leaves a pointer for the task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
 reply included. Over App Server, `start_delivery_turn` opens a turn on a connection of
 its own as soon as the task is idle and `DeliveryTurn` follows it there until it ends,
-which is also how the reader sees activity and a streamed answer, and why the turn's
+which is also how the user sees activity and a streamed answer, and why the turn's
 final message is its reply. The private App Server this transport needs is what
 `leaf codex launch` runs.
 
@@ -404,7 +404,7 @@ class TaskObserver:
         """Commit an ended turn's bound answer, then close the turn on every page.
 
         The close runs whatever the answer did, for the reason `CarriedTurn` gives:
-        until it does, every page the task claims tells its reader the agent is
+        until it does, every page the task claims tells its user the agent is
         still working.
         """
         stream = self.bindings.pop(turn_id, None)
@@ -488,7 +488,7 @@ def start_delivery_turn(
 
     The task has to be idle. `turn/start` against a running turn steers the delivery
     into it instead — App Server says so of `turnTrigger`, "Ignored when this request
-    steers an already-active turn" — and a reader's comment does not belong in a turn
+    steers an already-active turn" — and a user's comment does not belong in a turn
     the user started, whose one final answer is an answer to something else. The
     status read here is this connection's own, one request before the start, rather
     than a fold left over from notifications another connection happened to see.
@@ -513,7 +513,7 @@ def start_delivery_turn(
         if status.get("type") != "idle":
             # `notLoaded` and `systemError` are not states a task comes out of by
             # being left alone, so waiting for one to pass is waiting forever with
-            # the reader's move held and nothing saying why. Raising puts it in the
+            # the user's move held and nothing saying why. Raising puts it in the
             # adapter's log and on the delivery loop's retry ladder.
             raise RuntimeError(
                 f"the Codex task is not taking turns: {status.get('type', 'unknown')}"
@@ -548,7 +548,7 @@ def start_delivery_turn(
     except BaseException:
         # Nothing is running that could answer, so the seat reserved for an answer is
         # given up. Left standing it would block every other writer from telling the
-        # reader that nothing is coming.
+        # user that nothing is coming.
         if seat_is_free and reply_target is not None:
             release_delivery_reply(session_id, payload["id"], reply_target)
         socket.close()

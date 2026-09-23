@@ -17,7 +17,7 @@ const startingEvents = await events();
 assert.equal(
   startingEvents.filter((event) => ["action", "comment"].includes(event.kind)).length,
   0,
-  "Use a fresh reader fixture",
+  "Use a fresh user fixture",
 );
 const startingIds = new Set(startingEvents.map((event) => event.id));
 const newEvent = async (predicate) => {

@@ -57,7 +57,7 @@ TURN_PRESENTATION = 120_000
 # `TURN_PATIENCE` rather than running out the limit.
 ANSWERING = frozenset({"working"})
 TURN_ASKS = 2
-# How long the reader's own panel gets to draw a reply the container has already
+# How long the user's own panel gets to draw a reply the container has already
 # admitted. Everything slow is behind this: the turn has ended, the gate has read the
 # answer, and what is left is one word on the page's news stream and the state read it
 # prompts, which is sub-second on a healthy page. `SILENCE_MS` in
@@ -69,7 +69,7 @@ VISIBLE_REPLY_PATIENCE = 30_000
 
 
 class AgentSession(NamedTuple):
-    """One reader session bound to a container serving the requested release."""
+    """One user session bound to a container serving the requested release."""
 
     context: BrowserContext
     page: Page
@@ -114,7 +114,7 @@ def undrawn_reply(url: str, debug: dict, served: str) -> str:
 
     The server half of this failure is settled before it can fire: `check_turn_answered`
     has already passed, so the container admitted the answer and the only question left
-    is why the reader's page does not show it. A snapshot of the message nodes fits
+    is why the user's page does not show it. A snapshot of the message nodes fits
     every answer to that question equally — a page that stopped asking, one whose read
     never landed, and one that took the answer in and drew nothing all leave an agent
     bubble with no words in it.
@@ -446,7 +446,7 @@ def served_instead(reached: str | None, release: str) -> str:
     return f"served {served}, not {release[:8]}"
 
 
-def reader_session(
+def user_session(
     browser,
     url: str,
     state_url: str,
@@ -454,7 +454,7 @@ def reader_session(
     *,
     direct_agent: bool = False,
 ) -> AgentSession | str:
-    """One activated reader session, or why this allocation cannot admit a turn."""
+    """One activated user session, or why this allocation cannot admit a turn."""
     context = browser.new_context()
     page = context.new_page()
     failures = observe_startup(page)
@@ -500,9 +500,9 @@ def reader_session(
 def agent_session(
     browser, release: str | None, *, origin: str, direct_agent: bool = False
 ) -> AgentSession:
-    """Open one reader session whose private container is serving `release`.
+    """Open one user session whose private container is serving `release`.
 
-    The Worker keys containers by reader and release. This activates a session and
+    The Worker keys containers by user and release. This activates a session and
     reads the release back from the container that will admit the turn; a rollout may
     still be propagating between edge locations, so the gate retries with a fresh
     context until both readings agree. An allocation the rollout has not reached says
@@ -516,7 +516,7 @@ def agent_session(
     # plus the turn's `TURN_LIMIT` still has to sit inside the job's own budget.
     deadline = time.monotonic() + 180
     while True:
-        session = reader_session(
+        session = user_session(
             browser, url, state_url, release, direct_agent=direct_agent
         )
         if isinstance(session, AgentSession):
@@ -665,7 +665,7 @@ def check_turn_answered(
     """Require the deployed turn to have published the heading and answered the ask.
 
     This reads only what the container admitted, so it settles what the turn did
-    before anything asks how the reader's browser drew it. A turn that answered
+    before anything asks how the user's browser drew it. A turn that answered
     nothing leaves Threads no reply to show, and reporting the panel for it names a
     presentation fault the page never had while discarding the reading — revision,
     activity, receipts — that says why the turn stopped.
@@ -729,7 +729,7 @@ def ask_for_the_heading(
     *,
     direct_agent: bool = False,
 ) -> dict:
-    """Send one deployment-check comment through the reader's real composer."""
+    """Send one deployment-check comment through the user's real composer."""
     text = (
         f"Change the main heading to ‘{heading}’. Leave everything else unchanged, "
         "publish the revision, and reply with ‘deployment verified’."
@@ -808,7 +808,7 @@ def await_turn(
         answer = deployment_answer(replies)
         active = current["active"]
         if published is None and active["revision"] > revision:
-            # The published document itself, fetched the way the next reader's browser
+            # The published document itself, fetched the way the next user's browser
             # fetches it: an edge-missing revision only this session's container holds.
             document = context.request.get(urljoin(url, active["url"]), timeout=120_000)
             if document.ok and heading in document.text():
@@ -923,7 +923,7 @@ def verify_agent_turn(
     requested heading, and a reply the host did not generate for the turn — rather
     than the first revision to appear. The heading readings are containments: the
     agent may quote the heading it was handed, and the runtime may add its own words
-    to any text a reader can point at.
+    to any text a user can point at.
 
     The wait's bound is the page rather than a stopwatch. One fixed budget has to be
     long enough for the slowest healthy turn and short enough to report a dead one
@@ -975,7 +975,7 @@ def verify_agent_turn(
         ) / 1000
     if report:
         print_agent_profile(profile)
-    # What the turn did comes before how Threads drew it. The panel owes the reader a
+    # What the turn did comes before how Threads drew it. The panel owes the user a
     # reply only once the container has admitted one, so a turn that stopped without
     # answering is reported as that turn rather than as a page that failed to paint.
     check_turn_answered(url, heading, turn, asks, revision)
@@ -1000,7 +1000,7 @@ def verify_agent_turn(
     # its own fixed wait whether or not the container has answered, and following the
     # agent's revision is the activation that read triggers. So the gate spends its own
     # patience on the revision rather than sampling it the instant the page appears — a
-    # container that answers a second after the runtime stopped waiting is a reader's page
+    # container that answers a second after the runtime stopped waiting is a user's page
     # arriving late, not a deployment that failed to follow the turn. This elapsed wait
     # is the canonical reading of that post-presentation tail: a resource-timing snapshot
     # taken when the page presents cannot see an `/api/state` request still in flight and
@@ -1022,7 +1022,7 @@ def verify_agent_turn(
     check(not failures, f"{url} reported browser errors: {failures}")
     # Which of the two ways this can fail: a browser still standing on the built
     # document never followed the agent's revision, while one that followed it and
-    # shows another heading is the agent's edit rather than the reader's page.
+    # shows another heading is the agent's edit rather than the user's page.
     shown = page.evaluate("window.__leafVerifier.revision")
     # A page standing on the built document has two ways to get there, and the banner
     # separates them: one whose first read answered was told revision 1 and stands under
@@ -1212,7 +1212,7 @@ def main(target: str, release: str | None, agent: bool) -> None:
     """Verify a deployed release, or run the agent journey against LOCAL or an origin.
 
     The release and agent passes are separate: rollout verification settles the
-    release before the agent pass allocates its own private reader session.
+    release before the agent pass allocates its own private user session.
     """
     if target == "local":
         with local_adapter() as (origin, built):

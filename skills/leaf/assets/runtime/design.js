@@ -20,7 +20,7 @@ inspectEl.setAttribute("aria-hidden", "true");
 export const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
 
-/* The reader marking presentation or interaction intent: what a widget looks like or
+/* The user marking presentation or interaction intent: what a widget looks like or
  * does, a control, the runtime's own chrome. A mode rather than a sequence, because it is
  * entered for a batch of remarks and changes what a press means everywhere: a press
  * comments on what it lands on and does nothing else, so a card can be pointed at
@@ -57,8 +57,8 @@ export function createDesignMode({
     banner.toggleAttribute("data-lf-design-mode", on);
     tabStore.set(DESIGN_MODE_KEY, on ? "1" : null);
     // The renderings above are the eye's copy; the mode change is spoken, or it is silent
-    // to exactly the reader who can't see them. Restoring after a reload changes nothing
-    // the reader did, so it says nothing.
+    // to exactly the user who can't see them. Restoring after a reload changes nothing
+    // the user did, so it says nothing.
     if (spoken)
       announce(
         on
@@ -77,7 +77,7 @@ export function createDesignMode({
   // widget's parts the element's name — the words a design comment on it will carry
   // (designName). The parts
   // keep the hairline alone: a board's cards each have an id and each is a target, but a
-  // tag on every card names nothing a reader can't see and hides what they can.
+  // tag on every card names nothing a user can't see and hides what they can.
   //
   // Painted whole from the page on every ask, like the aim's box, because a legend is a
   // reading of the page and a box kept from a previous reading is a claim about a page
@@ -294,7 +294,7 @@ export function createDesignMode({
     designModeOn = false;
   }
 
-  // A page mode the reader stands in for a batch of design remarks. The press the mode
+  // A page mode the user stands in for a batch of design remarks. The press the mode
   // is made of is not a key at all, so that row binds nothing and says nothing on the
   // line, the way the ⌥ aim's row does.
   pageScope("design mode", {
@@ -317,7 +317,7 @@ export function createDesignMode({
     ],
   });
   // A mode is the stance the whole page is in rather than something standing on part of
-  // it, so everything the reader puts up while it holds is put up inside it and Escape
+  // it, so everything the user puts up while it holds is put up inside it and Escape
   // takes it off from the ladder last, before the page itself: a composer opened in the
   // mode closes first, its own scope being nearer, then a panel the mode's own send
   // opened, then the mode.

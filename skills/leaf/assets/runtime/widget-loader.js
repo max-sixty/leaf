@@ -181,13 +181,13 @@ export async function installDocument(scope) {
   }
 }
 
-// The same lifecycle for a revision patched into the document a reader is standing in.
+// The same lifecycle for a revision patched into the document a user is standing in.
 // What arrives is scattered through the page rather than being one subtree, so each step
 // takes the nodes it applies to. The pre-upgrade readings belong to each arrival, before
 // insertion hands a widget's children to its controller, so `patch` makes them as it goes
 // and answers with the roots it brought. Dressing the page instead of those would
 // re-tokenize a code block no revision touched and hand its spans back as new nodes,
-// which is the reader's own page rebuilt under them. Modules are asked for earlier still,
+// which is the user's own page rebuilt under them. Modules are asked for earlier still,
 // off the arriving document, so the install spends nothing on a fetch.
 //
 // A patch runs inside the state turn that brought the revision, and that answer may

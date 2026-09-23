@@ -466,7 +466,7 @@ def _commit_layer(
     # the page transaction lease. Publish it only after the layer and initial
     # status commit, so a failed first write still takes the fresh-init path.
     if fresh:
-        # A log this page starts holds nothing the old one's reader acknowledged,
+        # A log this page starts holds nothing the old one's user acknowledged,
         # so the acknowledgement position goes with the log it named. Re-vendoring
         # an existing page keeps both.
         (page_dir / CURSOR_FILE).unlink(missing_ok=True)

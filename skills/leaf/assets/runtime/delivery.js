@@ -2,8 +2,8 @@
    browser application owner; this module owns only POST, retry, and queue progress.
 
    Gestures go through one ordered queue: each waits for the one before it, and the
-   reader is told when one cannot get through. A kind `$events` declares `bookkeeping`
-   never enters that queue. It records what the reader has seen rather than something
+   user is told when one cannot get through. A kind `$events` declares `bookkeeping`
+   never enters that queue. It records what the user has seen rather than something
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { postEvent } from "./layer-client.js";
@@ -47,7 +47,7 @@ export function createDelivery({
       }
       if (!sent.response) return { accepted: null };
       // `503` is the server saying it cannot take this yet, which the website's edge
-      // sends for the minutes a container image takes to reach a reader's allocation.
+      // sends for the minutes a container image takes to reach a user's allocation.
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {

@@ -31,11 +31,11 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
-def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader):
+def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
     """Moving the widget restores draft delivery without duplicating its form."""
     url = serve(ASK_PAGE)
-    first = open_page(browser, url, context=one_reader)
-    second = open_page(browser, url, context=one_reader)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
 
     second.evaluate("""() => {
         const group = document.getElementById("jobs");
@@ -50,7 +50,7 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_reader)
 
 
 def test_the_add_field_previews_the_option_it_will_make(browser, serve):
-    """The reader writes on the same line and in the same voice as the options.
+    """The user writes on the same line and in the same voice as the options.
 
     The trailing action stays out of an empty row, then submits on the shared margin entry
     corner rather than borrowing the selection mark's circle. It remains a full-sized
@@ -153,7 +153,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert form_box["height"] >= 44
     assert add_box["y"] >= form_box["y"]
     assert add_box["y"] + add_box["height"] <= form_box["y"] + form_box["height"]
-    # A coarse pointer widens what the reader may hit, not what the page draws: the press
+    # A coarse pointer widens what the user may hit, not what the page draws: the press
     # keeps painting nothing of its own, so the disc stays the size it was rather than
     # becoming a square as wide as its target.
     coarse = glyph_action_face(add)
@@ -276,7 +276,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
     # c keeps its page-wide meaning: it comments on the focused option rather than
-    # adding an answer. Closing the box lands the reader on the page, the question it
+    # adding an answer. Closing the box lands the user on the page, the question it
     # was opened about being a group rather than something they could stand on.
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -289,7 +289,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):
     """The answer the author missed joins the control and travels as selection state.
 
-    It is not a comment with a special response contract: the reader has supplied an
+    It is not a comment with a special response contract: the user has supplied an
     answer, not opened a conversation. The standing action carries every generated
     option so a later ordinary pick and a reload retain the same set of alternatives.
     """
@@ -363,10 +363,10 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
 
 
 def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve):
-    """The reader's answer stands on screen once, as the option the press drew.
+    """The user's answer stands on screen once, as the option the press drew.
 
     The press paints that option before the log has answered, so the words have moved and
-    the box they came from is empty in that same turn; a reader who saw both would read
+    the box they came from is empty in that same turn; a user who saw both would read
     their own answer as still unsent. The generation is standing rather than settled, and
     the refusal shows the difference. It takes the option away and gives the words back,
     out of a record that never left the store.
@@ -464,7 +464,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     An option is the text of an option, so this field declines images as the composer
     declines them while a suggestion stands. What it may not do is decline them in
     silence: the shelf never appears, the words never change, and nothing is uploaded,
-    so a reader who pasted a screenshot sees exactly what a reader whose paste worked
+    so a user who pasted a screenshot sees exactly what a user whose paste worked
     would see. The empty send in the same box already answers its own nothing out loud;
     this is the other way a box can go quiet on a gesture."""
     page = open_page(browser, serve(ASK_PAGE))

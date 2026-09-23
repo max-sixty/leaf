@@ -1,11 +1,11 @@
 /* The command reference: the complete command catalog behind `?` and its modal search
    context.
 
-   Opening remembers the reader's origin, dismisses the auto and hint popovers that modal
+   Opening remembers the user's origin, dismisses the auto and hint popovers that modal
    entry will close, then captures the registered command vocabulary and executable routes
    before the native dialog moves focus. The resulting catalog contains evaluated display
    values and stable command ids, not callbacks or live predicates. Search, ranking,
-   selection, and metadata are local reader-session state projected through one Lit
+   selection, and metadata are local user-session state projected through one Lit
    template. The dispatcher still resolves an activated id afresh after the dialog closes,
    so a stale row cannot run.
 
@@ -51,9 +51,9 @@ import {
 } from "./scopes.js";
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
-import { availableCommandRoutes, readerIn } from "./dispatch.js";
+import { availableCommandRoutes, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
-import { retainReaderIntent } from "../reader-intent.js";
+import { retainUserIntent } from "../user-intent.js";
 import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
@@ -70,7 +70,7 @@ commandReferenceDialog.tabIndex = -1;
 export const commandReferenceClose = el("button", "lf-btn lf-command-reference-close");
 commandReferenceClose.type = "button";
 
-// What the reader is sent back to when the reference closes. The shortcut shelf is the one
+// What the user is sent back to when the reference closes. The shortcut shelf is the one
 // surface that can stand behind it, and it declares itself here rather than being read from
 // here: the bar that owns the shelf already reads this module, so the edge only goes one
 // way. The close control's words and its Escape row read this one answer, so the button and
@@ -93,14 +93,14 @@ function presentCommandReferenceClose() {
 presentCommandReferenceClose();
 
 // Every scope the page has, gathered by title, for the reference. This is not the current
-// stack: the catalog answers what the reader could do here, so it includes a card grip's
+// stack: the catalog answers what the user could do here, so it includes a card grip's
 // commands even while that grip does not hold focus. Rows in the active scope still apply
 // their liveness because a visible command must not promise a press that would be refused.
 function declaredStack(origin) {
   pruneScopedElements();
   const sections = new Map();
   // Capture this before the dialog takes focus. Repeated widgets share command ids, but
-  // their words can name the particular thing in front of the reader; active contributors
+  // their words can name the particular thing in front of the user; active contributors
   // therefore get the last word in their section.
   const activeScopes = scopesFor(origin);
   const named = (section) =>
@@ -217,7 +217,7 @@ const spokenReferenceSteps = (row, route, steps, declared) => {
 function captureCommandReferenceCatalog() {
   const referenceScopes = declaredStack(commandReferenceOrigin)
     .map((scope) => {
-      const inScope = readerIn(scope) || scope.liveInCommandReference;
+      const inScope = userIn(scope) || scope.liveInCommandReference;
       const rows = scope.rows
         .filter(
           (row) =>
@@ -706,7 +706,7 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
 
 function showCommandReference(open, restoreFocus, invokeCommand) {
   const fresh = open && !commandReferenceIsOpen;
-  // Focusing a text input replaces the document selection. Keep a passage the reader has
+  // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
   const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
@@ -717,11 +717,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       if (popover.popover !== "manual" && popover.matches(":popover-open"))
         popover.hidePopover();
     // The origin is read off the scene the reference leaves standing: hiding a popover
-    // hands focus back to where the reader stood when it opened, and that is the place
-    // the reference owes them. A control, or nothing: a reader working from the page
+    // hands focus back to where the user stood when it opened, and that is the place
+    // the reference owes them. A control, or nothing: a user working from the page
     // stands on `body`, which is not a place to be given back — focusing it resets the
     // browser's sequential focus navigation starting point to the top of the document,
-    // and the reader who opened the reference four screens down would Tab from there.
+    // and the user who opened the reference four screens down would Tab from there.
     const at = focused();
     commandReferenceOrigin = at === document.body ? null : at;
     commandRoutesAtOpen = availableCommandRoutes();
@@ -763,10 +763,10 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 }
 
 // The reference is a bounded interaction rather than a level of the page: it claims the
-// whole keyboard while it stands and hands the reader back itself. What it hands back is
+// whole keyboard while it stands and hands the user back itself. What it hands back is
 // the control the press displaced, and the page where that control has gone — the layer
-// it stood in may have closed under the reader while the reference was up — which is
-// where a reader who pressed `?` from the page was all along.
+// it stood in may have closed under the user while the reference was up — which is
+// where a user who pressed `?` from the page was all along.
 function handBackTo(control) {
   if (!control) {
     letGo();
@@ -780,9 +780,9 @@ function handBackTo(control) {
   // Reconciliation may replace a control in the same task, and the paint the close asked
   // for may still hold it hidden, so give that exact node one frame before conceding. A
   // control then gone or hidden is gone for good — the layer it stood in closed while
-  // the reference was up — and the page is where the reader was. A reader who has moved
+  // the reference was up — and the page is where the user was. A user who has moved
   // on meanwhile keeps their own place: their press is the newer word.
-  const mayLand = retainReaderIntent();
+  const mayLand = retainUserIntent();
   requestAnimationFrame(() => {
     if (!mayLand() || landed()) return;
     if (!control.isConnected || !control.checkVisibility()) letGo();
@@ -883,7 +883,7 @@ export const closeCommandReference = (restoreFocus = true) =>
   showCommandReference(false, restoreFocus, null);
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
-// it stands, so its rows are the only ones the reader can reach; the boundary's one route
+// it stands, so its rows are the only ones the user can reach; the boundary's one route
 // through to another layer is the universal reference binding itself. None of these runs
 // from the reference, which is this dialog.
 pageScope("command reference", {

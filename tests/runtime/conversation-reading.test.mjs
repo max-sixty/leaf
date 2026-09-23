@@ -32,7 +32,7 @@ const serverThread = (msgs, extra = {}) => ({
   anchor: null,
   resolved: null,
   awaits_agent: false,
-  awaits_reader: false,
+  awaits_user: false,
   bare_reaction: false,
   seat: null,
   summaries: [],
@@ -101,7 +101,7 @@ const recentThread = (id, ts, edited = null) => {
   return { root, msgs: [root] };
 };
 
-test("Recent orders by last move and groups by the reader's calendar day", () => {
+test("Recent orders by last move and groups by the user's calendar day", () => {
   // 2026-03-09 00:30 local, the day after the spring-forward Sunday (a 23-hour day).
   mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-03-09T04:30:00Z") });
   try {
@@ -150,15 +150,15 @@ test("narrowing transitions reset what they contradict and counts name each subs
   const resolved = transition(DEFAULT_INTENT, "status", "resolved");
   assert.equal(resolved.status, "resolved");
   assert.equal(
-    transition({ ...DEFAULT_INTENT, waiting: "reader" }, "status", "resolved").waiting,
+    transition({ ...DEFAULT_INTENT, waiting: "user" }, "status", "resolved").waiting,
     "all",
   );
-  assert.equal(transition(resolved, "waiting", "reader").status, "open");
+  assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onReader = { kind: "needs_reader", reason: "ask" };
+  const onUser = { kind: "needs_user", reason: "ask" };
   const threads = [
-    { ...recentThread("asks", "2026-03-01T00:00:00Z"), attention: onReader },
+    { ...recentThread("asks", "2026-03-01T00:00:00Z"), attention: onUser },
     { ...recentThread("working", "2026-03-01T00:00:00Z"), awaits_agent: true },
     {
       ...recentThread("closed", "2026-03-01T00:00:00Z"),
@@ -178,7 +178,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   );
   assert.equal(amounts["status:open"], 2);
   assert.equal(amounts["status:resolved"], 1);
-  assert.equal(amounts["waiting:reader"], 1);
+  assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
-  assert.equal(model.presentation.readerAvailable, true);
+  assert.equal(model.presentation.userAvailable, true);
 });

@@ -32,7 +32,7 @@ import { uiInside, under, upFrom } from "./shadow.js";
 // overhang. Body's content box and not its border box, because the strip a standing panel
 // or tray takes is a transparent border (theme.css says why it has to be one), so
 // `getBoundingClientRect().right` is the window's edge rather than the page's. Read live
-// rather than derived from a panel width, since a reader may have drawn the edge
+// rather than derived from a panel width, since a user may have drawn the edge
 // anywhere and the stylesheet decides whether the strip is taken at all.
 export const shellRight = () => {
   const body = document.body;
@@ -57,10 +57,10 @@ export function documentPoint(left, top) {
   };
 }
 
-// What a container lets the reader see of what it holds, or null where it shows all of
+// What a container lets the user see of what it holds, or null where it shows all of
 // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
 // content-visibility both clip while overflow computes `visible`, and a box under either
-// would be drawn at a rect the reader never sees. The band itself is the padding box less
+// would be drawn at a rect the user never sees. The band itself is the padding box less
 // whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
 // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
 // past the edge.
@@ -101,7 +101,7 @@ export function shownBand(el) {
 
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
-// `visibleBand` is what the reader can see through a scroller now: its shown band less
+// `visibleBand` is what the user can see through a scroller now: its shown band less
 // the covers stuck over an edge of it. A cover is a sticky box declared through
 // `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
@@ -185,7 +185,7 @@ export function landingInsets(scroller) {
 // `scroll-margin` that reads it reserves that room for every native landing (and a
 // scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
 // a cover is is a measurement rather than a constant: a heading or a file path wraps,
-// and the reader sets the width by drawing a panel's edge, which posts no event. So the
+// and the user sets the width by drawing a panel's edge, which posts no event. So the
 // covers are observed rather than measured by whoever renders them, which forces no
 // layout. The tallest is the room, since a landing cannot know which cover will stick
 // over it. A cover that stops rendering (its panel shut) keeps the room it last
@@ -339,7 +339,7 @@ export function shownParts(el) {
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
-// Where a member begins, as the reader sees it: the first of the boxes it paints that
+// Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for
 // anything in flow and different for an inline that wraps, whose bounds run from the
 // column's left margin to its right — so a digit placed on that corner sat four hundred

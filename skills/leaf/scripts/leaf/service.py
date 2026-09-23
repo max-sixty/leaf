@@ -132,14 +132,14 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
     The page directory is the record of its own use, and it already holds both
     halves. The session appends events and writes status there; the server
     writes `viewed.json` every thirty seconds for as long as a tab holds the
-    page's news stream, so a reader looking at the page is a touch too. Neither
+    page's news stream, so a user looking at the page is a touch too. Neither
     side has to stamp a heartbeat for this, and one shallow `iterdir` reads both
     — shallow because every file a touch moves sits at the top level, and this is
     read on the serving watchdog's poll.
 
     Only a *visible* tab, though: `state-feed.js` closes the stream from its
     `visibilitychange` listener, so a page sitting in a background tab goes
-    untouched until the reader returns to it. That gap, not the agent's, is what
+    untouched until the user returns to it. That gap, not the agent's, is what
     ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
 
     `served_state/reading.py` deliberately excludes `viewed.json` from the
@@ -296,7 +296,7 @@ class PageTransaction:
 
         Two things observe the beginning. A prompt is one: the hook that mirrors
         the Stop hook fires with the turn already running, whoever caused it —
-        including the reader who did the thing the banner told them to and
+        including the user who did the thing the banner told them to and
         nudged in the terminal, leaving no batch for any delivery to carry. A
         delivery is the other, and whether it is belongs to the carrier that
         makes it: the direct consumer confirms a complete delivery, so its receipt opens
@@ -368,7 +368,7 @@ class PageTransaction:
             "state": state,
             "detail": detail,
             # Whether the agent said this. `delivery claim` writes a detail of Leaf's
-            # own so the reader hears something the instant their move is taken up, and
+            # own so the user hears something the instant their move is taken up, and
             # a transport watching the session's real steps knows more than that wording
             # does. An agent's own sentence is the one nothing outranks.
             **({} if stated else {"stated": False}),
@@ -715,8 +715,8 @@ def open_session_turn(session_id: str) -> None:
     A turn belongs to the session, not to the page whose batch opened it. The
     Stop hook stamps the ending across `owned_pages`, so an opening that clears
     only one page leaves every sibling claim stamped through a turn that is
-    demonstrably running: the reader comments on one leaf, and two minutes later
-    the next leaf tells its own reader the agent left when its turn ended and to
+    demonstrably running: the user comments on one leaf, and two minutes later
+    the next leaf tells its own user the agent left when its turn ended and to
     nudge it in the terminal.
 
     Each page takes its own transaction, the way the Stop hook takes them, and
@@ -761,9 +761,9 @@ def unacknowledged(events: list, cursor: int) -> list:
     way a user's action does, and the watcher is the one who can absorb it into
     a version. One cursor and one predicate for the whole batch, so `leaf
     wait`'s output, the Stop hook's count, and the idle gate cannot disagree
-    about what is still owed. The reader's banner counts only the user half
+    about what is still owed. The user's banner counts only the user half
     (full_state's `pending`): a report is news the agent owes the page, not
-    something the reader owes an answer. A session that reports to a page it
+    something the user owes an answer. A session that reports to a page it
     also watches reads its own report back once — rare enough (workers report,
     the watcher publishes) that a session-keyed carve-out would cost a second,
     parameterized predicate for no failure anyone has hit."""
@@ -778,7 +778,7 @@ def unacknowledged(events: list, cursor: int) -> list:
 
 
 def requires_agent_attention(event: dict) -> bool:
-    """Whether a log event creates host work, rather than reader bookkeeping."""
+    """Whether a log event creates host work, rather than user bookkeeping."""
     return (
         (event["author"] == "user" and event["kind"] not in bookkeeping_kinds())
         or event["kind"] in {"report", "error"}

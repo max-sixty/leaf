@@ -1,4 +1,4 @@
-/* lf-options: a question the reader answers. The theme draws both of its forms and
+/* lf-options: a question the user answers. The theme draws both of its forms and
  * this module makes them answerable — without it the markup still reads as a decision,
  * and nothing here is load-bearing on the look.
  *
@@ -7,16 +7,16 @@
  * its own, and a group whose options are bare labels is a question *about* the page,
  * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
- * the row names, rendered as a reference the reader can follow. It points and never
+ * the row names, rendered as a reference the user can follow. It points and never
  * speaks: the label stays written in the markup, so the file's reading of the page
  * holds every word the page shows.
  *
- * `choose` takes the reader's pick. Every option carries one injected mark that is both
+ * `choose` takes the user's pick. Every option carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
  * the option's cell takes a quiet tint. Presentation follows the form: a titled live card
  * exposes "selected" as compact header state, while a row keeps only its check. The
- * checkbox state carries the same fact for a reader listening. Outside a `choose` group
+ * checkbox state carries the same fact for a user listening. Outside a `choose` group
  * the mark renders as an image-like span, so authored state keeps the check and an
  * accessible name without pretending it can be pressed.
  *
@@ -29,7 +29,7 @@
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
  * to follow — belongs to what it landed on (`worksInside`).
  *
- * The last cell of a page choose group is the option the reader writes. Submitting it
+ * The last cell of a page choose group is the option the user writes. Submitting it
  * appends a real option and selects it through the same `choose` action as every other
  * pick. The action carries the complete generated option set as well as the selection,
  * so replay, a later ordinary pick, and undo all reconstruct one absolute state. It is
@@ -61,7 +61,7 @@
  * copy of a fact the module already states on the control that carries it — the
  * mark's `aria-checked`, the row's `aria-expanded` — so the theme keys on those,
  * the way lf-tabs' strip already does, and the group's own attributes are the
- * author's again. What the copies cost was a reader that believed them:
+ * author's again. What the copies cost was a user that believed them:
  * `shallowSigs` excludes exactly what no version can assert, and read both of these
  * as state a version had written.
  *
@@ -79,18 +79,18 @@
  * to one line naming the chosen option, with every option — the chosen one included —
  * behind a disclosure. Nothing is deleted, so the ids, the anchors on them, and check's
  * id-survival rule are all untouched; what's reclaimed is the height. Open or closed is
- * view state for this reader, remembered per browser tab in tabStore like a lf-tabs
+ * view state for this user, remembered per browser tab in tabStore like a lf-tabs
  * tab: opening a settled group is reading, not editing, so it sends no action and no
  * version carries it. Collapsed options wear hidden="until-found", so find-in-page and
  * the runtime's reveal() (a click on a comment's quote) both open the group rather than
  * jumping to an option nobody can see, and while the version diff is on the row wears a
  * Δ count so a change can't hide behind the collapse. A settled group still takes a pick
  * once opened — settling is a sweep, not a lock, and the summary line follows whatever is
- * chosen, including back to a bare "Settled" when the reader clears it.
+ * chosen, including back to a bare "Settled" when the user clears it.
  *
  * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
  * same path as a group that never declared `choose`: the mark is a span, the click
- * handler is never wired, there is no cell for an option of the reader's own, and an
+ * handler is never wired, there is no cell for an option of the user's own, and an
  * example decision can't be answered. `settled` still collapses there, because quoting
  * gates the action channel and not presentation.
  *
@@ -120,7 +120,7 @@ import {
 
 // What an option is called, in either form: its title where it leads with one, and its
 // own words where the label is all it has. `wrote` rather than `says`, because a picked
-// option's mark is the page speaking and belongs to what the reader can point at — not
+// option's mark is the page speaking and belongs to what the user can point at — not
 // to the option's name, which is what every caller here wants. A settled title's answer
 // to an option with neither is to say "Settled" rather than name an id nobody wrote.
 const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
@@ -128,7 +128,7 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // The offer, and how many of the group it takes. A group's prose stays deliberately silent,
 // while the control states arity in the two registers it has: corner shape for the eye and
 // this word in the aria-label below. The open word stays visually silent in every form. A
-// reader who hears "choose any" knows the next press adds where "choose one" would have
+// user who hears "choose any" knows the next press adds where "choose one" would have
 // replaced, and knows it while the question is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
@@ -336,7 +336,7 @@ customElements.define(
         const option = e.target.closest?.("lf-option");
         if (!option || option.parentElement !== this) return;
         if (e.detail !== 0 && reachedForWords(option)) return;
-        // A click something in the option has a use for is not a pick: the reader was
+        // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
         // question, and what it cannot answer is which of the controls in here this
@@ -346,7 +346,7 @@ customElements.define(
         if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
         if (!this.#available("choose")) return;
         const was = this.#picked();
-        // Toggling is one gesture both ways, so a reader who picked by mistake needn't
+        // Toggling is one gesture both ways, so a user who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle
         // starts from is empty, which is what makes a pick replace rather than join.
         const next = new Set(this.hasAttribute("multiple") ? was : []);
@@ -500,7 +500,7 @@ customElements.define(
             does: "Reply in this thread",
             line: "reply",
             when: () => Boolean(this.#reply()),
-            // The box hands the reader back to the conversation it belongs to, and to
+            // The box hands the user back to the conversation it belongs to, and to
             // this option where that conversation is nowhere to stand — the route
             // `landInConversation` records for exactly that case, and the one Escape
             // out of a text box reads.
@@ -612,7 +612,7 @@ customElements.define(
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion
       // serves both forms and the theme states each form's placement as it already did.
-      // The mark ends every row at the column the label opens at, where the reader is
+      // The mark ends every row at the column the label opens at, where the user is
       // reading; it stood at the line's end, ~620px away from the words it answers for
       // in a full-width group, and a group that took several answers drew its boxes
       // there while a single-pick card drew none at all.

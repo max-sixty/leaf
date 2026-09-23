@@ -217,7 +217,7 @@ def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
     """Validate authored and vendored CSS and return the readable column width.
 
     Every sheet the page vendors is checked, not theme.css alone: shadow.css is the
-    one each widget's shadow root adopts, so a malformed rule there reaches a reader
+    one each widget's shadow root adopts, so a malformed rule there reaches a user
     as an unstyled widget with nothing said about it. The column and its tokens are
     the theme's, which is the sheet the document itself is laid out by.
     """

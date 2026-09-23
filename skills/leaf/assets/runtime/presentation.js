@@ -1,6 +1,6 @@
 /* The runtime paint projected onto page-owned elements and words: the readiness
    stamps on body, the layer-owned defaults that declarations make possible, and the
-   words the runtime materializes or clips for a reader.
+   words the runtime materializes or clips for a user.
 
    The page has three readiness facts, all three written on `body` rather than on the
    root element. A reader waiting on the root sees an empty `dataset` forever, with every
@@ -49,7 +49,7 @@
      neither names a tag.
    - A holder declaring `x-request.ask` joins that same Ask projection only
      while its canonical request lifecycle is `ready`. Pending and completed requests
-     are the host's turn; a failed receipt returns the holder to the reader without a
+     are the host's turn; a failed receipt returns the holder to the user without a
      package-maintained pending flag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
@@ -61,7 +61,7 @@
    insertion words. It does not own the general meaning of a settled holder.
 
    `renderSaid` materializes words that CSS would otherwise paint through `content:
-   attr(...)`. A visible word must exist in a text node if the reader can point at it.
+   attr(...)`. A visible word must exist in a text node if the user can point at it.
    Module-generated words that cannot be declared by attribute are inserted at the
    correct edge and marked `data-lf-gen`. Do not place a generated suffix after a control
    that semantically ends the row.
@@ -107,7 +107,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   dataRevision: "data-lf-data-revision",
   source: "data-lf-source",
   sourceRevision: "data-lf-source-revision",
-  readerOverride: "data-lf-reader-override",
+  userOverride: "data-lf-user-override",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
   upgraded: "data-lf-upgraded",
@@ -176,7 +176,7 @@ export const PRESENTATION = "lf-presentation";
 // Optional runtime-owned page interface joins the same settlement boundary as the
 // widget modules it composes. Initial startup and an in-place version activation both
 // pass here, so a dynamically imported surface cannot appear after either page is
-// already in front of the reader.
+// already in front of the user.
 export const PAGE_INTERFACE = "lf-page-interface";
 // `presented` is the wait the caller owes once the interface has settled: the whole
 // application at startup, and for a live revision patched in place only this region,
@@ -202,7 +202,7 @@ export async function settlePageInterface(presented = whenApplicationPresented) 
   }
 }
 
-// A word for a reader listening, silent on screen: real text — the one thing every
+// A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
 // .lf-quiet (the shared clip), and data-lf-gen (the diff looks away). One writer per
@@ -217,7 +217,7 @@ export async function settlePageInterface(presented = whenApplicationPresented) 
 // paints a retraction on, and a module has only the parts it builds or the ones no
 // declaration can reach — a suggestion's two slots, a code line. Declaring x-paints on a
 // tag whose module also writes one here would leave both removing the other's word on
-// each state application, which the reader would hear as the element re-reading itself.
+// each state application, which the user would hear as the element re-reading itself.
 export function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;
@@ -623,7 +623,7 @@ export function renderSaid(root) {
 }
 
 // What a widget states without local words. A task's status marker, a milestone's dot, an
-// entry's kind band: each is a fact the eye reads off paint alone, so a reader listening
+// entry's kind band: each is a fact the eye reads off paint alone, so a user listening
 // is handed every word around it and nothing of the fact itself — done sounded exactly
 // like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
 // attributes (x-paints) and one pass speaks them, because left to each module it is a
@@ -635,13 +635,13 @@ export function renderSaid(root) {
 // The runtime's three provenance states are said here too. Page Map makes them visible
 // and navigable in a live page, while this quiet word keeps each one attached to its
 // target for assistive technology and for a standalone copy whose chrome was removed.
-// They compose into the element's one quiet span, so independent facets can name reader,
+// They compose into the element's one quiet span, so independent facets can name user,
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
     ? ["rewritten since your decision"]
     : [];
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.readerOverride)) words.push("your change");
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("your change");
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported update");
   for (const attr of registry[el.localName]?.["x-paints"] ?? [])
     if (el.hasAttribute(attr)) words.push(el.getAttribute(attr) || attr);
@@ -652,7 +652,7 @@ export function renderQuiet(root, also = []) {
   const painting = [
     ...tagsDeclaring((entry) => entry["x-paints"]),
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.readerOverride}]`,
+    `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
     `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
   ].join(", ");
   const targets = new Set(elementsIn(root, painting));

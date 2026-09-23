@@ -56,7 +56,7 @@ const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
-// the reader has not seen yet.
+// the user has not seen yet.
 approveBtn.disabled = true;
 const approvalFace = createBannerApprovalFace(approveBtn);
 
@@ -119,7 +119,7 @@ const WORK_WORDS = {
   replying: "replying",
 };
 export const workWords = (kind) => WORK_WORDS[kind] || "working";
-// The judgment's third seat. A reader keeps a leaf in a tab for days and looks at
+// The judgment's third seat. A user keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
 // (`activity`), same writer as the dot and the line, and the tone is taken off the dot
@@ -205,7 +205,7 @@ function paintTab() {
 // Summary and explanation share the canonical activity reading. The complete wording
 // remains available to pointer, keyboard, and touch through the native disclosure;
 // announcements report that explanation when the page kind changes or current work
-// begins waiting for reader input or approval, not on every observed work step or poll.
+// begins waiting for user input or approval, not on every observed work step or poll.
 let saidKind;
 let saidActionableWork;
 const presentStatus = ({
@@ -266,10 +266,10 @@ let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
-  // A reader preview claims the page, so every press on it — the agent's own
-  // screenshots included — comes back to the session as reader input. That is the
+  // A user preview claims the page, so every press on it — the agent's own
+  // screenshots included — comes back to the session as user input. That is the
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
-  const kind = preview.interaction === "reader" ? "Reader" : "Preview";
+  const kind = preview.interaction === "user" ? "User" : "Preview";
   const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
   const label = preview.commit && preview.dirty ? `${stem}+` : stem;
   const safeUrl = new URL(location.href);
@@ -422,7 +422,7 @@ function statusWords({
       `${agent} is ${work}${said}`,
     ];
   }
-  // A declared request tells the reader what to do. Preserve it on the row when
+  // A declared request tells the user what to do. Preserve it on the row when
   // no pending input supersedes it; a generic attendance label would lose that cue.
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
@@ -551,7 +551,7 @@ function renderStatusNow(state) {
   });
   let explanation = age ? `${text} (${age})` : text;
   // What a transport can watch for itself, when the sentence beside it was written by
-  // the agent: two facts about one turn, so the row keeps the one meant for the reader
+  // the agent: two facts about one turn, so the row keeps the one meant for the user
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
     explanation += ` · ${activity.observed}`;
@@ -582,7 +582,7 @@ export const renderStatus = clocked(document.body, renderStatusNow);
 // nothing stands in the button's place there. A neutral "End leaf" did once, and it
 // ended nothing it named: the server went on serving, the watcher went on waiting,
 // the status was untouched, and the agent side still finished at `leaf status idle`.
-// So the one control a page that asks nothing put in front of its reader offered
+// So the one control a page that asks nothing put in front of its user offered
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own decision.
 export const isSignoffDeclared = () =>
@@ -649,9 +649,9 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   );
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
-  // surface that could have told a reader what pressing it would do next went on
+  // surface that could have told a user what pressing it would do next went on
   // describing a press they had already made. Approved, it says the state and the way
-  // out of it, which is `z` like every other reader gesture.
+  // out of it, which is `z` like every other user gesture.
   approvalFace.present(
     Object.freeze({
       disabled:

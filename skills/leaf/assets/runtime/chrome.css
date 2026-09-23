@@ -34,7 +34,7 @@
 
    A control that draws the band on itself draws it only where nothing else holds that
    box's one outline. A decision written out around the control wears the band already,
-   and the log's news about the content — `restated`, `reader-override`, `reported` — has
+   and the log's news about the content — `restated`, `user-override`, `reported` — has
    no second carrier, while the band also has the washed cell and the key badges.
 
    Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
@@ -109,7 +109,7 @@
   .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
 }
 .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
-/* Words for a reader listening, silent on screen: real text, the one thing every
+/* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
    the same fact to the eye (renderQuiet, and lf-code's highlighted lines). Worn with
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
@@ -152,7 +152,7 @@
 .lf-quiet { clip-path: inset(50%); white-space: nowrap; }
 /* The skip link (leaf.js says why it stands where it does). It rests transparent, the
    way the comment note above does and for the same reason, and on focus takes the face
-   the two controls below take, in the same place — a reader who has just pressed Tab
+   the two controls below take, in the same place — a user who has just pressed Tab
    from the top of the document is the only one who ever sees it. Outside the scope
    block because it stands outside the container, which is the whole point of it.
 
@@ -177,12 +177,12 @@
    takes it, which locally is about 40ms — a look that appeared and left inside
    that window would be a second flicker put where the first one was removed. Past
    the delay there is something to say, and the cases where there is are the ones
-   that need it: a heavy page, or a reader who reached a --host page across a
+   that need it: a heavy page, or a user who reached a --host page across a
    network. So a surface goes quiet only once the wait has run long enough to notice,
    and a fast answer never shows this rule at all. The agent workflow remains legible
    through the fade, so one control can carry both durable work and its transient
    confirmation wait. The reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
-   which is the right reading of it: the fade is what a reader asked not to have, the
+   which is the right reading of it: the fade is what a user asked not to have, the
    waiting is not.
 
    Opacity and the cursor, never geometry: the line a press is made on holds still
@@ -259,7 +259,7 @@ body.lf-over-mark { cursor: pointer; }
    (claimPress), so those two states are those two cursors, and the hand promises no
    more than the box beside it does.
    The plain arrow alone was the first answer and it under-promised. It says only "not
-   a text selection", which is the half a reader can already infer from the box,
+   a text selection", which is the half a user can already infer from the box,
    and it says the same thing over a gap a press does nothing in as over the paragraph
    a press would take whole — so the one question the box leaves ("would this
    click do anything?") was the one the cursor declined to answer, and a user held the
@@ -300,7 +300,7 @@ body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
 .lf-mark-el { cursor: pointer; }
 /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
    registry being script state no file can hold (BAKE). It carries the line with it: the
-   wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
+   wash alone is 1.08:1 over the light paper, and a copy is the one place the user
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
@@ -368,14 +368,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 .lf-version-inline-deletion { font: inherit; line-height: inherit; }
 .lf-version-inline-deletion del { margin-inline-end: .28em;
   background: var(--del-tint); color: var(--danger-ink); }
-/* The unanswered decision the reader is standing in (markHere), worn by the decision rather than
+/* The unanswered decision the user is standing in (markHere), worn by the decision rather than
    by whichever of its controls holds the focus — they are standing in the whole thing,
    however they got there. Unanswered and not open: a widget whose own seat is
-   mid-conversation with the agent has left the reader's list while the reader is still
+   mid-conversation with the agent has left the user's list while the user is still
    standing in it. Exactly one decision wears it at a time: every shipped widget
    draws one box for it to paint on, and one a page styles boxless hangs it on the
    boxes its contents make (shownParts). While the Asks tray is open, its row mirrors
-   the same fact — for a decision the tray lists, which is one the reader still owes. It is an outline like every other mark the
+   the same fact — for a decision the tray lists, which is one the user still owes. It is an outline like every other mark the
    runtime paints on the page's own elements: it moves nothing on arriving, and it
    keeps its place for nothing, being the element's own paint rather than a box in
    the chrome that would have to chase it down every scroll, reflow and drag. */
@@ -483,7 +483,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      that stops being complete: the banner, the shortcut bar and the panel's head were named
      and the panel itself, the trays, the shelf's menu, the command reference, the find
      row and the asks list were left open, all of them selectable and every one of them
-     the same drag. What a reader may still copy out of here says so for itself, at
+     the same drag. What a user may still copy out of here says so for itself, at
      .lf-quote and .lf-msg-body below. */
   :scope, .lf-legend { position: static; }
   /* The mark's box, at the root because two surfaces draw the same mark — the banner's
@@ -529,7 +529,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
   /* Keep a readable start of the status sentence beside the shelf's fixed primary
      controls. The reservation is independent of changing status copy, so updates
-     cannot move controls under the reader's pointer. */
+     cannot move controls under the user's pointer. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
     max-width: calc(100% - var(--lf-status-floor) - var(--lf-mark-w)
       - 2 * var(--lf-banner-gap));
@@ -546,7 +546,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
      and the resting rule above clears both at the same specificity — so on this row
      the class would paint ink alone. Restate the treatment the open auxiliary surface wears,
-     which the reader already reads as "this control is doing something": neither the
+     which the user already reads as "this control is doing something": neither the
      fill nor the ring is a metric, so the control keeps the width it reserved. */
   .lf-banner-actions > .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
@@ -671,7 +671,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-thread-action { font: inherit; }
   }
   /* The chooser's menu replaces More at the same fixed banner door. Opening it closes
-     More, so the reader sees one root popup rather than a child covering its invoker.
+     More, so the user sees one root popup rather than a child covering its invoker.
      It is anchored rather than measured, so nothing recomputes a position when the
      row's contents change width.
      It is the only place the version notes are, so a row wraps to hold one whole —
@@ -682,7 +682,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Two columns, because a version and what it changed are one row's two halves: the
      note says it in words and Compare marks it on the page. That press was a second
      control out on the bar, naming a second version number beside the chooser's, and
-     the two together said no more than either — a reader could tell that v2 and v3
+     the two together said no more than either — a user could tell that v2 and v3
      were both being mentioned and not what either mention was for. The pair are grid
      siblings rather than a wrapper each, because a role="menu" owns menuitems and a
      div between them is a claim about ARIA that nothing here needed to make.
@@ -726,7 +726,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      being read. It draws its own box rather than waiting for a hover to draw one,
      which is the same rule a group taking a pick keeps: a form may decide how it
      looks and may not decide whether it says it takes an answer, and a wash that
-     arrives on hover arrives after the reader has committed the pointer. Lit from
+     arrives on hover arrives after the user has committed the pointer. Lit from
      aria-checked rather than a class of its own, the state being the button's to
      state — a menuitem may not be pressed, a menu's toggle being a
      menuitemcheckbox, which axe said of the aria-pressed this started as on the one
@@ -748,7 +748,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
   /* The trays' edge: the thread panel's mirror on the left, holding one tray at a
      time (setOpenTray), each its own scroll region so one wheel gesture moves one region.
-     Every metric is the edge's rather than either tray's — a reader who has both keys
+     Every metric is the edge's rather than either tray's — a user who has both keys
      should not find two different regions where they learned one — and it is stated once
      here for both. It used to be stated twice, in two rules with every declaration
      duplicated, and by the time anyone looked one copy was carrying a literal 300 where
@@ -772,7 +772,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      was cut to the three pixels inside it, and an absolutely positioned child of a
      scroller travels with the content — the edge would have scrolled away down a long
      list, an edge being a fact about the region rather than about how far down it the
-     reader has read. contain, so reaching the end of the list does not start scrolling
+     user has read. contain, so reaching the end of the list does not start scrolling
      the page behind it: one wheel gesture moves one region. */
   .lf-tray-list { flex: 1; min-height: 0; padding: 6px 4px; overflow-y: auto;
     overscroll-behavior: contain; }
@@ -852,9 +852,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
      the two lines that place it. It draws nothing of its own: the region's inner border
-     is the line the reader already sees, and this is the room around that line in which
+     is the line the user already sees, and this is the room around that line in which
      a pointer counts as being on it. It straddles the border rather than sitting inside
-     it, because the reader aims at the line and arrives from whichever side they were
+     it, because the user aims at the line and arrives from whichever side they were
      reading — and where the region stands beside the page, the 3px of it outside is
      body's own margin, which holds no words.
      What hover and focus add is a line drawn over the border, growing a pixel each way
@@ -872,7 +872,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the furniture hit the widget. They are trays now, and the word is core's alone. */
   /* Held a ring's width in from both ends, because a flush ring at either end is
      drawn where nothing can show it: under the banner at the head, past the bottom of
-     the window at the foot — and the reader tabbing to the edge got a ring missing that
+     the window at the foot — and the user tabbing to the edge got a ring missing that
      run. The two ends fail differently and it is worth keeping them apart, because the
      gate reports them as different things: the banner declares no overflow and clips
      nothing, it paints over at z-index 9000, while the window clips outright. The
@@ -899,7 +899,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     font-size: var(--t-6); white-space: nowrap; }
   /* The words in here, against the apparatus the root has already answered for: a reply
      and the passage it is about. A quote is the page's own words and a message is
-     somebody's, so a reader copying either is copying what was said rather than the
+     somebody's, so a user copying either is copying what was said rather than the
      layer talking about itself — which is what a head, a count and a control's label
      are, and why the run of them a drag once swept up ("All leaves (6) · Asks 0/2 · v1")
      is not in this list.
@@ -1022,7 +1022,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   button.lf-group:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: run-heading;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* A thread and the room a resolved one is still giving back (foldOut) are the same
-     box, so the fold starts from the box the reader was looking at rather than from
+     box, so the fold starts from the box the user was looking at rather than from
      a second description of it. What .lf-going adds is the clip the fold needs and
      the outcome said in paint: the box is on its way out and may not also state
      that in metrics the fold is animating. */
@@ -1054,7 +1054,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-unread { grid-column: 3; }
   .lf-thread-status { grid-column: 5; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
-  .lf-thread-status[data-lf-turn="reader"] { color: var(--turn-ink); }
+  .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
   .lf-thread-count { grid-column: 4; color: var(--muted); font-size: 11px; text-align: right;
     font-variant-numeric: tabular-nums; }
   /* One inset serves the quote, messages and composer. Author, time and delivery
@@ -1129,9 +1129,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* An arrival the reconcile added while the user was watching. Motion, not a
      jump: nothing above it moves, and the newcomer settles rather than appears. */
   .lf-thread.grow, .lf-msg.grow { animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2,.7,.3,1); }
-  /* The card of the comment the reader is standing in, which is the panel's half of
+  /* The card of the comment the user is standing in, which is the panel's half of
      the pair the page paints as lf-mark-here. A thread is a composite region: the
-     quiet ground says the reader is in this card, whichever control inside it holds
+     quiet ground says the user is in this card, whichever control inside it holds
      focus and whether they arrived by key or pointer, so :focus-within paints it and
      keeps the two halves paired. The card itself holding the keyboard's focus is the
      walk's landing and the card's own presses — Enter, r — act on it, so it wears the
@@ -1152,12 +1152,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline-offset: 2px; }
   .lf-thread-head > .lf-quote:not(.detached)::after { content: "  ↗ page";
     color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
-  /* A quote is the passage, and a passage is as long as the reader's selection — a
+  /* A quote is the passage, and a passage is as long as the user's selection — a
      paragraph of it in a 320px column buries the words written about it. So the panel
      names the passage in three lines and the page shows the rest: the mark is already
      on it, and the quote is what one clicks to go there. The composer's copy is
      scrolled rather than clipped a few rules down, because it stands alone in a box
-     the reader is typing into and has no thread beneath it to bury. */
+     the user is typing into and has no thread beneath it to bury. */
   .lf-thread .lf-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
   .lf-quote.detached { border-inline-start-color: var(--border-2);
     color: var(--muted-2); cursor: default; }
@@ -1215,7 +1215,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
      the flex-item margins they had as the panel's own children, and so the one box the
-     chrome measures for its lift is the one the reader sees standing there. */
+     chrome measures for its lift is the one the user sees standing there. */
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
   .lf-general { display: flex; gap: 6px; align-items: flex-end; }
@@ -1239,12 +1239,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      whatever arrived under it, no longer beside the item it was about. Everything
      else here is the viewport's own chrome and stays fixed. Below the banner's
      9000, so a float scrolled to the top slides under the bar, not over it. */
-  /* The 💬 stands out on the page, beside the reader's own words and in the same
+  /* The 💬 stands out on the page, beside the user's own words and in the same
      margin a change's ✓ Accept hangs in — often on the same line, which is how the
      two came to be compared. It used to answer that comparison badly: a solid accent
      rectangle at the chrome's own size against two hairline pills, so the page's
      margin held two idioms four centimetres apart and the louder one was the one
-     raised over the reader's sentence. Where a control stands decides which it
+     raised over the user's sentence. Where a control stands decides which it
      wears. In the runtime's own furniture — the banner, the panel, the composer — a
      press is a .lf-btn and looks like one; beside page content it is the shared
      .lf-margin-entry.
@@ -1341,9 +1341,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      document level holds the inventory (outside the border, an enclosing scroller
      clips; inside it, a choose group's own cells paint over; the border band is
      wherever the widget's own border already is). A standing mark can live with the
-     hairline that survives all that, because an annotation is something a reader
+     hairline that survives all that, because an annotation is something a user
      can hunt for. A promise cannot: it answers a held key at a glance, and over a
-     box whose border is already the accent the arm changed nothing a reader could
+     box whose border is already the accent the arm changed nothing a user could
      see, which was reported as no box at all.
      The layer over the page is the runtime's by construction, so the aim is stated
      there instead. Ordinary items supply their shown rectangle. An SVG element returned
@@ -1355,7 +1355,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      promise, still lands on the item under it. Document-anchored like the page paints
      around it (place), so a
      scroll moves it with the page between the events that re-derive it; under the
-     floats themselves, which are chrome the reader works rather than paint about the
+     floats themselves, which are chrome the user works rather than paint about the
      page. */
   .lf-aim { position: absolute; display: none; pointer-events: none;
     --lf-shape-ink: var(--accent); --lf-shape-stroke: 2px; --lf-shape-dash: none;
@@ -1560,11 +1560,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     --lf-entry-tint: var(--ok-wash);
     background: var(--lf-entry-tint);
   }
-  .lf-page-map-action[data-lf-turn="reader"]:not([data-lf-agent-workflow])
+  .lf-page-map-action[data-lf-turn="user"]:not([data-lf-agent-workflow])
     > .lf-margin-kind {
     color: var(--turn-ink);
   }
-  .lf-page-map-action[data-lf-turn="reader"]:not([data-lf-agent-workflow]) {
+  .lf-page-map-action[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
     --lf-entry-tint: var(--turn-wash);
     background: var(--lf-entry-tint);
   }
@@ -1617,7 +1617,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
      same floor the rail does, of the same box: theme.css, at the margin projection. A
      panel takes its strip out of the shell, so a window wide enough for both is not a
-     page with room for both, and a reader who opened one would otherwise lose the map
+     page with room for both, and a user who opened one would otherwise lose the map
      and the markers together. */
   @media screen {
     @container lf-shell (width <= 840px) {
@@ -1677,7 +1677,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
     display: none; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
-     whole rather than shrinking. Every hint on it names a key the reader cannot press,
+     whole rather than shrinking. Every hint on it names a key the user cannot press,
      and the box they cost stands over the words and the controls of a page whose window
      is the smallest one there is. Above the covering-width breakpoint, an attached
      keyboard can begin a category walk and its position stands alone.
@@ -1720,7 +1720,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      the whole thing off the page. */
   .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  /* Design mode: the reader is commenting on the layer rather than the page, and for
+  /* Design mode: the user is commenting on the layer rather than the page, and for
      as long as they are the page shows its bones. Every item — a widget, a section, a
      heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
      drawn from the item's geometry the way the aim's box is (paintLegend), one pixel
@@ -1756,7 +1756,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
-  /* The hint the keyboard is browsing is where the reader is standing in this mode, so
+  /* The hint the keyboard is browsing is where the user is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
   :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;

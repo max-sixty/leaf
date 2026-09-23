@@ -21,7 +21,7 @@
      row must declare one, unless a Decision command can fall back to its `decision` action
      name in the command reference.
      An Ask instead shows the resolved binding beside that separate action name, so an
-     inline hint always says what the reader actually presses.
+     inline hint always says what the user actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
      its containing Ask. The row may carry an existing `bindingBadge`. Routes may carry
@@ -52,16 +52,16 @@
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
    - `covering`, on a row of the page's own scope, keeps that command reachable while an
-     auxiliary surface covers the document: the surface replaces the page the reader is
+     auxiliary surface covers the document: the surface replaces the page the user is
      reading rather than ending the reading, so travel and the go-to sequence answer
      inside it while the rest of page scope stays under the modal floor.
-   - `at`, expressed by the current `readerIn` predicate, says whether this press can act
-     at the reader's current position.
+   - `at`, expressed by the current `userIn` predicate, says whether this press can act
+     at the user's current position.
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
    - A command that enters a layer declares no way back out of it. The layer's own
      owner declares that step, against the layer standing rather than against the press
-     that opened it, so one state has one way out however the reader reached it.
+     that opened it, so one state has one way out however the user reached it.
    - `native: true` performs `run` without preventing the platform default. Use it when
      Leaf must change state before the browser completes the same press, not to leave an
      otherwise owned press half-handled. Off by default: a row normally owns the press it
@@ -73,7 +73,7 @@
    `live` answers the declared liveness once for every projection. Do not repeat a guard
    inside `run` if the guard changes whether the key should be shown. When the command reference
    needs to describe a page capability while the shortcut bar needs to promise an immediate
-   press, keep `pageHas` and `readerIn` separate.
+   press, keep `pageHas` and `userIn` separate.
 
    `checked` validates declarations when they enter the register. `activeRows` also
    refuses two live meanings for one binding in the same scope; rows may reuse a binding
@@ -146,7 +146,7 @@ export const parsed = (binding) => {
 // a + where it is a word, so "⌘⏎" and "Ctrl+⏎" are each their own platform's spelling.
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
 // how this page's command reference always has: the binding says Shift+a because that is what the
-// dispatcher must ask for, and the chip says A because that is what the reader presses.
+// dispatcher must ask for, and the chip says A because that is what the user presses.
 export const spell = (binding) => {
   const { key, mods } = parsed(binding);
   if (mods.length === 1 && mods[0] === "Shift" && /^[a-z]$/.test(key))
@@ -289,7 +289,7 @@ export const validateRows = (rows, where = "a scope") =>
   validateActive(rows.filter(live), where, declaredBindings);
 
 // A scope may reuse a key across mutually exclusive states, but never in the scene the
-// reader is in. Resolve liveness before any surface projects the rows, and refuse an
+// user is in. Resolve liveness before any surface projects the rows, and refuse an
 // ambiguous scene instead of letting declaration order choose a meaning silently.
 export function activeRows(rows, where = "a scope") {
   const active = rows.filter((row) => live(row) && bindings(row).length > 0);
@@ -412,7 +412,7 @@ export function answers(binding, ev) {
   // ("?" is Shift+/ here and a key of its own there), so its Shift is the layout's
   // business rather than the binding's. A named key carries no such ambiguity — no layout
   // hides ArrowLeft behind Shift — so there the modifier is asked for exactly, the way it
-  // is on a letter. Shift+→ is how a reader extends a selection through the words of a
+  // is on a letter. Shift+→ is how a user extends a selection through the words of a
   // <summary> they are standing on, and the laxity here was closing the section under
   // them and eating the extension.
   return key === " " || key.length > 1

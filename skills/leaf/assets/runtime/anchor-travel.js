@@ -5,8 +5,8 @@
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. A trip to a
- * thread or datum somewhere else leaves a history entry, so browser Back returns the
- * user to where they were reading.
+ * thread or datum somewhere else leaves one history entry per run of trips, so browser
+ * Back returns the user to where they were reading before the run.
  */
 
 import {
@@ -47,8 +47,11 @@ export function createAnchorTravel({
   // restores it when Back traverses to it, which is the native restoration history
   // travel keeps (version.js). A push therefore comes before the trip moves anything.
   // A thread already readable where the user stands is no trip and records nothing.
+  // A trip from where another trip landed replaces that landing's entry, so a walk of
+  // any length is one step back to where the user was reading before it began.
   function depart(url = window.location.href) {
-    history.pushState(null, "", url);
+    if (history.state?.lfTrip) history.replaceState(history.state, "", url);
+    else history.pushState({ lfTrip: true }, "", url);
   }
 
   function validateProjectionReference(owner, attribute) {

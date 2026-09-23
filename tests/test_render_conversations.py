@@ -2595,17 +2595,18 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
 
 def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
-    """A trip to a thread somewhere else leaves a history entry, so Back returns to the
-    place the user was reading and Forward to the thread. A step to a thread already
-    readable where the user stands goes nowhere and leaves none."""
-    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(120))
+    """A walk to threads somewhere else leaves one history entry however far it goes,
+    so Back returns to the place the user was reading before it and Forward to where
+    it ended."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
             "Back from a thread",
             "<h1>Back from a thread</h1>"
             "<section id=near><p>The first question sits at the top.</p></section>"
-            "<section id=also><p>A second question sits beside it.</p></section>"
-            f"<section id=far>{filler}</section>",
+            f"<section id=above>{filler}</section>"
+            "<section id=also><p>A second question sits halfway down.</p></section>"
+            f"<section id=below>{filler}</section>",
         )
     )
     for section in ("near", "also"):
@@ -2628,7 +2629,8 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     page.keyboard.press("t")
     page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
     scroll_settled(page)
-    assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
+    landed = page.evaluate("document.scrollingElement.scrollTop")
+    assert landed < reading - 1000
     assert page.evaluate("history.length") == entries + 1
 
     first = page.evaluate(
@@ -2641,8 +2643,9 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
         arg=first,
     )
     scroll_settled(page)
-    assert page.evaluate("history.length") == entries + 1
     walked = page.evaluate("document.scrollingElement.scrollTop")
+    assert walked > landed + 1000
+    assert page.evaluate("history.length") == entries + 1
 
     page.go_back()
     page.wait_for_function(

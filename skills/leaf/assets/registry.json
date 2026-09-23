@@ -91,7 +91,20 @@
               "drawing"
             ]
           },
-          "text": "The user drew on the page. `drawing.says`, when present, holds the page's words under the drawing, which can be more than the ink covers. On a drawing anchored to an element, `drawing.strokes` are offsets from that element's top-left corner and `drawing.box` is its width and height, so the marks can be placed on a picture of it; a drawing on the whole page has no `box`, and its offsets start at the page's top-left corner. Any `text` explains the mark."
+          "text": "The user drew on the page. `drawing.says`, when present, holds the page's words from the first to the last inside the ink's extents: the neighbourhood of the mark rather than the mark, so an arrow across a paragraph says the whole paragraph. It is absent where the extents hold no words, as over a picture or in a margin. On a drawing anchored to an element, `drawing.strokes` are offsets from that element's top-left corner and `drawing.box` is its width and height, so a stroke's share of the box says which part of a picture it marks; a drawing on the whole page has no `box`, and its offsets start at the page's top-left corner. Any `text` explains the mark. Otherwise it is an ordinary comment, answered the same way."
+        },
+        {
+          "when": {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "pattern": "\\]\\(/media/"
+              }
+            }
+          },
+          "text": "The message carries an image as a Markdown link to `/media/<digest>.<ext>`, a path under the page directory the batch names. Open the image itself before answering: its alt text is a label, not a description of what it shows."
         },
         {
           "when": {
@@ -117,7 +130,7 @@
               }
             }
           },
-          "text": "A design comment is about how the page looks or behaves. Find what produces that, and fix it in this page's own source unless it comes from a shared widget or from Leaf itself, or the user asks for a wider fix."
+          "text": "A design comment is about how the page looks or behaves rather than what it says. Its anchor's `section` is a widget's id or a runtime part's: `lf-banner`, `lf-threads-toggle` (the Threads panel), `lf-leaves` (the leaves panel), `lf-versions`, `lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar` or `lf-command-reference`; `part`, when present, names the control the click landed on. Find the source that produces what it names and fix it in this page's own source, unless the behavior belongs to a package's widget or the user asks for a wider fix: then change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix that belongs in Leaf itself is the user's to raise, as the Leaf skill's \"Improve Leaf through use\" says. The stamped version that carries the fix is the result the reply reports."
         },
         {
           "when": {
@@ -158,6 +171,19 @@
             }
           },
           "text": "The user answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages."
+        },
+        {
+          "when": {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "pattern": "\\]\\(/media/"
+              }
+            }
+          },
+          "text": "The message carries an image as a Markdown link to `/media/<digest>.<ext>`, a path under the page directory the batch names. Open the image itself before answering: its alt text is a label, not a description of what it shows."
         },
         {
           "when": {
@@ -324,7 +350,7 @@
       ],
       "request": [
         {
-          "text": "The user asked you to run an operation the page's package defines, once. The request id, with the page, identifies it: after an interruption, check whether it already ran before acting."
+          "text": "The user asked you to run an operation the page's package defines; the package's guidance says what it means. The request id, with the page, identifies it: after an interruption, check whether it already ran before acting."
         }
       ],
       "undo": [
@@ -334,7 +360,7 @@
       ],
       "report": [
         {
-          "text": "A worker reported provisional state for a page widget. In the next stamped version, write it into the markup, or mark the element `overruled` and say why in the version note. Do not end the page with a report left unanswered."
+          "text": "A worker reported provisional state for a page widget, which the page shows until a stamped version answers it. Answer it in a stamped version before the page ends: write the reported state into the markup, or mark the element `overruled` and say why in the version note. A version that leaves the widget as it was leaves the report standing, and `version check` refuses one whose markup contradicts the report without answering it."
         }
       ],
       "error": [
@@ -378,7 +404,7 @@
       ],
       "version": [
         {
-          "text": "This conversation asks for a new version of the page rather than a reply. Make the change it asks for, stamp the version, then close it with `leaf resolve <page> --to <conversation-id>`, which refuses until the stamped version's authored state answers the Ask."
+          "text": "This conversation asks for a new version of the page rather than a reply, and `leaf reply` refuses it. Make the change it asks for, stamp the version, then close it with `leaf resolve <page> --to <conversation-id>`, which refuses until a stamped version's authored state answers the Ask the conversation came from, or changes its declared answer where the Ask was already answered. If the change needs clarification first, ask in a separate thread on the same Ask with `leaf comment <page> --section <ask-id>`; the user's answer there hands both threads back to you."
         }
       ],
       "markup": [
@@ -388,7 +414,7 @@
       ],
       "receipt": [
         {
-          "text": "Run it at most once, then record the outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed --text \"…\"`. The receipt does not change the page: refresh any data the page shows, update `index.html` to reflect the result, and stamp it if it is worth a note."
+          "text": "Run it at most once, then record its outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed --text \"…\"`. The receipt does not change the page: refresh any data the page shows, update `index.html` to reflect the result, and stamp it if it is worth a note."
         }
       ]
     },
@@ -992,7 +1018,7 @@
     "x-awaits": "What x-awaits declares: a tag either originates a standing Ask for the user or, with `rollup: true`, aggregates descendant Asks through a nested plan. A local Ask always names the x-state verbs that answer it. The standing answer is identified by its owning widget and verb, so its complete durable record may fold on the widget or on a detail-named part; no parallel completion flag is needed. A roll-up owner can expose and gate on descendant Asks without entering the Asks list itself. The banner's count, the `a`/`A` ask walk that steps asks, the command reference dialog's row, and conditional x-state actions are readings of one projection, so nothing names a tag and a new widget joins by declaring. Quoted material decides nothing — an exhibited Ask is a mention (x-exhibit). `region` says the widget supplies the answer control but not its own title: every matching local Ask must stand inside an x-ask-surface, whose direct heading owns the question's reading and arrival. A widget that also declares x-conversation puts a box under its own Ask, and a conversation standing in that box takes the Ask off the user's list for as long as it waits on the agent — whoever opened it. That is not an answer: the widget's state is untouched, so a version still has to record what the words settled, and an action's `requires` reads the Ask as open. An ordinary reply or resolve hands the conversation back. A version-response conversation takes no reply; only authored state in a later version that answers an originating open Ask, or changes its declared answer when the Ask was already answered, unlocks the agent's resolve. User actions in the log do not substitute for that version. A widget inside a thread presents an Ask like one on the page, with one bound set by frozen thread markup: the thread's own reply box is already that seat, so only an action can answer it there. `when` selects Leaf elements that originate Asks, `answers` names exactly the x-state verbs that settle one, `rollup` carries the logical OR of descendant Asks, `until` can require a distinct completion verb for a matching thread Ask, and `all` names a blanket answer offered by the banner.",
     "x-conversation": "The module places a conversationBox in each matching Leaf element, selected by authored, static `when` attributes (an attribute written by an x-state or x-report value record cannot drive this predicate). It projects exact-section threads textually from the whole log; Threads keeps the complete interactive view. Thread markup and quoted material take no second view. Where the widget also originates a local x-awaits Ask, the seat is where the user deals with it in words: the Ask leaves their list while that conversation waits on the agent, rather than being counted a second time under a box they have already used. It is not an answer — the widget's own state is untouched, so its controls still work and an action's `requires` still reads the Ask as open. A conversation with `response: {kind: version, verb: <answer>}` carries that declaration on its root comment, has no inline reply control, and refuses `leaf reply`: the agent either incorporates it in a later version or opens a separate thread when that revision depends on the user. To unlock resolve, authored state in the later version must answer an originating open Ask, or change the named answer's authored record when the Ask was already answered. User actions in the log do not substitute for that version. The named verb must be one of x-awaits' answers with an attribute or value record, so the resolve gate can compare the originating and current versions without naming a widget. A `hold` comment is such a conversation like any other. `hold` labels a stronger send route whose comment carries `holds` naming this widget: that route remains available after ordinary roots, the unresolved held thread is the hold, resolution releases it, and undoing resolution restores it atomically. Dropping the widget drops only the inline view.",
     "x-required-members": "Required role-complete members. Each member names a direct child element declaration, and `one-each` names that member's required string-enum attribute. A compound owner must contain exactly one such member for every enum value, so a package can declare fixed semantic slots without teaching Leaf its tags or roles. The owner uses `x-content: members`, and the member names the owner in `x-owners`.",
-    "x-content": "The content model: `markup` (children are the author's markup), `members` (children are this element's own member elements and nothing else), `data` (one <pre> holding text in the notation the description names, < > escaped — <pre> because it is the only thing in HTML that says whitespace is load-bearing without a stylesheet to read), or `empty`. Required.",
+    "x-content": "The content model: `markup` (children are the author's markup), `members` (children are this element's own member elements and nothing else), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt; — <pre> because it is the only thing in HTML that says whitespace is load-bearing without a stylesheet to read), or `empty`. Required.",
     "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the declared canonical string attribute whose authored value is this page's source id. An optional `snapshot` names a declared positive-decimal attribute that selects an immutable source snapshot; without it the input follows the current value. An optional source attribute leaves that input absent; `watchData` delivers null. Several widgets may bind the same source to the same contract. Across immutable versions and widgets frozen into threads, one source cannot mean two contracts; use a new source id for a new meaning. A module subscribes by widget and input name, never by a package-owned source name.",
     "x-example": "Authored markup exhibiting the widget, valid against the merged registry: an agent reads it with the element declaration, writes from it, and the lint refuses one that does not validate.",
     "x-exhibit": "The element quotes what it holds rather than speaking it — a mention, not a use: interactive widgets inside take no input (a choose group no clicks, a board no drags, a suggestion no decision), and an Ask inside it counts for nothing. A module asks `quoted(el)` before wiring any input, and the theme's affordance rules — the hand, the lift, the joined shape — stand down inside it on their own.",

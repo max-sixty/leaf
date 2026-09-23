@@ -31,7 +31,7 @@
 #    registry.json, then those under `$events.answering.reply`, the answer it owes.
 #    Each clause has a `text` and may have a `when`, a JSON Schema the log line,
 #    with its `obligation`, must satisfy for the clause to apply. There are
-#    8; here they all are, with whether the line from step 2 satisfies each
+#    9; here they all are, with whether the line from step 2 satisfies each
 #    `when`:
 #
 #      clause 1, applies:
@@ -42,36 +42,55 @@
 #      clause 2, does not apply:
 #        when: {"required": ["drawing"]}
 #        text: The user drew on the page. `drawing.says`, when present, holds the
-#              page's words under the drawing, which can be more than the ink covers.
-#              On a drawing anchored to an element, `drawing.strokes` are offsets from
-#              that element's top-left corner and `drawing.box` is its width and
-#              height, so the marks can be placed on a picture of it; a drawing on the
+#              page's words from the first to the last inside the ink's extents: the
+#              neighbourhood of the mark rather than the mark, so an arrow across a
+#              paragraph says the whole paragraph. It is absent where the extents hold
+#              no words, as over a picture or in a margin. On a drawing anchored to an
+#              element, `drawing.strokes` are offsets from that element's top-left
+#              corner and `drawing.box` is its width and height, so a stroke's share
+#              of the box says which part of a picture it marks; a drawing on the
 #              whole page has no `box`, and its offsets start at the page's top-left
-#              corner. Any `text` explains the mark.
+#              corner. Any `text` explains the mark. Otherwise it is an ordinary
+#              comment, answered the same way.
 #      clause 3, does not apply:
+#        when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
+#        text: The message carries an image as a Markdown link to
+#              `/media/<digest>.<ext>`, a path under the page directory the batch
+#              names. Open the image itself before answering: its alt text is a label,
+#              not a description of what it shows.
+#      clause 4, does not apply:
 #        when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
 #        text: A suggestion proposes exact replacement text. Apply it verbatim, or
 #              reply with your reason for declining.
-#      clause 4, does not apply:
+#      clause 5, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
-#        text: A design comment is about how the page looks or behaves. Find what
-#              produces that, and fix it in this page's own source unless it comes
-#              from a shared widget or from Leaf itself, or the user asks for a wider
-#              fix.
-#      clause 5, applies:
+#        text: A design comment is about how the page looks or behaves rather than
+#              what it says. Its anchor's `section` is a widget's id or a runtime
+#              part's: `lf-banner`, `lf-threads-toggle` (the Threads panel),
+#              `lf-leaves` (the leaves panel), `lf-versions`, `lf-composer`,
+#              `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`
+#              or `lf-command-reference`; `part`, when present, names the control the
+#              click landed on. Find the source that produces what it names and fix it
+#              in this page's own source, unless the behavior belongs to a package's
+#              widget or the user asks for a wider fix: then change the package as the
+#              Leaf skill's `references/packages.md` says, re-vendor, and note the
+#              re-vendor on the stamp. A fix that belongs in Leaf itself is the user's
+#              to raise, as the Leaf skill's "Improve Leaf through use" says. The
+#              stamped version that carries the fix is the result the reply reports.
+#      clause 6, applies:
 #        when: {"not": {"required": ["token"]}}
 #        text: If this event's conversation has a null `title` in the batch's
 #              `conversations`, name it with `leaf conversation title <page>
 #              <conversation-id> --text "<a few words>"`, so the thread panel lists
 #              its subject rather than its opening words.
-#      clause 6, does not apply:
+#      clause 7, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Read the token and the `means`
 #              its package gives, if any, and act on it if it calls for a change;
 #              reply only if its meaning is unclear. Once the page reflects it, close
 #              it with `leaf resolve <page> --to <event-id>`. It never blocks
 #              publishing a version, and it does not wait on an answer.
-#      clause 7, applies:
+#      clause 8, applies:
 #        (no `when`, so it always applies)
 #        text: Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
 #              observes over App Server, your final message is the reply instead, and
@@ -87,7 +106,7 @@
 #              `--detach` it if its subject has left the page. Add `--awaits` only if
 #              your reply's prose asks the user something. Your reply renders as
 #              Markdown, so show code or markup in a fenced block.
-#      clause 8, does not apply:
+#      clause 9, does not apply:
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
@@ -288,12 +307,54 @@ comment with a drawing:
     - when: {"required": ["drawing"]}
       text: >-
         The user drew on the page. `drawing.says`, when present, holds the page's
-        words under the drawing, which can be more than the ink covers. On a drawing
-        anchored to an element, `drawing.strokes` are offsets from that element's
-        top-left corner and `drawing.box` is its width and height, so the marks
-        can be placed on a picture of it; a drawing on the whole page has no `box`,
-        and its offsets start at the page's top-left corner. Any `text` explains
-        the mark.
+        words from the first to the last inside the ink's extents: the neighbourhood
+        of the mark rather than the mark, so an arrow across a paragraph says the
+        whole paragraph. It is absent where the extents hold no words, as over a
+        picture or in a margin. On a drawing anchored to an element, `drawing.strokes`
+        are offsets from that element's top-left corner and `drawing.box` is its
+        width and height, so a stroke's share of the box says which part of a picture
+        it marks; a drawing on the whole page has no `box`, and its offsets start
+        at the page's top-left corner. Any `text` explains the mark. Otherwise it
+        is an ordinary comment, answered the same way.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf observes
+        over App Server, your final message is the reply instead, and `leaf reply`
+        refuses the event. Where you answer with `leaf reply`, reply before any
+        other work, including the work this event asks for: give the answer, or
+        say what you are about to do and where the result will appear. Once that
+        work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the user something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
+
+comment with a pasted image:
+  event:
+    kind: comment
+    text: this looks off ![screenshot](/media/0a1b2c.png)
+    obligation:
+      response:
+        kind: reply
+  told:
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        Acknowledge this delivery before anything else, by your host contract's
+        route where it leaves acknowledgement to you: until then the user's message
+        reads Sent or Queued rather than Picked up.
+    - when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
+      text: >-
+        The message carries an image as a Markdown link to `/media/<digest>.<ext>`,
+        a path under the page directory the batch names. Open the image itself before
+        answering: its alt text is a label, not a description of what it shows.
     - when: {"not": {"required": ["token"]}}
       text: >-
         If this event's conversation has a null `title` in the batch's `conversations`,
@@ -334,10 +395,14 @@ comment awaiting a version:
         few words>"`, so the thread panel lists its subject rather than its opening
         words.
     - text: >-
-        This conversation asks for a new version of the page rather than a reply.
-        Make the change it asks for, stamp the version, then close it with `leaf
-        resolve <page> --to <conversation-id>`, which refuses until the stamped
-        version's authored state answers the Ask.
+        This conversation asks for a new version of the page rather than a reply,
+        and `leaf reply` refuses it. Make the change it asks for, stamp the version,
+        then close it with `leaf resolve <page> --to <conversation-id>`, which refuses
+        until a stamped version's authored state answers the Ask the conversation
+        came from, or changes its declared answer where the Ask was already answered.
+        If the change needs clarification first, ask in a separate thread on the
+        same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
+        there hands both threads back to you.
 
 comment a newer message answers through:
   event:
@@ -408,9 +473,18 @@ design comment:
         reads Sent or Queued rather than Picked up.
     - when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
       text: >-
-        A design comment is about how the page looks or behaves. Find what produces
-        that, and fix it in this page's own source unless it comes from a shared
-        widget or from Leaf itself, or the user asks for a wider fix.
+        A design comment is about how the page looks or behaves rather than what
+        it says. Its anchor's `section` is a widget's id or a runtime part's: `lf-banner`,
+        `lf-threads-toggle` (the Threads panel), `lf-leaves` (the leaves panel),
+        `lf-versions`, `lf-composer`, `lf-comment-button` (the margin's Comment
+        control), `lf-shortcut-bar` or `lf-command-reference`; `part`, when present,
+        names the control the click landed on. Find the source that produces what
+        it names and fix it in this page's own source, unless the behavior belongs
+        to a package's widget or the user asks for a wider fix: then change the
+        package as the Leaf skill's `references/packages.md` says, re-vendor, and
+        note the re-vendor on the stamp. A fix that belongs in Leaf itself is the
+        user's to raise, as the Leaf skill's "Improve Leaf through use" says. The
+        stamped version that carries the fix is the result the reply reports.
     - when: {"not": {"required": ["token"]}}
       text: >-
         If this event's conversation has a null `title` in the batch's `conversations`,
@@ -482,6 +556,83 @@ reply:
         or `--detach` it if its subject has left the page. Add `--awaits` only if
         your reply's prose asks the user something. Your reply renders as Markdown,
         so show code or markup in a fenced block.
+
+reply with a pasted image:
+  event:
+    kind: reply
+    text: like this ![sketch](/media/3d4e5f.png)
+    obligation:
+      response:
+        kind: reply
+  told:
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        Acknowledge this delivery before anything else, by your host contract's
+        route where it leaves acknowledgement to you: until then the user's message
+        reads Sent or Queued rather than Picked up.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        The user answered in a thread; the batch's `conversations` carries the thread's
+        context, and `leaf conversation read <page> <conversation-id>` reads its
+        history in pages.
+    - when: {"required": ["text"], "properties": {"text": {"pattern": "\\]\\(/media/"}}}
+      text: >-
+        The message carries an image as a Markdown link to `/media/<digest>.<ext>`,
+        a path under the page directory the batch names. Open the image itself before
+        answering: its alt text is a label, not a description of what it shows.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf observes
+        over App Server, your final message is the reply instead, and `leaf reply`
+        refuses the event. Where you answer with `leaf reply`, reply before any
+        other work, including the work this event asks for: give the answer, or
+        say what you are about to do and where the result will appear. Once that
+        work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the user something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
+
+reply in a thread awaiting a version:
+  event:
+    kind: reply
+    obligation:
+      response:
+        kind: version
+  told:
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        Acknowledge this delivery before anything else, by your host contract's
+        route where it leaves acknowledgement to you: until then the user's message
+        reads Sent or Queued rather than Picked up.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        The user answered in a thread; the batch's `conversations` carries the thread's
+        context, and `leaf conversation read <page> <conversation-id>` reads its
+        history in pages.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
+    - text: >-
+        This conversation asks for a new version of the page rather than a reply,
+        and `leaf reply` refuses it. Make the change it asks for, stamp the version,
+        then close it with `leaf resolve <page> --to <conversation-id>`, which refuses
+        until a stamped version's authored state answers the Ask the conversation
+        came from, or changes its declared answer where the Ask was already answered.
+        If the change needs clarification first, ask in a separate thread on the
+        same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
+        there hands both threads back to you.
 
 reaction on a message:
   event:
@@ -632,11 +783,11 @@ request:
         kind: receipt
   told:
     - text: >-
-        The user asked you to run an operation the page's package defines, once.
-        The request id, with the page, identifies it: after an interruption, check
-        whether it already ran before acting.
+        The user asked you to run an operation the page's package defines; the package's
+        guidance says what it means. The request id, with the page, identifies it:
+        after an interruption, check whether it already ran before acting.
     - text: >-
-        Run it at most once, then record the outcome with exactly one `leaf receipt
+        Run it at most once, then record its outcome with exactly one `leaf receipt
         <page> <request-id> succeeded|failed --text "…"`. The receipt does not change
         the page: refresh any data the page shows, update `index.html` to reflect
         the result, and stamp it if it is worth a note.
@@ -655,9 +806,12 @@ report:
     kind: report
   told:
     - text: >-
-        A worker reported provisional state for a page widget. In the next stamped
-        version, write it into the markup, or mark the element `overruled` and say
-        why in the version note. Do not end the page with a report left unanswered.
+        A worker reported provisional state for a page widget, which the page shows
+        until a stamped version answers it. Answer it in a stamped version before
+        the page ends: write the reported state into the markup, or mark the element
+        `overruled` and say why in the version note. A version that leaves the widget
+        as it was leaves the report standing, and `version check` refuses one whose
+        markup contradicts the report without answering it.
 
 error:
   event:

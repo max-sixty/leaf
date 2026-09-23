@@ -149,7 +149,7 @@
       }
     },
     "x-guidance": {
-      "author": "Place one empty `lf-pull-request` before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description itself, so the surrounding prose can stay the reviewer's analysis. Use `snapshot` when the page must keep one captured source revision."
+      "author": "Place one empty `lf-pull-request` before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description itself, so the surrounding prose can stay the reviewer's analysis."
     },
     "x-upgrade": true,
     "x-example": "<lf-pull-request id=\"reviewed-pr\" source=\"pr-1842\" snapshot=\"7\"></lf-pull-request>"
@@ -190,7 +190,7 @@
       }
     },
     "x-guidance": {
-      "author": "Capture authentic CallDiff plain-text output as a `text-document`, then bind one empty `lf-call-diff` to that source and set `diff` to the id of the exact `lf-diff` patch. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. The widget summarizes and folds each changed root without removing its commentable rows. A source coordinate becomes a link when its path and line occur in that patch. Prefer one focused file or entry point per widget for a large repository, and use `snapshot` when the review packet must remain pinned to one analyzed revision. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
+      "author": "Capture authentic CallDiff plain-text output as a `text-document` and bind `lf-call-diff` to it. Keep unchanged tree items in the capture: they are the stable landmarks that make the structural change readable. Prefer one focused file or entry point per widget for a large repository, and use `snapshot` when the review packet must remain pinned to one analyzed revision. Do not transcribe the output into page markup, invent attribute reads as calls, or redraw it as separate before and after diagrams."
     },
     "x-refers": {
       "diff": {}

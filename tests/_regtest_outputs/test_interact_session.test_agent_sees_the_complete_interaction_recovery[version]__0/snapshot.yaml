@@ -61,10 +61,14 @@ delivered:
           "<a few words>"`, so the thread panel lists its subject rather than its
           opening words.
         h3: >-
-          This conversation asks for a new version of the page rather than a reply.
-          Make the change it asks for, stamp the version, then close it with `leaf
-          resolve <page> --to <conversation-id>`, which refuses until the stamped
-          version's authored state answers the Ask.
+          This conversation asks for a new version of the page rather than a reply,
+          and `leaf reply` refuses it. Make the change it asks for, stamp the version,
+          then close it with `leaf resolve <page> --to <conversation-id>`, which
+          refuses until a stamped version's authored state answers the Ask the conversation
+          came from, or changes its declared answer where the Ask was already answered.
+          If the change needs clarification first, ask in a separate thread on the
+          same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
+          there hands both threads back to you.
       events:
         - kind: comment
           author: user

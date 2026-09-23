@@ -102,7 +102,12 @@ def test_authored_reply_requires_explicit_read_even_when_open(browser, serve):
     )
     assert _read_events(serve.page_dir) == []
 
-    card.get_by_role("button", name="Mark thread read").click()
+    page.keyboard.press("Tab")
+    expect(card.get_by_role("button", name="Mark thread read")).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(card.get_by_role("button", name="Resolve")).to_be_focused()
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).not_to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )

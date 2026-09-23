@@ -380,7 +380,9 @@ export class ThreadView {
       this.node,
     );
     this.#wireKeys();
-    if (
+    if (panel && standing === this.#markReadButton && !markRead) {
+      focusThread(this.node, { preventScroll: true });
+    } else if (
       summaryReplacedFocusedMessage &&
       focused() !== standing &&
       standing?.isConnected

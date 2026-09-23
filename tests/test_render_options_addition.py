@@ -60,7 +60,9 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
-    add = form.get_by_role("button", name="Add option", exact=True, include_hidden=True)
+    add = form.get_by_role(
+        "button", name="Add and select option", exact=True, include_hidden=True
+    )
 
     typography = """el => { const s = getComputedStyle(el);
                              return [s.fontFamily, s.fontSize, s.lineHeight]; }"""
@@ -291,12 +293,17 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     field = added.get_by_role("textbox", name="Another option", exact=True)
+    expect(field).to_have_attribute("placeholder", "Another option — add to select")
     field.fill("Insulate the camera battery")
-    add = added.get_by_role("button", name="Add option", exact=True)
+    add = added.get_by_role("button", name="Add and select option", exact=True)
     add.focus()
     with sending(page, "the added option"):
         page.keyboard.press("Enter")
-    expect(field).to_be_focused()
+    expect(field).not_to_be_focused()
+    expect(add).to_be_focused()
+    expect(add).to_be_visible()
+    expect(add).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (
@@ -359,7 +366,9 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
     field.fill(words)
-    form.get_by_role("button", name="Add option", exact=True).click(no_wait_after=True)
+    form.get_by_role("button", name="Add and select option", exact=True).click(
+        no_wait_after=True
+    )
     holding(page, held, 1, "the added option")
 
     added = page.locator("#jobs > lf-option[data-lf-added]")
@@ -406,7 +415,9 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
     field.fill(words)
-    form.get_by_role("button", name="Add option", exact=True).click(no_wait_after=True)
+    form.get_by_role("button", name="Add and select option", exact=True).click(
+        no_wait_after=True
+    )
     holding(page, held, 1, "the added option")
 
     # The queue holds this second action behind the first, so the pick's own paint, not
@@ -499,7 +510,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     expect(first).to_have_value(draft)
 
     page.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add option", exact=True
+        "button", name="Add and select option", exact=True
     ).click()
     round_trip(page)
     added = page.locator("#jobs > lf-option[data-lf-added]")

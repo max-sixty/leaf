@@ -590,7 +590,7 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
             "its answer verbs"
         )
-    # The until verb closes a thread Ask, so it too is one of the widget's own
+    # The until verb closes an Ask, so it too is one of the widget's own
     # verbs — same rule as `all`, same reason.
     if (until := awaits.get("until")) and until["verb"] not in entry.get("x-state", {}):
         raise RegistryError(

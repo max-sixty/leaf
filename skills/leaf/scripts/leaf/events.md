@@ -151,11 +151,12 @@ erase newer reader input. A substantive reply reopens a resolved conversation;
 reactions and host failure receipts leave its closure standing. A later resolution
 closes the conversation again. Reopening restores its still-unanswered widget Asks,
 as an explicit reopen does.
-A host that gives up on a move records `failure`, a nonempty host-owned code, on the
-failure the move's answer takes (`conversation.fail_answer`): a reply for a message,
-including one in a conversation that asked for a version, a failed `receipt` for a
-request, and a failed `pickup` for an answer to a page Ask. Only the host writer
-supplies it, and the panel draws such a reply as a receipt whose head says the message
+A host that gives up on a move writes the failure the move's answer takes
+(`conversation.fail_answer`): a reply for a message, including one in a conversation
+that asked for a version, a failed `receipt` for a request, and a failed `pickup` for
+an answer to a page Ask. The reply and the pickup carry `failure`, a nonempty
+host-owned code; a receipt has no field for it and says so in the host's words. Only
+the host writer supplies `failure`, and the panel draws such a reply as a receipt whose head says the message
 answers nothing, since otherwise it is indistinguishable from the answer it stands in
 for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`

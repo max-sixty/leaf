@@ -36,8 +36,8 @@ to another Leaf meaning. A declaration without a Leaf invocation presents native
 shared behavior and does not shadow an outer handler.
 
 Text entry keeps characters, composition, caret movement, deletion, and other editing
-keys ahead of ancestor widget scopes. An exact control may still declare a sequence such
-as Mod+Enter or its own Escape step. Radio and slider navigation likewise belongs to
+keys ahead of ancestor widget scopes. An exact control may still declare Enter to
+submit or its own Escape step. Radio and slider navigation likewise belongs to
 the focused control before ancestor widgets, and a focused select option retains
 typeahead while its list is open.
 

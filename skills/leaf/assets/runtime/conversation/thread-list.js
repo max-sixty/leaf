@@ -380,8 +380,7 @@ const rowModel = (all, commands) => {
   // marks, the inline conversation seats and the banner's count are readings of the log
   // and go on saying what the log says. What the panel shows is the panel's business,
   // and so is the order it shows it in. Under Recent a run is the day its threads last
-  // moved, and each row names the part of the page it is about, which the run no longer
-  // does. The page's order is kept either way for the walk with the panel shut.
+  // moved. The page's order is kept either way for the walk with the panel shut.
   const narrowing = narrowingModel(threads, group);
   const shown = narrowing.shown;
   const inPage = inPageOrder(threads, commands.placedAt);
@@ -423,7 +422,6 @@ const rowModel = (all, commands) => {
           grow,
           outline,
           search: threadSearchReading(t, narrowing.intent.finding),
-          place: recent ? group.get(t).label || null : null,
         }),
         group: Object.freeze(recent ? recentGroup(t) : { ...group.get(t) }),
       }),

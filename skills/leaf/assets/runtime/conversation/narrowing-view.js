@@ -1,8 +1,10 @@
 /* The thread panel's complete narrowing surface.
  *
  * `narrowing.js` supplies one frozen presentation reading and stable commands. This
- * synchronous light-DOM Lit owner retains the search control and local Filters
- * disclosure while rendering the summary, Reset, the order and declared facet controls. It
+ * synchronous light-DOM Lit owner retains the search control and local View
+ * disclosure while rendering the order, declared facet controls, summary, and Reset. The
+ * summary follows the choices so that its arrival never moves a choice under the press
+ * that caused it, and the disclosure's label never changes with what is chosen. It
  * never reads its rendering back into reader intent.
  */
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
@@ -141,18 +143,7 @@ class ThreadNarrowingView extends HTMLElement {
           aria-controls="lf-thread-filters"
           @click=${() => this.#toggleFilters()}
         >
-          ${this.#model.order ? `Filters · ${this.#model.order}` : "Filters"}
-        </button>
-      </div>
-      <div class="lf-thread-view" ?hidden=${this.#model.hidden}>
-        <span class="lf-thread-view-summary">${this.#model.summary}</span>
-        <button
-          type="button"
-          class="lf-btn lf-thread-filter-reset"
-          aria-label="Reset thread filters"
-          @click=${(event) => this.#resetFilters(event)}
-        >
-          Reset
+          View
         </button>
       </div>
       <div
@@ -166,6 +157,17 @@ class ThreadNarrowingView extends HTMLElement {
           (group) => group.kind,
           (group) => this.#group(group),
         )}
+      </div>
+      <div class="lf-thread-view" ?hidden=${this.#model.hidden}>
+        <span class="lf-thread-view-summary">${this.#model.summary}</span>
+        <button
+          type="button"
+          class="lf-btn lf-thread-filter-reset"
+          aria-label="Reset thread filters"
+          @click=${(event) => this.#resetFilters(event)}
+        >
+          Reset
+        </button>
       </div>
     `;
   }

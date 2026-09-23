@@ -62,7 +62,7 @@ export function threadReading(
   thread,
   surface,
   commands,
-  { visible = true, grow = false, outline = null, search = null, place = null },
+  { visible = true, grow = false, outline = null, search = null },
 ) {
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
@@ -83,7 +83,6 @@ export function threadReading(
     surface,
     visible,
     grow,
-    place,
     folding: false,
     search,
     quote: panel
@@ -120,7 +119,6 @@ function navigationSummary(navigation, model) {
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary class="lf-thread-summary" title=${title}>
     <span class="lf-thread-topic">${title}</span>
-    ${model.place ? html`<span class="lf-thread-place">${model.place}</span>` : nothing}
     <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
     <span
       class="lf-thread-count"

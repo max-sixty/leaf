@@ -2424,9 +2424,10 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
 
 def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     """Order is the panel's own view, not a filter. Recent puts the thread spoken in
-    last at the top under a day heading, and each row names the part of the page it is
-    about. Reset clears refinements but keeps the order, and with the panel shut t/T
-    still walk the page's order."""
+    last at the top under a day heading. The View control keeps one label whatever is
+    chosen, and a narrowed summary arriving never moves the choices under the press.
+    Reset clears refinements but keeps the order, and with the panel shut t/T still
+    walk the page's order."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     now = datetime.now().astimezone()
@@ -2459,8 +2460,10 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     expect(order.get_by_role("button", name="Page")).to_have_attribute(
         "aria-pressed", "true"
     )
+    toggle = page.locator(".lf-thread-filter-toggle")
+    expect(toggle).to_have_text("View")
     order.get_by_role("button", name="Recent").click()
-    expect(page.locator(".lf-thread-filter-toggle")).to_have_text("Filters · Recent")
+    expect(toggle).to_have_text("View")
     assert page.evaluate(LIST_RUNS) == [
         "§ Today",
         whole,
@@ -2470,17 +2473,16 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
         lede,
     ]
 
-    def place(thread):
-        return page.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-place')
-
-    expect(place(whole)).to_have_text("About the page as a whole")
-    expect(place(cap)).to_have_text("How it works")
-    expect(place(lede)).to_have_text("Shipping offline editing")
-
-    # Order hides nothing, so it is not part of what Reset puts back.
-    page.get_by_role("group", name="Location", exact=True).get_by_role(
+    # Order hides nothing, so it is not part of what Reset puts back. The narrowed
+    # summary that the press brings in stands below the choices, not above them.
+    anchored = page.get_by_role("group", name="Location", exact=True).get_by_role(
         "button", name=re.compile(r"^Anchored")
-    ).click()
+    )
+    before = anchored.bounding_box()
+    expect(page.locator(".lf-thread-view")).to_be_hidden()
+    anchored.click()
+    expect(page.locator(".lf-thread-view")).to_be_visible()
+    assert anchored.bounding_box() == before, "the summary moved the choices"
     shown_runs = LIST_RUNS.replace(".map(", ".filter((n) => !n.hidden).map(", 1)
     assert page.evaluate(shown_runs)[:2] == [f"§ {day(3)}", cap]
     page.get_by_role("button", name="Reset thread filters").click()
@@ -2496,7 +2498,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
         page.locator(f'.lf-thread[data-id="{whole}"] > .lf-thread-summary')
     ).to_be_focused()
 
-    # Page order restores the page's runs, with no second line on the rows.
+    # Page order restores the page's runs.
     order.get_by_role("button", name="Page").click()
     assert page.evaluate(LIST_RUNS) == [
         "§ Shipping offline editing",
@@ -2506,8 +2508,6 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
         "§ About the page as a whole",
         whole,
     ]
-    expect(page.locator(".lf-thread-place")).to_have_count(0)
-    expect(page.locator(".lf-thread-filter-toggle")).to_have_text("Filters")
 
     # The page's walk is the page's order whatever the panel shows.
     order.get_by_role("button", name="Recent").click()
@@ -6354,7 +6354,7 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Panel controls similarly unwind the panel, not the unrelated disclosure.
-    page.get_by_role("button", name="Filters", exact=True).focus()
+    page.get_by_role("button", name="View", exact=True).focus()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(card).to_have_attribute("open", "")

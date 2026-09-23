@@ -12,11 +12,12 @@
 
    Order is the panel's other view question: Page reads the list in the page's order,
    and Recent puts the thread spoken in last first. It hides nothing, so it is not a
-   narrowing: it has no count, Reset and a direct arrival keep it, and a reordered
-   list states it on the Filters control rather than in the narrowed summary.
+   narrowing: it has no count, and Reset and a direct arrival keep it. Its day headings
+   say which order the list is in.
 
-   The panel title stays fixed. The search row discloses the controls; a narrowed
-   view states its result and active facets even while those controls are closed.
+   The panel title stays fixed. The search row's View button discloses the controls; a
+   narrowed view states its result and active facets even while those controls are
+   closed.
    Reset restores Open and clears the other refinements and search together.
 
    These are the panel's own view. The page's marks, inline conversation seats and
@@ -87,9 +88,9 @@ export const narrowed = () =>
   intent.onlyGone;
 
 const labelFor = (kind, value) =>
-  [ORDER, ...FACETS]
-    .find((facet) => facet.kind === kind)
-    ?.choices.find((candidate) => candidate.value === value)?.label;
+  FACETS.find((facet) => facet.kind === kind)?.choices.find(
+    (candidate) => candidate.value === value,
+  )?.label;
 
 const messageWords = (message) => {
   return [message.text ?? message.token, message.body.text]
@@ -242,7 +243,6 @@ function presentationReading(reading, threads, shown, groups) {
       reading.scope === "all" &&
       reading.subject === "all" &&
       !reading.onlyGone,
-    order: reading.order === "page" ? "" : labelFor("order", reading.order),
     groups: Object.freeze([order, ...renderedGroups]),
     readerAvailable,
     readerTitle:

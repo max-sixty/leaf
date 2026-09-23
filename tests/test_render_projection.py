@@ -80,6 +80,7 @@ from render_cases_navigation import (
     composer_quote,
     go_to_address,
     painted,
+    source_revision,
 )
 from render_harness import (
     BOTH_STAMPS,
@@ -122,6 +123,7 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"
 )
@@ -130,23 +132,25 @@ VISUAL_REVIEW_GALLERY = next(
 def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     browser, serve
 ):
-    """The two clients read the same accepted content and selected data revision."""
+    """The two clients read the same accepted content and the same source revisions.
+
+    A pin is a source id nothing rewrites: the reviewed copy keeps its revision while
+    the current source moves on, and each widget's origin names its own file's digest.
+    """
     authored = leaf_page(
         "construction parity",
         '<h1 id="title">Review</h1>'
         '<lf-suggestion id="change"><lf-old>Retry twice.</lf-old>'
         "<lf-new>Retry three times.</lf-new></lf-suggestion>"
         '<lf-text-document id="current" source="instructions"></lf-text-document>'
-        '<lf-text-document id="captured" source="instructions"></lf-text-document>',
+        '<lf-text-document id="reviewed" source="reviewed-instructions" '
+        'label="Reviewed"></lf-text-document>',
     )
     url = live_url(serve(authored))
     data_model.cmd_data_set(
-        serve.page_dir, "instructions", "Reviewed instructions.\n", "reviewed"
+        serve.page_dir, "reviewed-instructions", "Reviewed instructions.\n"
     )
-    source = serve.page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace('id="captured"', 'id="captured" snapshot="1"')
-    )
+    data_model.cmd_data_set(serve.page_dir, "instructions", "Earlier instructions.\n")
     data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
     page = open_page(browser, url)
     page.locator(
@@ -174,20 +178,24 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
     }
     assert [node["tag"] for node in nodes["change"]["content"]] == ["lf-new"]
     assert nodes["change"]["content"][0]["content"] == ["Retry three times."]
-    for identity, revision, operation in (
-        ("current", 2, "data set"),
-        ("captured", 1, "capture-and-rebind"),
+    for identity, source, value in (
+        ("current", "instructions", "Current instructions.\n"),
+        ("reviewed", "reviewed-instructions", "Reviewed instructions.\n"),
     ):
         binding = nodes[identity]["inputs"]["document"]
+        assert binding["value"] == value
         widget = page.locator(f"#{identity}")
-        expect(widget.locator("code")).to_have_text(binding["value"])
+        expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
             "node => JSON.parse(node.dataset.lfOrigin)"
         )
         assert {**rendered, "path": []} == binding["origin"]
-        assert rendered["revision"] == revision
-        assert rendered["data_revision"] == 2
-        assert binding["edit"]["operation"] == operation
+        assert rendered["revision"] == source_revision(serve.page_dir, source)
+        assert binding["edit"]["file"] == str(
+            data_model.source_file(serve.page_dir, source)
+        )
+    expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
+    expect(page.locator("#current figcaption")).to_have_text("instructions")
 
 
 def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, serve):
@@ -737,15 +745,17 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
             },
         ],
     }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", record, "initial visual run")
+    data_model.cmd_data_set(serve.page_dir, "docs-run", record)
     source = serve.page_dir / "index.html"
     source.write_text(
         source.read_text().replace(
             "</main>",
-            '<lf-visual-review id="visual-pinned" source="docs-run" '
-            'snapshot="1"></lf-visual-review></main>',
+            '<lf-visual-review id="visual-pinned" source="docs-run-reviewed">'
+            "</lf-visual-review></main>",
         )
     )
+    # The pinned run is a second source that nothing rewrites.
+    data_model.cmd_data_set(serve.page_dir, "docs-run-reviewed", record)
     page = open_page(browser, url)
     case_thread = events_model.append_event(
         serve.page_dir,
@@ -758,7 +768,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
                 "section": "visual-run",
                 "datum": "run-list",
                 "source": "docs-run",
-                "data_revision": 1,
+                "source_revision": source_revision(serve.page_dir, "docs-run"),
             },
         },
     )
@@ -1501,6 +1511,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
+    original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
     if quote_anchor:
         page.locator("#source code").evaluate(
@@ -1550,7 +1561,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         "section": "source",
         "datum": "document",
         "source": "document",
-        "data_revision": 1,
+        "source_revision": original_revision,
     }
     if quote_anchor:
         expected_anchor["quote"] = "Original source words."
@@ -1619,6 +1630,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
+    refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
     reviews = diff.locator(".lf-diff-review")
     expect(reviews.nth(0)).to_have_text("✓ Reviewed")
@@ -1653,7 +1665,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     assert all(
         origin["source"] == "review-patch"
         and origin["input"] == "document"
-        and origin["revision"] == 2
+        and origin["revision"] == refreshed_revision
         for origin in origins
     ), "file and lazy-line datums must retain the revision that built their manifest"
 
@@ -6295,6 +6307,7 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     text the comment was made on, and a comment pointing into markup nobody can
     see has to read as detached rather than as a live mark that jumps nowhere."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1920, 900)
     page.evaluate("""() => {
         const r = document.createRange();
         r.selectNodeContents(document.querySelector('#sug-refill lf-new'));
@@ -7951,9 +7964,12 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
         "restart succeeded · Started w-9 on the preserved branch"
     )
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/5")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "restart succeeded · Deduplicate the corpus snapshot"
-    )
+    # The feed's newest row is the receipt, worded by the offered operation and
+    # leading back to the holder it answered.
+    receipt = page.locator("#atlas-record .lf-activity-row").first
+    expect(receipt).to_contain_text("completed “Restart with a fresh worker” in")
+    expect(receipt).to_contain_text("Started w-9 on the preserved branch")
+    expect(receipt.locator('a[href="#dedupe-operations"]')).to_have_count(1)
 
 
 def test_request_controls_join_presentation_without_replacing_authored_items(
@@ -8259,8 +8275,8 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     told(page)
     stopped = page.locator("#hub-plan > .lf-stopped-view")
     expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "park succeeded · Deduplicate the corpus snapshot"
+    expect(page.locator("#atlas-record .lf-activity-row").first).to_contain_text(
+        "completed “Park it for tomorrow” in"
     )
 
     parked = re.sub(
@@ -8635,7 +8651,9 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     assert "Alice" not in edit["detail"]["text"]
     assert "a@example.test" not in edit["detail"]["text"]
     assert edit["detail"]["text"].count("[redacted]") == 2
-    expect(page.locator("#atlas-record")).to_contain_text("ledger-cargo")
+    saved = page.locator("#atlas-record .lf-activity-row").first
+    expect(saved).to_contain_text("You edited")
+    expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
 
@@ -8879,9 +8897,9 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
         conversation.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "sent and paused · Replace the XML parser (goal-parser)"
-    )
+    paused = page.locator("#atlas-record .lf-activity-row").first
+    expect(paused).to_contain_text("You paused Replace the XML parser")
+    expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
         event
         for event in events_model.read_events(d)
@@ -8911,11 +8929,15 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     with sending(page, "the resolution"):
         thread.get_by_role("button", name="Resolve thread", exact=True).click()
     expect(goal).not_to_have_attribute("data-lf-held")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "Released · Replace the XML parser (goal-parser)"
+    released = page.locator("#atlas-record .lf-activity-row").first
+    expect(released).to_contain_text(
+        "You resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)
+    # Taking the resolution back leaves its row where it stood, marked undone.
+    expect(released).to_have_attribute("data-lf-undone", "")
+    expect(released).to_contain_text("undone")
     expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]

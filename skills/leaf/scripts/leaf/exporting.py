@@ -514,7 +514,6 @@ def _export_document(page, request, url: str, name: str) -> str:
                     'link[rel="stylesheet"][data-lf-runtime]',
                     "document has no runtime theme",
                 ),
-                "dataRevision": state["data"]["revision"],
                 "replayedEvents": sum(
                     event["kind"] in ("action", "report") for event in state["events"]
                 ),
@@ -523,9 +522,7 @@ def _export_document(page, request, url: str, name: str) -> str:
             raise PlaywrightError("state returned an invalid reading") from error
         finally:
             response.dispose()
-        failed_stage = wait_for_presentation(
-            page, readiness["dataRevision"], readiness["replayedEvents"]
-        )
+        failed_stage = wait_for_presentation(page, state, readiness["replayedEvents"])
         if failed_stage:
             raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
         # A live fragmented widget deliberately keeps unopened payloads out of the

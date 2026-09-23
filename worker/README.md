@@ -260,7 +260,12 @@ opened for it. A turn that ends without its user's answer records
 `turn_failure_reported` with the receipts it wrote, and one stopped by its own follower
 records `turn_interrupted`, or `turn_interrupt_failed` where the provider refused —
 which is ordinarily the turn having ended first. Model records carry that
-turn id. Analytics Engine holds aggregate product events rather than a second
+turn id. `page_fault` is the adapter's own copy of a request it answered `500`,
+naming the route, method, page-scoped path, exception class, and the `detail` that
+boundary wrote; Cloudflare's record of that request carries its route and status and
+nothing about what refused it, and the answer itself goes to the one browser that
+asked. A fault raised while handling a value can quote it, so read that `detail` as
+the page's words rather than as certainly none of the user's. Analytics Engine holds aggregate product events rather than a second
 debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
@@ -283,9 +288,12 @@ Leaf's immutable delivery envelope, passed
 inline as structured `leaf_delivery` when the task is idle. While a turn is active,
 Leaf retains that immutable delivery locally and starts it directly after the current
 turn completes. The website-specific App Server starts
-without the authoring plugin: its compact developer
-instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
-cannot turn a small user response into a full authoring workflow. The hosted task can
+without the authoring plugin, so skill discovery cannot turn a small user response
+into a full authoring workflow. Its developer instructions are the shipped
+`skills/leaf/references/host-codex-app-server.md`, whole, followed by leaf.page's own
+additions in `HOSTED_INSTRUCTIONS`, so the hosted agent and a terminal App Server task
+read one delivery and reply contract. The App Server's `PATH` starts with the
+container's own `leaf` launcher, the name that contract uses. The hosted task can
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For deferred input it stays subscribed through the active turn, starts
@@ -327,9 +335,9 @@ same completed text through the canonical reply writer, even if its subscription
 its turn closes, or the next turn opens first. The App Server adapter presents ordered
 input in delivery slices containing at most one plain reply; a later plain reply remains
 pending for the next turn. Version, markup, and receipt obligations may share that
-turn and remain explicit operations: a stamped version, `$LEAF resolve`, and
-`$LEAF receipt`. There is no second
-website reply endpoint or helper. `$LEAF` remains the interface for delivery claims and
+turn and remain explicit operations: a stamped version, `leaf resolve`, and
+`leaf receipt`. There is no second
+website reply endpoint or helper. `leaf` remains the interface for delivery claims and
 reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf

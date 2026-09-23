@@ -63,7 +63,7 @@
 
    Shadow trees: only open roots declared through `x-shadow` join the page reading.
    `pageShadowRoots` (shadow.js) enumerates them. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `containsAcross`,
+   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -93,7 +93,16 @@
 export const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 
-import { SAID, inUi, overIn, pageShadowRoots, uiInside, upFrom } from "./shadow.js";
+import {
+  SAID,
+  hostIn,
+  inUi,
+  overIn,
+  pageShadowRoots,
+  uiInside,
+  under,
+  upFrom,
+} from "./shadow.js";
 import { elementDeclarations, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
@@ -386,23 +395,6 @@ export function textNodesUnder(rootEl, accepts = quotable(rootEl), boundary = nu
   return segments;
 }
 
-// One step towards the document from any node, shadow boundary included: the ordinary
-// parent within a tree, and the host where a tree runs out. Every question the runtime
-// asks about where a node sits — which section, which block, which passage cell, whether
-// it is chrome — is asked of the page, and a climb that stops at a shadow root answers
-// about the widget's own markup instead.
-
-// contains() stops at a boundary the same way, and this is the one that decides whether a
-// quote is found at all: a section holding an x-shadow widget does not contain the words
-// that widget renders, so narrowing a search to that section threw away every candidate
-// inside it and the passage resolved to nothing — the anchor captured, the mark never
-// painted. Asked of each tree on the way out, so the section contains what it renders.
-export const containsAcross = (ancestor, node) => {
-  for (let n = node; n; n = n.getRootNode()?.host ?? null)
-    if (ancestor.contains(n)) return true;
-  return false;
-};
-
 // closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
 // reach the section that holds it or the chrome marker above it — both out in the
 // document. Same climb as upFrom, asked with a selector at each tree it passes through.
@@ -498,9 +490,7 @@ export function pageRange(sel) {
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
-  const root = range.commonAncestorContainer.getRootNode();
-  let n = node;
-  while (n && n.getRootNode() !== root) n = n.getRootNode().host;
+  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
   return Boolean(n) && range.intersectsNode(n);
 }
 
@@ -965,10 +955,7 @@ export function findQuote(text, quote, anchor, within) {
     if (stop === -1) continue;
     if (
       within &&
-      !(
-        containsAcross(within, origin[at.index].node) &&
-        containsAcross(within, origin[stop - 1].node)
-      )
+      !(under(origin[at.index].node, within) && under(origin[stop - 1].node, within))
     )
       continue;
     const hit = { from: at.index, to: stop };

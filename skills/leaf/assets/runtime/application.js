@@ -276,7 +276,7 @@ export function mountApplication(dependencies) {
           : null;
     if (!entry?.available) return null;
     const request = descriptor.declaration["x-request"];
-    let dataRevision = null;
+    let sourceRevision = null;
     if (command.kind === "request" && request?.records) {
       const field = request.verbs?.[command.verb]?.unit;
       const unit = command.detail?.[field];
@@ -288,7 +288,7 @@ export function mountApplication(dependencies) {
         seat.seat.offered === false
       )
         return null;
-      dataRevision = seat.seat.data_revision;
+      sourceRevision = seat.seat.source_revision;
     }
     return (
       startPost({
@@ -297,7 +297,7 @@ export function mountApplication(dependencies) {
         widget: descriptor.id,
         action: command.verb,
         detail: structuredClone(command.detail ?? {}),
-        ...(dataRevision != null && { data_revision: dataRevision }),
+        ...(sourceRevision != null && { source_revision: sourceRevision }),
         ...(command.references && {
           references: structuredClone(command.references),
         }),
@@ -371,9 +371,10 @@ export function mountApplication(dependencies) {
     },
     travel: {
       focusSurface,
-      panelCovers: dependencies.panelCovers,
+      panelHides: dependencies.panelHides,
       setPanel: dependencies.setPanel,
       scrollToThread: dependencies.anchorTravel.scrollToThread,
+      threadDestination: dependencies.anchorTravel.threadDestination,
       retainPanelLanding: dependencies.retainPanelLanding,
       retainNarrowing: dependencies.retainThreadNarrowing,
       showThread: dependencies.showThread,
@@ -573,6 +574,9 @@ export const landInConversation = (...args) => app().landInConversation(...args)
 export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
+// The one route to a conversation by its root id: the thread's inline destination while
+// it has one, Threads otherwise, the same choice a mark and t/T make.
+export const openThread = (...args) => app().margin.openPageThread(...args);
 export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const acceptedApprovals = (...args) => app().acceptedApprovals(...args);

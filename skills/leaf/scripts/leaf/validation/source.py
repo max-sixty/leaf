@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.data import empty_data, read_data
+from leaf.data import data_errors, read_contracts, read_data
 from leaf.data_contracts import (
     data_document_errors,
     initial_data_document_readings,
@@ -200,13 +200,13 @@ def _instance_errors(
 
 
 def _authored_document_checks(
-    page_dir, document, events, registry, stored, readings, comment_ids
+    page_dir, document, events, registry, contracts, readings, comment_ids
 ):
     """The same authored-page gate for the root and each isolated child document."""
     errors = _document_errors(page_dir, document)
     errors.extend(_instance_errors(events, document, registry, comment_ids))
     if registry is not None:
-        errors.extend(data_document_errors(readings, stored))
+        errors.extend(data_document_errors(readings, contracts))
     errors.extend(media_errors(document, page_dir))
     column, presentation_errors = _presentation_errors(page_dir, document)
     errors.extend(presentation_errors)
@@ -264,6 +264,7 @@ def _source_advice(
                 stored_data,
             )
         ),
+        *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
         *missing_outline(parser, registry or {}),
         *layout_css_advice(parser, registry or {}),
@@ -290,7 +291,8 @@ def check_source(
     except RegistryError as error:
         registry = None
         errors.append(str(error))
-    stored_data = read_data(page_dir) if registry is not None else empty_data()
+    stored_data = read_data(page_dir, registry)
+    contracts = read_contracts(page_dir)
     readings = (
         working_data_document_readings(
             page_dir, registry, events, authored=document.lf_elements
@@ -303,7 +305,7 @@ def check_source(
         document,
         events,
         registry,
-        stored_data,
+        contracts,
         readings,
         comment_ids(events),
     )
@@ -334,11 +336,11 @@ def check_source(
                 child,
                 child_events,
                 registry,
-                stored_data,
+                contracts,
                 child_readings,
                 selected,
             )
-            initial = RevisionReading(0, False, 0, SourceDocument(""), {}, {})
+            initial = RevisionReading(0, False, False, 0, SourceDocument(""), {}, {})
             transition = transition_reading(child, child_events, registry, initial)
             child_errors.extend(
                 transition_errors(child, registry, initial, transition, False)
@@ -362,7 +364,9 @@ def check_source(
         events, document, registry, revision
     )
     errors.extend(source_history_errors)
-    if registry is not None and revision.predecessor:
+    # The door admitted every event appended since the active revision activated,
+    # so only a candidate that differs from it can drop a contract history needs.
+    if registry is not None and revision.predecessor and not revision.unchanged:
         errors.extend(
             candidate_vocabulary_gaps(
                 page_dir,

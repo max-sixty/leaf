@@ -343,6 +343,12 @@ continues from there and no `tabindex` is left on the page behind the user. What
 it is a widget's own Escape step landing them back in the thing it took them out of: the
 patch a file filter belongs to, the exhibit a box was about.
 
+A module that takes the user to a conversation calls `openThread(rootId, {focus})`
+with the root comment's id. It opens the thread where the page shows it, inline beside
+its passage or widget, and in Threads when it has no place on the page, the same choice a
+mark and `t` make; `focus: "thread"` lands on the thread and the default `"reply"` lands in
+its reply box. A place on the page is an ordinary fragment link.
+
 A module that moves something calls `motion(element, keyframes, ms)` rather than
 `element.animate`. The stylesheet's reduced-motion guard reaches CSS animation and
 transitions, not a Web Animations call a module makes for itself, so `motion` is where a
@@ -643,14 +649,6 @@ geometry change, including in-place attribute or style changes. The render gate 
 every record and requires each authored token to resolve. The package owns the stable
 mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 
-An `x-state` verb that lets the user add real children declares
-`creates: {field, child}`. The named optional detail field has the canonical
-`{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-owners`, requires only its canonical `id`, and has `x-content: markup`. The append
-transaction records the map's sorted ids in `generated`, allowing historical
-folds to retain their liveness while version checks enforce the declared tag and
-direct-ownership relation.
-
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
@@ -660,6 +658,70 @@ Use `runFromCommandReference: false` only for a parameterized step that cannot b
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
+
+## User state
+
+A widget whose user changes something records each change as an `action` event in the
+page's append-only log. The package writes no storage or server code. It declares verbs
+under the element's `x-state`, and Leaf validates each event at the log's one append
+door, folds the log into current state, gives that state to the module, and lists it
+for the agent under `state` in `leaf page state`.
+
+The swipe package is a small complete example. `packages/swipe/registry.json`
+declares two verbs on `lf-swipe-deck`, and `widgets/lf-swipe-deck.js` subscribes to and
+dispatches them. The `swipe` verb, without its `requires`:
+
+```json
+{
+  "x-state": {
+    "swipe": {
+      "detail": {
+        "type": "object",
+        "properties": {
+          "card": { "type": "string" },
+          "to": { "type": "string" },
+          "index": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["card", "to", "index"],
+        "additionalProperties": false
+      },
+      "facet": "verdict",
+      "unit": "card",
+      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "order": "index" }
+    }
+  }
+}
+```
+
+`detail` is the JSON Schema every event of that verb must satisfy. The owning element,
+the `unit`, and the `facet` together form the fold coordinate. At each coordinate the
+latest surviving action stands, and different coordinates stand side by side. Swiping a
+card again therefore replaces that card's earlier verdict, while verdicts on different
+cards coexist. `unit` is `"widget"` for a verb that states the whole widget's value at
+once, or the detail field naming the element it is per. `record` says how the standing
+state reads in markup: here, the card's position inside a pile. The agent's next
+version writes that state back, and `version check` refuses a version that contradicts
+it without `restated`. The `$keys` entries in `assets/registry.json` define each key
+exactly.
+
+The module reads and writes through `widgetController(owner)`, described under "A
+widget": `subscribe` delivers the authored baseline with the fold applied, and
+`dispatch({kind: "action", verb, detail})` sends a gesture whose result is on screen
+before the server admits it.
+
+A verb may add `requires`, a prerequisite on the widget's Ask; `completion`, which
+answers that Ask when a move empties a container; and `references`, described under "A
+widget". A verb that lets the user add real children declares
+`creates: {field, child}`. The named optional detail field has the canonical
+`{element-id: non-empty words}` map schema. The child tag admits the sender through
+`x-owners`, requires only its canonical `id`, and has `x-content: markup`. The append
+transaction records the map's sorted ids in `generated`, allowing historical
+folds to retain their liveness while version checks enforce the declared tag and
+direct-ownership relation.
+
+`x-report` declares the agent's side of the same coordinates: a worker posts a report
+with `leaf report`, and it stands until a version answers it. A user's action at the
+same coordinate outranks it.
 
 ## External requests and receipts
 
@@ -775,9 +837,9 @@ the row detail; Leaf stamps the request with the seat's source revision.
 The verbs are offered once by the projected holder; it has no authored offer children.
 The module gives each generated control a keyboard route.
 
-The append door checks the record and every bound field in the selected source value
-at that data revision. A current source replacement makes a stale press refuse; an
-authored `snapshot` selection remains exact. Pending, failed, and completed attempts
+The append door checks the record and every bound field in the source's current value
+at that revision. A press made before the source was replaced is refused as stale.
+Pending, failed, and completed attempts
 belong to the document, owner widget, and record key, so one row cannot lock another.
 For `ask: true`, the holder contributes one Ask while any displayed row is ready. It
 does not add an Ask for every row; the page's heading names the set of choices.
@@ -813,7 +875,7 @@ does not add an Ask for every row; the page's heading names the set of choices.
 
 Authored markup says what a version begins with; the event log says what users and
 agents did afterward. A current deployment, sensor reading, worktree, or query result
-is neither. Leaf keeps that third authority in replace-in-place source snapshots.
+is neither. Leaf keeps that third authority as one replaceable JSON file per source.
 
 The source id belongs to the page: it says which concrete feed this page uses. Its
 meaning comes from a named contract under `$data.contracts`, which can travel in any
@@ -850,8 +912,7 @@ that really apply to the package as a whole.
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-      "snapshot": { "type": "string", "pattern": "^[1-9][0-9]*$" }
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,
@@ -859,8 +920,7 @@ that really apply to the package as a whole.
     "x-data": {
       "builds": {
         "contract": "build-status",
-        "source": "source",
-        "snapshot": "snapshot"
+        "source": "source"
       }
     },
     "x-guidance": {
@@ -885,44 +945,44 @@ ids.
 ```
 
 The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
-complete snapshot using the page's source id:
+complete value using the page's source id:
 
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
-leaf data set PAGE release-ci --file signed-build-state.json --capture-label "release candidate"
 leaf data capture PAGE release-notes --file CHANGELOG.md --lines 20:44
-leaf data capture PAGE review-patch --file change.patch --format unified-diff \
-  --label "PR at 8f61c2a"
+leaf data capture PAGE review-patch --file change.patch --format unified-diff
 leaf data clear PAGE release-ci
 ```
 
-`data set` validates before replacing the source atomically. Add `--capture-label` when
-that structured value should also be retained as an immutable snapshot; `data capture`
-reads a UTF-8 file into the same lifecycle. A rejected value leaves the
-prior revision untouched. Source revisions and event sequences are independent:
-an old poll may contain new data, and a new event response may contain old data, so
-neither orders the other.
+Each source's value is an ordinary JSON file at `data/<source>.json` in the page
+directory, and `data.json` records the contract each source id was first set under.
+`data set` checks the binding and validates the value before replacing that file
+atomically; a rejected value leaves the file untouched. Once a source has been set,
+any process may rewrite its file with plain JSON. Every reading validates the file
+against the contract, so a value that fails it reaches users as that source's error
+rather than as data, and `version check` and `page state` report it. Tabs hear a
+rewritten file as they hear any other page change.
+
+A source's revision is a digest of its file's bytes, and its `updated` instant is the
+file's modification time. Nothing keeps a replaced value: every document that binds a
+source reads its current value, including stamped versions and widgets frozen into
+threads. A document that must keep one value binds its own source id and nothing
+rewrites that source. Source revisions and event sequences are independent: an old poll
+may contain new data, and a new event response may contain old data, so neither orders
+the other.
 
 `data capture` reads a UTF-8 file without making the author copy it into markup.
 The default `text` format can select an inclusive `START:END` line range. The
 `unified-diff` format validates a Git patch and builds the file-fragmented manifest the
 diff widget consumes; an entry the widget's declaration does not support is rejected
-rather than silently omitted. Both formats may attach a display label. A capture
-both replaces the source's current value and retains that value under the reported data
-revision. A widget without its snapshot attribute follows the current value; a widget with
-`snapshot="REVISION"` keeps reading that immutable capture. The captured source path is
-never stored or sent to users.
+rather than silently omitted. The captured file's path is never stored or sent to
+users.
 
-A source id keeps one contract for the lifetime of the page. Documents without a
-snapshot selection share the page's current value; stamped versions and widgets
-frozen into threads may instead select a retained capture. `data clear` removes the
-current value and unreferenced captures, but keeps captures selected by those durable
-documents and a tombstone with the contract and prior revision ids. The ids validate
-comments that raced a replacement without retaining the replaced values, and the
-tombstone never releases the source id for a new meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
-each standing widget selection while validating current values and captures against the
-incoming schemas.
+A source id keeps one contract for the lifetime of the page. `data clear` removes the
+current value and keeps the recorded contract, so the id is never released for a new
+meaning. Use a new source id for a new contract. Re-vendoring preserves each binding
+and refuses an incoming registry that would change a bound contract's schema.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every user of the page, including fields a module does not
@@ -930,11 +990,11 @@ paint. Do not put credentials or private host state in it.
 
 A contract whose values contain large independently useful payloads may declare a
 `fragments` coordinate: the top-level array field, each item's unique key field, and the
-payload field. `data.json` still keeps and validates the complete value. `/api/state`
-sends the array as a lightweight manifest with that payload field omitted; a widget uses
-`loadDataFragment(snapshot, key)` to fetch one payload using the snapshot delivered by
-`watchData`. A stale current-source revision is refused instead of
-combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
+payload field. The source file still holds the complete value, and readings validate
+all of it. `/api/state` sends the array as a lightweight manifest with that payload
+field omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one payload
+using the delivery `watchData` handed it. A request naming a source revision the file no
+longer holds is refused instead of combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
 thousands of files without transferring or rendering every patch first.
 `records` names the same `items` and `key` fields without splitting payload delivery;
 when a contract declares both, they must agree. Both forms validate non-empty,
@@ -969,12 +1029,12 @@ A module subscribes through its own input declaration:
 this.stopWatching = watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
-The callback receives `null` before the host has supplied a current value, otherwise a
-clone of `{source, contract, revision, updated, value, origin}`. `revision` identifies the write
-of that source value, so a renderer can distinguish two writes even when their wall
-clock timestamps coincide. A selected capture additionally carries
-`snapshot`, `label`, and optional `lines`; a captured current value may carry its label
-and line range. It runs immediately and again when that source revision changes.
+The callback receives `null` while the source has no readable value, otherwise a clone
+of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
+value itself, so a renderer can distinguish two writes even when their wall clock
+timestamps coincide. It runs immediately and again when that source revision changes.
+A value that fails its contract is delivered as `null`; `page state` and `version check`
+report why.
 Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
 
@@ -990,9 +1050,8 @@ where state changes; call its `.stop()` on disconnect. Time reads after an `awai
 belong in a separate synchronous `clocked` paint. The timer does not reapply state or
 redeliver unchanged data to keep a timestamp current.
 
-`origin` identifies the declared `input`, concrete `source`, `contract`, selected source
-`revision`, and the accepted store's `data_revision` at delivery, plus `snapshot` when
-pinned. An unchanged source keeps that origin when another source changes. Passing
+`origin` identifies the declared `input`, concrete `source`, `contract`, and source
+`revision`. An unchanged source keeps that origin when another source changes. Passing
 `{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
 exact JSON coordinate within the source value, its `originOf(record, index)` returns
 `{...snapshot.origin, path: [...]}`;
@@ -1013,8 +1072,8 @@ should name a projected datum with a human coordinate; the stable key remains op
 the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
 `watchData`, including `null` when no current value exists. Leaf stamps the projection
 with that snapshot's source and revision. A comment remains exact only within that
-source revision. Replacing a current value leaves the thread in its section and marks
-it outdated. An authored snapshot remains exact. Derived projections
+source revision. Replacing the value leaves the thread in its section and marks it
+outdated. Derived projections
 omit `snapshot` and retain their section/key identity. If a `watchData` callback renders
 asynchronously, it returns that promise so Leaf publishes the source revision as ready
 only after the projection settles. A rejection is reported as that subscriber's page

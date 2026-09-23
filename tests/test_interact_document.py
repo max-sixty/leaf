@@ -1,5 +1,6 @@
 """Static document, version, and page-state tests."""
 
+import hashlib
 import json
 import math
 import re
@@ -30,6 +31,7 @@ from interact_support import (
     decide,
     declare_data_input,
     publish,
+    read_page_data,
     stamp,
     state_json,
     suggest,
@@ -774,49 +776,41 @@ def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir
     assert current["summary"]["source"]["line"] == again["summary"]["source"]["line"]
 
 
-def test_page_inspection_binds_current_and_captured_data_to_their_construction(
-    page_dir,
-):
+def test_page_inspection_binds_each_input_to_its_source_file(page_dir):
+    """An input names the file that holds its value and the digest of that value, and
+    a file another process rewrote past its contract reads as that error."""
     declare_data_input(
-        page_dir,
-        "builds",
-        {"type": "array", "items": {"type": "string"}},
-        snapshot=True,
+        page_dir, "builds", {"type": "array", "items": {"type": "string"}}
     )
     runner = CliRunner()
-    captured = runner.invoke(
-        cli_model.cli,
-        ["data", "set", str(page_dir), "builds", "--capture-label", "reviewed"],
-        input='["passing"]',
-    )
-    assert captured.exit_code == 0, captured.output
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text()
-        .replace('id="test-data"', 'id="test-data" snapshot="1"')
-        .replace(
-            "</main>",
-            '<lf-test-data id="live-builds" source="builds"></lf-test-data></main>',
-        )
-    )
-    state_json(page_dir)
     updated = runner.invoke(
-        cli_model.cli, ["data", "set", str(page_dir), "builds"], input='["failing"]'
+        cli_model.cli, ["data", "set", str(page_dir), "builds"], input='["passing"]'
     )
     assert updated.exit_code == 0, updated.output
-    nodes = construction_nodes(state_json(page_dir)["content"])
-    pinned = nodes["test-data"]["inputs"]["data"]
-    live = nodes["live-builds"]["inputs"]["data"]
-    assert pinned["value"] == ["passing"]
-    assert live["value"] == ["failing"]
-    assert pinned["origin"]["revision"] == 1
-    assert live["origin"]["revision"] == 2
-    assert pinned["origin"]["data_revision"] == live["origin"]["data_revision"] == 2
-    assert pinned["edit"]["pinned"] and not live["edit"]["pinned"]
-    assert pinned["edit"]["source"] == "builds"
-    assert pinned["edit"]["snapshot_attribute"] == "snapshot"
-    assert pinned["edit"]["operation"] == "capture-and-rebind"
-    assert live["edit"]["operation"] == "data set"
+    stored = data_model.source_file(page_dir, "builds")
+    reading = construction_nodes(state_json(page_dir)["content"])["test-data"][
+        "inputs"
+    ]["data"]
+    assert reading["value"] == json.loads(stored.read_text()) == ["passing"]
+    assert (
+        reading["origin"]["revision"]
+        == (hashlib.sha256(stored.read_bytes()).hexdigest()[:16])
+    )
+    assert reading["edit"] == {
+        "kind": "data",
+        "page": str(page_dir),
+        "source": "builds",
+        "file": str(stored),
+        "binding_attribute": "source",
+    }
+
+    stored.write_text('["passing", 3]')
+    broken = construction_nodes(state_json(page_dir)["content"])["test-data"]["inputs"][
+        "data"
+    ]
+    assert "value" not in broken and not broken["available"]
+    assert "builds" in broken["error"]
+    assert broken["origin"]["revision"] != reading["origin"]["revision"]
 
 
 @pytest.mark.parametrize(
@@ -896,36 +890,6 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
         cli_model.cli, ["conversation", "read", str(page_dir), "missing"]
     )
     assert refused.exit_code != 0 and "unknown conversation" in refused.output
-
-
-def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
-    publish(page_dir)
-    root = events_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": "The reviewed instructions and their current replacement.",
-            "markup": '<lf-text-document id="reviewed" source="instructions" snapshot="1"></lf-text-document>'
-            '<lf-text-document id="current" source="instructions"></lf-text-document>',
-        },
-    )
-    data_model.cmd_data_set(page_dir, "instructions", "Reviewed wording.", "reviewed")
-    data_model.cmd_data_set(page_dir, "instructions", "Current wording.")
-    result = CliRunner().invoke(
-        cli_model.cli, ["conversation", "read", str(page_dir), root["id"]]
-    )
-    assert result.exit_code == 0, result.output
-    [message] = json.loads(result.output)["content"]
-    nodes = construction_nodes(message["content"])
-    pinned = nodes["reviewed"]["inputs"]["document"]
-    current = nodes["current"]["inputs"]["document"]
-    assert pinned["value"] == "Reviewed wording."
-    assert pinned["edit"]["operation"] == "capture-and-reply"
-    assert pinned["edit"]["conversation"] == root["id"]
-    assert current["value"] == "Current wording."
-    assert current["edit"]["operation"] == "data set"
 
 
 def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypatch):
@@ -1268,23 +1232,12 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for rec in structure_model.SourceDocument(path.read_text()).lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
-    # An example pins a snapshot by writing the data revision a capture retained, and
-    # a source that only ever takes `data set` retains none: examples/*.data.json can
-    # attach a capture label to a `$captures` file and not to a typed set value, so the
-    # pull-request and visual-run records have no retained revision for their widgets
-    # to name. The manifest, not this floor, is where that is fixed.
-    unreachable = {
-        ("lf-pull-request", "snapshot"),
-        ("lf-visual-review", "snapshot"),
-    }
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
             continue
         for attr, spec in entry.get("properties", {}).items():
             if attr in {"restated", "overruled", "resolves"}:
-                continue
-            if (tag, attr) in unreachable:
                 continue
             seen = used.get(tag, {}).get(attr)
             if seen is None:
@@ -3588,8 +3541,7 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
         input="184",
     )
     assert set_result.exit_code == 0, set_result.output
-    stored = data_model.read_data(page_dir)
-    updated = stored["sources"]["import-latency"]["updated"]
+    updated = read_page_data(page_dir)["sources"]["import-latency"]["updated"]
 
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -3687,11 +3639,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         "live": True,
         "error": None,
     }
-    assert state["data"] == {"file": "data.json", "revision": 0}
-    assert files_model.read_json(page_dir / state["data"]["file"]) == {
-        "revision": 0,
-        "sources": {},
-    }
+    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
     # names the region the user is sent to and the group that answers it.
@@ -3781,13 +3729,16 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
 
     assert written.exit_code == 0, written.output
     standing = state_json(page_dir)
-    first = data_model.read_data(page_dir)
-    assert first["revision"] == 1
-    assert first["sources"]["deployments"]["contract"] == "deployment-rows"
-    assert first["sources"]["deployments"]["revision"] == 1
-    assert first["sources"]["deployments"]["value"] == ["api", "worker"]
-    assert standing["data"] == {"file": "data.json", "revision": 1}
-    assert "sources" not in standing["data"]
+    first = read_page_data(page_dir)
+    stored = data_model.source_file(page_dir, "deployments")
+    assert first["sources"]["deployments"] == {
+        "contract": "deployment-rows",
+        "revision": hashlib.sha256(stored.read_bytes()).hexdigest()[:16],
+        "updated": first["sources"]["deployments"]["updated"],
+        "value": ["api", "worker"],
+    }
+    assert data_model.read_contracts(page_dir) == {"deployments": "deployment-rows"}
+    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
     assert standing["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
@@ -3808,8 +3759,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
     assert rejected.exit_code != 0
     assert "source 'deployments' value is invalid" in rejected.output
-    assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 1}
-    assert data_model.read_data(page_dir) == first
+    assert read_page_data(page_dir) == first
 
     non_json = runner.invoke(
         cli_model.cli,
@@ -3818,17 +3768,27 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
     assert non_json.exit_code != 0
     assert "value is not JSON" in non_json.output
-    assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 1}
-    assert data_model.read_data(page_dir) == first
+    assert read_page_data(page_dir) == first
+
+    # Any process may rewrite the value file, so a reading judges what it finds.
+    stored.write_text('{"api": "ready"}')
+    [error] = state_json(page_dir)["data"]["errors"]
+    assert "deployments" in error
+    broken = read_page_data(page_dir)["sources"]["deployments"]
+    assert broken["error"] == error and "value" not in broken
 
     cleared = runner.invoke(
         cli_model.cli, ["data", "clear", str(page_dir), "deployments"]
     )
     assert cleared.exit_code == 0, cleared.output
-    assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 2}
-    assert data_model.read_data(page_dir) == {
-        "revision": 2,
-        "sources": {"deployments": {"contract": "deployment-rows", "revisions": [1]}},
+    assert not stored.exists()
+    assert state_json(page_dir)["data"] == {
+        "file": "data.json",
+        "dir": "data",
+        "errors": [],
+    }
+    assert read_page_data(page_dir)["sources"] == {
+        "deployments": {"contract": "deployment-rows"}
     }
 
     unbound = runner.invoke(
@@ -3842,18 +3802,13 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
 
-def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared(
+def test_text_capture_sets_the_selected_lines_and_clear_keeps_the_contract(
     page_dir, tmp_path
 ):
-    """Capture admits file text through the existing typed source boundary. The data
-    revision names the immutable selection, while clear drops the replaceable value and
-    any capture no immutable document selects."""
+    """Capture admits file text through the typed source boundary, as the source's
+    current value, and clear removes that value while the id keeps its contract."""
     declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
+        page_dir, "leaf-skill", {"type": "string"}, contract="text-document"
     )
     text_file = tmp_path / "SKILL.md"
     text_file.write_bytes(b"one\r\ntwo\r\nthree")
@@ -3870,23 +3825,13 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
             str(text_file),
             "--lines",
             "2:3",
-            "--label",
-            "Leaf skill",
         ],
     )
     assert captured.exit_code == 0, captured.output
-    assert "as snapshot 1" in captured.output
-    stored = data_model.read_data(page_dir)
+    stored = read_page_data(page_dir)
     source = stored["sources"]["leaf-skill"]
     assert source["value"] == "two\nthree"
-    assert source["snapshots"] == {
-        "1": {
-            "updated": source["updated"],
-            "value": "two\nthree",
-            "label": "Leaf skill",
-            "lines": "2:3",
-        }
-    }
+    assert f"at revision {source['revision']}" in captured.output
 
     wrong_shape = runner.invoke(
         cli_model.cli,
@@ -3905,40 +3850,11 @@ def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared
     )
     assert wrong_shape.exit_code != 0
     assert "lines can only select part of a text capture" in wrong_shape.output
-    assert data_model.read_data(page_dir) == stored
+    assert read_page_data(page_dir) == stored
 
-    index = page_dir / "index.html"
-    index.write_text(
-        index.read_text().replace(
-            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
-        )
-    )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
-    consumers = state_json(page_dir)["data_bindings"]["leaf-skill"]["consumers"]
-    assert any(consumer.get("snapshot") == "1" for consumer in consumers)
-    text_file.write_text("unreferenced")
-    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
-    assert (
-        data_model.read_data(page_dir)["sources"]["leaf-skill"]["snapshots"]["2"][
-            "label"
-        ]
-        == "SKILL.md"
-    )
-    data_model.cmd_data_set(page_dir, "leaf-skill", "new current value")
     data_model.cmd_data_clear(page_dir, "leaf-skill")
-
-    assert data_model.read_data(page_dir) == {
-        "revision": 4,
-        "sources": {
-            "leaf-skill": {
-                "contract": "text-document",
-                "revisions": [1, 2, 3],
-                "snapshots": source["snapshots"],
-            }
-        },
+    assert read_page_data(page_dir)["sources"] == {
+        "leaf-skill": {"contract": "text-document"}
     }
     assert check(page_dir).exit_code == 0
 
@@ -3949,7 +3865,6 @@ def test_unified_diff_capture_builds_one_lazy_fragment_per_file(page_dir, tmp_pa
         "review-patch",
         {"type": "object"},
         contract="unified-diff",
-        snapshot=True,
     )
     patch = tmp_path / "review.patch"
     patch.write_text(
@@ -4003,10 +3918,7 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
     assert result.exit_code == 0, result.output
-    source = data_model.read_data(page_dir)["sources"]["review-patch"]
-    assert source["label"] == "review.patch"
-    assert source["snapshots"]["1"]["label"] == "review.patch"
-    assert source["snapshots"]["1"]["value"] == source["value"]
+    source = read_page_data(page_dir)["sources"]["review-patch"]
     assert [
         {key: value for key, value in file.items() if key != "patch"}
         for file in source["value"]["files"]
@@ -4171,67 +4083,29 @@ def test_unified_diff_capture_rejects_evidence_the_widget_cannot_render(
 
     assert result.exit_code != 0
     assert message in result.output
-    assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
+    assert read_page_data(page_dir)["sources"] == {}
 
 
-def test_a_document_cannot_select_a_missing_data_snapshot(page_dir):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    index = page_dir / "index.html"
-    index.write_text(
-        index.read_text().replace(
-            'source="leaf-skill"', 'source="leaf-skill" snapshot="17"'
-        )
-    )
-
-    result = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
-
-    assert result.exit_code != 0
-    assert "selects snapshot '17'" in result.output
-    assert "data.json does not contain it" in result.output
-
-
-def test_data_set_can_capture_a_structured_value(page_dir, tmp_path):
-    declare_data_input(
-        page_dir,
-        "builds",
-        {"type": "object"},
-        contract="build-map",
-        snapshot=True,
-    )
+def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
+    declare_data_input(page_dir, "builds", {"type": "object"}, contract="build-map")
     payload = tmp_path / "builds.json"
     payload.write_text('{"main":"passing"}')
 
     result = CliRunner().invoke(
         cli_model.cli,
-        [
-            "data",
-            "set",
-            str(page_dir),
-            "builds",
-            "--file",
-            str(payload),
-            "--capture-label",
-            "release candidate",
-        ],
+        ["data", "set", str(page_dir), "builds", "--file", str(payload)],
     )
 
     assert result.exit_code == 0, result.output
-    assert "captured data source 'builds' at revision 1" in result.output
-    source = data_model.read_data(page_dir)["sources"]["builds"]
-    assert source["revision"] == 1
+    source = read_page_data(page_dir)["sources"]["builds"]
+    assert f"set data source 'builds' at revision {source['revision']}" in (
+        result.output
+    )
     # The printed instant is the one an author pins in `at`, so it is the stored one.
     assert f"updated {source['updated']}" in result.output
     assert source["value"] == {"main": "passing"}
-    assert source["snapshots"]["1"] == {
-        "updated": source["updated"],
-        "value": {"main": "passing"},
-        "label": "release candidate",
+    assert json.loads(data_model.source_file(page_dir, "builds").read_text()) == {
+        "main": "passing"
     }
 
 
@@ -4320,7 +4194,7 @@ def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir
 
 def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
     """A mutable-only bootstrap can be cleared before its first reviewed version.
-    The data tombstone still prevents the page-owned source id changing meaning."""
+    The contract data.json recorded still prevents the source id changing meaning."""
     declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
     data_model.cmd_data_set(page_dir, "project-feed", [])
     data_model.cmd_data_clear(page_dir, "project-feed")
@@ -4336,12 +4210,12 @@ def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
     registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
     registry_path.write_text(json.dumps(registry))
 
-    with pytest.raises(data_contracts_model.DataError, match="standing snapshot uses"):
+    with pytest.raises(
+        data_contracts_model.DataError, match="use a new source id for the new meaning"
+    ):
         data_model.cmd_data_set(page_dir, "project-feed", [])
-    assert data_model.read_data(page_dir)["sources"]["project-feed"] == {
-        "contract": "rows",
-        "revisions": [1],
-    }
+    assert data_model.read_contracts(page_dir) == {"project-feed": "rows"}
+    assert not data_model.source_file(page_dir, "project-feed").exists()
 
 
 def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
@@ -4376,8 +4250,9 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
     standing = state_json(page_dir)
-    assert standing["data"] == {"file": "data.json", "revision": 1}
-    assert data_model.read_data(page_dir)["sources"]["reply-feed"]["contract"] == "rows"
+    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    reading = read_page_data(page_dir)["sources"]["reply-feed"]
+    assert (reading["contract"], reading["value"]) == ("rows", [])
     assert standing["data_bindings"]["reply-feed"]["consumers"] == [
         {
             "widget": "reply-data",
@@ -4498,7 +4373,7 @@ def test_data_set_validates_the_json_value_it_writes(page_dir):
     with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
 
-    assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
+    assert read_page_data(page_dir)["sources"] == {}
 
 
 def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
@@ -4514,82 +4389,66 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         },
         contract="loop",
     )
-    registry = json.loads((page_dir / "registry.json").read_text())
-
     with pytest.raises(
         data_contracts_model.DataError, match="recursive reference did not terminate"
     ):
         data_model.cmd_data_set(page_dir, "loop", {})
 
-    assert data_contracts_model.data_contract_errors(
-        {
-            "revision": 1,
-            "sources": {
-                "loop": {
-                    "contract": "loop",
-                    "updated": "2026-08-25T12:00:00-07:00",
-                    "value": {},
-                }
-            },
-        },
-        registry,
-    ) == [
-        (
-            "source 'loop' contract 'loop' could not validate its value: "
-            "a recursive reference did not terminate"
-        )
-    ]
+    # A value another process wrote is judged on reading by the same validator.
+    (page_dir / "data.json").write_text('{"sources":{"loop":{"contract":"loop"}}}')
+    (page_dir / "data").mkdir(exist_ok=True)
+    data_model.source_file(page_dir, "loop").write_text("{}")
+    assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
+        "source 'loop' contract 'loop' could not validate its value: "
+        "a recursive reference did not terminate"
+    )
 
 
 @pytest.mark.parametrize(
     ("stored", "message"),
     [
-        ("null", "object with only revision and sources"),
+        ("null", "data must be an object with only sources"),
+        ('{"revision":1,"sources":{}}', "data must be an object with only sources"),
         (
-            (
-                '{"revision":1,"sources":{"builds":{"contract":"build-map",'
-                '"revisions":[1],"revision":1,'
-                '"updated":"2026-08-25T12:00:00-07:00",'
-                '"value":NaN}}}'
-            ),
-            "value is not JSON",
+            '{"sources":{"builds":{"contract":"Bad Contract"}}}',
+            "source 'builds' must record only a contract",
         ),
         (
-            (
-                '{"revision":1,"sources":{"builds":{"contract":"Bad Contract",'
-                '"updated":"2026-08-25T12:00:00-07:00","value":[]}}}'
-            ),
-            "must contain a contract and only current value or snapshot fields",
-        ),
-        ('{"revision":-1,"sources":{}}', "revision must be a non-negative integer"),
-        (
-            (
-                '{"revision":1,"sources":{"leaf-skill":{"contract":"text-document",'
-                '"revisions":[1],'
-                '"snapshots":{"2":{"updated":"2026-08-25T12:00:00-07:00",'
-                '"value":"text","label":"SKILL.md"}}}}}'
-            ),
-            "invalid snapshot id '2'",
+            '{"sources":{"builds":{"contract":"build-map","revision":1}}}',
+            "source 'builds' must record only a contract",
         ),
     ],
 )
-def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
-    """A file on disk still crosses a structural boundary before it reaches the wire.
-
-    Python's JSON reader admits `NaN`, and a JSON `null` is easy to confuse with a
-    missing file. Neither can become a browser snapshot.
-    """
+def test_the_contract_index_refuses_anything_but_contracts(page_dir, stored, message):
+    """data.json records only which contract each source id was bound to."""
     (page_dir / "data.json").write_text(stored)
 
     with pytest.raises(data_contracts_model.DataError, match=message):
-        data_model.read_data(page_dir)
+        read_page_data(page_dir)
 
 
-def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
+def test_the_contract_index_wraps_invalid_utf8_at_its_boundary(page_dir):
     (page_dir / "data.json").write_bytes(b"\xff")
 
     with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
-        data_model.read_data(page_dir)
+        read_page_data(page_dir)
+
+
+@pytest.mark.parametrize(
+    ("value", "message"), [(b"\xff", "is not JSON"), (b"[NaN]", "NaN is not JSON")]
+)
+def test_a_value_file_that_is_not_json_reads_as_that_sources_error(
+    page_dir, value, message
+):
+    """Python's JSON reader admits `NaN`, which no browser can parse, and a value
+    file is anyone's to write, so each reading refuses what JSON cannot carry."""
+    declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
+    data_model.cmd_data_set(page_dir, "builds", [])
+    data_model.source_file(page_dir, "builds").write_bytes(value)
+
+    source = read_page_data(page_dir)["sources"]["builds"]
+    assert "value" not in source
+    assert message in source["error"]
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
@@ -5413,10 +5272,11 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
             assert reading["value"] == {
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
-            assert reading["fragments"]["path"] == ["sources", "reading-patch", "value"]
-        assert (
-            data_model.read_data(page_dir)["sources"]["reading-patch"]["value"] == value
-        )
+            assert reading["fragments"]["file"] == str(
+                data_model.source_file(page_dir, "reading-patch")
+            )
+            assert reading["fragments"]["revision"] == reading["origin"]["revision"]
+        assert read_page_data(page_dir)["sources"]["reading-patch"]["value"] == value
 
 
 def test_a_state_read_never_materializes_a_historical_revision_bundle(

@@ -14,11 +14,11 @@
    the application sends outside the gesture queue (delivery.js). */
 import { shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
-import { containsAcross } from "../passages.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
-import { firstUnreadBtn, panel, panelWouldCover } from "./panel-elements.js";
+import { firstUnreadBtn, panelEdgeOver } from "./panel-elements.js";
 import { readThreads } from "./state.js";
+import { under, upFrom } from "../shadow.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
@@ -58,12 +58,8 @@ function frameIsFullyVisible() {
     )
       return false;
     const modal = owner.document.querySelector("dialog:modal");
-    if (modal && !containsAcross(modal, frame)) return false;
-    for (
-      let ancestor = frame.parentElement ?? frame.getRootNode()?.host;
-      ancestor;
-      ancestor = ancestor.parentElement ?? ancestor.getRootNode()?.host
-    ) {
+    if (modal && !under(frame, modal)) return false;
+    for (let ancestor = upFrom(frame); ancestor; ancestor = upFrom(ancestor)) {
       const style = owner.getComputedStyle(ancestor);
       if (
         ancestor.inert ||
@@ -90,21 +86,20 @@ function frameIsFullyVisible() {
 
 function visibleInterval(body, clips) {
   if (!body.checkVisibility()) return null;
-  for (
-    let owner = body;
-    owner;
-    owner = owner.parentElement ?? owner.getRootNode()?.host ?? null
-  )
+  for (let owner = body; owner; owner = upFrom(owner))
     if (owner.inert || owner.getAttribute?.("aria-hidden") === "true") return null;
   const modal = document.querySelector("dialog:modal");
-  if (modal && !containsAcross(modal, body)) return null;
-  if (panel.open && panelWouldCover() && !containsAcross(panel, body)) return null;
+  if (modal && !under(body, modal)) return null;
   const box = body.getBoundingClientRect();
   // Sticky run headings are left out of what is shown (geometry.js, visibleBand), so a
   // message hidden under one is not read.
   const shown = shownRect(body, clips);
   if (!shown || box.width <= 0 || box.height <= 0) return null;
-  if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
+  // The open thread panel stands over the right of the page and occludes what it stands
+  // over, the way a clip cuts what it does not hold: a message reaching under its edge
+  // has not been shown whole, and the full-width rule withholds it.
+  const right = Math.min(shown.right, panelEdgeOver(body));
+  if (shown.left > box.left + EPSILON || right < box.right - EPSILON) return null;
   return {
     interval: [
       Math.max(0, shown.top - box.top),

@@ -2,6 +2,7 @@
 
 import base64
 import io
+import json
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -107,6 +108,8 @@ def hold_visible_thread_presentation(page, thread_id):
     )
 
 
+# Named from the command's own answer: a page open on this directory appends a
+# bookkeeping `read` of its own, so the log's tail is not reliably this summary.
 def summarize_conversation(page_dir, conversation, first, last, text):
     """Admit one agent summary through the public command door."""
     result = CliRunner().invoke(
@@ -122,10 +125,11 @@ def summarize_conversation(page_dir, conversation, first, last, text):
             last,
             "--text",
             text,
+            "--json",
         ],
     )
     assert result.exit_code == 0, result.output
-    return events_model.read_events(page_dir)[-1]
+    return json.loads(result.output)
 
 
 def append_user_reply(page_dir, parent, text):
@@ -849,6 +853,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     if view == "inline":
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
+        expect(page.locator("#bracket")).to_be_focused()
     else:
         expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
         expect(page.locator(".lf-threads")).to_be_focused()
@@ -889,6 +894,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
+        expect(page.locator("#bracket")).to_be_focused()
     else:
         expect(page.locator(".lf-general textarea")).to_be_focused()
 
@@ -1140,6 +1146,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -1205,6 +1212,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -1757,7 +1765,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     panel_settled(page)
     status = page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     receipt = page.locator(f'.lf-msg[data-mid="{board["id"]}"] .lf-msg-sending')
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     page.locator("#fb-cache .lf-grip").focus()
     page.keyboard.press("Enter")
@@ -1766,7 +1774,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
     expect(receipt).to_have_text("Sent")
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     [moved] = [
         event
@@ -1777,7 +1785,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         delivery_model.record_pickup(transaction, [moved])
     told(page)
     expect(receipt).to_have_text("Picked up")
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     events_model.append_event(
         serve.page_dir,
@@ -1935,7 +1943,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · c"
+        "placeholder", "Reply c"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -3314,7 +3322,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     ).to_have_text("On you")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
-    ).to_have_text("")
+    ).to_have_count(0)
 
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
@@ -3790,7 +3798,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · c"
+        "placeholder", "Reply c"
     )
 
     # Half way down, the metadata-row outcome is still on screen rather than having
@@ -4130,6 +4138,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
         for_event=root,
     )
     page = open_page(browser, url, init_script=HOLD_MOTION)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -5657,7 +5666,7 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
 
-    context = browser.new_context(viewport={"width": 800, "height": 900})
+    context = browser.new_context(viewport={"width": 400, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

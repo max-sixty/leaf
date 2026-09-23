@@ -2,7 +2,6 @@
   "$captures": {
     "gallery-source": {
       "file": "feature-gallery-source.toml",
-      "label": "feature-gallery-source.toml at sample-1",
       "lines": "1:4"
     }
   },

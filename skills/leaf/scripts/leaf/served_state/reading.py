@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 
 from ..files import STAGED, file_stamp
-from ..schema import VIEWED_FILE
+from ..schema import DATA_DIR, VIEWED_FILE
 from ..service import claim_path
 
 # The one thing a reading must not be built from. The server writes `viewed.json` for
@@ -22,7 +22,8 @@ def page_reading(page_dir: Path) -> str:
     loudly: leave one out and the page simply stops hearing about that kind of news,
     with nothing red to say so. The authored `page/` tree is also stamped recursively:
     changing a module dependency or stylesheet is a candidate revision even when the
-    HTML stays unchanged. Other directories are stamped without descending — a new
+    HTML stays unchanged. So is `data/`, whose value files another process may rewrite
+    in place. Other directories are stamped without descending — a new
     revision moves `revisions/`, a stamp moves `events.jsonl`, and the
     vendored layer cannot change under a served page at all, since re-vendoring restarts
     the server.
@@ -45,7 +46,8 @@ def page_reading(page_dir: Path) -> str:
     )
     stamps.extend(
         (entry.relative_to(page_dir).as_posix(), file_stamp(entry))
-        for entry in sorted((page_dir / "page").rglob("*"))
+        for tree in ("page", DATA_DIR)
+        for entry in sorted((page_dir / tree).rglob("*"))
         if entry.is_file() and not STAGED.fullmatch(entry.name)
     )
     stamps.append(("", file_stamp(claim_path(page_dir))))

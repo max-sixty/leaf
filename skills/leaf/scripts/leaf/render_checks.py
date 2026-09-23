@@ -141,17 +141,21 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
 
 
 def wait_for_presentation(
-    page, data_revision: int, replayed_events: int, *, settled: bool = False
+    page, state: dict, replayed_events: int, *, settled: bool = False
 ) -> str | None:
     """Wait through the canonical post-upgrade presentation stages.
 
     Return the first stage that times out so callers can explain that boundary in
     their own terms. Probe loading errors still surface: a missing observer is not an
     unready page.
+
+    `state` is the caller's own `/api/state` reading. Any process may rewrite a source
+    between that read and the browser's, so the data stage is met by the reading's
+    version or by any reading the server took no earlier.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    stages = [("dataApplied", (data_revision,))]
+    stages = [("dataApplied", (state["data"]["version"], state["taken"]))]
     if replayed_events:
         stages.append(("logApplied", (replayed_events,)))
     stages.append(("currentPresented", ()))

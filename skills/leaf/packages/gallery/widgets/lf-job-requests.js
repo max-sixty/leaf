@@ -47,7 +47,7 @@ customElements.define(
           const paint = (reading) => {
             button.disabled =
               !reading.requests.restart.available ||
-              reading.request?.seat.data_revision !== snapshot.revision;
+              reading.request?.seat.source_revision !== snapshot.revision;
           };
           this.seats.get(row.id)?.();
           this.seats.set(row.id, seat.subscribe(paint));

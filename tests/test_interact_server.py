@@ -37,6 +37,7 @@ from interact_support import (
     live_versions,
     neighbour_page,
     publish,
+    read_page_data,
     record_claim,
     running_http_server,
 )
@@ -138,7 +139,7 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     assert fetch(child + "/api/state")[0] == 404
 
 
-def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
+def test_specimen_allocations_share_no_parent_lock_and_keep_one_log_reading(
     server, page_dir, monkeypatch
 ):
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Practice</h1></template>'
@@ -153,7 +154,6 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
             "text": "Before allocation",
         },
     )
-    files_model.write_json(page_dir / "data.json", {"revision": 7, "sources": {}})
     publish(page_dir)
     allocating = threading.Barrier(3)
     release = threading.Event()
@@ -186,9 +186,6 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
                         "text": "After capture",
                     }
                 )
-                files_model.write_json(
-                    page_dir / "data.json", {"revision": 8, "sources": {}}
-                )
         finally:
             release.set()
         children = []
@@ -199,7 +196,6 @@ def test_specimen_allocations_share_no_parent_lock_and_keep_one_snapshot(
     assert children[0] != children[1]
     for child in children:
         state = json.loads(fetch(child + "api/state")[1])
-        assert state["data"]["revision"] == 7
         assert [event["text"] for event in state["events"]] == ["Before allocation"]
 
 
@@ -313,6 +309,7 @@ def test_specimen_template_lookup_stays_within_the_requesting_page(server, page_
 def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
     page_dir, explicit_revision
 ):
+    declare_data_input(page_dir, "builds", {"type": "array"})
     publish(page_dir)
     event_model.append_event(
         page_dir,
@@ -324,7 +321,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
             "text": "Frozen seed",
         },
     )
-    files_model.write_json(page_dir / "data.json", {"revision": 7, "sources": {}})
+    data_model.cmd_data_set(page_dir, "builds", ["checked"])
     template = '<template id="practice" data-specimen data-specimen-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
         PAGE.replace("</main>", template + "</main>")
@@ -343,7 +340,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
             "text": "Later reply",
         },
     )
-    files_model.write_json(page_dir / "data.json", {"revision": 8, "sources": {}})
+    data_model.cmd_data_set(page_dir, "builds", ["later"])
     parent_events = event_model.read_events(page_dir)
     with hosting_model.TemporaryPageServer(
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
@@ -362,7 +359,8 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
         assert f'data-lf-entry="{root}/leaf.js"'.encode() in body
         assert fetch(preview.origin + root + "/leaf.js")[0] == 200
         state = json.loads(fetch(child + "api/state")[1])
-        assert state["data"]["revision"] == 7
+        # The child reads the data the checked preview holds, as the preview does.
+        assert state["data"]["sources"]["builds"]["value"] == ["checked"]
         assert [event["text"] for event in state["events"]] == ["Frozen seed"]
         for path in ("/api/event", "/api/media"):
             assert fetch(preview.origin + path, data=b"{}")[0] == 403
@@ -374,7 +372,7 @@ def test_frozen_preview_specimens_use_snapshot_inputs_without_parent_writes(
             == 200
         )
     assert event_model.read_events(page_dir) == parent_events
-    assert data_model.read_data(page_dir)["revision"] == 8
+    assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["later"]
     assert files_model.list_revisions(page_dir) == [1]
 
 
@@ -498,31 +496,24 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     assert b"known: ['node:A', 'node:B']" in body
 
 
-def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
+def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     server, page_dir
 ):
     """The browser's source provenance is admitted at the same transaction boundary
     as the comment. A replacement racing the POST makes the comment outdated, not
-    invalid; a future revision or a source the section never bound is forged."""
+    invalid; a source the section never bound, or one never supplied, is forged."""
     version = page_dir / "index.html"
-    first_version = PAGE.replace(
-        "</section>",
-        '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
-        '<lf-diff id="other" source="other-patch"><pre></pre></lf-diff>'
-        "</section>",
+    version.write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+            '<lf-diff id="other" source="other-patch"><pre></pre></lf-diff>'
+            "</section>",
+        )
     )
-    version.write_text(first_version)
     publish(page_dir)
-    data_model.cmd_data_set(
-        page_dir, "review-patch", "first patch", capture_label="first patch"
-    )
-    second_version = first_version.replace(
-        "</section>",
-        '<lf-diff id="frozen" source="review-patch" snapshot="1">'
-        "<pre></pre></lf-diff></section>",
-    )
-    (page_dir / "index.html").write_text(second_version)
-    publish(page_dir, 2)
+    data_model.cmd_data_set(page_dir, "review-patch", "first patch")
+    first = read_page_data(page_dir)["sources"]["review-patch"]["revision"]
     event = {
         "kind": "comment",
         "revision": 1,
@@ -531,15 +522,15 @@ def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
             "section": "patch",
             "datum": '["app.py","new",2]',
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": first,
         },
         "attempt": "datum_revision_exact_1",
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     assert status == 200, body
 
-    data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
     data_model.cmd_data_set(page_dir, "review-patch", "replacement patch")
+    assert read_page_data(page_dir)["sources"]["review-patch"]["revision"] != first
     stale = {
         **event,
         "text": "This raced the replacement.",
@@ -548,24 +539,24 @@ def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
     status, body = fetch(f"{server}/api/event", data=json.dumps(stale).encode())
     assert status == 200, body
 
-    skipped = {
+    counted = {
         **event,
-        "anchor": {**event["anchor"], "data_revision": 2},
-        "attempt": "datum_revision_skipped_1",
+        "anchor": {**event["anchor"], "source_revision": 1},
+        "attempt": "datum_revision_counted_1",
     }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(skipped).encode())
-    assert status == 400
-    assert "was never displayed from source 'review-patch'" in json.loads(body)["error"]
+    status, body = fetch(f"{server}/api/event", data=json.dumps(counted).encode())
+    assert status == 400, body
 
-    future = {
+    unsupplied = {
         **event,
-        "anchor": {**event["anchor"], "data_revision": 4},
-        "attempt": "datum_revision_future_1",
+        "anchor": {**event["anchor"], "section": "other", "source": "other-patch"},
+        "attempt": "datum_revision_unsupplied_1",
     }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(future).encode())
+    status, body = fetch(f"{server}/api/event", data=json.dumps(unsupplied).encode())
     assert status == 400
-    assert "newer than page data revision 3" in json.loads(body)["error"]
+    assert "source 'other-patch' has never been supplied" in json.loads(body)["error"]
 
+    data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
     wrong_source = {
         **event,
         "anchor": {**event["anchor"], "source": "other-patch"},
@@ -574,26 +565,6 @@ def test_a_datum_comment_must_name_the_data_revision_its_section_displayed(
     status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_source).encode())
     assert status == 400
     assert "is not bound by section 'patch'" in json.loads(body)["error"]
-
-    frozen = {
-        **event,
-        "revision": 2,
-        "anchor": {**event["anchor"], "section": "frozen"},
-        "attempt": "datum_revision_snapshot_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(frozen).encode())
-    assert status == 200, body
-
-    wrong_snapshot = {
-        **frozen,
-        "anchor": {**frozen["anchor"], "data_revision": 3},
-        "attempt": "datum_revision_snapshot_wrong_1",
-    }
-    status, body = fetch(
-        f"{server}/api/event", data=json.dumps(wrong_snapshot).encode()
-    )
-    assert status == 400
-    assert "was never displayed from source 'review-patch'" in json.loads(body)["error"]
 
 
 def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
@@ -647,7 +618,9 @@ def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, pa
     assert status == 200, body
 
 
-def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
+def test_api_state_carries_each_sources_current_value(server, page_dir):
+    """Each source arrives with its contract and the digest and instant of the file
+    that holds it, and a file another process rewrote is read as it now stands."""
     declare_data_input(
         page_dir,
         "builds",
@@ -662,10 +635,22 @@ def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     status, body = fetch(f"{server}/api/state")
 
     assert status == 200
-    snapshot = json.loads(body)["data"]
-    assert snapshot["revision"] == 1
-    assert snapshot["sources"]["builds"]["contract"] == "build-map"
-    assert snapshot["sources"]["builds"]["value"] == {"main": "green"}
+    data = json.loads(body)["data"]
+    assert data == {
+        "version": data["version"],
+        "sources": {"builds": read_page_data(page_dir)["sources"]["builds"]},
+    }
+    assert data["sources"]["builds"]["contract"] == "build-map"
+    assert data["sources"]["builds"]["value"] == {"main": "green"}
+
+    data_model.source_file(page_dir, "builds").write_text('{"main": "red"}')
+    rewritten = json.loads(fetch(f"{server}/api/state")[1])["data"]
+    assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
+    assert rewritten["version"] != data["version"]
+    assert (
+        rewritten["sources"]["builds"]["revision"]
+        != data["sources"]["builds"]["revision"]
+    )
 
 
 def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
@@ -702,6 +687,13 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         "value": "patch",
     }
     registry_path.write_text(json.dumps(registry))
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            "</main>",
+            '<lf-test-data id="other-data" source="other-patch"></lf-test-data></main>',
+        )
+    )
     activated = revisioning_model.activate_source(
         page_dir, event_model.read_events(page_dir)
     )
@@ -746,28 +738,32 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         ]
     }
 
-    status, body = fetch(
-        f"{server}/api/data?data_revision=1&source=review-patch&key=src%2Fa.py"
+    held = data["sources"]["review-patch"]["revision"]
+    fragment_url = (
+        f"{server}/api/data?source_revision={held}&source=review-patch&key=src%2Fa.py"
     )
+    status, body = fetch(fragment_url)
     assert status == 200
     assert json.loads(body) == {
-        "revision": 1,
+        "revision": held,
         "source": "review-patch",
         "contract": "diff-files",
         "key": "src/a.py",
         "value": "diff --git a/src/a.py b/src/a.py\n",
     }
 
+    # Each source keeps its own revision, so replacing another leaves this one read.
+    data_model.cmd_data_set(page_dir, "other-patch", {"files": []})
+    assert fetch(fragment_url)[0] == 200
+
     data_model.cmd_data_set(
         page_dir,
         "review-patch",
         {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
     )
-    status, body = fetch(
-        f"{server}/api/data?data_revision=1&source=review-patch&key=src%2Fa.py"
-    )
+    status, body = fetch(fragment_url)
     assert status == 409
-    assert "data revision 1 is stale" in json.loads(body)["error"]
+    assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
 
 
 def test_historical_fragment_reads_keep_the_document_revision_and_layer(
@@ -831,9 +827,10 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
 
     address = urllib.parse.urlsplit(server)
     connection = http.client.HTTPConnection(address.hostname, address.port)
+    held = historical["data"]["sources"]["review-patch"]["revision"]
     connection.request(
         "GET",
-        "/api/data?data_revision=1&source=review-patch&key=app.py&t=" + TOKEN,
+        f"/api/data?source_revision={held}&source=review-patch&key=app.py&t=" + TOKEN,
         headers={"Leaf-View-Revision": str(first.revision)},
     )
     response = connection.getresponse()
@@ -2777,7 +2774,9 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
         },
     )
 
-    def send(unit, state="stopped", revision=1):
+    first = read_page_data(page_dir)["sources"]["jobs"]["revision"]
+
+    def send(unit, state="stopped", revision=first):
         return fetch(
             f"{server}/api/event",
             data=json.dumps(
@@ -2786,16 +2785,16 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
                     "revision": 1,
                     "widget": "jobs",
                     "action": "restart",
-                    "data_revision": revision,
+                    "source_revision": revision,
                     "detail": {"target": unit, "state": state},
                 }
             ).encode(),
         )
 
     for unit, state, revision in [
-        ("missing", "stopped", 1),
-        ("alpha", "running", 1),
-        ("alpha", "stopped", 2),
+        ("missing", "stopped", first),
+        ("alpha", "running", first),
+        ("alpha", "stopped", "0123456789abcdef"),
     ]:
         status, _body = send(unit, state, revision)
         assert status == 400
@@ -2885,9 +2884,10 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
         ("beta", "completed"),
         ("gamma", "ready"),
     }
-    assert send("gamma", revision=1)[0] == 400
-    assert send("beta", revision=2)[0] == 400
-    assert send("gamma", revision=2)[0] == 200
+    second = read_page_data(page_dir)["sources"]["jobs"]["revision"]
+    assert send("gamma", revision=first)[0] == 400
+    assert send("beta", revision=second)[0] == 400
+    assert send("gamma", revision=second)[0] == 200
     gamma = next(
         event
         for event in event_model.read_events(page_dir)
@@ -4580,8 +4580,9 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         assert (
             json.loads(fetch(f"{server.origin}/registry.json")[1]) == snapshot.registry
         )
+        held = projection["data"]["sources"]["patches"]["revision"]
         status, fragment = fetch(
-            f"{server.origin}/api/data?data_revision=1&source=patches&key=a.py"
+            f"{server.origin}/api/data?source_revision={held}&source=patches&key=a.py"
         )
         assert status == 200
         assert json.loads(fragment)["value"] == "old"

@@ -5,6 +5,14 @@
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module owns its source roots, outputs, and manifest;
  * Leaf installation, vendoring, activation, and export never invoke this tool.
+ *
+ * The page's one copy of Lit is built here, as `vendor/lit.js`: every public Lit
+ * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
+ * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so
+ * they do not shadow the ordinary ones. The framework imports Lit from it, and so
+ * does the Web Awesome bundle (`scripts/vendor-src/webawesome/build.mjs`), so a page
+ * registers one LitElement, one template cache, and one version. Outputs import
+ * only one another, statically; nothing else crosses the bundle.
  */
 import { createHash } from "node:crypto";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
@@ -19,13 +27,17 @@ const outputRoot = "skills/leaf/assets/vendor";
 const diagnosticsRoot = "scripts/browser/generated";
 const entry = "scripts/browser/index.ts";
 const modulePath = `${outputRoot}/browser-runtime.js`;
-const sourceMapPath = `${diagnosticsRoot}/browser-runtime.js.map`;
+const litPath = `${outputRoot}/lit.js`;
 const manifestPath = `${diagnosticsRoot}/browser-runtime.manifest.json`;
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const relative = (file) => path.relative(root, file).split(path.sep).join("/");
 
-export function checkModule(source) {
+/** Refuse runtime compilation and every import but a static one of a sibling output. */
+export function checkModule(source, name = modulePath, siblings = new Set()) {
   const parsed = parse(source, { ecmaVersion: "latest", sourceType: "module" });
+  const sibling = (specifier) =>
+    /^\.{1,2}\//.test(specifier) &&
+    siblings.has(path.posix.join(path.posix.dirname(name), specifier));
   function visit(node) {
     if (!node || typeof node !== "object") return;
     if (
@@ -33,7 +45,8 @@ export function checkModule(source) {
       (["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].includes(
         node.type,
       ) &&
-        node.source) ||
+        node.source &&
+        !sibling(node.source.value)) ||
       (["CallExpression", "NewExpression"].includes(node.type) &&
         node.callee.type === "Identifier" &&
         ["eval", "Function", "require"].includes(node.callee.name))
@@ -48,6 +61,45 @@ export function checkModule(source) {
     }
   }
   visit(parsed);
+}
+
+/**
+ * Build `lit.js` from Lit's published exports, and bind every other Lit import to it.
+ *
+ * Star exports would make static-html's tags ambiguous with the ordinary ones and
+ * drop both, so that module is exported by name instead; the polyfill module patches
+ * browsers older than any Leaf supports.
+ */
+function litModule(lit) {
+  const stars = Object.keys(lit.exports)
+    .filter(
+      (subpath) => !["./static-html.js", "./polyfill-support.js"].includes(subpath),
+    )
+    .map((subpath) => `export * from "lit${subpath.slice(1)}";`);
+  const contents = [
+    ...stars,
+    'export { html as staticHtml, svg as staticSvg, mathml as staticMathml, literal, unsafeStatic, withStatic } from "lit/static-html.js";',
+  ].join("\n");
+  return {
+    name: "leaf-lit",
+    setup(build) {
+      build.onResolve({ filter: /^leaf:lit$/ }, () => ({
+        path: "lit",
+        namespace: "leaf-lit",
+      }));
+      build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
+        contents,
+        resolveDir: root,
+      }));
+      build.onResolve({ filter: /^lit(\/|$)/ }, ({ path: specifier, namespace }) => {
+        if (namespace === "leaf-lit") return undefined;
+        // Its tags go by their lit-all names, which a bare rebinding would not reach.
+        if (specifier === "lit/static-html.js")
+          return { errors: [{ text: "import staticHtml and its kin from lit" }] };
+        return { path: "./lit.js", external: true };
+      });
+    },
+  };
 }
 
 export async function buildOutputs() {
@@ -79,10 +131,15 @@ export async function buildOutputs() {
   if (typecheck.error) throw typecheck.error;
   if (typecheck.status !== 0) throw new Error(typecheck.stdout + typecheck.stderr);
 
+  const lit = JSON.parse(
+    await readFile(path.join(root, "node_modules/lit/package.json"), "utf8"),
+  );
+  const entryPoints = { "browser-runtime": entry, lit: "leaf:lit" };
   const result = await build({
     absWorkingDir: root,
-    entryPoints: [entry],
-    outfile: modulePath,
+    entryPoints,
+    outdir: outputRoot,
+    plugins: [litModule(lit)],
     tsconfig: "scripts/browser/tsconfig.json",
     platform: "browser",
     format: "esm",
@@ -97,24 +154,33 @@ export async function buildOutputs() {
     logLevel: "silent",
   });
   const module = result.metafile.outputs[modulePath];
-  if (module.imports.length) throw new Error("Browser output has unbundled imports");
-  const outputs = new Map(
+  const built = new Map(
     result.outputFiles.map((file) => [relative(file.path), Buffer.from(file.contents)]),
   );
-  const generatedMapPath = `${modulePath}.map`;
-  const sourceMap = JSON.parse(outputs.get(generatedMapPath));
-  sourceMap.sources = sourceMap.sources.map((source) =>
-    path
-      .relative(
-        path.join(root, path.dirname(sourceMapPath)),
-        path.resolve(root, path.dirname(generatedMapPath), source),
-      )
-      .split(path.sep)
-      .join("/"),
-  );
-  outputs.set(sourceMapPath, Buffer.from(JSON.stringify(sourceMap)));
-  outputs.delete(generatedMapPath);
-  checkModule(outputs.get(modulePath).toString());
+  const modules = new Set([...built.keys()].filter((name) => name.endsWith(".js")));
+  const outputs = new Map();
+  for (const name of [...modules].sort()) {
+    const edges = result.metafile.outputs[name].imports.map((edge) =>
+      edge.external ? path.posix.join(path.posix.dirname(name), edge.path) : edge.path,
+    );
+    if (edges.some((edge) => !modules.has(edge)))
+      throw new Error(`${name} has unbundled imports`);
+    checkModule(built.get(name).toString(), name, modules);
+    outputs.set(name, built.get(name));
+    // Each output's map sits at its own path under the diagnostics root.
+    const mapPath = `${diagnosticsRoot}/${path.posix.relative(outputRoot, name)}.map`;
+    const sourceMap = JSON.parse(built.get(`${name}.map`));
+    sourceMap.sources = sourceMap.sources.map((source) =>
+      path
+        .relative(
+          path.join(root, path.dirname(mapPath)),
+          path.resolve(root, path.dirname(name), source),
+        )
+        .split(path.sep)
+        .join("/"),
+    );
+    outputs.set(mapPath, Buffer.from(JSON.stringify(sourceMap)));
+  }
 
   const packagePaths = [
     ...new Set(
@@ -145,9 +211,16 @@ export async function buildOutputs() {
     format: "leaf-browser-build-v1",
     sourceRoots: ["scripts/browser"],
     sourceInputs: Object.keys(result.metafile.inputs)
-      .filter((name) => !name.startsWith("node_modules/"))
+      .filter(
+        (name) => !name.startsWith("node_modules/") && !name.startsWith("leaf-lit:"),
+      )
       .sort(),
-    entryPoints: { [modulePath]: entry },
+    entryPoints: Object.fromEntries(
+      Object.entries(entryPoints).map(([name, input]) => [
+        `${outputRoot}/${name}.js`,
+        input,
+      ]),
+    ),
     outputRoot,
     lockfile: "package-lock.json",
     lockfileSha256: digest(lockfile),
@@ -162,7 +235,8 @@ export async function buildOutputs() {
     internalModule: "/vendor/browser-runtime.js",
     publicImport: "/runtime/widget-api.js",
     exports: module.exports,
-    externalizedModules: module.imports,
+    litModule: "/vendor/lit.js",
+    litExports: result.metafile.outputs[litPath].exports,
     pageModules:
       "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
     outputs: Object.fromEntries(

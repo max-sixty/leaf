@@ -144,8 +144,9 @@ judgment stays in the run report.
 
 `.github/dependabot.yml` watches the action refs and `uv.lock`. It cannot watch
 the browser dependencies, whose versions live in `scripts/vendor.py`'s PINS
-table rather than a manifest. They drift silently, and this is the step that
-catches it.
+table rather than a manifest, or the page payload the browser framework build
+bundles (Lit and Signals), pinned in `package.json`. They drift silently, and
+this is the step that catches it.
 
 ```bash
 scripts/vendor.py --pins
@@ -162,7 +163,9 @@ offer against the declaring package before taking it, and add the row.
 a bundle needs it rather than on every release.
 
 On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the
-rebuilt bundle is the commit, not the version string on its own. A copy's output tracks its version directly.
+rebuilt bundle is the commit, not the version string on its own. A `browser` row
+is a `package.json` pin: bump it there, run `npm install` and
+`npm run build:browser`, and run any bundle the row also names. A copy's output tracks its version directly.
 `highlight` and `pierre` also read the language list out of the registry's
 `$languages.names`, so their output is a function of both the pin and the
 registry: rerunning them after an unrelated registry change is how the bundle

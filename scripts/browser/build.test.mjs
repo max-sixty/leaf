@@ -29,7 +29,16 @@ test("locked source reproduces the complete committed output", async () => {
     "render",
     "repeat",
   ]);
-  assert.deepEqual(manifest.externalizedModules, []);
+  // The page's one Lit: the framework imports it rather than carrying a copy.
+  assert.match(
+    outputs.get(`${outputRoot}/browser-runtime.js`).toString(),
+    /^import\{[^}]*\}from"\.\/lit\.js"/,
+  );
+  assert.ok(
+    !outputs.get(`${outputRoot}/browser-runtime.js`).includes("litHtmlVersions"),
+  );
+  for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
+    assert.ok(manifest.litExports.includes(name), name);
   assert.ok(outputs.has(`${outputRoot}/browser-runtime.LICENSES.txt`));
   assert.ok(
     !outputs.get(`${outputRoot}/browser-runtime.js`).includes("sourceMappingURL"),
@@ -74,6 +83,12 @@ test("the bundle gate rejects unresolved code and runtime compilation", () => {
   ]) {
     assert.throws(() => checkModule(source), /self-contained ESM/, source);
   }
+  const siblings = new Set([`${outputRoot}/lit.js`]);
+  checkModule('import { html } from "./lit.js";', `${outputRoot}/x.js`, siblings);
+  assert.throws(
+    () => checkModule('import("./lit.js");', `${outputRoot}/x.js`, siblings),
+    /self-contained ESM/,
+  );
   checkModule('export const words = "eval and import are ordinary prose here";');
 });
 

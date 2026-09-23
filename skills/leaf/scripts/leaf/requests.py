@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from .asks import quoted_in
+from .event_meaning import request_unit
 from .host import message_identity
 from .leases import contract_writer
 from .registry.contract import schema_error
@@ -12,8 +13,17 @@ from .validation.admission import logged_id, read_text_arg
 from .validation.instances import reference_contract_error
 
 
-def request_lifecycle(events: list, *, widget: str, document: dict) -> dict:
+def request_lifecycle(
+    events: list,
+    *,
+    widget: str,
+    document: dict,
+    unit: str | None = None,
+    data_revision: int | None = None,
+    offered: bool = True,
+) -> dict:
     """The canonical lifecycle at one request seat over this event prefix."""
+    unit = widget if unit is None else unit
     receipts = {
         event["request"]: event for event in events if event["kind"] == "receipt"
     }
@@ -23,6 +33,7 @@ def request_lifecycle(events: list, *, widget: str, document: dict) -> dict:
             event["kind"] != "request"
             or event["widget"] != widget
             or event["meaning"]["document"] != document
+            or event["meaning"]["unit"] != unit
         ):
             continue
         attempts.append({"request": event, "receipt": receipts.get(event["id"])})
@@ -33,7 +44,13 @@ def request_lifecycle(events: list, *, widget: str, document: dict) -> dict:
     elif latest and latest["receipt"]["status"] == "succeeded":
         phase = "completed"
     return {
-        "seat": {"document": document, "widget": widget},
+        "seat": {
+            "document": document,
+            "widget": widget,
+            "unit": unit,
+            **({"data_revision": data_revision} if data_revision is not None else {}),
+            **({"offered": False} if not offered else {}),
+        },
         "attempts": attempts,
         "latest": latest,
         "phase": phase,
@@ -41,23 +58,56 @@ def request_lifecycle(events: list, *, widget: str, document: dict) -> dict:
 
 
 def request_lifecycles_for(
-    events: list, elements: list[dict], registry: dict, document: dict
+    events: list,
+    elements: list[dict],
+    registry: dict,
+    document: dict,
+    data: dict | None = None,
 ) -> list[dict]:
-    """Every declared request seat in one document, occupied or ready."""
-    widgets = dict.fromkeys(
-        record["attrs"]["id"]
-        for record in elements
-        if (registry.get(record["tag"]) or {}).get("x-request")
-    )
+    """Displayed seats and historical record seats in one document."""
+    seats = {}
+    for record in elements:
+        request = (registry.get(record["tag"]) or {}).get("x-request")
+        if not request:
+            continue
+        widget = record["attrs"]["id"]
+        if request.get("records"):
+            if data is not None:
+                for row in request_records(record, registry, data):
+                    seats[widget, row["key"]] = (row["revision"], True)
+            for event in events:
+                if (
+                    event["kind"] == "request"
+                    and event["widget"] == widget
+                    and event["meaning"]["document"] == document
+                ):
+                    seats.setdefault((widget, event["meaning"]["unit"]), (None, False))
+        else:
+            seats[widget, widget] = (None, True)
     return [
-        request_lifecycle(events, widget=widget, document=document)
-        for widget in widgets
+        request_lifecycle(
+            events,
+            widget=widget,
+            unit=unit,
+            document=document,
+            data_revision=data_revision,
+            offered=offered,
+        )
+        for (widget, unit), (data_revision, offered) in seats.items()
     ]
 
 
 def request_phases(lifecycles: list[dict]) -> dict[str, str]:
-    """Request holder id → canonical reader/host lifecycle phase."""
-    return {lifecycle["seat"]["widget"]: lifecycle["phase"] for lifecycle in lifecycles}
+    """Request holder id → phase among seats the document still offers."""
+    phases = {}
+    for lifecycle in lifecycles:
+        if lifecycle["seat"].get("offered") is False:
+            continue
+        widget = lifecycle["seat"]["widget"]
+        phase = lifecycle["phase"]
+        if widget not in phases or phase == "ready":
+            phases[widget] = phase
+    return phases
 
 
 def request_outcomes(events: list[dict]) -> list[dict]:
@@ -75,6 +125,7 @@ def request_outcomes(events: list[dict]) -> list[dict]:
             "widget": request["widget"],
             "action": request["action"],
             "document": request["meaning"]["document"],
+            "unit": request["meaning"]["unit"],
             "receipt": receipt,
         }
         for receipt in events
@@ -93,7 +144,40 @@ def request_document(event: dict, page, thread):
     return None, (), None
 
 
-def declared_request_error(event: dict, page, thread, registry: dict) -> str | None:
+def request_records(record: dict, registry: dict, data: dict) -> list[dict]:
+    """Rows in the exact source selection bound by one authored widget."""
+    entry = registry[record["tag"]]
+    binding = entry["x-data"][entry["x-request"]["records"]]
+    source = record["attrs"].get(binding["source"])
+    source_store = data["sources"].get(source) if source else None
+    if source_store is None:
+        return []
+    snapshot_attr = binding.get("snapshot")
+    snapshot_id = record["attrs"].get(snapshot_attr) if snapshot_attr else None
+    selected = (
+        source_store.get("snapshots", {}).get(snapshot_id)
+        if snapshot_id
+        else source_store
+    )
+    if selected is None or "value" not in selected:
+        return []
+    contract = registry["$data"]["contracts"][binding["contract"]]
+    records = contract.get("records") or contract["fragments"]
+    value = selected["value"]
+    rows = value.get(records["items"], []) if isinstance(value, dict) else []
+    return [
+        {
+            "key": row[records["key"]],
+            "value": row,
+            "revision": int(snapshot_id) if snapshot_id else selected["revision"],
+        }
+        for row in rows
+    ]
+
+
+def declared_request_error(
+    event: dict, page, thread, registry: dict, data: dict | None = None
+) -> str | None:
     """Why a stored one-shot request violates its sending widget contract."""
     record, elements, _scope = request_document(event, page, thread)
     if record is None:
@@ -130,22 +214,42 @@ def declared_request_error(event: dict, page, thread, registry: dict) -> str | N
     offered = {
         candidate["attrs"][request["offers"][candidate["tag"]]]
         for candidate in elements
-        if candidate["tag"] in request["offers"]
+        if candidate["tag"] in request.get("offers", {})
         and candidate["holder"] is record
         and candidate["parent"] == tag
         and request["offers"][candidate["tag"]] in candidate["attrs"]
     }
+    if request.get("records"):
+        offered = set(verbs)
     if event["action"] not in offered:
         return (
             f"<{tag}> request verb {event['action']!r} is not offered by "
             f"widget {event['widget']!r}; it offers {sorted(offered)}"
         )
+    if request.get("records"):
+        if data is None:
+            return None
+        unit_field = spec["unit"]
+        unit = event["detail"][unit_field]
+        rows = request_records(record, registry, data)
+        row = next((row for row in rows if row["key"] == unit), None)
+        if row is None:
+            return f"<{tag}> request unit {unit!r} is not in its displayed data"
+        if event.get("data_revision") != row["revision"]:
+            return f"<{tag}> request unit {unit!r} names a stale data revision"
+        values = row["value"]
+    else:
+        if "data_revision" in event:
+            return f"<{tag}> authored request cannot name a data revision"
+        values = record["attrs"]
     for field, attribute in spec.get("bind", {}).items():
-        expected = record["attrs"].get(attribute)
+        expected = values.get(attribute)
         if event["detail"].get(field) != expected:
             return (
                 f"<{tag}> request {event['action']!r} detail `{field}` must match "
-                f"its authored `{attribute}` attribute {expected!r}"
+                f"its {'record' if request.get('records') else 'authored'} "
+                f"`{attribute}` {'field' if request.get('records') else 'attribute'} "
+                f"{expected!r}"
             )
     if quoted_in(record, registry):
         return (
@@ -155,11 +259,16 @@ def declared_request_error(event: dict, page, thread, registry: dict) -> str | N
     return None
 
 
-def request_lifecycle_error(event: dict, events: list, scope: str) -> str | None:
+def request_lifecycle_error(
+    event: dict, events: list, scope: str, registry: dict, record: dict
+) -> str | None:
     """Why a document seat cannot start another one-shot host lifecycle."""
     lifecycle = request_lifecycle(
         events,
         widget=event["widget"],
+        unit=request_unit(
+            event, registry[record["tag"]]["x-request"]["verbs"][event["action"]]
+        ),
         document={
             "kind": scope,
             **({"revision": event["revision"]} if scope == "page" else {}),
@@ -182,9 +291,9 @@ def request_contract_error(
     """Why a fresh external request violates its package-owned declaration."""
     page = view.document(event["revision"])
     thread = thread_structure(events)
-    _record, _elements, scope = request_document(event, page, thread)
-    return declared_request_error(event, page, thread, registry) or (
-        request_lifecycle_error(event, events, scope)
+    record, _elements, scope = request_document(event, page, thread)
+    return declared_request_error(event, page, thread, registry, view.data) or (
+        request_lifecycle_error(event, events, scope, registry, record)
     )
 
 
@@ -238,11 +347,12 @@ def request_lifecycles(events: list) -> list[dict]:
         if event["kind"] != "request":
             continue
         document = event["meaning"]["document"]
-        coordinate = (document["kind"], document.get("revision"), event["widget"])
-        seats[coordinate] = (event["widget"], document)
+        unit = event["meaning"]["unit"]
+        coordinate = (document["kind"], document.get("revision"), event["widget"], unit)
+        seats[coordinate] = (event["widget"], document, unit)
     return [
-        request_lifecycle(events, widget=widget, document=document)
-        for widget, document in seats.values()
+        request_lifecycle(events, widget=widget, document=document, unit=unit)
+        for widget, document, unit in seats.values()
     ]
 
 

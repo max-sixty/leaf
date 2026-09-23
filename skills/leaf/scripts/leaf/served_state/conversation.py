@@ -88,6 +88,7 @@ def browser_conversation(
     registry: dict,
     threads: dict,
     live_reply: dict | None = None,
+    data: dict | None = None,
 ) -> tuple[dict, FrozenThreadReading]:
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
@@ -96,6 +97,7 @@ def browser_conversation(
         reading.elements,
         registry,
         {"kind": "thread"},
+        data,
     )
     asks = thread_ask_readings(
         events,

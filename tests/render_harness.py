@@ -1268,8 +1268,11 @@ def banner_control(page, selector):
     """Return a banner control, opening its fixed menu seat when needed.
 
     Approval and Threads stand on the row; every secondary control stands in More at
-    every width. A caller may already have opened More to press several controls, so do
-    not toggle the native popover shut before returning the retained control.
+    every width, and a gesture's next step stands on the row in their place. A caller
+    reaching a gesture step reads it off the row rather than through this, since opening
+    More would hide a step that had wrongly been seated there. A caller may already have
+    opened More to press several controls, so do not toggle the native popover shut
+    before returning the retained control.
     """
     control = page.locator(selector)
     expect(control).to_have_count(1)

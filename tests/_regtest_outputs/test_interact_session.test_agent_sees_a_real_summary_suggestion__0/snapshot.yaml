@@ -78,7 +78,8 @@ delivery:
           reply` checks any page edit and makes it live before posting. Add `--awaits`
           only if your reply's prose asks the reader something. Finishing the requested
           work is not a reason to `leaf resolve` the thread; the reader usually
-          closes it.
+          closes it. Your reply renders as Markdown, so show code or markup in a
+          fenced block.
       events:
         - kind: reply
           author: user

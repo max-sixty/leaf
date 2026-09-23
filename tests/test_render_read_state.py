@@ -81,20 +81,22 @@ def test_new_since_last_looked_bounds_each_unread_run_and_summary_originals(
     )
     expect(checkpoint.locator(".lf-summary-originals")).to_be_hidden()
     expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(0)
-    expect(card.locator(f'.lf-msg[data-mid="{last}"] .lf-read-boundary')).to_have_text(
-        "New since you last looked"
-    )
+    expect(
+        card.locator(f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{last}"]')
+    ).to_be_visible()
     checkpoint.locator(".lf-summary-expand").click()
     expect(
         card.get_by_role("separator", name="New since you last looked")
     ).to_have_count(2)
-    expect(card.locator(f'.lf-msg[data-mid="{first}"] .lf-read-boundary')).to_have_text(
-        "New since you last looked"
-    )
+    expect(
+        card.locator(
+            f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{first}"]'
+        )
+    ).to_be_visible()
     expect(card.locator('.lf-read-boundary[data-kind="new"]')).to_have_count(2)
     expect(card.locator('.lf-read-boundary[data-kind="end"]')).to_have_count(1)
     expect(
-        card.locator(f'.lf-msg[data-mid="{middle}"] .lf-read-boundary')
+        card.locator(f'.lf-read-boundary + .lf-msg[data-mid="{middle}"]')
     ).to_have_count(0)
     assert (
         card.locator(f'.lf-msg[data-mid="{first}"]').get_attribute(
@@ -145,8 +147,47 @@ def test_first_unread_reveals_divider_inside_resolved_summary(browser, serve):
     )
     expect(card.locator(f'.lf-msg[data-mid="{answer}"]')).to_be_focused()
     expect(
-        card.locator(f'.lf-msg[data-mid="{answer}"] .lf-read-boundary')
-    ).to_have_text("New since you last looked")
+        card.locator(
+            f'.lf-read-boundary[data-kind="new"] + .lf-msg[data-mid="{answer}"]'
+        )
+    ).to_be_visible()
+
+
+def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
+    url = serve(PANEL_PAGE)
+    root = conversation_model.cmd_comment(
+        serve.page_dir,
+        "",
+        "",
+        "",
+        "Review this metric.",
+        '<lf-metrics><lf-metric id="root-metric" value="1">Completed steps</lf-metric></lf-metrics>',
+    )["id"]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    expect(
+        card.locator(":scope > .lf-read-boundary + .lf-thread-root-meta")
+    ).to_be_visible()
+    expect(
+        card.locator(f':scope > .lf-thread-root-meta + .lf-msg[data-mid="{root}"]')
+    ).to_be_visible()
+    expect(
+        card.get_by_role("separator", name="New since you last looked")
+    ).to_have_count(1)
+    resolve = card.get_by_role("button", name="Resolve thread")
+    resolve.focus()
+    accepted, _ = endpoint_model.accept_event(
+        serve.page_dir,
+        {"kind": "read", "messages": [{"message": root, "version": root}]},
+        dict,
+    )
+    assert accepted == 200
+    told(page)
+    expect(card.locator(".lf-read-boundary")).to_have_count(0)
+    expect(resolve).to_be_focused()
 
 
 def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(

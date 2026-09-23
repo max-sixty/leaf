@@ -181,7 +181,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, externalHeader = false, readBoundary = null) {
+  present(model, externalHeader = false) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -249,28 +249,6 @@ export class MessageView {
     );
     render(
       html`
-        ${
-          readBoundary
-            ? html`<div
-                class="lf-read-boundary"
-                data-kind=${readBoundary}
-                role="separator"
-                aria-label=${
-                  readBoundary === "new"
-                    ? "New since you last looked"
-                    : "End of this new section"
-                }
-              >
-                <span aria-hidden="true"
-                  >${
-                    readBoundary === "new"
-                      ? "New since you last looked"
-                      : "End of this new section"
-                  }</span
-                >
-              </div>`
-            : nothing
-        }
         ${externalHeader ? nothing : this.#header}
         ${
           panel

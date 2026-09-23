@@ -146,6 +146,20 @@ function navigationSummary(navigation, model) {
   </summary>`;
 }
 
+function readBoundary(kind) {
+  if (!kind) return nothing;
+  const label =
+    kind === "new" ? "New since you last looked" : "End of this new section";
+  return html`<div
+    class="lf-read-boundary"
+    data-kind=${kind}
+    role="separator"
+    aria-label=${label}
+  >
+    <span aria-hidden="true">${label}</span>
+  </div>`;
+}
+
 export class ThreadView {
   #commands;
   #model = null;
@@ -252,13 +266,15 @@ export class ThreadView {
     if (!model.resolved || model.folding) {
       this.#metadataActions.className = "lf-thread-meta-actions";
       const actions = markRead ? [markRead, settlement] : [settlement];
-      if (
-        actions.length !== this.#metadataActions.children.length ||
-        actions.some(
-          (action, index) => this.#metadataActions.children[index] !== action,
-        )
-      )
-        this.#metadataActions.replaceChildren(...actions);
+      for (const child of [...this.#metadataActions.children])
+        if (!actions.includes(child)) child.remove();
+      if (markRead && markRead.parentNode !== this.#metadataActions)
+        this.#metadataActions.insertBefore(
+          markRead,
+          settlement.parentNode === this.#metadataActions ? settlement : null,
+        );
+      if (settlement.parentNode !== this.#metadataActions)
+        this.#metadataActions.append(settlement);
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
@@ -307,11 +323,7 @@ export class ThreadView {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(message.key, (view = new MessageView(this.#commands)));
-      view.present(
-        message,
-        index === 0 && Boolean(headerActions),
-        boundaries.get(message.key) ?? null,
-      );
+      view.present(message, index === 0 && Boolean(headerActions));
       return { key: message.key, node: view.node, header: view.header };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
@@ -331,6 +343,9 @@ export class ThreadView {
         nodes,
       };
     });
+    const hoistedRoot = headerActions ? messages[0]?.key : null;
+    const markerFor = (key) =>
+      readBoundary(key === hoistedRoot ? null : boundaries.get(key));
     if (model.reply && !this.#reply) this.#reply = this.#createReply(model);
     render(
       html`
@@ -375,6 +390,7 @@ export class ThreadView {
               </header>`
             : nothing
         }
+        ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
         ${
           headerActions && messages[0]
             ? html`<div class="lf-thread-root-meta">
@@ -386,7 +402,9 @@ export class ThreadView {
           ranges,
           (range) => range.key,
           (range) =>
-            range.kind === "message" ? range.node : this.#summaryRange(range),
+            range.kind === "message"
+              ? html`${markerFor(range.message.key)}${range.node}`
+              : this.#summaryRange(range, markerFor),
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
@@ -425,7 +443,7 @@ export class ThreadView {
     return this.node;
   }
 
-  #summaryRange(range) {
+  #summaryRange(range, markerFor) {
     const count = range.messages.length;
     const unread = range.messages.filter((message) => message.unread).length;
     const id = range.summary.id;
@@ -469,7 +487,8 @@ export class ThreadView {
           ${repeat(
             range.messages,
             (message) => message.key,
-            (message) => range.nodes[range.messages.indexOf(message)],
+            (message) =>
+              html`${markerFor(message.key)}${range.nodes[range.messages.indexOf(message)]}`,
           )}
         </div>
         ${

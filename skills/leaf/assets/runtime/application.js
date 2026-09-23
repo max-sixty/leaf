@@ -24,7 +24,7 @@ import {
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createPendingLedger } from "./pending/state.js";
-import { createDelivery } from "./delivery.js";
+import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import {
   createProjectionPresentation,
   shallowSigs as projectionShallowSigs,
@@ -33,11 +33,11 @@ import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createConversationPresentation } from "./conversation/presentation.js";
-import { createReadAcknowledgement } from "./conversation/read.js";
+import { createReadTracking } from "./conversation/read.js";
 import { renderMarginThread } from "./conversation/inline.js";
 import { conversationBox as buildConversationBox } from "./conversation/box.js";
 import { messageText } from "./conversation/messages.js";
-import { isConversationEvent, isReadAcknowledgement } from "./pending/model.js";
+import { isConversationEvent } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
@@ -65,8 +65,7 @@ export function mountApplication(dependencies) {
         isConversationEvent(event) ? messageText(event) : undefined,
       ),
   });
-  const hasPending = () =>
-    ledger.snapshot().some((entry) => !isReadAcknowledgement(entry.event));
+  const hasPending = () => ledger.snapshot().length > 0;
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
@@ -325,10 +324,19 @@ export function mountApplication(dependencies) {
       kind: resolved ? "resolve" : "unresolve",
       parent,
     }) ?? { answer: Promise.resolve(null), presentation: Promise.resolve() };
-  const read = createReadAcknowledgement({
-    post: (messages) => post({ kind: "read", messages }),
+  // The one bookkeeping door (delivery.js): the page draws the versions read as it
+  // sends them, and they stand read or unread again by whatever the answer says.
+  const markRead = async (messages) => {
+    applicationState.markRead(messages);
+    try {
+      return await deliverBookkeeping({ kind: "read", messages }, receiveState);
+    } finally {
+      applicationState.settleMarkRead(messages);
+    }
+  };
+  const read = createReadTracking({
+    markRead,
     showThread: dependencies.showThread,
-    setUnreadThreadCount: dependencies.setUnreadThreadCount,
   });
 
   const replyView = {
@@ -378,7 +386,7 @@ export function mountApplication(dependencies) {
     placedAt: dependencies.anchorPaint.placedAt,
     panelIsOpen: dependencies.panelIsOpen,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
-    setThreadCount: dependencies.setThreadCount,
+    setThreadCounts: dependencies.setThreadCounts,
     onListChanged: dependencies.onConversationChanged,
     refreshAnchorHover: dependencies.anchorPaint.refreshHover,
     repaintConversation: refreshConversation,

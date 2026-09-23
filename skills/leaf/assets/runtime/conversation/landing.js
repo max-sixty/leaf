@@ -526,7 +526,9 @@ export function declareThreadKeys(landIn, read) {
           const id = heldThread()?.dataset.id ?? heldThread()?.dataset.thread;
           return Boolean(
             id &&
-            threadList().find((thread) => thread.root.id === id && thread.unreadCount),
+            threadList().find(
+              (thread) => thread.root.id === id && thread.unread.length,
+            ),
           );
         },
         run: () => {

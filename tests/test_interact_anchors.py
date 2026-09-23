@@ -490,6 +490,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "title": None,
             "detached_from": None,
             "resolved": None,
+            "unread": [root["id"], reply["id"]],
         }
     ]
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
@@ -574,6 +575,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "title": None,
             "detached_from": root["anchor"],
             "resolved": None,
+            "unread": [root["id"], reply["id"]],
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])

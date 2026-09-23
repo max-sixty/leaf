@@ -133,7 +133,8 @@ Each mutable fact has one writer:
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
 | canonical page activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
-| meaningful new page information | current agent content versions and reader Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded; the first is a quiet baseline. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
+| which agent content the reader has not read | the server's `read_state` reading, shipped as each Thread's `unread` | the publisher removes the versions this tab is marking read; `conversation/read.js` sends `read` for exposed prose and Mark read, outside the gesture queue |
+| meaningful new page information | unread agent content, reader Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded: unread content is news the first time this tab sees it, and everything else is news only against an earlier reading. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
@@ -437,6 +438,16 @@ generated status carries the same workflow when no semantic control exists. Mess
 metadata carries it beside the triggering message; thread cards do not repeat it as a
 colored edge. Quiet or ended work releases the control. Reduced motion suppresses arrival,
 and repainting or replacing a carrier cannot replay it.
+
+Each Thread's `unread` is the one reading of what the reader has not read. The
+Threads toggle's dot and label, the panel's **Unread** jump and per-thread counts, the
+**New since you last looked** boundaries, a margin entry's dot and its Page Map row
+all paint it, so they change together. The server counts a reply, reaction, widget
+answer, resolve, or reopen as reading what the thread held before it; the page adds
+exposure: a whole prose body shown in one surface, whatever its own scrollers still
+hold, since geometry cannot tell how much of a wide code line was read. An authored
+body with widgets is read by answering it or by **Mark thread read**. An edit is a new
+version and reads as unread again.
 
 Each Thread's canonical `attention` is its aggregate reader obligation or waiting
 workflow. A concrete reader Ask outranks concurrent agent work; that work remains the

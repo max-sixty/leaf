@@ -217,10 +217,16 @@ const readerAttention = (items) => {
   return first;
 };
 export const awaitingReader = (items) => Boolean(readerAttention(items));
+// Agent messages the reader has not taken in, across every conversation a reading
+// carries: each Thread's canonical `unread`, summed rather than re-derived.
+export const unreadIn = (items) =>
+  items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
 
 export function readingContext(choice) {
   const attention = readerAttention(choice?.items ?? []);
   if (attention) return attention.label;
+  const unread = unreadIn(choice?.items ?? []);
+  if (unread) return `${unread} unread`;
   if (choice?.items.length !== 1) return null;
   return choice.items[0].context ?? null;
 }

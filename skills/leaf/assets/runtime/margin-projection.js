@@ -339,7 +339,6 @@ export function createMarginProjection({
   preview.id = "lf-margin-preview";
   preview.setAttribute("popover", "auto");
   preview.setAttribute("role", "dialog");
-  const previewHead = el("div", "lf-margin-preview-head");
   const previewClose = el(
     "button",
     "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
@@ -362,9 +361,8 @@ export function createMarginProjection({
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
   previewNav.append(previewPrevious, previewPosition, previewNext);
-  previewHead.append(previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewList);
+  preview.append(previewList);
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the reader's place in it under the event id it is rendered with (reader-place.js).
   const previewPlace = placeKeeper(previewList, {
@@ -2113,7 +2111,6 @@ export function createMarginProjection({
     keeps(preview, "data-lf-thread", "");
     keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
-    previewHead.hidden = true;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
     previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;

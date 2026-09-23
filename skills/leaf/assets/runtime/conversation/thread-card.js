@@ -280,25 +280,13 @@ export class ThreadView {
           : [settlement];
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
-      if (
-        marginControls?.nav &&
-        marginControls.nav.parentNode !== this.#metadataActions
-      )
-        this.#metadataActions.prepend(marginControls.nav);
-      if (markRead && markRead.parentNode !== this.#metadataActions)
-        this.#metadataActions.insertBefore(
-          markRead,
-          settlement.parentNode === this.#metadataActions ? settlement : null,
-        );
-      if (settlement.parentNode !== this.#metadataActions)
-        this.#metadataActions.insertBefore(
-          settlement,
-          marginControls?.close.parentNode === this.#metadataActions
-            ? marginControls.close
-            : null,
-        );
-      if (marginControls && marginControls.close.parentNode !== this.#metadataActions)
-        this.#metadataActions.append(marginControls.close);
+      actions.forEach((control, index) => {
+        if (this.#metadataActions.children[index] !== control)
+          this.#metadataActions.insertBefore(
+            control,
+            this.#metadataActions.children[index] ?? null,
+          );
+      });
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);

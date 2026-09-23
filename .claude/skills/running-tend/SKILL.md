@@ -8,8 +8,9 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 ## Landing
 
 Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
-approval when it makes a modest change that fixes tests, the relevant checks
-pass, and the claimed fix is verified. This includes test-owned failures and
+approval when it makes a modest change that fixes tests, the relevant CI checks
+pass on the exact pull request head, and the claimed fix is verified by those
+checks. This includes test-owned failures and
 small product fixes needed to make the tests pass. Changes to workflows,
 Tend's configuration, CODEOWNERS, or agent instructions still require the
 control-plane owner's fresh approval under the repository ruleset.
@@ -87,10 +88,13 @@ to read.
 
 ## Review test selection
 
-Before approving a product change, choose and run the smallest test selection
-that exercises the failures the diff could introduce. Select from the product
-paths and contracts in the diff, not from the test files it happens to touch.
-The review selection supplements the everyday CI gate. A docs-only or
+Before approving a product change, choose the smallest test selection that
+exercises the failures the diff could introduce. Select from the product paths
+and contracts in the diff, not from the test files it happens to touch. Run it
+locally when the yolo sandbox has its dependencies. The sandbox lacks the system
+libraries for WebKit and cannot install them, so use the pull request's CI run
+for browser tests. Verify those tests passed on the exact head being approved;
+do not count an unrun local browser test as a pass. A docs-only or
 generated-workflow change may need no additional test; a selected failure
 withholds approval.
 
@@ -106,11 +110,12 @@ together.
 
 ## Reading a red suite
 
-Nearly every test drives a real browser, so the traceback can name a symptom
+Nearly every test drives a real browser, so the CI traceback can name a symptom
 several boundaries after its cause. Find the first violated contract, reproduce at
-the lowest boundary that preserves the failure, then determine whether the product,
-test, or execution environment owns it. Failure movement, determinism, and clustering
-can guide that search; none decides who owns the fix.
+the lowest boundary the yolo sandbox can run, then determine whether the product,
+test, or execution environment owns it. Push a browser fix to a pull request and
+use its CI run to verify the failing case on the new head. Failure movement,
+determinism, and clustering can guide that search; none decides who owns the fix.
 
 Two test-owned failures recur here:
 
@@ -134,10 +139,9 @@ Two test-owned failures recur here:
 
 ## Weekly: interface sweep
 
-Run `/ui-sweep` before dependency maintenance. This is the discovery pass for visual
-and interaction behavior the suite has no stated invariant for yet. Follow its
-**Reconcile** route: a reproduced defect becomes a tested repair, while a design
-judgment stays in the run report.
+The yolo sandbox cannot run `/ui-sweep`'s browser journey or install WebKit's
+system libraries. Survey source and CI evidence for interface defects; leave a
+visual or interaction claim unverified when it needs a live browser.
 
 ## Weekly: vendored browser dependencies
 
@@ -168,5 +172,5 @@ registry: rerunning them after an unrelated registry change is how the bundle
 and the lint stay unable to disagree. Pierre and Shiki must move together when
 their compatibility requires it.
 
-Run the suite afterwards. The browser tests load the bundles, so a bad rebuild
-surfaces there rather than in review.
+Verify the rebuilt bundle in the pull request's CI browser suite on the exact
+head. The browser tests load the bundles, so a bad rebuild surfaces there.

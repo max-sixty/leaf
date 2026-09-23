@@ -47,7 +47,7 @@
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
 import { under } from "./shadow.js";
-import { panelStandsOver } from "./conversation/panel-elements.js";
+import { panelEdgeOver } from "./conversation/panel-elements.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
@@ -107,14 +107,16 @@ export function createChromeLayout({
   // Whether the open panel hides a destination — an element or a range — on the page:
   // it covers the whole page, or it stands over most of the destination, more than half
   // its width. A block the width of the column keeps most of itself clear of the panel at
-  // a desktop window and is read where it stands; words at the right end of a line, or a
+  // a desktop window and is seen where it stands; words at the right end of a line, or a
   // box in the right margin, land under it. A destination inside the panel is the panel's
   // own to show. Travel that promises to show it closes the panel when this is true.
   const panelHides = (where) => {
     if (!panelIsOpen()) return false;
     const node = where instanceof Range ? where.startContainer : where;
     if (under(node, panel)) return false;
-    return panelCovers() || panelStandsOver(node, where.getBoundingClientRect());
+    if (panelCovers()) return true;
+    const rect = where.getBoundingClientRect();
+    return rect.right - Math.max(rect.left, panelEdgeOver(node)) > rect.width / 2;
   };
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads: the strip the page yields to a tray is the stylesheet's, and the strip

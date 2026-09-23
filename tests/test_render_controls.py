@@ -81,7 +81,6 @@ from render_harness import (
     REPLY_HOST_PAGE,
     SHELL_BOX,
     Traffic,
-    WatchedBrowser,
     _traffic,
     _until,
     consume_browser_errors,
@@ -4003,7 +4002,7 @@ CLASSIC_SCROLLBAR = """
 
 @pytest.mark.parametrize(("width", "covers"), [(730, True), (745, False)])
 def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
-    browser, _playwright, serve, width, covers
+    scrollbar_browser, serve, width, covers
 ):
     """The covering boundary locks the root's scroll, and a classic scrollbar leaves
     with the lock, widening the root's client box by the bar. Threads covers the page
@@ -4014,46 +4013,37 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
     already held (measured: it covered, and held the lock that made its own reading
     wrong). 730px covers on either reading. Each width is read across several syncs (a
     window resize runs one), and holds the one answer."""
-    shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
-    try:
-        context = WatchedBrowser(shown).new_context(
-            viewport={"width": width, "height": 700}
-        )
-        page = open_page(
-            browser,
-            serve(LONG_PAGE, comments=2),
-            context=context,
-            init_script=CLASSIC_SCROLLBAR,
-        )
-        bar = page.evaluate("() => innerWidth - document.documentElement.clientWidth")
-        assert bar == 15, (
-            f"the page drew no classic scrollbar, so nothing is proved: {bar}"
-        )
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        readings = []
-        for _ in range(4):
-            page.evaluate("() => dispatchEvent(new Event('resize'))")
-            page.evaluate(RENDERED)
-            readings.append(
-                page.evaluate(
-                    """() => ({
-                      modal: document.querySelector('.lf-thread-panel')
-                        .getAttribute('aria-modal') === 'true',
-                      inert: document.querySelector('main').inert,
-                      locked: getComputedStyle(document.scrollingElement).overflowY
-                        === 'hidden',
-                    })"""
-                )
+    context = scrollbar_browser.new_context(viewport={"width": width, "height": 700})
+    page = open_page(
+        scrollbar_browser,
+        serve(LONG_PAGE, comments=2),
+        context=context,
+        init_script=CLASSIC_SCROLLBAR,
+    )
+    bar = page.evaluate("() => innerWidth - document.documentElement.clientWidth")
+    assert bar == 15, f"the page drew no classic scrollbar, so nothing is proved: {bar}"
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    readings = []
+    for _ in range(4):
+        page.evaluate("() => dispatchEvent(new Event('resize'))")
+        page.evaluate(RENDERED)
+        readings.append(
+            page.evaluate(
+                """() => ({
+                  modal: document.querySelector('.lf-thread-panel')
+                    .getAttribute('aria-modal') === 'true',
+                  inert: document.querySelector('main').inert,
+                  locked: getComputedStyle(document.scrollingElement).overflowY
+                    === 'hidden',
+                })"""
             )
-        held = {"modal": covers, "inert": covers, "locked": covers}
-        assert readings == [held] * 4, (
-            f"the covering boundary at {width}px did not hold one answer across its "
-            f"lock: {readings}"
         )
-        context.close()
-    finally:
-        shown.close()
+    held = {"modal": covers, "inert": covers, "locked": covers}
+    assert readings == [held] * 4, (
+        f"the covering boundary at {width}px did not hold one answer across its "
+        f"lock: {readings}"
+    )
 
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):

@@ -107,6 +107,11 @@ function actionPhrase(event) {
       widget: event.widget,
     };
   if (record?.kind === "body") return { what: "edited", widget: event.widget };
+  if (state?.creates)
+    return {
+      what: `added ${quoted(detail[state.creates.words])} to`,
+      widget: event.widget,
+    };
   return { what: `recorded ${quoted(event.action)} on`, widget: event.widget };
 }
 

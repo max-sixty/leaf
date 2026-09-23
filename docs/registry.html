@@ -153,6 +153,7 @@
           <a href="#x-shadow"><code>x-shadow</code></a>
           <a href="#x-space"><code>x-space</code></a>
           <a href="#x-state"><code>x-state</code></a>
+          <a href="#x-text-format"><code>x-text-format</code></a>
           <a href="#x-thread-surface"><code>x-thread-surface</code></a>
           <a href="#x-tone"><code>x-tone</code></a>
           <a href="#x-upgrade"><code>x-upgrade</code></a>
@@ -721,6 +722,24 @@
                   resolve uniquely in the sending source document. Ids and structural
                   anchors become direct dependencies. The facet, unit, requires,
                   creates, and record forms are $state's.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-text-format">
+            <h3><code>x-text-format</code></h3>
+            <div class="reference-copy">
+              <p>Inline Markdown in this element's direct text nodes.</p>
+              <details class="reference-more">
+                <summary aria-label="Full x-text-format contract">
+                  Full contract
+                </summary>
+                <p>
+                  Its existing element children remain HTML. The browser formats those
+                  words with the shared safe Markdown parser, while file-side passage
+                  and revision readings use the same visible words. A generated child
+                  with this declaration interprets the reader's line breaks as hard
+                  breaks; source HTML line wraps remain ordinary whitespace.
                 </p>
               </details>
             </div>

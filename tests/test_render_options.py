@@ -364,6 +364,61 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     round_trip(page)
 
 
+def test_option_words_render_markdown_without_losing_the_reader_draft(browser, serve):
+    source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    assert render_gate_model.render_version(browser, url) == []
+    page = open_page(browser, url)
+    authored = page.locator("#job-mounts")
+    expect(authored.locator(":scope > .lf-option-words em")).to_have_text("widget")
+    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
+        "aria-label", re.compile(r"Ask the widget to decide — option 1")
+    )
+
+    group = page.locator("#jobs")
+    group.get_by_role("textbox", name="Another option").fill("Keep **both** routes")
+    group.get_by_role("button", name="Add and select option").click()
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    expect(added.locator("strong")).to_have_text("both")
+    round_trip(page)
+    page.reload(wait_until="load")
+    expect(added.locator("strong")).to_have_text("both")
+
+    group.locator("#job-heater").click()
+    round_trip(page)
+    choices = [
+        event["detail"]
+        for event in sent_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("widget") == "jobs"
+    ]
+    assert choices[-1]["additions"][added.get_attribute("id")] == "Keep **both** routes"
+
+
+def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
+    source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    expect(page.locator("#job-mounts em")).to_have_text("widget")
+
+    stamp_page(
+        serve.page_dir,
+        source.replace("Neither — the camera first", "Neither — fix the camera first"),
+        "two",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
+    )
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
+    ) == ["job-camera"]
+
+
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
@@ -534,7 +589,8 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("ControlOrMeta+Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
-    expect(added).to_have_css("white-space", "pre-wrap")
+    expect(added.locator(".lf-option-words")).to_have_css("white-space", "normal")
+    expect(added.locator("br")).to_have_count(2)
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))

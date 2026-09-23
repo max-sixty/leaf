@@ -1,10 +1,13 @@
 """Text-passage readings of authored HTML."""
 
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
+from urllib.parse import urlsplit
 
 import turbohtml
+from markdown_it import MarkdownIt
 
 from .files import latest_revision
 from .structure import VOID_TAGS, SourceDocument, parse_revision
@@ -69,6 +72,44 @@ COLLAPSE_CHARS = frozenset(
     "\u2028\u2029\u202f\u205f\u3000\ufeff"
 )
 COLLAPSE = re.compile("[" + re.escape("".join(sorted(COLLAPSE_CHARS))) + "]+")
+
+
+class _RenderedInlineWords(HTMLParser):
+    """Read the text of inline Markdown as the browser DOM does."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+
+    def handle_data(self, data):
+        self.parts.append(data)
+
+    def handle_starttag(self, tag, attrs):
+        # The browser's renderer leaves the alt word where an image URL is refused.
+        if tag == "img":
+            image = dict(attrs)
+            if urlsplit(image.get("src", "")).scheme not in (
+                "",
+                "http",
+                "https",
+                "mailto",
+            ):
+                self.parts.append(image.get("alt", ""))
+
+
+_inline_markdown = MarkdownIt("default", {"html": False})
+_added_inline_markdown = MarkdownIt("default", {"html": False, "breaks": True})
+# The browser accepts syntax first, then removes unsafe link destinations while
+# retaining their label. Parse those links here too, where only visible text is read.
+_inline_markdown.validateLink = lambda _url: True
+_added_inline_markdown.validateLink = lambda _url: True
+
+
+def inline_markdown_words(source: str, *, added: bool = False) -> str:
+    reader = _RenderedInlineWords()
+    parser = _added_inline_markdown if added else _inline_markdown
+    reader.feed(parser.renderInline(source))
+    return "".join(reader.parts)
 
 
 def collapse(text: str) -> str:
@@ -264,7 +305,9 @@ class _PassageParser:
             # ancestry, retirement, text blocks, and widget fences stay shared.
             self.stack.append(frame)
             for child in additions:
-                self.handle_starttag(child["tag"], [("id", child["id"])])
+                self.handle_starttag(
+                    child["tag"], [("id", child["id"]), ("data-lf-added", "")]
+                )
                 self.handle_data(child["text"])
                 self.handle_endtag(child["tag"])
             self.stack.pop()
@@ -370,6 +413,7 @@ class _PassageParser:
         frame = {
             "tag": tag,
             "id": attrs_d.get("id"),
+            "added": "data-lf-added" in attrs_d,
             "ids": ids,
             "skip": silenced
             or sub is not None
@@ -416,6 +460,11 @@ class _PassageParser:
         frame = self.stack[-1] if self.stack else None
         if not frame:
             return
+        if (
+            self.registry.get(frame["tag"], {}).get("x-text-format")
+            == "inline-markdown"
+        ):
+            data = inline_markdown_words(data, added=frame["added"])
         if not frame["skip"]:
             self._write(data, frame["block"], frame["ids"])
         elif frame["shows"]:

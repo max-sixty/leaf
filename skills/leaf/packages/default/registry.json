@@ -259,7 +259,7 @@
     "x-example": "<lf-ask id=\"run-status-decision\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\" choose>\n    <lf-option id=\"rs-column\">\n      <lf-chip>effort: low</lf-chip><lf-chip tone=\"warn\">risk: med</lf-chip><lf-chip tone=\"ok\">recommended</lf-chip>\n      <strong>Status on the run list</strong> One join; failures are visible without a click.\n    </lf-option>\n    <lf-option id=\"rs-leave\">\n      <lf-chip>effort: none</lf-chip><lf-chip tone=\"ok\">risk: low</lf-chip>\n      <strong>Leave the list alone</strong> No work; failures stay one click away.\n    </lf-option>\n  </lf-options>\n</lf-ask>"
   },
   "lf-option": {
-    "description": "One alternative in a decision. Default to a <strong> title and one sentence naming the consequence. When comparison facts help, show the same two or three chips across its siblings. Keep decision-relevant evidence or a preview inside the option, but add a fact rail, paragraphs, or a nested visual only when the choice cannot be made from that compact face. A short label alone renders as a compact row for an alternative that needs no case beyond the label. `for` may point that row at an existing section or work item only when the target remains useful independently of this decision; it never supplies the row's words. `chosen` records the reader's pick in authored state. An ordinary chip such as `<lf-chip tone=\"ok\">recommended</lf-chip>` may mark the author's preferred option; write it after the comparison chips and keep the reason as ordinary prose in that option. Rewriting a picked option needs `restated`; the other options may change freely.",
+    "description": "One alternative in a decision. Direct prose text uses inline Markdown; element children remain HTML. Default to a <strong> title and one sentence naming the consequence. When comparison facts help, show the same two or three chips across its siblings. Keep decision-relevant evidence or a preview inside the option, but add a fact rail, paragraphs, or a nested visual only when the choice cannot be made from that compact face. A short label alone renders as a compact row for an alternative that needs no case beyond the label. `for` may point that row at an existing section or work item only when the target remains useful independently of this decision; it never supplies the row's words. `chosen` records the reader's pick in authored state. An ordinary chip such as `<lf-chip tone=\"ok\">recommended</lf-chip>` may mark the author's preferred option; write it after the comparison chips and keep the reason as ordinary prose in that option. Rewriting a picked option needs `restated`; the other options may change freely.",
     "type": "object",
     "properties": {
       "id": {
@@ -285,6 +285,7 @@
       "lf-options"
     ],
     "x-content": "markup",
+    "x-text-format": "inline-markdown",
     "x-refers": {
       "for": {}
     },

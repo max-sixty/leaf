@@ -529,7 +529,8 @@ export function segmentsIn(range) {
 // whitespace is elastic to findQuote, so nothing downstream depends on this.
 // The block a node reads as part of, and null where it belongs to no block of its own —
 // which is a different answer from "its parent", and the two callers want different ones.
-export const blockAt = (node) => closestAcross(node, TEXT_BLOCK);
+export const blockAt = (node) =>
+  closestAcross(node, `${TEXT_BLOCK},[data-lf-markdown-words]`);
 export const blockOf = (node) => blockAt(node) ?? upFrom(node);
 // One collapse class, stated outright and spelled to the same set passages.py's
 // COLLAPSE_CHARS enumerates: JS's \s and Python's str.isspace() disagree at the

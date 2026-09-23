@@ -44,7 +44,12 @@ export {
   presentMarginEntry,
   registerMarginContribution,
 } from "./margin-entries.js";
-export { loadMarkdown, renderMarkdown } from "./markdown.js";
+export {
+  loadMarkdown,
+  markdownReady,
+  renderInlineMarkdown,
+  renderMarkdown,
+} from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { pageScroller } from "./scrolling.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";

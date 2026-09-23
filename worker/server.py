@@ -154,7 +154,8 @@ Reader input arrives inline as a structured `leaf_delivery` tool output or as a
 `leaf-delivery` pointer. Read a pointer with `$LEAF delivery read ID`, using its
 exact id. The host confirms receipt; no work claim is required. For every delivered
 event, read its `handling` clause ids in order from that batch's `handling` object
-and follow those instructions and `obligation.response`.
+and follow those instructions and `obligation.response`. Name a conversation you open
+with `$LEAF conversation title . CONVERSATION_ID --text "<a few words>"`.
 
 Each App Server delivery contains at most one response whose kind is `reply`.
 The normal final message is that reply's only writer: the host binds its destination

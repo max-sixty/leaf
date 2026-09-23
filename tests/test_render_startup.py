@@ -5,7 +5,7 @@ import json
 import os
 import re
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import pytest
 from click.testing import CliRunner
@@ -4349,6 +4349,96 @@ def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
     page.wait_for_function("() => window.lfOldDataReleased === true")
     told(page)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+
+
+# The page's one read slot bounds the network, not the application: `askOnce` releases
+# the slot as soon as a body is in hand and lets that reading apply on its own. Answering
+# the trailing read from a queue the test filled first is what puts the next reading in
+# the page while the previous one is still being applied, rather than waiting for a
+# loaded machine to produce that overlap.
+QUEUED_STATE_READS = """() => {
+  window.__leafStateReads = [];
+  window.__leafStateAsks = 0;
+  const native = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const input = args[0];
+    const url = typeof input === 'string' ? input : input.url;
+    if (new URL(url, location.href).pathname !== '/api/state') return native(...args);
+    window.__leafStateAsks += 1;
+    while (!window.__leafStateReads.length)
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    const [body, headers] = window.__leafStateReads.shift();
+    return new Response(body, {status: 200, headers});
+  };
+}"""
+
+
+def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
+    browser, serve
+):
+    """A source revision is a digest, so a source can return to the one on screen.
+
+    Two readings reach the page while the first is still being applied: the source moved
+    away and then back. The delivery staged for the first names a revision the page no
+    longer holds, and the reading behind it names the revision the page is already
+    showing, so nothing but the newer publication says which of them to paint.
+    """
+    url = serve(
+        leaf_page(
+            "returning source",
+            '<h1>Notes</h1><lf-text-document id="notes" source="notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page = open_page(browser, url)
+    expect(page.locator("#notes code")).to_have_text("First.\n")
+    told(page)
+    page.evaluate(QUEUED_STATE_READS)
+
+    # The reading that moves the source also brings a message, so applying it has
+    # document work to finish; the reading behind it lands while that work is unfinished.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "arriving",
+            "author": "agent",
+            "revision": 1,
+            "text": "A message arriving with the reading.",
+        },
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    away = page.request.get(urljoin(page.url, "/api/state"))
+    # The page is inside that read before the source returns, so the reading it takes is
+    # the one that moved the source and the trailing read is answered at once.
+    page.wait_for_function("() => window.__leafStateAsks >= 1")
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    back = page.request.get(urljoin(page.url, "/api/state"))
+    assert away.json()["data"]["version"] != back.json()["data"]["version"]
+    page.evaluate(
+        "readings => window.__leafStateReads.push(...readings)",
+        [
+            [
+                response.text(),
+                {
+                    name: value
+                    for name, value in response.headers.items()
+                    if name not in ("content-length", "content-encoding")
+                },
+            ]
+            for response in (away, back)
+        ],
+    )
+
+    # The page accepted the reading that returned the source, so it is waiting on none;
+    # what it shows is that reading's value rather than the one it overtook.
+    page.wait_for_function(
+        "taken => Number(document.body.dataset.lfDataTaken) >= taken",
+        arg=back.json()["taken"],
+    )
+    expect(page.locator("#notes code")).to_have_text("First.\n")
+    expect(page.locator(".lf-thread", has_text="A message arriving")).to_have_count(1)
 
 
 def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):

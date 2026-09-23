@@ -4581,10 +4581,13 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         if c.get("when") == {"required": ["drawing"]}
     ]
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
-    # A drawn comment is told how to read its drawing, then all a plain one is told.
-    # The comment's own clauses, then how to write the reply it owes.
+    # A message is told to acknowledge before anything else, then its own clauses,
+    # then how to write the reply it owes.
+    assert plain[0].startswith("Acknowledge this delivery before anything else")
     assert plain[-len(replying) :] == replying
-    assert drawn == [reading_a_drawing, *plain]
+    # A drawn comment is told everything a plain one is, and how to read its drawing.
+    assert reading_a_drawing in drawn
+    assert [clause for clause in drawn if clause != reading_a_drawing] == plain
     # A thread the reader closed before capture owes nothing, so it is told nothing
     # about answering.
     assert not set(replying) & set(closed)

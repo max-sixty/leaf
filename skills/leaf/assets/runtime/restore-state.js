@@ -1,4 +1,4 @@
-/* `READER_VIEW_RESTORE_CASES` declares each stored runtime arrangement the render suite must visit,
+/* `USER_VIEW_RESTORE_CASES` declares each stored runtime arrangement the render suite must visit,
    and supplies one for each persisted tray. Add a new remembered surface here when the
    surface is introduced.
 
@@ -11,45 +11,45 @@
    stored fact each rather than the combinations of them: what a finding has to name is
    the restore that broke, and the geometry the combinations would add is measured on
    the first visit already. */
-import { readerStore, tabStore } from "./storage.js";
+import { userStore, tabStore } from "./storage.js";
 import { AUXILIARY_SURFACE_KEY } from "./auxiliary-surfaces.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
 import { removeRuntimeRootStyle } from "./root-state.js";
 
-export const READER_VIEW_RESTORE_CASES = [
+export const USER_VIEW_RESTORE_CASES = [
   {
     name: "the thread panel open",
-    ...readerStore.where(AUXILIARY_SURFACE_KEY),
+    ...userStore.where(AUXILIARY_SURFACE_KEY),
     value: "threads",
   },
   {
-    name: "the thread panel at the width the reader drew it to",
-    ...readerStore.where("lf-thread-panel-width"),
+    name: "the thread panel at the width the user drew it to",
+    ...userStore.where("lf-thread-panel-width"),
     value: "560",
   },
   {
-    name: "the tray panel at the width the reader drew it to",
-    ...readerStore.where("lf-tray-slot-width"),
+    name: "the tray panel at the width the user drew it to",
+    ...userStore.where("lf-tray-slot-width"),
     value: "260",
   },
   ...["leaves", "asks"].map((tray) => ({
     name: `the ${tray} tray standing`,
-    ...readerStore.where(AUXILIARY_SURFACE_KEY),
+    ...userStore.where(AUXILIARY_SURFACE_KEY),
     value: tray,
   })),
   { name: "design mode on", ...tabStore.where(DESIGN_MODE_KEY), value: "1" },
 ];
 
-// The chrome put back the way this reader left it, before the page is presented: the
+// The chrome put back the way this user left it, before the page is presented: the
 // widths first, so a panel or tray put back open is open at the width they left it at
 // rather than sliding to it afterwards.
-export function restoreReaderView({
+export function restoreUserView({
   commentsEdge,
   traysEdge,
   restoreAuxiliarySurface,
   setDesignMode,
 }) {
-  // The widths first, so a panel or a tray put back open is open at the width the reader
+  // The widths first, so a panel or a tray put back open is open at the width the user
   // left it at rather than sliding to it afterwards.
   commentsEdge.restore();
   traysEdge.restore();

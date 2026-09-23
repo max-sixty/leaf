@@ -1,8 +1,8 @@
-/* The marks the runtime paints on the reader's words, and the one element paint from
+/* The marks the runtime paints on the user's words, and the one element paint from
    the same pass. Stated once and adopted twice: by the document (leaf.js) and by every
    shadow root a widget renders into (shadow.js, shadowStage). A rule in the document
    styles no glyph inside a shadow tree, so a widget that renders the page's words into
-   one (x-shadow) would otherwise show words the reader can select and no mark could
+   one (x-shadow) would otherwise show words the user can select and no mark could
    ever paint. Two copies of these declarations would be two chances for a mark to mean
    one thing in the document and another inside a diff, which is why this is a file
    both import rather than a block each spells.
@@ -16,16 +16,16 @@
    stays solid so the annotation reads as one continuous contour.
 
    The wash and the ink answer two questions, so they are moved by two things. The wash
-   says how near the reader's attention is, in three steps of one hue: --mark for a mark
+   says how near the user's attention is, in three steps of one hue: --mark for a mark
    the page merely holds, --mark-hover for the one the pointer is indicating, and
-   --mark-strong for the one the reader is standing in. The ink turns accent for hover
+   --mark-strong for the one the user is standing in. The ink turns accent for hover
    and standing: the wash still distinguishes "near here" from "you are here," while the
    shared contour stays stable through the focus transition of a pointer press.
 
-   Three steps and not two, because the hover is no longer a thing the reader does only by
+   Three steps and not two, because the hover is no longer a thing the user does only by
    pointing at the prose. A card in the panel indicates its thread the same way (paintHover
    reads both surfaces), and the pointer is over the panel by construction in the moment
-   after a reader presses a card — so a hover sharing the standing wash left the two lit
+   after a user presses a card — so a hover sharing the standing wash left the two lit
    identically whenever a hand rested where it had just clicked, with a 2px underline hue
    the only thing between them and, on a page of one mark, nothing to compare it against.
 
@@ -41,7 +41,7 @@
    Every name here carries an ink line, and the wash alone is never the mark. The washes
    are what the hue affords rather than what a floor asks: --mark composites to 1.13:1
    over the light paper and 1.34:1 over the dark, and --dfd1ed cannot reach 1.5:1 against
-   --paper at any alpha at all — opaque it stands at 1.38:1. So what the reader sees a
+   --paper at any alpha at all — opaque it stands at 1.38:1. So what the user sees a
    mark by is the line, at 9.0:1 light and 6.2:1 dark, exactly as the element anchors
    next door are seen by their complete contour (.lf-mark-el, chrome.css). The wash then
    only has to separate one mark from another, which is a job it can do at 1.1:1.

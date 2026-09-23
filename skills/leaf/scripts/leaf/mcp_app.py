@@ -130,7 +130,7 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
             content=[
                 TextContent(
                     type="text",
-                    text="A Leaf reader event needs a stable non-empty attempt id.",
+                    text="A Leaf user event needs a stable non-empty attempt id.",
                 )
             ],
             structuredContent={"ok": False, "status": 400},
@@ -151,7 +151,7 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
             content=[
                 TextContent(
                     type="text",
-                    text=f"Leaf refused the reader event: {answer.get('error', 'invalid event')}",
+                    text=f"Leaf refused the user event: {answer.get('error', 'invalid event')}",
                 )
             ],
             structuredContent={"ok": False, "status": status, **answer},
@@ -168,7 +168,7 @@ def apply_event(page: str, event: dict, view_revision: int | None) -> CallToolRe
     )
     result = result_for_page(
         str(page_dir),
-        message="Leaf durably recorded the reader event.",
+        message="Leaf durably recorded the user event.",
     )
     result.structured_content["accepted"] = receipt
     result.structured_content["ok"] = True

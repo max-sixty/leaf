@@ -151,7 +151,7 @@ export async function highlightBlocks(root) {
   for (const code of found) {
     const lang = code.className.match(LANGUAGE_CLASS)?.[1];
     // A block already tokenized for this language keeps its spans: a live revision
-    // that rewrote an ancestor's attribute dresses the ancestor again, and the reader
+    // that rewrote an ancestor's attribute dresses the ancestor again, and the user
     // may be holding a selection in the block beneath it.
     if (lang && code.dataset.lfSyntax !== lang) blocks.push([code, lang]);
   }

@@ -8,7 +8,7 @@
  * The body is the data rather than a chart spec. An author writes the numbers once, in the
  * order they think in, and says separately which picture they are (`kind`). It is the shape
  * an author is least able to get wrong — a header row naming the x column and then one
- * column per series, and under it one row per x value — and it is the one a reader can
+ * column per series, and under it one row per x value — and it is the one a user can
  * check against the prose beside it, which a spec's nested objects are not.
  *
  * Colour is CSS and never JavaScript. Every mark Plot draws takes `currentColor` unless a
@@ -19,7 +19,7 @@
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
- * it instead of loading in front of a reader who never opens that panel. */
+ * it instead of loading in front of a user who never opens that panel. */
 import {
   dataBody,
   failSoft,
@@ -107,7 +107,7 @@ function readTable(text) {
 /* What the x column is, which the column itself answers: every value a calendar date, or
  * every value a number, or neither — and neither is a category. Dates are read into UTC
  * from their own parts rather than through Date's string parsing, which reads a bare
- * `2026-06-01` as UTC midnight and then draws it under May 31 for a reader west of
+ * `2026-06-01` as UTC midnight and then draws it under May 31 for a user west of
  * Greenwich. A UTC scale keeps the axis saying what the body says.
  *
  * Only a line and a scatter ask. A bar chart's x is one slot per row by construction, so
@@ -149,13 +149,13 @@ function clip(label, room, font) {
 
 /* Bars are placed rather than dodged. Plot's own answer for a grouped bar chart is to
  * facet the x, which draws a frame per group and breaks the gridlines into one run per
- * group — five short rules at each tick where the reader is trying to carry one across
+ * group — five short rules at each tick where the user is trying to carry one across
  * the chart. So the band stays whole and each series takes its own slice of it, which is
  * the same arithmetic a facet would do, done where the numbers are already known.
  *
  * It also puts the bar's thickness under this file's control, and a bar wants a cap. At
  * four categories across a column the band is a third of the chart and a bar filling it
- * is a block of colour: what the reader compares is length, and past about this width the
+ * is a block of colour: what the user compares is length, and past about this width the
  * area starts doing the talking instead. Every kind that draws a bar shares the reading,
  * so a row chart and a column chart of the same numbers are the same weight of ink. */
 const GAP = 2; // between the bars of one group, and Plot's own inset from the band edge
@@ -208,7 +208,7 @@ const spread = (values) => {
 /* Where the ticks of a time axis go. Plot chooses an interval from the extent alone, and
  * over four days it chooses hours: a chart of four daily totals came out under eight ticks
  * reading 12 AM and 12 PM, naming instants the body never mentions. A short run says its
- * own ticks — the reader's dates, and no others — and a long one keeps Plot's choosing
+ * own ticks — the user's dates, and no others — and a long one keeps Plot's choosing
  * while being held to a day at the finest. */
 function timeTicks(values) {
   if (values.length <= 10) return values;
@@ -485,7 +485,7 @@ function legend(series) {
   return keys;
 }
 
-/* What a reader who cannot see the drawing is given in its place. The numbers, not a
+/* What a user who cannot see the drawing is given in its place. The numbers, not a
  * summary of them: the body they came from is the widget's own <pre>, which the module
  * has already replaced, so this label is the only place they still exist as words. */
 const chartLabel = (el, { xName, labels, series }) =>
@@ -523,7 +523,7 @@ customElements.define(
     async draw() {
       // Inside the try with everything else: dataBody reaches for a <pre> both markup
       // doors require, and an authored document hand-edited past them threw out of here instead
-      // of failing soft, leaving the reader the body's raw text and no error at all.
+      // of failing soft, leaving the user the body's raw text and no error at all.
       let source = "";
       try {
         source = dataBody(this).trim();
@@ -534,7 +534,7 @@ customElements.define(
         // in. A redraw replaces what is in that box and nothing else, because by then the
         // runtime may have hung its own words on the widget — the line saying a comment
         // stands on this chart is a child of the element, and replacing the element's
-        // children took it away at the moment the reader opened the panel to read it.
+        // children took it away at the moment the user opened the panel to read it.
         this.drawing = document.createElement("div");
         this.drawing.className = "lf-chart-drawing";
         this.replaceChildren(
@@ -610,11 +610,11 @@ customElements.define(
       if (Object.values(over).some((px) => px > 0.5))
         built = this.show(Plot, spec, over);
       // The drawing is one picture and takes a whole-widget comment through x-visual, so
-      // nothing inside it needs to be reachable on its own; the label is what a reader
+      // nothing inside it needs to be reachable on its own; the label is what a user
       // hears in its place. `role="img"` closes the tree under it, and Plot has named
       // every group inside — `aria-label="bar"`, `"rule"`, `"x-axis tick label"` — on
       // `<g>` elements carrying no role, which axe reports as a serious WCAG failure and
-      // which name nothing a reader of the label needs. Swept rather than refused per
+      // which name nothing a user of the label needs. Swept rather than refused per
       // mark, because the axis and rule groups are Plot's own and take no options here.
       // Kept as data, because what Plot calls each group is the only thing that names one:
       // it is how a test asks for the x axis's words and how anyone reading the drawing in

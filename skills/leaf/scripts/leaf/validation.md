@@ -24,7 +24,7 @@ declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a comment
 in the document's reference namespace); ids are unique, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
-not, and ids needed by anchored unresolved threads, standing reader actions, or
+not, and ids needed by anchored unresolved threads, standing user actions, or
 effective standing reports survive from the previous revision. A
 declared visual part survives on the same terms as an id: while a live
 conversation's current anchor names it, and no longer once every thread on it
@@ -71,7 +71,7 @@ executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with) and the
 render invariants the static lint cannot reach run against it in both color schemes:
 no console or page errors and no fail-soft box; every widget upgraded, painted with
-values that resolve, and given real space; words a reader can mark, reach, and
+values that resolve, and given real space; words a user can mark, reach, and
 select, with the registry's verbatim and shadow declarations honored; no sideways
 scroll, clipped control, squeezed table, trapped margin, or misplaced box; a print
 rendering that covers and drops nothing; and standing state that replays without
@@ -86,7 +86,7 @@ Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` whe
 set. Driver startup failures report the cause, the Node executable, and that
 variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 
-The browser's authored-state conflict check considers only surviving reader actions
+The browser's authored-state conflict check considers only surviving user actions
 made before the revision being checked. Actions made on that revision already saw
 its markup. After the observational probes, the complete-state renderer shows the
 authored baseline and the carried decisions, then restores current state. The gate
@@ -129,8 +129,8 @@ later in the user's browser. Anchor on an opaque widget's element instead
 The render gate pairs each preserving owner with the file by its source and
 document-order occurrence, captured before upgrade. Page markup and each frozen thread
 event are separate sources, so this pairing does not require authored ids. It compares
-the rendered owner with the same projected passage a reader can point at: standing
-reader body rewrites replace authored words, retired slots contribute none, and
+the rendered owner with the same projected passage a user can point at: standing
+user body rewrites replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
 authored version and uses the conversation's whole action window.

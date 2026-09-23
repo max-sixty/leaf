@@ -14,11 +14,11 @@ leaf server start <page>
 It prints the page's keyed URL on stdout and returns. Hand that exact string
 back. `leaf server run` prints the same URL but never exits, so nothing it says
 reaches you and there is no turn to end. `references/serving-pages.md` owns the
-key, the address it binds, and a URL the reader cannot reach.
+key, the address it binds, and a URL the user cannot reach.
 
 ## Wait loop
 
-New reader input reaches you only between your own operations, at the next tool
+New user input reaches you only between your own operations, at the next tool
 result.
 
 One unnamed `leaf wait` watches every page the host session owns. It prints one
@@ -47,24 +47,24 @@ another session.
 
 ## Session list
 
-Claude Code's session list (`claude agents`) groups a background session by how
-its last chat message ends. When a turn ends waiting on something only the user
-can give, whether an answer on the page or a decision about other work, end the
-reply with a `needs input:` line stating it, so the list groups the session with
-those waiting on the user rather than those working. The list reads the line
-only when it stands on its own outside a code block, its ask runs 200 characters
-or fewer, and no more than two paragraphs or about 800 characters follow it.
-
-The line moves only the group. The row's own status word reads Working for as
-long as a background task runs, `leaf wait` included, and no reply text changes
-it.
+Claude Code's session list (`claude agents`) shows a background session as
+Working for as long as a background task runs, `leaf wait` included; Claude Code
+checks for a running task before anything else, and no reply text changes that
+word. It groups the session separately, by the closing line of its last chat
+message, and that grouping ignores background tasks: a `needs input:` line files
+the session under Needs input and a `result:` line under Completed. A reply with
+neither is left to Claude Code's classifier, which reads a closing like "the
+watcher will pick up new comments" as work in progress, so a session waiting on
+its page stays under Working. Each time a `leaf wait` starts, Leaf's
+`PostToolUse` hook adds guidance on that ending to the command's result
+(`hooks/wait-started.json`), so it sits beside the reply that closes the turn.
 
 ## Subagents
 
 A subagent runs with this session's id and process, and nothing in its
 environment tells Leaf otherwise, so to Leaf it is this session. A page it
 claims, by serving it or naming it to `leaf wait`, is this session's, and this
-session's Stop hook holds its turns open for every reader move there. A
+session's Stop hook holds its turns open for every user move there. A
 `leaf wait` it starts competes for this session's one watcher: it is refused
 while yours runs, and otherwise takes the batches from every page you hold into
 the subagent's context instead of yours. That is why the page stays with you

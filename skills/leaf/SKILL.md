@@ -1,6 +1,6 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes user input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” building a playground, explorer, simulator, or interactive tool, work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
@@ -12,7 +12,7 @@ while they do. A page is a directory: the mutable `index.html` you write, the
 immutable revision each valid save becomes, the append-only event log, service
 state, and the vendored layer that draws it. A stamp names a revision as a public
 version. You write the page, check it, hand its URL over with a status saying
-what you want back, and wait. Each reader move comes back to you as a delivery;
+what you want back, and wait. Each user move comes back to you as a delivery;
 you answer it on the page and in its thread, stamp checkpoints, and idle the page
 when it is finished.
 
@@ -40,7 +40,7 @@ directory explicitly; export or copy anything that must outlive the page directo
    optional vocabulary or guidance, as in
    `leaf page init --package diagram --package diff <page>`. "Package reach" in
    `references/packages.md` lists the optional packages and what each adds;
-   `playground` fits whenever the reader compares or tunes several values or
+   `playground` fits whenever the user compares or tunes several values or
    behaviors. Re-running
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
@@ -61,13 +61,16 @@ directory explicitly; export or copy anything that must outlive the page directo
    is a record whatever else it looks like, since sign-off is offered only on a
    stamped version. A later stamp that turns a quick page into a record takes
    that review first.
-4. Read `references/conversation-loop.md` and exactly one host contract,
-   `references/host-claude-code.md` or `references/host-codex.md`. Set the
+4. Read `references/conversation-loop.md` and exactly one host contract:
+   `references/host-claude-code.md` in Claude Code; in Codex,
+   `references/host-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the
+   user gave you the task's App Server endpoint, and `references/host-codex.md`
+   otherwise. Set the
    page's status as the conversation reference defines, hand over by the host's
-   route, name the gesture available to the reader, and finish the turn with the
+   route, name the gesture available to the user, and finish the turn with the
    exact URL, or with what the host contract hands over instead.
 5. When a delivery arrives, read `references/event-batches.md`, the host
-   contract, and, for reader messages,
+   contract, and, for user messages,
    `references/conversation-threads.md`, and answer every event as they say.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
@@ -76,7 +79,7 @@ interim updates and questions included.
 
 ## Page contract
 
-Using Leaf should feel like playing a game: the reader sees what the page wants
+Using Leaf should feel like playing a game: the user sees what the page wants
 of them without reading it first, every state they reach offers a move, and a
 move the page can draw shows its result at once. Sometimes the game is Snap,
 where the match is there and they pick it; sometimes it is Factorio, where the
@@ -84,23 +87,23 @@ system is laid out and they move its pieces. It is never a chore.
 
 Unless the user specifies the page's form or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
-state, or offers one move, so the reader can grasp it at a glance and continue;
+state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
 The visible page follows the subject's shape, whether a scrolling document or a
 workspace; `references/page-authoring.md` owns the concrete choices, and
 `references/authoring-asks.md` owns where each Ask goes.
 
 The page contract and widget capabilities are choices, not a checklist. Include
-only controls and gestures whose results advance the reader's task. A widget
+only controls and gestures whose results advance the user's task. A widget
 move, a resolution and a sign-off can be taken back; words and requests stand.
 
-## Keep the reader current
+## Keep the user current
 
 By default, the document is the shared canvas and current record for the subject.
-Whenever the reader returns to it, it is the page you would write today from what
+Whenever the user returns to it, it is the page you would write today from what
 you now know. Its title, lede, and headings state what is true now, and open work
 and open questions stand in the column while finished work sits collapsed after
-them. A reader finds each outcome in the relevant page section without
+them. A user finds each outcome in the relevant page section without
 reconstructing a thread or chat. The banner says what you are doing now; threads
 carry discussion and rationale.
 
@@ -113,8 +116,8 @@ everything around it as it was written before the change.
 retell it: correct a wrong figure in place and drop a superseded claim. Save
 freely as the subject changes and stamp meaningful checkpoints.
 
-While a page is live, telling its reader what you are doing takes priority over doing
-it, as a UI thread handles input before background work. When reader input arrives,
+While a page is live, telling its user what you are doing takes priority over doing
+it, as a UI thread handles input before background work. When user input arrives,
 acknowledge it first and reply to it next, before any other work, including the work it
 asks for. Put each step on the page before starting it. Keep the watcher running, and
 hand work longer than a few minutes to background workers
@@ -144,7 +147,7 @@ so a phase does not depend on discovering a chain of references.
 - `references/authoring-asks.md`: while authoring a new, unanswered ask or
   sign-off.
 - `references/authoring-revisions.md`: before changing a handed-over page,
-  proposing a rewrite, using a reader-owned draft, or revising standing state.
+  proposing a rewrite, using a user-owned draft, or revising standing state.
 - `references/authoring-evidence.md`: before using measured facts, diagrams,
   charts, source files, images, or before/after captures.
 
@@ -154,8 +157,10 @@ so a phase does not depend on discovering a chain of references.
   work long enough to delegate.
 - `references/host-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
-- `references/host-codex.md`: before the first handoff in Codex, and for the
-  delivery payload its later turns receive.
+- `references/host-codex.md`: before the first handoff in Codex reached through its
+  queue, which includes the desktop app, and for the delivery its later turns receive.
+- `references/host-codex-app-server.md`: before the first handoff in a Codex task
+  Leaf reaches over App Server, and for the delivery turns Leaf starts there.
 
 ### Continue after input
 
@@ -170,7 +175,7 @@ so a phase does not depend on discovering a chain of references.
   URL, `--host`, a standing page, re-vendoring a served page, or resuming another
   session's page.
 - `references/packages.md`: for a package-design request, a page-authored module, or
-  an event with `"about": "design"`.
+  a design comment whose fix belongs in a package.
 
 ### Use a separate Codex watcher
 

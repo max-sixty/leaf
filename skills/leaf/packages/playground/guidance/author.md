@@ -1,31 +1,24 @@
 # Playgrounds
 
 Use `lf-playground` when several values or behaviors need to be explored together before
-the reader chooses one configuration. Put it inside `lf-ask`, declare controls and
+the user chooses one configuration. Put it inside `lf-ask`, declare controls and
 optional presets, then include exactly one preview and one output.
 
-Keep ownership at its natural boundary:
+Interactive behavior does not by itself justify a package; `references/packages.md`
+says where page-only and reused behavior belong. A page module can define custom
+elements, register structured state with its playground, and derive the output.
 
-| Need | Owner |
-| --- | --- |
-| One page's behavior, artifact, schema, or state model | The page instance |
-| Mechanics reused by several pages | An existing or new package |
-| Revision, identity, event admission, or export guarantees | Leaf core |
-
-Interactive page behavior does not by itself justify a package. A page module can define
-custom elements, register structured state with its playground, and derive the output.
-
-The preview is the surface the reader operates. An A/B comparison keeps both candidates
-mounted in that preview and applies each control edit or custom gesture to both. The
-reader should not have to reproduce a drag, scroll, reorder, or input sequence in two
-separate previews. Put measurements that affect the decision beside their candidates and
-update them from the same gesture snapshot.
+The preview is the surface the user operates. An A/B comparison keeps both candidates
+mounted in that preview and renders both from one interaction state, so each control
+edit or custom gesture reaches both. The user should not have to reproduce a drag,
+scroll, reorder, or input sequence in two separate previews. Put measurements that
+affect the decision beside their candidates and derive them from that same state.
 
 Start from the real artifact. Wrap the existing component, document, or generated output
 instead of rebuilding its appearance in page-local markup. A companion package may carry
-browser-ready code and fixtures under `vendor/`; page images go through `leaf page media`.
-Load those assets from the page's same origin, retain its CSP, and keep imports from
-Leaf's runtime to `/runtime/widget-api.js`.
+browser-ready code and fixtures under `vendor/`; page images go through `leaf page media`
+(`references/authoring-evidence.md`). Load those assets from the page's same origin,
+retain its CSP, and keep imports from Leaf's runtime to `/runtime/widget-api.js`.
 
 When exploring changes to an existing interface, include its current state as a labeled
 baseline. Derive each candidate from that baseline and change only the behavior or
@@ -39,10 +32,9 @@ attribute and public `values` entry stay numeric. A range requires `max`; `min` 
 to zero and `step` defaults to one.
 
 When you have recommendations, offer two to four presets as coherent starting points.
-Name the outcome—`Status strip`, not `Preset 2`—and let the reader tune it afterward.
+Name the outcome—`Status strip`, not `Preset 2`—and let the user tune it afterward.
 
-This comparison keeps two operable candidates in one preview. One edit updates both,
-while `format` identifies the candidate to build:
+In this comparison, `format` identifies which of the two candidates to build:
 
 ```html
 <lf-ask id="notification-ask">
@@ -106,7 +98,7 @@ custom property is a quoted CSS string; its data attribute contains the unquoted
   [data-candidate="status strip"] { outline: 2px solid var(--accent); }
 ```
 
-The output is the instruction the reader copies and the host receives. Write a complete
+The output is the instruction the user copies and the host receives. Write a complete
 task with an object, destination, and requested evidence. Use `lf-playground-value` only
 where a selected value makes that task more precise. The action still includes every
 control in `detail.values`, including controls the prose does not repeat.
@@ -115,9 +107,8 @@ control in `detail.values`, including controls the prose does not repeat.
 
 A preview that needs JavaScript keeps its page-specific behavior in an inline
 `<script type="module">` block. Put the real candidates in an ordinary element or a
-page-specific custom element. Use a package widget only when that behavior or
-vocabulary is reused across pages. Follow `references/packages.md`'s behavior-module
-contract in either case.
+page-specific custom element, following `references/packages.md`'s behavior-module
+contract.
 
 Wait for `customElements.whenDefined("lf-playground")` before reading
 `closest("lf-playground").values`. Later snapshots arrive in the bubbling
@@ -138,12 +129,12 @@ alone without the preview. Default settings may be omitted unless they affect th
 The page's `page/registry.json` replaces the complete `lf-playground` declaration with an
 exact schema for its aggregate `detail.values`.
 
-Keep one interaction state and render both candidates from it. Dynamic-row explorers
-keep stable row keys, apply add, remove, reorder, and edit operations once, then derive
-both row renderings and their counts from that state. Canvas and SVG explorers use one
-Pointer Events controller with pointer capture and a keyboard route; translate the input
-to model coordinates once, then render both candidates and their measurements from the
-same coordinates. Call `layoutChanged` after a gesture changes geometry.
+For the shared A/B state, dynamic-row explorers keep stable row keys, apply add, remove,
+reorder, and edit operations once, then derive both row renderings and their counts
+from that state. Canvas and SVG explorers use one Pointer Events controller with
+pointer capture and a keyboard route; translate the input to model coordinates once,
+then render both candidates and their measurements from the same coordinates. Call
+`layoutChanged` after a gesture changes geometry.
 
 Before handoff, manually operate every custom gesture the page claims. Check that both
 candidates reach the same input state, the measurements update, the complete typed value
@@ -178,11 +169,10 @@ viewport assumptions. A runtime DOM capture is an appearance-only artifact: clon
 does not carry the component's listeners, state source, or lifecycle. When behavior is
 part of the comparison, mount a component through its production entry point or serve
 a document as a complete captured revision. Do not add substitute page handlers to
-captured DOM and present it as the current behavior. Drive the live candidates from one
-gesture snapshot. Candidate-specific values live under explicit keys; a copy-to-other
-action changes only the intended candidate. Measurements are derived from the same
-snapshot and appear beside each variant. When variants differ by compilation, build
-and serve both source revisions rather than drawing a visual replica.
+captured DOM and present it as the current behavior. Candidate-specific values live
+under explicit keys; a copy-to-other action changes only the intended candidate. When
+variants differ by compilation, build and serve both source revisions rather than
+drawing a visual replica.
 
 ### Multi-change decision sweep
 

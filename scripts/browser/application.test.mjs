@@ -19,7 +19,7 @@ const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 // The Ask reading `served_state` sends, in its own wire spelling.
 const noAsks = () => ({
   all: [],
-  reader: [],
+  user: [],
   unanswered: [],
   awaiting: {},
   unanswered_awaiting: {},
@@ -46,7 +46,7 @@ const state = (taken, events = []) => ({
   active: { revision: 1 },
   events,
   workflows: [],
-  activity: { phase: "reader", held: false },
+  activity: { phase: "user", held: false },
   reading: `reading-${taken}`,
   browser: {
     basis: { through_seq: events.length },
@@ -354,7 +354,7 @@ test("an owner requirement follows publisher-projected position with authored fa
   read.browser.views[1].document.asks = {
     ...noAsks(),
     all: [wireAsk(required.id, required.tag)],
-    reader: [wireAsk(required.id, required.tag)],
+    user: [wireAsk(required.id, required.tag)],
     unanswered: [wireAsk(required.id, required.tag)],
     awaiting: { [required.id]: true, [newOwner.id]: true, [oldOwner.id]: false },
     unanswered_awaiting: {
@@ -561,7 +561,7 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.read().data.sources.input.value, 5);
 });
 
-test("one publication keeps per-input workflows and reader-first thread attention", () => {
+test("one publication keeps per-input workflows and user-first thread attention", () => {
   const app = setup();
   const reading = state(2);
   reading.browser.conversation.threads = [
@@ -593,12 +593,12 @@ test("one publication keeps per-input workflows and reader-first thread attentio
       anchor: null,
       resolved: null,
       awaits_agent: true,
-      awaits_reader: true,
+      awaits_user: true,
       bare_reaction: false,
       unread: [],
       seat: null,
       summaries: [],
-      attention: { kind: "needs_reader", reason: "ask", workflow: null },
+      attention: { kind: "needs_user", reason: "ask", workflow: null },
     },
   ];
   reading.workflows = [
@@ -631,7 +631,7 @@ test("one publication keeps per-input workflows and reader-first thread attentio
     ],
   );
   assert.deepEqual(thread.attention, {
-    kind: "needs_reader",
+    kind: "needs_user",
     reason: "ask",
     workflow: null,
   });
@@ -640,7 +640,7 @@ test("one publication keeps per-input workflows and reader-first thread attentio
     { kind: "reply", parent: "root", attempt: "local", text: "Third", revision: 1 },
     "2026-09-22T10:02:00-07:00",
   );
-  // The reader's own send hands the thread to the agent until the log answers it.
+  // The user's own send hands the thread to the agent until the log answers it.
   assert.deepEqual(app.read().effective.conversation.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
@@ -672,7 +672,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
       anchor: null,
       resolved: null,
       awaits_agent: true,
-      awaits_reader: false,
+      awaits_user: false,
       bare_reaction: false,
       unread: [],
       seat: null,
@@ -692,7 +692,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   });
   app.reject("local");
   assert.deepEqual(app.read().effective.conversation.all[0].attention, {
-    kind: "needs_reader",
+    kind: "needs_user",
     reason: "recovery",
     workflow: "rejected:local",
   });
@@ -729,7 +729,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   });
   acceptedApp.reject("next");
   assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
-    kind: "needs_reader",
+    kind: "needs_user",
     reason: "recovery",
     workflow: "rejected:next",
   });
@@ -748,7 +748,7 @@ test("a refused local message publishes one failed workflow before retirement", 
   app.reject("refused");
   const failed = app.read().effective.workflows.at(-1);
   assert.deepEqual(failed.condition, { kind: "failed", operation: "delivery" });
-  assert.equal(failed.next_actor, "reader");
+  assert.equal(failed.next_actor, "user");
   assert.equal(app.read().effective.conversation.all.length, 0);
   app.remove(new Set(["refused"]));
   assert.equal(app.read().effective.workflows.length, 0);
@@ -773,7 +773,7 @@ test("a version being marked read reads read, outside the gesture ledger", () =>
       anchor: null,
       resolved: null,
       awaits_agent: false,
-      awaits_reader: false,
+      awaits_user: false,
       bare_reaction: false,
       seat: null,
       summaries: [],
@@ -943,7 +943,7 @@ test("widget selections publish the canonical held conversation", () => {
       msgs: [root],
       resolved: null,
       awaits_agent: true,
-      awaits_reader: false,
+      awaits_user: false,
       bare_reaction: false,
       unread: [],
       seat: descriptor.id,
@@ -961,7 +961,7 @@ test("widget selections publish the canonical held conversation", () => {
 });
 
 for (const resolved of [null, { author: "user" }]) {
-  test(`a pending reader reply hands ${resolved ? "a resolved" : "an open"} question to the agent until it leaves`, () => {
+  test(`a pending user reply hands ${resolved ? "a resolved" : "an open"} question to the agent until it leaves`, () => {
     const app = setup();
     const root = {
       kind: "comment",
@@ -978,8 +978,8 @@ for (const resolved of [null, { author: "user" }]) {
         msgs: [root],
         resolved,
         awaits_agent: false,
-        awaits_reader: true,
-        attention: { kind: "needs_reader", reason: "ask", workflow: null },
+        awaits_user: true,
+        attention: { kind: "needs_user", reason: "ask", workflow: null },
         bare_reaction: false,
         unread: [],
         seat: null,
@@ -990,7 +990,7 @@ for (const resolved of [null, { author: "user" }]) {
       const thread = app.read().effective.conversation.all[0];
       return [thread.awaits_agent, thread.attention?.kind ?? null, thread.resolved];
     };
-    assert.deepEqual(turn(), [false, "needs_reader", resolved]);
+    assert.deepEqual(turn(), [false, "needs_user", resolved]);
 
     app.enqueue(
       {
@@ -1004,7 +1004,7 @@ for (const resolved of [null, { author: "user" }]) {
     );
     assert.deepEqual(turn(), [true, "waiting", null]);
     app.remove(new Set(["answer"]));
-    assert.deepEqual(turn(), [false, "needs_reader", resolved]);
+    assert.deepEqual(turn(), [false, "needs_user", resolved]);
 
     app.enqueue(
       {
@@ -1018,7 +1018,7 @@ for (const resolved of [null, { author: "user" }]) {
     );
     assert.deepEqual(turn(), [true, "waiting", null]);
     app.reject("retry");
-    assert.deepEqual(turn(), [false, "needs_reader", resolved]);
+    assert.deepEqual(turn(), [false, "needs_user", resolved]);
   });
 }
 
@@ -1035,7 +1035,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   const frozen = wireAsk("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id);
   accepted.browser.conversation.asks = {
     all: [frozen],
-    reader: [frozen],
+    user: [frozen],
     unanswered: [frozen],
     awaiting: { "frozen-choice": true },
     unanswered_awaiting: { "frozen-choice": true },
@@ -1047,7 +1047,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
       msgs: [root],
       resolved: null,
       awaits_agent: false,
-      awaits_reader: true,
+      awaits_user: true,
       bare_reaction: false,
       unread: [],
       seat: null,
@@ -1066,11 +1066,11 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     "now",
   );
   // The reply hands the thread to the agent, and the Ask it carries is still the
-  // reader's, so the obligation does not turn over and back when the reply lands.
+  // user's, so the obligation does not turn over and back when the reply lands.
   const thread = app.read().effective.conversation.all[0];
-  assert.deepEqual([thread.awaits_agent, thread.awaits_reader], [true, true]);
+  assert.deepEqual([thread.awaits_agent, thread.awaits_user], [true, true]);
   assert.deepEqual(thread.attention, {
-    kind: "needs_reader",
+    kind: "needs_user",
     reason: "ask",
     workflow: null,
   });
@@ -1093,9 +1093,9 @@ test("a pending resend replaces accepted recovery until refusal", () => {
       msgs: [root],
       resolved: null,
       awaits_agent: false,
-      awaits_reader: false,
+      awaits_user: false,
       attention: {
-        kind: "needs_reader",
+        kind: "needs_user",
         reason: "recovery",
         workflow: "failed-response",
       },
@@ -1114,7 +1114,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
       stage: "answered",
       activity: [],
       condition: { kind: "failed", operation: "response" },
-      next_actor: "reader",
+      next_actor: "user",
     },
   ];
   app.adopt(accepted);
@@ -1136,7 +1136,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
   });
   app.reject("retry");
   assert.deepEqual(app.read().effective.conversation.all[0].attention, {
-    kind: "needs_reader",
+    kind: "needs_user",
     reason: "recovery",
     workflow: "failed-response",
   });
@@ -1163,14 +1163,14 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   );
   read.browser.views[1].document.asks = {
     all: [page],
-    reader: [page],
+    user: [page],
     unanswered: [page],
     awaiting: { choice: true },
     unanswered_awaiting: { choice: true },
   };
   read.browser.conversation.asks = {
     all: [frozen],
-    reader: [],
+    user: [],
     unanswered: [],
     awaiting: { "frozen-choice": false },
     unanswered_awaiting: { "frozen-choice": false },
@@ -1195,7 +1195,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
         conversation: "root-1",
       },
     ],
-    reader: [record],
+    user: [record],
     unanswered: [record],
     awaiting: { choice: true, "frozen-choice": false },
     unansweredAwaiting: { choice: true, "frozen-choice": false },
@@ -1204,12 +1204,12 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     app.read().effective.asks.all[0].sourceId = "other";
   }, TypeError);
 
-  // A local gesture does not edit the reading: the reader sees their answer in the
+  // A local gesture does not edit the reading: the user sees their answer in the
   // widget's own state at once, while the log answers which Asks still stand in the
   // state this POST returns.
   app.enqueue(action("answer"), "now");
   assert.deepEqual(
-    app.read().effective.asks.reader.map(({ sourceId }) => sourceId),
+    app.read().effective.asks.user.map(({ sourceId }) => sourceId),
     ["choice"],
   );
   assert.equal(decision(app), "accept");
@@ -1269,7 +1269,7 @@ test("a standing report supplies desired widget state", () => {
   );
 });
 
-test("a reaction root is not a spoken turn awaiting the reader", () => {
+test("a reaction root is not a spoken turn awaiting the user", () => {
   const app = setup();
   const root = {
     kind: "comment",
@@ -1287,7 +1287,7 @@ test("a reaction root is not a spoken turn awaiting the reader", () => {
       msgs: [root],
       resolved: null,
       awaits_agent: false,
-      awaits_reader: false,
+      awaits_user: false,
       bare_reaction: true,
       unread: [],
       seat: null,
@@ -1295,5 +1295,5 @@ test("a reaction root is not a spoken turn awaiting the reader", () => {
   ];
 
   app.adopt(accepted);
-  assert.equal(app.read().effective.conversation.all[0].awaits_reader, false);
+  assert.equal(app.read().effective.conversation.all[0].awaits_user, false);
 });

@@ -1,5 +1,5 @@
 /* Shared wiring for one-shot package requests. Packages supply the child tag, bound
-   detail, and every reader-facing word. The holder's Lit update owns the generated
+   detail, and every user-facing word. The holder's Lit update owns the generated
    status and waits for each generated control; authored operation nodes never enter a
    template and retain their identity for the page's whole document lifetime. */
 import { LitElement, html } from "../vendor/browser-runtime.js";

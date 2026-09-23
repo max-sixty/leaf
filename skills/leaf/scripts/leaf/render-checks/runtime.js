@@ -1,4 +1,4 @@
-import { READER_VIEW_RESTORE_CASES, upFrom } from "/runtime/widget-api.js";
+import { USER_VIEW_RESTORE_CASES, upFrom } from "/runtime/widget-api.js";
 import { validationPresentationReady } from "/runtime/validation.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
@@ -33,7 +33,7 @@ export function moving() {
 }
 
 export const pageSettled = () => moving().length === 0;
-export const readerViewRestoreCases = () => READER_VIEW_RESTORE_CASES;
+export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 
 export function unnamedFormFields() {
   const formControl = (node) => node.constructor.formAssociated === true;

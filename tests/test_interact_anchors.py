@@ -43,7 +43,7 @@ def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
         and event["revision"] == 1
     )
     # A bare run has no host session behind it, so the event carries no voice
-    # fields — readers' generic label covers it — rather than a stored
+    # fields — users' generic label covers it — rather than a stored
     # placeholder wearing a name.
     assert "agent" not in event and "session" not in event
     assert event["anchor"]["quote"] == "Ship dark"
@@ -268,7 +268,7 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
-    """A message is not the only id an agent is handed. A reader's press on a widget
+    """A message is not the only id an agent is handed. A user's press on a widget
     frozen into a reply is answered through that action's own id and nothing else —
     `--for` is the only route to it — so a refusal that names no option is the one the
     agent needed. The recourse names `--for` for every kind the log holds, and reserves
@@ -356,14 +356,14 @@ def test_a_section_scopes_where_a_quote_may_land(page_dir):
 
 
 def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
-    """A diagram's source is a picture by the time the reader sees it, so quoting the
+    """A diagram's source is a picture by the time the user sees it, so quoting the
     source anchors on text no search will find. Pointing at the element is what a click
     on that diagram does in the browser, and that is the anchor offered instead."""
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
     assert body.exit_code != 0
     # Named, not merely refused. "the page doesn't say it" was the old answer, and it is
     # a wider claim than this reading can make — for a widget whose body does reach the
-    # reader as text it is simply false, and it sent the writer to fix a page that was
+    # user as text it is simply false, and it sent the writer to fix a page that was
     # never wrong.
     assert "§ flow's data body" in body.output
     assert "Name § flow as the section" in body.output
@@ -944,12 +944,12 @@ def test_a_bare_reaction_holds_no_visual_part(page_dir):
 
 
 def test_reopening_a_conversation_does_not_reclaim_a_released_visual_part(page_dir):
-    """A release is final. `unresolve` is a reader's own gesture and `resolve` is
+    """A release is final. `unresolve` is a user's own gesture and `resolve` is
     undoable, so a closed conversation can come back after the author has already
     published the part away on the licence the close granted. The coordinate cannot
     be restored — no revision declares it any more — so re-asserting it would leave
     `version check` refusing every later edit, and the only move out would be a
-    detach that overrides the decision the reader just made."""
+    detach that overrides the decision the user just made."""
     root = json.loads(
         comment(
             parted(page_dir),
@@ -1028,11 +1028,11 @@ def test_an_edited_draft_reads_as_the_users_words(page_dir):
     assert across.exit_code == 0, across.output
 
 
-def test_comments_reach_reader_generated_choices_without_source_copying(page_dir):
+def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     html = PAGE.replace("<lf-options>", '<lf-options id="routes" choose>')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
-    identity = "routes-option-reader"
+    identity = "routes-option-user"
     words = "Use <a literal> & keep the source unchanged."
     for options in ([identity], ["flag-first"]):
         append_command(
@@ -1085,7 +1085,7 @@ def test_a_quote_of_words_an_edit_replaced_is_refused_naming_the_edit(page_dir):
     assert across.exit_code != 0 and "rewrote § note" in across.output
 
 
-# The draft rewritten under `restated`, taking back whatever the reader wrote over it.
+# The draft rewritten under `restated`, taking back whatever the user wrote over it.
 RESTATED = DRAFTED.replace(
     '<lf-draft id="note"><pre>\nAdds --dry-run to every mutating command.',
     '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
@@ -1116,7 +1116,7 @@ def test_restating_what_an_earlier_version_took_back_names_that_version(page_dir
 
     An author who carries `restated` forward — the habit the design exists to break —
     is refused, and told which version already did it. The answer is its own rather
-    than the never-decided one, which would read as if the reader had done nothing.
+    than the never-decided one, which would read as if the user had done nothing.
     """
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
@@ -1312,7 +1312,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_a_decision_the_reader_took_back_hands_its_slot_back(page_dir):
+def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
     """Withdrawing is the second way a decision stops standing, and the file's
     reading owes it the same answer as `restated`: the retired half is on the page
     again, so a quote reaches it. Both are read in the one fold, which is what makes
@@ -1333,9 +1333,9 @@ def test_a_decision_the_reader_took_back_hands_its_slot_back(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
+def test_a_version_may_not_honor_a_decision_the_user_took_back(page_dir):
     """The sharpest reading of whether a withdrawal actually undid anything, because
-    it is the one the reader never sees: honoring a decision is how a version drops
+    it is the one the user never sees: honoring a decision is how a version drops
     the ids the decision retired, and `version check` licenses that only from the
     standing fold. The same v2 is therefore accepted while the accept stands and
     refused the moment it is taken back — which is the file side saying the page is
@@ -1361,7 +1361,7 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
     assert check(page_dir).exit_code == 1
 
 
-def test_what_the_reader_never_sees_is_not_quotable(page_dir):
+def test_what_the_user_never_sees_is_not_quotable(page_dir):
     """The runtime roots a section-less anchor at document.body, so a <title> is text no
     anchor can reach — and a page's title is often a sentence from the page as well."""
     (page_dir / "index.html").write_text(
@@ -1402,7 +1402,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     """The agent's ✓ Resolve: the same event the panel's control posts, named by any
     message in the thread the way `leaf reply --to` is, and carrying the posting
-    session's voice — which is the whole of how a reader learns a thread they did not
+    session's voice — which is the whole of how a user learns a thread they did not
     close was closed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
@@ -1497,7 +1497,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 def test_a_closed_thread_stops_asking(page_dir):
     """A question in a thread is the thread's, so closing the thread withdraws it.
     Otherwise an agent that asked and then answered the question for itself leaves
-    the reader a standing decision for the life of the page, pointing into the disclosure
+    the user a standing decision for the life of the page, pointing into the disclosure
     closed threads live in."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
@@ -1641,7 +1641,7 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
 
 
 def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
-    """The reader answering the agent's own question is answering the page.
+    """The user answering the agent's own question is answering the page.
 
     `page state` projects the published version's elements, and a widget carried by a
     message is in none of them — so a press on an AskUserQuestion resolved no

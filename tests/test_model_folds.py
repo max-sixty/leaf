@@ -29,14 +29,14 @@ HELD_REQUEST = (
     {"kind": "reply", "author": "agent", "parent": "e1", "text": "The hunk is ready."},
 )
 
-# One draft, three revisions of it. The reader rewrote the authored words in r1;
+# One draft, three revisions of it. The user rewrote the authored words in r1;
 # r2 rewrote them again and said so; r3 is an unrelated edit on r2's words.
 DRAFT = """<h1 id="t">Journey</h1>
 <lf-draft id="draft-ops"{attrs}><pre>
     {text}
 </pre></lf-draft>"""
 AUTHORED = "Run the migration before deploying."
-READER_EDIT = "Run the migration before deploying. It takes about a minute."
+USER_EDIT = "Run the migration before deploying. It takes about a minute."
 CORRECTED = "Run the migration after deploying — it needs the new column."
 
 
@@ -112,9 +112,9 @@ def test_summary_leaves_messages_after_its_range_visible():
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
-    """A reader resolves the message in front of them, which is rarely the first.
+    """A user resolves the message in front of them, which is rarely the first.
 
-    `resolve` names a parent, and the parent a reader has under the pointer is
+    `resolve` names a parent, and the parent a user has under the pointer is
     whichever message they are reading — an agent's reply, usually, since that is
     what closes a question. A fold that took the parent for the root would leave
     every thread resolved on a reply standing open: the panel would keep asking,
@@ -155,7 +155,7 @@ def test_a_retraction_outlives_the_version_that_made_it():
             "kind": "action",
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": READER_EDIT},
+            "detail": {"text": USER_EDIT},
         },
         {
             "kind": "note",

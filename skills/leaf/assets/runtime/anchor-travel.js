@@ -2,7 +2,7 @@
  *
  * Travel owns effects above readonly resolution and paint. It receives the current
  * semantic threads and the synchronous conversation refresh from the application root;
- * subordinate geometry never imports the presenter. A trip keeps its original reader
+ * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading.
  */
@@ -27,7 +27,7 @@ import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
-import { retainReaderIntent } from "./reader-intent.js";
+import { retainUserIntent } from "./user-intent.js";
 
 export function createAnchorTravel({
   anchors,
@@ -38,7 +38,7 @@ export function createAnchorTravel({
   let travelIntent = 0;
   const retainTravel = () => {
     const intent = ++travelIntent;
-    return retainReaderIntent({ available: () => intent === travelIntent });
+    return retainUserIntent({ available: () => intent === travelIntent });
   };
 
   function validateProjectionReference(owner, attribute) {
@@ -149,7 +149,7 @@ export function createAnchorTravel({
 
   // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
-    reveal(element, retainReaderIntent());
+    reveal(element, retainUserIntent());
     scrollRevealedElement(element, behavior, block);
   }
 
@@ -223,7 +223,7 @@ export function createAnchorTravel({
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = destinationHolder(where);
     if (!holder) return;
-    reveal(holder, retainReaderIntent());
+    reveal(holder, retainUserIntent());
     scrollRevealedRange(where, behavior);
   }
 

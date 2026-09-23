@@ -115,7 +115,7 @@ function renderChecks(card, checks) {
 // Keep the undecorated rendering separately from the live DOM. Leaf adds syntax
 // spans and external-link affordances after projection, so comparing innerHTML
 // would mistake those decorations for a data change and replace an unchanged
-// description (destroying a reader's active selection in the process).
+// description (destroying a user's active selection in the process).
 const renderedDescriptions = new WeakMap();
 
 function renderDescription(element, source) {

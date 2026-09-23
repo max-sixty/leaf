@@ -5,7 +5,7 @@
 // posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
 // repaint after a width change. `moveContentFrame` lands the final responsive shell in one
 // pass and repaints page-attached chrome in the same gesture. Nothing here holds the
-// reader's place across the reflow that lands with the new shell: the browser does, because
+// user's place across the reflow that lands with the new shell: the browser does, because
 // the strip the shell yields is a transparent border rather than a margin, and `border-width`
 // is not a scroll-anchoring suppression trigger (theme.css, at the body strip, carries the
 // measurement and the reasoning). A height-only change sends `pageShifted` directly so a content
@@ -46,16 +46,16 @@ import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
-// The width the panel stands at for a reader who has not moved its edge. 420 since
+// The width the panel stands at for a user who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
 // scale its width away, and 360 crowded them. A default rather than the width, because
 // what a conversation needs is a fact about the conversation: a thread quoting a table
-// wants room the same thread quoting a sentence does not, and only the reader looking at
+// wants room the same thread quoting a sentence does not, and only the user looking at
 // it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
 // this is where it stands until they do.
 //
 // Opening or closing an auxiliary surface calls its state setter and schedules the shared layout
-// and key paint. Reader gestures remember their intent; an ephemeral developer replay
+// and key paint. User gestures remember their intent; an ephemeral developer replay
 // uses the same transition without replacing it.
 export const THREAD_PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
@@ -71,10 +71,10 @@ const THREAD_PANEL_MIN = 320;
 // half the runtime asks about; the strip is its complement, spelled `not` where it is
 // taken.
 //
-// Asked of the default width and not of the reader's own, so widening the panel can never
+// Asked of the default width and not of the user's own, so widening the panel can never
 // flip the posture out from under the hand doing it: a panel dragged past half its window
 // would otherwise stop standing beside the page and cover it instead, which is the whole
-// page rearranging itself in answer to one pixel of a drag. What the reader's width does
+// page rearranging itself in answer to one pixel of a drag. What the user's width does
 // answer to is the edge's own `cap`, which holds it to the same bargain this line
 // strikes — the page keeps at least what the panel takes — without putting the posture
 // itself in play.
@@ -216,7 +216,7 @@ export function createChromeLayout({
   //
   // It used to glide there over 180ms. That glide animated `main`'s `left`, which is a
   // scroll-anchoring suppression trigger on every frame it ran, so the page bought a
-  // moving column at the price of dropping the reader each time the panel closed. The
+  // moving column at the price of dropping the user each time the panel closed. The
   // browser carries them now (theme.css, at the body strip), and the column jumps — which
   // is what every editor with a side panel does, and cheaper than it looks against words
   // that stay put.
@@ -230,12 +230,12 @@ export function createChromeLayout({
   // what is already placed is a no-op.
   //
   // `change` carries the shell write, and chrome reconciliation rides with it: `landEdge`
-  // passes `syncLayout` through this call and the reader stays on the same words across
+  // passes `syncLayout` through this call and the user stays on the same words across
   // the reflow. What may not go inside is a surface's own rendering. The hold the browser
   // carries rests on an ordering (theme.css, at the body strip): nothing may move the
   // reading column except the container-query recalc that runs inside layout, and showing
   // the panel's dialog in the same batch as the shell write switches that hold off —
-  // measured at 900px, the reader landed three paragraphs back. So the frame is private,
+  // measured at 900px, the user landed three paragraphs back. So the frame is private,
   // and what leaves this module is `takeShell`, which carries a surface's key rather than
   // a callback: a surface owner has no way to render inside it, and renders either side.
   function moveContentFrame(change) {
@@ -312,13 +312,13 @@ export function createChromeLayout({
   }
 
   // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
-  // the reader's choice in their own store rather than the tab's, because where a reader
+  // the user's choice in their own store rather than the tab's, because where a user
   // keeps their conversations, and how much of the page they will give a tray, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see
-  // `readerStore`). Live activation keeps the edges themselves; document travel and reload
-  // restore the same choices, so no revision or visit asks the reader to draw them again.
+  // `userStore`). Live activation keeps the edges themselves; document travel and reload
+  // restore the same choices, so no revision or visit asks the user to draw them again.
   // How the shell takes an edge's new width. A drag follows the hand exactly. An arrow is
-  // a discrete change whose page move the reader can follow through the same final-layout
+  // a discrete change whose page move the user can follow through the same final-layout
   // motion as opening a region.
   function landEdge(state) {
     const apply = () => {

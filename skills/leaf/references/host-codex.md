@@ -1,5 +1,13 @@
 # Codex handoff and delivery
 
+This contract is for a Codex task that Leaf reaches through Codex's durable queue:
+the desktop app, an IDE extension, or a terminal CLI started the ordinary way. A task
+whose environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal
+does, or whose App Server endpoint the user gave you, is one Leaf reaches over Codex
+App Server instead, and follows `references/host-codex-app-server.md`. The desktop
+app runs an App Server of its own, but Leaf cannot connect to it, so a desktop task
+follows this contract.
+
 ## Full Leaf handoff
 
 Use the canonical browser page by default. Run `leaf server start <page>` and
@@ -12,77 +20,46 @@ Set the page to `waiting` and run `leaf codex start <page>` before finishing the
 turn with the URL and a concrete gesture. The browser pane is the presentation;
 the adapter below carries input back to this same task.
 
-## Codex App Server transport
+## Delivery
 
-This experimental transport connects Leaf to a task controlled through the
-Codex CLI. Its protocol and browser path have automated coverage, and the normal
-interactive workflow has been smoke-tested with a real Codex App Server and CLI.
-The normal entry point starts a private Unix-socket App Server and runs the
-terminal client against it:
+`leaf codex start` leaves a detached adapter that watches every page this task owns.
+Starting the command again for another page adds that page to the same task-wide
+watch, and a completed turn does not stop the adapter.
 
-```sh
-leaf codex launch
-```
+New user input reaches you after the current turn ends. The adapter hands each
+delivery to `codex queue`, which queues it as the task's next user message: a
+`leaf-delivery` XML element shown as one line in a code block, naming
+`leaf delivery read <id>`, which resolves the immutable envelope. The adapter
+acknowledges the delivery once Codex's queue accepts it, so do not run `leaf wait` or
+`leaf wait --ack` while it holds the task. The same delivery id may return after an
+uncertain queue response, which is the retry `references/event-batches.md` describes.
 
-The launcher exports its endpoint to the task. Start Leaf normally from that
-task; `leaf codex start` subscribes to the exported App Server without another
-option:
+Answer every obligation with its explicit operation: `leaf reply` for a plain reply,
+a stamped version, `resolve`, and `receipt`. Your final message stays in the Codex
+chat and never reaches the page. Leaf does not observe the task's turns either, so
+the banner shows only the status you declare.
 
-```sh
-leaf codex start <page>
-```
+This is Claude Code's delivery with the wait and the acknowledgement moved into the
+adapter: input arrives between turns, and the answers are the same commands.
 
-The launcher owns both processes. Exiting the terminal stops its App Server, so
-each terminal is independent and no fixed port or separate server tab remains.
-Observed activity ends with that server.
+If `leaf codex start` refuses to start, do not finish over a live page. Follow its
+diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
+can take the task's single wait lease, and a Codex without the `codex queue` command
+cannot receive later turns.
 
-To run the two processes separately instead, start a loopback WebSocket listener
-and pass the same endpoint to both clients:
+## Routes without the adapter
 
-```sh
-codex app-server --listen ws://127.0.0.1:4500
-codex --remote ws://127.0.0.1:4500
-```
+Two routes carry input without the adapter, and both answer with `leaf reply` as
+above.
 
-From that remote CLI task, start Leaf with the same endpoint:
-
-```sh
-leaf codex start <page> --app-server ws://127.0.0.1:4500
-```
-
-Leaf resumes the current task as a second client. Plan updates, tool starts,
-reasoning summaries, and waits for approval or user input are watched as the task's
-current step. Leaf retains thinking, tool use, replying, approval waits, and input
-waits as distinct observations. They describe overall page activity; an observed
-step alone does not claim work on a particular message. The page's sentence stays the one you declare with `leaf status`, and the
-step stands beside it in the banner's disclosure; where you have declared nothing for
-this work, the step is the sentence. New reader input reaches you only once the current
-turn ends, because a delivery starts a turn of its own: once the task is idle, Leaf
-starts one with the complete delivery as a structured `leaf_delivery` tool output. A
-delivery can span pages and conversations, presented as one chronological slice per
-turn.
-
-Each observed slice contains at most one plain reply. Write that reply as the normal
-final message. Leaf streams it into the addressed thread and commits its completed
-text through the same reply contract as `leaf reply`; do not run a reply command for
-that response. The committed reply retains the thread's standing anchor. Settling that
-move before the commit does not discard the answer: the completed reply keeps its
-response address and reopens the conversation in Open Threads. A later plain
-reply remains pending for the next slice. Version, markup, and receipt obligations in
-the current slice still take their explicit operations: a stamped version, `resolve`,
-and `receipt`.
-
-A `leaf-delivery` pointer may instead arrive through Codex's durable local queue with no
-App Server observer left to bind or stream its turn. With nothing to
-bind the turn, every obligation takes its explicit operation, the plain reply included,
-and a later observer skips one already settled that way. Keep the CLI open because it
-is still the interactive client for approvals and user input.
-
-Only private absolute Unix sockets and unauthenticated loopback `ws://` endpoints
-are accepted. The loopback WebSocket listener is experimental; do not expose it
-on a network. The task is still stored in Codex's task history and can be resumed
-later from the CLI or Desktop app after the standalone server releases its writer.
-The Desktop app is not a live client of this separately started server.
+- This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and
+  acknowledges each complete batch with `leaf wait --ack <delivery-id>`, which then
+  waits for the next. That is Claude Code's loop held inside one turn, so the turn
+  stays open for as long as the page is live.
+- A separate watcher task runs the wait, forwards each batch into this task as a
+  background follow-up, and acknowledges it; this task runs no wait at all. Take it
+  only when the user authorizes a visible watcher task, and follow
+  `references/codex-watcher.md`.
 
 ## Experimental inline MCP App
 
@@ -104,19 +81,3 @@ Set the page to `waiting` and start the same Codex adapter before handing over a
 inline app. Name the review and report its observed mode or unverified rendering;
 its ephemeral iframe URL is not a durable browser handoff. A successful
 `ui/message` response is not a delivery receipt.
-
-## Same-task delivery
-
-One detached adapter watches every page this task owns. Starting the command again
-for another page adds that page to the same task-wide watch, and a completed turn
-does not stop the adapter.
-
-The queued message is a `leaf-delivery` XML element shown as one line in a code
-block, naming `leaf delivery read <id>`, which resolves the immutable envelope. Do not wait or acknowledge: the adapter owns both.
-The same delivery id may return after an uncertain unobserved queue response, which is
-the retry `references/event-batches.md` describes.
-
-If `leaf codex start` refuses to start, do not finish over a live page. Follow its
-diagnostic: an existing foreground `leaf wait` must be stopped before the adapter
-can take the task's single wait lease, and an unavailable Codex queue command
-cannot receive later turns.

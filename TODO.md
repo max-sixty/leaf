@@ -9,7 +9,7 @@ has tried; settle that before building it.
 
 ## Now
 
-### Reader experience
+### User experience
 
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated conversation in light and dark at wide and narrow
@@ -18,11 +18,11 @@ has tried; settle that before building it.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
 - **Show each Thread's last move in the list.** A collapsed row gives the count and
-  attention but not who spoke last or when, so a reader cannot tell a stale Thread
+  attention but not who spoke last or when, so a user cannot tell a stale Thread
   from a live one without opening it. The Thread model already computes when each
   Thread last moved, edits included, and Recent orders by it; no row shows it.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
-  head of a Thread saying what is decided and what remains open, so a reader
+  head of a Thread saying what is decided and what remains open, so a user
   returning to a long discussion knows where it stands before reading it. Decide
   whether this is a summary checkpoint that covers the whole Thread or a separate
   reading, and how it goes stale.
@@ -49,20 +49,20 @@ has tried; settle that before building it.
   **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
   including how authors discover diagram comparison suggestions.
 - **Keep agent activity intelligible throughout a task.** Run the
-  [status evaluations](notes/reader-feedback-responsiveness.md) for delivery,
+  [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 
 ## Next
 
-### Reader continuity and mobile access
+### User continuity and mobile access
 
 - **Verify the native phone reading journey.** Check the explicit selection-to-comment
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
   show the native selection menu or software keyboard.
-- **Finish what a phone reader still cannot reach.** Give touch readers visible passage
+- **Finish what a phone user still cannot reach.** Give touch users visible passage
   threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
   and remaining undersized touch targets.
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
@@ -87,7 +87,7 @@ has tried; settle that before building it.
   the anchored element's size over the recorded `box`, so a mark stays on its
   element in a narrower window; reflowed text still moves under it. Verify replay
   at different widths and keep that limitation explicit.
-- **Record the reader's view beside `viewed`.** Add the window size, colour scheme
+- **Record the user's view beside `viewed`.** Add the window size, colour scheme
   and revision a visible tab reports to the presence reading, and document them.
   **Unconfirmed:** establish whether the missing view causes an agent failure in
   the agent-usability baseline above before adding fields to the interface.
@@ -96,11 +96,8 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Give each guidance rule one home.** Around 30 rules are written in two to 14
-  places each, and seven of them already disagree. In almost every disagreement,
-  a short copy (a CLI help string, a delivered clause or a docs paragraph) leaves
-  out a case that the full reference states. Fix the disagreements first, then
-  replace the other copies with pointers.
+- **Give each delivery-loop rule one home.** The acknowledge-then-reply order and
+  what the delivery statuses mean are still written in several places.
   [The audit](notes/guidance-duplication.md) lists every site and proposes a home
   for each rule.
 
@@ -113,14 +110,14 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Multiplayer:** let several readers share a page, each recorded as themselves.
+- **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code
   Artifacts store a viewer id on each row and resolve names, faces and presence
-  from the host. Settle reader identity and how it reaches the append door before
+  from the host. Settle user identity and how it reaches the append door before
   building a feed or presence on it.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
-  readers return and how much customization Leaf should own.
+  users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the host
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.
@@ -130,7 +127,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   browser handoff when an inline-hosting task calls for it. See the
   [research brief](notes/workspace-followups.md#item-22).
 - **Favicon count:** keep a pending count only if it reads clearly at 16px.
-- **Character bindings:** let readers disable them when real use calls for it.
+- **Character bindings:** let users disable them when real use calls for it.
 - **Authoring vocabulary:** add tabbed sections only when root and embedded
   placement cannot express a real page.
 - **Replacement diffs and visual masks:** add them when repeated reviews need
@@ -138,7 +135,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Motion evidence:** define video, caption, and transcript handling when core
   gains durable video.
 - **Revisit long-thread folding after using summaries.** If agent-written summaries
-  leave readers struggling with long histories or oversized messages, follow the
+  leave users struggling with long histories or oversized messages, follow the
   [Thread plan](notes/threads.md#later-long-thread-reading).
 
 ### Implementation candidates
@@ -150,6 +147,21 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
+- **Tool-result guidance in code:** `hooks/wait-started.json` is static text a
+  shell gate prints after a `leaf wait` launch. If a second piece of guidance
+  needs a tool-result hook, or this one should depend on page state (only while
+  the user owes an Ask), route `PostToolUse` through `leaf hook`, which reads
+  the harness off the session's claims. Codex ignores the hook's `if` filter and
+  runs it on every shell call, so keep a cheap gate ahead of `uv run`.
+- **A cheap `leaf hook`:** every hook Leaf registers pays `uv run leaf hook`,
+  about 0.3–0.5s warm and 2.5s cold, and the host waits for it. That cost is why
+  tool-result guidance above stays static text, and it limits what else hooks
+  can carry. Most of the warm time is Python startup and imports: `leaf.hooks`
+  alone pulls in `delivery`, `event_contracts` and `anchor_capture`, about
+  120ms. Get the hook path off those imports, then consider a `leaf` filter in
+  front of every tool-result hook, so Leaf can answer more events itself.
+  Rewriting the hook path in a compiled language is the further step if that
+  is not enough.
 - **#28 — Threads slides over:** the panel overlays the page at every width, so
   the page never moves for it; delete the push strip, `COVERING`, and `main`'s
   panel offset. See the [layout model](notes/layout-model.md).

@@ -18,11 +18,11 @@ const message = (id, extra = {}) => ({
   kind: "reply",
   ...extra,
 });
-const thread = (id, msgs, attention = null, readerPrompt = null) => ({
+const thread = (id, msgs, attention = null, userPrompt = null) => ({
   root: { id },
   msgs,
   attention,
-  reader_prompt: readerPrompt,
+  user_prompt: userPrompt,
   unread: msgs
     .filter((item) => item.unread !== false)
     .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
@@ -42,10 +42,10 @@ const reading = ({
   workflows = [],
   pageActivity = activity(),
 } = {}) => ({
-  page: { asks: { reader: pageAsks } },
+  page: { asks: { user: pageAsks } },
   conversation: {
     threads,
-    asks: { reader: threadAsks },
+    asks: { user: threadAsks },
   },
   workflows,
   activity: pageActivity,
@@ -60,7 +60,7 @@ const responseFailure = (source, kind = "failed") => ({
   seq: 3,
 });
 
-test("accepted messages and reader obligations arrive together after a quiet baseline", () => {
+test("accepted messages and user obligations arrive together after a quiet baseline", () => {
   const old = reading({
     threads: [thread("t", [message("old", { unread: false })])],
     pageAsks: [ask("existing")],
@@ -74,7 +74,7 @@ test("accepted messages and reader obligations arrive together after a quiet bas
       thread(
         "t",
         [message("old", { unread: false }), message("new", { seq: 2, awaits: true })],
-        { kind: "needs_reader", reason: "ask" },
+        { kind: "needs_user", reason: "ask" },
         { message: "new", version: "new" },
       ),
     ],
@@ -83,8 +83,8 @@ test("accepted messages and reader obligations arrive together after a quiet bas
   const arrived = observeSemanticNews(baseline.observed, next);
   assert.deepEqual(kinds(arrived), [
     "agent_content",
-    "reader_obligation",
-    "reader_obligation",
+    "user_obligation",
+    "user_obligation",
   ]);
   assert.deepEqual(
     arrived.news.map((item) => item.key),
@@ -102,7 +102,7 @@ test("structural asks own their thread obligation and reopening starts a new epi
   const owed = reading({
     threads: [
       thread("t", [message("question")], {
-        kind: "needs_reader",
+        kind: "needs_user",
         reason: "ask",
       }),
     ],
@@ -133,7 +133,7 @@ test("a second question in the same waiting thread has its own source version", 
       thread(
         "t",
         [message("first", { awaits: true })],
-        { kind: "needs_reader", reason: "ask" },
+        { kind: "needs_user", reason: "ask" },
         { message: "first", version: "first" },
       ),
     ],
@@ -149,7 +149,7 @@ test("a second question in the same waiting thread has its own source version", 
             message("first", { awaits: true }),
             message("second", { seq: 2, awaits: true }),
           ],
-          { kind: "needs_reader", reason: "ask" },
+          { kind: "needs_user", reason: "ask" },
           { message: "second", version: "second" },
         ),
       ],
@@ -232,7 +232,7 @@ test("every canonical receipt survives one read and failed requests reopen asks"
       pageAsks: [ask("approval")],
     }),
   );
-  assert.deepEqual(kinds(reopened), ["request_outcome", "reader_obligation"]);
+  assert.deepEqual(kinds(reopened), ["request_outcome", "user_obligation"]);
   assert.equal(reopened.news[0].receipt.id, "failed-again");
 });
 
@@ -348,7 +348,7 @@ test("the adapter selects the active server document for page obligations", () =
     workflows: [],
     activity: current.activity,
   });
-  assert.deepEqual([...selected.page.asks.reader], [ask("current")]);
+  assert.deepEqual([...selected.page.asks.user], [ask("current")]);
 });
 
 test("one producer notice states a reply and new obligation as separate facts", () => {
@@ -358,7 +358,7 @@ test("one producer notice states a reply and new obligation as separate facts", 
       thread(
         "t",
         [message("answer", { agent: "Sam", awaits: true })],
-        { kind: "needs_reader", reason: "ask" },
+        { kind: "needs_user", reason: "ask" },
         { message: "answer", version: "answer" },
       ),
     ],

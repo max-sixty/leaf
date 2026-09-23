@@ -8,7 +8,7 @@ sweep found; the sections after it stand as read on their own dates, and where t
 disagree the newer one is current.
 
 Anything that hands an agent's work to a person in a browser answers three questions:
-what the document is made of, where it lives, and how the reader's reply gets back to the
+what the document is made of, where it lives, and how the user's reply gets back to the
 agent. leaf's answers are authored HTML, a directory on your machine, and a
 host-specific wait inside the session: background completion in Claude Code, an exact
 unified-exec session kept inside the active turn in Codex.
@@ -40,7 +40,7 @@ x/y or a name the page registers, not a text quote. An open bug,
 to Claude being dropped.
 
 That moves the end of the Artifacts section below. Of the three things it said leaf
-keeps, reader state surviving a republish is now partly available to an artifact that
+keeps, user state surviving a republish is now partly available to an artifact that
 keeps it in its database. What stays distinct: no account and Codex as a host, comments
 on any plan, a vocabulary the machine checks, and anchors that find the same passage in
 a rewritten document.
@@ -109,7 +109,7 @@ New since August; apart from OpenBot, none has passed about 150 stars:
 - [Mirafold](https://mirafold.com/) ([repo](https://github.com/mirafold/mirafold), 16
   stars) — a browser shell for Claude Code, Codex, Gemini CLI and OpenCode that renders
   agent output as markdown, schema-validated registry components or sandboxed iframes,
-  and returns reader actions to the agent. The nearest to leaf's premise.
+  and returns user actions to the agent. The nearest to leaf's premise.
 - [assistant-ui's generative UI](https://github.com/assistant-ui/assistant-ui) — missed
   in August: the model emits a zod-typed `{ $type, ...props }` tree through a `present`
   tool.
@@ -174,7 +174,7 @@ narrows what leaf can claim to be for.
 
 Start with the correction, because this note had the entry wrong. Until this read,
 Artifacts sat in the list below as a bullet saying the docs state there is no reply path
-and the reader presses "Copy as prompt" and pastes into the terminal. That was true when
+and the user presses "Copy as prompt" and pastes into the terminal. That was true when
 it was written and is not true now, and the direction of the error is the one a stale
 sweep produces: it flattered leaf. Three shipped changes closed it. From v2.1.221 an
 artifact shared inside your organization takes comment threads, and Claude reads them on
@@ -221,8 +221,8 @@ from the opposite direction, by vendoring every asset into the page directory an
 What survives a revision is where the two designs actually differ, and it is the same
 difference this note draws against Plannotator and lavish-axi. Artifacts have versions:
 each publish is one, and the Share control chooses which version viewers see. That is a
-publisher's control over what is shown, not a reader's history to step back through, and
-nothing carries a reader's state across a republish. The docs' own triage-board example
+publisher's control over what is shown, not a user's history to step back through, and
+nothing carries a user's state across a republish. The docs' own triage-board example
 is the tell — cards dragged across Now, Next, Later and Cut, and a "Copy as prompt"
 button to get the ordering back — because the ordering cannot survive the next publish
 any other way. leaf's log outranking the document is exactly this: the drag is an event,
@@ -239,14 +239,14 @@ One capability runs the other way, with no counterpart in leaf at all. An artifa
 call MCP connectors when someone opens it, and the calls go through the viewer's own
 claude.ai account rather than the publisher's: each viewer approves access first, two
 people can see different data from the same dashboard, and a control with a side effect
-acts as whoever pressed it. That is a live page for readers who are not you, and it is
+acts as whoever pressed it. That is a live page for users who are not you, and it is
 the precise inverse of leaf's posture, where a published page vendors everything and
-cannot phone home. Neither is the better answer; they answer to different readers.
+cannot phone home. Neither is the better answer; they answer to different users.
 
 What is left, then, is narrower than it was and still real. Artifacts took the medium
 and the loop, and did it without asking the agent to run anything. leaf keeps three
 things they have not: a vocabulary the machine checks before the link goes out, a
-reader's decisions that survive the author rewriting the page under them, and a page
+user's decisions that survive the author rewriting the page under them, and a page
 that is a directory on your own disk. Those are worth stating plainly rather than
 defending, because the first question anyone in this landscape should now ask leaf is
 why not just publish an artifact.
@@ -257,12 +257,12 @@ Read on 2026-08-21, from the repository and its own docs.
 [Plannotator](https://github.com/backnotprop/plannotator) is a local, browser-based
 review surface for coding agents, wired into nine of them through their own hooks. When
 the agent proposes a plan, renders HTML, or finishes writing code, the work opens in a
-browser, the reader marks it up, and the annotations go back to the session as
+browser, the user marks it up, and the annotations go back to the session as
 structured feedback. Apache-2.0 and MIT, started December 2025, 7.9k stars. Outside
 Anthropic it is the nearest neighbour leaf has on the loop, and it reached the hosts
 leaf hasn't. Its frame
 is narrower: what it opens is a plan, a document, or a diff, where a leaf page is
-whatever shape the work needs — a board the reader drags, a dashboard ticking over while
+whatever shape the work needs — a board the user drags, a dashboard ticking over while
 a job runs.
 
 |             | Plannotator                                                                                                                                                                 | leaf                                                                                                                  |
@@ -295,7 +295,7 @@ declarations the lint and the render gate read.
 The split over what survives a revision is the same one, and sharper. Plannotator keeps
 version history with diffs between plan revisions and a read-only archive of past plan
 decisions, so nothing is lost — but each invocation is its own review. A comment does
-not re-anchor into the next revision, and a decision the reader made does not replay
+not re-anchor into the next revision, and a decision the user made does not replay
 onto it. leaf's whole design is that the log outranks the document, which is what a
 thread crossing versions and a dragged card surviving v4 both rest on.
 
@@ -305,13 +305,13 @@ branch layer, Jujutsu and Perforce — with AI reviews that post their comments 
 diff for a human to triage. And it can hand a plan to someone else: small markdown
 compressed into the URL fragment, larger shares as AES-256-GCM ciphertext on a
 self-hostable paste service on the PrivateBin model, with a hosted Workspaces product as
-the stated direction for teams. A leaf page reaches one reader on one machine.
+the stated direction for teams. A leaf page reaches one user on one machine.
 
 ## lavish-axi
 
 Read on 2026-08-12, from the repository rather than a site.
 [lavish-axi](https://github.com/kunchenguid/lavish-axi) opens an agent-written HTML file
-in a local browser chrome, lets the reader annotate elements and text selections, and
+in a local browser chrome, lets the user annotate elements and text selections, and
 returns what they queued through a long poll the agent runs. Its premise is the one
 leaf starts from: "HTML is the new markdown", and the loop on such a file otherwise
 falls back to "screenshots and long responses for 'tell me what to change'". Of the
@@ -337,7 +337,7 @@ The deeper split is what survives a revision. In lavish nothing on the page outl
 send: an annotation is captured, queued as a pill, and delivered as a prompt, and the
 artifact carries no marks afterward. The file the agent rewrites is the whole of the
 document's state, and `artifact_revision` is an internal counter scoping load tokens and
-layout warnings rather than a version a reader can step back through. leaf's log outranks
+layout warnings rather than a version a user can step back through. leaf's log outranks
 the document, so comments stay anchored across versions, the agent's reply lands in the
 margin beside the passage it answers, and a dragged card or a pick replays onto every
 later version.
@@ -369,14 +369,14 @@ state, `report` for a page that ticks over as work finishes, and a lint that ref
 page whose ids moved or whose rewrite didn't retract what rested on it.
 
 Layout checking is the one that looks like a gap and mostly isn't. Lavish measures the
-live DOM in the reader's browser after fonts and finite animations settle — page
+live DOM in the user's browser after fonts and finite animations settle — page
 overflow, controls outside the viewport, text clipped by a clipping ancestor, text drawn
 over — suppresses everything explicable, and files what survives in an inbox with a
-lifecycle, where the reader batches a repair into one tagged prompt.
+lifecycle, where the user batches a repair into one tagged prompt.
 `version check --render` already fails a version on most of that class, and does it as a
 gate before the URL goes out rather than as an inbox after. What the vocabulary can't
-reach is content- and reader-dependent: leaf draws each version at one viewport
-(`RENDER_VIEWPORT`, 1200x900) in both colour schemes, so nothing a phone reader sees is
+reach is content- and user-dependent: leaf draws each version at one viewport
+(`RENDER_VIEWPORT`, 1200x900) in both colour schemes, so nothing a phone user sees is
 ever rendered. The width is the gap, not the detector.
 
 Two smaller differences worth recording. Lavish is an npm package whose chrome bundles
@@ -429,7 +429,7 @@ Read on 2026-07-31.
 standalone HTML examples — code review, status reports, slide decks, diagrams, small
 editing UIs — each "a self-contained `.html` page (no build step, no dependencies)". It
 shares leaf's premise that a page carries more than a wall of terminal text, and it
-closes the loop through the reader: the editing UIs hold their state client-side and
+closes the loop through the user: the editing UIs hold their state client-side and
 "always end with an export button that turns whatever you did in the UI back into
 something you can paste into the agent or commit". leaf replaces that paste with a
 live return path.
@@ -451,7 +451,7 @@ platform's side.
 It is the furthest project here from leaf, and the one that shares the most terminology
 with it: both call what they do generative UI, and both mean the agent decides what
 appears. The three questions don't decompose the same way, because CopilotKit has no
-document. What it hands the reader is an application someone built and deployed, and
+document. What it hands the user is an application someone built and deployed, and
 what the agent contributes is which of that application's components appear and what
 data fills them. So the table wants two rows the others didn't need: who the agent is,
 and who is reading.
@@ -462,7 +462,7 @@ and who is reading.
 | Home        | The application, wherever you deploy it; the runtime mounts in your own app server (Next.js, Express, Hono, Bun, Deno, Workers)                                                                              | A page directory on your machine, served where your session reached it, behind a key                                  |
 | Return path | A chat message, a press on a rendered component, an answer to a paused tool call, or a write to shared state, streamed over AG-UI to the agent your runtime called                                           | Comments, drags and picks appended to an event log, returned to the session by its own `leaf wait`                    |
 | The agent   | One your runtime calls: LangGraph, Mastra or CrewAI that you deploy, the built-in loop over the Vercel AI SDK, a Claude Agent SDK process, or a Claude Managed Agent whose loop and workspace Anthropic runs | The coding session already at your terminal                                                                           |
-| The reader  | Your users, as many at once as the app has; threads last as far as the runner you configure — memory by default, SQLite locally, durable on the commercial platform                                          | The one person that session is working with, until the session ends                                                   |
+| The user    | Your users, as many at once as the app has; threads last as far as the runner you configure — memory by default, SQLite locally, durable on the commercial platform                                          | The one person that session is working with, until the session ends                                                   |
 | Reach       | React, Angular, Vue and React Native; Slack and Teams as managed channels, with SDK adapters for Discord, WhatsApp and Telegram                                                                              | Claude Code and Codex                                                                                                 |
 
 CopilotKit's docs sort six generative-UI primitives along one axis. Controlled is where
@@ -519,7 +519,7 @@ initial condition, the log records every transition, and the standing state is t
 over it. Each widget's `renderState` receives the complete result, including the
 initial values restored by undo. CopilotKit streams down to the token, where a leaf page changes
 a version at a time and `leaf report` is what lets a dashboard tick over between
-versions. leaf keeps a decision across a rewrite: a card the reader moved is still where
+versions. leaf keeps a decision across a rewrite: a card the user moved is still where
 they moved it after the agent publishes v4, and taking that back costs the author the
 word `restated`. CopilotKit has nothing equivalent because it has nothing to rewrite —
 the components are fixed before the run, and state is the only thing that moves.
@@ -552,7 +552,7 @@ exactly that, from Anthropic's own quickstart, and
 Claude Agent SDK. What reaches the browser is still a component the developer wrote: the
 cookbook's agent calls `show_growth_projection` with five numbers, and `useRenderTool`
 mounts a chart out of `GrowthProjection.tsx`. Changing the agent changes who runs the
-loop, not who writes the page, and the reader still has a chat box rather than a passage
+loop, not who writes the page, and the user still has a chat box rather than a passage
 to mark. What the combination gets you is an application you deploy and users open; what
 it doesn't is the session already at your terminal, a page directory on your disk, or a
 comment anchored to a passage. Nothing in leaf runs the other way — it serves one page
@@ -592,7 +592,7 @@ approval, question or permission prompt.
 
 A herdr arrangement has no past. A pane the agent moved is moved, and there is no earlier
 layout for the move to disagree with. leaf's page has versions, so the same joint control
-raises a question herdr never has to answer: what becomes of the card the reader dragged
+raises a question herdr never has to answer: what becomes of the card the user dragged
 when the agent publishes a rewrite of that board. The log outranking the document is the
 answer to it — a surviving action replays onto the later version, and `version check`
 refuses a rewrite that silently cancels a decision unless the author marks it `restated`.
@@ -602,7 +602,7 @@ past it costs a reconciliation design.
 The two route a person's attention at different scales. herdr answers which of your
 sessions needs you, and published plugins forward that signal to a phone when an agent
 goes `blocked`. leaf's banner counts the open decisions inside one page and its keyboard walk
-steps through them, for a reader who already has the page open. A leaf session is an agent
+steps through them, for a user who already has the page open. A leaf session is an agent
 at a terminal, so it is the kind of thing that sits in a herdr pane, and the page it
 serves is content herdr has no opinion about.
 
@@ -620,7 +620,7 @@ answer they share is a catalog. A developer declares the components a model may 
 before the model runs; the model composes within them; the renderer refuses anything
 else.
 
-|             | What the agent emits                                                                                                         | Who writes the vocabulary                                 | Where the reader's press goes                                                       | Reach                                                                                                    |
+|             | What the agent emits                                                                                                         | Who writes the vocabulary                                 | Where the user's press goes                                                       | Reach                                                                                                    |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | json-render | A flat spec: a `root` id and an `elements` map of `{type, props, children}`, with `$state`, `$cond`, `$template` expressions | The app's developer, in Zod, before the model runs        | A named action to the app's handler, or `setState` into the spec's own state model  | A dozen renderers, from React and Vue to PDF, email, video, 3D and the terminal                          |
 | OpenUI      | OpenUI Lang: `submitBtn = Button("Submit", "submit:signup", "primary")`, positional args in the component's Zod key order    | The app's developer, in Zod, before the model runs        | An action string the app resolves                                                   | React first, with Vue and Svelte bindings, a CDN bundle, and a LangGraph adapter that streams over AG-UI |
@@ -653,7 +653,7 @@ calls a registered function, `$bindState` binds two ways, `watch` fires an actio
 value changes, and `setState` writes back. Behaviour lives in the spec. leaf puts it in a
 module beside the registry entry, which is why `version check` can read a page and say
 what it will do, and why a leaf action is a fact appended to a log rather than a write to
-a store. That store is the real collision: it is exactly the second copy of the reader's
+a store. That store is the real collision: it is exactly the second copy of the user's
 state that leaf's design refuses, and a leaf page holding one would have two answers to
 where a dragged card is.
 
@@ -685,7 +685,7 @@ A2UI is the corner's named standard: started at Google, now in a neutral
 vendor's product. Four message kinds — `createSurface`, `updateComponents`,
 `updateDataModel`, `deleteSurface` — stream a component tree bound to a per-surface
 data model, and the v1.0 candidate adds typed function calls in both directions. Input
-components bind two ways, and the reader's press returns as an `action` message whose
+components bind two ways, and the user's press returns as an `action` message whose
 name the component chose, with context read out of the data model. The component set is
 deliberately outside the protocol: catalogs are JSON Schema documents named by
 `catalogId`, a renderer names the ones it supports at the handshake, and one tree is
@@ -699,8 +699,8 @@ it standardizes the live tree, which leaf doesn't keep, and says nothing about t
 
 Against A2UI in particular, two of the differences are decisions rather than accidents.
 The catalog is a capability boundary: it exists so a model never ships executable
-content into the application it is drawn in, because the reader is someone else's user.
-leaf declines that boundary on purpose — the reader is the person whose session wrote
+content into the application it is drawn in, because the person using it is someone else's customer.
+leaf declines that boundary on purpose — the user is the person whose session wrote
 the page, so the page gets the whole window, and the registry is a contract the gates
 read rather than a fence the agent is kept behind; leaf's CSP guards against a page
 phoning home, not against the agent. The tree is the second decision. An abstract tree
@@ -755,7 +755,7 @@ registry entry. What it costs is the reading stack. `version check` reads markup
 the registry, so everything inside the widget would be opaque to it; the passage reading
 would need a fence around the whole box, so nothing inside could be quoted, anchored or
 diffed; and the spec's state model would stand beside the log as a second answer to what
-the reader decided. A page whose content lived inside such a widget would be a leaf page
+the user decided. A page whose content lived inside such a widget would be a leaf page
 with leaf switched off.
 
 Publishing leaf's vocabulary as one of their catalogs fails from the other end. The tags

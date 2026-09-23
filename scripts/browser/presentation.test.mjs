@@ -732,7 +732,7 @@ test("a fail-soft paint commits an explicit failure state", async () => {
     paint: () => Promise.reject(new Error("list failed")),
   });
   // Fail-soft proof is a committed reading, so the pass carrying it succeeds; the
-  // failure reaches the reader through the coordinator's report instead.
+  // failure reaches the user through the coordinator's report instead.
   const ready = presenter.sync("value");
   coordinator.seal(publication);
   await ready;

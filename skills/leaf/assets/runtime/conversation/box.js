@@ -49,10 +49,10 @@ export const conversationBox = (
     save: (value) => saveDraft(ctx, value),
     // The message stands in the seat's own conversation the moment it is sent, and that
     // is the acknowledgement; a notice saying the same thing would be a second one. A
-    // reader with no view of the seat hears the send from the live region, which `post`
+    // user with no view of the seat hears the send from the live region, which `post`
     // writes for every message. The hold says what its press did beyond sending — and
     // names the send too, because it is the later write to that one region and would
-    // otherwise be all the reader heard.
+    // otherwise be all the user heard.
     send: (_text, raw, owns) => {
       sendComment(raw, owns);
     },

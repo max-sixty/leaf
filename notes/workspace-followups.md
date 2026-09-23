@@ -8,7 +8,7 @@ The shared-contract and example items this note opened with have landed; what re
 
 Items are ranked within each group. IDs are stable references, not a global priority score. Agent-owned work is distinguished from the repeated-use pilot, which needs Max’s purpose and participation. Evidence labels separate reproduced defects from code gaps and experiments.
 
-## Keep the reader oriented
+## Keep the user oriented
 
 <a id="item-14"></a>
 
@@ -18,7 +18,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Next task:** Use a named two-pane example with header/footer controls; walk authored landmarks and controls, use reading keys, open Threads, return through Escape, then change posture. Check focus against actual modal/nonmodal behavior.
 
-  **Done when:** Every action is reachable with a comprehensible accessible name and visible focus. Covered content does not leave the reader lost. Focus containment follows the shipped modality: held inside a workspace that covers the document, and never imposed on one that sits beside it.
+  **Done when:** Every action is reachable with a comprehensible accessible name and visible focus. Covered content does not leave the user lost. Focus containment follows the shipped modality: held inside a workspace that covers the document, and never imposed on one that sits beside it.
 
   **Owner / dependencies:** Sol. The Threads placement this item waited on is settled: [PR #520](https://github.com/max-sixty/leaf/pull/520) kept Threads beside the document where there is room and covering it where there is not, and [PR #536](https://github.com/max-sixty/leaf/pull/536) then made a covering workspace modal. Verify the keyboard route against that modal boundary.
 
@@ -46,9 +46,9 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Evidence / confidence:** Guidance experiment after observed authoring failures. The current authoring reference explains the primitives and links examples. We have not tested whether an unfamiliar agent chooses the right shape, state owner or fallback order from that guidance.
 
-  The agent-loop review supplied current and proposed flowcharts in separate tabs; the reader then asked for a diagram showing the change itself. Its author had read the diagram reference and selected the package. The `pr-walkthrough` example's “Behavior diff” already shows changes in place. The optional `code-review` package now trials task-level authoring suggestions, including behavior comparisons; whether a cold author discovers and uses it remains unmeasured.
+  The agent-loop review supplied current and proposed flowcharts in separate tabs; the user then asked for a diagram showing the change itself. Its author had read the diagram reference and selected the package. The `pr-walkthrough` example's “Behavior diff” already shows changes in place. The optional `code-review` package now trials task-level authoring suggestions, including behavior comparisons; whether a cold author discovers and uses it remains unmeasured.
 
-  **Next task:** Use failures from #19 to test short suggestions for document, configuration, queue/detail and comparison tasks with an unfamiliar agent. Preserve one state owner, meaningful pane labels, purposeful furniture and authored-order flow. For comparisons, include process simplification, structural change, and an unchanged system as a control: judge whether the reader can identify the differences, not whether every page contains a diagram.
+  **Next task:** Use failures from #19 to test short suggestions for document, configuration, queue/detail and comparison tasks with an unfamiliar agent. Preserve one state owner, meaningful pane labels, purposeful furniture and authored-order flow. For comparisons, include process simplification, structural change, and an unchanged system as a control: judge whether the user can identify the differences, not whether every page contains a diagram.
 
   Check discovery both before package selection and through `page guidance PAGE author`. Keep widget-specific advice in `x-guidance`, cross-widget compositions in package guidance, and general selection principles in the authoring reference. Add a task-oriented discovery route only if authors miss relevant packages; compare it with the existing routes before building it.
 
@@ -78,7 +78,7 @@ Items are ranked within each group. IDs are stable references, not a global prio
 
   **Evidence / confidence:** Purpose and audience experiment. The original positioning question remains unresolved: a page handed over for a decision and a persistent project workspace can use similar HTML but create different expectations. The implementation cannot settle that product choice.
 
-  **Next task:** Use configuration, review and monitoring on recurring work. Observe whether readers reopen the same page, need saved navigation/selection, or prefer a fresh artifact; compare the full feedback cycle with the tools they already use.
+  **Next task:** Use configuration, review and monitoring on recurring work. Observe whether users reopen the same page, need saved navigation/selection, or prefer a fresh artifact; compare the full feedback cycle with the tools they already use.
 
   **Done when:** A short record of actual returns, abandoned flows and completed tasks supports a decision about saved layouts, project navigation and the target user. My recommendation is to begin with task-scoped workspaces.
 
@@ -92,7 +92,7 @@ The IDs describe work to retain, not separate agents to launch. The contract and
 
 | Package | Lead | Scope |
 | --- | --- | --- |
-| Reader continuity | Astra scopes; Sol verifies and implements | #14 keyboard and accessibility journey |
+| User continuity | Astra scopes; Sol verifies and implements | #14 keyboard and accessibility journey |
 | Agent authoring | Astra designs; Sol agents execute | #19 baseline before #20 guidance changes |
 | Product boundary | Astra with Max’s real tasks | #23; run #22 when inline hosting is part of a selected task |
 

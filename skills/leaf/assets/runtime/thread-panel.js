@@ -4,9 +4,9 @@
  * when focus was inside. Layout receives no surface commands, and refreshConversation is
  * supplied by the application so this owner never imports a presenter.
  *
- * This owner declares the panel's Escape ladder. Once the reader releases a selected
+ * This owner declares the panel's Escape ladder. Once the user releases a selected
  * thread to the whole panel, narrowing unwinds before the panel closes. Closing the
- * panel lands the reader on the document. Thread selection and release belong to
+ * panel lands the user on the document. Thread selection and release belong to
  * keyboard/page.js; leaving text entry belongs to conversation/landing.js. */
 import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
@@ -30,14 +30,14 @@ export function createThreadPanelController({
 }) {
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
   // so the invoker has to be given its focus back: raising the panel is not a request to
-  // leave where the reader was standing, and the toggle that lost it would otherwise hold
-  // aria-expanded with no ring on it and hand the reader's next Space to a button they
-  // never chose. A reader who asked to go in says so with the press that takes them —
+  // leave where the user was standing, and the toggle that lost it would otherwise hold
+  // aria-expanded with no ring on it and hand the user's next Space to a button they
+  // never chose. A user who asked to go in says so with the press that takes them —
   // `g T` focuses the list and `c` focuses its requested box — and setPanel's own handoff
   // is the other thing that moves them.
   function showPanelLayer() {
     // Both a comment destination and Threads navigation may ask for a panel that is already
-    // showing. Nothing to redo, and the focus below would otherwise fire against a reader
+    // showing. Nothing to redo, and the focus below would otherwise fire against a user
     // already standing inside.
     if (panel.open) return;
     const invoker = document.activeElement;
@@ -52,7 +52,7 @@ export function createThreadPanelController({
   function paintPanel(open) {
     // Closing while focus is inside would drop it on body, the user's place lost
     // silently; it lands on the one control that reopens what just closed, which is where
-    // the pointer already is. The Escape step below lands the reader on the page instead.
+    // the pointer already is. The Escape step below lands the user on the page instead.
     if (!open && panel.contains(document.activeElement))
       toggleBtn.focus({ preventScroll: true });
     panel.classList.toggle("open", open);
@@ -121,7 +121,7 @@ export function createThreadPanelController({
       : null,
   );
   // Last of the panel's layers, and the one that leaves the chrome. The panel's parent is
-  // the document, so that is where this step lands the reader — whatever opened the
+  // the document, so that is where this step lands the user — whatever opened the
   // panel, and never the toggle, which is where `setPanel` puts focus first so that a
   // close by pointer has somewhere to leave it.
   pageRung("panel", () =>

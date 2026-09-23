@@ -407,7 +407,7 @@ def browser(_browser):
 def iphone(_playwright):
     """A WebKit context shaped like an iPhone: its viewport, pixel ratio, touch, and
     user agent. WebKit is the engine iPhone browsers run on, so this is what a phone
-    reader meets whichever browser they open the page in. Browser problems are rejected
+    user meets whichever browser they open the page in. Browser problems are rejected
     as in `browser`, and its pages arrive readable for the same reason."""
     from render_harness import WatchedContext, clean_browser
 

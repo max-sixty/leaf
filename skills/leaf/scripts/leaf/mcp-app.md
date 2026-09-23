@@ -108,7 +108,7 @@ a compact vocabulary projector. It renders inert authored markup and theme
 rules, supports page, element, and passage comments, and offers the ordinary
 browser route when one exists. `leaf_snapshot_refresh` is app-only and read-only.
 `leaf_snapshot_apply_event` is the only write-annotated MCP tool because it
-durably appends a reader comment. Its server boundary admits only `comment`
+durably appends a user comment. Its server boundary admits only `comment`
 events before delegating to the shared event endpoint; app-only visibility and
 the browser bundle are not write authorization for any other registry kind.
 
@@ -127,7 +127,7 @@ unbroken — and an anchor written from it names a passage no reading of the fil
 can find. An element anchor names an element of the page, and the app's own shell
 stands on the same composed path wearing ids that belong to no version.
 Everything after that is the gate's (root `AGENTS.md`, "Validate once and share
-readings"), and the app shows its refusal with the reader's draft still in the box.
+readings"), and the app shows its refusal with the user's draft still in the box.
 
 Snapshot mode runs no authored code and does not implement package actions. It
 receives captured theme bytes and an ordered `authoredStyles` list, each with
@@ -144,7 +144,7 @@ second Leaf interface and understated what the complete route can carry.
 
 ## Return and wake
 
-Both modes persist reader gestures before reporting success. Neither calls
+Both modes persist user gestures before reporting success. Neither calls
 `ui/message` to claim delivery or advances the event cursor from an MCP response:
 the host may accept that JSON-RPC request without starting or durably queueing a
 turn. `leaf codex start <page>` supplies the return carrier described in

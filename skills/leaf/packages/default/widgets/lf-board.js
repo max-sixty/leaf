@@ -234,7 +234,7 @@ customElements.define(
     // The page's own keys still work mid-grab, and that is not an oversight: any of them
     // that takes focus off the grip (c into the composer, d to the next Decision) blurs it, and
     // the blur below cancels the grab and puts the card back where it was. A held card
-    // therefore cannot be stranded by a press that moves the reader elsewhere, which is
+    // therefore cannot be stranded by a press that moves the user elsewhere, which is
     // what suspending the page would have been for.
     #keys(card, grip) {
       const held = () => this.#grabbed?.grip === grip;
@@ -358,7 +358,7 @@ customElements.define(
       this.#grabbed = { card, grip, from, index };
       this.#beginGesture();
       card.classList.add("lf-lift");
-      // Where the card starts, in the idiom every arrow step announces — a reader about to
+      // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
       announce(
         `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
@@ -409,7 +409,7 @@ customElements.define(
       const { card, grip, from, index } = this.#grabbed;
       this.#release();
       // Escape keeps focus and returns the view to the origin. Blur restores the card
-      // without taking the viewport from the control the reader deliberately entered.
+      // without taking the viewport from the control the user deliberately entered.
       this.#place(card, from, index, refocus ? grip : null);
       this.#finishGesture();
       announce(`${this.#title(card)} — move cancelled`);
@@ -470,7 +470,7 @@ customElements.define(
     }
 
     // One completed move, drag or keyboard: an absolute placement, sent once. The
-    // notice's word follows the branch the reader can see — a card kept in its column
+    // notice's word follows the branch the user can see — a card kept in its column
     // was reordered, not moved to where it already was. A refusal is restored by the
     // layer from the declared record plus its outbox, never from this gesture's DOM
     // snapshot: that snapshot may be another queued move the server also refused.

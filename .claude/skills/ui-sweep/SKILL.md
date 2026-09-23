@@ -6,7 +6,7 @@ description: Audits shipped examples in a real browser and fixes interaction and
 # UI sweep
 
 Use the gallery and a composed example to find defects beyond the suite's stated
-invariants. Derive experiments from the reader's task and the code's interaction
+invariants. Derive experiments from the user's task and the code's interaction
 structure, then drive, judge, and fix them in the browser.
 
 ## First reading
@@ -18,15 +18,15 @@ independent reviewer the task and candidate before giving them the author's asse
 
 ## Derive
 
-Read the changed code and its callers. For a standing sweep, start from a reader
+Read the changed code and its callers. For a standing sweep, start from a user
 workflow in the examples. Use `skills/leaf/assets/AGENTS.md` for UI contracts,
 render gates, and the ownership map; read the relevant owners' module headers.
 Source access belongs in this audit, including when delegating it.
 
-Keep a short working interaction model: the reader's goal; the source, control,
+Keep a short working interaction model: the user's goal; the source, control,
 surface, focus, and retained state involved; and the transitions that create,
 transfer, or end their relationships. Identify where different owners cooperate.
-Derive expected behavior from the contracts and reader's goal; use implementation
+Derive expected behavior from the contracts and user's goal; use implementation
 to establish reachable states and mechanisms. Name unsettled design assumptions.
 
 ## Challenge
@@ -42,7 +42,7 @@ it remains active. Choose the operators that challenge the hypothesized mechanis
 Vary one factor at a time across an ownership boundary and exercise both the
 forward and return paths. State what must change and what must survive before
 driving. When a change sends an existing surface into a different posture or
-fallback, compare the same reader task against the merge base; the candidate must
+fallback, compare the same user task against the merge base; the candidate must
 preserve its task-relevant information and actions. Include an unrelated change
 that should preserve the active relationship.
 
@@ -59,7 +59,7 @@ Re-vendor before testing. Use `serve` and `open_page` from
 `tests/render_harness.py`, or `scripts/preview.py <example>`, adding
 `--background` to hold that preview across tool calls and `--stop` when done.
 These process-owned servers exercise the real HTTP and event-log loop without
-delivering reader feedback to the task. Give independent runs separate page state.
+delivering user feedback to the task. Give independent runs separate page state.
 Drive with real input and confirm each intended transition occurred.
 
 For each experiment record initial state → input → expected relationship →

@@ -180,7 +180,7 @@
                 </summary>
                 <p>
                   The region begins with one direct heading, then carries any context
-                  and evidence the reader needs before the control; the nested widget
+                  and evidence the user needs before the control; the nested widget
                   still owns the answer and its fold or Request lifecycle. The banner,
                   Asks tray, <code>a</code>/<code>A</code> ask walk, standing ring, and
                   <code>page state</code> name the region while action eligibility,
@@ -198,7 +198,7 @@
             <div class="reference-copy">
               <p>
                 What x-awaits declares: a tag either originates a standing Ask for the
-                reader or, with <code>rollup: true</code>, aggregates descendant Asks
+                user or, with <code>rollup: true</code>, aggregates descendant Asks
                 through a nested plan.
               </p>
               <details class="reference-more">
@@ -218,7 +218,7 @@
                   matching local Ask must stand inside an x-ask-surface, whose direct
                   heading owns the question's reading and arrival. A widget that also
                   declares x-conversation puts a box under its own Ask, and a
-                  conversation standing in that box takes the Ask off the reader's list
+                  conversation standing in that box takes the Ask off the user's list
                   for as long as it waits on the agent — whoever opened it. That is not
                   an answer: the widget's state is untouched, so a version still has to
                   record what the words settled, and an action's
@@ -226,16 +226,16 @@
                   resolve hands the conversation back. A version-response conversation
                   takes no reply; only authored state in a later version that answers an
                   originating open Ask, or changes its declared answer when the Ask was
-                  already answered, unlocks the agent's resolve. Reader actions in the
-                  log do not substitute for that version. A widget inside a thread
-                  presents an Ask like one on the page, with one bound set by frozen
-                  thread markup: the thread's own reply box is already that seat, so
-                  only an action can answer it there. <code>when</code> selects Leaf
-                  elements that originate Asks, <code>answers</code> names exactly the
-                  x-state verbs that settle one, <code>rollup</code> carries the logical
-                  OR of descendant Asks, <code>until</code> can require a distinct
-                  completion verb for a matching thread Ask, and <code>all</code> names
-                  a blanket answer offered by the banner.
+                  already answered, unlocks the agent's resolve. User actions in the log
+                  do not substitute for that version. A widget inside a thread presents
+                  an Ask like one on the page, with one bound set by frozen thread
+                  markup: the thread's own reply box is already that seat, so only an
+                  action can answer it there. <code>when</code> selects Leaf elements
+                  that originate Asks, <code>answers</code> names exactly the x-state
+                  verbs that settle one, <code>rollup</code> carries the logical OR of
+                  descendant Asks, <code>until</code> can require a distinct completion
+                  verb for a matching thread Ask, and <code>all</code> names a blanket
+                  answer offered by the banner.
                 </p>
               </details>
             </div>
@@ -246,8 +246,8 @@
               <p>
                 The element holds its own height and scrolls inside it, so a long log or
                 feed never grows the page: <code>start</code> opens at its first line
-                and <code>end</code> follows its newest entry while the reader is at the
-                end, and stays where the reader scrolled back to otherwise. An authored
+                and <code>end</code> follows its newest entry while the user is at the
+                end, and stays where the user scrolled back to otherwise. An authored
                 occurrence may state or override it with data-bound=start|end; the
                 runtime paints it as data-lf-bound.
               </p>
@@ -260,10 +260,10 @@
                 The content model: <code>markup</code> (children are the author's
                 markup), <code>members</code> (children are this element's own member
                 elements and nothing else), <code>data</code> (one &lt;pre&gt; holding
-                text in the notation the description names, &lt; &gt; escaped —
-                &lt;pre&gt; because it is the only thing in HTML that says whitespace is
-                load-bearing without a stylesheet to read), or <code>empty</code>.
-                Required.
+                text in the notation the description names, with &amp; &lt; &gt; escaped
+                as &amp;amp; &amp;lt; &amp;gt; — &lt;pre&gt; because it is the only
+                thing in HTML that says whitespace is load-bearing without a stylesheet
+                to read), or <code>empty</code>. Required.
               </p>
             </div>
           </section>
@@ -284,7 +284,7 @@
                   It projects exact-section threads textually from the whole log;
                   Threads keeps the complete interactive view. Thread markup and quoted
                   material take no second view. Where the widget also originates a local
-                  x-awaits Ask, the seat is where the reader deals with it in words: the
+                  x-awaits Ask, the seat is where the user deals with it in words: the
                   Ask leaves their list while that conversation waits on the agent,
                   rather than being counted a second time under a box they have already
                   used. It is not an answer — the widget's own state is untouched, so
@@ -294,11 +294,11 @@
                   that declaration on its root comment, has no inline reply control, and
                   refuses <code>leaf reply</code>: the agent either incorporates it in a
                   later version or opens a separate thread when that revision depends on
-                  the reader. To unlock resolve, authored state in the later version
-                  must answer an originating open Ask, or change the named answer's
-                  authored record when the Ask was already answered. Reader actions in
-                  the log do not substitute for that version. The named verb must be one
-                  of x-awaits' answers with an attribute or value record, so the resolve
+                  the user. To unlock resolve, authored state in the later version must
+                  answer an originating open Ask, or change the named answer's authored
+                  record when the Ask was already answered. User actions in the log do
+                  not substitute for that version. The named verb must be one of
+                  x-awaits' answers with an attribute or value record, so the resolve
                   gate can compare the originating and current versions without naming a
                   widget. A <code>hold</code> comment is such a conversation like any
                   other. <code>hold</code> labels a stronger send route whose comment
@@ -499,7 +499,7 @@
               <details class="reference-more">
                 <summary aria-label="Full x-paints contract">Full contract</summary>
                 <p>
-                  The runtime speaks each to a reader listening (the value, or a flag
+                  The runtime speaks each to a user listening (the value, or a flag
                   attribute's own name), silently on screen and out of every selection,
                   so a fact stated in ink is not silent to whoever cannot see it.
                 </p>
@@ -547,7 +547,7 @@
                   target tag whose declaration in that package-owned map matches the
                   predicate. This lets a package distinguish a goal, worker, or evidence
                   reference without Leaf knowing those roles or tags. The runtime
-                  renders every valid value as a reference the reader can follow.
+                  renders every valid value as a reference the user can follow.
                 </p>
               </details>
             </div>
@@ -584,7 +584,7 @@
           <section class="reference-entry" id="x-request">
             <h3><code>x-request</code></h3>
             <div class="reference-copy">
-              <p>One-shot operations the reader asks the external host to perform.</p>
+              <p>One-shot operations the user asks the external host to perform.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-request contract">Full contract</summary>
                 <p>
@@ -596,9 +596,9 @@
                   each command's complete detail schema. <code>bind</code> checks
                   required string detail fields against immutable holder attributes or
                   required string fields in the selected record.
-                  <code>ask: true</code> makes the ready lifecycle a reader Ask:
+                  <code>ask: true</code> makes the ready lifecycle a user Ask:
                   acceptance hands the turn to the host, pending and completed leave the
-                  reader's list, and failure returns it. <code>region: true</code> says
+                  user's list, and failure returns it. <code>region: true</code> says
                   the holder supplies the commands but not its own question title, so
                   every matching Leaf element stands inside an x-ask-surface whose
                   leading direct heading owns the reading and arrival. Every request has
@@ -676,8 +676,7 @@
             <h3><code>x-says</code></h3>
             <div class="reference-copy">
               <p>
-                Attributes whose values the reader sees as words, and where each
-                renders.
+                Attributes whose values the user sees as words, and where each renders.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-says contract">Full contract</summary>
@@ -754,22 +753,22 @@
                   actively contradicts the fold without <code>restated</code> is
                   refused; writing the folded state is honoring; re-emitting the
                   previous version's state is blessed silence), construction-linked
-                  inspection, the runtime's reader-origin reading, and the version
-                  diff's state half. The browser uses <code>requires</code> for its
-                  controls and common send door; POST interprets the same prerequisite
-                  against the authoritative fold under the append lock. One detail field
-                  name is reserved: <code>resolves</code> names the comment thread an
-                  x-awaits answer closes. Admission records its effect in
-                  meaning.answer: a thread id closes it, null answers without closing,
-                  and an absent field means the action is not an answer. Historical
-                  settlement uses the admitted owner-unit-facet coordinate even after
-                  the widget retires; independent facets on the widget coexist. A report
-                  cannot declare resolves. Optional references maps package- or
-                  page-named roles to the same {} or {via, where} target contract as
-                  x-refers; matching stable target records travel beside detail and must
-                  resolve uniquely in the sending source document. Ids and structural
-                  anchors become direct dependencies. The facet, unit, requires,
-                  creates, and record forms are $state's.
+                  inspection, the runtime's user-origin reading, and the version diff's
+                  state half. The browser uses <code>requires</code> for its controls
+                  and common send door; POST interprets the same prerequisite against
+                  the authoritative fold under the append lock. One detail field name is
+                  reserved: <code>resolves</code> names the comment thread an x-awaits
+                  answer closes. Admission records its effect in meaning.answer: a
+                  thread id closes it, null answers without closing, and an absent field
+                  means the action is not an answer. Historical settlement uses the
+                  admitted owner-unit-facet coordinate even after the widget retires;
+                  independent facets on the widget coexist. A report cannot declare
+                  resolves. Optional references maps package- or page-named roles to the
+                  same {} or {via, where} target contract as x-refers; matching stable
+                  target records travel beside detail and must resolve uniquely in the
+                  sending source document. Ids and structural anchors become direct
+                  dependencies. The facet, unit, requires, creates, and record forms are
+                  $state's.
                 </p>
               </details>
             </div>
@@ -786,7 +785,7 @@
                   Its existing element children remain HTML. The browser formats those
                   words with the shared safe Markdown parser, while file-side passage
                   and revision readings use the same visible words. A generated child
-                  with this declaration interprets the reader's line breaks as hard
+                  with this declaration interprets the user's line breaks as hard
                   breaks; source HTML line wraps remain ordinary whitespace.
                 </p>
               </details>
@@ -936,7 +935,7 @@
             <div class="reference-copy">
               <p>
                 Where this widget can admit <code>leaf status --on</code> without a
-                pending reader move: <code>content</code> names a block prose seat;
+                pending user move: <code>content</code> names a block prose seat;
                 <code>conversation</code> names the widget's declared x-conversation box
                 and therefore inherits that box's own predicate.
               </p>

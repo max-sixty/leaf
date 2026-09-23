@@ -559,7 +559,7 @@ export function createPresentationCoordinator<
  *
  * The pass cannot await a presenter before starting the next, and a claim cannot wait
  * for the reading it supersedes, for the same reason: a renderer may be holding its
- * reading open — on a widget that has not prepared, on a gesture the reader has not
+ * reading open — on a widget that has not prepared, on a gesture the user has not
  * finished — and anything queued behind that hold would never be drawn at all. What a
  * superseded paint keeps is its own ticket, so the coordinator still reports its
  * failure, because the DOM keeps whatever state that failure reached.

@@ -32,10 +32,10 @@ export function coveredWords({
   };
   // What a run paints, which is not the whole of its rect. A box that clips its overflow
   // shows only the part inside it, so a name ellipsised in a narrow column reads as
-  // covering whatever stands beside it while the reader sees the ellipsis and nothing
+  // covering whatever stands beside it while the user sees the ellipsis and nothing
   // else — the CallDiff root's own row, where the copy revealed a tab the live page keeps
   // closed. Every content ancestor is intersected in, so the reading is the one the
-  // reader is given. The document scrollport is the page's route to the rest of those
+  // user is given. The document scrollport is the page's route to the rest of those
   // words, not a content clip; stop before body just as the control reachability probe
   // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
@@ -194,7 +194,7 @@ export function bake() {
       if (element.shadowRoot) roots.push(element.shadowRoot);
   const all = (selector) =>
     roots.flatMap((root) => [...root.querySelectorAll(selector)]);
-  // A live scroll cue is revised by the runtime as the reader moves. A copy has no
+  // A live scroll cue is revised by the runtime as the user moves. A copy has no
   // runtime, so replace that transient reading with the stable direction a CSS scroll
   // timeline needs to keep answering from the copy's own native scroll position.
   for (const scroller of all("[data-lf-more-before], [data-lf-more-after]")) {
@@ -216,7 +216,7 @@ export function bake() {
     'script, link[rel="canonical"], .lf-chrome, .lf-msg-sending, .lf-say, ' +
       'leaf-anchor-note, iframe[data-lf-contained], [data-lf-behavior="status"]',
   ).forEach((el) => el.remove());
-  // A measurement of this window is not a fact about the reader's. The live page states
+  // A measurement of this window is not a fact about the user's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule
   // a stylesheet could write, so a
   // copy carrying one holds whatever width the exporter's headless window happened to
@@ -264,7 +264,7 @@ export function bake() {
       .querySelectorAll('link[rel="icon"]')
       .forEach((other) => other !== icon && other.remove());
   }
-  // hidden="until-found" is the page saying "collapsed, but the reader can still
+  // hidden="until-found" is the page saying "collapsed, but the user can still
   // get here" — a tab's inactive panel, a settled group's cards. In a copy the
   // control that would get them there is inert, so the attribute is a promise
   // nothing can keep, and it takes the collapsed element's layout down with it:
@@ -311,7 +311,7 @@ export function bake() {
   // since a widget's own empty box is
   // a real thing: that row hangs off an anchor span which takes no space and says
   // nothing, and `anchor(top)` is measured from it.
-  // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
+  // A reaction is the user's mark on the page, and a copy keeps a mark the way it
   // keeps a chosen option's word: the glyph stays in the margin with its press taken
   // off — the button element it was built as, and the marker and title that promised it.
   // The remaining glyph becomes a named static image, and the wash on the words,
@@ -462,7 +462,7 @@ export function bake() {
     .forEach((item) => holdsNothing(item) && item.remove());
   // And the reservation the live page wrote on the root goes the same way, asked after
   // the shells above are gone so the question is about what survived. The reservation
-  // exists because a margin entry can arrive on a gesture and the reader must not pay a reflow
+  // exists because a margin entry can arrive on a gesture and the user must not pay a reflow
   // for it; a file takes no gestures, so what it has when it is written is all it will
   // ever have. Kept regardless, a copy of a page with no durable margin content opened
   // with its column pushed off-centre by a strip holding nothing. The width above is not

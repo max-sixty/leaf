@@ -142,7 +142,7 @@ export function createStateFeed({
   // A read and its application together, for the callers that want to be told when the
   // page has taken the answer in: the buffered first read, which presentation waits on
   // until its own deadline, and a version activation, which asks for the state it is
-  // about to show. The activation opens its own read from a page a reader is already
+  // about to show. The activation opens its own read from a page a user is already
   // using, so it takes an ordinary read's bound rather than the first read's.
   async function readAndApply(read = buffer(STATE_READ_TIMEOUT_MS)) {
     const answer = await read;
@@ -179,10 +179,10 @@ export function createStateFeed({
     // `PRESENTATION_WAIT_MS` whether or not an answer has come, and nothing is aborted
     // when it does. The request keeps its own, far longer bound and stays in flight, so a
     // container that is merely slow is never abandoned mid-answer, while one that accepts
-    // the connection and says nothing cannot decide when the reader gets a page at all.
+    // the connection and says nothing cannot decide when the user gets a page at all.
     // Past the wait the buffered read is an ordinary one: its answer applies and repaints
     // through the same path any later read's does, and a malformed one is reported the
-    // same way rather than withholding a page the reader is already using.
+    // same way rather than withholding a page the user is already using.
     const readAndPresent = async () => {
       let outcome = "waiting";
       let waited = null;
@@ -307,7 +307,7 @@ export function createStateFeed({
     // dropped stream is a prompt to ask, not a verdict. Coming back after a silence, the
     // page asks if its last read failed, since whatever it is showing about the server
     // is from before the silence.
-    // A visible tab is the reader lease for its server-side page. The stream itself is
+    // A visible tab is the user lease for its server-side page. The stream itself is
     // that lease: while any tab for a browser session is visible, at least one incoming
     // request keeps its shared container active. Hidden tabs close their streams, so the
     // container's ordinary idle timeout begins after the last visible tab leaves without
@@ -385,7 +385,7 @@ export function createStateFeed({
       // A contained page is a fixed specimen controlled by its parent gallery. It needs
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot
-      // accept reader input or durable updates.
+      // accept user input or durable updates.
       if (passiveSpecimen) {
         const retry = () => {
           if (document.body.hasAttribute("data-lf-presented")) return;
@@ -432,7 +432,7 @@ export const RETRY_MS = 2000;
 const SILENCE_MS = 30_000;
 
 // How long the page waits on its first read before presenting without one. Presentation
-// is the reader's page arriving, so this is the only bound a reader feels, and it is set
+// is the user's page arriving, so this is the only bound a user feels, and it is set
 // where waiting longer stops being worth an unflashed banner: outside the readings a
 // working container takes — a container that has just run a hosted agent turn was
 // measured answering in 2.3-3.9 s — and inside the patience anyone has for a page. What
@@ -454,8 +454,8 @@ const FIRST_READ_TIMEOUT_MS = 120_000;
 // banner's one honesty mechanism about the server runs through a read that *completed*
 // with nothing: `renderStatus(null)` is the only path to OFFLINE_LINE, and a read still
 // in flight holds the slot, so a stream word or a clock tick only queues a trailing read
-// behind it. This bound is therefore the whole time a reader watching a live page can be
-// shown a reading the server has stopped standing behind, which is a reader's timescale
+// behind it. This bound is therefore the whole time a user watching a live page can be
+// shown a reading the server has stopped standing behind, which is a user's timescale
 // rather than the gate's. On expiry readState produces the same offline answer as any
 // lost request, and the shared retry clock asks again.
 const STATE_READ_TIMEOUT_MS = 10_000;

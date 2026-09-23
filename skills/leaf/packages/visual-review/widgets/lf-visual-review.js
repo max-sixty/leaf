@@ -458,7 +458,7 @@ customElements.define(
         (stageWidth - frameBorder) / width,
         (stageHeight - 2 * labelHeight - gap) / (visibleHeights[0] + visibleHeights[1]),
       );
-      // Geometry chooses the comparison, not another preference for the reader to
+      // Geometry chooses the comparison, not another preference for the user to
       // manage. Wide captures stack so their scan lines remain readable in the scrolling
       // stage; other pairs take the arrangement with the larger common scale.
       const wideCapture = width / Math.max(...visibleHeights) >= 1.5;
@@ -745,7 +745,7 @@ customElements.define(
     #registerCaseRegion(id, entry) {
       if (entry.stopReading) return;
       // The case's prose and controls are its furniture; the aligned captures are what
-      // the reader pages through. Making that relationship a nested reading region lets
+      // the user pages through. Making that relationship a nested reading region lets
       // the shared d/u and j/k routes follow the selected case without a package key.
       entry.stopReading = registerReadingRegion({
         id: compoundReadingRegionId(this, `case-${id}`),
@@ -882,7 +882,7 @@ customElements.define(
       // Moving the shared inspector between articles makes the browser drop its focus.
       // Restore that exact destination; a hidden case-local control instead lands on
       // the corresponding disposition — or the primary disposition when it has no
-      // counterpart — rather than leaving a keyboard reader on the document body.
+      // counterpart — rather than leaving a keyboard user on the document body.
       if (
         leavingCase &&
         (document.activeElement !== active ||

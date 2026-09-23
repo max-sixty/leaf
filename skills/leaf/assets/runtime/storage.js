@@ -22,14 +22,14 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
 // server serves one page at its own root, so every key below is spelled exactly as it was.
 // Two leaf pages on one origin is what needs it — web storage is the origin's, so the
-// reading position a reader left on one example was handed back on the next, at an offset
+// reading position a user left on one example was handed back on the next, at an offset
 // that meant nothing there.
 export const PAGE_SCOPE = PAGE_PATH === "/" ? "" : PAGE_PATH.replace(VERSION_PATH, "");
 
 // ---------- what the page keeps, and what a store may refuse ----------
 // Reading or writing web storage throws outright where the browser has it switched off —
 // a locked-down profile, a private window on some engines — and nothing kept here is
-// worth breaking the page for: a reader who cannot save which tab they were on still
+// worth breaking the page for: a user who cannot save which tab they were on still
 // gets the page. Said once, because a policy spelled at each caller is a policy free to
 // be spelled differently at the next one, and eleven of them had accumulated across the
 // runtime and two widget modules.
@@ -40,7 +40,7 @@ export const PAGE_SCOPE = PAGE_PATH === "/" ? "" : PAGE_PATH.replace(VERSION_PAT
 // of those is about the window rather than about the page. `draftStore` is what the user
 // typed and hasn't sent: it outlives the tab, because closing one is the ordinary end of
 // a tab here, and every tab shows one live copy of it (see the draft section below).
-// `readerStore` is this reader's standing preference across pages, which is the chrome
+// `userStore` is this user's standing preference across pages, which is the chrome
 // they arrange and expect to find arranged. Anything two tabs must *agree* about is none
 // of the three: it goes in the log.
 //
@@ -91,20 +91,20 @@ const stored = (open, name, scope = "") => ({
   },
 });
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
-// there are three backings: what the reader arranges is theirs wherever they are reading,
+// there are three backings: what the user arranges is theirs wherever they are reading,
 // while what they typed here belongs to this page. tabStore is the only one on the helper
 // surface, because only widgets keep working state (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
-// the reader arranges is the runtime's own, and an export nothing imports is a promise
+// the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for.
 export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
-// The delivery declares a child page's private reader scope. Bootstrap reads the
+// The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
-export const readerStore = stored(
+export const userStore = stored(
   () => localStorage,
   "local",
-  document.documentElement.dataset.lfReaderScope ?? "",
+  document.documentElement.dataset.lfUserScope ?? "",
 );
 
 // Disposable child pages have an exclusive URL scope. Call only after their

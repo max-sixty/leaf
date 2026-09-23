@@ -72,12 +72,12 @@ customElements.define(
           const line = document.createElement("span");
           line.className = `lf-code-line${hi.has(n) ? " hi" : ""}`;
           line.append(...synNodes(tokens), "\n");
-          // The tint says "this is the line" to the eye and nothing to a reader
+          // The tint says "this is the line" to the eye and nothing to a user
           // listening, who is handed the whole block with no idea which of it the note
           // beside it is about. A word per highlighted line rather than one at the top
           // saying which numbers: the numbers are a counter, painted into no text node
           // on purpose — a line number in the text would be a line number in the
-          // clipboard — so "lines 3 to 4" would name something the reader cannot hear.
+          // clipboard — so "lines 3 to 4" would name something the user cannot hear.
           // Said per line, it arrives where it is true. The one word rides the same
           // clip as every other quiet word, out of the selection with it, so a copied
           // block is still the source and nothing else.

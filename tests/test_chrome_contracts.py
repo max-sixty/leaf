@@ -49,7 +49,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     browser, serve
 ):
     """Unread replies announce once each, whether they arrive while the page is open or
-    were waiting when it opened, regardless of the panel's disclosure. The reader keeps
+    were waiting when it opened, regardless of the panel's disclosure. The user keeps
     a draft open in a thread no reply lands in, so exposure acknowledges none of them."""
     url = serve(leaf_page("Reply arrivals", "<h1>Reply arrivals</h1>"))
     directory = serve.page_dir
@@ -169,7 +169,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(draft).to_have_value("Keep this draft")
 
     # A duplicate read makes no fresh announcement; a fresh document announces what
-    # the reader has still not read.
+    # the user has still not read.
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
@@ -697,7 +697,7 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     """The runtime starts in WebKit; selection offers an explicit Comment action.
 
     A module feature WebKit lacks fails the whole module graph before the runtime runs:
-    CSS module scripts did, and an iPhone reader saw only that Leaf could not start. A
+    CSS module scripts did, and an iPhone user saw only that Leaf could not start. A
     long press that selects words hands the page no mouseup, and Playwright cannot make
     one, so the selection is placed with no pointer gesture at all."""
     source = PHONE_PAGE
@@ -764,7 +764,7 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     """Phone fields keep their text size and stand below a selected paragraph.
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
-    leaves it zoomed: tapping the field jumped the view, then left the reader panning
+    leaves it zoomed: tapping the field jumped the view, then left the user panning
     sideways across a page wider than the screen. So no field the page holds is smaller,
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
     one set in a sidenote's smaller type opens a size larger than it showed.
@@ -931,7 +931,7 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     marked hands a renderer the authored destination with its character references
     undecoded, and an href attribute decodes them when that markup lands. A guard
     reading the authored text sees `javascript&#58;` as a relative path, admits it,
-    and the reader gets a live script link out of ordinary message prose. Reading the
+    and the user gets a live script link out of ordinary message prose. Reading the
     destination as the document will refuses that link, and the same reading is what
     keeps an ordinary `&amp;` reaching the query it names rather than landing in it.
 
@@ -985,13 +985,13 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(media_button).to_be_focused()
 
 
-def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, serve):
-    """The panel's strip reflows the page; the reader stays on the words they were on.
+def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serve):
+    """The panel's strip reflows the page; the user stays on the words they were on.
 
     Narrowing the shell narrows the reading column inside it, so the text re-wraps and
-    the document grows above wherever the reader is standing. The browser's scroll
+    the document grows above wherever the user is standing. The browser's scroll
     anchoring absorbs that, and nothing in the runtime does: this passes with no script
-    holding the reader's place. That is what makes it the guard. Anchoring is suppressed
+    holding the user's place. That is what makes it the guard. Anchoring is suppressed
     for any frame in which a box on the anchor's ancestor chain changes a property on the
     suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
     is a border and the column does not glide (theme.css, at the body strip), and the
@@ -999,7 +999,7 @@ def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, se
     (`takeShell`, chrome-layout.js). The day any of these regresses, this goes red.
 
     A re-wrap moves every paragraph by a different amount, so only one of them can be
-    held. The one the reader's place means is the block under the top of the window,
+    held. The one the user's place means is the block under the top of the window,
     which is the block the platform's own anchoring would have chosen; what is further
     down has grown taller and is expected to have moved.
     """
@@ -1008,7 +1008,7 @@ def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, se
     # paragraphs: the assertion below says so rather than trusting the width.
     resized(page, 900, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 900")
-    # The reader's place: the page's own block under the window's visible top edge, which
+    # The user's place: the page's own block under the window's visible top edge, which
     # the root states as scroll-padding for native focus navigation.
     at_the_top = """
     () => {
@@ -1040,11 +1040,11 @@ def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, se
     assert closed["top"] == pytest.approx(reading["top"], abs=2)
 
 
-def test_a_page_map_update_keeps_the_row_the_reader_was_on(browser, serve):
-    """A state update re-rendering the open Page Map leaves the reader's rows in place.
+def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
+    """A state update re-rendering the open Page Map leaves the user's rows in place.
 
     A group arriving above the rows in view pushes them down in the list's content by
-    its own height. The place the reader had is the rows they were looking at, so the
+    its own height. The place the user had is the rows they were looking at, so the
     list follows them by the same amount rather than standing at the scroll offset it
     had, which would show them one group further down.
     """

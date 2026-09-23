@@ -998,7 +998,7 @@ def test_mcp_app_is_read_only_when_the_host_cannot_proxy_server_tools(
 # Three passages a host paints differently from the way the authored document holds them: the
 # theme uppercases a table header and an eyebrow, and a <br> puts a line break where the
 # page's own words run straight on. Each is ordinary authored markup — every shipped
-# example carries an eyebrow — so this is what a reader points at, not an edge case.
+# example carries an eyebrow — so this is what a user points at, not an edge case.
 SNAPSHOT_READING_PAGE = leaf_page(
     "snapshot reading",
     """
@@ -1084,7 +1084,7 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     """A selection's own toString() is the rendered reading, and the rendering is not the
     page's words: the theme uppercases a table header and an eyebrow, and a <br> breaks a
     run the file holds unbroken. An anchor written from it names a passage no reading of
-    the version can find, so the reader is told the page never said the words in front of
+    the version can find, so the user is told the page never said the words in front of
     them. The app therefore reads the document's own text nodes, posts that and nothing
     else, and the append gate — the one resolver — writes the neighbours and stores the
     same anchor `leaf comment` would. The full page then paints those exact passages."""
@@ -1186,8 +1186,8 @@ TWICE_PAGE = leaf_page(
 )
 
 
-def test_a_refused_anchor_reaches_the_reader_with_their_draft_intact(browser, serve):
-    """The gate refuses a quote no context identifies, and the reader is the one who can
+def test_a_refused_anchor_reaches_the_user_with_their_draft_intact(browser, serve):
+    """The gate refuses a quote no context identifies, and the user is the one who can
     still fix it by selecting more. So the app has to hand back what the gate said —
     occurrences and all — and leave the comment where they typed it."""
     serve(TWICE_PAGE)

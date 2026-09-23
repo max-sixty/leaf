@@ -82,7 +82,7 @@ from leaf.render_gate import preview as render_gate_model
 from page_fixtures import package_selection_args
 
 
-def test_new_words_reopen_a_thread_without_settling_a_newer_reader_turn(page_dir):
+def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     """Late answers keep their exact scope; marks and failure receipts stay closed."""
     publish(page_dir)
     events_model.append_event(
@@ -281,7 +281,7 @@ def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card():
     """A verb that carries its own result is checked against the deck it claims.
 
     `finish` names the card's final pile itself rather than reporting where the
-    reader dropped it, so nothing but admission stands between a crafted POST and
+    user dropped it, so nothing but admission stands between a crafted POST and
     an answered Ask. Two different gates answer: the completion condition, which
     a finish leaving a card queued does not meet, and the position record, whose
     unit must be an element the deck actually holds. A door that took the verb's
@@ -350,24 +350,24 @@ def test_only_declared_generated_children_add_mapping_keys_to_liveness():
         "detail": {
             "part": "authored-child",
             "metadata": {"coincidental-id": "ordinary mapping payload"},
-            "additions": {"reader-child": "Reader supplied words"},
+            "additions": {"user-child": "User supplied words"},
         },
-        "generated": ["reader-child", "reader-child"],
+        "generated": ["user-child", "user-child"],
         "meaning": {"depends": ["group", "authored-child"]},
     }
     spec = {"creates": {"field": "additions", "child": "lf-option"}}
 
     assert registry_contract.created_children(event, spec) == {
-        "reader-child": "Reader supplied words"
+        "user-child": "User supplied words"
     }
     assert event_folds_model.action_rests_on(event, {"authored-child": ("group",)}) == [
         "group",
         "authored-child",
-        "reader-child",
+        "user-child",
     ]
 
 
-# Two suggestions on one page, and the decisions a reader takes on them. The
+# Two suggestions on one page, and the decisions a user takes on them. The
 # widgets are here rather than named only in the events because a settlement
 # rests on its widget: the door derives each action's coordinate and its answer
 # from this markup, so a log that named a widget the page has not got would be
@@ -419,9 +419,9 @@ def test_an_accept_carries_its_thread_resolution():
     assert threads["e2"]["resolved"] is None
 
 
-def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
+def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     """An action names the thread it settles, and it settles it only while the
-    reader still stands behind it. Withdrawing the answer is one of the three ways
+    user still stands behind it. Withdrawing the answer is one of the three ways
     an action stops standing — a `restated` version and a later answer from the
     same widget are the others — and the thread reading owes all three the same
     reply, or a question would read as answered by a gesture the log itself records
@@ -469,10 +469,10 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     assert threads["c1"]["resolved"] is None
 
 
-def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, page_dir):
+def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page_dir):
     """`undoes` is checked completely where it enters, so nothing downstream asks a
     second time whether it points at something real. What an undo may name is one
-    unwithdrawn gesture of the reader's own: an agent's `leaf resolve` is not
+    unwithdrawn gesture of the user's own: an agent's `leaf resolve` is not
     theirs to take back, a comment is speech rather than state, an undo is not
     itself undoable (that would be a redo), and one gesture cannot be taken back
     twice."""
@@ -495,10 +495,10 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
 
     for bad, says in [
         ({"kind": "undo", "undoes": "nope"}, "unknown"),
-        # The reader's own gestures only, and only the kinds that carry state.
+        # The user's own gestures only, and only the kinds that carry state.
         (
             {"kind": "undo", "undoes": agent_closed["id"]},
-            "not the reader's own gesture",
+            "not the user's own gesture",
         ),
         ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
@@ -520,7 +520,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
     took_back = json.loads(body)["state"]["events"][-1]
 
     # Once, and never the undo itself: repeated presses walk back through the
-    # reader's history rather than toggling the last gesture on and off.
+    # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
     assert status == 400 and "already been taken back" in json.loads(body)["error"]
     status, body = fetch(
@@ -1010,10 +1010,10 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
             "widget": "route",
             "action": "choose",
             "detail": {
-                "options": ["route-reader"],
-                "additions": {"route-reader": "Reader route"},
+                "options": ["route-user"],
+                "additions": {"route-user": "User route"},
             },
-            "generated": ["route-reader"],
+            "generated": ["route-user"],
         },
     )
 
@@ -1765,7 +1765,7 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
             "revision": first_revision,
             "widget": "local-choice",
             "action": "first",
-            "detail": {"value": "reader"},
+            "detail": {"value": "user"},
         },
     )
     restated = original.replace('value="author"', 'value="author-next" restated')
@@ -1826,7 +1826,7 @@ def test_revendoring_checks_the_effective_page_owned_vocabulary(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "local-choice",
             "action": "first",
-            "detail": {"value": "reader"},
+            "detail": {"value": "user"},
         },
     )
 
@@ -1836,7 +1836,7 @@ def test_revendoring_checks_the_effective_page_owned_vocabulary(page_dir):
 
 
 def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_dir):
-    """A thread widget keeps the contract under which its reader command was admitted."""
+    """A thread widget keeps the contract under which its user command was admitted."""
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir, "lf-thread-local")
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
@@ -1861,7 +1861,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
             "revision": revision,
             "widget": "thread-choice",
             "action": "first",
-            "detail": {"value": "reader"},
+            "detail": {"value": "user"},
         },
     )
     del declaration["x-state"]["first"]
@@ -3040,7 +3040,7 @@ def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
 
 
 @pytest.mark.parametrize("subschema", [True, False])
-def test_state_reader_fields_reject_boolean_subschemas(page_dir, subschema):
+def test_state_user_fields_reject_boolean_subschemas(page_dir, subschema):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["options"] = (
         subschema
@@ -3093,9 +3093,7 @@ def test_per_part_state_records_positions(page_dir, tag, verb, field):
         ("lf-draft", "edit", "text", "must be a string"),
     ],
 )
-def test_record_values_have_the_type_the_reader_uses(
-    page_dir, tag, verb, field, wanted
-):
+def test_record_values_have_the_type_the_user_uses(page_dir, tag, verb, field, wanted):
     registry = json.loads((page_dir / "registry.json").read_text())
     spec = registry[tag]["x-state"][verb]
     spec["detail"]["properties"][field] = {"type": "integer"}
@@ -3481,7 +3479,7 @@ def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
 def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
     """Nothing was decided, so the author may take the question back — and
     `x-withdrawn-as` is what says which half of it was theirs to take. The other
-    half is the page's own words, which only the reader's own `adopt` consents
+    half is the page's own words, which only the user's own `adopt` consents
     to losing, so a version dropping that is refused while the same version's
     withdrawal stands."""
     (trial_page / "index.html").write_text(
@@ -3506,7 +3504,7 @@ def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(
     trial_page,
 ):
     """A withdrawal is declared, never assumed: a family that doesn't say what
-    taking its question back would mean keeps every id until the reader answers
+    taking its question back would mean keeps every id until the user answers
     it. <lf-proposed> is the same slot under the same verb in both families, so
     what differs is the pair — which is the shape the licensing reads, and the
     reason the declaration sits on the widget that holds the slot rather than on
@@ -3804,8 +3802,8 @@ def test_check_refuses_action_prerequisites_without_a_declared_request_target(
     assert message in result.output
 
 
-def test_only_reader_actions_admit_current_eligibility(page_dir):
-    """Reports state agent news; they are not gestures the reader can disable."""
+def test_only_user_actions_admit_current_eligibility(page_dir):
+    """Reports state agent news; they are not gestures the user can disable."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-report"]["status"]["requires"] = {
         "target": "self",
@@ -4211,7 +4209,7 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
 
 
 HANDLING_WALKTHROUGH = """\
-What the agent is told when a reader acts on a page
+What the agent is told when a user acts on a page
 ===================================================
 
 A test records this file; nobody writes it by hand. The lines starting with `#`
@@ -4224,7 +4222,7 @@ How this text reaches the agent, by example
 -------------------------------------------
 
 1. The page's `plan` section reads "The nightly backfill moves to Tuesdays so it
-   stops colliding with the report run." The reader selects "moves to Tuesdays"
+   stops colliding with the report run." The user selects "moves to Tuesdays"
    and comments "why here?". The page's JavaScript sends this to the page's
    server as POST /api/event:
 
@@ -4337,12 +4335,23 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
             **owes("reply"),
         },
+        "comment with a pasted image": {
+            "kind": "comment",
+            "text": "this looks off ![screenshot](/media/0a1b2c.png)",
+            **owes("reply"),
+        },
         "comment awaiting a version": {"kind": "comment", **owes("version")},
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
         "reaction on the page": {"kind": "comment", "token": "+1"},
         "reply": {"kind": "reply", **owes("reply")},
+        "reply with a pasted image": {
+            "kind": "reply",
+            "text": "like this ![sketch](/media/3d4e5f.png)",
+            **owes("reply"),
+        },
+        "reply in a thread awaiting a version": {"kind": "reply", **owes("version")},
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "pick adding an option": {
@@ -5207,7 +5216,7 @@ def test_check_reads_a_page_stylesheet_as_css(page_dir):
 def test_check_reports_css_syntax_errors_in_every_source_the_page_carries(page_dir):
     """The page's own <style>, each inline style, and every sheet it vendors.
     shadow.css is the sheet each widget's shadow root adopts, so a malformed rule
-    there reaches the reader as an unstyled widget with nothing said about it."""
+    there reaches the user as an unstyled widget with nothing said about it."""
     for name in ("theme.css", "shadow.css"):
         sheet = page_dir / name
         sheet.write_text(f"{sheet.read_text()}\n.vendored {{ color red; }}\n")
@@ -5613,7 +5622,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     """A reaction is a comment or reply carrying `token` in place of `text`: one of
     the two and never both, a word the merged vocabulary declares, and no
     suggestion, hold, or markup riding beside it. What the door lets through it
-    also lets the reader take back — while it is still a mark. An answer under it
+    also lets the user take back — while it is still a mark. An answer under it
     makes it a conversation, and a message with words in it was never a mark."""
     publish(page_dir)
     root = json.loads(
@@ -5697,7 +5706,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert answer["final"] is True, body
     assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a conversation, and the withdrawal would orphan
-    # the answer; the reader's move is in the thread it opened.
+    # the answer; the user's move is in the thread it opened.
     conversation_model.cmd_reply(
         page_dir,
         reaction["id"],

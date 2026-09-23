@@ -60,7 +60,7 @@
    face. Margin entries, reaction chips, and status labels retain their own forms.
 
    Typography is presentation, not passage permission. A chip or code annotation may look
-   like apparatus and still be a page word the reader can quote.
+   like apparatus and still be a page word the user can quote.
 
    A floor asks about the room its rule governs. One granting a posture out of the room
    left beside a panel or tray is a container query on `lf-shell`, inside `@media screen`
@@ -158,21 +158,21 @@
      a focus ring — and so has to stay hue-distinct from the
      three semantic colors it appears beside. That rules out the warm end: a clay
      accent sits a few degrees from --warn, and an accent ring beside a warning dot
-     would be a distinction the reader has to measure. Ink blue keeps the link and
+     would be a distinction the user has to measure. Ink blue keeps the link and
      focus conventions and reads as ink on ivory rather than as UI. */
   --accent: light-dark(#2f5480, #8fb0d8); --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c); --danger: light-dark(#b4402f, #d98b7a);
   --r: 6px;
   --chip-r: 3px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
-  /* The smallest box the layer offers a reader to aim at, on either axis. One token
+  /* The smallest box the layer offers a user to aim at, on either axis. One token
      rather than a number in each rule, and one token rather than two floors and a media
      query in each of them: what changes between a mouse and a finger is this length and
      nothing else, so the query belongs here where it is asked once. A control that has
      to be a fixed size under a finger — a margin entry, the shortcut bar's More — still
      says so where it is written; this is the floor, not the size. */
   --aim-floor: 24px;
-  /* The smallest face a reader types in. Only a finger's platform asks for one: iOS
+  /* The smallest face a user types in. Only a finger's platform asks for one: iOS
      Safari zooms the page onto a text field set smaller as the field takes focus. The
      field rule that holds it is in shadow.css, and a surface that shows words before
      opening a field on them holds the same floor so the two sizes agree. */
@@ -204,7 +204,7 @@
   --thread-card: 380px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
-     which annotates one block at its own height, a sidebar may remain beside the reader
+     which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for wherever it is in
      margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
      labels without making a second prose column. The rule beside aside.sidebar spends
@@ -294,7 +294,7 @@
      annotated, and the two never look alike side by side. */
   --react: light-dark(#dfd1ed40, #6152a036);
   /* The compact "you are here" ring: a control or bounded decision receiving the
-     reader's next press wears one consistent band. A large composite surface would
+     user's next press wears one consistent band. A large composite surface would
      turn that band into a second box around the box; it instead uses a quiet ground.
      Its geometry distinguishes a target from a current region. The
      gap is what the ring wants outside a box that stands on its own; a control packed
@@ -341,14 +341,14 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* A conversation whose next word is the reader's. The green below says the agent has
-     this one, so the reader's own turn has to be a hue apart from it, and apart again
+  /* A conversation whose next word is the user's. The green below says the agent has
+     this one, so the user's own turn has to be a hue apart from it, and apart again
      from the violet a comment mark already wears. Blue is where the page's pointing
      already lives; the wash is mixed to the same strength as --ok-wash so the two
      states read as one pair rather than two decorations.
      TODO: this is a first colour, not a settled scheme. A margin entry can now stand in
-     three states — on the agent, on the reader, on neither — and they have not been
-     designed together. Decide whether the reader's turn deserves a hue of its own
+     three states — on the agent, on the user, on neither — and they have not been
+     designed together. Decide whether the user's turn deserves a hue of its own
      rather than the accent's, and whether "on neither" should say so at all. */
   --turn-tint: light-dark(#dbe6f4, #1a2533);
   --turn-wash: color-mix(in srgb, var(--turn-tint) 52%, var(--paper));
@@ -366,13 +366,13 @@
   --syn-type: light-dark(#8a5a12, #dcb27e);
 
   /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
-     drawn: these are the most a reader can hold apart, and a palette that runs out and
+     drawn: these are the most a user can hold apart, and a palette that runs out and
      starts again tells them two series are one. They are their own family rather than
      --accent, --ok, --warn and --danger reused, because those four say something on this
      page — a decision's link, a passing check, a warning — and a bar wearing one would
      be making that claim about a number.
      Not chosen by eye. The first attempt at this line was, and its blue and its plum
-     came out 0.3 apart under deuteranopia — the same color, to a reader who has no way
+     came out 0.3 apart under deuteranopia — the same color, to a user who has no way
      to tell us. So the steps are stepped to clear the measurable floors: every pair
      (not merely the neighbors, since a stacked bar puts any two of them edge to edge)
      at least 8 apart in OKLab ΔE×100 under simulated protanopia and deuteranopia, at
@@ -409,7 +409,7 @@ html:root {
    states a floor reads its token, so a control joins both answers by joining one of them. */
 @media (pointer: coarse) { :root { --aim-floor: 44px; --entry-floor: 16px; } }
 /* Which here ring this is, said by the rule that draws it. An outline carries no word
-   for which of the layer's rules put it there — so a reader that had to know worked it
+   for which of the layer's rules put it there — so a user that had to know worked it
    back from the selectors, matching the layer's own rules against the document by hand.
    To ask `querySelectorAll` anything it first had to resolve nesting, join `@scope`
    roots onto their descendants and split `:host(...)` on a matched paren, and it had
@@ -420,9 +420,9 @@ html:root {
    already answered.
 
    The rule says which ring it is instead, in the same declaration that draws it, the
-   way a box already says where it draws its frame (--lf-block-frame). Readers ask the
+   way a box already says where it draws its frame (--lf-block-frame). Users ask the
    composed page, and get a truer answer than the matching gave: the cascade hands the
-   name to whichever rule won the outline, so what is credited is the ring the reader is
+   name to whichever rule won the outline, so what is credited is the ring the user is
    looking at rather than every rule whose selector reached the element.
 
    Registered rather than reset, because the reset --lf-block-frame needs is a rule of its own
@@ -468,7 +468,7 @@ html:root {
  * is the DOM's answer to it. The two are the same only where no module has written
  * anything: a pick mark is appended and positioned out of the flow, a quiet word is
  * clipped and inserted after the title, and each of them takes the trim off the block the
- * reader can actually see — so a settled option kept 13px under its last paragraph and a
+ * user can actually see — so a settled option kept 13px under its last paragraph and a
  * block change kept 13 over its first, in exactly the widgets that build the most chrome.
  * The generated markers are the same pair the anchor pass reads (`GENERATED`, leaf.js),
  * because it is the same question: which of these words are the page's. That also
@@ -534,14 +534,14 @@ body { position: static !important; box-sizing: border-box !important;
  * replaces them with body state; stored widths are capped by the same responsive
  * bargain as the live resizable edges.
  *
- * The strip is a border and not a margin, and that is the whole of what keeps the reader
+ * The strip is a border and not a margin, and that is the whole of what keeps the user
  * where they were standing. Narrowing the shell reflows the page inside it — residents
  * hand their strips back, prose re-wraps — and the browser absorbs that for free through
  * scroll anchoring. Except that the spec's suppression triggers include `margin`,
  * `padding`, `width` and `height` on the path from the anchor up to the scroller, and
  * body is on every such path, so the page yielding its strip that way switched off the
- * one mechanism that was going to carry the reader across the reflow it caused. Measured
- * on a page with both margin residents: the reader's paragraph fell 149px at 1728 and
+ * one mechanism that was going to carry the user across the reflow it caused. Measured
+ * on a page with both margin residents: the user's paragraph fell 149px at 1728 and
  * 1409px at 900.
  *
  * `border-width` is in neither the spec's list nor Chromium's. Body is `border-box`, so
@@ -559,8 +559,8 @@ body { position: static !important; box-sizing: border-box !important;
  * layout (`ScrollAnchor::NotifyBeforeLayout`), and the container-query recalc that moves
  * `main` runs inside layout, after that walk. So a `--lf-shift` or column width set some
  * other way — a class toggled from script, an inline style, an animation — would switch
- * anchoring off again. `test_taking_the_panels_strip_leaves_the_reader_on_the_same_words`
- * is the guard, and passes with no script holding the reader's place. */
+ * anchoring off again. `test_taking_the_panels_strip_leaves_the_user_on_the_same_words`
+ * is the guard, and passes with no script holding the user's place. */
 @media screen and (not (width <= 840px)) {
   :is(
     html[data-lf-restore-panel],
@@ -630,7 +630,7 @@ body { position: static !important; box-sizing: border-box !important;
  * makes a long line hard is the sweep back to find the next one, and both of the things
  * that cost are missing: the leading is 1.6, which is what buys a long measure back, and
  * a page here is prose interleaved with boards, diffs and cards rather than a column of
- * text, so four consecutive full-width lines is a lot. The reader who works in these
+ * text, so four consecutive full-width lines is a lot. The user who works in these
  * pages was asked and doesn't want them narrower.
  *
  * If that ever changes, the floor is not taste. A code block is this column less its
@@ -652,7 +652,7 @@ main {
   /* A workspace changes the shell's responsive state in one layout pass, and the column
    * arrives at its new horizontal position in that pass. It used to glide there over
    * 180ms, which cost more than it bought: an animation on `left` is a scroll-anchoring
-   * suppression trigger on every frame it runs, so the glide was what threw the reader
+   * suppression trigger on every frame it runs, so the glide was what threw the user
    * when the panel closed, and a page that jumps sideways and holds its words is the
    * better trade. */
   left: var(--lf-shift);
@@ -1035,7 +1035,7 @@ dd { margin: 0 0 8px 0; }
  *
  * Figures are part of the voice, because apparatus is where the page's quantities
  * live and a quantity here is one that moves — a task's done fraction, a metric's
- * value, a badge's count, each rewritten in place by a report the reader never
+ * value, a badge's count, each rewritten in place by a report the user never
  * asked for. The sans sets its digits to their own widths, so a rewrite resizes the
  * box the number is set in — a chip has a filled edge, so that edge is visible on its
  * own — and moves whatever stands after it, which for a metric is the delta riding
@@ -1075,7 +1075,7 @@ dd { margin: 0 0 8px 0; }
 .eyebrow:has(+ h3), .eyebrow:has(+ .lf-toc-target + h3) { margin-top: 32px; }
 .eyebrow + :is(h2, h3),
 .eyebrow + .lf-toc-target + :is(h2, h3) { margin-top: 0; }
-/* The one paragraph a reader is guaranteed to read, so it is set as one: larger
+/* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 .lede { color: var(--ink-2); font-size: var(--t-3); line-height: 1.5;
         margin: 0 0 10px; }
@@ -1084,7 +1084,7 @@ dd { margin: 0 0 8px 0; }
 /* A tinted field with a hairline border — never a left-accent bar. What sits in it is the
    page's own prose at the page's own size, so the tint is the whole of the marking and
    this says nothing about size at all. It held 16px once, a pixel under the body around it
-   for a difference no reader could see; stating --t-4 instead was the same number in a
+   for a difference no user could see; stating --t-4 instead was the same number in a
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-block-frame: 1; }
@@ -1095,7 +1095,7 @@ dd { margin: 0 0 8px 0; }
    negative left margin and the right gutter sum with its width to zero, leaving the
    prose's line boxes untouched; the shell's left claim is the room the box uses.
 
-   The claim is page-wide because a sticky box may occupy any height while the reader
+   The claim is page-wide because a sticky box may occupy any height while the user
    scrolls. A wide exhibit therefore gives up its left growth while the sidebar stands;
    subtracting the strip from --lf-room alone still lets symmetric growth cross the
    gutter. A sidebar and a sidenote together wait for 1496px of shell, the ordinary
@@ -1197,7 +1197,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
 /* What the margin is for is in the catalog beside the class; this is why it is the right
    margin, what shares it, and what the strip costs.
 
-   The right is where a reader's eye leaves the line, which is where marginalia has been
+   The right is where a user's eye leaves the line, which is where marginalia has been
    set for as long as there has been marginalia, and the left is where the eye returns to
    start the next one — so a note there sits in the return path of every line of the
    column beside it. The page reads as one axis rather than two because of it: the column
@@ -1219,7 +1219,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
    the float.
 
    The composer opens out there too and covers a note whole while it stands, which is a
-   box the reader summoned and dismisses. The panel takes that side of the window
+   box the user summoned and dismisses. The panel takes that side of the window
    entirely, and the note does not give way to it: both the strip and the column come out
    of the box the panel leaves, so a note moves exactly as far as the paragraph it
    annotates and no further.
@@ -1282,7 +1282,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
   }
   /* The pull reaches the page's margin through any box between that doesn't clip, which
      is a section, a tab panel, a disclosure. Through one that does — a choose group, a
-     board, a table — the note is drawn nowhere at all, and the reader is the only party
+     board, a table — the note is drawn nowhere at all, and the user is the only party
      who loses it: checkVisibility() is true of a clipped box, so screen and paper agree,
      and the copy withholds the clip and shows the words the live page dropped. Scoping
      the float to what it may float out of would answer that and cost the cases that
@@ -1379,7 +1379,7 @@ lf-suggestion { display: inline; }
 lf-old, lf-new { border-radius: 3px; padding: 0 3px; }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
- * every reader-facing word to. The corpus's first inline delete is what surfaced it. */
+ * every user-facing word to. The corpus's first inline delete is what surfaced it. */
 lf-old { background: var(--del-tint); color: var(--ink-2);
          text-decoration: line-through; text-decoration-color: var(--danger); }
 lf-new { background: var(--add-tint); }
@@ -1432,10 +1432,10 @@ lf-new { background: var(--add-tint); }
  * nothing, the gap between two slots and between two suggestions being the second one's
  * either way. Nor does it cost the prose around a change: collapsing already took the
  * larger of this 10px and the 13px a paragraph reserves, so the side that went was one
- * no reader ever saw.
+ * no user ever saw.
  *
  * Both slots take the block form together, the wrapper being what asks the question:
- * what the reader is deciding is one change, not two halves with their own layouts. A
+ * what the user is deciding is one change, not two halves with their own layouts. A
  * paragraph replaced by a phrase used to render as a full-width struck field with a
  * three-word pill under it, which is what a suggestion looks like when each slot
  * answers for itself.
@@ -1456,14 +1456,14 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
  * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
- * the reader is looking at stepping sideways, which is the jerk the fold is there to
+ * the user is looking at stepping sideways, which is the jerk the fold is there to
  * remove, only smaller. Declared on the slot rather than on the decided state, because a
  * transition is read from the state the element is leaving; the reduced-motion guard at
  * the foot of this file takes it with everything else.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
  * transitioned background is the thing the choose group's own comment above warns
- * about: the tokens themselves move when the reader's system flips to dark, so every
+ * about: the tokens themselves move when the user's system flips to dark, so every
  * slot on the page would animate from one palette to the other for a change nobody
  * made. */
 lf-old, lf-new { transition: padding .22s ease; }
@@ -1531,7 +1531,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  *
  * fit-content keeps that line the width of the controls standing in it, the box the row
  * had in the margin: a block-level row stretched to the column would take presses across
- * the whole width of a line the reader is trying to select in (pointer-events above). */
+ * the whole width of a line the user is trying to select in (pointer-events above). */
 .lf-margin-cluster.lf-docked { position: static; display: flex; width: fit-content;
     max-width: 100%; margin: 2px 0 12px; flex-wrap: wrap; white-space: normal; }
 .lf-margin-inline { display: block; }
@@ -1670,15 +1670,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   content: ""; position: absolute; inset-block-start: 0; inset-inline-end: 0;
   width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
 }
-/* A thread whose next word is the reader's wears the same two channels in blue: the
+/* A thread whose next word is the user's wears the same two channels in blue: the
    glyph and the interior. Agent workflow outranks it, because a carrier the agent has
    picked up or is working on is reporting something happening now, and one interior
    cannot carry two washes. The entry's own contour still says what the press does. */
-.lf-margin-entry[data-lf-turn="reader"]:not([data-lf-agent-workflow])
+.lf-margin-entry[data-lf-turn="user"]:not([data-lf-agent-workflow])
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--turn-ink);
 }
-.lf-margin-entry[data-lf-turn="reader"]:not([data-lf-agent-workflow]) {
+.lf-margin-entry[data-lf-turn="user"]:not([data-lf-agent-workflow]) {
   --lf-entry-tint: var(--turn-wash);
   background: var(--lf-entry-tint);
 }
@@ -1726,7 +1726,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   transition-delay: 90ms;
 }
 /* A keyboard destination says its label at once. Besides avoiding a needless delay for
-   the reader, this keeps a contribution that is rebuilt while the margin projection settles
+   the user, this keeps a contribution that is rebuilt while the margin projection settles
    from restarting three paint-only transitions at time zero forever. Pointer discovery
    retains the short delay and reveal above. */
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
@@ -1748,7 +1748,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * and 840 is also where the banner folds, which asks the window, so with no strip taken
  * the page goes compact at one width, less a classic scrollbar's gutter. The Page Map the
  * folded banner then offers asks this floor of this box (chrome.css), so a panel that
- * takes the markers away hands the reader the map in their place. This asks `lf-shell` because the rail is drawn in the shell, and a panel
+ * takes the markers away hands the user the map in their place. This asks `lf-shell` because the rail is drawn in the shell, and a panel
  * standing beside takes its room as surely as a narrow window does. Asking the window read
  * a room the page did not have: with the panel beside it a 900px window is a 480px shell,
  * the claim still spent 59 of them, and that left a 373px column with every marker flush
@@ -1812,10 +1812,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* A page that can grow a page-edge margin entry reserves this strip at load. The runtime says
  * so on the root (data-lf-rail) and never takes it back, so durable apparatus never hangs
- * in accidental leftover space and the reader never buys the room for it with a gesture.
+ * in accidental leftover space and the user never buys the room for it with a gesture.
  * The claim's width is the widest stable width the shared layout has measured, over a
  * floor of the generated marker's own margin entry, and it is monotonic for the page's life:
- * neither settling an action nor taking it back moves the column under the reader.
+ * neither settling an action nor taking it back moves the column under the user.
  * Temporary reaction choices borrow the available RHS and dock the complete item if they
  * do not fit; they do not enlarge this claim. Below the breakpoint the whole item docks
  * into flow.

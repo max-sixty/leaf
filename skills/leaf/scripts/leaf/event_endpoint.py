@@ -134,7 +134,7 @@ def _execute_event(
             # and the prompt hook both reopen the turn the Stop hook closed. A
             # running turn needs no nudge, because its Stop hook refuses to end
             # with the input unpicked. A closed turn gets one nudge per page, so
-            # a reader ticking three boxes queues one turn or one approval
+            # a user ticking three boxes queues one turn or one approval
             # rather than three. The claimant's harness decides whether its
             # session can be reached at all and what to say; a harness whose
             # carrier is a process of its own has nowhere to put this and

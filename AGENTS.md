@@ -28,7 +28,7 @@ down by state it does not own.
 The suite does not constrain new code either. Agents wrote every test in
 `tests/`, and most are overfit on the implementation they were written against:
 they assert the shape the code happened to take rather than the behavior a
-reader depends on. Changing or deleting a test is an ordinary part of a code
+user depends on. Changing or deleting a test is an ordinary part of a code
 change. Read what the assertion was holding, rewrite it where that leaves a
 better app, and say in the commit which behavior moved.
 
@@ -97,7 +97,7 @@ CLI, browser, and published-site boundaries, and in `tests/runtime/` the folds t
 shipped runtime performs, which Node runs without one. `scripts/` owns developer preview,
 site, demo, vendor, and browser-framework tooling. `worker/` is the Cloudflare
 Worker behind <https://leaf.page/> — it serves the built site and routes each
-example to the canonical Python server in a per-reader container. Its container
+example to the canonical Python server in a per-user container. Its container
 adapter, `worker/server.py`, is ordinary Python that `tests/` covers. Its
 TypeScript half and the TypeScript under `scripts/browser/` are the two parts of
 the tree with gates of their own that `tests/` does not reach.
@@ -176,7 +176,7 @@ transitions. Every current-state projection starts with markup and applies the
 standing log; do not add a database, derived current-state file, widget-specific
 replay list, or DOM-backed authority beside them.
 
-A later version preserves a reader decision unless it explicitly retracts what
+A later version preserves a user decision unless it explicitly retracts what
 the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event.
 
@@ -190,7 +190,7 @@ and conversation state. Every forward gesture whose semantic result the page can
 screen in the turn that sends it, before the log answers; a disabled control, spinner,
 or other delivery status is not that result. What the page can draw is what its own
 document settles: a widget's state, a thread's turn. Which Asks the document still holds
-and which of them the reader owes are settled by the whole log, so that reading moves
+and which of them the user owes are settled by the whole log, so that reading moves
 when the state a gesture's own POST returns is adopted, and the browser never folds a
 second answer to it. Refusal restores the authoritative state.
 Widgets render that state, including unset and undecided values; undo
@@ -216,13 +216,13 @@ mechanical browser owners until a gesture becomes a declared application fact. T
 renderings are not semantic authority, and repainting them does not create a semantic
 epoch. That state also lives exactly as long as the node holding it: the log does not
 record it and no projection returns it, so whatever replaces a node hands it across
-itself, under the identity that replacement already keys on, or the reader loses it.
+itself, under the identity that replacement already keys on, or the user loses it.
 
 Python derives page-wide `activity` and exact-input `workflows` from the agent's
 status declaration, claim and turn identity, watcher lease, delivery, and response
 evidence. The banner and neighboring-page rows describe page activity. Messages,
 thread attention, and margin entries consume the canonical workflows; thread
-attention also retains outstanding reader Asks. Page activity does not imply work
+attention also retains outstanding user Asks. Page activity does not imply work
 on every message. JavaScript adds unresolved local sends through the application
 publisher and may schedule a read at `next_transition_at`; it does not age or
 independently reclassify accepted workflow evidence. The stop guard consumes the
@@ -241,7 +241,7 @@ terminal receipt names each accepted request. Page seats are scoped to their
 authored revision, while a seat in frozen thread markup lasts for that document's
 whole lifetime. Packages own verbs, host meaning, guidance, and UI; Leaf owns only
 the typed transport and canonical lifecycle projection. A package may declare that a
-ready request is a reader ask; acceptance hands the turn to the host, success closes it,
+ready request is a user ask; acceptance hands the turn to the host, success closes it,
 and failure returns it through that same projection.
 
 ### Validate once and share readings
@@ -278,7 +278,7 @@ Before finishing a feature:
   `skills/leaf/SKILL.md` or the routed reference that owns the workflow, and only
   that one: another reference whose reader meets the mechanism points at that
   section by name rather than restating it, since each copy drifts on the next
-  change. Shipped guidance sets goals for the reader's experience and names the
+  change. Shipped guidance sets goals for the user's experience and names the
   surface they read on; it leaves format and phrasing to the agent's judgment.
 - Update any public docs or generated outputs the feature affects.
 

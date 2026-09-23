@@ -16,7 +16,7 @@ export async function mountSpecimen(frame, options) {
   return owner.mountSpecimen(frame, options);
 }
 
-export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
+export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
 export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
@@ -27,10 +27,10 @@ export {
   shownBox,
   shownParts,
 } from "./geometry.js";
-// Holding the reader's place in a scroller whose contents a widget re-renders.
-export { placeKeeper } from "./reader-place.js";
+// Holding the user's place in a scroller whose contents a widget re-renders.
+export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
-// Putting the reader on an element that may be no tab stop of its own, which is what a
+// Putting the user on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.
 export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
@@ -130,7 +130,7 @@ export {
   targetCandidates,
 } from "./target-references.js";
 export { projectData } from "./application.js";
-export { retainReaderIntent } from "./reader-intent.js";
+export { retainUserIntent } from "./user-intent.js";
 export { tabStore } from "./storage.js";
 export {
   highlightBlocks,

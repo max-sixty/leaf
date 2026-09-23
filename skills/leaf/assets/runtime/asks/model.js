@@ -5,7 +5,7 @@
    the publisher folds those declarations again. This module is only the public
    selection boundary. DOM resolution belongs to the views that need controls, words,
    focus, or geometry; it cannot change which Asks exist or whether they await the
-   reader. */
+   user. */
 import { applicationState, readApplication } from "../semantic-state.js";
 import { registry } from "../registry.js";
 
@@ -13,7 +13,7 @@ const reading = () => readApplication().effective.asks;
 
 export const askEntry = (ask) => registry[ask?.sourceTag]?.["x-awaits"];
 export const allAsks = () => reading().all;
-export const openAsks = () => reading().reader;
+export const openAsks = () => reading().user;
 export const unansweredAsks = () => reading().unanswered;
 // Approval is irreversible, so its gate never reads an unknown as an empty list: with
 // no admitted reading nothing says which Asks still stand, and this answers null.
@@ -31,6 +31,6 @@ export function watchAsks(owner, callback) {
   if (typeof callback !== "function")
     throw new TypeError("An Ask watcher needs a callback");
   return applicationState
-    .select((root) => root.effective.asks.reader)
+    .select((root) => root.effective.asks.user)
     .subscribe(() => callback(openAsks()));
 }

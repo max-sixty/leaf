@@ -46,7 +46,7 @@ def validate_widget_state_relations(
     # Eligibility reuses the one awaiting projection. Close the target relation here:
     # self and every permitted owner must declare a local decision or aggregate-only
     # rollup. Runtime evaluators then neither guess a widget family nor maintain a
-    # second representation of whether descendant reader work remains open.
+    # second representation of whether descendant user work remains open.
     for verb, spec in entry.get("x-state", {}).items():
         creates = spec.get("creates")
         if creates:
@@ -215,7 +215,7 @@ def validate_widget_record_contracts(
                         f"{path}: <{tag}> {channel} verb `{verb}` records "
                         f"undeclared attribute `{attr}`"
                     )
-                # An x-says value is words the reader sees, and the file's
+                # An x-says value is words the user sees, and the file's
                 # reading takes them from the markup — replay writing one
                 # would change what the page says while that reading held
                 # still, the desync the fence rules exist to prevent.
@@ -223,7 +223,7 @@ def validate_widget_record_contracts(
                     raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` records "
                         f"x-says attribute `{attr}`, whose value is words "
-                        "the reader sees — declared state may not move the "
+                        "the user sees — declared state may not move the "
                         "page's words"
                     )
         # `resolves` is a reserved detail field: thread settlement reads it
@@ -232,11 +232,11 @@ def validate_widget_record_contracts(
         # means that or is refused here — a widget using it otherwise
         # would settle a thread silently.
         if "resolves" in detail_properties:
-            # The reader's channel only. Both thread builders read `resolves`
+            # The user's channel only. Both thread builders read `resolves`
             # off actions, so the name on a report verb declares an answer
             # nothing gives: the report would fold like any other and settle
             # no thread ever — the feature nobody wired up, which this door
-            # exists to turn into an error. A thread is the reader's to close,
+            # exists to turn into an error. A thread is the user's to close,
             # or an action of theirs; the agent's own way is `leaf resolve`.
             if channel != "x-state":
                 raise RegistryError(

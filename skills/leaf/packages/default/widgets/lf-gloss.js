@@ -2,7 +2,7 @@
  *
  * The body stays where the author put it: it is the page's selectable, quotable
  * phrase. The explanation is the x-says rendering of the validated `tip` attribute:
- * generated for the diff, but still page text a reader can select and comment on. A
+ * generated for the diff, but still page text a user can select and comment on. A
  * static copy and paper place those same words after the phrase.
  *
  * Hover is only the fastest route. The phrase is the visible affordance; an ordinary

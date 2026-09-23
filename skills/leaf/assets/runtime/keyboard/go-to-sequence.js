@@ -18,8 +18,8 @@
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
    panel destination toggles that panel, matching its visible control. Completing one that
-   opens a surface leaves the reader in that surface, whose own Escape step is the way out
-   of it — the same step for a surface the reader already had, and none of this sequence's
+   opens a surface leaves the user in that surface, whose own Escape step is the way out
+   of it — the same step for a surface the user already had, and none of this sequence's
    to declare; completing the mnemonic again closes it. These destinations remain available when an auxiliary surface
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
@@ -50,12 +50,12 @@
    so its ordinary Escape rung remains the route back.
 
    A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
-   panel or tray for another, and the surface the reader ends in owns the one step that
+   panel or tray for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
-   is not put back; the reader reaches it the way they reached it the first time.
+   is not put back; the user reaches it the way they reached it the first time.
 
-   The Go-to sequence has no timeout. The reader is not charged a time limit for reading
+   The Go-to sequence has no timeout. The user is not charged a time limit for reading
    the hints just painted. */
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
@@ -137,10 +137,10 @@ export function createGoToSequence({
   const pageLinks = () =>
     pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
   // The tabs rather than their panels: the visible choice is what wears the hint and
-  // what the reader stands on afterwards. `role=tab` is the platform vocabulary, so an
+  // what the user stands on afterwards. `role=tab` is the platform vocabulary, so an
   // authored tab pattern and lf-tabs take the same route without naming a widget family.
   const pageTabs = () => pageParts('[role="tab"]');
-  // The summaries rather than the boxes they head: a summary is what the reader stands on,
+  // The summaries rather than the boxes they head: a summary is what the user stands on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
   // so a <details> whose author wrote no summary has no visible target here. Every
   // disclosure and not the shut ones, for the reason above: a list counting what is shut
@@ -181,7 +181,7 @@ export function createGoToSequence({
   // A generated native-fragment sentinel can carry the scroll coordinate while remaining
   // absent from the accessibility tree. Such a point sits immediately before the content it
   // names. Never put keyboard focus on aria-hidden apparatus; after the browser follows the
-  // fragment, place the reader on that visible content instead.
+  // fragment, place the user on that visible content instead.
   function fragmentFocusTarget(destination) {
     if (!destination || destination.getAttribute("aria-hidden") !== "true")
       return destination;
@@ -231,7 +231,7 @@ export function createGoToSequence({
       active: (...args) => panelIsOpen(...args),
       // The mnemonic pressed over an open panel closes it outright. The way back out of
       // one it opened is the panel's own step, which is the same step for a panel the
-      // reader already had.
+      // user already had.
       close: () => setPanel(false),
       toggle: true,
     },
@@ -495,7 +495,7 @@ export function createGoToSequence({
     GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
   // The armed window owns every key wherever focus sits. The shared hint session holds
   // the map, the typed prefix, the audible walk, and the scroll freeze; this owner holds
-  // only which kind filter the reader has asked for.
+  // only which kind filter the user has asked for.
   let goToActive = false;
   let targetFilter = null;
 
@@ -556,7 +556,7 @@ export function createGoToSequence({
     }
     const found = hints.arm();
     // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
-    // to exactly the reader who cannot see them.
+    // to exactly the user who cannot see them.
     announce(
       `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
     );
@@ -609,7 +609,7 @@ export function createGoToSequence({
           // without naming a list or taking a digit. This is the thread-local counterpart
           // to the page edges below: k/j place the card inside its panel rather than moving
           // the document to the passage the card is about. It leads while live because it
-          // is the one offer specific to where the reader stands; list members wear their
+          // is the one offer specific to where the user stands; list members wear their
           // Go-to hints directly when the sequence starts.
           keys: THREAD_EDGE_KEYS,
           routes: [
@@ -800,7 +800,7 @@ export function createGoToSequence({
   };
 
   // The way in to the sequence. Its row supplies the same leader every painted Go-to hint uses,
-  // so the letter the reader presses and the letter the page prints cannot diverge.
+  // so the letter the user presses and the letter the page prints cannot diverge.
   //
   // The page-level row promises the sequence rather than any particular ephemeral hint.
   const OPEN_GO_TO = {

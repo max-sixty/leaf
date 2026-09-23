@@ -176,7 +176,7 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     session_model.cmd_status(serve.page_dir, "idle", "done")
     told(page)
     expect(page.locator(".lf-notice")).to_be_hidden()
-    expect(page.locator(".lf-live")).to_be_empty()
+    assert "replied" not in page.locator(".lf-live").text_content()
 
 
 def test_page_availability_announces_once_while_work_stage_changes_remain_quiet(

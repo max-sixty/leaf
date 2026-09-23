@@ -296,13 +296,17 @@ that gives up appends a failure receipt through the same event log. The
 Worker names a code and nothing else — it sends `{event, failure}` to
 `/_leaf/agent/reply`, where `failure` is `startup_failed` or `rate_limited` — and the
 adapter validates it, supplies the reader's wording from its own `FAILURE_RECEIPTS`
-declaration, and persists the code on the canonical reply. `turn_failed` is the third
+declaration, and writes the failure the move's answer takes. `turn_failed` is the third
 code and never crosses that door: a container writes it from its own reading of a turn
 it followed to nothing, which is a claim only the code that followed it can make. All
-three go through one writer, `write_failure_receipt`, so a reader meets every
-giving-up boundary in one shape and the page has one thing to draw — a reply carrying
-`failure` is marked in its head as answering nothing, rather than reading as the
-answer it stands in for. The deployment verifier retries `startup_failed` once and
+three go through one writer, `write_failure_receipt`, which hands the move to
+`fail_answer`, so every giving-up boundary settles a move the same way whatever it was:
+a message takes a reply carrying `failure`, marked in its head as answering nothing
+rather than reading as the answer it stands in for; a request takes a failed receipt
+in the host's words, which reopens its seat and has no field for the code; an answer
+to a page Ask takes a pickup with phase `failed` carrying `failure`, which hands the
+move back to the reader until they answer again. The deployment verifier retries
+`startup_failed` once and
 fails immediately on `rate_limited`; it reads the code and never the words, and
 ordinary agent answers omit `failure` entirely.
 The accepted event and active turn are not yet mirrored into Durable Object storage,
@@ -314,7 +318,7 @@ one immutable delivery id carried by the direct request as `clientUserMessageId`
 the response to that request names the turn that took it and the follower that watches
 it starts already knowing which turn is its own. A start that names no turn — refused,
 or lost — withdraws its delivery and raises, and the reader gets a `startup_failed`
-receipt inviting them to send the message again. Which side writes it follows who
+receipt inviting them to send it again. Which side writes it follows who
 asked: the Worker's dispatch for the request it is still holding, and the container
 itself for a move a follower took up when its own turn ended, whose request was
 answered `started` on the turn that was already running.

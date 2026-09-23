@@ -4,7 +4,7 @@ import { syncMarginAgentWorkflow } from "../../skills/leaf/assets/runtime/margin
 
 const workflow = (stage, condition = null) => ({
   id: `${stage}-workflow`,
-  subject: { kind: "thread", id: "thread-1" },
+  subject: { kind: "conversation", id: "thread-1" },
   stage,
   condition,
   detail: "Preparing an update",

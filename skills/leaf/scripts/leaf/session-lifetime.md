@@ -32,7 +32,7 @@ the receipt itself remains Picked up. The banner and Leaves tray consume this
 same reading and present delivery counts separately.
 
 `workflows` is the shared projection for exact reader inputs and proactive subject
-work. Each entry names its `input` event when it has one, its thread or widget
+work. Each entry names its `input` event when it has one, its `conversation` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. A Sent input that remains
@@ -51,9 +51,11 @@ stale work or delivery evidence is not a response failure.
 
 Ordinary durable stale, ended, interrupted, and failed observations prove uncertainty
 or a stopped operation but no concrete reader recovery gesture, so they remain
-agent-owned. A terminal host failure reply is the exception: its message explicitly
-tells the reader to resend. It settles the Stop obligation, retains an `answered`
-workflow with a failed response condition, and hands recovery to the reader. A local
+agent-owned. A terminal host failure is the exception, whatever the move's answer:
+`workflows.py` names the record each answer takes, and each hands recovery to the
+reader. It settles the Stop obligation; a failed request receipt ends the request
+outright, while a failure reply or a failed pickup retains an `answered` workflow with
+a failed response condition until the reader moves again. A local
 send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
 put the thread in Needs you without persisting another workflow record.
 

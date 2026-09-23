@@ -4867,7 +4867,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
                 "working",
                 "checking the reader's question",
                 work={
-                    "subject": {"kind": "thread", "id": thread["id"]},
+                    "subject": {"kind": "conversation", "id": thread["id"]},
                     "after": claim_floor,
                 },
             )
@@ -4882,7 +4882,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["claim"]["ts"] == by_source["report"]["ts"]
     assert by_source["claim"] == {
         "id": by_source["claim"]["id"],
-        "target": {"kind": "thread", "id": thread["id"]},
+        "target": {"kind": "conversation", "id": thread["id"]},
         "source": "claim",
         "action": "working",
         "detail": {"text": "checking the reader's question"},
@@ -4914,7 +4914,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
             const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
                 widget: feed.updateSequence(document.querySelector('#ag-wren')),
-                thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
+                conversation: feed.updateSequence({kind: 'conversation', id: 'ag-wren'}),
                 bare: (() => {
                     try { feed.updateSequence('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
@@ -4923,7 +4923,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         }"""
     )
     assert [update["source"] for update in targeted["widget"]] == ["report"]
-    assert [update["source"] for update in targeted["thread"]] == ["claim"]
+    assert [update["source"] for update in targeted["conversation"]] == ["claim"]
     assert targeted["bare"].startswith("TypeError: update target must be")
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
 

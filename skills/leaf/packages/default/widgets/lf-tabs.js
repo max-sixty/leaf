@@ -3,8 +3,8 @@
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
- * scrolls to a comment anchor. The open tab is view state for this reader,
- * remembered per browser tab in the runtime's tabStore like the scroll position:
+ * scrolls to a comment anchor. The open tab is view state for this user,
+ * remembered per browser tab in the runtime's tabStore:
  * switching is reading, not editing, so it never sends an action and no
  * version carries it — this widget doesn't ride the action channel at all.
  * A tab set that is the main element's sole substantive child, below an optional
@@ -160,7 +160,7 @@ customElements.define(
       this.prepend(strip);
       this.#watchStrip();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-      // Restore this reader's tab; a remembered id always resolves in later
+      // Restore this user's tab; a remembered id always resolves in later
       // versions because check forbids dropping ids. Restoration happens here,
       // during upgrade, so the runtime's view restore measures final geometry.
       const saved = tabStore.get(TAB_KEY + this.id);

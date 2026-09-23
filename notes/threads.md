@@ -3,7 +3,7 @@
 Compact navigation, agent-written summary checkpoints, shared Thread surfaces,
 live specimens, and message workflows are implemented. Leaf suggests an older
 contiguous range when a discussion grows long; the agent reads it and writes the
-summary. Readers can unfold the original messages, and the agent can replace an
+summary. Users can unfold the original messages, and the agent can replace an
 overlapping summary as the discussion grows. Their contracts live in
 [conversation threads](../skills/leaf/references/conversation-threads.md),
 [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
@@ -43,7 +43,7 @@ layouts. Keep these independent slices; retire each plan when its contract lands
 ## Later: long-thread reading
 
 See how agent-written summary checkpoints work in real long discussions before
-adding another fold. If readers still struggle, fold unsummarized history or
+adding another fold. If users still struggle, fold unsummarized history or
 individual oversized messages while preserving opening context, the current
 exchange, outstanding questions, and actionable controls. Search and direct-message
 navigation must reveal hidden matches; new replies and folding must preserve reading

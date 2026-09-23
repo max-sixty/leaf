@@ -419,7 +419,7 @@ def test_a_browser_image_becomes_content_addressed_page_media(server, page_dir):
 def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, page_dir):
     """The browser door derives the file type and bounds allocation before reading.
 
-    SVG retains its author-side file door but cannot enter from a reader, a MIME label
+    SVG retains its author-side file door but cannot enter from a user, a MIME label
     cannot disguise another raster format, and an oversized declared body is rejected
     without waiting for those bytes to arrive.
     """
@@ -1392,7 +1392,7 @@ def test_server_round_trip(server, page_dir):
             "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
-        # reader into the recorded author of another speaker's words.
+        # user into the recorded author of another speaker's words.
         {
             "kind": "edit",
             "message": posted["id"],
@@ -1421,7 +1421,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     returned the authored bytes. The module that source names still started a
     runtime, but without the layer's policy, the bootstrap that policy hashes, or
     the revision identity that tells the runtime which document it is showing. Each
-    address names the page root as canonical, which is how a reader sent to one of
+    address names the page root as canonical, which is how a user sent to one of
     them, and a crawler that finds all three, arrive at one page.
     """
     stamped = CliRunner().invoke(
@@ -1447,7 +1447,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
 def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, page_dir):
     """The document carries its executable identity; state carries the live one.
 
-    A reader holding an open document is told the active revision through state.
+    A user holding an open document is told the active revision through state.
     Comparing that revision's executable digest with the one its own delivery
     stamped in the head is the whole decision, so both readings must come from the
     same capture and must be present at every address a document is served from.
@@ -1768,16 +1768,16 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     server, page_dir
 ):
     """A draft's attempt is stored with its words and reminted only on a keystroke,
-    so the same attempt is what a reader's second press sends. A refusal the server
+    so the same attempt is what a user's second press sends. A refusal the server
     remembered therefore outlived the state that produced it: the draft was refused
     for naming a revision the page had not activated yet, and after activation the
     identical payload read back the stale verdict while the payload the reload had
     moved on read `already belongs to another event`, naming an event that never
-    existed. Either way the reader's words were unsendable until they typed.
+    existed. Either way the user's words were unsendable until they typed.
 
     The door refuses a revision in that direction only. Activated revisions grow and
     never shrink, so no revision a tab was served is later refused for liveness, and
-    this gate is the mirror of the one a reader meets — cheapest to walk the door
+    this gate is the mirror of the one a user meets — cheapest to walk the door
     through, standing in for the refusals whose ground really does move under them
     (`unknown parent`, `undo_error`, `action_contract_error` behind a re-vendor)."""
     publish(page_dir, 1)
@@ -1785,7 +1785,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
         "kind": "comment",
         "revision": 2,
         "anchor": {"section": "plan", "quote": "The cutoff lives in"},
-        "text": "The words a reader typed before the version moved.",
+        "text": "The words a user typed before the version moved.",
         "attempt": "attempt-draft-0001",
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
@@ -1859,10 +1859,10 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
         "widget": "delivery",
         "action": "choose",
         "detail": {
-            "options": ["delivery-reader-z"],
+            "options": ["delivery-user-z"],
             "additions": {
-                "delivery-reader-z": "After the health check",
-                "delivery-reader-a": "Before the maintenance window",
+                "delivery-user-z": "After the health check",
+                "delivery-user-a": "Before the maintenance window",
             },
         },
     }
@@ -1871,7 +1871,7 @@ def test_action_door_owns_generated_child_snapshots(server, page_dir):
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
-    assert accepted["generated"] == ["delivery-reader-a", "delivery-reader-z"]
+    assert accepted["generated"] == ["delivery-user-a", "delivery-user-z"]
     assert accepted["meaning"]["coordinate"] == ["delivery", "delivery", "selection"]
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -2062,7 +2062,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         }
 
 
-def test_undo_candidates_keep_only_standing_reader_gestures():
+def test_undo_candidates_keep_only_standing_user_gestures():
     """The browser undo list follows the event fold for speech, marks, and closures."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
@@ -2425,7 +2425,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
 def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
     """A package verb reaches the host as typed intent, never as prose the
     coordinator has to interpret. The browser door resolves the widget against the
-    revision the reader used and validates its complete detail there."""
+    revision the user used and validates its complete detail there."""
     operation = (
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
@@ -2810,8 +2810,7 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
         ("beta", "ready"),
     }
     assert [
-        ask["id"]
-        for ask in state["browser"]["views"]["1"]["document"]["asks"]["reader"]
+        ask["id"] for ask in state["browser"]["views"]["1"]["document"]["asks"]["user"]
     ] == ["jobs-question"]
     assert send("beta")[0] == 200
     events = event_model.read_events(page_dir)
@@ -2819,7 +2818,7 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
     assert [event["meaning"]["unit"] for event in requests] == ["alpha", "beta"]
     status, raw = fetch(f"{server}/api/state")
     assert status == 200
-    assert not json.loads(raw)["browser"]["views"]["1"]["document"]["asks"]["reader"]
+    assert not json.loads(raw)["browser"]["views"]["1"]["document"]["asks"]["user"]
     event_model.append_event(
         page_dir,
         {
@@ -2908,7 +2907,7 @@ def test_projected_record_requests_have_independent_typed_seats(server, page_dir
     status, raw = fetch(f"{server}/api/state")
     assert status == 200
     document = json.loads(raw)["browser"]["views"]["1"]["document"]
-    assert document["asks"]["reader"] == []
+    assert document["asks"]["user"] == []
     assert {
         (seat["seat"]["unit"], seat["phase"], seat["seat"].get("offered", True))
         for seat in document["requests"]
@@ -3052,7 +3051,7 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         (lambda registry: "{broken", "invalid JSON"),
         # The reachable one. A page's registry is vendored once and the layer around it
         # goes on moving, so a stamp that no longer names what this layer writes is
-        # ordinary state — and the reader meets it by clicking, not by running anything.
+        # ordinary state — and the user meets it by clicking, not by running anything.
         (
             lambda registry: json.dumps({**registry, "$events": {"kinds": {}}}),
             "$events.kinds must equal Leaf's fixed transport contract",
@@ -3250,7 +3249,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
 
     assert status_code == 400
     assert "action 'defer' is unavailable" in json.loads(body)["error"]
-    assert "no longer awaiting the reader" in json.loads(body)["error"]
+    assert "no longer awaiting the user" in json.loads(body)["error"]
     assert len(event_model.read_events(page_dir)) == before
 
 
@@ -3259,11 +3258,11 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
 
     Two readings of one reducer, and this door takes the one that asks whether the
     request is *answered*. A conversation standing in the seat takes the request off
-    the reader's list — the banner stops counting it, and
-    `test_page_state_takes_a_seated_question_off_the_readers_list` holds that — but
+    the user's list — the banner stops counting it, and
+    `test_page_state_takes_a_seated_question_off_the_users_list` holds that — but
     it records nothing: the group still holds no pick and its controls still offer
-    one. A gate reading the reader's list instead would refuse the pick for the
-    reader's having written in the box the page put under the question, which is
+    one. A gate reading the user's list instead would refuse the pick for the
+    user's having written in the box the page put under the question, which is
     refusing them the answer they were asked for. It would also refuse it silently:
     `lf-options` paints a pick before this door sees it, so the option would flip,
     nothing would be logged, no notice would fire, and the next poll would put it
@@ -3311,7 +3310,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
     again = {**choose, "detail": {"options": ["seated-b"]}}
     status_code, body = fetch(f"{server}/api/event", data=json.dumps(again).encode())
     assert status_code == 400
-    assert "no longer awaiting the reader" in json.loads(body)["error"]
+    assert "no longer awaiting the user" in json.loads(body)["error"]
 
 
 def test_server_checks_recursive_parent_prerequisite_under_append_lock(
@@ -3422,10 +3421,10 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "detail": {"slots": "2"},
     }
     # The policy choice is answered, but the ready host operation is still the
-    # reader's turn and therefore closes an action requiring the parent not to ask.
+    # user's turn and therefore closes an action requiring the parent not to ask.
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     assert status == 400
-    assert "still awaiting the reader" in json.loads(body)["error"]
+    assert "still awaiting the user" in json.loads(body)["error"]
 
     requested = {
         "kind": "request",
@@ -3466,7 +3465,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     # aggregate awaiting even though its direct intervention is answered.
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     assert status == 400
-    assert "still awaiting the reader" in json.loads(body)["error"]
+    assert "still awaiting the user" in json.loads(body)["error"]
 
     child_choice = {
         "kind": "action",
@@ -3493,7 +3492,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     increase = {**event, "detail": {"slots": "4"}}
     status, body = fetch(f"{server}/api/event", data=json.dumps(increase).encode())
     assert status == 400
-    assert "still awaiting the reader" in json.loads(body)["error"]
+    assert "still awaiting the user" in json.loads(body)["error"]
 
     decrease = {**event, "action": "decrease", "detail": {"slots": "0"}}
     assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
@@ -3626,8 +3625,8 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
 
 
-def test_every_kind_of_reader_move_is_named_in_eight_characters(server, page_dir):
-    """An id is something the agent reads back and retypes. One reader comment
+def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
+    """An id is something the agent reads back and retypes. One user comment
     shows the agent its id five times over and is answered with `leaf reply --for
     <id>`, so an id is eight hex characters. No kind is carved out of that: a
     `request` id reaches a host, but its uniqueness is within this page either
@@ -3744,8 +3743,8 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
 def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     """kind "error" through the browser door: the page's runtime reporting a
     live-session fault. Stamped author "page" (the machine speaking, not the
-    reader), heard by the watcher beside comments and reports, acknowledged
-    through the same cursor — and never counted in the reader's pending, since
+    user), heard by the watcher beside comments and reports, acknowledged
+    through the same cursor — and never counted in the user's pending, since
     a broken page is the agent's debt."""
     publish(page_dir)
     status, _ = fetch(
@@ -3790,7 +3789,7 @@ def _news(server):
 def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
     """A page nobody ever viewed and one the user studied and left used to be
     indistinguishable from the agent's side; a visible tab's news stream is the
-    proof of reader attention, so the server writes it down. A bare read is not
+    proof of user attention, so the server writes it down. A bare read is not
     that proof — `curl`, the render gate and `page state` all read, and a visible
     tab that has no news never reads again."""
     events = event_model.read_events(page_dir)
@@ -4228,7 +4227,7 @@ def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
         ]
 
 
-def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
+def test_a_user_without_the_key_reads_and_writes_nothing(server, page_dir):
     """The page is served wherever the SSH session reached this machine, so the
     port is open to whatever else is on that network. Reading is half of it: the
     log outranks the document and takes appends from anyone who can POST."""
@@ -4290,7 +4289,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     """`final` is the only word that ends a retry, so a refusal that leaves it out is
     not a refusal the browser can act on: the outbox reads it as an incomplete answer
     and re-posts the same attempt every poll for the life of the tab, with one notice as
-    the reader's whole explanation. Every one of these is deterministic, so the loop
+    the user's whole explanation. Every one of these is deterministic, so the loop
     never ends.
 
     The state-dependent refusals were written through `event_rejection` from the start
@@ -4722,7 +4721,7 @@ def test_the_loopback_line_follows_the_lifetime_line(page_dir):
     assert lines[:3] == [
         "server   standing",
         f"stop     leaf server stop {page_dir}",
-        "access   loopback only (re-serve with --host NAME for remote readers)",
+        "access   loopback only (re-serve with --host NAME for remote users)",
     ]
 
 
@@ -4856,7 +4855,7 @@ def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):
 
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     """A scheme, a port, or a path pasted into --host would mint a URL no browser
-    resolves, recorded permanently and handed to the one reader who can't report
+    resolves, recorded permanently and handed to the one user who can't report
     it — so the record's one door refuses what was never a hostname. An IPv6
     literal is a name a user can route to, and it must not be mistaken for a
     host:port."""
@@ -4880,11 +4879,11 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
     assert refused.value.errno == errno.EADDRINUSE
 
 
-def test_the_stated_host_wildcard_accepts_an_ipv4_reader(page_dir):
-    """A stated host binds the wildcard of both families, so a v4 reader reaches it.
+def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):
+    """A stated host binds the wildcard of both families, so a v4 user reaches it.
 
     IPV6_V6ONLY is cleared before the bind; with it set, the address a `--host`
-    serve records answers only the readers who arrive over IPv6.
+    serve records answers only the users who arrive over IPv6.
     """
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
@@ -5118,7 +5117,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
-    """The key is the machine's, so a reader admitted at one page is admitted at
+    """The key is the machine's, so a user admitted at one page is admitted at
     the next with no second link — cookies are scoped by host and blind to the
     port, so the jar the first arrival filled is the jar the second is read
     from."""

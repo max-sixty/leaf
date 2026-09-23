@@ -250,12 +250,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-ask>
       </section>
 
-      <section id="bg-reader-workflows">
+      <section id="bg-user-workflows">
         <p class="eyebrow bg-feature-elements">
           Approve version · Design mode · Draw mode · Requests
         </p>
         <h2>
-          <strong>Reader workflows</strong
+          <strong>User workflows</strong
           ><span class="bg-feature-detail"
             >: approval, interface comments, and requests</span
           >
@@ -368,7 +368,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
 
         <section id="bg-metrics-and-chart">
-          <p class="eyebrow bg-feature-elements">lf-metrics · lf-metric · lf-chart</p>
+          <p class="eyebrow bg-feature-elements">lf-grid · lf-metric · lf-chart</p>
           <h3>
             <strong>Metrics</strong> and <strong>Chart</strong
             ><span class="bg-feature-detail">: values and trends</span>
@@ -376,7 +376,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-metrics-guide">
             Metrics show individual values. A Chart compares the values across runs.
           </p>
-          <lf-metrics id="bg-metrics">
+          <lf-grid id="bg-metrics">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
             >
@@ -384,7 +384,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >open failures</lf-metric
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </lf-metrics>
+          </lf-grid>
           <lf-chart id="bg-chart" kind="line" y="checks complete">
             <pre>
 run, baseline, candidate
@@ -597,9 +597,9 @@ gallery/
             Move the card, submit a draft, or add an option above. Run
             <code>leaf page state PAGE</code> against this preview's page directory. Its
             content keeps your exact words, selected options, and card order; source
-            locations and edit routes distinguish authored content from reader decisions
+            locations and edit routes distinguish authored content from user decisions
             and captured data. Change unrelated source wording and inspect again: those
-            reader choices survive without copying them into HTML. Use
+            user choices survive without copying them into HTML. Use
             <code>--thread ID</code> to inspect a frozen conversation.
           </p>
         </details>

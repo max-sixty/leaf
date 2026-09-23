@@ -23,7 +23,7 @@ export function focusedThreadTarget() {
     : focusedThread();
 }
 
-// The panel thread the reader is in, asked by class because that is the anchors module's
+// The panel thread the user is in, asked by class because that is the anchors module's
 // question: which logged thread's passage to paint. It is not the box's way out, which
 // climbs further and answers for a seat on the page too — the two readings stayed apart
 // rather than one standing in for the other.
@@ -31,7 +31,7 @@ export function focusedThreadOf() {
   return documentFocused()?.closest?.(".lf-thread");
 }
 
-// The thread the reader is standing in, on either side — a card in the panel, a seat on
+// The thread the user is standing in, on either side — a card in the panel, a seat on
 // the page — and a control inside one stands in it too: the standing floor's question,
 // which is where letting go lands rather than which passage to paint.
 export function standingThreadOf() {

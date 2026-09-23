@@ -71,22 +71,31 @@ delivery:
           actions: []
       handling:
         h1: >-
-          The reader answered in a thread; the batch's `conversations` carries the
+          Acknowledge this delivery before anything else, by your host contract's
+          route where it leaves acknowledgement to you: until then the user's message
+          reads Sent or Queued rather than Picked up.
+        h2: >-
+          The user answered in a thread; the batch's `conversations` carries the
           thread's context, and `leaf conversation read <page> <conversation-id>`
           reads its history in pages.
-        h2: >-
+        h3: >-
           If this event's conversation has a null `title` in the batch's `conversations`,
           name it with `leaf conversation title <page> <conversation-id> --text
           "<a few words>"`, so the thread panel lists its subject rather than its
           opening words.
-        h3: >-
-          Answer with `leaf reply <page> --for <event-id>`, or with your final message
-          on a host that sends it as the reply. `leaf reply` checks any page edit
-          and makes it live before posting, so revise the page first if the event
-          calls for it. If that revision removes what the thread is anchored on,
-          move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        h4: >-
+          Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
+          observes over App Server, your final message is the reply instead, and
+          `leaf reply` refuses the event. Where you answer with `leaf reply`, reply
+          before any other work, including the work this event asks for: give the
+          answer, or say what you are about to do and where the result will appear.
+          Once that work lands, report it with `leaf reply <page> --to <address>
+          --initiates`, where `<address>` is the event's `obligation.response.to`.
+          `leaf reply` checks any saved page edit and makes it live before posting.
+          If a revision removes what the thread is anchored on, move the thread
+          in the reply that reports it with `--section <id>` (narrowed by `--quote`
           or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the reader something. Your
+          Add `--awaits` only if your reply's prose asks the user something. Your
           reply renders as Markdown, so show code or markup in a fenced block.
       events:
         - kind: reply
@@ -101,7 +110,7 @@ delivery:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1, h2, h3]
+          handling: [h1, h2, h3, h4]
           obligation:
             as_of_seq: 14
             response:

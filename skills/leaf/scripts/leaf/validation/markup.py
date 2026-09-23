@@ -5,6 +5,7 @@ from pathlib import Path
 
 from leaf.schema import MEDIA_DIR
 from leaf.structure import (
+    AUTHORED_ALLOCATIONS,
     HEADING_TAGS,
     SECTIONING_TAGS,
     SourceDocument,
@@ -218,14 +219,13 @@ def page_boundary_errors(parser: SourceDocument) -> list:
     return errors
 
 
-def authored_width_errors(parser: SourceDocument) -> list:
-    """Authored responsive allocations use the layer's three named measures."""
-    allowed = {"column", "wide", "available"}
+def authored_allocation_errors(parser: SourceDocument) -> list:
+    """Authored allocations use the layer's named values."""
     return [
-        f"{at(width, 'data-width=' + repr(width['value']))} has an invalid authored "
-        f"width; expected one of {', '.join(sorted(allowed))}"
-        for width in parser.authored_widths
-        if width["value"] not in allowed
+        f"{at(item, item['attr'] + '=' + repr(item['value']))} has an invalid value; "
+        f"expected one of {', '.join(AUTHORED_ALLOCATIONS[item['attr']])}"
+        for item in parser.authored_allocations
+        if item["value"] not in AUTHORED_ALLOCATIONS[item["attr"]]
     ]
 
 
@@ -260,7 +260,7 @@ def fragment_style_errors(parser: SourceDocument) -> list:
         )
     return (
         errors
-        + authored_width_errors(parser)
+        + authored_allocation_errors(parser)
         + inline_presentation_override_errors(parser)
     )
 

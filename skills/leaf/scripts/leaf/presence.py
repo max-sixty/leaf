@@ -30,7 +30,7 @@ from .structure import parse_revision
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. The news stream already allowed this much staleness,
-# so sharing one observation across streams does not change what a reader can learn.
+# so sharing one observation across streams does not change what a user can learn.
 PRESENCE_CACHE_S = 2.0
 _CACHE_LIMIT = 256
 _presence_cache = {}  # page -> (page-file stamp, expiry, reading)
@@ -217,9 +217,9 @@ def presence_with_activity(
         "claims": claim_update_sources(stored_status),
         "listening": wait_is_live(page_dir, active["id"] if active else None),
         "cursor": cursor,
-        # The reader's number, not the watcher's: their own messages the agent
+        # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
-        # so the banner never tells a reader that a worker's news is waiting on them.
+        # so the banner never tells a user that a worker's news is waiting on them.
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
@@ -236,7 +236,7 @@ def presence_with_activity(
         "claim_session": claim.get("id") if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
-        # is what says that exact reader move is in the turn running now.
+        # is what says that exact user move is in the turn running now.
         "claim_turn": claim.get("turn") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no later turn renewed
@@ -249,7 +249,7 @@ def presence_with_activity(
         # throttled, while a visible tab's news stream stands), or None for a page
         # nobody has ever viewed — which used to be indistinguishable from one the
         # user studied and left. Hidden tabs release their stream, so this records
-        # reader attention rather than tab lifetime.
+        # user attention rather than tab lifetime.
         "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
         # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title

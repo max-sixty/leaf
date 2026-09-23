@@ -178,7 +178,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stacking["z"] == "8890", stacking
     stable_mark = mark.element_handle()
     # A state read repaints the marks, as an anchor repaint and a size notice also do.
-    # This one describes ink that has not moved, so the mark the reader is looking at has
+    # This one describes ink that has not moved, so the mark the user is looking at has
     # to be the same node afterwards.
     nudge(serve.page_dir)
     told(page)
@@ -355,14 +355,14 @@ def test_a_drawing_says_the_words_it_stands_over_and_the_box_it_was_drawn_in(
 def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
     browser, serve
 ):
-    """Draw mode swallows the presses the reader's own stroke still owes the page, so a
+    """Draw mode swallows the presses the user's own stroke still owes the page, so a
     stroke lifting over a control does not press that control as well. A keyboard
     activation is not one of those presses: `Ctrl+Enter` in the composer the stroke just
     opened is Send's own click, and it has to reach Send whatever the pointer did the
     moment before.
 
     The claim comes off on a zero-delay timer, so which of the two arrives first is a
-    race — and the reader loses it whenever the release's own work runs long, the send
+    race — and the user loses it whenever the release's own work runs long, the send
     eaten with nothing said, the drawing still pending and Send still reading enabled.
     So the arrangement holds that macrotask rather than racing it: every zero-delay
     callback the release schedules is held until the press has been made, which is the
@@ -558,12 +558,12 @@ def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser,
     assert event["drawing"]["format"] == "leaf-drawing/2"
 
 
-def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
+def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_user):
     """The drawing payload follows the general draft's cross-tab notification rather
     than waiting for a reload or an unrelated state poll to repaint."""
     url = serve(TARGETS_PAGE)
-    local = open_page(browser, url, context=one_reader)
-    remote = open_page(browser, url, context=one_reader)
+    local = open_page(browser, url, context=one_user)
+    remote = open_page(browser, url, context=one_user)
     local.evaluate("document.body.style.minHeight = '180000px'")
     local.evaluate("scrollTo(0, 120000)")
     point = local.evaluate(
@@ -586,12 +586,12 @@ def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader
     )
 
 
-def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
+def test_an_anchored_drawing_draft_repaints_in_another_tab(browser, serve, one_user):
     """The anchored composer's draft watcher repaints its stroke as well as its target
     when another tab adds drawing geometry to the shared draft."""
     url = serve(TARGETS_PAGE)
-    local = open_page(browser, url, context=one_reader)
-    remote = open_page(browser, url, context=one_reader)
+    local = open_page(browser, url, context=one_user)
+    remote = open_page(browser, url, context=one_user)
     draw_over(remote, remote.locator("#prose"))
     remote_path = remote.locator(".lf-drawing-pending path")
     before = remote_path.get_attribute("d")
@@ -649,7 +649,7 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
 def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
     """Draw mode outlasts a stroke. A later stroke joins the drawing its session opened,
     in that drawing's frame wherever it starts, and keeps joining it after Escape puts its
-    box away or the reader leaves and re-enters the mode; once the draft is sent the next
+    box away or the user leaves and re-enters the mode; once the draft is sent the next
     stroke starts another, and only Escape leaves the mode."""
     page = open_page(browser, serve(TARGETS_PAGE))
     prose = page.locator("#prose")

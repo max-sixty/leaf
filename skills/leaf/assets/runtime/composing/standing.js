@@ -3,23 +3,23 @@ import { documentFocused } from "../keyboard/scopes.js";
 import { inChrome } from "../passages.js";
 import { addressableAt } from "../anchor-resolution.js";
 
-// The addressable element the reader is standing in, which is what a press means when they
+// The addressable element the user is standing in, which is what a press means when they
 // have pointed at nothing. The ⌥ aim reaches an element through the pointer and focus used to reach none
 // at all: tabbing to a link in an option left `c` offering the page.
 //
-// The unanswered Ask where the reader is standing on a control that works it, and the innermost
+// The unanswered Ask where the user is standing on a control that works it, and the innermost
 // addressable element everywhere else. The control the walk stands them on is one part of the question
 // (standOn), so a press made
 // from a pick, a ✓ or a mark means the question those answer. Standing *in* an Ask is not
-// the same fact: a reader who tabbed to a hyperlink has said
+// the same fact: a user who tabbed to a hyperlink has said
 // something more particular than the question containing it, and answering the question
 // there both overrides what they named and made the same markup answer differently
 // according to whether its question was still open — a link in a settled group gave the
 // option, the identical link in an open one gave the whole group.
 //
 // So the ring `markHere` paints and this are two questions, and the earlier version had
-// them confused. The ring says which Ask the reader is in, for the walk and the answering
-// keys; this says what a remark made here is about. They agree wherever the reader is
+// them confused. The ring says which Ask the user is in, for the walk and the answering
+// keys; this says what a remark made here is about. They agree wherever the user is
 // working the Ask, which is every arrival the Ask walk makes.
 //
 // Below that, the innermost addressable element — the aim's own reading — through `askPlace`, so a
@@ -28,7 +28,7 @@ import { addressableAt } from "../anchor-resolution.js";
 //
 // A projected margin control is chrome with an explicit page target, so that target wins
 // before the general chrome fence. The banner, panel, and trays have no such coordinate:
-// they are where a reader works on the page rather than where they stand in it, so a press
+// they are where a user works on the page rather than where they stand in it, so a press
 // made from one means the page whole. A box that takes letters never arrives here at all:
 // the typing scope claims the letter before the page is asked.
 //

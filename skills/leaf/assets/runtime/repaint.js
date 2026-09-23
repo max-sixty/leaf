@@ -1,4 +1,4 @@
-/* One frame for repainting the reader's standing and chrome geometry. Boot supplies the
+/* One frame for repainting the user's standing and chrome geometry. Boot supplies the
    fixed phases after every module has evaluated; callers only invalidate the frame.
 
    Pending work is cleared before the phases run. An invalidation raised by a phase

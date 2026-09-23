@@ -14,7 +14,7 @@ let rows = Object.freeze([]);
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the tray's own predicate, so the two surfaces cannot
 // disagree about whether there is a tray to open. A leaves tray of one — the page the
-// reader is already on — is not worth a control.
+// user is already on — is not worth a control.
 export const leavesOffered = () =>
   pagePresented() && (others.length > 0 || trayIsOpen("leaves"));
 // The control counts the rows its press opens, including this page's own marked row.
@@ -39,7 +39,7 @@ export const presentLeaves = () =>
 
 // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
-// browser's, a row being a link, and the row says so with no `run` to give. The reader
+// browser's, a row being a link, and the row says so with no `run` to give. The user
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
 export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
@@ -85,7 +85,7 @@ function rowPresence(entry) {
     ts,
     counts,
   } = entry.activity;
-  // The same join for both kinds that have words of their own. The reader opens this
+  // The same join for both kinds that have words of their own. The user opens this
   // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
   // `Working — recording the demo` said least about the one row they are here to act
   // on: three pages waiting rendered as three identical rows, and which to go to
@@ -125,12 +125,12 @@ function rowPresence(entry) {
 // on a row is cut to the panel's fixed width — the title ellipsizes, the line
 // ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
 // session behind the leaf is working. A title is a sentence somebody wrote and two
-// pages a week apart share one; the work each came out of is the thing the reader
+// pages a week apart share one; the work each came out of is the thing the user
 // already holds in their head, so it is worth the room a hover has and a row hasn't.
 //
 // One tooltip for the row rather than one per part. The innermost title wins where two
 // overlap, so a title left on the line would answer the hover most likely to be asking
-// this question — a reader pointing at the words that ran out of room — with the one
+// this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const noun = (count) => `${count} update${count === 1 ? "" : "s"}`;
@@ -163,11 +163,11 @@ function renderOthersNow(state) {
   // A closed leaf is not one of the machine's live pages and drops out of the tray on
   // the poll that says
   // so: its server stays up so the page stays readable — a standing one for good —
-  // so nothing else would ever take the row off, and a count the reader glances at
+  // so nothing else would ever take the row off, and a count the user glances at
   // to find who needs them would silently become a tally of everything that has run
   // here. Judged by the same canonical `activity` the rows read, never by a second
   // reading of the status the server ships. This page's own row is not in the list and so is
-  // never dropped: a reader looking at a closed page is still looking at it.
+  // never dropped: a user looking at a closed page is still looking at it.
   others =
     state === null
       ? []

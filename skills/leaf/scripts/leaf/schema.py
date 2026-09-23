@@ -20,12 +20,12 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
-# The operations that settle a reader move the agent owes, as `workflows` addresses
+# The operations that settle a user move the agent owes, as `workflows` addresses
 # them and `$events.answering` explains them.
 ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
-    "Each named command writes the answer its move is owed; a reply may instead be "
-    "your final message where the host sends it as the reply. Read current "
+    "Each named command writes the answer its move is owed; in a Codex task Leaf "
+    "observes over App Server, the reply is your final message instead. Read current "
     "obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )
@@ -35,10 +35,11 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
 )
 ACK_BATCH_INSTRUCTION = (
     "If output is truncated, acknowledge nothing; rerun with enough output capacity "
-    "for the whole batch. If you handle the batch yourself, read it fully before "
-    "acknowledging. If forwarding it, wait for durable delivery to its handler. "
-    "Then run `leaf wait --ack <delivery-id>` in the background to acknowledge "
-    "its captured batches and wait for the next batch while the page remains live."
+    "for the whole batch. If you handle the batch yourself, read it fully, then "
+    "acknowledge it before any other work. If forwarding it, or if its guidance "
+    "holds the acknowledgement until a request reaches its executor, acknowledge "
+    "once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the "
+    "background to acknowledge its captured batches and wait for the next batch while the page remains live."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"
@@ -234,7 +235,7 @@ def _verbs_schema(
 ) -> dict:
     """The shape x-state and x-report share: verbs to
     {detail, facet, unit, record}, differing only in which record forms a
-    channel admits, whether one is required at all, and whether the reader's
+    channel admits, whether one is required at all, and whether the user's
     channel may declare current applicability or the agent's may declare update
     prose."""
     properties = {
@@ -457,7 +458,7 @@ EXTENSION_SCHEMA = {
         "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
-        "x-reading-role": {"enum": ["workspace", "pane", "partition"]},
+        "x-reading-role": {"enum": ["workspace", "pane", "partition", "grid"]},
         # Attributes holding 1-based line references into the nearest data body —
         # the element's own <pre>, or its enclosing data element's (lf-note's `at` names a line of
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
@@ -505,6 +506,8 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
+        "x-measure": {"enum": ["surface", "group"]},
+        "x-bound": {"enum": ["start", "end"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-work": WORK_SCHEMA,

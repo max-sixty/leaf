@@ -233,7 +233,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
 
     # Hold the first frame: the field's submitted box still stands exactly where the
-    # reader left it, and the full card is transparent underneath. Three motions share
+    # user left it, and the full card is transparent underneath. Three motions share
     # the one duration — shell, card, and words — so reduced motion can settle all three
     # through the same primitive.
     assert page.evaluate("() => window.__lfHeld.length") == 3
@@ -286,7 +286,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     A broad authored rule may position ordinary divs, and the tray transition may move a
     target without another pointer event. Neither may move the chrome's document origin or
     leave its reading of the page behind. Keep the whole comment route on the item the
-    reader pointed at.
+    user pointed at.
     """
     source = ASKS_PAGE.replace(
         "</head>",
@@ -554,12 +554,12 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     Placement reads that block through the viewport, so a paragraph scrolled clear of
     the viewport has no shown rect left to read. Falling back to the passage there let a
     short selection lend the words after it after all: the field left the free margin,
-    crossed into the column, and came to rest on the sentences the reader had scrolled
+    crossed into the column, and came to rest on the sentences the user had scrolled
     down to. The column does not move when the page scrolls, so neither may the field.
     """
     body = "".join(
         f'<p id="p{n}">Paragraph {n} carries enough ordinary reading text to be '
-        "covered by a field that wandered into the column while the reader scrolled "
+        "covered by a field that wandered into the column while the user scrolled "
         "past the passage the comment was written about.</p>"
         for n in range(30)
     )
@@ -617,7 +617,7 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
             .map(p => p.id);
         }"""
     )
-    assert covered == [], f"the field stands on the reader's paragraphs: {covered}"
+    assert covered == [], f"the field stands on the user's paragraphs: {covered}"
     assert page.locator(".lf-fab-bar").bounding_box()["x"] == beside, (
         "the field left the column it was seated beside when the passage scrolled away"
     )
@@ -725,7 +725,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     )
     assert scrolled > 0
     # The field's scroll queues placement through the shared captured-scroll listener.
-    # Measuring natural growth must not reset the reader to the first line of the draft.
+    # Measuring natural growth must not reset the user to the first line of the draft.
     page.evaluate(RENDERED)
     assert field.evaluate("node => node.scrollTop") == scrolled
     after = field.evaluate(
@@ -1237,7 +1237,7 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     not — and within a pixel of a seam that place is a different item. It cost a corpus
     page a promise: ⌥ over a choose group outlined the option above the seam and the
     press commented on the one below it, which is the composer opening on an item the
-    reader was never shown.
+    user was never shown.
 
     So the aim is put within a quarter pixel of a seam, where the true point and its
     rounded twin name different items. Which of the two the true point is over depends on
@@ -1319,7 +1319,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     """
     url = serve(example)
     page = open_page(browser, url)
-    # What the log already held. A shipped seed can carry a decision the reader made
+    # What the log already held. A shipped seed can carry a decision the user made
     # before this page was opened, and what an aim may not do is add one of its own —
     # so the reading below is against this rather than against nothing.
     standing = [
@@ -1407,7 +1407,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
                 f"⌥-clicking {label} in {case_name} promised {promised} and "
                 f"commented on {mark}"
             )
-            # And the promise is kept where the reader can see it kept. An outline needs
+            # And the promise is kept where the user can see it kept. An outline needs
             # a box, and an item that draws none — every suggestion is display: contents —
             # would take the mark to 0x0 at the document's origin, showing nothing. The
             # composer places itself off this same record, so it would go to the top of
@@ -1469,7 +1469,7 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     and a pointer resting on it is inside both by the width of a rounding. The outline
     and the press each used to hit-test that point for themselves — elementFromPoint
     against the browser's own dispatch — and nothing makes two hit tests tie-break a
-    shared edge alike. What a reader got was one option outlined and the next one
+    shared edge alike. What a user got was one option outlined and the next one
     commented on.
 
     The sweep over the corpus reaches this case only where the page happens to put a
@@ -1857,7 +1857,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(page.locator(".lf-thread-summary").first).to_be_focused()
     # The send opened Threads on the new thread, the card being withheld in the mode.
-    # The thread hands the reader to the whole panel, and the panel to the page.
+    # The thread hands the user to the whole panel, and the panel to the page.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
@@ -1898,7 +1898,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     """The mode promises that a press comments on what it lands on and does nothing else,
     and a region's edge is the piece of chrome whose press moves the page rather than the
     page's content. A drag on it under the mode leaves the region where it was and opens a
-    composer naming the edge, which is what a reader remarking on it has to be able to do.
+    composer naming the edge, which is what a user remarking on it has to be able to do.
 
     Neither half is anything the edge knows: the mode takes the press above the runtime's
     own handler, and the name comes of the platform's word for what the press landed on.
@@ -1930,7 +1930,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
         f"the mode moved the edge it was asked to comment on: {standing} then {held}"
     )
     assert held["chosen"] is None, (
-        f"a press the mode took was still recorded as the reader's width: {held}"
+        f"a press the mode took was still recorded as the user's width: {held}"
     )
 
 
@@ -1967,7 +1967,7 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
 
 
 def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
-    """A version landing mid-batch reloads the document, and a reader put out of the
+    """A version landing mid-batch reloads the document, and a user put out of the
     mode by news they never asked for is a mode error the page made — so the mode is
     this tab's working state, kept the way the panel's open state is."""
     page = open_page(browser, serve(REPLAYED_PAGE))
@@ -2591,7 +2591,7 @@ def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
 <h1 id="t">Exchange</h1>
 <lf-diagram id="exchange" parts="node:A"><pre>
 sequenceDiagram
-  participant A as Reader
+  participant A as User
   participant B as Server
   A->>B: Request
 </pre></lf-diagram>
@@ -2602,7 +2602,7 @@ sequenceDiagram
     actor = page.locator('#exchange g[data-id="A"]')
     actor.click(modifiers=["Alt"])
     open_compact_comment(page)
-    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Reader")
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")
     expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
 
 
@@ -2658,8 +2658,8 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     )
     page.keyboard.press("Escape")
 
-    aim(page.locator('#exchange g[data-id="Reader"]'))
-    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Reader")
+    aim(page.locator('#exchange g[data-id="User"]'))
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")
     page.keyboard.press("Escape")
 
     aim(page.locator('#model g[data-id="Job"]'))
@@ -2782,7 +2782,7 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     The aim used to wear the mark's rail, and that band sat at the
     border edge — the one band of an element nobody else paints in, and exactly where a
     widget draws a border of its own. Over an accented option, whose border is
-    already the accent, arming changed nothing a reader could see, and what was
+    already the accent, arming changed nothing a user could see, and what was
     reported was no box at all. So the aim paints in the layer above the page, which no
     widget can reach; the pixel diff here is armed against unarmed with the pointer
     held still, so the widget's own hover wash is in both frames and the difference is
@@ -2822,7 +2822,7 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     changed = sum(max(p) >= 6 for p in pixels) / (armed.size[0] * armed.size[1])
     assert changed > 0.5, (
         f"arming changed {changed:.0%} of the card's pixels — the promise is not "
-        "something a reader can see over the widget's own paint"
+        "something a user can see over the widget's own paint"
     )
 
     row = page.locator("#row-ship")
@@ -2865,12 +2865,12 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
 
     Holding ⌥ used to draw a plain arrow over the whole page: it said "not a text
     selection" and nothing else, which leaves the one question the outline can't answer
-    for a reader who hasn't looked yet — would this click do anything at all? An armed
+    for a user who hasn't looked yet — would this click do anything at all? An armed
     press takes the addressable element under it and acts on nothing where there is none (claimPress),
     so the hand and the arrow are those two states, and the hand is exactly as good as
     the outline beside it because both are read off the same value.
 
-    Read where the reader's pointer is rather than off body, since the aim declares it
+    Read where the user's pointer is rather than off body, since the aim declares it
     on body and everything on the page inherits it — the promise is only kept if it
     arrives at the glyphs. The margin beside the column is the page's own gap: no
     element there carries an id, so an armed press has nothing to take.

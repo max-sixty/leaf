@@ -64,7 +64,7 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
     }
 
 
-def test_touch_reader_selects_an_element_comments_and_finds_its_thread(browser, serve):
+def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, serve):
     """A touch target press comments on the innermost element without activating its link."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
@@ -626,7 +626,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
 
 
 def test_slash_finds_page_text_without_a_target_kind(browser, serve):
-    """Slash is ordinary whole-page find. It narrows by the words the reader knows,
+    """Slash is ordinary whole-page find. It narrows by the words the user knows,
     highlights one exact occurrence, and Enter hands that range to the same comment
     surface as a hint. No target chooser or paragraph/sentence/widget key is needed
     first."""
@@ -886,7 +886,7 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
     browser, serve
 ):
     """Repeated matches that fill separate inline nodes remain distinguishable to a
-    nonvisual reader by context drawn from the shared page reading on both sides."""
+    nonvisual user by context drawn from the shared page reading on both sides."""
     html = leaf_page(
         "search context",
         """
@@ -918,7 +918,7 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
 def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
     """A search result is a target, not only a count. When the query exists solely below
     the fold, the first complete search moves that occurrence into view and paints it;
-    otherwise Enter would silently select words the reader still could not see."""
+    otherwise Enter would silently select words the user still could not see."""
     html = leaf_page(
         "offscreen search",
         """
@@ -1102,7 +1102,7 @@ def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, s
 
 
 def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):
-    """A letter the map does not hold is reported and costs the reader nothing else.
+    """A letter the map does not hold is reported and costs the user nothing else.
     Resetting instead would throw away the letters they had already typed right."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
@@ -1121,9 +1121,9 @@ def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):
 def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serve):
     """Chrome at the foot does not decide who is in the map.
 
-    The shortcut bar states the armed map's own keys and changes width as the reader
+    The shortcut bar states the armed map's own keys and changes width as the user
     filters it, so a map that read it would lose members as it armed and swap codes under
-    the reader as its own legend grew. The strip of page below the bar is page the reader
+    the user as its own legend grew. The strip of page below the bar is page the user
     reads, besides. A chip that would land on the bar is moved clear instead, which keeps
     the route where dropping the member loses it."""
     page = open_page(
@@ -1185,7 +1185,7 @@ def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serv
 def test_a_target_behind_a_page_sheet_is_offered_no_letter(browser, serve):
     """The same promise read the other way. An opaque box covers a member without
     clipping its rectangle, so geometry alone still reports the member standing there;
-    a letter over the cover names something the reader cannot see, and choosing it opens
+    a letter over the cover names something the user cannot see, and choosing it opens
     a comment on a block they never read."""
     page = open_page(
         browser,
@@ -1232,7 +1232,7 @@ def test_a_target_behind_a_page_sheet_is_offered_no_letter(browser, serve):
 def test_a_boxless_target_is_read_where_it_paints(browser, serve):
     """A `display: contents` member's bounds are the union of its children's, so the
     middle of those bounds can be the gap between two of them, where the page behind
-    answers. Asking there would cost the member its letter while the reader is looking
+    answers. Asking there would cost the member its letter while the user is looking
     straight at it."""
     page = open_page(
         browser,

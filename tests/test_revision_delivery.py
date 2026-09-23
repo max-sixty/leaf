@@ -11,7 +11,7 @@ from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
 from leaf.revision_delivery import deliver_document, deliver_resource, json_script
 from leaf.structure import SourceDocument
 
-ROOT = "/p/reader/revisions/r1-0123456789abcdef"
+ROOT = "/p/user/revisions/r1-0123456789abcdef"
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():
@@ -171,7 +171,7 @@ def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
             for candidate in delivered.tree.find("img").attrs["srcset"].split(",")
         ),
     ]
-    for address in ("/p/reader/", "/p/reader/versions/v1.html", ROOT + ".html"):
+    for address in ("/p/user/", "/p/user/versions/v1.html", ROOT + ".html"):
         for entry in entries:
             request = urlsplit(urljoin("https://leaf.example" + address, entry)).path
             assert request.startswith(ROOT + "/")
@@ -193,7 +193,7 @@ def test_capture_refuses_a_missing_svg_resource(tmp_path):
 
 
 def test_inert_json_cannot_end_or_reshape_its_script_element():
-    """A reader's own words travel inside a script element, and two sequences escape it.
+    """A user's own words travel inside a script element, and two sequences escape it.
 
     `</script` closes the element; `<!--` opens a comment the parser reads the rest of
     the document inside, and an exported page carrying one in a comment lost everything

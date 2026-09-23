@@ -130,7 +130,7 @@ def _base_state(
             "error": source_error,
         },
         **presence_reading,
-        # The watcher's number where `pending` is the reader's: everything a
+        # The watcher's number where `pending` is the user's: everything a
         # wait would still print, workers' reports included.
         "unacked": len(unacknowledged(events, presence_reading["cursor"])),
         # The last physical log record folded into this transaction-consistent
@@ -214,7 +214,7 @@ def _apply_document_state(
         standing_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
-    state["asks"] = document.asks["reader"]
+    state["asks"] = document.asks["user"]
     page_dir = Path(state["page"])
     state["content_source"] = {
         "file": str(page_dir / state["active"]["file"]),
@@ -240,10 +240,10 @@ def _apply_document_state(
 
 def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
     # The panel's own document, listed and projected the way the version's is, and
-    # for the same reason: a widget an agent sent is a widget, and the reader
+    # for the same reason: a widget an agent sent is a widget, and the user
     # answering one is answering the page. The projection above is of the published
     # version's elements alone, so a press on an AskUserQuestion resolved no
-    # declaration and stood nowhere — a session picking the page up read the reader's
+    # declaration and stood nowhere — a session picking the page up read the user's
     # answer to its own question as an answer nobody had given, with `asks` reporting
     # the same question answered.
     #
@@ -292,7 +292,7 @@ def _write_page_state(
     channel, the effective construction and its mutation owners, authored
     measurements whose live source has run again (`measurement_lag_entries`), the
     open Asks on the page and in threads (the banner's own count), each comment
-    thread's current state and the agent messages in it the reader has not read,
+    thread's current state and the agent messages in it the user has not read,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.
@@ -368,7 +368,7 @@ def _write_page_state(
         {root for root, thread in threads.items() if thread["resolved"]},
         request_phases=request_phases(thread_requests),
         reading=thread_reading,
-    )["reader"]
+    )["user"]
     state["updates"] = canonical_updates(
         document.projection if document is not None else None,
         claims,
@@ -376,7 +376,7 @@ def _write_page_state(
         events,
     )
     _apply_thread_state(state, thread_reading)
-    # The reader's side between their moves: which of your messages they have not
+    # The user's side between their moves: which of your messages they have not
     # taken in yet, at their current content version.
     unread = unread_content(events, threads, thread_reading.thread_by_widget)
     for conversation in state["conversations"]:

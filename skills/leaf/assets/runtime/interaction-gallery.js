@@ -17,7 +17,7 @@ class StaleDemo extends Error {}
 // Every word the playback control can say, out here because the row reserves the width
 // of all of them before it says the first. The button rewrites its own word as a demo
 // runs, so a word that costs a different width moves the controls beside it while the
-// reader is aiming. Reserved by the runtime rather than by the page, because the runtime
+// user is aiming. Reserved by the runtime rather than by the page, because the runtime
 // injects this row and the generated corpus may carry no rule for it.
 const TOGGLE_WORDS = {
   idle: "Loading…",

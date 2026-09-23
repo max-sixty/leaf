@@ -1,4 +1,4 @@
-/* Reader action admission and undo, assembled over supplied application commands. */
+/* User action admission and undo, assembled over supplied application commands. */
 import { runtime } from "../context.js";
 import { notice } from "../notifications.js";
 import { elementById, inChrome } from "../passages.js";
@@ -77,8 +77,8 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     if (event) await withdraw(event);
   }
 
-  // The last thing the reader did to this page, put back. Its own key rather than the
-  // platform's ⌘Z, which belongs to the box a reader is typing in and is taken by the
+  // The last thing the user did to this page, put back. Its own key rather than the
+  // platform's ⌘Z, which belongs to the box a user is typing in and is taken by the
   // browser everywhere else: this is a page-level press like every other letter, and the
   // typing scope keeps it off a composer's words by claiming its letters. The word is
   // "undo" and never the verb it is about to state — `move` is one widget's word, and a

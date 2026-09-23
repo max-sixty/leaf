@@ -86,13 +86,13 @@ def resize_notice_after_last_probe(page):
     page.evaluate = with_notice
 
 
-def reader_view_restore_cases(page):
+def user_view_restore_cases(page):
     """The return states declared by the runtime that restores them."""
-    return render_checks_model.evaluate_probe(page, "readerViewRestoreCases")
+    return render_checks_model.evaluate_probe(page, "userViewRestoreCases")
 
 
 def apply_restore_case(page, restore_case):
-    """Put exactly one declared return state into this reader's stores."""
+    """Put exactly one declared return state into this user's stores."""
     render_checks_model.evaluate_probe(page, "applyRestoreCase", restore_case)
 
 
@@ -105,7 +105,7 @@ def arrival_transition_findings(page, arrival):
 
 
 def arrival_findings(browser, url):
-    """Whether a page comes up at all in each restore case a reader can return to.
+    """Whether a page comes up at all in each restore case a user can return to.
 
     The suite's, not `render_version`'s, and the line between them is whose fault a
     finding is. Everything the gate reads is something the page's author wrote and
@@ -115,14 +115,14 @@ def arrival_findings(browser, url):
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
     is of a first visit — the thread panel shut, no tray standing, design mode off —
-    and each of those is something a reader turns on once and gets back on every load
+    and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
     watching it, and a tray someone had left standing came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
-    evaluating, which could reach almost nothing. It reached the reader, who reported
+    evaluating, which could reach almost nothing. It reached the user, who reported
     it.
 
-    One page, reloaded into each restore case, which is what a returning reader does:
+    One page, reloaded into each restore case, which is what a returning user does:
     the store is written on the origin the page is already on and read while the next
     load evaluates. What comes back is completed presentation, any page transition that
     began before it, and the console. Boxes are not measured again: every shipped example
@@ -176,7 +176,7 @@ def arrival_findings(browser, url):
             + ("; ".join([*errors, *notices]) or "and no console error says why")
         ]
     found += arrival_transition_findings(page, "first visit")
-    for restore_case in reader_view_restore_cases(page):
+    for restore_case in user_view_restore_cases(page):
         apply_restore_case(page, restore_case)
         # A console the last restore case dirtied is not this one's news.
         errors.clear()
@@ -247,7 +247,7 @@ def moved_at(cdp, node):
 
 # The host case of the same failure: the declarations are on the element that stages the
 # tree, so both passes find it — it is in the document — and write into a light DOM the
-# shadow root hides. The markup then holds every word the entry promised and the reader
+# shadow root hides. The markup then holds every word the entry promised and the user
 # gets none of them, which is why the gate reads the rendered page rather than the markup.
 SHADOW_HOST_PAGE = CUSTOM_WIDGET_PAGE.replace(
     '<lf-callout id="custom-note">',
@@ -491,7 +491,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# The two edges the reader draws, and what a reading of either has to know: a page that
+# The two edges the user draws, and what a reading of either has to know: a page that
 # offers the region, what puts it up, the region's own selector, which side of the window
 # it is held to, and the numbers the runtime holds it to. Two records rather than two
 # tests, because the whole claim of `drawnEdge` is that the two are one piece of furniture
@@ -501,7 +501,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 #
 # `html` is a call rather than the markup, because the page the trays need is declared
 # with the other tray readings a long way below here, and a parametrize list is read at
-# import. `squeeze` is the window that has no room for what the reader chose and the width
+# import. `squeeze` is the window that has no room for what the user chose and the width
 # the region stands at there — per edge, because each is capped against its own half of a
 # window and covers the page at a different one.
 EDGES = [
@@ -557,7 +557,7 @@ def geometry(page, edge):
     """What the edge reads back as, and what the page has left beside it.
 
     The two numbers are one fact asked from both sides: the strip is the page shell's and
-    the region's own box, and the whole point of the width being the reader's is that
+    the region's own box, and the whole point of the width being the user's is that
     nothing may hold a copy of it their gesture doesn't reach.
 
     The page's own edge is body's content box, not the box it draws. The strip a standing
@@ -756,7 +756,7 @@ def unfolded_button(control):
     """Return a secondary margin entry, opening `…` only for a larger peer set.
 
     A single peer is already visible. In either posture the contribution's real
-    control stays with its owner and the visible proxy forwards the reader's press.
+    control stays with its owner and the visible proxy forwards the user's press.
     Asking this helper for a primary still fails: it has no secondary proxy.
     """
     item = control.locator(
@@ -1015,7 +1015,7 @@ def button_radius(page):
 
 
 def glyph_action_face(control):
-    """What a reader sees of a glyph action, as one reading both its tests share.
+    """What a user sees of a glyph action, as one reading both its tests share.
 
     Send and Add option are the same face: a bare glyph in the action's own ink over a
     28px disc that stays clear at rest and takes the action's tint under the pointer.
@@ -1242,9 +1242,9 @@ UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
     """
 <h1 id="h">Nothing to break on</h1>
-<lf-metrics id="numbers">
+<lf-grid id="numbers">
   <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
-</lf-metrics>
+</lf-grid>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
 <lf-tree id="tree"><pre>
@@ -1271,7 +1271,7 @@ diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 </pre></lf-diff>
 """,
 )
-# The same diff, arriving the other way a widget reaches a reader: on a reply, into a
+# The same diff, arriving the other way a widget reaches a user: on a reply, into a
 # column narrower than any page's.
 PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
     WIDE_DIFF_PAGE.index("<lf-diff") : WIDE_DIFF_PAGE.index("</lf-diff>")
@@ -1396,7 +1396,7 @@ def shown_frames(page):
 
 
 def flip_point(page, sel="lf-shot"):
-    """The middle of a shot's frame — where a reader comparing would have the pointer.
+    """The middle of a shot's frame — where a user comparing would have the pointer.
 
     Returned rather than clicked, because what the widget is for is alternating from
     one place: a helper that clicked would let a test press two different points and
@@ -1417,7 +1417,7 @@ def flip_point(page, sel="lf-shot"):
 # the markup because the gate reads the rendered page and cannot tell who suppressed
 # the word. `kind` is x-paints, so the runtime writes a
 # .lf-quiet span beside each of these; the style takes the box off both. One stands in
-# the open and one behind a disclosure the reader has not opened.
+# the open and one behind a disclosure the user has not opened.
 PAINTED_IN_SILENCE_PAGE = leaf_page(
     "silence",
     """
@@ -1483,7 +1483,7 @@ DEEP_FOCUS = """() => {
 # and how far past its edge that band reaches. Two rules in the layer draw it that way —
 # the anchored response bar, which writes `outline: none` so its states keep one
 # silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
-# focus — and to a reader they are the same band as every other ring (--here-shadow,
+# focus — and to a user they are the same band as every other ring (--here-shadow,
 # theme.css).
 #
 # What makes it that band rather than the layer's other shadows: no offsets, no blur, and
@@ -1616,7 +1616,7 @@ RING_NAMES = """() => {
 #
 # Asked of every box painting one, rather than of the focused one.
 # The two are not the same set: three rules draw the ring on something other than the
-# control holding focus — a decision wears it for whichever of its controls the reader
+# control holding focus — a decision wears it for whichever of its controls the user
 # reached, a joined option group wears the one its picks give up, and an element
 # a focused thread is anchored to wears it with no focus of its own — and a reading that
 # asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
@@ -1657,10 +1657,10 @@ RINGS_DRAWN = f"""async () => {{
   // Keep that one semantic exclusion here; treating every accent contour as a ring
   // reports the page painting a ring no rule named, and naming the feedback contour
   // would put it in a population the keyboard can never light.
-  // The control the reader is standing on is measured whatever paints its outline, since
+  // The control the user is standing on is measured whatever paints its outline, since
   // a visible ring cut in half is a fault whoever drew it.
   //
-  // Or the same band cast as a shadow, which is the same ring to the reader and so the
+  // Or the same band cast as a shadow, which is the same ring to the user and so the
   // same ring here: the anchored response bar and the browsed target hint draw it that
   // way. Left out, the bar's own controls came back wearing `pressable` — the name of
   // the floor rule whose outline this one takes away — and the hint's band went
@@ -1762,14 +1762,14 @@ RINGS_DRAWN = f"""async () => {{
       // around it. Asked of the edge rather than of the size, because the two answers
       // differ for everything not focused — a code block taller than the window hangs
       // out of it however the browser scrolls; a decision wears its ring for a control the
-      // reader reached near its top and its own foot is below the fold; a thread's
+      // user reached near its top and its own foot is below the fold; a thread's
       // element mark is painted on a widget nobody has scrolled to at all. None of
       // those is a ring drawn outside its box, and a size test excuses the first and
       // reports the other two.
       //
       // What it gives up in exchange: a control whose own box its holder clips gets no
       // ring reading on that side, where a size test would have reported one. That is
-      // a control drawn where no reader can reach it rather than a ring leaving its
+      // a control drawn where no user can reach it rather than a ring leaving its
       // box, and CLIPPED_CONTROLS is the reading that owns it.
       //
       // Asked of the control's border box and not of its ring, because a ring is the one
@@ -1843,7 +1843,7 @@ RINGS_DRAWN = f"""async () => {{
     // the control it lands on clear of the banner — that is what the document's
     // scroll-padding is for — so a fixed bar over the focused control's ring is a
     // promise broken. Over a ring some ancestor wears it is not: nobody scrolled that
-    // box, and where its top edge comes to rest a pixel under the bar is the reader's
+    // box, and where its top edge comes to rest a pixel under the bar is the user's
     // scroll position rather than the layer's doing. An option group 2261px tall, whose
     // pick the walk had landed on, is the case.
     const fixedOver = (n) => {{
@@ -1854,7 +1854,7 @@ RINGS_DRAWN = f"""async () => {{
     const scrolledTo = el === focused;
     // Each run sampled in the middle of the part of it that is on screen, rather than in
     // the middle of the whole run. They differ for anything taller or wider than the
-    // window, and then the plain midpoint is a point the reader cannot see: an option
+    // window, and then the plain midpoint is a point the user cannot see: an option
     // group 1791px tall was sampled 22px down the window, which is inside the banner,
     // and the banner's status dot came back as standing over its ring.
     const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];

@@ -12,20 +12,20 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
-| `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one reader has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no conversation turn or agent work |
+| `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no conversation turn or agent work |
 | `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
-| `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
+| `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | | approval of the declared sign-off; a page that asks nothing gets no terminal control |
-| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the reader edited the document through the widget |
+| `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, optional declared-role `references`; server-stamped `meaning` and, for a verb declaring `creates`, `generated` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `data_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt`; a host failure receipt | `request`, `succeeded` or `failed`, `text`; host `failure` with `failed` | exactly one terminal outcome per accepted request |
-| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named reader events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named user events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
-| `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the reader |
-| `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the reader's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
+| `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
+| `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
 
 An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`
 where neighbouring text tells two identical passages apart; a selection on
@@ -38,7 +38,8 @@ requires the agent to revise its declared answer state rather than reply.
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. Its first stroke decides
 whether it anchors on an element or on the page, and with it the browser records `box`
-and `says`; `../../references/conversation-threads.md` says how to read the three. The
+and `says`; the drawing's clause in `$events.handling.comment` tells the agent how
+to read the three. The
 browser reads them off the rendered page, which holds words and geometry no file
 reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and
@@ -48,7 +49,7 @@ export with the rest of discussion chrome.
 
 ## Undo
 
-The reader may withdraw a resolve, unresolve, action, or approval. A reaction
+The user may withdraw a resolve, unresolve, action, or approval. A reaction
 may also be withdrawn while unanswered and on an unresolved thread. Spoken
 messages cannot be withdrawn; requests cannot be withdrawn because their external
 effects may precede the receipt. An undo cannot itself be undone.
@@ -60,7 +61,7 @@ what still stands, the same reading a reload has always made and the one
 `restated` writes from the author's side. `renderState` paints withdrawals and
 forward changes alike, retaining the widget and its independent children. The
 door refuses an `undoes` naming anything but an unwithdrawn gesture of the
-reader's own. An exact control may withdraw a forward action before that action's
+user's own. An exact control may withdraw a forward action before that action's
 POST finishes: the browser derives the withdrawal immediately, keeps both gestures
 in its ordered ledger, and replaces the local dependency with the accepted action id
 before sending the undo. Refusal of the action discards its dependent undo; refusal
@@ -80,8 +81,8 @@ Everything downstream turns on `author`: `leaf wait` prints user events and the
 banner counts only input that requires agent attention, so a `read` neither wakes
 the watcher nor reads as unanswered. An agent's own comment does neither. Either
 side can open a thread and either side can close one.
-A note's purpose is discharged by being read, and only the reader knows that
-happened, so the reader ordinarily closes a thread; `leaf resolve` is the agent's
+A note's purpose is discharged by being read, and only the user knows that
+happened, so the user ordinarily closes a thread; `leaf resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
 and the transcript.
 
@@ -127,27 +128,27 @@ Read state is separate from thread attention. On a first visit, each agent-autho
 message body, including a failure receipt or authored widget, is unread; an agent
 reaction is not. The original message id names its first content version, and each
 `edit` id names a new one. A version is read once a `read` event names it — the
-browser posts one after presenting and exposing ordinary prose, or when the reader
-marks a thread read — or once the reader moves in its thread after it: a reply or
+browser posts one after presenting and exposing ordinary prose, or when the user
+marks a thread read — or once the user moves in its thread after it: a reply or
 reaction, a resolve or reopen, or an action or request on a widget one of the thread's
-messages carries; a move the reader took back does not count. A later edit is unread
+messages carries; a move the user took back does not count. A later edit is unread
 even when the prior version was read. A
 summary does not mark read the messages it covers. `read_state.unread_content` is the
 one reading; it is published as each browser Thread's `unread` and each
 conversation's `unread` in `page state`. Read records belong to the page log and apply
 across tabs and document revisions; they never answer a question, settle a workflow,
-or enter agent delivery. The one-reader page assumption is the page's current
+or enter agent delivery. The one-user page assumption is the page's current
 lifecycle, not a per-account scope.
 
 An agent comment opens a question. A substantive reply opens or resumes the thread;
-when its prose leaves another question for the reader, `leaf reply --awaits`
-records `awaits: true`. The browser cannot write that field. A reader reply
+when its prose leaves another question for the user, `leaf reply --awaits`
+records `awaits: true`. The browser cannot write that field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose move was settled during the turn. A proactive
 message with no response address records `initiates: true` instead. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
-erase newer reader input. A substantive reply reopens a resolved conversation;
+erase newer user input. A substantive reply reopens a resolved conversation;
 reactions and host failure receipts leave its closure standing. A later resolution
 closes the conversation again. Reopening restores its still-unanswered widget Asks,
 as an explicit reopen does.
@@ -162,26 +163,26 @@ for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
-whose `x-awaits.until` applies keeps the reader's Ask open until its declared
+whose `x-awaits.until` applies keeps the user's Ask open until its declared
 completion verb stands. Interim actions have not been handed over: they carry no
 receipt and require no agent reply, and completion carries the receipt and hands the
-turn to the agent. Undoing that completion returns the Ask to the reader and removes
+turn to the agent. Undoing that completion returns the Ask to the user and removes
 the reply obligation. A frozen widget move that answers no Ask, such as a card moved
 on a board sent in a reply, keeps a delivery receipt and owes no reply, under the
 rule `workflows.py` states for page moves.
 
 An open structural Ask anywhere in an unresolved thread keeps it awaiting the
-reader after later prose or a settling reaction. Without one, the latest spoken
+user after later prose or a settling reaction. Without one, the latest spoken
 turn determines the prose obligation described above. A user reaction on that
 latest request whose token declares `settles` clears the prose obligation without
 resolving the thread. `served_state/conversation.py` owns this precedence.
 
-What each conversation command does for its reader, and when an agent uses it, is
+What each conversation command does for its user, and when an agent uses it, is
 `../../references/conversation-threads.md`. The door and the fold hold these rules behind
 them:
 
 - `edit` revises only a comment or reply whose recorded session matches the posting
-  session, and only its `text`: markup is frozen because a reader action may already
+  session, and only its `text`: markup is frozen because a user action may already
   rest on a widget in it. The original stays in the log with its id, timestamp,
   author, thread position, and anchor; the panel, wait digests, and the transcript
   fold the latest text onto it and label it edited.
@@ -202,7 +203,7 @@ them:
   accounts for it. A thread whose root `holds` a command goal cannot move or detach.
 - A comment carrying `response: {kind: version, verb}` asks for a change to authored
   state. `leaf reply` into that thread is refused, apart from a host failure receipt,
-  though the reader may still write there, and `resolve` is accepted only once a later stamped version's authored state
+  though the user may still write there, and `resolve` is accepted only once a later stamped version's authored state
   answers the originating Ask, or changes its declared answer where the Ask was
   already answered; a log action does not substitute.
 - A message body is Markdown, stored as typed and rendered by the page's own vendored

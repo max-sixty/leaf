@@ -70,7 +70,7 @@ export const isPageWidgetWorkflow = (workflow, revision) =>
 
 function compareWorkflows(left, right) {
   const nextActor =
-    Number(right.next_actor === "reader") - Number(left.next_actor === "reader");
+    Number(right.next_actor === "user") - Number(left.next_actor === "user");
   if (nextActor) return nextActor;
   const liveDifference = Number(isLiveWorkflow(right)) - Number(isLiveWorkflow(left));
   if (liveDifference) return liveDifference;
@@ -100,7 +100,7 @@ export function threadAttention(thread) {
         (candidate) => candidate.id === thread.attention.workflow,
       ) ?? null)
     : null;
-  if (thread.attention?.kind === "needs_reader") {
+  if (thread.attention?.kind === "needs_user") {
     const secondary = strongestWorkflow(
       thread.workflows.filter(
         (candidate) =>
@@ -108,7 +108,7 @@ export function threadAttention(thread) {
       ),
     );
     return Object.freeze({
-      kind: "needs_reader",
+      kind: "needs_user",
       label:
         thread.attention.reason === "ask"
           ? "On you"

@@ -38,7 +38,7 @@ class BannerStatusView extends HTMLElement {
     this.#detail.addEventListener("toggle", (event) => {
       const open = event.newState === "open";
       this.#button.setAttribute("aria-expanded", String(open));
-      // Focus the scrollable explanation so keyboard readers can reach long details.
+      // Focus the scrollable explanation so keyboard users can reach long details.
       if (open && document.activeElement === this.#button)
         this.#detail.focus({ preventScroll: true });
       this.#onToggle?.();

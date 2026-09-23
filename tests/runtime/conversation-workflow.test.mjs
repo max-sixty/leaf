@@ -7,7 +7,7 @@ import {
   workflowLabel,
 } from "../../skills/leaf/assets/runtime/conversation/workflow.js";
 import {
-  awaitsReader,
+  awaitsUser,
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/conversation/model.js";
@@ -48,19 +48,19 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing reader Ask precedence over agent work", () => {
+test("thread attention gives a standing user Ask precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
-    next_actor: "reader",
+    next_actor: "user",
   });
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_reader", reason: "ask", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
-    kind: "needs_reader",
+    kind: "needs_user",
     label: "On you",
     workflow: recovery,
     secondary: "Working",
@@ -102,7 +102,7 @@ test("page widget workflows are revision-bounded independently of frozen widgets
   assert.equal(isPageWidgetWorkflow(widget, 2), true);
 });
 
-test("a thread the reader is still sending waits on that send", () => {
+test("a thread the user is still sending waits on that send", () => {
   const sending = workflow("pending:send", "sending");
   const root = {
     id: "pending:send",
@@ -125,15 +125,15 @@ test("a thread the reader is still sending waits on that send", () => {
   });
 });
 
-test("a local prose answer clears accepted reader attention until refusal", () => {
+test("a local prose answer clears accepted user attention until refusal", () => {
   const thread = {
     root: { id: "root", author: "agent", text: "Which one?", ts: "now" },
     msgs: [{ id: "root", author: "agent", text: "Which one?", ts: "now" }],
     anchor: null,
     resolved: null,
     awaits_agent: false,
-    awaits_reader: false,
-    attention: { kind: "needs_reader", reason: "recovery", workflow: "failed" },
+    awaits_user: false,
+    attention: { kind: "needs_user", reason: "recovery", workflow: "failed" },
     bare_reaction: false,
     unread: [],
     seat: null,
@@ -156,7 +156,7 @@ test("a local prose answer clears accepted reader attention until refusal", () =
     [
       workflow("failed", "answered", {
         condition: { kind: "failed", operation: "response" },
-        next_actor: "reader",
+        next_actor: "user",
       }),
       workflow("pending:retry", "sending"),
     ],
@@ -166,8 +166,8 @@ test("a local prose answer clears accepted reader attention until refusal", () =
     reason: "workflow",
     workflow: "pending:retry",
   });
-  assert.equal(awaitsReader(record), false);
-  assert.equal(awaitsReader({ ...record, attention: thread.attention }), true);
+  assert.equal(awaitsUser(record), false);
+  assert.equal(awaitsUser({ ...record, attention: thread.attention }), true);
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {
@@ -191,7 +191,7 @@ test("a frozen message widget keeps its exact workflow in the message and thread
     anchor: null,
     resolved: null,
     awaits_agent: false,
-    awaits_reader: false,
+    awaits_user: false,
     bare_reaction: false,
     unread: [],
     seat: null,

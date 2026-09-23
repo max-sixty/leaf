@@ -27,7 +27,7 @@ export const pointerAt = () => ({ x, y });
 export const pressIsKeyboardActivation = (event) =>
   event.type === "click" && !event.detail;
 
-// An automatic revision activation replaces the document, not the reader's pointer.
+// An automatic revision activation replaces the document, not the user's pointer.
 // New input wins over a handoff captured by the departing document.
 export function restorePointer(point) {
   if (x !== -1 || y !== -1 || !Number.isFinite(point?.x) || !Number.isFinite(point?.y))

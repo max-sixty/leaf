@@ -20,7 +20,7 @@ import {
   consumeThreads,
   declareCoverRoom,
   relabel,
-  retainReaderIntent,
+  retainUserIntent,
   scrollBehavior,
   shadowStage,
   notice,
@@ -466,7 +466,7 @@ customElements.define(
           "In a diff review",
           [
             // The walk leads the scope, because the shortcut bar's shortlist is its first
-            // two live rows and moving is what a reader standing on a diff row does
+            // two live rows and moving is what a user standing on a diff row does
             // next: the line used to open with "filter files", which is the press for
             // someone who has not started reading yet. The rest of the scope is one `?`
             // away in the compact shortcut bar and complete in the reference dialog.
@@ -475,7 +475,7 @@ customElements.define(
             // unit out. Bracket pairs because that is what an editor and a review tool
             // already spell this walk with, and punctuation spends none of the page's
             // small alphabet: these live in the diff's own scope and answer only while
-            // the reader is standing in it.
+            // the user is standing in it.
             {
               id: "diff.next-hunk",
               keys: ["]"],
@@ -512,7 +512,7 @@ customElements.define(
             // go. The press is the switch's own activation rather than a second route to
             // the same effect, so the box the theme reads stays the one place the state
             // lives. Alt+w rather than a bare letter, matching the row below it: a bare
-            // `w` here would shadow the page's own narrowing for as long as a reader
+            // `w` here would shadow the page's own narrowing for as long as a user
             // stood anywhere in a patch.
             {
               id: "diff.wrap",
@@ -556,7 +556,7 @@ customElements.define(
                   return;
                 }
                 // The box's container is the patch it filters, so that is where it hands
-                // the reader back: a blur alone would drop them out of this widget's
+                // the user back: a blur alone would drop them out of this widget's
                 // scope with no ring anywhere, and the file walk would stop answering.
                 focusDestination(this);
               },
@@ -1067,7 +1067,7 @@ customElements.define(
       // The filter, the count and the next-unreviewed press all need the module, so a
       // copy loses them. The wrap switch does not: it is a checkbox the theme reads, so
       // it goes on working in a file with its scripts dropped, and the tools row stays
-      // to carry it — a copy of a patch is exactly where a reader has no other way to
+      // to carry it — a copy of a patch is exactly where a user has no other way to
       // see the end of a long line.
       const tools = this.diffTools;
       tools?.search.closest(".lf-diff-search-label")?.remove();
@@ -1255,9 +1255,9 @@ customElements.define(
         );
     }
 
-    // Where the reader stands inside this diff. A row, a header, or a control in the
+    // Where the user stands inside this diff. A row, a header, or a control in the
     // tools row all answer; the walk only needs a node to compare document positions
-    // against, and the tools row standing before every file is why a reader who has
+    // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
       const focused = this.shadowRoot?.activeElement;
@@ -1310,14 +1310,14 @@ customElements.define(
       await this.loadManifestEntry(entry);
     }
 
-    // The walk starts in the file the reader is standing in and goes on through the
+    // The walk starts in the file the user is standing in and goes on through the
     // ones after it, so a closed file is opened only once the step has actually reached
-    // it: a reader on the last hunk of the third file loads the fourth and stops, rather
+    // it: a user on the last hunk of the third file loads the fourth and stops, rather
     // than every remaining file to discover there is nothing past them.
-    // Opening a file may wait on the network, and the reader may have moved on by then:
+    // Opening a file may wait on the network, and the user may have moved on by then:
     // both walks capture the pressing gesture's intent first and land only while it stands.
     async stepHunk(back) {
-      const mayLand = retainReaderIntent();
+      const mayLand = retainUserIntent();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
       const standing = here
@@ -1344,7 +1344,7 @@ customElements.define(
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
       // The whole file is the unit, so a step out of one starts past it rather than at
-      // its own header — and a reader standing in the tools row, which belongs to no
+      // its own header — and a user standing in the tools row, which belongs to no
       // file, steps to the first (or, walking back, the last).
       const standing = here
         ? order.findIndex((entry) => entry.node.contains(here))
@@ -1367,7 +1367,7 @@ customElements.define(
     // so it is made focusable for the press that lands on it and wears the platform's
     // own ring, the same as every control the layer does not restyle. A file header
     // already is one, and writing a tabindex of -1 onto it would take it out of the
-    // order a reader tabs through.
+    // order a user tabs through.
     land(box, node = box) {
       if (node.tabIndex < 0) node.tabIndex = -1;
       box.scrollIntoView({
@@ -1404,7 +1404,7 @@ customElements.define(
     }
 
     async nextUnreviewed() {
-      const mayLand = retainReaderIntent();
+      const mayLand = retainUserIntent();
       const entry = this.nextReviewEntry();
       if (!entry) return;
       this.reviewCursor = entry;

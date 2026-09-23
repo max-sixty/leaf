@@ -381,7 +381,7 @@ def receipt_event(
 
 @contract_writer
 def cmd_receipt(page_dir: Path, request: str, status: str, text) -> dict:
-    """Append the agent's terminal outcome for a reader request."""
+    """Append the agent's terminal outcome for a user request."""
     # The door reads this module's request and receipt contracts, so the writer
     # beside them reaches it here rather than at import.
     from leaf.event_contracts import append_admitted

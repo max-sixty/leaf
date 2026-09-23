@@ -156,7 +156,7 @@ export function createReactionController({
     anchor = fabAnchorAt(),
   ) {
     // Read before the bar goes, because the reading is about the bar that is standing.
-    // `showFab(null)` lands the reader on this same answer, but `setReact(false)` runs
+    // `showFab(null)` lands the user on this same answer, but `setReact(false)` runs
     // after it and the palette makes a return of its own, so the landing is asserted once
     // more once everything has settled. The bar owns what that answer is.
     const returnTo = fabReturnTo();
@@ -190,13 +190,13 @@ export function createReactionController({
   }
 
   // The react press opens one surface's list. `e` uses the latest agent reply in the
-  // thread the reader is standing in, an already raised bar, a completed native
+  // thread the user is standing in, an already raised bar, a completed native
   // selection, or the addressable element holding focus. This same reading decides whether the page
   // command exists, so dispatch cannot advertise a reaction before its target.
   let reactArmed = false;
   let reactRaised = false;
   // Whether this raise is what unfolded the target's cluster, and so whether putting the
-  // choices away has a fold of its own to put back. A reader who pressed `…` themselves
+  // choices away has a fold of its own to put back. A user who pressed `…` themselves
   // and then `e` opened that layer before the raise found it, and it is theirs to keep.
   let marginUnfolded = false;
   let reactFrom = null;
@@ -278,9 +278,9 @@ export function createReactionController({
     delete fabBar.dataset.lfMarginRaised;
     // A raise that unfolded the target's margin entries to stand these choices in puts that fold
     // back, so cancelling leaves the cluster as the press found it rather than an empty
-    // fold the reader has to close themselves. Only that raise: this runs on every
+    // fold the user has to close themselves. Only that raise: this runs on every
     // disarm, including one whose surface was a reply strip and which never raised the
-    // margin at all, and including one over a fold the reader had already opened for
+    // margin at all, and including one over a fold the user had already opened for
     // themselves — folding either takes away a layer the gesture never put on.
     if (marginUnfolded) foldMarginEntryOptions();
     marginUnfolded = false;
@@ -391,7 +391,7 @@ export function createReactionController({
               ? trigger
               : document.body;
         // Hiding a focused choice may leave focus on that now-hidden node or drop it to
-        // body before the browser paints. The reader may choose another control during
+        // body before the browser paints. The user may choose another control during
         // that frame; only those two states mean the palette still owes its return.
         if (destination !== document.body)
           requestAnimationFrame(() => {
@@ -532,7 +532,7 @@ export function createReactionController({
     });
   }
   pageScope("reactions", REACT);
-  // `e` opens the list on the target the reader has already named: the current selection,
+  // `e` opens the list on the target the user has already named: the current selection,
   // item, or agent reply. Digits are optional accelerators in the registry's declared
   // order, and the mode's own scope above owns them once the list is open.
   pageCommand({

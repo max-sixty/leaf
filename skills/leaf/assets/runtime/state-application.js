@@ -95,7 +95,7 @@ export function createStateApplication({
 
     const frozenDocuments = [];
     const threadRoots = new Map(
-      (state.browser.conversation.threads ?? []).flatMap((thread) =>
+      state.browser.conversation.threads.flatMap((thread) =>
         thread.msgs.map((message) => [message.id, thread.root.id]),
       ),
     );
@@ -137,7 +137,7 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
-      // Pending deferral is rechecked by activates. An installation edits the reader's
+      // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate
       // that could not be adopted is dropped here, with the page still whole.
@@ -192,7 +192,7 @@ export function createStateApplication({
         await notifyDataSubscribers();
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
-        accountPending(state.browser.receipts ?? []);
+        accountPending(state.browser.receipts);
         // Only the accepted candidate that this full document just presented can
         // establish news. A queued notice formats against the latest such reading,
         // so a later answer does not repeat a superseded failure or edit.

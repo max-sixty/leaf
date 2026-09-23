@@ -30,13 +30,13 @@ export function onMotionPreferenceChange(listener) {
   return () => preference.removeEventListener("change", changed);
 }
 preference.addEventListener("change", (event) => {
-  // Preference changes apply to motion already under the reader as well as the next
+  // Preference changes apply to motion already under the user as well as the next
   // gesture. Finishing reaches each caller's ordinary cleanup path; cancelling here
   // would reject `finished` and strand folds whose end state is installed there.
   if (event.matches) for (const played of [...active]) played.finish();
 });
 
-// Web-Animations motion goes through here, so a reader who asked for stillness is
+// Web-Animations motion goes through here, so a user who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
 // reduce, and a caller treats "no animation" and "animation finished" as the same
 // state. Every motion this module plays shares one ease and one held-end-frame
@@ -44,7 +44,7 @@ preference.addEventListener("change", (event) => {
 // for; see AGENTS.md's "Motion".
 export function motion(el, keyframes, ms) {
   // First replay happens behind the presentation boundary. Its state should be the
-  // first frame the reader sees, not a motion from authored state they never saw; it
+  // first frame the user sees, not a motion from authored state they never saw; it
   // collapses exactly as reduced motion does. This one shared check reaches folds and
   // FLIP alike without a widget learning whether the page has been presented.
   if (
@@ -83,6 +83,6 @@ export function motion(el, keyframes, ms) {
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller
 // distance travelled by the whole column below it. One number, because the product
 // makes this motion twice for one reason — a decided suggestion's retired slot and a
-// resolved thread's place in the list are both room the reader watches come back —
+// resolved thread's place in the list are both room the user watches come back —
 // and two numbers would be that reason written down twice, free to disagree.
 export const FOLD_MS = 220;

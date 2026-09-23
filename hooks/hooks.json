@@ -32,6 +32,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(*leaf wait*)",
+            "command": "[ -n \"$CLAUDECODE\" ] && grep -q 'leaf wait' && cat \"$CLAUDE_PLUGIN_ROOT/hooks/wait-started.json\"; exit 0",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

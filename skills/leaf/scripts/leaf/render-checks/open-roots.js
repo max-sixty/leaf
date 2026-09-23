@@ -2,7 +2,7 @@
  * rather than for what it declares.
  *
  * Every open root, found by walking rather than read off the registry's x-shadow list:
- * a root a module attached without declaring one still holds words and code the reader
+ * a root a module attached without declaring one still holds words and code the user
  * has to read, and a reading that asked the registry would look away from exactly the
  * tree nobody vouched for. That is the whole of the difference from the runtime's own
  * `shadowRootsIn`, which answers the document's question — whose words these are — and

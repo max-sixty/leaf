@@ -24,8 +24,8 @@ The main owners are:
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_contracts`: the one append door every writer admits an event through,
   and the per-kind contracts it runs;
-- `read_state`: agent content versions and the one reading of which the reader has
-  not read, from `read` events and the reader's later moves in each thread;
+- `read_state`: agent content versions and the one reading of which the user has
+  not read, from `read` events and the user's later moves in each thread;
 - `page_view`: the page as the door may read it, so admission is a fold over that
   reading, the standing log, and one event;
 - `event_endpoint`: the browser's transport onto that door — postable kinds,
@@ -35,7 +35,7 @@ The main owners are:
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, conversation writes, and the host-neutral delivery-bound reply
   lifecycle;
-- `workflows`: unsettled reader moves and their strongest delivery or
+- `workflows`: unsettled user moves and their strongest delivery or
   subject-work evidence;
 - `activity`: the canonical page-level fold over workflows, status, claim,
   turn, and watcher evidence;
@@ -58,13 +58,14 @@ The main owners are:
 - `specimens`: disposable child pages built from captured templates and selected
   conversations, with independent event logs and server-owned lifetimes;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the Codex App Server connection every carrier speaks, the turn each one
-  carries on the connection that started it, its activity and final-answer readings,
-  the page writers those readings reach a reader through, and the durable delivery
-  records a carrier prepares, accepts, opens, and abandons;
-- `codex_adapter`: the detached carrier behind `leaf codex start` — its observing App
-  Server client, the turns it carries for that task, its `codex queue` fallback, page
-  receipts, adapter leases, and the private App Server terminal launcher;
+- `codex`: the durable delivery records every Codex carrier prepares, accepts, opens,
+  and abandons, and, for the carriers that are App Server clients, the connection, the
+  turn each one carries on the connection that started it, its activity and
+  final-answer readings, and the page writers those readings reach a user through;
+- `codex_adapter`: the detached carrier behind `leaf codex start` — its two
+  transports, the default `codex queue` and an observing App Server client with the
+  turns it starts for that task, page receipts, adapter leases, and the private App
+  Server terminal launcher;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;

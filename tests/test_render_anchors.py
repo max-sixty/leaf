@@ -141,7 +141,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const tick = () => new Promise(r => setTimeout(r, 0));
         const composer = document.querySelector('.lf-composer');
         const fab = document.querySelector('.lf-fab-input');
-        // A reader reaches everything eventually — opens the details, clicks through to
+        // A user reaches everything eventually — opens the details, clicks through to
         // the other tab — so everything is in scope, not just what the page opens on.
         document.querySelectorAll('details').forEach(d => (d.open = true));
         document.querySelectorAll('[hidden]').forEach(e => e.removeAttribute('hidden'));
@@ -186,7 +186,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 }
                 await tick();
                 const painted = CSS.highlights.get('lf-pending');
-                // The captured quote, read off the node whether or not the reader can
+                // The captured quote, read off the node whether or not the user can
                 // see it: the composer shows it only where the page has no mark to give,
                 // which is the very case this loop is counting.
                 const quoted = document.getElementById('lf-composer-quote').textContent;
@@ -232,8 +232,8 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     )
 
 
-def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
-    """A shrinking visible region gives the viewport its draft before it loses focus."""
+def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
+    """A block scrolling out of view gives the viewport its draft before it loses focus."""
     source = next(source for source in EXAMPLES if source.stem == "live-progress")
     page = open_page(browser, serve(source))
     resized(page, 700, 850)
@@ -257,11 +257,11 @@ def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve)
     # Native End on macOS scrolls the page even from its textarea. A smooth scroll can
     # cross this narrow band in one frame or several; put that actual geometry on screen
     # directly so the test cannot miss the point where the region no longer fits a field.
-    page.locator("#lp-release").evaluate(
+    page.locator("#lp-status").evaluate(
         "region => window.scrollTo(0, scrollY + region.getBoundingClientRect().bottom - 20)"
     )
     page.evaluate(RENDERED)
-    assert page.locator("#lp-release").evaluate(
+    assert page.locator("#lp-status").evaluate(
         "region => Math.abs(region.getBoundingClientRect().bottom - 20) < 1"
     )
     expect(field).to_be_visible()
@@ -500,7 +500,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
 
     The shipped example gives moving evidence its own scroll and keeps current release
     state ahead of it. A check comment still returns to its region without creating an
-    event merely because the reader navigated there."""
+    event merely because the user navigated there."""
     example = next(p for p in EXAMPLES if p.stem == "live-progress")
     quote = "1,998 / 1,999 rows"
     url = serve(example, anchored=[("lp-check-finance", quote)])
@@ -555,7 +555,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
         "a drag across the tab's name selected nothing"
     )
     # The drag ended on a button, and the button still switches tabs — but this mouseup
-    # was a selection's, not a press, so the reader is still looking at what they were
+    # was a selection's, not a press, so the user is still looking at what they were
     # reading when they reached for the name.
     expect(page.locator("#p-feeders")).to_be_visible()
 
@@ -825,16 +825,16 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
 
 def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     """A drag stops where the hand stopped: four glyphs into "paragraph", four short
-    of the end of "carrying". The reader meant the words, and the quote the capture
+    of the end of "carrying". The user meant the words, and the quote the capture
     would otherwise store — "graph carr" — reads as a typo in the panel and in every
     reply that quotes it back. So the pointer path grows a selection out to word
     boundaries, outward only: an end resting in space or against punctuation is
-    already where the reader put it, so "it," gains its 't' and not its comma, and a
+    already where the user put it, so "it," gains its 't' and not its comma, and a
     word split across inline markup — here by splitText, which also leaves the empty
     text node that puts two EDGEs flush in the indexed reading — still grows whole.
 
     What the pointer path must not do is here too. A keyboard selection is never
-    grown — shift-arrow is the reader being precise — so the comment field captures
+    grown — shift-arrow is the user being precise — so the comment field captures
     a mid-word selection exactly as made. Machine-placed words never glue to the
     author's, on either side of the declaration line: an undeclared generated span
     is a fenced cell in the reading, and a declared label — a specimen's, rendered
@@ -917,7 +917,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_visible()
 
     # The bar the selection raised stands above it, over the line the next drag starts
-    # on; a press in the margin beside the paragraph is the reader's own move that
+    # on; a press in the margin beside the paragraph is the user's own move that
     # takes it down, and moves nothing else. Read back before the drag, because the
     # bar comes down in the press's own handler and the drag must not race it.
     beside = page.locator("#p").bounding_box()
@@ -928,7 +928,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     assert captured() == "inside it"
 
     # The same words dragged right to left are captured the same. The click first is
-    # the reader's own move — a press inside the standing selection would drag its
+    # the user's own move — a press inside the standing selection would drag its
     # text, not start a new one.
     page.locator("#t").click()
     select(page, spot("#p", "it,", 1), spot("#p", "inside", 2))
@@ -977,14 +977,14 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     browser extends its selection through everything in between — a paragraph and a
     pointer a few words along came back as a 14,387-character quote, a mark over 22,140
     of them, and a field whose accessible name read the whole page out. The layer
-    answering `user-select: none` keeps most of it out of reach, and a reader must still
+    answering `user-select: none` keeps most of it out of reach, and a user must still
     be able to copy what somebody said, so a thread's own quoted words remain a landing
     place: that is where this drag ends.
 
-    What the reader meant is what the drag had inside the document before it crossed out,
+    What the user meant is what the drag had inside the document before it crossed out,
     and the release puts that back. Where it had nothing yet, nothing is offered — and
     either way the browser's own selection is left where it is, because it is the
-    reader's to copy.
+    user's to copy.
 
     Only a pointer drag is asked this. Select-all lands its far end past the page's last
     words by definition and still means the document, which
@@ -1063,7 +1063,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         "wrapped where a source line ended": passage.replace(" and ", "\nand "),
         "broken where a block ended": passage.replace(" and ", "\n\nand\n"),
         "spaced out by an editor": passage.replace(" ", "   "),
-        # Reaching across the boundary between two blocks, which the reader sees as a
+        # Reaching across the boundary between two blocks, which the user sees as a
         # line break, the source writes as a newline, and a rendering may write as neither.
         "spanning two blocks": "more than one text node. A neighbouring block",
     }
@@ -1130,7 +1130,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     UTF-8 file on the way. Source text is neither: it carries the author's line wraps,
     which break a blockquote open, and cutting it to length by UTF-16 unit can halve a
     character, which no UTF-8 file can hold. The server refuses that write and the
-    reader is told it is offline, with no way to ever send the comment."""
+    user is told it is offline, with no way to ever send the comment."""
     url = serve(INLINE_PAGE)
     page = open_page(browser, url)
 
@@ -1159,14 +1159,14 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     )
 
     # And the round trip that proves it: the server has to accept the quote and write it
-    # to a UTF-8 file. A half character fails there, reported to the reader as an offline
+    # to a UTF-8 file. A half character fails there, reported to the user as an offline
     # server, and no retry can ever succeed.
     #
     # So the card alone is not the fact to wait on: it is painted the turn the comment is
     # sent, under an identity the response replaces. `sending` cannot stand in for that
     # identity here — the refusal this test guards against is a request failure the
     # outbox retries rather than settles, so its trip would sit out its whole deadline
-    # instead of reporting what the reader was told.
+    # instead of reporting what the user was told.
     #
     # The composer prints the quote inside quotation marks; what it captured is what
     # lies within them, and that is what the file has to come back holding.
@@ -1182,7 +1182,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     )
 
     # And the file behind that answer, read back through Python's UTF-8 decoder, which is
-    # the reader a half character has no bytes for.
+    # the user a half character has no bytes for.
     comments = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -1344,7 +1344,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     )
 
     # `hi` is a background tint and says which line the note beside it is about. Nothing
-    # of that reaches a reader listening, who gets the block entire with no idea which of
+    # of that reaches a user listening, who gets the block entire with no idea which of
     # it was pointed at — and the numbers can't tell them, being a CSS counter painted
     # into no text node so that a copy of the block is source and not a listing. So the
     # highlighted line says so itself, once, where it is true.
@@ -2148,7 +2148,7 @@ def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
 
 def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serve):
     """A key on screen is a key that works, and its inversion costs just as much: the
-    press is real, the reader can make it, and no surface says so.
+    press is real, the user can make it, and no surface says so.
 
     A widget may still declare the meaning of an owned press when that meaning is worth
     naming in Leaf's command reference. The row describes the control's behavior without
@@ -2162,7 +2162,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the reader was standing on."""
+    widget and never saw the control the user was standing on."""
     url = serve(
         NATIVE_CONTROL_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -2226,7 +2226,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     """A figure can carry more than one thread. When the page's record of what it drew was
     keyed by the mark, the second comment overwrote the first, and the panel told the
-    reader the first one's passage wasn't in this version — while it sat outlined on
+    user the first one's passage wasn't in this version — while it sat outlined on
     screen for the second."""
     url = serve(INLINE_PAGE)
     page = open_page(browser, url)
@@ -2419,7 +2419,7 @@ def take_by_double_click(page):
     #
     # The first click of the pair is a press by the door's own rule, and opens the mark's
     # thread; the second takes the word and is refused, and focus comes back to the page
-    # with it. What the reader is left holding is what this arm asserts.
+    # with it. What the user is left holding is what this arm asserts.
     at = word_at(page, "#edge p", "deploy")
     page.mouse.dblclick(at["x"], at["y"])
 
@@ -2444,21 +2444,21 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     browser, serve, take
 ):
     """Marked words are still words to comment on: every way of taking them leaves the
-    reader holding them, with the 💬 on what was taken and the page still under them.
+    user holding them, with the 💬 on what was taken and the page still under them.
 
-    What the reader ends up with, rather than where the gesture went on the way: a
+    What the user ends up with, rather than where the gesture went on the way: a
     double-click's first click is a press by the door's own rule and opens the mark's
     thread, and only its second click takes a word. Measured, that excursion costs the
-    reader a focus round trip through the reply box and no movement of the reading column
+    user a focus round trip through the reply box and no movement of the reading column
     at all, and refusing it would mean holding every press on a mark for the length of the
     double-click interval — the ordinary gesture made sluggish for the rarer one. So each
     arm asserts the standing result, and the press below asserts that the mark still opens.
 
     A click ends a gesture that took words as surely as it ends a press, and the mark's
     door read every one of them as a press. With Threads open the thread it opened landed
-    the reader in the panel's reply box, and focusing a textarea collapses the document's
+    the user in the panel's reply box, and focusing a textarea collapses the document's
     selection — so the words went, the 💬 with them, and marked passages became the one
-    part of a page a reader could not quote. The panel is why it shows here and not on a
+    part of a page a user could not quote. The panel is why it shows here and not on a
     closed one, where the same travel focuses a card and leaves the selection standing;
     both doors are the one misreading, so this asserts the open panel, where it is visible.
 
@@ -2476,7 +2476,7 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     assert took["selected"].strip(), (
         "the gesture took no words, so this says nothing about what the door did with them"
     )
-    assert not took["inPanel"], "the gesture sent the reader into the conversation"
+    assert not took["inPanel"], "the gesture sent the user into the conversation"
     assert pending_text(page) == took["selected"].strip(), (
         f"the 💬 is about {pending_text(page)!r} rather than the words that were taken"
     )
@@ -2955,7 +2955,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     """A quote is the passage, so what is stored is what the page marks and what the
-    comment is on. It used to be cut at four hundred characters: a reader who selected
+    comment is on. It used to be cut at four hundred characters: a user who selected
     a paragraph got a comment on its opening and a highlight that shrank to match, on
     most of the paragraphs a leaf page holds, and nothing said so. Storing the
     whole of it is only affordable because the bound moved to the search's pattern,
@@ -2981,7 +2981,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     expect(page.locator(".lf-composer")).to_be_visible()
 
     # The mark under the open composer is the selection, both ends of it — and on the
-    # copy the reader dragged, which only the stored neighbours can decide.
+    # copy the user dragged, which only the stored neighbours can decide.
     on_the_selection = page.evaluate("""() => {
         const words = document.querySelector('#second').firstChild;
         const want = document.createRange();
@@ -3099,10 +3099,10 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
 
     Every other version fixture publishes a second version out of one markup string,
     which is a page nobody wrote: the two documents differ by whatever the fixture
-    edited, and what a reader would see marked is whatever that edit happened to be.
+    edited, and what a user would see marked is whatever that edit happened to be.
     The shipped example is an authored pair — a proposal and the version that answered
     a comment on it — so what the comparison marks here is what a revision is: the
-    paragraph rewritten around the sentence the reader quoted, the paragraph and
+    paragraph rewritten around the sentence the user quoted, the paragraph and
     step it grew, and the title and lede updated to state the exception. Everything
     the revision left alone stays unmarked, including the
     section the other thread stands on, and both threads stay attached because both
@@ -3132,7 +3132,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     ], marked
     # A Change margin entry's press says what it reached, in the notice slot: its target is
     # usually on screen already, so the scroll moves nothing and a press that only spoke
-    # to the live region was, to a sighted reader, a press that did nothing. What the
+    # to the live region was, to a sighted user, a press that did nothing. What the
     # press also discloses is the next test's; this one holds it to naming its target.
     page.locator(
         '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
@@ -3162,7 +3162,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 
     # And the older document is a real destination, not just a row: choosing it pins
-    # the reader to the virtual version address the chooser named.
+    # the user to the virtual version address the chooser named.
     banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
@@ -3175,7 +3175,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
 
     The Change margin entry is a disclosure per block. Its press inserts dropped
     text at its aligned boundary and highlights added words in the current prose, so the
-    reader need not compare the paragraph with a second copy underneath. Rewritten
+    user need not compare the paragraph with a second copy underneath. Rewritten
     sentences stay whole; a local edit is refined to its words. Generated historical
     words stay outside the authored passage: the existing comment remains attached and
     selection still reads the current version alone.
@@ -3187,7 +3187,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
-    # Nothing stands open until a reader asks: the marks are the whole first reading.
+    # Nothing stands open until a user asks: the marks are the whole first reading.
     expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
     assert page.evaluate(marks) == 2
@@ -3461,7 +3461,7 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     """A version stays an integer from the server through runtime state; only the
     menu and URL boundary render its file name. Order the versions by those names
     instead and v10 lands between v1 and v2: the menu reads out of sequence,
-    the diff offers the wrong base, and a reader on the newest version is told a
+    the diff offers the wrong base, and a user on the newest version is told a
     newer one is waiting."""
     url = serve(INLINE_PAGE)
     for n in range(2, 11):
@@ -3548,7 +3548,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     # A menu opened from the keyboard leaves the same way one opened by pointer does:
-    # the menu is a layer over the page, so its one press lands the reader on the page
+    # the menu is a layer over the page, so its one press lands the user on the page
     # rather than on the chooser that is its implementation door — or on the heading
     # they happened to be standing on when they asked for it.
     origin = page.locator("h1")
@@ -3562,7 +3562,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
 
     # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
     # offers neither a walk nor an exact-version shortcut that would reopen the page the
-    # reader is already on.
+    # user is already on.
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
     pointer_line = shortcut_bar_text(page)
@@ -3576,7 +3576,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     assert "open version" not in keyboard_line, keyboard_line
     page.keyboard.press("Escape")
 
-    # The line is the menu's while the reader is in it: its own actions are named and the
+    # The line is the menu's while the user is in it: its own actions are named and the
     # page's keys are gone with the presses the mode took.
     open_versions(page)
     expect(line).not_to_contain_text("walk — marking changes")
@@ -3602,7 +3602,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     somewhere they can be read whole and costs the platform's own popup: opening,
     closing, and the keys between. A select came with all of that, so what this
     asserts is the part that had to be written back — the pointer route opens through
-    More, focus lands on the version being read so the walk starts where the reader is,
+    More, focus lands on the version being read so the walk starts where the user is,
     ↑/↓ clamp at the ends, Escape closes the replacing panel, and a click anywhere
     else closes without navigating.
 
@@ -3744,7 +3744,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
-    # Escape closes the menu and lands the reader on the page it stood over, whatever
+    # Escape closes the menu and lands the user on the page it stood over, whatever
     # door they came through. A popover restores focus to whatever had it when it
     # showed, which for a menu opened from the page is the body; Leaf performs the whole
     # step instead, so the landing is the same one every time.
@@ -3759,7 +3759,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     #
     # Which row that is, is the comparison's: the walk above marked from v1, so the base
     # is v1 and the row carrying it is where an open lands. Landing on the version being
-    # read would put the focus and the base on different rows, and the reader's next arrow
+    # read would put the focus and the base on different rows, and the user's next arrow
     # press would then move the base off the version they marked from — the whole reason
     # the two are one thing (the chooser's focusSelectedRow).
     open_versions(page)
@@ -3786,7 +3786,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("Escape")
 
-    # A click on the page closes it and leaves the reader where they were.
+    # A click on the page closes it and leaves the user where they were.
     open_versions(page)
     expect(menu).to_be_visible()
     # A point in the page's left margin: outside the column, and well clear of a menu
@@ -3796,8 +3796,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     assert "/versions/v2.html" in page.url, "closing the menu navigated"
 
     # The same press from the key's door, which is the one a hand-back can reach: opened
-    # with the pointer the reader was on the button going in, so nothing moves them either
-    # way. A press away from the menu is not a way back to the chooser — it is the reader
+    # with the pointer the user was on the button going in, so nothing moves them either
+    # way. A press away from the menu is not a way back to the chooser — it is the user
     # going somewhere else — and a close that hands focus to the bar whenever it finds none
     # takes them off the page they just pressed into. Escape says return; this does not.
     open_versions(page)
@@ -3825,15 +3825,15 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
 
 def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     """A mode standing over the page takes the page's keys. The sequence and the reference
-    always did and this menu did not, so mid-walk `d` scrolled a page the reader had
+    always did and this menu did not, so mid-walk `d` scrolled a page the user had
     stopped looking at and `c` opened the composer under the list. None of it failed
-    loudly: each press did exactly what it promises, somewhere the reader was not — and
+    loudly: each press did exactly what it promises, somewhere the user was not — and
     the shortcut bar went on offering all of them, which is what made the offer the bug rather
     than the press.
 
     A claim is not the blanket it replaced, so the exemption is asserted beside it: the
     reference is the one key a mode keeps, being the key that says what the mode's own keys
-    are, and a reader who has just opened something unfamiliar is the reader who wants it.
+    are, and a user who has just opened something unfamiliar is the user who wants it.
 
     Which presses are asserted is decided by what a suspended one leaves to read. A key
     the mode swallows moves nothing, and nothing is what an assertion made too early reads
@@ -3877,7 +3877,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # The exemption: the progressive help route still lists the mode standing over the
     # page. The shelf stands beside the menu, and the reference is a modal, so entering
     # it dismisses the menu as the platform dismisses any auto popover and does not
-    # rebuild it. Reopening is what stands the mode up again, and the reader is back on
+    # rebuild it. Reopening is what stands the mode up again, and the user is back on
     # the row they left, since a scope is where focus is and the overlay takes the focus.
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
@@ -3990,7 +3990,7 @@ def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
 
 def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     """The walk above travels for this geometry; a press on the same words does not,
-    because the reader's hand is already on them and the card fits beside them."""
+    because the user's hand is already on them and the card fits beside them."""
     page, place_bottom = clearance_page(browser, serve)
     # 10px into the band keeps the line's middle, where the press lands, off the bar.
     covered = place_bottom(10)
@@ -4011,7 +4011,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
 def test_a_withheld_row_opens_its_card_beside_the_passage(browser, serve):
     """Without room for a rail, the thread's margin row is withheld and has no box. The
     card used to stand against that empty box, in the boundary's top corner, over the
-    very words the reader had pressed; it stands by the passage instead."""
+    very words the user had pressed; it stands by the passage instead."""
     page, place_bottom = clearance_page(browser, serve)
     resized(page, 820, 800)
     expect(page.locator('[data-lf-margin-for="destination"]')).to_have_class(
@@ -4070,9 +4070,9 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
     # The reference reads the same declaration, but it is a modal and global chrome: its
     # entry dismisses the menu the way the platform dismisses any auto popover. The bar
-    # speaks for the live scene and names only the direction the reader can take; the
+    # speaks for the live scene and names only the direction the user can take; the
     # reference is a catalogue and names both, each marked as reachable in the menu
-    # rather than here. Which is the whole of what the pair is for: a reader who cannot
+    # rather than here. Which is the whole of what the pair is for: a user who cannot
     # read the second direction anywhere cannot learn that the row has one.
     compared.keyboard.press("?")
     compared.keyboard.press("?")
@@ -4160,7 +4160,7 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     focused_row.evaluate("row => window.__lfFocusedVersionRow = row")
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     told(page)  # the poll that carries it has been and gone
-    # Deferred, so the walk the reader is in the middle of is undisturbed.
+    # Deferred, so the walk the user is in the middle of is undisturbed.
     expect(page.locator(".lf-version-row")).to_have_count(2)
     assert focused_row.evaluate("row => row === window.__lfFocusedVersionRow")
     expect(focused_row).to_be_focused()
@@ -4254,16 +4254,16 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
 
 
 def test_the_current_page_has_a_menu_local_key(browser, serve):
-    """A pinned version stays where the reader put it and offers the current page as a chip. The
+    """A pinned version stays where the user put it and offers the current page as a chip. The
     keyboard reaches that chip's destination through the chooser rather than past it: g V
     opens the menu and its local v takes the live page, by that row's own press, so the key
     leaves through the door the pointer uses and the historical URL stays exact.
 
     Which is the newest row, not the row the walk stands on — that one is Enter's, and a
-    reader who has walked away from where they started must still be able to say "the
+    user who has walked away from where they started must still be able to say "the
     current state" in one press. And the second press carries no liveness of its own,
     which is the point of spelling the move this way: the menu always has a current row,
-    so the motion holds wherever the reader is — including on the page already reading
+    so the motion holds wherever the user is — including on the page already reading
     that row, where a key of the page's own would have had to stand down and every
     surface say so."""
     url = serve(INLINE_PAGE)
@@ -4341,7 +4341,7 @@ def test_comparison_selection_moves_before_its_documents_finish_loading(browser,
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 
     # The selection, not only the settled marks, is the menu's standing. Reopening
-    # while its documents are held returns to the row the reader just selected.
+    # while its documents are held returns to the row the user just selected.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-version-menu")).to_be_hidden()
     open_versions(page)
@@ -4406,21 +4406,21 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
 
 
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
-    """A page that ships a version whenever the work moves leaves its reader behind by
+    """A page that ships a version whenever the work moves leaves its user behind by
     more than one, and "what changed since the previous version" is then the wrong
     question: what they want marked is everything since they last looked. The base was
     the previous version for exactly as long as it was a control's own label — one
     button can name one version — so the menu is where it stops being one, and every row
     older than this one offers itself.
 
-    The rest is what the reader can tell afterwards: the closed control says a
+    The rest is what the user can tell afterwards: the closed control says a
     comparison is standing, and reopening says which one, on the rows it spans.
 
     From the keyboard the base is the row the walk stands on, so the marks follow the
     walk: the note says in words what a version changed and the page says it in the
-    passages, without the reader leaving the list to find out. That is also the whole of
+    passages, without the user leaving the list to find out. That is also the whole of
     the way off, the page having no key for a comparison. It costs nothing to find,
-    because the two ends of the walk are the two versions the reader already has in mind:
+    because the two ends of the walk are the two versions the user already has in mind:
     an open lands on the standing base, and stepping toward the latest ends on the version being read,
     which is comparable with nothing."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
@@ -4479,7 +4479,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(2)
 
     # And the keyboard's way off, which is the walk: an open lands on the base the marks
-    # came from rather than on the version being read, so the reader starts at one end of
+    # came from rather than on the version being read, so the user starts at one end of
     # the span the rail draws and steps toward the latest to the other, where nothing is older to
     # compare against. Landing on the version being read instead would put the base a
     # press away from moving under them.
@@ -4493,7 +4493,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # And the walk, which is the same series of comparisons made by standing on the rows
     # rather than by naming a base: each step marks what changed since the row it lands
-    # on, and the list stays up while the page marks behind it — the reader is reading
+    # on, and the list stays up while the page marks behind it — the user is reading
     # the note and the passages together.
     menu = page.locator(".lf-version-menu")
     open_versions(page)
@@ -5039,10 +5039,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    # go-to-threads has one destination, the whole panel, whichever thread the reader
+    # go-to-threads has one destination, the whole panel, whichever thread the user
     # stood on to ask for it.
     expect(page.locator(".lf-threads")).to_be_focused()
-    # The panel releases to the page. The seat on the page is not put back, the reader
+    # The panel releases to the page. The seat on the page is not put back, the user
     # having left it to come here.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -5060,7 +5060,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     note.press("Enter")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    # The note carried the reader into a thread the diff already seats, so what they
+    # The note carried the user into a thread the diff already seats, so what they
     # are standing on is that thread and one Escape lets go of it, onto the page. The
     # note is Leaf's own control beside the words it marks rather than a landing; Enter
     # from it goes in again.
@@ -5109,7 +5109,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert ready["backgroundColor"] == quiet["backgroundColor"]
     # A ready press is told from a quiet one by its ink and its edge. Neither wears a
     # fill: no pressable carries a solid accent, so asserting one here would be holding
-    # the look the theme took off rather than the distinction the reader needs.
+    # the look the theme took off rather than the distinction the user needs.
     assert ready["fill"] == quiet["fill"] == "rgba(0, 0, 0, 0)"
     assert ready["color"] != quiet["color"]
     assert ready["borderTopColor"] != quiet["borderTopColor"]
@@ -5501,10 +5501,10 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
 
 
-def test_a_hunk_step_waiting_on_a_file_leaves_a_reader_who_moved_on(browser, serve):
-    """`]` into a file still loading lands only while the reader is where they pressed it.
+def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
+    """`]` into a file still loading lands only while the user is where they pressed it.
 
-    The step opens the next file and waits for its fragment. A reader who presses
+    The step opens the next file and waits for its fragment. A user who presses
     somewhere else in that wait has moved on, and the landing the step owed is dropped
     rather than dragging them back into the diff when the file arrives.
     """
@@ -5536,7 +5536,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_reader_who_moved_on(browser, ser
         " requestAnimationFrame(resolve)))"
     )
     assert page.evaluate("() => document.activeElement === document.body"), (
-        "the step landed in the file after the reader had pressed elsewhere"
+        "the step landed in the file after the user had pressed elsewhere"
     )
 
 
@@ -5671,11 +5671,11 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
     }
 
 
-def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
+def test_a_failed_fragment_hydration_waits_for_a_user_retry(browser, serve):
     """Thread travel attempts a failing unopened file once rather than recursing.
 
     Automatic reveal marks the failed entry as terminal for navigation. Closing and
-    reopening its disclosure is the reader's explicit request to try the file again.
+    reopening its disclosure is the user's explicit request to try the file again.
     """
     authored = leaf_page(
         "failed fragmented diff",
@@ -5731,7 +5731,7 @@ def test_a_failed_fragment_hydration_waits_for_a_reader_retry(browser, serve):
         "data fragment response does not match its request"
     )
     page.wait_for_timeout(250)
-    assert len(requests) == 1, "thread hydration retried without another reader gesture"
+    assert len(requests) == 1, "thread hydration retried without another user gesture"
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -5869,7 +5869,7 @@ def _line_under(page, box, paper):
 
     Returns `(coverage, ratio)` for the row that covers most of the strip: the share of
     columns standing at 3:1 or better against the page's own ground, and the weakest ratio
-    among them. A wash is read here too, which is the point — a wash the reader cannot
+    among them. A wash is read here too, which is the point — a wash the user cannot
     tell from the paper comes back as the coverage it actually has, nought, rather than as
     an absence with no number attached.
     """
@@ -5913,7 +5913,7 @@ def _under_mark(page, name):
 def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     browser, serve, scheme
 ):
-    """A mark on a passage is the reader's whole notice that the words carry something.
+    """A mark on a passage is the user's whole notice that the words carry something.
 
     The wash cannot be that notice, and no alpha can make it one: --mark composites to
     1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
@@ -5992,5 +5992,5 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
             f"the {scheme} page draws no line under a {name} passage: {covered:.0%} of "
             f"the strip at {band:.2f}:1 against its own ground {paper}, where the "
             f"unmarked control is at {control:.0%}. A marked passage whose only signal "
-            f"is its wash is one the reader never learns is marked. All: {seen}"
+            f"is its wash is one the user never learns is marked. All: {seen}"
         )

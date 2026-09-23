@@ -112,7 +112,7 @@ def make_mcp_server(
         visibility=["app"],
         name="leaf_snapshot_apply_event",
         title="Apply Leaf snapshot comment",
-        description="Validate and durably append one reader comment from the snapshot.",
+        description="Validate and durably append one user comment from the snapshot.",
         annotations=ToolAnnotations(
             readOnlyHint=False,
             destructiveHint=False,

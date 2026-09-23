@@ -30,7 +30,7 @@ def kernel_event_kinds() -> dict:
 
 @cache
 def bookkeeping_kinds() -> frozenset[str]:
-    """The kinds `$events` declares `bookkeeping`: facts about the reader's view of
+    """The kinds `$events` declares `bookkeeping`: facts about the user's view of
     the page, kept for the page's own readings and never a move the agent answers."""
     return frozenset(
         kind

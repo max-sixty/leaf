@@ -220,7 +220,7 @@ def declared_action_error(
         )
     # The exhibit rule at the door, not only in the shipped runtime's
     # browser controller: an exhibited widget is a mention, and the log outranks the
-    # document — an action taken here would replay as a decision the reader
+    # document — an action taken here would replay as a decision the user
     # made on quoted material. Any sender the key admits reaches this door.
     if quoted_in(rec, registry):
         return (
@@ -501,7 +501,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
         # This door asks whether the request is answered, not whether it is the
-        # reader's to deal with: a conversation standing in the widget's seat
+        # user's to deal with: a conversation standing in the widget's seat
         # takes it off their list without answering it, and refusing their pick
         # over their own remark would refuse them the answer they were asked for.
         awaiting_values = page_awaiting_values(
@@ -581,7 +581,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
         return (
             f"<{tag}> {event['widget']!r} action {event['action']!r} is "
             f"unavailable: {requirement['target']} {target_id!r} is "
-            f"{'still ' if awaiting else 'no longer '}awaiting the reader"
+            f"{'still ' if awaiting else 'no longer '}awaiting the user"
         )
     return None
 
@@ -618,7 +618,7 @@ def admitting_registry(view, event: dict) -> dict:
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching a standing revision, cannot reinterpret a command
-    the reader made against the document in front of them. `stored_meaning_error`
+    the user made against the document in front of them. `stored_meaning_error`
     reads the recorded side from that same capture. An event naming no revision
     takes the newest, which is the document any writer of one is looking at, and a
     page with no revision yet has only the layer it carries.

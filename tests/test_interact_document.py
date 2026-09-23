@@ -150,7 +150,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     """What a standing document cannot take on in place, and nothing else.
 
-    A reader's open document keeps its module graph and its defined elements for as
+    A user's open document keeps its module graph and its defined elements for as
     long as it lives, so the capture states which revisions can be given to that
     document and which need a new one. Words, styling, and the stamp a vendoring
     run leaves behind can be given to it. The vocabulary that binds elements to
@@ -247,10 +247,10 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert reissued.executable != restamped.executable
 
 
-def test_the_captured_widget_digests_say_which_widgets_a_reader_may_keep(page_dir):
+def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir):
     """One digest per declared widget, over what its author wrote.
 
-    A reader's open document keeps the widgets a revision did not rewrite, and only the
+    A user's open document keeps the widgets a revision did not rewrite, and only the
     capture still holds the markup to say which those are: after upgrade a controller
     owns every widget's children. Digested from the parsed tree, so two revisions of one
     widget differ where the author changed it and nowhere else.
@@ -266,7 +266,7 @@ def test_the_captured_widget_digests_say_which_widgets_a_reader_may_keep(page_di
     base = activate()
     # Every element the vocabulary says carries a module, named the way its author named
     # it or, where they named nothing, by its tag and place among the others of that tag.
-    # An unnamed widget is as much the reader's as a named one; without a key it could
+    # An unnamed widget is as much the user's as a named one; without a key it could
     # never answer that its markup was unchanged, so every revision rebuilt it.
     assert set(base.widgets) == {"plan-choice-decision", "flow", "lf-options#0"}
 
@@ -685,7 +685,7 @@ def construction_nodes(content):
     return nodes
 
 
-def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_dir):
+def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):
     markup = PAGE.replace(
         "</main>",
         OPTIONS.format(
@@ -701,7 +701,7 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
         (
             "g1",
             "choose",
-            {"options": ["o-reader"], "additions": {"o-reader": "Try a canary."}},
+            {"options": ["o-user"], "additions": {"o-user": "Try a canary."}},
         ),
         ("summary", "edit", {"text": "  Ship after migration.\n\nKeep  two spaces.\n"}),
         ("b1", "move", {"card": "card-y", "to": "c-done", "index": 0}),
@@ -727,15 +727,15 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
     assert draft["edit"]["override_requires"] == "restate"
     assert state["content_source"]["file"] == str(page_dir / state["active"]["file"])
     assert state["content_source"]["edit_file"] == str(page_dir / "index.html")
-    assert nodes["o-reader"]["content"] == ["Try a canary."]
-    assert "chosen" in nodes["o-reader"]["attrs"]
-    assert nodes["o-reader"]["source"]["kind"] == "action"
-    assert nodes["o-reader"]["edit"]["owner"] == "g1"
-    assert "line" not in nodes["o-reader"]["source"]
-    assert "authored" not in nodes["o-reader"]
+    assert nodes["o-user"]["content"] == ["Try a canary."]
+    assert "chosen" in nodes["o-user"]["attrs"]
+    assert nodes["o-user"]["source"]["kind"] == "action"
+    assert nodes["o-user"]["edit"]["owner"] == "g1"
+    assert "line" not in nodes["o-user"]["source"]
+    assert "authored" not in nodes["o-user"]
     assert "chosen" in nodes["o-shim"]["authored"]["attrs"]
     assert "chosen" not in nodes["o-shim"]["attrs"]
-    assert nodes["o-shim"]["authority"] == nodes["o-reader"]["authority"]
+    assert nodes["o-shim"]["authority"] == nodes["o-user"]["authority"]
     for identity in ("g1", "o-stage"):
         assert "authored" not in nodes[identity]
         assert "authority" not in nodes[identity]
@@ -747,7 +747,7 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
     assert nodes["explanation"]["content"][1] == " "
 
     # A successor uses the emitted source address to change unrelated wording.
-    # Reader state remains effective without transcribing any of it into HTML.
+    # User state remains effective without transcribing any of it into HTML.
     target = nodes["explanation"]["edit"]
     assert target["matches_active"]
     path = Path(state["content_source"]["edit_file"])
@@ -758,7 +758,7 @@ def test_page_inspection_preserves_exact_reader_state_and_its_edit_routes(page_d
     again = construction_nodes(revised["content"])
     assert revised["source"]["live"], revised["source"]["error"]
     assert again["summary"]["content"] == draft["content"]
-    assert "chosen" in again["o-reader"]["attrs"]
+    assert "chosen" in again["o-user"]["attrs"]
     assert again["explanation"]["content"][0]["content"] == ["Preserve"]
 
     # Rejected source must not lend its lines to the still-live construction.
@@ -986,7 +986,7 @@ def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
 def test_check_refuses_markup_the_browser_never_renders(page_dir):
     """<template> parses into an inert fragment and <noscript> stays unrendered
     in any scripting browser, while the file's reading would take both for the
-    page's words — a comment could anchor on text no reader ever sees."""
+    page's words — a comment could anchor on text no user ever sees."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1251,7 +1251,7 @@ def test_the_render_viewport_is_wide_enough_to_have_margins():
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
     """The corpus floor one level down from tags (examples/AGENTS.md): where an
-    attribute or an enum value changes what a reader sees, a page shows it. The
+    attribute or an enum value changes what a user sees, a page shows it. The
     batch that raised the corpus to this line surfaced five real defects on the
     day it landed, so the floor ratchets: the next declared attribute joins the
     corpus by being declared. The exemptions are the log-only names the doc
@@ -1558,7 +1558,7 @@ def test_tabs_validate_and_compose(page_dir):
     tabs = """<lf-tabs id="ws">
   <lf-tab id="ws-ingest" label="Ingest"><p>Pipeline notes.</p></lf-tab>
   <lf-tab id="ws-search" label="Search">
-    <lf-metrics><lf-metric id="k-lat" value="118 ms"></lf-metric></lf-metrics>
+    <lf-metric id="k-lat" value="118 ms"></lf-metric>
   </lf-tab>
 </lf-tabs>
 <lf-options>"""
@@ -2363,7 +2363,7 @@ def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
     page_dir,
 ):
     """The route `authoring-revisions.md` gives finished work: the answered Ask goes
-    to a collapsed section whole, under the words the reader picked it under."""
+    to a collapsed section whole, under the words the user picked it under."""
     live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
@@ -2565,7 +2565,7 @@ def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     """The runtime replays a recorded action onto every later version, so the
     user's edit stands over whatever v2's markup says about that widget.
     Which makes a rewritten widget a version talking to nobody — its new words
-    could never reach the reader. `restated` is how a version says it means to
+    could never reach the user. `restated` is how a version says it means to
     take the decision back, and this is the gate that makes it say so."""
     v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
     assert check(page_dir).exit_code == 0
@@ -2627,7 +2627,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     """`leaf report` is the report event's one door, so the widget, verb, and
     detail are held to the x-report declaration there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
-    session's voice and the exact revision the reader is looking at."""
+    session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
     activation = revisioning_model.activate_source(page_dir, [])
     assert activation.error is None and activation.revision == 1
@@ -3259,17 +3259,17 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     assert check(page_dir).exit_code == 0
 
 
-def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
-    """An option generated by the reader survives without authored markup.
+def test_a_later_pick_keeps_a_user_added_option_live(page_dir):
+    """An option generated by the user survives without authored markup.
     The standing choice continues to carry its id and words in
-    ``additions`` even after the reader picks a different option.  That mapped
+    ``additions`` even after the user picks a different option.  That mapped
     coordinate is therefore as live as an id named directly by ``options``:
     removing or silently rewriting it is refused until a version explicitly
     retracts it."""
 
-    added = "g1-option-reader-route"
+    added = "g1-option-user-route"
 
-    def write(*, added_words="Use the reader's _route_.", attrs="", pick=" chosen"):
+    def write(*, added_words="Use the user's _route_.", attrs="", pick=" chosen"):
         opts = OPTIONS.format(
             a="",
             b=pick,
@@ -3299,12 +3299,12 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
             "action": "choose",
             "detail": {
                 "options": [added],
-                "additions": {added: "Use the reader's _route_."},
+                "additions": {added: "Use the user's _route_."},
             },
         },
     )
     # A subsequent ordinary pick supersedes the selection, but it carries the
-    # complete generated-option set so those reader-authored words remain live.
+    # complete generated-option set so those user-authored words remain live.
     append_command(
         page_dir,
         {
@@ -3315,13 +3315,13 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
             "action": "choose",
             "detail": {
                 "options": ["o-stage"],
-                "additions": {added: "Use the reader's _route_."},
+                "additions": {added: "Use the user's _route_."},
             },
         },
     )
 
     assert state_json(page_dir)["state"][0]["detail"]["additions"] == {
-        added: "Use the reader's _route_."
+        added: "Use the user's _route_."
     }
     write(added_words=None)
     unchanged = check(page_dir)
@@ -3331,10 +3331,10 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
     # ordinary element elsewhere in the document nor a nested element inside the
     # group is the direct option unit the action says this widget owns.
     misplaced_markup = (
-        ("</main>", f'<p id="{added}">Use the reader\'s route.</p></main>'),
+        ("</main>", f'<p id="{added}">Use the user\'s route.</p></main>'),
         (
             "</lf-options>",
-            f'<span id="{added}">Use the reader\'s route.</span></lf-options>',
+            f'<span id="{added}">Use the user\'s route.</span></lf-options>',
         ),
     )
     for needle, replacement in misplaced_markup:
@@ -3357,7 +3357,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
 
     write(added_words="Use a rewritten route.", attrs=" restated")
     assert check(page_dir).exit_code == 0
-    assert stamp(page_dir, "replace the reader-added option").exit_code == 0
+    assert stamp(page_dir, "replace the user-added option").exit_code == 0
 
     write(added_words=None)
     released = check(page_dir)
@@ -3365,14 +3365,14 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
     assert f"ids dropped from revision r2: ['{added}']" in released.output
 
 
-def test_reader_added_words_do_not_become_liveness_coordinates(page_dir):
+def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
     """Prose that spells a sibling id remains prose.
 
     The additions map's keys are generated coordinates and its values are the words
     to carry.  Rewriting the unrelated option whose id those words happen to spell
     must therefore remain legal.
     """
-    added = "g1-option-reader-route"
+    added = "g1-option-user-route"
 
     def write(shim):
         opts = OPTIONS.format(
@@ -3519,7 +3519,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
-def test_reader_state_survives_without_source_copying(page_dir):
+def test_user_state_survives_without_source_copying(page_dir):
     """An unchanged authored choice needs no transcription into a later revision.
     Validation stays quiet while state and the transcript preserve the answer."""
 
@@ -3630,7 +3630,7 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
 def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
     """The file-side facet is the runtime's same ownership reading. An inner chosen
     option is not part of the outer group's record; a nested decision does not
-    change the outer reader choice."""
+    change the outer user choice."""
     nested = """<lf-ask id="outer-decision"><h3>Which outer choices?</h3>
   <lf-options id="outer" choose multiple>
     <lf-option id="outer-a" chosen><strong>Outer A</strong>
@@ -3694,7 +3694,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
-    # names the region the reader is sent to and the group that answers it.
+    # names the region the user is sent to and the group that answers it.
     assert state["asks"] == [
         {
             "id": "g1-decision",
@@ -4593,7 +4593,7 @@ def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """The Ask list names the whole reading the reader arrives at. Its nested
+    """The Ask list names the whole reading the user arrives at. Its nested
     request remains the action owner, so answering it closes the broader Ask without
     moving the standing Ask onto a wrapper that declares no state."""
     opts = """<lf-options id="g1" choose>
@@ -4635,8 +4635,8 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     assert state["state"][0]["widget"] == "g1"
 
 
-def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page_dir):
-    """A report remains live for later absorption, but the reader's action is
+def test_page_state_prefers_a_user_action_over_a_report_on_the_same_facet(page_dir):
+    """A report remains live for later absorption, but the user's action is
     the effective state on their shared coordinate."""
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
@@ -4765,8 +4765,8 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
     assert "unknown conversation id 'not-a-thread'" in unknown.output
 
 
-def test_page_state_points_to_a_readers_suggestion_record(page_dir):
-    """`suggestion: true` is the reader proposing exact replacement words rather
+def test_page_state_points_to_a_users_suggestion_record(page_dir):
+    """`suggestion: true` is the user proposing exact replacement words rather
     than describing a change, and the loop owes that a different answer — taken
     verbatim, or declined with a reason. State supplies the semantic membership and
     `events` supplies that raw flag without maintaining a second message shape."""
@@ -4867,7 +4867,7 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
           </lf-options>
         </lf-ask>
       </lf-task>
-      <lf-task id="decision" status="blocked"><strong>Reader decision</strong>
+      <lf-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-ask id="decision-decision"><h3>Which way out?</h3>
           <lf-options id="decision-options" choose>
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
@@ -4902,7 +4902,7 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report updates task status without creating reader work, stands in
+    """A standing report updates task status without creating user work, stands in
     the canonical update feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
@@ -5306,7 +5306,7 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     syntax roles have UNREAD_SYNTAX in the render gate and the series steps had the
     honour system. What made the argument was the first attempt at the line, chosen by
     eye: its blue and its plum came out 0.3 apart under simulated deuteranopia, which is
-    one colour to a reader who has no way to tell us.
+    one colour to a user who has no way to tell us.
 
     Every pair rather than the neighbours, because a stacked bar puts any two of them
     edge to edge, and both palettes, because the dark steps are stepped against a

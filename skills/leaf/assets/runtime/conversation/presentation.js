@@ -63,7 +63,7 @@ export function createConversationPresentation({
     region: "conversation",
     order: PRESENTATION_ORDER.conversation,
     // Every phase owes a reading, the ones before the log has been read included: what
-    // the panel says while it waits is this region's to draw, and a reader who opens it
+    // the panel says while it waits is this region's to draw, and a user who opens it
     // then is asking for exactly that. The one page that owes nothing is a copy with no
     // chrome to draw into.
     current: () => (available ? readApplication().effective.conversation : null),
@@ -109,7 +109,7 @@ export function createConversationPresentation({
   //
   // Every epoch the page has read the log for, that is. Before it has, each one draws
   // the same line about waiting, and repainting the margin and the anchors to say it
-  // again is work done ahead of the first paint the reader is waiting on. A reader who
+  // again is work done ahead of the first paint the user is waiting on. A user who
   // opens the panel in that window asks for the reading directly, and gets it.
   applicationState
     .select((snapshot) =>

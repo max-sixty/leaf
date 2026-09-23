@@ -17,7 +17,7 @@ from ..requests import request_lifecycles_for, request_phases
 from .wire import browser_projection
 
 
-def _thread_awaits_reader(
+def _thread_awaits_user(
     thread_id: str,
     thread: dict,
     registry: dict,
@@ -108,11 +108,11 @@ def browser_conversation(
     )
     awaiting = asks["awaiting"]
     unread = unread_content(events, threads, reading.thread_by_widget)
-    open_ask_threads = {ask["conversation"] for ask in asks["reader"]}
+    open_ask_threads = {ask["conversation"] for ask in asks["user"]}
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
-        awaits_reader, reader_prompt = _thread_awaits_reader(
+        awaits_user, user_prompt = _thread_awaits_user(
             thread_id,
             thread,
             registry,
@@ -127,7 +127,7 @@ def browser_conversation(
             unanswered = unanswered_agent_turn(thread)
             if unanswered is not None:
                 protected.add(unanswered["id"])
-        if awaits_reader and turns:
+        if awaits_user and turns:
             protected.add(turns[-1]["id"])
         ask_sources = {
             ask["source"]
@@ -146,8 +146,8 @@ def browser_conversation(
             {
                 **thread,
                 "awaits_agent": awaits_agent_now,
-                "awaits_reader": awaits_reader,
-                "reader_prompt": reader_prompt,
+                "awaits_user": awaits_user,
+                "user_prompt": user_prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,
@@ -193,7 +193,7 @@ def browser_conversation(
             "asks": asks,
             "requests": requests,
             "threads": rendered_threads,
-            # Through the withdrawal, like every other fold: an approval a reader
+            # Through the withdrawal, like every other fold: an approval a user
             # took back is not one, and this list is what the banner's own button
             # reads to say whether the version has been signed off.
             "done": [

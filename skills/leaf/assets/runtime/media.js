@@ -1,4 +1,4 @@
-/* Reader-supplied media from draft to full-image inspection.
+/* User-supplied media from draft to full-image inspection.
 
    The draft and event log keep one representation: ordinary Markdown naming immutable
    page media. A composer projects the generated image blocks as thumbnails beside its

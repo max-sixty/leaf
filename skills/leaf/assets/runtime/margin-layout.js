@@ -135,7 +135,7 @@ export function scheduleMarginEntryLabels() {
 // The width is `--rail` below and only ever grows; this says the page has taken the
 // strip, and once taken it is never given back. Claimed only while something stands in
 // it, the strip arrived with the gesture that raised the first margin entry and left again
-// with the undo, and each of those moved the readable column under the reader. The
+// with the undo, and each of those moved the readable column under the user. The
 // cascade reads this attribute rather than asking whether a row is standing, because a
 // row's own placement depends on the strip and a live question about it would feed the
 // reservation back into itself.
@@ -213,7 +213,7 @@ export function layoutMarginRows() {
   pending = 0;
   // A compact page keeps every margin row in document flow. Pulling those rows out to
   // re-measure the same posture briefly shortens the document, so a browser clamps a
-  // reader standing at its end before the rows return. Read the current posture as one
+  // user standing at its end before the rows return. Read the current posture as one
   // batch and leave rows whose owner still says they cannot hang where they are.
   const dockedRows = [...rows].filter(
     ([row]) => row.isConnected && row.classList.contains("lf-docked"),

@@ -7,7 +7,7 @@ standing projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
 Receipt validates the current receiver and captured event identities under the
 page transaction before advancing its cursor. Pickup records host acceptance or
-turn entry separately; neither settles the reader's response requirement.
+turn entry separately; neither settles the user's response requirement.
 Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
 """
@@ -110,7 +110,7 @@ def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
     none of it. The reading is the gesture's own document, the revision it
     names or the frozen message that sent the widget, under the vocabulary that
     document was written in, so a later version that reworded an option does
-    not change what the reader chose. A child a reader wrote is in no document;
+    not change what the user chose. A child a user wrote is in no document;
     the event's own detail carries its words. An element that only encloses
     another named one is left out: its words repeat theirs, and a list would
     otherwise travel whole with every row pressed in it.
@@ -296,7 +296,7 @@ def record_pickup(
     turn: str | None = None,
     failure: str | None = None,
 ) -> dict | None:
-    """Durably record one delivery transition for exact reader moves.
+    """Durably record one delivery transition for exact user moves.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
     ``opened`` means the batch entered an agent turn; ``failed`` means the host

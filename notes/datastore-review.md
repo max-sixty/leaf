@@ -1,8 +1,8 @@
 # Datastore review
 
-A review of Leaf's two stores — the event log for reader and agent state, and
-`data.json` for external data — against what Airtable-like pages need: rows a reader
-adds, cells a reader edits, rows a reader reorders, and data other processes supply
+A review of Leaf's two stores — the event log for user and agent state, and
+`data.json` for external data — against what Airtable-like pages need: rows a user
+adds, cells a user edits, rows a user reorders, and data other processes supply
 or read. Measurements used synthetic logs outside the repository; each claim is
 marked measured, read (from code), or inferred.
 
@@ -63,7 +63,7 @@ A table then declares:
 }
 ```
 
-The same unit with `{record, input}` gives a reader cell edits on rows an external
+The same unit with `{record, input}` gives a user cell edits on rows an external
 process supplies, which today reach only `datum` anchors and requests.
 
 ## Source revision
@@ -121,7 +121,7 @@ three more times. Neither warrants snapshots or incremental folding yet.
   `stored_meaning_error` asserts it still equals a recomputation: two mechanisms for
   one guarantee. Keep the stored `coordinate`, which registry-free readers need.
 - `x-state` and `x-report` declare one shape; `"x-state" if action else "x-report"`
-  recurs. One verb declaration with `by: [reader, agent]`.
+  recurs. One verb declaration with `by: [user, agent]`.
 - `undo`, `restated`, and a note's `settles` are one relation, "this stops
   standing"; `restated` differs in naming element ids.
 - `fragments` is `records` plus one deferred field, declared beside it with an

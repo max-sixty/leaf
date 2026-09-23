@@ -6,7 +6,7 @@ from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
-from leaf.structure import SourceDocument
+from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import at, structure_errors
 
@@ -52,7 +52,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
         props = entry.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
-            if name == "data-width":
+            if name in AUTHORED_ALLOCATIONS:
                 continue
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
@@ -147,6 +147,14 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
                         f"{where}: x-reading-role workspace must contain exactly one direct "
                         f"body element, found {body or 'nothing'}"
                     )
+            continue
+        if role == "grid":
+            # Every direct child is a cell, so loose text would be a cell nobody wrote.
+            if "#text" in direct:
+                errors.append(
+                    f"{where}: x-reading-role grid holds its cells as elements; wrap "
+                    "loose text in one"
+                )
             continue
 
         direct_widgets = [
@@ -344,7 +352,7 @@ def reference_contract_error(
 
 def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -> list:
     """An attribute the registry marks as naming another element (x-refers) that names
-    nothing this version holds. The reader follows it, so a typo is a reference to
+    nothing this version holds. The user follows it, so a typo is a reference to
     nowhere and the markup around it is perfectly well-formed — visible to them and to
     nobody else. Asked of the version rather than of a fragment: a reply's markup
     carries no page to check against, and one of its widgets pointing at the version
@@ -468,7 +476,7 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
     element's own, or its enclosing data element's (lf-note's `at` anchors in its lf-code). The
     modules miss silently in both directions — a reversed range paints nothing, a
     note past the end docks at the block's foot — and version-to-version drift is
-    exactly how one goes stale, so the door refuses what no reader would ever see."""
+    exactly how one goes stale, so the door refuses what no user would ever see."""
     errors = []
     for rec in lf_elements:
         entry = registry.get(rec["tag"]) or {}

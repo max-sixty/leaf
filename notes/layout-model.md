@@ -1,8 +1,11 @@
 # Layout model
 
 A proposal to replace Leaf's document/workspace choice with shared layout primitives
-composed into task components, with a strong document default. Nothing here has
-shipped. Research at `f8660f72`, 22 September 2026, revised after four independent
+composed into task components, with a strong document default. `lf-grid`, the
+text-or-surface declaration, bounded blocks and the page-CSS advice have shipped, and
+their contracts live in `page-authoring.md` ("Composing a page") and
+`packages.md`; the workspace, the remaining package roots and Threads are the slices
+below. Research at `f8660f72`, 22 September 2026, revised after four independent
 reviews and two browser probes. Where a choice was close, this plan takes the one
 with fewer states and elements, because that is the easier position to change from.
 
@@ -87,7 +90,7 @@ own them:
 - **What the siblings mean to each other.** "Independent status items" is a grid of
   tiles. "Alternatives to compare" is `lf-compare`, which keeps its variants paired
   however narrow the page gets. "Controls that operate a preview" is `lf-playground`.
-  "Views the reader switches between" is `lf-tabs`, which carries selection,
+  "Views the user switches between" is `lf-tabs`, which carries selection,
   visibility and keyboard behaviour, not only geometry. A grid owns geometry; the
   component owns the relationship, so a narrower layout changes presentation without
   changing the task.
@@ -112,7 +115,7 @@ and with the page.
 Width and posture are independent. A grid's column count follows the width it is
 given, in either posture; posture decides only heights and who scrolls.
 
-A **view** is what a reader takes in as one part of the page: a section in flow, a
+A **view** is what a user takes in as one part of the page: a section in flow, a
 pane in a workspace, or a tab panel. A **region** is a view that can own its scroll: a
 pane, a tab panel, or the page. Reading position is kept per region. Blocks with their
 own bound stay keyboard-reachable through `reach.js` and are not regions.
@@ -164,11 +167,11 @@ own bound stay keyboard-reachable through `reach.js` and are not regions.
    | 390×844 | 1 | flow | the page |
 
 5. **Reading continuity moves with posture.** Today a JS-driven posture change
-   captures the reader's position before the mutation and restores it after
+   captures the user's position before the mutation and restores it after
    (`version.js`). A CSS switch has no "before" moment, so the runtime records the
    reading landmark continuously and restores it when the box that scrolls a region
    changes. Every declared region, the page included, is read this way. This ships
-   with design 4, or crossing the threshold loses the reader's place.
+   with design 4, or crossing the threshold loses the user's place.
 6. **Panels slide over the page.** Threads and Leaves overlay the page and never
    take width from it, so the page is laid out for one width whatever is open. The
    fixed chrome (banner, left trays, bottom bar) reserves its space as it does today,
@@ -210,14 +213,14 @@ Behaviour enforces the rails that do not need judgment: the declared text measur
 every frame, content contained in its frame, authored reading order, reachable
 actions, and anchors that survive rearrangement. Guidance covers what does: whether
 information deserves a tile, whether a comparison needs both sides visible at once,
-or whether tabs would hide something the reader needs.
+or whether tabs would hide something the user needs.
 
 Validation flags one structural failure: page CSS that makes a box scroll or sets
 placement on a Leaf layout element (fighting the rails). Over-tiling, a grid whose
 cells hold only prose, is left to the recipes' guidance; the evaluation below shows
 whether guidance alone holds.
 
-## How the reader's experience changes
+## How the user's experience changes
 
 - **Wide windows get used.** Status sections, dashboards and monitors spread across
   the width as tiles; plans and reviews keep the prose column.
@@ -330,19 +333,11 @@ presentation of `lf-tabs`.
 
 Each slice replaces its old path completely.
 
-- **#29** `lf-grid` in flow with cells as frames; the text-or-surface declaration in
-  the registry; blocks that declare their own bound, including following the newest
-  entry; and the `version check` warning for page CSS that makes a box scroll.
-  Rebuild `live-progress` as a document with grids and a bounded log, `command-hub`'s status
-  and fleet sections as tiles, and `lf-metrics` as metric tiles.
-- **#32** Rewrite "Document, page tabs, or workspace" in `page-authoring.md` as the
-  four recipes, and the glossary's workspace terms around frames and posture; land
-  with #29.
 - **#30** `lf-workspace` as a size container where its host gives finite height, the
   pane grammar, and continuous reading continuity for every region, the page
-  included. Compare the monitor, a comparison and a queue beside its detail before
+  included. Compare a comparison and a queue beside its detail before
   and after; delete `readBoundedFit`, `lf-partition`, and the JS minimum-size readers.
-- **#31** Move `lf-monitor`, `lf-visual-review`, the playground and `lf-ask` onto the
-  grid; delete `arrangeReadingElement` and the package copies of bounded rules.
+- **#31** Move `lf-visual-review`, the playground and `lf-ask` onto the grid; delete
+  `arrangeReadingElement` and the package copies of bounded rules.
 - **#28** Threads slides over the page at every width; delete the push strip,
   `COVERING`, and `main`'s panel offset.

@@ -287,13 +287,13 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("claim", short_help="Mark delivered reader input as Working.")
+@delivery.command("claim", short_help="Mark delivered user input as Working.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 @click.option(
     "--event",
     "event_id",
     metavar="EVENT_ID",
-    help="Claim this delivered event instead of the first outstanding reader move.",
+    help="Claim this delivered event instead of the first outstanding user move.",
 )
 @click.option(
     "--detail",
@@ -301,7 +301,7 @@ def delivery() -> None:
     help='What the page says the agent is doing (default: "Reading your feedback").',
 )
 def delivery_claim(delivery_id: str, event_id: str | None, detail: str | None) -> None:
-    """Claim one still-outstanding reader move from DELIVERY_ID.
+    """Claim one still-outstanding user move from DELIVERY_ID.
 
     The page and subject come from the immutable delivery. Current page state is
     checked in the same transaction that writes the Working receipt, so a stale
@@ -652,7 +652,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
-    Browser harnesses use `--temporary`; a reader page in an agent session uses
+    Browser harnesses use `--temporary`; a user page in an agent session uses
     `server start`. A page already served prints that server's URL and exits.
     """
     from leaf.hosting import cmd_serve, cmd_serve_temporary
@@ -715,12 +715,12 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
 
     Use working with DETAIL naming your current work, or waiting with the answer
-    you want from the reader. Waiting without DETAIL invites text comments.
-    Use idle when finished; unacknowledged input and unanswered reader moves
+    you want from the user. Waiting without DETAIL invites text comments.
+    Use idle when finished; unacknowledged input and unanswered user moves
     prevent it.
 
     With working, --on names an open conversation or page widget and requires
-    DETAIL. The reader sees it beside that subject as well as in the banner.
+    DETAIL. The user sees it beside that subject as well as in the banner.
     Your next reply ends a thread claim; a version stamp with --completes ends
     a widget claim. Renew the status as work changes: a claim left after your
     turn ends, or without updates, eventually reads as stalled.
@@ -786,8 +786,8 @@ def comment(
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
-    The user answers it in the browser and resolves it there. Refuses a quote the
-    active revision does not hold, or holds more than once.
+    The user answers it in the browser. Refuses a quote the active revision does
+    not hold, or holds more than once.
     """
     from leaf.conversation import cmd_comment
 
@@ -831,7 +831,7 @@ def comment(
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
 @click.option(
-    "--awaits", is_flag=True, help="the reply's prose asks the reader a question"
+    "--awaits", is_flag=True, help="the reply's prose asks the user a question"
 )
 @click.option("--json", "as_json", is_flag=True, help="print the reply event instead")
 def reply(
@@ -850,7 +850,7 @@ def reply(
 ) -> None:
     """Post a threaded reply as the agent (--text or stdin).
 
-    Answer reader input with --for EVENT_ID. With exactly one outstanding reply
+    Answer user input with --for EVENT_ID. With exactly one outstanding reply
     in this turn's opened delivery, omit it to select that reply. To add a new
     agent message when no reply is owed, use --to ID --initiates.
 
@@ -911,11 +911,10 @@ def edit(dir: str, to: str, text: str, as_json: bool) -> None:
 def resolve(dir: str, to: str, as_json: bool) -> None:
     """Close a thread as the agent.
 
-    For a version response, revise and stamp the requested change before resolving.
-    Otherwise answer any outstanding reader input before resolving, and leave
-    closing to the reader unless they requested it or no further discussion could
-    change the outcome. Completing the work alone is not a reason to close its
-    thread. The panel names who resolved it.
+    The user ordinarily closes a thread; the Leaf skill's
+    references/conversation-threads.md says when the agent does. Refuses a thread
+    that asked for a version until a stamped version answers it. The panel names
+    who resolved it.
     """
     from leaf.conversation import cmd_resolve, thread_of
 
@@ -962,7 +961,7 @@ def report(
     click.echo(f"reported {verb} on {widget}")
 
 
-@cli.command(short_help="Record the terminal outcome of a reader request.")
+@cli.command(short_help="Record the terminal outcome of a user request.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("request", metavar="REQUEST")
 @click.argument(

@@ -504,7 +504,7 @@ def _validate_widget_predicates(
     if request.get("region") and request.get("ask") is not True:
         raise RegistryError(
             f"{path}: <{tag}> x-request.region requires ask: true — a region "
-            "owns the title of a request that joins the reader's Ask projection"
+            "owns the title of a request that joins the user's Ask projection"
         )
     if request.get("ask") is True and entry.get("x-awaits") is not None:
         raise RegistryError(

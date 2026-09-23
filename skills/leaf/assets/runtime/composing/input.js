@@ -188,8 +188,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         : contextualHint?.box === ta
           ? contextualHint.label
           : "";
-      const placeholder = suffix ? `${label()} · ${suffix}` : label();
+      const word = label();
+      const placeholder = suffix ? `${word} · ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      field.classList.toggle("lf-compose-hinted", Boolean(suffix));
       const ariaLabel = name();
       if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
         ta.setAttribute("aria-label", ariaLabel);
@@ -326,5 +328,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     return sync;
   }
 
-  return { wireInput, paintInputs };
+  // A focus move can finish after a card's placement. Paint its box in that same
+  // turn so the binding is present when the newly focused card first appears.
+  return {
+    wireInput,
+    paintInputs,
+    mount: () => document.addEventListener("focusin", paintInputs),
+  };
 }

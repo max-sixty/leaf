@@ -2946,8 +2946,8 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
-    banner_control(
-        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Comment on selection"
     ).tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
@@ -2989,8 +2989,8 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    banner_control(
-        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Comment on selection"
     ).tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_be_focused()

@@ -84,7 +84,9 @@ def test_touch_reader_selects_an_element_comments_and_finds_its_thread(browser, 
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     cancel = page.get_by_role("button", name="Cancel selecting an element")
-    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Cancel selection')").tap()
+    page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Cancel selecting an element"
+    ).tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(cancel).to_be_hidden()
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()

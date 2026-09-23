@@ -71,15 +71,19 @@ delivery:
           actions: []
       handling:
         h1: >-
+          Acknowledge this delivery before anything else, by your host contract's
+          route where it leaves acknowledgement to you: until then the reader's
+          message reads Sent or Queued rather than Picked up.
+        h2: >-
           The reader answered in a thread; the batch's `conversations` carries the
           thread's context, and `leaf conversation read <page> <conversation-id>`
           reads its history in pages.
-        h2: >-
+        h3: >-
           If this event's conversation has a null `title` in the batch's `conversations`,
           name it with `leaf conversation title <page> <conversation-id> --text
           "<a few words>"`, so the thread panel lists its subject rather than its
           opening words.
-        h3: >-
+        h4: >-
           Answer with `leaf reply <page> --for <event-id>`, or with your final message
           on a host that sends it as the reply. Where you answer with `leaf reply`,
           reply before any other work, including the work this event asks for: give
@@ -105,7 +109,7 @@ delivery:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1, h2, h3]
+          handling: [h1, h2, h3, h4]
           obligation:
             as_of_seq: 14
             response:

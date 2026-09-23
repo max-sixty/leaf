@@ -77,6 +77,16 @@
       "comment": [
         {
           "when": {
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "Acknowledge this delivery before anything else, by your host contract's route where it leaves acknowledgement to you: until then the reader's message reads Sent or Queued rather than Picked up."
+        },
+        {
+          "when": {
             "required": [
               "drawing"
             ]
@@ -129,6 +139,16 @@
         }
       ],
       "reply": [
+        {
+          "when": {
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "Acknowledge this delivery before anything else, by your host contract's route where it leaves acknowledgement to you: until then the reader's message reads Sent or Queued rather than Picked up."
+        },
         {
           "when": {
             "not": {

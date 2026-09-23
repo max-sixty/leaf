@@ -7,8 +7,12 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 
 ## Landing
 
-Work from Tend lands as a pull request that a maintainer merges. The bot has
-write access, and the `Merge access` ruleset holds merging to admins.
+Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
+approval when it makes a modest change that fixes tests, the relevant checks
+pass, and the claimed fix is verified. This includes test-owned failures and
+small product fixes needed to make the tests pass. Changes to workflows,
+Tend's configuration, CODEOWNERS, or agent instructions still require the
+control-plane owner's fresh approval under the repository ruleset.
 
 Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
 description is `main`'s commit message for that change rather than review
@@ -38,15 +42,10 @@ says what it is — not when the real fix is merely filed behind it.
 
 ## Cloudflare logs
 
-`CLOUDFLARE_API_TOKEN` in the agent's environment is the
-`Leaf observability (Tend CI)` token in `worker/README.md`: it reads the
-deployed site's Workers Observability logs and Analytics Engine events and
-cannot deploy. It is set only for an agent answering an issue or a red run on
-`main`, and empty everywhere else. When an issue or a red `publish-site`
-concerns the deployed site, query its logs as that README describes and diagnose
-from the records. Before running a pull request's code in a session that holds
-the token, drop it from that command's environment with
-`env -u CLOUDFLARE_API_TOKEN`.
+Yolo mode does not pass the `Leaf observability (Tend CI)` token into agent
+sessions. Diagnose with the workflow run and repository evidence. If a deployed
+site failure requires Cloudflare logs to establish its cause, say which evidence
+is missing in the pull request rather than claiming a verified fix.
 
 ## Filing issues in other repos
 

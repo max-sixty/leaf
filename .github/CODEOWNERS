@@ -1,0 +1,14 @@
+# BEGIN tend control plane
+/.github/** @max-sixty
+/.config/tend.yaml @max-sixty
+/CODEOWNERS @max-sixty
+/docs/CODEOWNERS @max-sixty
+**/CLAUDE.md @max-sixty
+**/CLAUDE.local.md @max-sixty
+**/AGENTS.md @max-sixty
+**/AGENTS.override.md @max-sixty
+**/.claude @max-sixty
+**/.claude/** @max-sixty
+**/.agents @max-sixty
+**/.agents/** @max-sixty
+# END tend control plane

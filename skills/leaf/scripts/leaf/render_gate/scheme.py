@@ -350,7 +350,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     # both schemes, because every reading below has boxes or words in it. The
     # windows open under load alone, which is how one page passed at a desk and
     # reported words drawn over words under a full suite ("The page finishes
-    # twice", in the layer's own CLAUDE.md).
+    # twice", in the layer's own AGENTS.md).
     failed_stage = wait_for_presentation(
         page, state["data"]["revision"], applied, settled=True
     )

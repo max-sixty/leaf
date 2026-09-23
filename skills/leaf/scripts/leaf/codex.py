@@ -1166,6 +1166,17 @@ def append_batch(
     return path, len(queue["batches"]) - 1, entry
 
 
+def delivery_owed_moves(payload: dict) -> list[dict]:
+    """Every move in one delivery that was owed an answer when it was captured,
+    whatever answer it takes."""
+    return [
+        {"page": batch["page"], "responds": event["id"]}
+        for batch in payload["batches"]
+        for event in batch["events"]
+        if event.get("obligation") is not None
+    ]
+
+
 def delivery_reply_targets(payload: dict) -> list[dict]:
     """Every plain reply address the moves in one delivery are owed.
 

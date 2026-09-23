@@ -42,7 +42,7 @@
    Reserved room only reaches a control that lands in it, and a press lands nowhere:
    the browser focuses the card under the pointer and scrolls nothing. So the thread
    list lands a thread that takes the focus, whoever moved it, and that is the row the
-   ownership map in skills/leaf/assets/CLAUDE.md carries. Without it a list nudged a dozen pixels leaves the first
+   ownership map in skills/leaf/assets/AGENTS.md carries. Without it a list nudged a dozen pixels leaves the first
    card of a run under its own stuck heading by the width of an inset ring, which is a
    card with three sides. A press lands when it is over rather than as focus arrives,
    because focus arrives on the way down and the press may be the start of a drag
@@ -282,6 +282,7 @@ const rowModel = (all, commands) => {
   return Object.freeze({
     rows: Object.freeze(rows),
     count: open.length,
+    unread: threads.filter((t) => t.unread.length).length,
     narrowing: narrowing.presentation,
     pageSeats: new Map(inPage.map((t, i) => [t.root.id, i])),
   });
@@ -299,15 +300,16 @@ function configureList(commands) {
     Object.freeze({
       rows: Object.freeze([]),
       count: null,
+      unread: 0,
       narrowing: narrowingModel([], new Map()).presentation,
       pageSeats: new Map(),
     }),
   );
 }
 
-function postPaint({ count, narrowing }, commands) {
+function postPaint({ count, unread, narrowing }, commands) {
   paintHeadRoom(commands.panelIsOpen);
-  commands.setThreadCount(count);
+  commands.setThreadCounts(count, unread);
   narrowingView.present(narrowing);
   commands.onListChanged();
   // Narrowing and reconciliation can move another card under a pointer that did not

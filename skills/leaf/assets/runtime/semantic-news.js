@@ -3,11 +3,17 @@
    The server owns conversation content, reader obligations, request lifecycles,
    response conditions, and page activity. This module compares those readings after
    presentation. It remembers which source versions were observed, not a second
-   account of what the page currently means. The first reading establishes history
-   without announcing it. */
+   account of what the page currently means.
+
+   New agent content is the server's `unread` reading, the same one the Threads panel
+   and banner paint: a version is news the first time this tab sees it unread, and
+   never once the reader has taken it in, here or in another tab. What the reader has
+   not read is news on the first reading too, since it arrived while they were away.
+   Every other kind of news is a change between readings, so the first reading
+   establishes it without announcing it. */
+import { moved } from "./conversation/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
-const order = (record) => record.edited?.seq ?? record.seq ?? 0;
 
 export function semanticNewsReading(state) {
   const page = state.browser.views[String(state.active.revision)]?.document;
@@ -21,17 +27,20 @@ export function semanticNewsReading(state) {
   };
 }
 
-function conversationMessages(conversation) {
+// Unread agent content, oldest move first. A failure reply is unread content too, but
+// its news is the failed response's, announced from its workflow.
+function unreadContent(conversation) {
   return conversation.threads
     .flatMap((thread) =>
-      thread.msgs.map((message) => ({ thread: thread.root.id, message })),
+      thread.unread.map(({ message: id, version }) => ({
+        thread: thread.root.id,
+        message: thread.msgs.find((message) => message.id === id),
+        version,
+      })),
     )
-    .sort((a, b) => order(a.message) - order(b.message));
+    .filter(({ message }) => !message.failure)
+    .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
-
-// The server grants content_version only to admitted agent content. A failed
-// response is reader-visible content, but its notice comes from its workflow.
-const agentContent = (message) => message.content_version && !message.failure;
 
 function readerObligations(page, conversation) {
   const held = new Map();
@@ -78,7 +87,7 @@ function responseFailures(workflows) {
       key,
       kind: workflow.condition.kind,
       input: workflow.input,
-      thread: workflow.subject.kind === "thread" ? workflow.subject.id : null,
+      thread: workflow.subject.kind === "conversation" ? workflow.subject.id : null,
       seq: workflow.seq ?? 0,
     };
     failures.set(key, failure);
@@ -90,8 +99,7 @@ const agentAvailable = (activity) =>
   activity.held && ["listening", "working"].includes(activity.kind);
 
 export function observeSemanticNews(prior, reading) {
-  const messages = conversationMessages(reading.conversation);
-  const content = messages.filter(({ message }) => agentContent(message));
+  const content = unreadContent(reading.conversation);
   const obligations = readerObligations(reading.page, reading.conversation);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
@@ -107,9 +115,8 @@ export function observeSemanticNews(prior, reading) {
   };
   const news = [];
 
-  for (const { thread, message } of content) {
-    const version = message.content_version;
-    if (!first && !observed.content.has(version))
+  for (const { thread, message, version } of content) {
+    if (!observed.content.has(version))
       news.push({
         kind: "agent_content",
         key: `content:${version}`,
@@ -168,9 +175,7 @@ export function observeSemanticNews(prior, reading) {
 // an answer can replace a failure while the reader's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(
-    conversationMessages(reading.conversation)
-      .filter(({ message }) => agentContent(message))
-      .map(({ message }) => message.content_version),
+    unreadContent(reading.conversation).map(({ version }) => version),
   );
   const obligations = readerObligations(reading.page, reading.conversation);
   const failures = responseFailures(reading.workflows);

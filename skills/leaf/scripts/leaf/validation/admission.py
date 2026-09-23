@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from leaf.activity import answer_command
 from leaf.data import read_data
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
@@ -126,18 +127,16 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
         if owed["kind"] == "reply":
             return (
                 f"{held}, and its conversation is owed a reply — "
-                f"`leaf reply <page> --for {owed['for']}` answers it"
+                f"{answer_command(owed)} answers it"
             )
     if owed is None:
         return f"{held}, and nothing is owed for it"
-    if owed["kind"] == "receipt":
-        return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"
     if owed["kind"] == "version":
         return (
             f"{held} — its thread takes a page version rather than a reply; "
             f"{VERSION_THREAD_RECOURSE}"
         )
-    return f"{held} — `leaf reply <page> --for {value}` answers it"
+    return f"{held} — {answer_command(owed)} answers it"
 
 
 def version_ids(page_dir: Path) -> set:

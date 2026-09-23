@@ -716,7 +716,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 
     Use working with DETAIL naming your current work, or waiting with the answer
     you want from the reader. Waiting without DETAIL invites text comments.
-    Use idle when finished; unread input and unanswered reader moves prevent it.
+    Use idle when finished; unacknowledged input and unanswered reader moves
+    prevent it.
 
     With working, --on names an open conversation or page widget and requires
     DETAIL. The reader sees it beside that subject as well as in the banner.
@@ -739,7 +740,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 
 
 @cli.command(
-    short_help="Print one page's unacknowledged events and reports, then exit.",
+    short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
         "Watch every page this session holds — plus PAGE, claimed first, when "
         "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION
@@ -752,7 +753,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     help="Confirm receipt of this complete delivery before waiting.",
 )
 def wait(dir: str | None, ack: str | None) -> None:
-    """Print one page's unacknowledged events and reports, then exit."""
+    """Confirm a delivery, if given, then wait for the next batch."""
     from leaf.session import cmd_wait
 
     if dir is not None and ack is not None:

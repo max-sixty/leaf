@@ -2787,7 +2787,7 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     header = summary
     expect(card).to_have_attribute("open", "")
     header.click()
-    expect(card).not_to_have_attribute("open", "")
+    expect(card).to_have_attribute("open", "")
     header.click()
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-msg").first.click()
@@ -2798,6 +2798,43 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
+    url = serve(PANEL_PAGE)
+    roots = [panel_comment(serve.page_dir, f"Thread {i}.") for i in range(3)]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+
+    def card(index):
+        return page.locator(f'.lf-threads > .lf-thread[data-id="{roots[index]}"]')
+
+    expanded = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    expect(expanded).to_have_count(1)
+    expect(card(0)).to_have_attribute("open", "")
+
+    card(1).locator(":scope > .lf-thread-summary").click()
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
+    card(1).locator(":scope > .lf-thread-summary").click()
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
+    card(1).locator(":scope > .lf-thread-summary").focus()
+    page.keyboard.press("Space")
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
+
+    card(1).get_by_role("button", name="Resolve thread").click()
+    round_trip(page)
+    expect(expanded).to_have_count(1)
+    expect(card(2)).to_have_attribute("open", "")
+    expect(card(2).locator(":scope > .lf-thread-summary")).to_be_focused()
+
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
 
 
 @pytest.mark.parametrize("width", [1200, 600])

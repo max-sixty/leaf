@@ -20,14 +20,14 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
+# The operations that settle a reader move the agent owes, as `workflows` addresses
+# them and `$events.answering` explains them.
+ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
-    "Read current obligations with `leaf page state <page>` and conversation history "
-    "with `leaf conversation read <page> <id>`. Reply using "
-    "`leaf reply <page> --for <event-id> --text ...`, or your final message if the "
-    "host sends it as the reply. For `response.kind: version`, revise and stamp the "
-    "page, then resolve the conversation. If you need clarification first, open "
-    "`leaf comment <page> --section <ask-id>` on the same Ask. "
-    "An explicit reply checks and activates page edits; it leaves the conversation open."
+    "Each named command writes the answer its move is owed; a reply may instead be "
+    "your final message where the host sends it as the reply. Read current "
+    "obligations with `leaf page state <page>` and conversation history with "
+    "`leaf conversation read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, conversation context, and response "
@@ -450,6 +450,7 @@ EXTENSION_SCHEMA = {
         },
         "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
+        "x-text-format": {"const": "inline-markdown"},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},

@@ -22,13 +22,15 @@ class ConversationSeat {
   #response = () => null;
   #focus = null;
   #connected = false;
+  #marginControls = null;
 
   constructor(node) {
     this.node = node;
   }
-  configure(commands, response) {
+  configure(commands, response, marginControls = null) {
     this.#commands ??= commands;
     this.#response = response;
+    this.#marginControls = marginControls;
   }
 
   present(model) {
@@ -46,6 +48,7 @@ class ConversationSeat {
           descriptor.key,
           (view = new ThreadView(descriptor.surface, this.#commands)),
         );
+      view.setMarginControls(this.#marginControls);
       view.present(descriptor);
       return { key: descriptor.key, node: view.node };
     });
@@ -98,14 +101,14 @@ class ConversationSeat {
   }
 }
 
-function seatFor(host, commands, response = () => null) {
+function seatFor(host, commands, response = () => null, marginControls = null) {
   let seat = seats.get(host);
   if (!seat) {
     seat = new ConversationSeat(host);
     seats.set(host, seat);
     activeSeats.add(seat);
   }
-  seat.configure(commands, response);
+  seat.configure(commands, response, marginControls);
   return seat;
 }
 function seatReading(threads, surface, commands, response) {
@@ -149,8 +152,10 @@ export function renderConversations(threads, commands) {
   }
 }
 
-export function renderMarginThread(host, thread, commands) {
-  seatFor(host, commands).present(seatReading([thread], "margin", commands, false));
+export function renderMarginThread(host, thread, commands, marginControls = null) {
+  seatFor(host, commands, () => null, marginControls).present(
+    seatReading([thread], "margin", commands, false),
+  );
   return host.querySelector(":scope > .lf-conversation-thread");
 }
 

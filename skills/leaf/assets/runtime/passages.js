@@ -529,7 +529,15 @@ export function segmentsIn(range) {
 // whitespace is elastic to findQuote, so nothing downstream depends on this.
 // The block a node reads as part of, and null where it belongs to no block of its own —
 // which is a different answer from "its parent", and the two callers want different ones.
-export const blockAt = (node) => closestAcross(node, TEXT_BLOCK);
+export const blockAt = (node) => {
+  const block = closestAcross(node, TEXT_BLOCK);
+  if (block) return block;
+  // A parsed Markdown island stands where one direct source text node stood.
+  // Its nested emphasis and links must inherit that text node's parent, while
+  // authored sibling elements keep their own boundaries.
+  const island = closestAcross(node, "[data-lf-markdown-words]");
+  return island ? upFrom(island) : null;
+};
 export const blockOf = (node) => blockAt(node) ?? upFrom(node);
 // One collapse class, stated outright and spelled to the same set passages.py's
 // COLLAPSE_CHARS enumerates: JS's \s and Python's str.isspace() disagree at the

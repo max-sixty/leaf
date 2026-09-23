@@ -1,7 +1,7 @@
 """Folds whose whole subject is the reading, not what a widget draws with it.
 
 Each test here states one document and one log and asks what the browser would
-be handed. `model_folds` owns the arrangement; `tests/CLAUDE.md`'s rule that an
+be handed. `model_folds` owns the arrangement; `tests/AGENTS.md`'s rule that an
 assertion belongs at the boundary that owns it is why these are not in
 `test_render_*.py`: no renderer decides any of them, so serving a page and
 opening Chromium would put a browser between the cause and the claim without

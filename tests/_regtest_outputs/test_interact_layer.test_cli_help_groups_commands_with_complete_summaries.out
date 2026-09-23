@@ -27,7 +27,7 @@ Commands:
   status        Set the agent's banner state.
   transcript    Print the page's exchange as Markdown.
   version       Check, stamp, and export versions.
-  wait          Print one page's unacknowledged events and reports, then exit.
+  wait          Confirm a delivery, if given, then wait for the next batch.
 
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...

@@ -4299,6 +4299,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-version-diff",
         "lf-version-row",
         "lf-compose-field",
+        # The hint standing over an empty field belongs to that same field: shadow.css
+        # grids the two onto one cell and the authored theme sizes the option
+        # composer's copy, while the scoped rule only sets its line height in the
+        # response bar.
+        "lf-compose-placeholder",
         "lf-compose-submit",
         # The one canonical composer can be seated in a widget's own Thread outlet,
         # where the chrome's scoped rules cannot reach it. The authored theme dresses
@@ -4312,6 +4317,12 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-conversation-body",
         "lf-thread-root-meta",
         "lf-msg-meta",
+        # The row that carries a message's name, time and state, and the word saying a
+        # send is still going. Both are that same shared structure — the theme dresses
+        # them wherever a message renders — and the scoped rules do nothing but fit the
+        # row into the margin card's sticky head.
+        "lf-conversation-head",
+        "lf-msg-sending",
         # The message's own box. The theme gives the authored and margin-projected copies
         # their spacing while the chrome's scoped rules dress the panel's. The runtime
         # sheet used to name it at document level too, in a `.lf-conversation-msg.lf-ui`
@@ -4338,6 +4349,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-palette",
         "lf-react-strip",
         "lf-react-trigger",
+        # An icon action's glyph, sized and seated in shadow.css so a press wearing one
+        # is the same object in the page, in a declared widget tree and in the chrome.
+        # The scoped rules only pull the margin preview's stepper copies to its ends.
+        "lf-action-icon",
         "lf-resolve",
         # The inline seat again: the composer's own row of response actions.
         "lf-response-action",
@@ -6284,17 +6299,29 @@ def test_a_growing_reply_keeps_its_send_in_the_list(browser, serve):
     # below is proved by nothing. How many lines that takes is a function of everything
     # else the card is carrying — eight was enough until a strip left the card and took
     # eleven pixels with it — so the typing asks the page rather than naming a count.
+    #
+    # Shift+Return is the line break in a Leaf composer; Return submits
+    # (keyboard/bindings.js). Plain Return here sent each line as its own reply, which
+    # overran the card just as well — with messages rather than with the box this test
+    # names — so the box is measured before the typing and read again after it.
+    box = reply.bounding_box()["height"]
     room = page.evaluate("() => document.querySelector('.lf-threads').clientHeight")
     overran = False
     for line in range(24):
         page.keyboard.type(f"line {line} of a reply that keeps growing the box")
-        page.keyboard.press("Enter")
+        page.keyboard.press("Shift+Enter")
         overran = card.bounding_box()["height"] > room
         if overran:
             break
     assert overran, (
         f"{line + 1} lines left the card at {card.bounding_box()['height']:.0f} in a "
         f"list {room} tall, so it never pushed its Send out; this proves nothing"
+    )
+    # And the box is what overran it: a card also grows on an arriving message, and the
+    # reading above cannot tell that from the growth this test is here for.
+    assert reply.bounding_box()["height"] > box, (
+        "the card overran the list while the reply box stayed at "
+        f"{box:.0f}, so something other than the box pushed Send out"
     )
     in_threads_scrollport(page, f'.lf-thread[data-id="{thread}"] .lf-thread-send')
 
@@ -6355,13 +6382,17 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     card = page.locator(f'.lf-thread[data-id="{first}"]')
     other = page.locator(f'.lf-thread[data-id="{second}"]')
     header = card.locator(".lf-thread-summary")
-    expect(card).not_to_have_attribute("open", "")
+    expect(card).to_have_attribute("open", "")
     expect(other).not_to_have_attribute("open", "")
     header.focus()
     page.keyboard.press("Tab")
     assert page.evaluate(
         "() => document.querySelector('.lf-threads').contains(document.activeElement)"
     ), "native focus order left the thread list"
+    other.locator(".lf-thread-summary").focus()
+    page.keyboard.press("Enter")
+    expect(other).to_have_attribute("open", "")
+    expect(card).not_to_have_attribute("open", "")
     header.focus()
     page.keyboard.press("Enter")
     expect(card).to_have_attribute("open", "")
@@ -6387,9 +6418,12 @@ def test_accordion_keyboard_travel_keeps_drafts_and_respects_narrowing(browser, 
     panel_settled(page)
     header.focus()
     page.keyboard.press("Space")
-    expect(card).not_to_have_attribute("open", "")
+    expect(card).to_have_attribute("open", "")
+    expect(other).not_to_have_attribute("open", "")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-group:focus")).to_have_count(1)
+    assert page.evaluate(
+        "id => document.activeElement.closest('.lf-thread')?.dataset.id === id", first
+    ), "native focus order skipped the open conversation"
     header.focus()
     page.keyboard.press("c")
     editor = card.get_by_role("textbox", name="Reply", exact=True)

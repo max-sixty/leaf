@@ -3517,7 +3517,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
                 "work": [
                     {
                         "id": "trace-check",
-                        "subject": {"kind": "thread", "id": held},
+                        "subject": {"kind": "conversation", "id": held},
                         "event": held,
                         "detail": "reading the reconnect traces",
                         "ts": claim_ts,

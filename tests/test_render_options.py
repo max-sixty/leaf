@@ -4,6 +4,7 @@ import io
 import json
 import math
 import re
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -364,6 +365,91 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     round_trip(page)
 
 
+def test_option_words_render_markdown_without_losing_the_reader_draft(browser, serve):
+    source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    assert render_gate_model.render_version(browser, url) == []
+    page = open_page(browser, url)
+    authored = page.locator("#job-mounts")
+    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
+    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
+        "aria-label", re.compile(r"Ask the widget to decide — option 1")
+    )
+
+    group = page.locator("#jobs")
+    group.get_by_role("textbox", name="Another option").fill("Keep **both** routes")
+    group.get_by_role("button", name="Add and select option").click()
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    expect(added.locator("strong")).to_have_text("both")
+    round_trip(page)
+    page.reload(wait_until="load")
+    expect(added.locator("strong")).to_have_text("both")
+
+    group.locator("#job-heater").click()
+    round_trip(page)
+    choices = [
+        event["detail"]
+        for event in sent_events(serve.page_dir)
+        if event.get("kind") == "action" and event.get("widget") == "jobs"
+    ]
+    assert choices[-1]["additions"][added.get_attribute("id")] == "Keep **both** routes"
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parent / "option_markdown_cases.json").read_text()),
+)
+def test_option_markdown_visible_words_match_file_reading(browser, serve, case):
+    source = ASK_PAGE.replace("Replace the <code>M8</code> mounts", case["source"])
+    page = open_page(browser, serve(source))
+    words = page.locator("#job-mounts").evaluate(
+        "async el => (await window.__lfRuntimeImport('/runtime/widget-api.js')).wrote(el)"
+    )
+    assert words == case["words"]
+
+
+def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
+    source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    url = serve(source)
+    page = open_page(browser, live_url(url))
+    expect(page.locator("#job-mounts em")).to_have_text("widget")
+
+    stamp_page(
+        serve.page_dir,
+        source.replace("Neither — the camera first", "Neither — fix the camera first"),
+        "two",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-ins-block').length > 0"
+    )
+    assert page.evaluate(
+        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
+    ) == ["job-camera"]
+
+
+def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
+    source = ASK_PAGE.replace(
+        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
+    )
+    page = open_page(browser, live_url(serve(source)))
+    stamp_page(
+        serve.page_dir,
+        source.replace('id="job-mounts"', 'id="job-mounts" chosen'),
+        "Choose the mounts option",
+    )
+    wait_for_revision(page, 2)
+    compare_with(page)
+    expect(page.locator("#job-mounts")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    change = page.locator('[data-lf-margin-for="job-mounts"] [data-lf-kinds~="change"]')
+    expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
+
+
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
@@ -534,7 +620,8 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
-    expect(added).to_have_css("white-space", "pre-wrap")
+    expect(added.locator(".lf-option-words")).to_have_css("white-space", "normal")
+    expect(added.locator("br")).to_have_count(2)
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
@@ -820,7 +907,7 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     words off the frame at the column the group reserves, so one that opens on the frame
     hangs out of the column its own neighbours share.
 
-    Here rather than in the render gate, on the line tests/CLAUDE.md draws: a property
+    Here rather than in the render gate, on the line tests/AGENTS.md draws: a property
     caused by a particular page belongs to the gate, which must report it to that page's
     author, and one identical for every valid page belongs to the suite. A joined
     control is leaf's own theme — no authored page can make it wrong. A reading in the
@@ -1842,96 +1929,6 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ).to_have_attribute("data-lf-kinds", "ask")
 
 
-def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
-    browser, serve
-):
-    """A widget needs no x-work declaration to acknowledge the reader's move.
-
-    Within one authored document, the owner's page-edge margin entry keeps its DOM
-    identity while durable transport acceptance advances Sent to Picked up and a real
-    claim makes it Working. A fresh revision reprojects that semantic target into its
-    new document. Once authored markup records the choice and completes the claim, the
-    margin entry disappears; the widget carries the chosen state itself.
-    """
-    url = serve(ASK_PAGE)
-    page = open_page(browser, live_url(url))
-    d = serve.page_dir
-
-    with sending(page, "the mounts choice"):
-        page.locator("#job-mounts").click()
-    action = next(
-        event
-        for event in reversed(sent_events(d))
-        if event.get("widget") == "jobs" and event.get("action") == "choose"
-    )
-    logged_action = next(
-        event for event in events_model.read_events(d) if event["id"] == action["id"]
-    )
-    receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(receipt).to_have_attribute("data-lf-kinds", "sent")
-    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "sent"
-    )
-    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
-    expect(page.locator("#jobs > .lf-msg-sending")).to_have_count(0)
-    receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
-
-    with service_model.PageTransaction(d) as transaction:
-        delivery_model.record_pickup(transaction, [logged_action])
-    with (
-        service_model.PageTransaction(d) as receipt_page,
-        delivery_model.receive_batch(
-            receipt_page,
-            {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
-            session_id=None,
-        ),
-    ):
-        pass
-    told(page)
-    expect(receipt).to_have_attribute("data-lf-kinds", "pickup")
-    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
-    expect(receipt).to_have_attribute("data-identity-probe", "kept")
-
-    active = CliRunner().invoke(
-        cli_model.cli,
-        ["status", str(d), "working", "checking the mounts", "--on", "jobs"],
-    )
-    assert active.exit_code == 0, active.output
-    told(page)
-    expect(receipt).to_have_attribute("data-lf-kinds", "activity")
-    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "activity"
-    )
-    expect(receipt).to_have_attribute(
-        "aria-description", re.compile("checking the mounts")
-    )
-    expect(receipt).to_have_attribute("data-identity-probe", "kept")
-
-    # The receipt admitted this claim without an x-work declaration. Its semantic
-    # page-edge target remains a local seat after an unrelated revision, so the
-    # authoring loop cannot wedge merely because the widget has no content or
-    # conversation seat.
-    unrelated = ASK_PAGE.replace(
-        '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
-    )
-    stamp_page(d, unrelated, "Checked the surrounding plan")
-    wait_for_revision(page, 2)
-    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "activity"
-    )
-    expect(receipt).to_have_attribute(
-        "aria-description", re.compile("checking the mounts")
-    )
-
-    honored = ASK_PAGE.replace(
-        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
-    )
-    stamp_page(d, honored, "Honor the mounts choice", completes=("jobs",))
-    wait_for_revision(page, 3)
-    expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
-    expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
-
-
 def test_a_send_waits_for_the_send_before_it(browser, serve):
     """The log's order is the order the user acted in, and two requests in flight are
     not: the server answers each on a thread of its own, so a pick made a moment after
@@ -2001,7 +1998,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
         # sent behind it — reaches the page after the second pick is painted. Held
         # rather than fetched here: a handler that goes to the server itself is still
         # inside that call while the clicks below run, and the release would reach for
-        # a route the list hasn't got (tests/CLAUDE.md, on releasing a hold).
+        # a route the list hasn't got (tests/AGENTS.md, on releasing a hold).
         if held:
             sent_behind.append(route)
             route.continue_()
@@ -2024,7 +2021,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     # send finds no handler, goes out unrecorded, and `sent_behind` reads empty. The
     # ledger cannot say when that is — `sends` is counted at the door before `fetch` is
     # called, so `sends == 2` is true before the request the route would pause even
-    # exists. Wait on the list the assertion reads instead (tests/CLAUDE.md, on holding
+    # exists. Wait on the list the assertion reads instead (tests/AGENTS.md, on holding
     # rather than the corresponding Traffic edge).
     holding(page, sent_behind, 1, "the second pick sent behind the released first")
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)
@@ -2097,11 +2094,12 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(page.locator(".lf-thread-panel .lf-msg-sending")).to_have_count(0)
     expect(page.locator("#card-migration > .lf-msg-sending")).to_have_count(0)
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
+    card_button.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")
     wait_for_revision(page, 2)
-    expect(card_button).to_have_count(1)
+    expect(card_button).to_have_attribute("data-identity-probe", "kept")
 
     # A new claim belongs to v2 and does not appear in a pinned v1 page.
     claim("card-migration", "checking the fallback")

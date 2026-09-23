@@ -4337,7 +4337,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     Each surface is opened by its own key, which is also the assertion that it can be, and
     each is proved standing before axe reads it — a sweep over a surface that never opened
-    is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
+    is a green that means nothing, which is the shape `tests/AGENTS.md` names."""
     url = serve(ADDRESSED_PAGE, comments=1)
     stamp_page(serve.page_dir, ADDRESSED_PAGE, "two")
     page = open_page(browser, url)
@@ -6214,12 +6214,17 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     # runtime's own disclosure route, so the surface a specimen needs is
                     # derived from where it sits rather than from the corpus's tab order —
                     # which follows the examples directory, and moves when one is added.
+                    # `reveal` takes the intent its caller's gesture retained, and
+                    # has no default (runtime/reader-intent.js). This arrangement is
+                    # not a reader's delayed work that a later input may supersede —
+                    # it is the test saying what the page must show next — so the
+                    # intent it hands over is the one that always holds.
                     target.evaluate(
                         """async node => {
                           const elements = await window.__lfRuntimeImport(
                             '/runtime/widget-elements.js'
                           );
-                          await elements.reveal(node);
+                          await elements.reveal(node, () => true);
                         }"""
                     )
                     page.evaluate(RENDERED)

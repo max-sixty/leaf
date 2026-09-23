@@ -19,7 +19,7 @@ independent reviewer the task and candidate before giving them the author's asse
 ## Derive
 
 Read the changed code and its callers. For a standing sweep, start from a reader
-workflow in the examples. Use `skills/leaf/assets/CLAUDE.md` for UI contracts,
+workflow in the examples. Use `skills/leaf/assets/AGENTS.md` for UI contracts,
 render gates, and the ownership map; read the relevant owners' module headers.
 Source access belongs in this audit, including when delegating it.
 
@@ -66,7 +66,7 @@ For each experiment record initial state → input → expected relationship →
 observed result, with the evidence that decides the claim. Read focus, surface
 and owner identities, and retained values where those matter. Measure geometry
 for spatial claims; inspect paired screenshots for hierarchy, spacing, and paint.
-For motion, capture the path as well as endpoints: `tests/CLAUDE.md`,
+For motion, capture the path as well as endpoints: `tests/AGENTS.md`,
 "Distinguish a frame, a sequence, and an instant", owns the recording and
 `HOLD_MOTION` mechanics. The hold patches `Element.prototype.animate`; CSS
 animations bypass it, so sample their geometry frame by frame. Settled boxes

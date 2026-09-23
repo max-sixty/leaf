@@ -70,7 +70,7 @@ def _report_updates(projection) -> list[dict]:
 
 def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
     target = claim["target"]
-    if target["kind"] == "thread":
+    if target["kind"] == "conversation":
         thread = threads.get(target["id"])
         return bool(
             thread

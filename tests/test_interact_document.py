@@ -617,6 +617,37 @@ def test_file_readings_follow_browser_tree_recovery():
     assert passages.enclosing["grid"] == ("page", "grid")
 
 
+def test_option_passages_read_rendered_markdown_words():
+    source = structure_model.SourceDocument(
+        '<main><lf-options id="choices"><lf-option id="leave">'
+        "Can we leave it to the _widget_? <code>Already HTML</code> "
+        "[unsafe label](javascript:alert(1)) "
+        "![unsafe alt](javascript:alert(1))"
+        "</lf-option></lf-options></main>"
+    )
+
+    passages = passages_model.page_passages(
+        source, {"lf-option": {"x-text-format": "inline-markdown"}}
+    )
+    assert passages.text == (
+        "Can we leave it to the widget? Already HTML unsafe label unsafe alt"
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parent / "option_markdown_cases.json").read_text()),
+)
+def test_option_markdown_file_words_match_browser_cases(case):
+    source = structure_model.SourceDocument(
+        f'<main><lf-option id="choice">{case["source"]}</lf-option></main>'
+    )
+    passages = passages_model.page_passages(
+        source, {"lf-option": {"x-text-format": "inline-markdown"}}
+    )
+    assert passages.text == case["words"]
+
+
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     optional = structure_model.SourceDocument("<main><p>First<div>Second</div></main>")
     assert optional.errors == [] and optional.unclosed == []
@@ -1219,7 +1250,7 @@ def test_the_render_viewport_is_wide_enough_to_have_margins():
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
-    """The corpus floor one level down from tags (examples/CLAUDE.md): where an
+    """The corpus floor one level down from tags (examples/AGENTS.md): where an
     attribute or an enum value changes what a reader sees, a page shows it. The
     batch that raised the corpus to this line surfaced five real defects on the
     day it landed, so the floor ratchets: the next declared attribute joins the
@@ -2718,7 +2749,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     # either door, since what settles it is what the log still owes for it.
     settles = (
         f"{request['id']} is a request in this page's log — "
-        f"`leaf receipt <page> {request['id']} succeeded|failed` settles it"
+        f"`leaf receipt <page> {request['id']} succeeded|failed` answers it"
     )
     resolved = CliRunner().invoke(
         cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]
@@ -3238,7 +3269,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
 
     added = "g1-option-reader-route"
 
-    def write(*, added_words="Use the reader's route.", attrs="", pick=" chosen"):
+    def write(*, added_words="Use the reader's _route_.", attrs="", pick=" chosen"):
         opts = OPTIONS.format(
             a="",
             b=pick,
@@ -3268,7 +3299,7 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
             "action": "choose",
             "detail": {
                 "options": [added],
-                "additions": {added: "Use the reader's route."},
+                "additions": {added: "Use the reader's _route_."},
             },
         },
     )
@@ -3284,13 +3315,13 @@ def test_a_later_pick_keeps_a_reader_added_option_live(page_dir):
             "action": "choose",
             "detail": {
                 "options": ["o-stage"],
-                "additions": {added: "Use the reader's route."},
+                "additions": {added: "Use the reader's _route_."},
             },
         },
     )
 
     assert state_json(page_dir)["state"][0]["detail"]["additions"] == {
-        added: "Use the reader's route."
+        added: "Use the reader's _route_."
     }
     write(added_words=None)
     unchanged = check(page_dir)
@@ -4696,6 +4727,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "title": None,
             "detached_from": None,
             "resolved": None,
+            "unread": [answered["id"]],
         }
     ]
     history = CliRunner().invoke(

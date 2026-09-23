@@ -201,7 +201,6 @@
           classes: [...node.classList],
           mid: node.dataset.mid ?? null,
           attempt: node.dataset.attempt ?? null,
-          stream: node.dataset.streamState ?? null,
           busy: node.hasAttribute("aria-busy"),
           hasText: Boolean(node.querySelector(".lf-msg-text")?.textContent.trim()),
           visible: node.checkVisibility(),

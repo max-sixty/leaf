@@ -46,12 +46,10 @@ function paintThreadCounts() {
     ? `Show or hide the thread panel; ${unread}`
     : "Show or hide the thread panel";
 }
-export function setThreadCount(count) {
-  openThreads = count;
-  paintThreadCounts();
-}
-export function setUnreadThreadCount(count) {
-  unreadThreads = count;
+// Both counts come from the one thread-list reading, so they are painted together.
+export function setThreadCounts(open, unread) {
+  openThreads = open;
+  unreadThreads = unread;
   paintThreadCounts();
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");

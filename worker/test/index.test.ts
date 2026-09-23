@@ -177,7 +177,7 @@ describe("product-site delivery", () => {
       ok: true,
       state: {
         events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-        activity: { obligations: [{ event: eventId }] },
+        activity: { obligations: [{ input: eventId }] },
       },
     }));
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);

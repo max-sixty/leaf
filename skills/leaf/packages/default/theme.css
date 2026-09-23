@@ -484,9 +484,8 @@ lf-options:not(:has(> lf-option > strong)) {
              --lf-option-font: var(--t-5)/1.5 var(--sans);
              font: var(--lf-option-font); }
 lf-option { display: block; position: relative; }
-/* The submitted draft keeps its line breaks when it becomes an option. Restrict this to
- * generated options: authored markup carries formatting whitespace around its prose. */
-lf-option[data-lf-added] { white-space: pre-wrap; }
+/* Markdown prose is an inline island beside the option's authored elements and controls. */
+lf-option > .lf-markdown-words, lf-option > .lf-option-words { white-space: normal; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. The same sentence
@@ -1212,8 +1211,14 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
 /* The block a row is about (`for`). It points; it never supplies the row's words, so it
  * reads as what it is — an id, written the way the thread panel writes an element
  * anchor — and rides at the line's end with the mark, out of the way of what the row
- * says. */
-.lf-ref { font-size: var(--t-6); color: var(--muted); text-decoration: none;
+ * says.
+ *
+ * The secondary interface ink and not the document's muted, because a row's ground is
+ * one of the surfaces the layer itself paints: a chosen row wears --ok-tint, and
+ * --muted reads 4.43:1 on it, under AA. --muted-2 is the ink the palette holds to
+ * 4.5:1 against the surfaces it lands on (theme.css), which is the promise this
+ * reference needs and the document's own muted does not make. */
+.lf-ref { font-size: var(--t-6); color: var(--muted-2); text-decoration: none;
           white-space: nowrap; }
 .lf-ref:hover { color: var(--accent); text-decoration: underline; }
 /* The conversation's shared rules live with the integrated theme. The group's own

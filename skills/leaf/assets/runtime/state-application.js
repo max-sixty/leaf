@@ -17,7 +17,7 @@ import {
 } from "./semantic-state.js";
 import { reportPageError, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
-import { observeServerNow } from "./presence.js";
+import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
 import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -177,6 +177,7 @@ export function createStateApplication({
         return;
       }
       observeServerNow(state.now);
+      observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;
       try {
         settleAcceptedDrafts();

@@ -32,7 +32,7 @@ the receipt itself remains Picked up. The banner and Leaves tray consume this
 same reading and present delivery counts separately.
 
 `workflows` is the shared projection for exact reader inputs and proactive subject
-work. Each entry names its `input` event when it has one, its thread or widget
+work. Each entry names its `input` event when it has one, its `conversation` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. A Sent input that remains
@@ -51,18 +51,29 @@ stale work or delivery evidence is not a response failure.
 
 Ordinary durable stale, ended, interrupted, and failed observations prove uncertainty
 or a stopped operation but no concrete reader recovery gesture, so they remain
-agent-owned. A terminal host failure reply is the exception: its message explicitly
-tells the reader to resend. It settles the Stop obligation, retains an `answered`
-workflow with a failed response condition, and hands recovery to the reader. A local
+agent-owned. A terminal host failure is the exception, whatever the move's answer:
+`workflows.py` names the record each answer takes, and each hands recovery to the
+reader. It settles the Stop obligation; a failed request receipt ends the request
+outright, while a failure reply or a failed pickup retains an `answered` workflow with
+a failed response condition until the reader moves again. A local
 send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
 put the thread in Needs you without persisting another workflow record.
 
-Consecutive reader turns form one response batch addressed by its newest input.
-Before settlement each input retains a workflow, while only the newest has
-`requires_response` and enters the Stop obligation list. A response to an older
-input removes that input and leaves the newer obligation. A response to the newest
-settles the batch. Widget Asks remain independent and settle through their declared
-state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
+A workflow's `stage` and its `answer` are separate readings. The stage reports
+delivery for every move the reader has handed over; the answer, which `workflows.py`
+states, is what the agent owes it: a reply, a version for a conversation that asked
+for one, a version whose markup records a reader's answer to a page Ask, a request's
+receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
+its move is acknowledged, and only owed answers enter activity counts. A page action
+that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
+reports delivery until the markup records the move or a later version takes it in.
+A move the reader has not finished — a pick before the Done its Ask declares — has
+not been handed over and has no workflow. Consecutive reader turns form one response batch
+addressed by its newest input. Before settlement each input retains a workflow,
+while only the newest carries the thread's `answer` and enters the Stop obligation
+list. A response to an older input removes that input and leaves the newer
+obligation. A response to the newest settles the batch. Widget Asks remain
+independent and settle through their declared state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
 resolution or authored state that honors a move also settles it; a later version
 note settles a page action whose verb has no authored record form. A note already
 standing when the move arrives cannot answer it. Turn identity decides whether

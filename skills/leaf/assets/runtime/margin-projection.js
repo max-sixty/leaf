@@ -67,6 +67,7 @@ import {
   syncMarginAgentWorkflow,
   syncMarginEntrySelection,
   syncMarginTurn,
+  syncMarginUnread,
   watchMarginContributions,
 } from "./margin-entries.js";
 import {
@@ -86,6 +87,7 @@ import {
   readingState,
   readingBehavior,
   awaitingReader,
+  unreadIn,
   readingContext,
   clusterProjection,
   marginInventory,
@@ -340,7 +342,6 @@ export function createMarginProjection({
   preview.id = "lf-margin-preview";
   preview.setAttribute("popover", "auto");
   preview.setAttribute("role", "dialog");
-  const previewHead = el("div", "lf-margin-preview-head");
   const previewClose = el(
     "button",
     "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
@@ -349,7 +350,7 @@ export function createMarginProjection({
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Dismiss conversation view");
   previewClose.title = "Dismiss conversation view (Esc)";
-  const previewNav = el("div", "lf-margin-preview-nav");
+  const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
     "button",
@@ -362,10 +363,9 @@ export function createMarginProjection({
   previewNext.append(iconElement("next", "lf-action-icon"));
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
-  previewNav.append(previewPosition, previewPrevious, previewNext);
-  previewHead.append(previewNav, previewClose);
+  previewNav.append(previewPrevious, previewPosition, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewList);
+  preview.append(previewList);
   let previewReadingArrangement = null;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the reader's place in it under the event id it is rendered with (reader-place.js).
@@ -844,6 +844,7 @@ export function createMarginProjection({
       if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
       const attention = threadAttention(thread);
       const onReader = attention?.kind === "needs_reader";
+      const unread = thread.unread.length;
       add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
@@ -864,9 +865,14 @@ export function createMarginProjection({
               reason: thread.attention?.reason ?? "workflow",
             }
           : null,
+        unread,
         // Page Map lists each conversation on its own row, so the word goes on the row
         // rather than on an aggregate.
-        ...(onReader ? { mapContext: attention.label } : {}),
+        ...(onReader
+          ? { mapContext: attention.label }
+          : unread
+            ? { mapContext: `${unread} unread` }
+            : {}),
         // Work decorates the conversation control; it never replaces the control's
         // comment face or its disclosure action.
         workflowReceipt: onReader ? null : attention?.workflow,
@@ -989,12 +995,15 @@ export function createMarginProjection({
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
         if (update.revision > runtime.currentRevision) continue;
-        if (update.target.kind === "thread" && representedThreads.has(update.target.id))
+        if (
+          update.target.kind === "conversation" &&
+          representedThreads.has(update.target.id)
+        )
           continue;
         if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
           continue;
         const target =
-          update.target.kind === "thread"
+          update.target.kind === "conversation"
             ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const quiet =
@@ -1175,9 +1184,9 @@ export function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const readerContext = awaitingReader(choice?.items ?? [])
-      ? readingContext(choice)
-      : null;
+    const items = choice?.items ?? [];
+    const readerContext =
+      awaitingReader(items) || unreadIn(items) ? readingContext(choice) : null;
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${readerContext ? `, ${readerContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
@@ -1531,6 +1540,7 @@ export function createMarginProjection({
     syncReadingRelation(row, choice);
     syncMarginAgentWorkflow(row, workflowReceipt(choice?.items ?? []));
     syncMarginTurn(row, awaitingReader(choice?.items ?? []));
+    syncMarginUnread(row, unreadIn(choice?.items ?? []));
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1585,7 +1595,10 @@ export function createMarginProjection({
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
-    const readerContext = awaitingReader(choice.items) ? readingContext(choice) : null;
+    const readerContext =
+      awaitingReader(choice.items) || unreadIn(choice.items)
+        ? readingContext(choice)
+        : null;
     presentMarginEntry(
       node,
       marginEntry({
@@ -1607,6 +1620,7 @@ export function createMarginProjection({
     syncReadingRelation(node, choice);
     syncMarginAgentWorkflow(node, workflowReceipt(choice.items));
     syncMarginTurn(node, awaitingReader(choice.items));
+    syncMarginUnread(node, unreadIn(choice.items));
     node.onclick =
       behavior === "status"
         ? null
@@ -2084,6 +2098,9 @@ export function createMarginProjection({
   }
 
   function buildThreadCard(entry, requestedItem = null) {
+    const focusedControl = [previewPrevious, previewNext, previewClose].find(
+      (control) => control === document.activeElement,
+    );
     const focusedNode = preview.contains(document.activeElement)
       ? document.activeElement.closest?.("[data-lf-margin-entry]")
       : null;
@@ -2113,7 +2130,7 @@ export function createMarginProjection({
     keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-    previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;
+    previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;
     previewNext.disabled = selectedIndex === threadItems.length - 1;
     const nodes = selected ? [previewItemNode(selected)] : [];
@@ -2135,6 +2152,10 @@ export function createMarginProjection({
           previewClose);
       destination.focus({ preventScroll: true });
     }
+    if (focusedControl && document.activeElement !== focusedControl)
+      (previewNav.hidden ? previewClose : focusedControl).focus({
+        preventScroll: true,
+      });
     placeThreadPreview();
     previewPlace.finish(hold);
   }
@@ -2166,6 +2187,7 @@ export function createMarginProjection({
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
       sourceItem(item).thread,
+      { nav: previewNav.hidden ? null : previewNav, close: previewClose },
     );
     node.dataset.lfMarginEntry = item.id;
     node.lfMarginItem = item.id;

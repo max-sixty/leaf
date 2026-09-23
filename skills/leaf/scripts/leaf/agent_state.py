@@ -7,7 +7,6 @@ from .asks import thread_ask_readings
 from .construction import constructed_content
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .delivery import current_responses
 from .document_reading import DocumentReading, read_document
 from .events import active_summaries, bare_reaction, build_threads, is_reaction
 from .files import (
@@ -23,6 +22,7 @@ from .projection import (
     page_reading,
     retirement_outcomes,
 )
+from .read_state import unread_content
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
@@ -59,42 +59,6 @@ def cmd_page_state(page_dir: Path) -> None:
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, page.events)
         _write_page_state(page_dir, page.events, activation.error)
-
-
-def _conversation_target(target: dict) -> dict:
-    """Expose one protocol target without rewriting user-owned detail data."""
-    return {
-        **target,
-        "kind": "conversation" if target["kind"] == "thread" else target["kind"],
-    }
-
-
-def _conversation_interaction(item: dict) -> dict:
-    translated = {**item, "subject": _conversation_target(item["subject"])}
-    coordinate = translated.get("coordinate")
-    if coordinate and coordinate[0] == "thread":
-        translated["coordinate"] = ["conversation", *coordinate[1:]]
-    return translated
-
-
-def _conversation_workflows(
-    workflows: list[dict], responses: dict[str, dict]
-) -> list[dict]:
-    """Translate only Leaf-owned protocol fields in the shared browser reading.
-
-    Every obligation is one of the workflows listed beside it, so an agent reads it
-    by id: its stage and subject are canonical, while `response_address` supplies
-    the current writer operation without replacing provisional response evidence.
-    """
-    translated = [_conversation_interaction(item) for item in workflows]
-    for item in translated:
-        if item["requires_response"] and (response := responses.get(item.get("input"))):
-            item["response_address"] = response
-    return translated
-
-
-def _conversation_update(update: dict) -> dict:
-    return {**update, "target": _conversation_target(update["target"])}
 
 
 def cmd_conversation_read(
@@ -328,7 +292,7 @@ def _write_page_state(
     channel, the effective construction and its mutation owners, authored
     measurements whose live source has run again (`measurement_lag_entries`), the
     open Asks on the page and in threads (the banner's own count), each comment
-    thread's current state,
+    thread's current state and the agent messages in it the reader has not read,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.
@@ -383,9 +347,10 @@ def _write_page_state(
         **activity,
         "obligations": [item["id"] for item in activity["obligations"]],
     }
-    state["workflows"] = _conversation_workflows(
-        served["workflows"], current_responses(page_dir, events)
-    )
+    # Every obligation is one of these workflows, so an agent reads it by id: its
+    # stage, subject and `answer` — the operation that settles it — are canonical,
+    # while `response` carries provisional response progress.
+    state["workflows"] = served["workflows"]
     if document is not None:
         _apply_document_state(
             state, document, events, revision, threads, stored_data, registry
@@ -411,16 +376,20 @@ def _write_page_state(
         }
         for ask in state["asks"]
     ]
-    state["updates"] = [
-        _conversation_update(update)
-        for update in canonical_updates(
-            document.projection if document is not None else None,
-            claims,
-            threads,
-            events,
-        )
-    ]
+    state["updates"] = canonical_updates(
+        document.projection if document is not None else None,
+        claims,
+        threads,
+        events,
+    )
     _apply_thread_state(state, thread_reading)
+    # The reader's side between their moves: which of your messages they have not
+    # taken in yet, at their current content version.
+    unread = unread_content(events, threads, thread_reading.thread_by_widget)
+    for conversation in state["conversations"]:
+        conversation["unread"] = [
+            item["message"] for item in unread[conversation["id"]]
+        ]
     if conversation_id is not None:
         selected = next(
             (

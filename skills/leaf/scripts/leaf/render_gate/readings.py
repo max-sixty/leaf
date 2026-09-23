@@ -226,7 +226,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # no page of theirs has, and a widget an agent sent in a reply, frozen in an
     # append-only log and admitted at a door of its own. Either way the version
     # would stay refused with no edit that clears it, which is why the coarse
-    # question — which document is this in — is the right one to ask here. That is the failure examples/CLAUDE.md names as the
+    # question — which document is this in — is the right one to ask here. That is the failure examples/AGENTS.md names as the
     # reason a gate reading was moved out once already. The layer's half is leaf's
     # own to hold, and the suite holds it with the panel open, where the styles are
     # the panel's and the margin is one somebody can see.

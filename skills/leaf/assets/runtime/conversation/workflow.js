@@ -1,9 +1,11 @@
 /* Canonical browser reading of one exact message workflow.
 
    Python binds accepted delivery, turn, response, activity and condition evidence to
-   an input. The application publisher adds the unresolved local send. Every message,
-   compact thread row and margin entry reads this value; none reclassifies receipts,
-   streams, or turn ownership. */
+   an input, and derives each thread's attention from them. The application publisher
+   adds the unresolved local send and the attention it implies. Every message, compact
+   thread row and margin entry reads these values; none reclassifies receipts, streams,
+   turn ownership, or whose turn a thread is. `strongestWorkflow` only chooses which of
+   one surface's workflows it shows. */
 
 const STAGE_LABELS = Object.freeze({
   sending: "Sending",
@@ -89,20 +91,6 @@ export function strongestWorkflow(workflows) {
         : strongest,
     null,
   );
-}
-
-export function projectThreadAttention(attention, workflows) {
-  if (attention?.kind === "needs_reader") return attention;
-  const current = workflows.filter((workflow) => workflow.next_actor !== "none");
-  const reader = strongestWorkflow(
-    current.filter((workflow) => workflow.next_actor === "reader"),
-  );
-  if (reader) return { kind: "needs_reader", reason: "workflow", workflow: reader.id };
-  if (attention) return attention;
-  const workflow = strongestWorkflow(current);
-  return workflow && (workflow.condition || workflow.stage !== "answered")
-    ? { kind: "waiting", reason: "workflow", workflow: workflow.id }
-    : null;
 }
 
 export function threadAttention(thread) {

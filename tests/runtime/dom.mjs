@@ -16,7 +16,7 @@
    a widget to a path that never held its bundle. No test selects packages, so the
    composition here is every bundled one.
 
-   This is not Chrome, and which readings may be asked of it is `tests/CLAUDE.md`'s,
+   This is not Chrome, and which readings may be asked of it is `tests/AGENTS.md`'s,
    under "Put each assertion at the boundary that owns it". */
 
 import { existsSync, readdirSync } from "node:fs";

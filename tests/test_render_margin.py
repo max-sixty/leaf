@@ -1856,13 +1856,13 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     )
     expect(workflow.locator('[data-lf-kinds="activity"]:visible')).to_have_count(0)
 
-    stamp_page(
+    stamped = stamp_page(
         serve.page_dir,
         FEATURE_GALLERY.read_text(encoding="utf-8"),
         "Apply the selected route",
         completes=("bg-margin-control-workflow",),
     )
-    wait_for_revision(page, 3)
+    wait_for_revision(page, stamped["revision"])
     expect(workflow.locator("[data-lf-agent-workflow]")).to_have_count(0)
     expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
@@ -4290,8 +4290,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     honored = single.replace(
         '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
     )
-    stamp_page(page_dir, honored, "Honor the mounts choice", completes=("jobs",))
-    wait_for_revision(page, 2)
+    stamped = stamp_page(
+        page_dir, honored, "Honor the mounts choice", completes=("jobs",)
+    )
+    wait_for_revision(page, stamped["revision"])
     expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
     expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
 

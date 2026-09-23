@@ -81,7 +81,8 @@ delivery:
           calls for it. If that revision removes what the thread is anchored on,
           move the thread in the same reply with `--section <id>` (narrowed by `--quote`
           or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the reader something.
+          Add `--awaits` only if your reply's prose asks the reader something. Your
+          reply renders as Markdown, so show code or markup in a fenced block.
       events:
         - kind: reply
           author: user

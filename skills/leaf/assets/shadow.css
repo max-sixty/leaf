@@ -567,6 +567,7 @@ leaf-anchor-note { display: contents; }
           --lf-here-ring: btn; outline-offset: 2px; }
 .lf-compose-field { --lf-icon-action-hit: max(28px, var(--aim-floor));
           position: relative; flex: 1; min-width: 0; }
+.lf-compose-hinted > textarea::placeholder { font-family: var(--mono); }
 .lf-compose-field > textarea:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);
           padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }

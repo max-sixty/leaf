@@ -5,9 +5,18 @@
  * This synchronous light-DOM Lit owner is then the only code that decides inventory,
  * order, presence, row-versus-overflow placement, and the overflow door's state. The
  * native controls are retained islands: their own owners keep commands, words, and
- * local state while this owner retains the same nodes in its two Lit lists. Approval
- * and Threads form the page's reading loop on the row; every secondary action has one
- * stable seat behind More. Geometry never changes that partition.
+ * local state while this owner retains the same nodes in its two Lit lists.
+ *
+ * Three seats partition the run, and geometry never changes the partition:
+ *
+ * - `row`: Approval and Threads, the page's standing reading loop.
+ * - `menu`: every secondary action, in one stable seat behind More.
+ * - `gesture`: the next step of something the reader is doing right now, such as
+ *   commenting on the words a touch just selected. It exists only while that gesture
+ *   holds it, and it is the one thing the reader came to the banner for, so it stands
+ *   on the row in the reading loop's place until the gesture ends. The row has no
+ *   room to seat both beside More on a 320px phone, and a step hidden behind More is
+ *   two presses on a door nothing points to.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
@@ -47,7 +56,11 @@ const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
   );
-const visible = (entry) => entry.present && (!entry.conditional || entry.offered);
+const onOffer = (entry) => entry.present && (!entry.conditional || entry.offered);
+// A gesture step displaces the reading loop only while it is on the row itself.
+const gestureHeld = () =>
+  row.some((entry) => entry.seat === "gesture" && onOffer(entry));
+const visible = (entry) => onOffer(entry) && !(entry.seat === "row" && gestureHeld());
 
 function rowTemplate() {
   return html`
@@ -130,7 +143,7 @@ overflowMenu.addEventListener("toggle", (event) => {
 
 function seatControls() {
   const run = ordered();
-  row = run.filter((entry) => entry.seat === "row");
+  row = run.filter((entry) => entry.seat !== "menu");
   menu = run.filter((entry) => entry.seat === "menu");
 }
 
@@ -156,10 +169,10 @@ export function registerBannerControl({
     !key ||
     !(control instanceof Element) ||
     !Number.isFinite(rank) ||
-    !["row", "menu"].includes(seat)
+    !["row", "menu", "gesture"].includes(seat)
   )
     throw new TypeError(
-      "A banner control needs a key, native control, numeric rank, and row or menu seat",
+      "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat",
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -194,11 +207,18 @@ export function showBannerControl(control, shown) {
   if (entry.present === shown) return;
   const heldFocus = document.activeElement === entry.focusTarget;
   const wasInMenu = menu.includes(entry);
+  const loopFocus = row.find(
+    (candidate) =>
+      candidate.seat === "row" && document.activeElement === candidate.focusTarget,
+  );
   const prior = entry;
   entry = Object.freeze({ ...entry, present: shown });
   replaceEntry(prior, entry);
   paint();
   if (heldFocus && !shown) focusAfterRemoval(entry, wasInMenu);
+  // The step takes the place of the control focus stood on, so focus takes it too.
+  else if (loopFocus && !visible(loopFocus))
+    entry.focusTarget.focus({ preventScroll: true });
 }
 
 export function showNews(control, on) {

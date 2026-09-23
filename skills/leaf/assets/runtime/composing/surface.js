@@ -983,13 +983,14 @@ export function createResponseSurface({
   // a second adjacent surface. Capture the passage for the banner's explicit action.
   let touchSelectionAnchor = null;
   const selectionComment = document.createElement("button");
-  selectionComment.className = "lf-btn";
+  selectionComment.className = "lf-btn primary";
   selectionComment.type = "button";
   selectionComment.textContent = "Comment on selection";
   registerBannerControl({
     key: "comment-selection",
     control: selectionComment,
     rank: BANNER_CONTROL_RANK.commentSelection,
+    seat: "gesture",
     present: false,
   });
   const offerTouchSelection = (anchor) => {

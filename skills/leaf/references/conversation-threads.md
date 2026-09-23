@@ -27,7 +27,8 @@ discussion.
 leaf conversation title <page> <conversation-id> --text "Afternoon workshop"
 ```
 
-The conversation id is its opening comment's id. Titles are plain text, at most
+The conversation id is its opening comment's id, which `leaf comment` prints; a
+delivery carries each conversation's current title, null until named. Titles are plain text, at most
 80 characters. The same command sets or replaces the title without changing
 messages or adding a conversational turn.
 

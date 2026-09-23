@@ -186,8 +186,10 @@ function renderedLines(file, rendered) {
 
 function summaryNode(file, open) {
   const details = document.createElement("details");
+  details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
+  summary.className = "lf-diff-head";
   const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {

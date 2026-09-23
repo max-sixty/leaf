@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import io
 import math
+import re
 import struct
 import zlib
 from contextlib import ExitStack
@@ -501,9 +502,11 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 #
 # `html` is a call rather than the markup, because the page the trays need is declared
 # with the other tray readings a long way below here, and a parametrize list is read at
-# import. `squeeze` is the window that has no room for what the user chose and the width
-# the region stands at there — per edge, because each is capped against its own half of a
-# window and covers the page at a different one.
+# import. `strip` says whether the page yields the region a strip: the Asks tray stands
+# beside the page, and the thread panel stands over it and takes nothing. `squeeze` is the
+# window that has no room for what the user chose and the width the region stands at
+# there — per edge, because a strip-taking tray is capped at half its window and the panel
+# over the page only at the window itself.
 EDGES = [
     SimpleNamespace(
         name="comments",
@@ -514,7 +517,8 @@ EDGES = [
         side="right",
         store="lf-thread-panel-width",
         wide=420,
-        squeeze=(1000, 500),
+        strip=False,
+        squeeze=(500, 500),
     ),
     SimpleNamespace(
         name="trays",
@@ -525,10 +529,42 @@ EDGES = [
         side="left",
         store="lf-tray-slot-width",
         wide=300,
+        strip=True,
         squeeze=(800, 400),
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]
+
+
+# One Ask, so a page offers the Asks tray: the one auxiliary surface that takes a strip
+# out of the page shell. Threads and Leaves stand over the page and take none, so a
+# reading about the shell yielding room opens this tray.
+ONE_ASK = (
+    '<lf-ask id="go-decision"><h2>Ship it?</h2>'
+    '<lf-options id="go" choose>'
+    '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
+    '<lf-option id="go-no"><strong>No</strong></lf-option>'
+    "</lf-options></lf-ask>"
+)
+
+
+def with_one_ask(html):
+    """The page with `ONE_ASK` at the foot of its main, where it moves nothing above it."""
+    assert html.count("</main>") == 1, (
+        "the fixture has no single main to add the Ask to"
+    )
+    return html.replace("</main>", ONE_ASK + "</main>")
+
+
+def toggle_asks(page, open=True):
+    """Open or close the Asks tray from its banner control and wait for it to stand."""
+    banner_control(page, ".lf-asks").click()
+    tray = expect(page.locator(".lf-asks-panel"))
+    opened = re.compile(r"\bopen\b")
+    if open:
+        tray.to_have_class(opened)
+    else:
+        tray.not_to_have_class(opened)
 
 
 def edge_settled(page, edge):

@@ -117,17 +117,17 @@ export function misplacedBoxes() {
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
   // measured is the column's leftover, the rail a suggestion hangs in and the strip
-  // the thread panel takes, and an exhibit over that edge is in the margin whether or
+  // a standing tray takes, and an exhibit over that edge is in the margin whether or
   // not the window happened to scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
   // the user's window is free to be narrower than this one.
   const bodyStyle = getComputedStyle(document.body);
   const bodyBox = document.body.getBoundingClientRect();
-  // Inside body's border as well as its padding. The strip a standing panel or tray
-  // takes is a transparent border on body (theme.css, at the body strip), so the box body
+  // Inside body's border as well as its padding. The strip a standing tray takes is a
+  // transparent border on body (theme.css, at the body strip), so the box body
   // draws reaches the window; leaving the border in would put the room's right edge out
   // there and let a widget standing in the strip go unreported. True at this gate's one
-  // viewport either way, since no panel stands in it — but the reading should not be
+  // viewport either way, since no tray stands in it — but the reading should not be
   // waiting on that to stay true.
   const roomLeft =
     bodyBox.left +

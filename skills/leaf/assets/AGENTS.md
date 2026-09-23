@@ -111,8 +111,10 @@ The shared `.lf-ui` face starts in the assets root's `shadow.css`, before compon
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
 
-Chrome reserves its strip with a transparent body border (`theme.css`), preserving native
-scroll anchoring during reflow. `chrome-layout.js` must not override the user's position.
+A standing Asks tray reserves its strip with a transparent body border (`theme.css`),
+preserving native scroll anchoring during reflow. The thread panel and the Leaves tray
+stand over the page and reserve nothing. `chrome-layout.js` must not override the user's
+position.
 Reading arrangements measure available room and minimum size in the bounded candidate
 without changing current geometry, so responsive posture does not depend on the posture
 from which the measurement began.

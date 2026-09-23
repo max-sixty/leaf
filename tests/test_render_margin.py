@@ -24,7 +24,9 @@ from render_cases_interaction import (
 from render_cases_layout import (
     banner_control,
     standing_ring,
+    toggle_asks,
     token_colour,
+    with_one_ask,
 )
 from render_cases_navigation import (
     CHIPS,
@@ -729,18 +731,21 @@ def test_a_held_marker_reaches_a_folded_map_through_the_door_that_holds_it(
     expect(more).to_be_focused()
 
 
-def test_a_panel_takes_the_markers_and_hands_the_user_the_map(browser, serve):
+def test_a_tray_takes_the_markers_and_hands_the_user_the_map(browser, serve):
     """The rail is drawn in the shell, so what decides whether the margin stands is the
-    room a panel leaves rather than the room the window has. This is the case the
-    container query exists for and the one no window query can answer: the window does
-    not move, the markers go, and the Page Map arrives in their place.
+    room a standing tray leaves rather than the room the window has. This is the case
+    the container query exists for and the one no window query can answer: the window
+    does not move, the markers go, and the Page Map arrives in their place.
 
-    1100 does both halves. The panel's 420px strip leaves a 680px shell, well under the
+    1100 does both halves. The Asks tray's 300px strip leaves an 800px shell, under the
     floor, while the window stays 260px clear of it — so a reading taken from the window
-    would keep drawing markers in a rail the page has no room for, which is exactly what
-    it used to do. The Map is read as offered rather than as visible, since the shelf may
-    fold it behind the More door at a width the banner is crowded at; folded or not, the
-    page is stating that the whole map is the way to what the markers held."""
+    would keep drawing markers in a rail the page has no room for. The Map is read as
+    offered rather than as visible, since the shelf may fold it behind the More door at
+    a width the banner is crowded at; folded or not, the page is stating that the whole
+    map is the way to what the markers held. Threads stands over the page and takes no
+    room, so opening it leaves the rail drawn, but at 1100 it stands over the rail, so
+    the banner offers the map there too; at 1920 the rail stands clear of it and the
+    margin stays the way in."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -748,7 +753,7 @@ def test_a_panel_takes_the_markers_and_hands_the_user_the_map(browser, serve):
         "text": "A thread the margin draws a marker for.",
         "anchor": {"section": "how-cap"},
     }
-    page = open_page(browser, serve(PANEL_PAGE, events=[comment]))
+    page = open_page(browser, serve(with_one_ask(PANEL_PAGE), events=[comment]))
     offered = """() => {
       const map = document.querySelector('.lf-page-map-toggle');
       return Boolean(map) && !map.hidden && getComputedStyle(map).display !== 'none';
@@ -765,14 +770,34 @@ def test_a_panel_takes_the_markers_and_hands_the_user_the_map(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     margins_laid_out(page)
+    assert marker.evaluate("el => el.checkVisibility()"), (
+        "Threads stands over the page, and opening it withdrew the rail"
+    )
+    assert page.evaluate(offered), (
+        "the open panel stands over the rail and the page offered the user nothing in "
+        "its place"
+    )
+    resized(page, 1920, 900)
+    panel_settled(page)
+    margins_laid_out(page)
+    assert not page.evaluate(offered), (
+        "the rail stands clear of the open panel, yet the banner still offers the map"
+    )
+    resized(page, 1100, 900)
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    margins_laid_out(page)
+    assert not page.evaluate(offered), "closing the panel left the map offered"
+
+    toggle_asks(page)
+    margins_laid_out(page)
     expect(marker).to_be_hidden()
     assert page.evaluate(offered), (
-        "the panel took the rail's room at an unchanged window and the page offered "
+        "the tray took the rail's room at an unchanged window and the page offered "
         "the user nothing in its place"
     )
 
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
+    toggle_asks(page, open=False)
     margins_laid_out(page)
     expect(marker).to_be_visible()
     assert not page.evaluate(offered), "the room came back and the margin did not"
@@ -5870,7 +5895,10 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
           });
         }"""
     )
-    marker.click()
+    # At 1440 the open panel stands over the rail, so the marker is reached by its key
+    # rather than a pointer that would land on the panel.
+    marker.focus()
+    page.keyboard.press("Enter")
     panel_settled(page)
     expect(preview).to_be_hidden()
     expect(page.locator(f'.lf-thread[data-id="{root_id}"] textarea')).to_be_focused()
@@ -7180,22 +7208,22 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(0)
 
 
-def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serve):
+def test_closing_the_tray_lands_the_margin_where_the_column_lands(browser, serve):
     """The margin's rows land with the column, in the gesture that moves it.
 
-    Closing Threads moves the reading column back across the window, and a thread on
-    plain prose stands in the toolbar host, which is placed off the column's box — so a
-    row placed against the column where it was stands over the prose the column moved
+    Closing the Asks tray moves the reading column back across the window, and a thread
+    on plain prose stands in the toolbar host, which is placed off the column's box — so
+    a row placed against the column where it was stands over the prose the column moved
     under it. A resize observer cannot catch that: it hears a box change size, not place.
 
     The column arrives in the same layout pass as the state change now, and the margin is
     placed against it before the gesture returns (`moveContentFrame`). So the read is taken
-    in the very task that closes the panel, with no frame between: a repaint deferred to
+    in the very task that closes the tray, with no frame between: a repaint deferred to
     the next frame, which is how this used to be done while the column was still gliding,
-    would leave the row at its open-panel place here. Every route that closes the panel
+    would leave the row at its open-tray place here. Every route that closes the tray
     is walked, because each is its own caller."""
     page = open_page(
-        browser, serve(next(p for p in EXAMPLES if p.stem == "log-retention"))
+        browser, serve(next(p for p in EXAMPLES if p.stem == "review-a-plan"))
     )
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -7203,18 +7231,17 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
     rest = page.locator(marker).first.bounding_box()["x"]
     # Close, then read the row's place in the same task, before any frame can run.
     close_and_read = {
-        "toggle": "document.querySelector('.lf-threads-toggle').click()",
-        "Close threads": (
-            "[...document.querySelectorAll('.lf-thread-panel button')]"
-            ".find(b => b.getAttribute('aria-label') === 'Close threads').click()"
+        "toggle": "document.querySelector('.lf-asks').click()",
+        "Close asks": (
+            "[...document.querySelectorAll('.lf-asks-panel button')]"
+            ".find(b => b.getAttribute('aria-label') === 'Close asks').click()"
         ),
     }
     for route, close in close_and_read.items():
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
+        toggle_asks(page)
         opened = page.locator(marker).first.bounding_box()["x"]
         assert opened != pytest.approx(rest, abs=1), (
-            "opening the panel did not move the row, so closing it cannot show whether the"
+            "opening the tray did not move the row, so closing it cannot show whether the"
             f" row follows the column: {opened} against {rest}"
         )
         landed = page.evaluate(
@@ -7228,17 +7255,17 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
             f"after {route}: in the closing task the thread margin entry stands at "
             f"{landed}, but the column's rest is {rest}"
         )
-    # Escape reaches the panel through the keyboard dispatcher rather than a click, so it
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    # Escape reaches the tray through the keyboard dispatcher rather than a click, so it
     # is the one route walked with a real key, and the one that would catch a keyboard
-    # caller closing the panel without going through `moveContentFrame`.
+    # caller closing the tray without going through `moveContentFrame`.
     #
     # Pressing and then reading is two round trips with a frame free between them, which
     # is enough for a deferred repaint to land and the read to pass whatever the runtime
     # does. So the read rides the press: the dispatcher's own listener is a plain document
     # keydown registered at boot that never stops propagation, so one added afterwards
     # runs after it and inside the same task.
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
     page.evaluate(
         """(sel) => {
           document.addEventListener("keydown", () => {
@@ -7248,7 +7275,7 @@ def test_closing_the_panel_lands_the_margin_where_the_column_lands(browser, serv
         }""",
         marker,
     )
-    page.locator(".lf-threads").focus()
+    page.locator(".lf-asks-panel .lf-tray-list").focus()
     page.keyboard.press("Escape")
     landed = page.evaluate("() => window.__lfEscapeLanded")
     assert landed is not None, "the read never rode the press"

@@ -5,7 +5,7 @@ lf-margin-entry-gallery {
   display: block;
   margin-block: var(--sp-4);
   /* The specimen rows stack from the room the gallery has. A gallery in a narrow
-   * column or beside an open panel has less than the page shell does. */
+   * column or beside an open tray has less than the page shell does. */
   container: lf-margin-entry-gallery / inline-size;
 }
 

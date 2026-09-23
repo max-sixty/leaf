@@ -458,25 +458,23 @@ def test_authored_html_paints_while_runtime_startup_is_held(
 
 
 @pytest.mark.parametrize(
-    ("saved", "root_attribute", "body_attribute"),
+    "saved",
     [
-        (
-            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
-            "data-lf-restore-panel",
-            "data-lf-auxiliary-surface",
-        ),
-        (
-            {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
-            "data-lf-restore-tray",
-            "data-lf-auxiliary-surface",
-        ),
+        {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
+        {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
     ],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, root_attribute, body_attribute, contained
+    browser, serve, saved, contained
 ):
-    """Returning users do not watch saved auxiliary chrome move the document."""
+    """Returning users do not watch saved auxiliary chrome move the document: the
+    Asks tray's strip is reserved before the runtime loads, and Threads covers the page
+    and takes nothing from it."""
+    root_attribute = "data-lf-restore-asks"
+    body_attribute = "data-lf-auxiliary-surface"
+    # Only the strip-taking tray has a shape to hold before the runtime arrives.
+    reserves = saved["lf-auxiliary-surface"] == "asks"
     content = "<h1>Restored surface</h1>"
     if contained:
         content = (
@@ -513,7 +511,11 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
             page.goto(url, wait_until="commit")
         displayed(page)
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
+        root = expect(page.locator("html"))
+        if reserves:
+            root.to_have_attribute(root_attribute, re.compile(".*"))
+        else:
+            root.not_to_have_attribute(root_attribute, re.compile(".*"))
         initial = page.locator("body > main").bounding_box()
 
         held.pop().continue_()

@@ -371,9 +371,10 @@ export function mountApplication(dependencies) {
     },
     travel: {
       focusSurface,
-      panelCovers: dependencies.panelCovers,
+      panelHides: dependencies.panelHides,
       setPanel: dependencies.setPanel,
       scrollToThread: dependencies.anchorTravel.scrollToThread,
+      threadDestination: dependencies.anchorTravel.threadDestination,
       retainPanelLanding: dependencies.retainPanelLanding,
       retainNarrowing: dependencies.retainThreadNarrowing,
       showThread: dependencies.showThread,

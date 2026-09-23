@@ -1,14 +1,15 @@
 """Canonical workflows for exact reader inputs and proactive subject work.
 
-A workflow is one reader move the agent still owes something on, with the
-strongest delivery or work evidence held for it. It is also the one derivation
-of that obligation: `answer` is the addressed operation that settles the move,
-and every consumer — delivery handling, `page state`, activity counts, the Stop
-hook, `leaf status idle`, the banner, and the margin — reads it here rather than
-deciding again what the agent owes. The rule is single: a move whose next actor
-is the agent blocks the agent until its answer is written. The one move that owes
-without an address of its own is a reader input a newer input in the same thread
-covers; that thread's one answer, addressed to the newest, settles both.
+A workflow is one unsettled reader move the reader has handed over, and it
+answers two separate questions about it. `stage` is delivery progress: how far
+the move has reached the agent (Sent, Queued, Picked up, Working, Replying),
+which the margin, the Page Map and a thread's receipt report for every such
+move. `answer` is the obligation: the addressed operation the agent owes the
+move, or null when it owes nothing. Every consumer that holds the agent to
+something — delivery handling, `page state`, activity counts, the Stop hook,
+`leaf status idle`, and the banner's counts — reads `answer` here rather than
+deciding again what the agent owes. The rule is single: a move with an answer
+blocks the agent until that answer is written, and a null answer holds nobody.
 
 Answers are one of:
 
@@ -22,20 +23,25 @@ Answers are one of:
 - `{"kind": "receipt", "request": <request>}` — a request, answered by its one
   terminal receipt.
 
+Two kinds of move are delivered with no answer of their own. A reader input a
+newer input in the same thread covers is answered through the newest, whose one
+answer settles both. A page action that answers no Ask, such as an edit to a
+reader-owned draft or a moved card, owes nothing: the log carries it onto every
+later version, and its receipt stands until the markup records it or a later
+version takes it in (`page_action_unsettled`).
+
+A reader move on an Ask the reader has not finished answering — a pick before
+the Done its group declares, a swipe before the deck's finish — has not been
+handed over yet, so it is no workflow at all: the reader is still composing the
+answer, and the finishing move carries the receipt. Once the Ask is answered,
+every move in its answer is owed.
+
 A host that gives up on a move writes the failure its answer takes
 (`conversation.fail_answer`): a reply carrying `failure` in the conversation, a
 failed receipt, or a failed pickup of a page move. A failed receipt is the
 request's own outcome and settles it; the other two leave the move a workflow
 answered with a failed response, whose next actor is the reader, until the reader
 moves again or the markup records the move anyway.
-
-A reader move on an Ask the reader has not finished answering — a pick before
-the Done its group declares, a swipe before the deck's finish — hands nothing to
-the agent, so it is no workflow; once the Ask is answered, every move in its
-answer is owed.
-Neither is a page action that answers no Ask, such as an edit to a reader-owned
-draft or a moved card: the log carries it onto every later version, and the
-reader is waiting on nobody for it.
 """
 
 from .asks import answers_ask, ask_answered
@@ -102,18 +108,34 @@ def page_action_unsettled(
     spk: dict,
     registry: dict,
     events: list,
+    *,
+    owed: bool,
 ) -> bool:
-    """Whether authored markup still owes one standing page action an answer."""
+    """Whether one standing page action is still unsettled.
+
+    An owed move — part of an answered Ask — settles when the authored markup
+    records it. The note of a later version settles the rest: a verb with no
+    authored record form, whose note is the document's answer to it, and a move
+    that owed nothing, which that version has taken in whether or not its markup
+    records it. The version must follow the move in the log and supersede the
+    revision it was made on; a note stamped over the very revision the reader
+    acted on was written before the move reached anyone.
+    """
     _widget, unit, _facet = coordinate
     if source["author"] != "user" or unit not in parser.by_id:
         return False
     authored = markup_facet(unit, spec, parser.by_id, spk, registry)
-    folded = folded_facet(source, spec)
-    if authored is NO_RECORD:
-        return not any(
-            event["kind"] == "note" and event["seq"] > source["seq"] for event in events
-        )
-    return authored != folded
+    if owed and authored is not NO_RECORD:
+        return authored != folded_facet(source, spec)
+    versioned = any(
+        event["kind"] == "note"
+        and event["seq"] > source["seq"]
+        and event["revision"] > source["revision"]
+        for event in events
+    )
+    return not versioned and (
+        authored is NO_RECORD or authored != folded_facet(source, spec)
+    )
 
 
 def canonical_workflows(
@@ -329,26 +351,26 @@ def canonical_workflows(
                     answer=answer if source is response_address else None,
                 )
             )
-    # A page action stays unsettled only while the authored document still lags
-    # its standing record. A recordless verb has no markup form to compare, so a
-    # later version note in the log is the document's answer to that move.
+    # Every page action the reader has handed over keeps its delivery receipt until
+    # it settles (`page_action_unsettled`); only a move in an answered Ask is owed an
+    # answer. A move on an Ask the reader is still answering has not been handed
+    # over, so it has no receipt until the finishing move carries one.
     moves = []
     if page is not None:
         for coordinate, (source, spec) in page.projection.actions.items():
             widget, unit, facet = coordinate
             record = page.document.by_id.get(widget)
-            entry = page.registry.get(record["tag"], {}) if record else {}
-            if (
-                record is None
-                or not answers_ask(record, entry, source["action"])
-                or not ask_answered(
-                    record,
-                    entry,
-                    page.projection,
-                    page.document.by_id,
-                    page.spoken,
-                    page.registry,
-                )
+            if record is None:
+                continue
+            entry = page.registry.get(record["tag"], {})
+            owed = answers_ask(record, entry, source["action"])
+            if owed and not ask_answered(
+                record,
+                entry,
+                page.projection,
+                page.document.by_id,
+                page.spoken,
+                page.registry,
             ):
                 continue
             unsettled = page_action_unsettled(
@@ -359,13 +381,15 @@ def canonical_workflows(
                 page.spoken,
                 page.registry,
                 page.events,
+                owed=owed,
             )
             moves.append(
                 (
                     source,
                     {"kind": "widget", "id": widget},
                     [widget, unit, facet],
-                    {"kind": "markup", "action": source["id"]} if unsettled else None,
+                    unsettled,
+                    {"kind": "markup", "action": source["id"]} if owed else None,
                 )
             )
 
@@ -402,9 +426,8 @@ def canonical_workflows(
                     source,
                     {"kind": "widget", "id": source["widget"]},
                     list(coordinate),
-                    None
-                    if settled
-                    else {"kind": "reply", "to": thread_id, "for": source["id"]},
+                    not settled,
+                    {"kind": "reply", "to": thread_id, "for": source["id"]},
                 )
             )
 
@@ -416,17 +439,19 @@ def canonical_workflows(
     # margin entry each in the margin. Chosen before a receipt is minted, so a claim is
     # spent on a move that survives rather than on one dropped here.
     newest: dict[tuple[str, str], dict] = {}
-    for source, target, coordinate, _answer in moves:
+    for source, target, coordinate, _unsettled, _answer in moves:
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
     # A host that gave up on an owed page move recorded a failed pickup, which hands
     # the move back to the reader until the markup records it or a newer move
     # replaces it.
-    for source, target, coordinate, answer in moves:
-        if answer is None or newest[(target["id"], coordinate[1])] is not source:
+    for source, target, coordinate, unsettled, answer in moves:
+        if not unsettled or newest[(target["id"], coordinate[1])] is not source:
             continue
-        if gave_up := deliveries.get(source["id"], {}).get("failed"):
+        if answer is not None and (
+            gave_up := deliveries.get(source["id"], {}).get("failed")
+        ):
             workflows.append(failed(source, target, coordinate, gave_up))
         else:
             workflows.append(workflow(source, target, coordinate, answer=answer))

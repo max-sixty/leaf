@@ -11248,14 +11248,16 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     """A pick on a page Ask is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
     markup records the pick settles it — one rule, read by every consumer. An edit
-    to a draft that asks nothing is carried by the log and owes nothing."""
+    to a draft that asks nothing is carried by the log and owes nothing: it keeps a
+    receipt that reports its delivery, which no count, Stop or `idle` reads, and the
+    next version retires it without writing the edit in."""
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         "</section>", '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>'
     )
     (claimed / "index.html").write_text(source)
     publish(claimed)
     lease = _watched(claimed)
-    append_command(
+    edit = append_command(
         claimed,
         {
             "kind": "action",
@@ -11266,7 +11268,15 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
             "detail": {"text": "Green room."},
         },
     )
-    assert state_json(claimed)["workflows"] == []
+    edited = state_json(claimed)
+    [receipt] = edited["workflows"]
+    assert (receipt["input"], receipt["stage"], receipt["answer"]) == (
+        edit["id"],
+        "sent",
+        None,
+    )
+    assert edited["activity"]["obligations"] == []
+    assert edited["activity"]["counts"]["total"] == 0
     picked = append_command(
         claimed,
         {
@@ -11303,7 +11313,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
         )
     )
     assert stamp(claimed, "Backfill leads").exit_code == 0
-    assert state_json(claimed)["activity"]["obligations"] == []
+    assert state_json(claimed)["workflows"] == []
     assert _stop(capsys) is None
     assert _idle(claimed).exit_code == 0
     lease.close()

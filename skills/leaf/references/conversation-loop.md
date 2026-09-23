@@ -12,7 +12,9 @@ The reader follows your work on the page:
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf version stamp` |
 | Request | the outcome of a request the reader made | `leaf receipt` |
 
-Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**. Your host
+Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**, including
+a move that owes you nothing, such as a moved card. A pick before the Done its Ask
+waits for is marked with that Done. Your host
 contract may add its own current step to the banner. Chat stays in the host and never
 reaches the page.
 

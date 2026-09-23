@@ -15,7 +15,7 @@ from .projection import (
 )
 from .registry.storage import require_registry
 from .structure import parse_revision
-from .workflows import page_action_unsettled
+from .workflows import canonical_workflows
 
 
 def standing_work_claims(status: dict, events: list) -> list:
@@ -137,7 +137,8 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
     # registry above and raises where that gate refuses, so folding threads
     # against no page here bought nothing and could answer differently from
     # `page state` for the same conversation.
-    thread = build_threads(events, enclosing_of(spk)).get(target)
+    threads = build_threads(events, enclosing_of(spk))
+    thread = threads.get(target)
 
     if thread is not None and widget is not None:
         sys.exit(
@@ -176,17 +177,9 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
         if quoted_in(widget, registry):
             sys.exit(f"{target} is quoted exhibit content, not a live page widget")
         has_receipt = any(
-            event["widget"] == target
-            and page_action_unsettled(
-                coordinate,
-                event,
-                spec,
-                page.document,
-                spk,
-                registry,
-                events,
-            )
-            for coordinate, (event, spec) in widget_projection.actions.items()
+            item["input"] is not None
+            and item["subject"] == {"kind": "widget", "id": target}
+            for item in canonical_workflows([], threads, None, page=page)
         )
         if (
             not widget_work_seat(widget, widget_projection, registry)

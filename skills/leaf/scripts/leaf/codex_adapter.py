@@ -6,12 +6,15 @@ the agent to ask again. It owns the session watch: it captures each batch into t
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-One of two transports carries an offer. Over App Server, `start_delivery_turn` opens
-a turn on a connection of its own as soon as the task is idle and `DeliveryTurn`
-follows it there until it ends, which is also how the reader sees activity and a
-streamed answer; the `codex queue` command leaves a pointer for the task's next turn,
-and the task reads that immutable input through `leaf delivery read`. The private App Server the
-first transport needs is what `leaf codex launch` runs.
+One of two transports carries an offer. The `codex queue` command is the default,
+and the only one open to a task whose App Server Leaf cannot reach, such as the Codex
+desktop app's. It leaves a pointer for the task's next turn; the task reads that
+immutable input through `leaf delivery read` and answers with explicit commands, the
+reply included. Over App Server, `start_delivery_turn` opens a turn on a connection of
+its own as soon as the task is idle and `DeliveryTurn` follows it there until it ends,
+which is also how the reader sees activity and a streamed answer, and why the turn's
+final message is its reply. The private App Server this transport needs is what
+`leaf codex launch` runs.
 
 `TaskObserver` holds the other connection, on the turns Leaf did not start: the
 user's own work in the terminal, and a queued pointer the task picks up by itself.
@@ -829,6 +832,11 @@ def run_adapter(
     lease = take_waiter_lease(adapter_lease_path(harness.session))
     if lease is None:
         raise RuntimeError("a Codex delivery adapter is already active")
+    # The lease record names this adapter's transport, so a later `leaf codex start`
+    # in the task reports the one it joins.
+    lease.truncate(0)
+    lease.write(json.dumps({"app_server": app_server}).encode())
+    lease.flush()
     watch = Watch(harness)
     if not watch.acquire():
         lease.close()
@@ -979,7 +987,21 @@ def cmd_codex_start(
     try:
         with flocked(launch_lock):
             if adapter_is_live(session_id):
-                return f"Codex delivery is already active for task {session_id}"
+                record = adapter_lease_path(session_id).read_text()
+                try:
+                    running = json.loads(record)["app_server"]
+                except (ValueError, KeyError, TypeError):
+                    # An adapter built before the record named its transport.
+                    return f"Codex delivery is already active for task {session_id}"
+                if app_server is not None and app_server != running:
+                    raise RuntimeError(
+                        f"Codex delivery is already active for task {session_id}"
+                        f"{_transport(running)}, not through App Server {app_server}"
+                    )
+                return (
+                    f"Codex delivery is already active for task {session_id}"
+                    f"{_transport(running)}"
+                )
             read_fd, write_fd = os.pipe()
             log_path = adapter_log_path(session_id)
             with open(log_path, "ab", buffering=0) as log:
@@ -1023,8 +1045,13 @@ def cmd_codex_start(
     except BaseException:
         restore_page_claim(page_dir, transition)
         raise
-    connected = f" through App Server {app_server}" if app_server else ""
-    return f"Codex delivery started for task {session_id}{connected}"
+    return f"Codex delivery started for task {session_id}{_transport(app_server)}"
+
+
+def _transport(app_server: str | None) -> str:
+    """How `leaf codex start` names a transport: the App Server's endpoint, or
+    nothing for the queue, which is how the host contracts tell the two apart."""
+    return f" through App Server {app_server}" if app_server else ""
 
 
 def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:

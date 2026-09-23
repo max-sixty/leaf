@@ -154,9 +154,9 @@ delivery receipt.
 Acknowledgement is transport receipt, not semantic settlement. Record every
 still-current obligation with the Leaf operation its `response` names, then
 re-enter the host's wait loop: `waiting` after every obligation has been answered and
-the reader owns the next move, `working` while you continue. When the active host binds
-a plain reply to its turn, the normal assistant final message is that operation; an
-unbound delivery uses the explicit operation.
+the reader owns the next move, `working` while you continue. A plain reply is
+`leaf reply`, except in a Codex task Leaf observes over App Server, where your final
+message is that operation (`references/host-codex-app-server.md`, "Replies").
 `page state` lists every standing reaction under `reactions`; a package-supplied
 `means` appears when present. Resolve a page reaction once the live revision has
 acted on it.

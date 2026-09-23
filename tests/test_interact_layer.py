@@ -705,10 +705,12 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
-    # The repository instructions have one canonical name for both hosts.
-    assert (ROOT / "AGENTS.md").is_file()
-    assert not (ROOT / "AGENTS.md").is_symlink()
-    assert not (ROOT / "CLAUDE.md").exists()
+    # Claude imports each canonical instruction file without keeping a second copy.
+    instructions = [p for p in shipped_payload() if p.name == "AGENTS.md"]
+    assert instructions, "no project instructions in the shipped payload"
+    for agents in instructions:
+        assert agents.is_file() and not agents.is_symlink()
+        assert agents.with_name("CLAUDE.md").read_text() == "@AGENTS.md\n"
     # A host's copy must not contain links that escape the plugin tree.
     escaping = [
         path

@@ -40,10 +40,18 @@ leaf status <page> working "running the browser suite against the new banner" &&
 Name the operation and its subject in one sentence. "Working on it" tells the reader
 nothing the banner's dot does not already say.
 
-Reader input takes priority over the work in hand. Follow the host's receipt route,
-and answer it or say on the thread what you are doing about it. Then write the page
-status again, so the banner describes the work that continues rather than the last
-step before the interruption.
+Reader input comes before the work in hand, in this order:
+
+1. Acknowledge the delivery by the host's receipt route, so the reader's moves read
+   **Picked up**.
+2. Reply to each move that owes a reply, before starting the work it asks for. The
+   delivered `answering` clause for a reply says how to write the reply now and how
+   to report the result later. A host that sends your final message as the reply
+   fixes the reply at the end of the turn instead; its host contract says so.
+3. Write the page status again, so the banner describes the work that continues
+   rather than the last step before the interruption.
+
+Then do the work.
 
 ## Status and handoff
 
@@ -93,10 +101,8 @@ you wait on, leaves the reader's comment unanswered for its whole length.
 For work that will run longer than a few minutes, coordinate it rather than perform
 it. Hand the reading, editing, and testing to background subagents or background
 commands, and end your turn as the host contract says, so the watcher's next delivery
-reaches you while the work runs instead of waiting behind it. When a reader move
-started the work, reply before you end the turn with what you started and where its
-result will appear: that is the answer the move is owed until the result exists. When
-a worker reports back, settle its result with a reply, a revision, or a receipt.
+reaches you while the work runs instead of waiting behind it. When a worker reports
+back, settle its result with a reply, a revision, or a receipt.
 
 You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, receipts, status, edits to `index.html`, and stamps stay

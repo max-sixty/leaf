@@ -15,7 +15,7 @@ unpicked at prompt:
       Leaf needs attention:
       - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
+      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably reaches its handler. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
 
 unpicked at stop:
   decision: block
@@ -23,12 +23,12 @@ unpicked at stop:
     Leaf needs attention:
     - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
+    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably reaches its handler. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
 
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully before acknowledging. If forwarding it, wait for durable delivery to its handler. Then run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live.
+    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably reaches its handler. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live.
 
 delivered:
   format: leaf-delivery-v2
@@ -57,13 +57,17 @@ delivered:
           opening words.
         h2: >-
           Answer with `leaf reply <page> --for <event-id>`, or with your final message
-          on a host that sends it as the reply. `leaf reply` checks any page edit
-          and makes it live before posting, so revise the page first if the event
-          calls for it. If that revision removes what the thread is anchored on,
-          move the thread in the same reply with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the reader something. Your
-          reply renders as Markdown, so show code or markup in a fenced block.
+          on a host that sends it as the reply. Where you answer with `leaf reply`,
+          reply before any other work, including the work this event asks for: give
+          the answer, or say what you are about to do and where the result will
+          appear. Once that work lands, report it with `leaf reply <page> --to <event-id>
+          --initiates`. `leaf reply` checks any saved page edit and makes it live
+          before posting. If a revision removes what the thread is anchored on,
+          move the thread in the reply that reports it with `--section <id>` (narrowed
+          by `--quote` or `--part` if needed), or `--detach` it if its subject has
+          left the page. Add `--awaits` only if your reply's prose asks the reader
+          something. Your reply renders as Markdown, so show code or markup in a
+          fenced block.
       events:
         - kind: comment
           author: user

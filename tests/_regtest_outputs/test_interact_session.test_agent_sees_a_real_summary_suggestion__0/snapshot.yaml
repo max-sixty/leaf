@@ -81,13 +81,17 @@ delivery:
           opening words.
         h3: >-
           Answer with `leaf reply <page> --for <event-id>`, or with your final message
-          on a host that sends it as the reply. `leaf reply` checks any page edit
-          and makes it live before posting, so revise the page first if the event
-          calls for it. If that revision removes what the thread is anchored on,
-          move the thread in the same reply with `--section <id>` (narrowed by `--quote`
-          or `--part` if needed), or `--detach` it if its subject has left the page.
-          Add `--awaits` only if your reply's prose asks the reader something. Your
-          reply renders as Markdown, so show code or markup in a fenced block.
+          on a host that sends it as the reply. Where you answer with `leaf reply`,
+          reply before any other work, including the work this event asks for: give
+          the answer, or say what you are about to do and where the result will
+          appear. Once that work lands, report it with `leaf reply <page> --to <event-id>
+          --initiates`. `leaf reply` checks any saved page edit and makes it live
+          before posting. If a revision removes what the thread is anchored on,
+          move the thread in the reply that reports it with `--section <id>` (narrowed
+          by `--quote` or `--part` if needed), or `--detach` it if its subject has
+          left the page. Add `--awaits` only if your reply's prose asks the reader
+          something. Your reply renders as Markdown, so show code or markup in a
+          fenced block.
       events:
         - kind: reply
           author: user

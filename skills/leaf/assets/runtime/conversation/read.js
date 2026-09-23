@@ -342,7 +342,7 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
         firstUnreadBtn.textContent = `Unread ${count}`;
         firstUnreadBtn.setAttribute(
           "aria-label",
-          `${count} unread messages. Go to first unread message`,
+          `${count} unread ${count === 1 ? "message" : "messages"}. Go to first unread message`,
         );
         scheduleScan();
       })
@@ -367,8 +367,6 @@ export function createReadAcknowledgement({ post, showThread, setUnreadThreadCou
     begin,
     abort,
     present,
-    scheduleScan,
-    scan,
     observeBody,
     forgetBody,
     markThread,

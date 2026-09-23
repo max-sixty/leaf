@@ -19,7 +19,7 @@ export function createEngagement({
 
   function midComposition() {
     const active = focused();
-    const replyDraft = replyBoxHasDraft(active) ?? null;
+    const replyDraft = replyBoxHasDraft(active);
     return (
       composerOpen ||
       Boolean(pageComposerDrawing()) ||

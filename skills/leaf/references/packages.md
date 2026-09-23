@@ -969,7 +969,7 @@ connection failure retains the last admitted collection. Bare reactions are abse
 a reaction that starts a conversation remains its root. `done` contains the admitted,
 unwithdrawn page approvals shown in the panel.
 
-Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `anchor`, `detached_from`,
+Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `unreadCount`, `anchor`, `detached_from`,
 `resolved`, `settling`, `awaits_agent`, `awaits_reader`, `attention`, `workflows`,
 `seat`, and `summaries`. `attention` is `null` or names `needs_reader`/`waiting`, its
 reason, and the workflow supplying its detail. A concrete reader Ask takes precedence
@@ -987,6 +987,7 @@ admission of a pending gesture; `root.id` and message `id` identify the current 
 or provisional record.
 
 Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts,
+whether the reader has yet to read them (`unread`, counted by the Thread's `unreadCount`),
 reaction tokens, and their exact-input `workflows` when work is bound to that message
 or to a widget in its frozen authored body.
 A workflow carries its subject and input identities, stage, typed activity, condition,

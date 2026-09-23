@@ -126,7 +126,7 @@ export function keepsHidden(node, hidden) {
 }
 
 // The reader's hand on a widget, in the layer's own word: a drag the log has not taken
-// yet. The class is half of keyboard/page.js's `unaccountedGesture`, so taking it up or
+// yet. The class is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's `z` row — a row no widget declares, and therefore the one
 // no widget would think to repaint. So the paint is owed here, where the class is
 // written, rather than by whoever remembers. Coalesced to a frame like every paint, which

@@ -206,7 +206,8 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     page.locator(".lf-thread[open] .lf-compose textarea").fill("A short follow-up.")
     assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
-    at_end = threads.evaluate("el => el.scrollTop")
+    threads.evaluate("el => el.scrollTop -= 40")
+    near_end = threads.evaluate("el => el.scrollTop")
 
     newest = events_model.append_event(
         serve.page_dir,
@@ -225,9 +226,9 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     expect(message).to_be_visible()
     page.wait_for_function(
         "before => document.querySelector('.lf-threads').scrollTop > before",
-        arg=at_end,
+        arg=near_end,
     )
-    assert threads.evaluate("el => el.scrollTop") > at_end
+    assert threads.evaluate("el => el.scrollTop") > near_end
     page.wait_for_function(
         """id => {
           const list = document.querySelector('.lf-threads');
@@ -239,36 +240,35 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
         arg=newest["id"],
     )
 
-    threads.evaluate("el => el.scrollTop = el.scrollHeight")
-    threads.evaluate("el => el.scrollTop -= 40")
-    before_growth = threads.evaluate("el => el.scrollTop")
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "message": newest["id"],
-            "text": "The answer grows while the reader is following it. " * 120,
-        },
-    )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
-    page.wait_for_function(
-        "before => document.querySelector('.lf-threads').scrollTop > before",
-        arg=before_growth,
-    )
-    page.wait_for_function(
-        """id => {
-          const list = document.querySelector('.lf-threads');
-          const message = list.querySelector(`[data-mid="${id}"]`);
-          const bottom = list.getBoundingClientRect().bottom -
-            parseFloat(getComputedStyle(list).scrollPaddingBottom);
-          return Math.abs(message.getBoundingClientRect().bottom - bottom) <= 2;
-        }""",
-        arg=newest["id"],
-    )
+    for length in (20, 40, 120):
+        before_growth = threads.evaluate("el => el.scrollTop")
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "edit",
+                "author": "agent",
+                "agent": "Codex",
+                "message": newest["id"],
+                "text": "The answer grows while the reader is following it. " * length,
+            },
+        )
+        page.evaluate(
+            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+        )
+        page.wait_for_function(
+            "before => document.querySelector('.lf-threads').scrollTop > before",
+            arg=before_growth,
+        )
+        page.wait_for_function(
+            """id => {
+              const list = document.querySelector('.lf-threads');
+              const message = list.querySelector(`[data-mid="${id}"]`);
+              const bottom = list.getBoundingClientRect().bottom -
+                parseFloat(getComputedStyle(list).scrollPaddingBottom);
+              return Math.abs(message.getBoundingClientRect().bottom - bottom) <= 2;
+            }""",
+            arg=newest["id"],
+        )
 
     threads.evaluate("el => el.scrollTop -= 160")
     earlier_place = threads.evaluate("el => el.scrollTop")
@@ -335,6 +335,68 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
     assert last_selected.evaluate(
         "el => el.getBoundingClientRect().top"
     ) == pytest.approx(before, abs=2)
+
+
+def test_incoming_reply_follows_a_selected_thread_before_later_cards(browser, serve):
+    url = serve(LONG_PAGE)
+    selected = panel_comment(serve.page_dir, "The conversation I am reading.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": f"Selected answer {index}. " * 5,
+            },
+        )
+    for index in range(4):
+        panel_comment(serve.page_dir, f"A later conversation {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{selected}"]')
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    card.locator(".lf-msg").last.evaluate(
+        "el => el.scrollIntoView({block: 'end', behavior: 'instant'})"
+    )
+    threads = page.locator(".lf-threads")
+    before = threads.evaluate("el => el.scrollTop")
+    assert (
+        threads.evaluate("el => el.scrollHeight - el.clientHeight - el.scrollTop") > 80
+    )
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": selected,
+            "text": "This new answer belongs to the selected conversation. " * 5,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before",
+        arg=before,
+    )
+    assert card.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ) == pytest.approx(
+        threads.evaluate(
+            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+        ),
+        abs=2,
+    )
 
 
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):

@@ -7,7 +7,7 @@
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
    A new agent turn, or growth of the last one, follows only while that conversation's
-   previous last message is visible near the end of the list. Reading earlier turns
+   previous last message is visible near the bottom of the panel. Reading earlier turns
    keeps the place hold, and a reply in another thread does not move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
@@ -63,7 +63,7 @@
 import { scrollBehavior } from "../motion.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
 import { placeKeeper } from "../user-place.js";
-import { PINNED, declareCoverRoom, visibleBand } from "../geometry.js";
+import { PINNED, declareCoverRoom, landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
 import { conversational, threadKey } from "./model.js";
 import { ago } from "../presence.js";
@@ -180,12 +180,10 @@ function incomingAtLatest(reading, panelIsOpen) {
         ? `.lf-msg[data-attempt="${CSS.escape(latest.attempt)}"]`
         : `.lf-msg[data-mid="${CSS.escape(latest.id)}"]`,
     );
-  const band = visibleBand(threadsBox);
+  const band = landingBand(threadsBox);
   if (!node || !band) return null;
   const box = node.getBoundingClientRect();
-  const unseen =
-    threadsBox.scrollHeight - threadsBox.clientHeight - threadsBox.scrollTop;
-  if (unseen > 80 || box.top > band.bottom || box.bottom < band.top) return null;
+  if (box.bottom - band.bottom > 80 || box.bottom < band.top) return null;
   return {
     id: incoming.at(-1)?.id ?? nextLatest.id,
     top: threadsBox.scrollTop,

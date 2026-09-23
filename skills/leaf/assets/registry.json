@@ -162,6 +162,16 @@
         },
         {
           "when": {
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
+        },
+        {
+          "when": {
             "required": [
               "token"
             ]
@@ -179,6 +189,16 @@
             }
           },
           "text": "The reader answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages. Reply with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply; `leaf reply` checks any page edit and makes it live before posting. Add `--awaits` only if your reply's prose asks the reader something. Finishing the requested work is not a reason to `leaf resolve` the thread; the reader usually closes it. Your reply renders as Markdown, so show code or markup in a fenced block."
+        },
+        {
+          "when": {
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
         },
         {
           "when": {

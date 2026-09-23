@@ -4431,7 +4431,9 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         [batch["handling"][ref] for ref in event["handling"]]
         for event in batch["events"]
     ] == [[clause["text"] for clause in clauses] for clauses in expected]
-    assert len(batch["handling"]) == 2
+    assert set(batch["handling"].values()) == {
+        clause["text"] for clauses in expected for clause in clauses
+    }
     assert delivery_model.read_delivery(payload["id"]) == payload
 
 

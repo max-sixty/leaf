@@ -3189,6 +3189,71 @@ def test_a_page_fault_is_recorded_where_an_operator_reads_it(
     }
 
 
+def test_a_child_page_fault_is_recorded_like_the_page_it_was_opened_from(
+    page_dir, tmp_path, monkeypatch, capsys
+):
+    """A specimen is a page, and its 500 is as unreadable as any other page's.
+
+    The kernel builds the child endpoint itself, so a host that keeps a copy of its
+    faults only keeps it for the routes it built the parent for unless the child is
+    told where that copy goes. The record names the address the browser asked at,
+    which is the parent's, because that is the request the operator is looking for.
+    """
+    source = (page_dir / "index.html").read_text()
+    template = (
+        '<template id="practice" data-specimen><h1>Practice</h1>'
+        '<p id="child-text">A private child page.</p></template>'
+    )
+    (page_dir / "index.html").write_text(
+        source.replace("</main>", template + "</main>")
+    )
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("document.body.dataset.site = 'example';\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHost())
+    )
+    origin = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+    def faulting_state(*_args, **_kwargs):
+        raise RuntimeError("the child projection could not be read")
+
+    with running_http_server(httpd):
+        parent = f"{origin}/examples/decision/"
+        state = json.loads(get(f"{parent}api/state")[0])
+        child, _ = post(
+            f"{parent}api/specimens",
+            {"template": "practice"},
+            {"Leaf-Layer": state["layer"]["generation"]},
+        )
+        capsys.readouterr()
+        monkeypatch.setattr(served_page, "full_state", faulting_state)
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            get(f"{origin}{child['url']}api/state")
+        assert refused.value.code == 500
+        told = json.loads(refused.value.read())
+
+    assert told == {"error": "RuntimeError: the child projection could not be read"}
+    [recorded] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if '"page_fault"' in line
+    ]
+    specimen = child["url"].removeprefix("/examples/decision")
+    assert recorded == {
+        "component": "leaf-agent",
+        "event": "page_fault",
+        "route": "/examples/decision",
+        "method": "GET",
+        "path": f"{specimen}api/state",
+        "error": "RuntimeError",
+        "detail": "the child projection could not be read",
+    }
+
+
 @pytest.mark.parametrize("published_revision", [False, True])
 def test_website_specimens_serve_private_pages_without_starting_an_agent(
     page_dir, tmp_path, published_revision

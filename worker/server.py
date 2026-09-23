@@ -1344,8 +1344,7 @@ class WebsitePageEndpoint(PageEndpoint):
             route=self.page_root or "/",
             method=self.method,
             path=self.path,
-            error=type(error).__name__,
-            detail=bounded_detail(str(error)),
+            **fault_fields(error),
         )
 
     def _delivery_headers(self) -> dict[str, str]:

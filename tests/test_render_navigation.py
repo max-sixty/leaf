@@ -367,7 +367,8 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     history = preview.locator(".lf-margin-preview-list")
     history.evaluate("el => el.scrollTop = el.scrollHeight")
     assert history.evaluate("el => el.scrollTop") > 0
-    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")  # onto the passage, the card beside it
+    page.keyboard.press("Escape")  # letting go of the passage takes the card
     expect(preview).to_be_hidden()
     page.keyboard.press("t")
     expect(preview).to_be_visible()
@@ -2691,17 +2692,17 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
+def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     """Escape removes the reader's current layer of conversation or disclosure.
 
     From the page, `t` opens the margin's conversation view to reach the thread. However
-    many threads the walk then visits, one Escape dismisses the view and hands back the
-    place the press displaced — the heading the reader stood on, or the page — and never
-    the rail control the view hung from, which the pointer's close lands on because the
-    pointer pressed it.
+    many threads the walk then visits, Escape leaves the thread for the element it is
+    about, with the view still beside it, and then lets go of both. It never hands back
+    the heading the walk left, since Escape unwinds the hierarchy rather than the
+    travel, nor the rail control the view hung from, which the pointer's close lands on
+    because the pointer pressed it.
 
-    A panel thread returns through the whole panel before the page.
-    The page's margin view remains one dismissible surface too.
+    A panel thread returns through the whole panel before the page, the same depth.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -2732,12 +2733,16 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
     ]
     line = page.locator(".lf-shortcut-bar")
 
-    # From the page: the whole walk is one rung.
+    # From the page: the walk is lateral, and its way out is the thread's element.
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
-    expect(line).to_contain_text("dismiss conversation")
+    expect(line).to_contain_text("back to page")
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#p2")).to_be_focused()
+    expect(threads[1]).to_be_visible()
+    expect(line).to_contain_text("let go")
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -2745,14 +2750,15 @@ def test_the_way_out_of_a_thread_walk_is_as_deep_as_the_way_in(browser, serve):
         "() => document.activeElement.closest('.lf-margin-projection')"
     )
 
-    # From a heading the reader stood on, the same one press out: the walk is lateral,
-    # so what it takes off is the card it put up, and the landing is the page rather
-    # than the heading the walk left — Escape closes surfaces, it does not rewind travel.
+    # From a heading the reader stood on, the same way out: the landing is the element
+    # the thread is about rather than the heading the walk left.
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#p")).to_be_focused()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -2897,7 +2903,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
 
     The panel and the margin's conversation view each have one way out, and a click, a
     keyboard activation of the same control and a walk that arrived from somewhere else
-    all take it. Where that way out ends is the page the layer was over: the toggle, the
+    all take it. Where that way out ends is what holds the conversation — the whole
+    panel, or the element a card's thread is about — and then the page: the toggle, the
     margin marker and the page mark are Leaf's own controls rather than places the reader
     was reading, so none of them is a landing, and a reader who reached one by Tab or by
     pointer is owed no return to it.
@@ -2942,36 +2949,39 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(panel).to_be_hidden()
     assert page.evaluate(on_body)
 
-    # A margin marker by pointer, a walk on to the next thread, and one Escape to the
-    # page: the card is one level, and the marker it hangs from is not a landing.
+    def out_through(element):
+        """The card's thread leaves onto its element, and letting go takes the card."""
+        page.keyboard.press("Escape")
+        expect(page.locator(element)).to_be_focused()
+        expect(preview).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(preview).to_be_hidden()
+        assert page.evaluate(on_body)
+
+    # A margin marker by pointer, a walk on to the next thread, and out through the
+    # element that thread is about: the marker the card hangs from is not a landing.
     marker.click()
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
-    expect(line).to_contain_text("dismiss conversation")
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate(on_body)
+    expect(line).to_contain_text("back to page")
+    out_through("#p2")
 
     # The mark on the page is the same door and the same way out.
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate(on_body)
+    out_through("#p")
 
-    # And from the keyboard, standing on the marker itself: the same one press out, to
-    # the same place. The marker is Leaf's own control beside the words it marks, so it
-    # is where the reader came from rather than where they are put back.
+    # And from the keyboard, standing on the marker itself: the same way out, to the
+    # same place. The marker is Leaf's own control beside the words it marks, so it is
+    # where the reader came from rather than where they are put back.
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
     expect(threads[0]).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate(on_body)
+    out_through("#p")
 
     toggle.focus()
     page.keyboard.press("Enter")
@@ -3510,7 +3520,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(reply).to_be_hidden()
     expect(thread.get_by_role("button", name="Reply", exact=True)).to_be_visible()
     wait_standing(page, "bold text")
-    assert "dismiss conversation" in shortcut_bar_text(page)
+    assert "back to page" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -3519,6 +3529,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
+    page.keyboard.press("Escape")  # onto the element the thread is about
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("t")
@@ -3538,6 +3550,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")  # onto the element the thread is about
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("t")
@@ -3549,6 +3563,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(second.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     expect(second).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")  # onto the element the thread is about
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -3564,6 +3580,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     # the panel's long-thread landing guarantees.
     page.keyboard.press("Escape")
     expect(thread).to_be_focused()
+    page.keyboard.press("Escape")  # onto the element the thread is about
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
@@ -3620,39 +3638,6 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"
         )
-
-
-def test_a_late_popover_toggle_keeps_the_frame_entered_from_it(browser, serve):
-    """A native `toggle` is queued rather than synchronous, so an opening's last
-    declaration can land after a command entered from that layer has pushed its return
-    frame. The late declaration names a layer the stack already holds, so it leaves that
-    entry where it sits: Escape gives back the card the reply was opened from, rather
-    than dismissing the surface the reader is standing in."""
-    url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
-    page = open_page(browser, url)
-    first_id = page.locator(
-        ".lf-threads > .lf-thread:not([hidden])"
-    ).first.get_attribute("data-id")
-    thread = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{first_id}"]'
-    )
-    reply = thread.locator("textarea")
-
-    page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(thread).to_be_focused()
-    wait_standing(page, "bold text")
-    page.keyboard.press("Enter")
-    expect(reply).to_be_focused()
-
-    # The opening's own queued event, delivered a frame late — after Enter pushed the
-    # reply's return frame.
-    page.evaluate(
-        """() => document.querySelector('.lf-margin-preview').dispatchEvent(
-             new ToggleEvent('toggle', {oldState: 'closed', newState: 'open'}))"""
-    )
-    page.keyboard.press("Escape")
-    expect(thread).to_be_focused()
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
 
 
 def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
@@ -5068,9 +5053,11 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
     expect(page.locator(".lf-margin-thread textarea").first).to_be_hidden()
+    page.keyboard.press("Escape")  # onto the element the thread is about
+    expect(page.locator("#p1")).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("Escape")
 
     # The hyperlinks, from the head of the page where both are on screen. A hint is centred on the
     # corner a member starts at, which for an inline that wraps is the corner of its first
@@ -7098,26 +7085,27 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # The fast rung: t opens the inline thread, and Esc from it is one press out.
+    # t opens the inline thread, whose way out is the element it is about.
     # Every rung earns a press here because Esc is the only keyboard collapse.
+    card_thread = page.locator(".lf-margin-preview .lf-conversation-thread")
     page.keyboard.press("t")
-    expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
-    expect(line).to_contain_text("dismiss conversation")
-    # The global reference enters a modal and the native transition dismisses the
-    # contextual card. Its way out no longer belongs to the remaining scene.
+    expect(card_thread).to_be_focused()
+    expect(line).to_contain_text("back to page")
+    # The global reference is a modal over everything; the card is where the reader
+    # stands rather than a layer of its own, so it waits under the modal, the reference
+    # names its way out among the scene's, and the reader comes back to it.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     way_out = help_el.locator('tr[data-lf-command="margin.back"]')
-    expect(way_out).to_have_count(0)
-    backing_out = help_el.locator('tr[data-lf-command="navigation.back"]')
-    expect(backing_out).to_have_count(1)
-    expect(backing_out).to_contain_text("Back out onto the page")
-    # Closing the reference and its shelf does not reconstruct the dismissed card.
+    expect(way_out).to_contain_text("page element this conversation is about")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
+    expect(card_thread).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 

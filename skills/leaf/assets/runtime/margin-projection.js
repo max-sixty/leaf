@@ -32,6 +32,14 @@
    complete inline conversation view; the Threads panel remains the complete index and
    takes over when already open.
 
+   The card is margin chrome, not a native layer: it shows the threads of the target the
+   reader stands at, from the target, its cluster, or the card itself, so standing on an
+   element and reading its conversation are one place rather than two layers contending
+   for focus and presses. Keyboard arrival at a commented element puts the card up
+   beside it; standing elsewhere on the page, letting go, or pressing outside the card,
+   its target, and its cluster takes it down (`followStanding`). Escape from inside the
+   card lands on its target.
+
    Placing the card changes its geometry and nothing inside it. The reader's place in
    its transcript is the list's own scroll, which the browser holds through reflow; only
    a gesture moves it — a landing through `revealConversation`, a send revealing the
@@ -113,7 +121,13 @@ import { chromeRoot } from "./chrome.js";
 import { versionBtn } from "./version-chooser.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
-import { blockAt, closestAcross, elementById, inChrome } from "./passages.js";
+import {
+  blockAt,
+  closestAcross,
+  containsAcross,
+  elementById,
+  inChrome,
+} from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence } from "./updates.js";
@@ -323,7 +337,7 @@ export function createMarginProjection({
   );
 
   function changePosture(stands) {
-    if (!stands && preview.matches(":popover-open")) closePreview();
+    if (!stands && previewOpen()) closePreview();
     // Both orderings answer: where the fixup has not landed the live reading holds, and
     // where it has, the remembered one does. Requiring body of the remembered reading
     // bounds the handoff to the hide — a reader who left the margin some other way,
@@ -335,10 +349,15 @@ export function createMarginProjection({
       requestAnimationFrame(() => focusMapControl());
     schedulePostureRender();
   }
+  // The card is the margin's, as the cluster it hangs from is, rather than a layer over
+  // the page: a top-layer popover made every press on the page a light dismissal and
+  // tiered the keyboard over it, so standing on the passage it discusses took it down.
+  // It shows while the reader stands at its target (`followStanding`).
   const preview = el("aside", "lf-ui lf-margin-preview");
   preview.id = "lf-margin-preview";
-  preview.setAttribute("popover", "auto");
+  preview.hidden = true;
   preview.setAttribute("role", "dialog");
+  const previewOpen = () => !preview.hidden;
   const previewHead = el("div", "lf-margin-preview-head");
   const previewClose = el(
     "button",
@@ -484,7 +503,7 @@ export function createMarginProjection({
         if (
           epoch !== threadTransitionEpoch ||
           previewEntry?.key !== entry.key ||
-          !preview.matches(":popover-open")
+          !previewOpen()
         ) {
           resolve(false);
           return;
@@ -524,7 +543,6 @@ export function createMarginProjection({
   let previewThreadItem = null;
   let previewMarginEntry = null;
   let transferThreadFocus = false;
-  let previewShowing = false;
   let pinnedKey = null;
   let forcedInlineKey = null;
   let forcedInlineOptionsKey = null;
@@ -623,7 +641,7 @@ export function createMarginProjection({
   const threadPreviewPositioned = () =>
     new Promise((resolve) => previewPositionWaiters.push(resolve));
   // Placement is synchronous, so a card that can be placed is placed now. One that
-  // cannot yet — its popover not open this rendering turn, its owner not connected, no
+  // cannot yet — its owner not connected, no
   // room — is answered by the placement a later frame lands, or by the close that
   // abandons it.
   const placedThreadPreview = () =>
@@ -700,7 +718,7 @@ export function createMarginProjection({
 
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (
-      !preview.matches(":popover-open") ||
+      !previewOpen() ||
       !preview.hasAttribute("data-lf-thread") ||
       !previewMarginEntry?.isConnected
     )
@@ -723,6 +741,7 @@ export function createMarginProjection({
     preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
     const geometry = threadCardGeometry({
       cluster,
+      target: targetFor(previewEntry)?.getBoundingClientRect() ?? null,
       boundary,
       gap: CARD_GAP,
       minWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
@@ -2181,10 +2200,13 @@ export function createMarginProjection({
     const active = focused();
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
+    // A reader standing on the card's target itself already has its ring there; the
+    // trace would paint over the one mark that says where they stand.
+    const onTarget = previewOpen() && active && active === targetFor(previewEntry);
     const source =
       pointerHost ??
       focusedHost ??
-      (preview.contains(active) || preview.matches(":popover-open")
+      ((preview.contains(active) || previewOpen()) && !onTarget
         ? hosts.get(previewEntry?.key)
         : null);
     const entry = pageInventory.find(
@@ -2201,39 +2223,14 @@ export function createMarginProjection({
     highlight(drawingOnly ? null : (targetFor(entry) ?? null));
   }
 
-  function showPreview(entry, button, retry = true, threadItem = null) {
+  function showPreview(entry, button, threadItem = null) {
     if (!entry || designModeActive()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
     transferThreadCard(button);
     buildThreadCard(entry, threadItem);
-    // The open pseudo-class is not observable until the browser's show operation
-    // completes, and another auto popover may still be closing in this rendering turn.
-    if (!preview.matches(":popover-open") && !previewShowing) {
-      previewShowing = true;
-      try {
-        // The card remains an ordinary popover rather than an implicit invoker target so
-        // its close control and conversation keep their established order in the shared
-        // chrome layer.
-        preview.showPopover();
-      } catch (error) {
-        // Chromium also refuses a second popover operation in the same rendering turn,
-        // even when it belongs to another surface. Keep the requested marker current and
-        // try the show once that turn has settled; a focus move meanwhile cancels it, and
-        // focus remains a usable Page Map arrival if the browser still refuses the preview.
-        if (!(error instanceof DOMException) || error.name !== "InvalidStateError")
-          throw error;
-        if (retry)
-          requestAnimationFrame(() => {
-            if (previewMarginEntry === button && button.isConnected)
-              showPreview(entry, button, false);
-          });
-        else answerThreadPreviewPosition(false);
-      } finally {
-        previewShowing = false;
-      }
-    }
+    preview.hidden = false;
     const positioned = placedThreadPreview();
     refreshHighlight();
     for (const row of rows.values())
@@ -2268,6 +2265,9 @@ export function createMarginProjection({
   function closePreview(returnFocus = false) {
     clearThreadTransition();
     const button = previewMarginEntry;
+    // Hiding the card takes focus inside it to the body, so a close the reader did not
+    // aim at the card itself — a scroll, a mode, a rerender — lands them instead.
+    const heldInside = preview.contains(focused());
     // A cluster the walk unfolded to hang the view from folds with the view; one the
     // reader unfolded stays, and is its own rung.
     const forcedOptionsKey = forcedInlineOptionsKey;
@@ -2280,7 +2280,11 @@ export function createMarginProjection({
     previewFocusPending = null;
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
-    if (preview.matches(":popover-open")) preview.hidePopover();
+    if (previewOpen()) {
+      for (const reply of previewList.querySelectorAll("textarea"))
+        reply.lfCollapseReply?.();
+      preview.hidden = true;
+    }
     if (forcedOptionsKey && expandedOptionsKey === forcedOptionsKey)
       setOptionsOpen(null, false);
     refreshHighlight();
@@ -2292,7 +2296,7 @@ export function createMarginProjection({
       if (button?.isConnected && button.checkVisibility())
         button.focus({ preventScroll: true });
       else if (button?.lfEntry) focusMapControl(button.lfEntry);
-    }
+    } else if (heldInside) letGo();
     paintKeys();
   }
 
@@ -2302,25 +2306,59 @@ export function createMarginProjection({
   // pointer, hands focus to the margin entry the view hangs from, since that is where
   // the pointer is.
   const inlineThreadView = {
-    showing: () =>
-      preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
+    showing: () => previewOpen() && preview.hasAttribute("data-lf-thread"),
     dismiss: () => closePreview(),
   };
 
-  // The card, which is a native layer the reader is either inside or standing at the
-  // entry of. It is hoisted into the chrome while anchored to a passage, so it counts as
-  // chrome for which surface holds focus and as page-anchored for where the reader
-  // lands, and one press closes it.
+  // The card, which the reader is either inside or standing at the entry of. It is
+  // hoisted into the chrome while anchored to a target, so it counts as chrome for which
+  // surface holds focus and as page-anchored for where the reader lands.
+  //
+  // Inside it, the thread's parent is the target it is about: the press steps out onto
+  // that target and the card stays up beside it, since the reader still stands there,
+  // and letting go of the target is the next press. From the entry it hangs from, the
+  // press takes the card down.
+  // A cluster the reader unfolded themselves and opened the card from is a level of
+  // their own under the card, and the card hands back to it instead (below).
+  const unfoldedUnder = () => {
+    const entry = previewMarginEntry?.lfEntry;
+    return Boolean(
+      entry &&
+      expandedOptionsKey === entry.key &&
+      expandedOptionsKey !== forcedInlineOptionsKey &&
+      optionsRung(),
+    );
+  };
+  const stepsOut = () => {
+    const target = targetFor(previewEntry);
+    return preview.contains(focused()) &&
+      !unfoldedUnder() &&
+      target?.isConnected &&
+      target.checkVisibility()
+      ? target
+      : null;
+  };
   function keyboardRung({ atFocus = true } = {}) {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
+    // A press on the target leaves the card up and the reader holding nothing, which
+    // is still standing at the card's target: the card is theirs to take down.
+    const nowhere = !active || active === document.body;
     if (
-      !preview.matches(":popover-open") ||
+      !previewOpen() ||
       (atFocus &&
+        !nowhere &&
         !preview.contains(active) &&
         !(previewMarginEntry && host?.contains(previewMarginEntry)))
     )
       return null;
+    if (stepsOut())
+      return {
+        root: preview,
+        does: "Return to the page element this conversation is about",
+        says: "back to page",
+        out: () => focusDestination(stepsOut()),
+      };
     return {
       root: preview,
       does: "Dismiss the conversation view",
@@ -2340,27 +2378,10 @@ export function createMarginProjection({
       // press a fold that teleports focus somewhere third. So the question goes to
       // `optionsRung`, the step that would actually answer next, which also declines
       // for a host that has gone or an entry whose own state holds its actions open.
-      // Hiding the popover hands focus back to the control that opened it, which after
-      // a walk is a control in the cluster the card has since left. That return is
-      // transit rather than the reader arriving, and the landing below moves them on
-      // from it in the same press, so the cluster is told not to read it as their
-      // leaving — otherwise one press would take the card and the cluster together.
       out: () => {
-        const entry = previewMarginEntry?.lfEntry;
-        const standing = Boolean(
-          entry &&
-          expandedOptionsKey === entry.key &&
-          expandedOptionsKey !== forcedInlineOptionsKey &&
-          optionsRung(),
-        );
-        const wasSettlingOptionsFocus = settlingOptionsFocus;
-        settlingOptionsFocus = true;
-        try {
-          closePreview(standing);
-          if (!standing) letGo();
-        } finally {
-          settlingOptionsFocus = wasSettlingOptionsFocus;
-        }
+        const standing = unfoldedUnder();
+        closePreview(standing);
+        if (!standing) letGo();
       },
     };
   }
@@ -2381,6 +2402,8 @@ export function createMarginProjection({
     const host = hosts.get(expandedOptionsKey);
     if (!host?.lfEntry || host.lfEntry.key !== expandedOptionsKey) return null;
     if (entryEngaged(host.lfEntry)) return null;
+    // A cluster the walk unfolded to hang the card from is the card's, and folds with it.
+    if (expandedOptionsKey === forcedInlineOptionsKey) return null;
     return {
       root: host,
       does: "Fold the secondary page actions",
@@ -2390,9 +2413,8 @@ export function createMarginProjection({
   }
   pageRung("margin options", optionsRung);
 
-  // The card is a native layer over the page, so this scope stands ahead of the reaction
-  // and navigation modes, as the surface's old local listener did, without another
-  // keydown listener of its own.
+  // The card's way out stands ahead of the reaction and navigation modes, as the
+  // surface's old local listener did, without another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
     title: "In the Page Map",
@@ -2454,12 +2476,11 @@ export function createMarginProjection({
     const choice = threadReading(entry);
     if (!choice) return null;
     const previousForcedOptionsKey = forcedInlineOptionsKey;
-    const transfersPreview = preview.matches(":popover-open");
+    const transfersPreview = previewOpen();
     forcedInlineKey = entry.key;
     forcedInlineOptionsKey = null;
-    // Reuse an open card as the thread walk changes targets. Hiding and showing the same
-    // popover in one keyboard turn leaves its delayed close event free to clear the new
-    // owner's return route.
+    // Reuse an open card as the thread walk changes targets, so folding the cluster the
+    // last step unfolded does not take down the card the walk is carrying.
     if (transfersPreview) {
       previewEntry = entry;
       pinnedKey = entry.key;
@@ -2483,7 +2504,7 @@ export function createMarginProjection({
       return null;
     }
     pinnedKey = entry.key;
-    const initiallyPositioned = showPreview(entry, button, true, itemId);
+    const initiallyPositioned = showPreview(entry, button, itemId);
     const item = [...previewList.children].find(
       (candidate) => candidate.lfMarginItem === itemId,
     );
@@ -2568,6 +2589,93 @@ export function createMarginProjection({
     selectedReadingCarriers = selected;
   }
 
+  // ---------- the card goes where the reader stands ----------
+  // A thread belongs to the target it is about, so a reader stands at that target from
+  // any side of it: the target or anything inside it, its margin cluster, or the card
+  // showing its threads. The card shows the threads of the target the reader stands at,
+  // which is what lets both be up at once, and goes when they stand anywhere else on the
+  // page, let go, or press outside all three. The chrome at large — the banner, a tray —
+  // is where a reader works on the page rather than a place on it, and leaves the card.
+  //
+  // Arrival through the keyboard shows the card, as arrival through Tab unfolds a
+  // cluster; a pointer that lands on a control in a commented block asked for that
+  // control, and the mark and the marker are its way to the thread.
+  const threadIdOf = (entry) =>
+    sourceItem(threadReading(entry).items[0]).thread.root.id;
+  // A conversation seat already shows the thread where it stands on the page; a card
+  // beside it would be the same thread twice.
+  const seatedOnPage = (id) =>
+    [
+      ...document.querySelectorAll(
+        `.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
+      ),
+    ].some((seat) => !preview.contains(seat) && !panel.contains(seat));
+  // The innermost target holding the node whose threads the card would show.
+  const threadEntryAt = (node) => {
+    let standing = null;
+    for (const entry of pageInventory) {
+      const target = targetFor(entry);
+      if (!target || !threadReading(entry) || !containsAcross(target, node)) continue;
+      if (seatedOnPage(threadIdOf(entry))) continue;
+      if (!standing || containsAcross(targetFor(standing), target)) standing = entry;
+    }
+    return standing;
+  };
+  function followStanding() {
+    refreshHighlight();
+    const active = focused();
+    if (
+      !active ||
+      active === document.body ||
+      preview.contains(active) ||
+      designModeActive() ||
+      panelIsOpen()
+    )
+      return;
+    const host = closestAcross(active, "[data-lf-margin-for]");
+    if (host) {
+      if (previewOpen() && host.lfEntry?.key !== previewEntry?.key) closePreview();
+      return;
+    }
+    const entry = threadEntryAt(active);
+    if (!entry) {
+      if (previewOpen() && !inChrome(active)) closePreview();
+      return;
+    }
+    if (previewOpen() && previewEntry?.key === entry.key) return;
+    if (active.matches(":focus-visible")) openInlineThread(threadIdOf(entry));
+    else if (previewOpen()) closePreview();
+  }
+  // Letting go of a place on the page leaves the reader standing nowhere, which takes
+  // the card with it. Focus leaving the card or the chrome for nothing is the browser
+  // clearing a node rather than the reader moving, and a press answers for itself below:
+  // the focus its default action moves lands in the same task, so the press's decision
+  // stands for exactly that task.
+  let pressing = false;
+  function letGoOfStanding(event) {
+    const left = event.composedPath()[0];
+    if (!previewOpen() || pressing || event.relatedTarget) return;
+    if (inChrome(left) && !threadEntryAt(left)) return;
+    queueMicrotask(() => {
+      if (previewOpen() && (focused() ?? document.body) === document.body)
+        closePreview();
+    });
+  }
+  function pressAway(event) {
+    pressing = true;
+    setTimeout(() => (pressing = false));
+    if (!previewOpen()) return;
+    const path = event.composedPath();
+    const stands = [preview, hosts.get(previewEntry?.key), targetFor(previewEntry)];
+    if (stands.some((node) => node && path.includes(node))) return;
+    if (path.some(inRetainedContext)) return;
+    // The chrome at large is where the reader works rather than a place, as for focus;
+    // another target's cluster is that target.
+    const origin = path[0];
+    if (inChrome(origin) && !closestAcross(origin, "[data-lf-margin-for]")) return;
+    closePreview();
+  }
+
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
@@ -2579,7 +2687,7 @@ export function createMarginProjection({
     if (
       !pinnedKey ||
       previewEntry?.key !== pinnedKey ||
-      !preview.matches(":popover-open") ||
+      !previewOpen() ||
       !preview.hasAttribute("data-lf-thread")
     )
       return null;
@@ -2607,7 +2715,7 @@ export function createMarginProjection({
     if (!entry) return null;
     const standing = {
       entry: entry.key,
-      preview: preview.matches(":popover-open") ? { thread: previewThreadItem } : null,
+      preview: previewOpen() ? { thread: previewThreadItem } : null,
       focus:
         active === previewClose
           ? { kind: "preview-close" }
@@ -2630,7 +2738,7 @@ export function createMarginProjection({
       const button = threadMarginEntry(entry);
       if (!button?.isConnected) return false;
       pinnedKey = entry.key;
-      const positioned = showPreview(entry, button, true, standing.preview.thread);
+      const positioned = showPreview(entry, button, standing.preview.thread);
       if (standing.focus?.kind === "preview-close")
         deferThreadPreviewFocus(positioned, () => {
           if (previewEntry?.key === entry.key)
@@ -2663,28 +2771,6 @@ export function createMarginProjection({
     previewClose.onclick = () => closePreview(true);
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    preview.addEventListener("toggle", (event) => {
-      if (event.newState !== "closed") return;
-      for (const reply of previewList.querySelectorAll("textarea"))
-        reply.lfCollapseReply?.();
-      clearThreadTransition();
-      if (!previewEntry) return;
-      pinnedKey = null;
-      forcedInlineKey = null;
-      forcedInlineOptionsKey = null;
-      previewEntry = null;
-      previewThreadItem = null;
-      previewMarginEntry = null;
-      previewFocusPending = null;
-      answerThreadPreviewPosition(false);
-      resetThreadPreviewPosition();
-      refreshHighlight();
-      for (const row of rows.values())
-        syncReadingRelation(row, primaryReading(row.lfEntry));
-      for (const reading of readingMarginEntries.values())
-        syncReadingRelation(reading, reading.lfChoice);
-      paintKeys();
-    });
     watchProjection(document.body, renderMargin);
     document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", () => {
@@ -2693,6 +2779,11 @@ export function createMarginProjection({
     });
     for (const event of ["pointerover", "focusin"])
       document.addEventListener(event, scheduleMarginEntryLabels, { capture: true });
+    document.addEventListener("focusin", () => queueMicrotask(followStanding), {
+      capture: true,
+    });
+    document.addEventListener("focusout", letGoOfStanding, { capture: true });
+    document.addEventListener("pointerdown", pressAway, { capture: true });
     document.addEventListener(
       "pointerdown",
       (event) => {

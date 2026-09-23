@@ -48,9 +48,8 @@ export function createDesignMode({
   let designModeOn = false;
 
   function setDesignMode(on, { spoken = true } = {}) {
-    // A popover is in the browser's top layer, above every ordinary z-index. Design mode
-    // targets ordinary page and chrome paint, so retire that transient preview rather
-    // than promise an aim and composer that the platform must paint underneath it.
+    // Design mode reinterprets presses on the page and chrome as interface comments, so
+    // retire the thread card rather than leave a conversation up that no press can work.
     if (on) closePreview();
     designModeOn = on;
     document.body.toggleAttribute("data-lf-design-mode", on);

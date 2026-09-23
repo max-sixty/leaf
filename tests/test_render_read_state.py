@@ -460,7 +460,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
         if event["author"] == "user"
-    ] == ["resolve"]
+    ] == ["comment", "resolve"]
     assert not any(
         "Couldn't send" in text
         for text in page.locator(".lf-notice").all_text_contents()
@@ -475,6 +475,7 @@ def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
     """Content inside a message that scrolls on its own, like a long code line, is part
     of what was shown; it does not hold the message unread."""
     url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "The earlier reader thread.")
     root = panel_comment(
         serve.page_dir,
         "Run this:\n\n```\n" + "leaf page state --json " * 40 + "\n```",

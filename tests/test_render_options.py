@@ -515,23 +515,23 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
     # The controls remain in document order: the other mark, then the text box. It keeps
-    # native newlines on both forms of Enter and exposes the shared submit sequence.
+    # Shift+Enter keeps a native newline; Enter submits the option.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
     page.keyboard.press("Tab")
     expect(box).to_be_focused()
     box.fill("Keep both layers")
-    page.keyboard.press("Enter")
+    page.keyboard.press("Shift+Enter")
     page.keyboard.type("Keep them together")
     page.keyboard.press("Shift+Enter")
     page.keyboard.type("Preserve both histories")
     expect(box).to_have_value(
         "Keep both layers\nKeep them together\nPreserve both histories"
     )
-    expect(box).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
     assert "add and select option" in shortcut_bar_text(page)
-    page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
     expect(added).to_have_css("white-space", "pre-wrap")
@@ -820,7 +820,7 @@ def test_joined_option_cells_share_edges_and_text_column(browser, serve, group):
     words off the frame at the column the group reserves, so one that opens on the frame
     hangs out of the column its own neighbours share.
 
-    Here rather than in the render gate, on the line tests/CLAUDE.md draws: a property
+    Here rather than in the render gate, on the line tests/AGENTS.md draws: a property
     caused by a particular page belongs to the gate, which must report it to that page's
     author, and one identical for every valid page belongs to the suite. A joined
     control is leaf's own theme — no authored page can make it wrong. A reading in the
@@ -2001,7 +2001,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
         # sent behind it — reaches the page after the second pick is painted. Held
         # rather than fetched here: a handler that goes to the server itself is still
         # inside that call while the clicks below run, and the release would reach for
-        # a route the list hasn't got (tests/CLAUDE.md, on releasing a hold).
+        # a route the list hasn't got (tests/AGENTS.md, on releasing a hold).
         if held:
             sent_behind.append(route)
             route.continue_()
@@ -2024,7 +2024,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     # send finds no handler, goes out unrecorded, and `sent_behind` reads empty. The
     # ledger cannot say when that is — `sends` is counted at the door before `fetch` is
     # called, so `sends == 2` is true before the request the route would pause even
-    # exists. Wait on the list the assertion reads instead (tests/CLAUDE.md, on holding
+    # exists. Wait on the list the assertion reads instead (tests/AGENTS.md, on holding
     # rather than the corresponding Traffic edge).
     holding(page, sent_behind, 1, "the second pick sent behind the released first")
     expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(2)

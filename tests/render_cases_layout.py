@@ -585,7 +585,7 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `select`'s reason (tests/CLAUDE.md): a press on a fractional point
+    Whole pixels, per `select`'s reason (tests/AGENTS.md): a press on a fractional point
     is a press the browser is free to round somewhere else. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region
@@ -692,7 +692,7 @@ NEIGHBOUR = (
 # What this sweep presses is narrower, and both exclusions are about the press landing
 # rather than about the control. A <select> opens a native popup the page cannot see and
 # the next click closes instead of pressing — which is how this sweep first passed while
-# pressing nothing at all, the shape of vacuous pass CLAUDE.md is about. A link is a
+# pressing nothing at all, the shape of vacuous pass AGENTS.md is about. A link is a
 # user's control and its press is a scroll, so it belongs to the set above and has
 # nothing here to disturb.
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"

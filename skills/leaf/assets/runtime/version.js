@@ -61,7 +61,7 @@ import { captureCarry, restoreCarry } from "./carry.js";
 import { retainReaderIntent } from "./reader-intent.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
-import { clippedContents, shownBox } from "./geometry.js";
+import { clippedContents, landingInsets, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -1550,7 +1550,7 @@ export function createVersionController({
   function captureRegion(region = null, blocks = textBlocks()) {
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
-    const inset = Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const inset = landingInsets(box).top;
     const landmarkTop = (top, block, blockTop = top) =>
       block?.matches(HEADING) ? top + Math.max(0, inset - blockTop) : top;
     const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };

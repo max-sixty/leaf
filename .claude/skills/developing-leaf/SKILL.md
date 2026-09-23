@@ -16,10 +16,10 @@ those concepts. It is Leaf's canonical implementation vocabulary.
 
 ## Read the owning contract
 
-Read the scoped `CLAUDE.md` for every implementation area the change reaches and the
+Read the scoped `AGENTS.md` for every implementation area the change reaches and the
 module header for each module changed. For a contract shared across modules or runtimes,
 read the sidecar beside the Python code that owns the boundary;
-`<root>/skills/leaf/scripts/CLAUDE.md` lists them under "Protocol references".
+`<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
 
 This skill is maintainer workflow, not a second home for product specifications. Agents
 using Leaf read `<root>/skills/leaf/SKILL.md`. Package authors read the public contract

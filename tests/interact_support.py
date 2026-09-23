@@ -987,7 +987,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     Both roots are the run's own: `tmp_path`, and the state home as
     `isolated_session`'s value. Read from the environment here instead, at setup
     or after the yield, the root is the developer's `~/.local/state/leaf`, and
-    this sweep stopped every server standing there (tests/CLAUDE.md, "A process
+    this sweep stopped every server standing there (tests/AGENTS.md, "A process
     the suite starts ends with the run")."""
     yield
     while HELD_LEASES:
@@ -1248,7 +1248,7 @@ def standing_server(spawn, sessionless):
 
     Standing is the serve nothing reaps: it declines the claim, so no watcher
     starts, and a run killed while one is up leaves a process only a person can
-    stop (tests/CLAUDE.md, "A process the suite starts ends with the run"). A
+    stop (tests/AGENTS.md, "A process the suite starts ends with the run"). A
     child of the worker is as close as the suite gets."""
 
     def start(page_dir):

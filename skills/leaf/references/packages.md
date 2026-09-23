@@ -512,10 +512,12 @@ same widget method that handles projected state and does not send a gesture or w
 event. The Swipe package's deck module is the worked example.
 
 A widget-owned composition box uses `wireInput()` from `/runtime/widget-api.js`.
-It keeps Enter as a newline and registers Mod+Enter for the contextual action, alongside
-the shared draft persistence, busy state, and shortcut projections. A direct editor that
-needs more commands, such as Save and Cancel, registers those rows on its textarea but
-keeps the same Enter and Mod+Enter meanings.
+It registers Enter for the contextual action on physical keyboards and leaves
+Shift+Enter as a newline. On touch keyboards, Enter stays a newline and the visible
+control submits; Mod+Enter is also available where a modifier key exists. The helper
+also owns shared draft persistence, busy state, and shortcut projections. A direct
+editor that needs more commands, such as Save and Cancel, registers those rows on its
+textarea with the same text-entry meanings.
 
 The call returns the box's one seam onto its draft, and a box holds more than its
 `.value`: an image pasted into one is kept as Markdown and shown as a thumbnail beside
@@ -1021,9 +1023,11 @@ unwithdrawn page approvals shown in the panel.
 
 Each Thread has a stable `key`, `title`, `root`, ordered `msgs`, `anchor`, `detached_from`,
 `resolved`, `settling`, `awaits_agent`, `awaits_reader`, `attention`, `workflows`,
-`seat`, and `summaries`. `attention` is `null` or names `needs_reader`/`waiting`, its
-reason, and the workflow supplying its detail. A concrete reader Ask takes precedence
-over concurrent agent work; explicit resolution remains separate. Use unresolved
+`seat`, `summaries`, and `unread`. `unread` lists `{message, version}` for each agent
+message the reader has not read at its current content version, in log order; the
+Threads panel, banner, and margin paint this same list. `attention` is `null` or
+names `needs_reader`/`waiting`, its reason, and the workflow supplying its detail. A
+concrete reader Ask takes precedence over concurrent agent work; explicit resolution remains separate. Use unresolved
 `attention.kind === "needs_reader"` for reader attention, including recovery after a
 failed response. `awaits_reader` is the raw conversation-turn flag and does not include
 that recovery; it is not the presentation authority. `awaits_agent` remains independent,
@@ -1031,14 +1035,16 @@ so a standing reader Ask and agent work can coexist. Pending replies and refused
 are already reflected in the published attention.
 `threadTurns(thread)` selects its ordered displayed turns, including a reaction root
 but excluding later reaction marks. `threadSummary(thread)` derives its plain-text topic,
-turn count, and latest turn timestamp. Its topic uses the agent-chosen `title`, or
-the opening message text while `title` is null. A Thread's `key` and each message's `key` survive
-admission of a pending gesture; `root.id` and message `id` identify the current admitted
+turn count, and `latest`, when the Thread last moved: the latest timestamp among its
+turns, where an edited message moved when it was last edited. Its topic uses the
+agent-chosen `title`, or the opening message text while `title` is null. A Thread's
+`key` and each message's `key` survive admission of a pending gesture; `root.id` and message `id` identify the current admitted
 or provisional record.
 
-Messages carry author, timestamp (`ts`), Markdown source (`text`), delivery facts,
-reaction tokens, and their exact-input `workflows` when work is bound to that message
-or to a widget in its frozen authored body.
+Messages carry author, timestamp (`ts`), Markdown source (`text`), `edited` (`{id,
+seq, ts}` of the latest edit, when there is one), delivery facts, reaction tokens,
+`unread` (whether the Thread's `unread` names it), and their exact-input `workflows`
+when work is bound to that message or to a widget in its frozen authored body.
 A workflow carries its subject and input identities, stage, typed activity, condition,
 next actor, and delivery/turn/response bindings. Their `body.kind` distinguishes prose, reaction, suggestion, and authored
 content. Each body carries its plain `text`; an authored body also contains an opaque

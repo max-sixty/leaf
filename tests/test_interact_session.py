@@ -4382,10 +4382,12 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     ]
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
     # A drawn comment is told how to read its drawing, then all a plain one is told.
-    assert plain == replying
+    # The comment's own clauses, then how to write the reply it owes.
+    assert plain[-len(replying) :] == replying
     assert drawn == [reading_a_drawing, *plain]
-    # A thread the reader closed before capture owes nothing, so it is told nothing.
-    assert closed == []
+    # A thread the reader closed before capture owes nothing, so it is told nothing
+    # about answering.
+    assert not set(replying) & set(closed)
     assert resolved == [declared["handling"]["resolve"][0]["text"]]
     # Neither pick lands on a widget either document holds, so neither owes an
     # answer; the page's own clauses reach only the page pick.
@@ -4454,7 +4456,9 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         [batch["handling"][ref] for ref in event["handling"]]
         for event in batch["events"]
     ] == [[clause["text"] for clause in clauses] for clauses in expected]
-    assert len(batch["handling"]) == 2
+    assert set(batch["handling"].values()) == {
+        clause["text"] for clauses in expected for clause in clauses
+    }
     assert delivery_model.read_delivery(payload["id"]) == payload
 
 
@@ -10711,7 +10715,7 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     server = standing_server(page_dir)
     # The only held window in the suite, because it is the only assertion with nothing
     # to consume: a watcher that never starts states nothing, and the server going on
-    # living is not an event to wait for (tests/CLAUDE.md, "A wait consumes a fact the
+    # living is not an event to wait for (tests/AGENTS.md, "A wait consumes a fact the
     # system states"). So the window is the grace a watcher would have acted after,
     # plus room to act — long enough that the bug, had it been here, would have shown.
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)

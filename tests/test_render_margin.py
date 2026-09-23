@@ -4644,7 +4644,7 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     # cluster it names. The walk is taken to the thread it is for instead, and gives up
     # when it comes back round to one it has already stood on rather than pressing
     # forever. Each press waits for its own arrival before the next
-    # (`tests/CLAUDE.md`, "A repeated gesture has to let the repaint it causes land").
+    # (`tests/AGENTS.md`, "A repeated gesture has to let the repaint it causes land").
     stood_on = []
     while (standing := walked.get_attribute("data-thread")) != crowded_thread:
         assert standing not in stood_on, (

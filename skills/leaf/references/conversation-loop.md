@@ -16,11 +16,13 @@ Leaf itself marks each reader move **Sent**, **Queued**, and **Picked up**. Your
 contract may add its own current step to the banner. Chat stays in the host and never
 reaches the page.
 
-Whether the reader is there is `viewed` in `leaf page state <page>`: the last time a
-browser tab had the page visible, in epoch seconds, renewed about every half minute
-while it stays visible. `null` means nobody has opened the page. It is the only
-reading of the reader's side between their moves, so a status or reply they have not
-reacted to may not have been seen.
+Two readings in `leaf page state <page>` describe the reader's side between their
+moves. `viewed` says whether they are there: the last time a browser tab had the page
+visible, in epoch seconds, renewed about every half minute while it stays visible, and
+`null` when nobody has opened the page. Each conversation's `unread` says which of your
+messages they have not read yet
+([conversation threads](conversation-threads.md#what-the-reader-has-read)). A status
+has no such reading, so one they have not reacted to may not have been seen.
 
 ## When to write
 

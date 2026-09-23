@@ -7,7 +7,7 @@
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { isReaction } from "./model.js";
+import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import {
   rememberAuthoredParents,
@@ -138,8 +138,7 @@ export function messageReading(message, { panel, reactions, workflows }) {
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
-    seq: message.edited?.seq ?? message.seq ?? null,
-    contentVersion: message.contentVersion,
+    seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
@@ -195,8 +194,6 @@ export class MessageView {
     }
     if (panel) this.node.tabIndex = -1;
     this.node.setAttribute(panel ? "data-mid" : "data-event", model.id);
-    if (model.contentVersion) this.node.dataset.contentVersion = model.contentVersion;
-    else delete this.node.dataset.contentVersion;
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     if (model.attempt) this.node.dataset.attempt = model.attempt;
     else delete this.node.dataset.attempt;

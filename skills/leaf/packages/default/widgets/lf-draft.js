@@ -88,6 +88,8 @@ import {
   revisionLabel,
   registerMarginContribution,
   sendDraft,
+  submitBindings,
+  submitLabel,
   notice,
   keeps,
   commands,
@@ -316,7 +318,8 @@ customElements.define(
           {
             id: "draft.save",
             reach: "in an open draft editor",
-            keys: ["Mod+Enter"],
+            keys: submitBindings,
+            label: submitLabel,
             control: () => this.#margin?.control(this.#saveKey()),
             decision: () => (this.#failed ? "Retry" : "Save"),
             does: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),

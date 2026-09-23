@@ -1,6 +1,6 @@
 bot_name: leaf-agent
 
-# Everything in this repo runs through `uv` (CLAUDE.md): the suite is
+# Everything in this repo runs through `uv` (AGENTS.md): the suite is
 # `uv run pytest tests`, and `leaf` itself is a uv project that syncs its own
 # environment. The agent works in this job's own checkout and home, with its
 # PATH, so what these steps install is there for it. The agent and `ci.yaml`
@@ -9,7 +9,7 @@ bot_name: leaf-agent
 # session commits from starts on the resolution the suite was last green on
 # rather than on a fresh resolve.
 #
-# Nearly every test here drives a real browser (`tests/CLAUDE.md`). Without
+# Nearly every test here drives a real browser (`tests/AGENTS.md`). Without
 # the browsers, the agent meets `BrowserType.launch: Executable doesn't exist`
 # partway through the suite, so installing them here is what makes the repo's
 # gate runnable from a session rather than only in `ci`. The install is

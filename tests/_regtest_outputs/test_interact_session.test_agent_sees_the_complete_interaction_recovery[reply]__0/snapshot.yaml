@@ -51,6 +51,11 @@ delivered:
           actions: []
       handling:
         h1: >-
+          If this event's conversation has a null `title` in the batch's `conversations`,
+          name it with `leaf conversation title <page> <conversation-id> --text
+          "<a few words>"`, so the thread panel lists its subject rather than its
+          opening words.
+        h2: >-
           Answer with `leaf reply <page> --for <event-id>`, or with your final message
           on a host that sends it as the reply. `leaf reply` checks any page edit
           and makes it live before posting, so revise the page first if the event
@@ -72,7 +77,7 @@ delivered:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1]
+          handling: [h1, h2]
           obligation:
             as_of_seq: 2
             response:

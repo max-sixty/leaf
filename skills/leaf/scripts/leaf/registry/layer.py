@@ -1,6 +1,7 @@
 """Layer registry composition and contract validation."""
 
 import re
+from functools import cache
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -24,6 +25,17 @@ from .contract import (
 def kernel_event_kinds() -> dict:
     """The fixed event records produced and consumed by Leaf's kernel."""
     return read_registry_declarations(ASSETS / "registry.json")["$events"]["kinds"]
+
+
+@cache
+def bookkeeping_kinds() -> frozenset[str]:
+    """The kinds `$events` declares `bookkeeping`: facts about the reader's view of
+    the page, kept for the page's own readings and never a move the agent answers."""
+    return frozenset(
+        kind
+        for kind, contract in kernel_event_kinds().items()
+        if contract.get("bookkeeping")
+    )
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:

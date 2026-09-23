@@ -31,7 +31,7 @@
 #    registry.json, then those under `$events.answering.reply`, the answer it owes.
 #    Each clause has a `text` and may have a `when`, a JSON Schema the log line,
 #    with its `obligation`, must satisfy for the clause to apply. There are
-#    6; here they all are, with whether the line from step 2 satisfies each
+#    7; here they all are, with whether the line from step 2 satisfies each
 #    `when`:
 #
 #      clause 1, does not apply:
@@ -53,14 +53,20 @@
 #              produces that, and fix it in this page's own source unless it comes
 #              from a shared widget or from Leaf itself, or the reader asks for a
 #              wider fix.
-#      clause 4, does not apply:
+#      clause 4, applies:
+#        when: {"not": {"required": ["token"]}}
+#        text: If this event's conversation has a null `title` in the batch's
+#              `conversations`, name it with `leaf conversation title <page>
+#              <conversation-id> --text "<a few words>"`, so the thread panel lists
+#              its subject rather than its opening words.
+#      clause 5, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Read the token and the `means`
 #              its package gives, if any, and act on it if it calls for a change;
 #              reply only if its meaning is unclear. Once the page reflects it, close
 #              it with `leaf resolve <page> --to <event-id>`. It never blocks
 #              publishing a version, and it does not wait on an answer.
-#      clause 5, applies:
+#      clause 6, applies:
 #        (no `when`, so it always applies)
 #        text: Answer with `leaf reply <page> --for <event-id>`, or with your final
 #              message on a host that sends it as the reply. `leaf reply` checks any
@@ -71,7 +77,7 @@
 #              subject has left the page. Add `--awaits` only if your reply's prose
 #              asks the reader something. Your reply renders as Markdown, so show code
 #              or markup in a fenced block.
-#      clause 6, does not apply:
+#      clause 7, does not apply:
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
 #        text: The widget is in a thread message: continue the work the reader's
 #              answer selects or unblocks, and answer in that thread.
@@ -113,7 +119,8 @@
 #              }
 #            ],
 #            "handling": {
-#              "h1": "Answer with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply. `leaf reply` checks any page edit and makes it live before posting, so revise the page first if the event calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something. Your reply renders as Markdown, so show code or markup in a fenced block."
+#              "h1": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words.",
+#              "h2": "Answer with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply. `leaf reply` checks any page edit and makes it live before posting, so revise the page first if the event calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something. Your reply renders as Markdown, so show code or markup in a fenced block."
 #            },
 #            "events": [
 #              {
@@ -136,7 +143,8 @@
 #                  "1946b466"
 #                ],
 #                "handling": [
-#                  "h1"
+#                  "h1",
+#                  "h2"
 #                ],
 #                "obligation": {
 #                  "as_of_seq": 2,
@@ -187,6 +195,12 @@
 #            response:
 #              kind: reply
 #        told:
+#          - when: {"not": {"required": ["token"]}}
+#            text: >-
+#              If this event's conversation has a null `title` in the batch's `conversations`,
+#              name it with `leaf conversation title <page> <conversation-id> --text "<a
+#              few words>"`, so the thread panel lists its subject rather than its opening
+#              words.
 #          - text: >-
 #              Answer with `leaf reply <page> --for <event-id>`, or with your final message
 #              on a host that sends it as the reply. `leaf reply` checks any page edit
@@ -208,6 +222,12 @@ comment:
       response:
         kind: reply
   told:
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
     - text: >-
         Answer with `leaf reply <page> --for <event-id>`, or with your final message
         on a host that sends it as the reply. `leaf reply` checks any page edit
@@ -237,6 +257,12 @@ comment with a drawing:
         can be placed on a picture of it; a drawing on the whole page has no `box`,
         and its offsets start at the page's top-left corner. Any `text` explains
         the mark.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
     - text: >-
         Answer with `leaf reply <page> --for <event-id>`, or with your final message
         on a host that sends it as the reply. `leaf reply` checks any page edit
@@ -254,6 +280,12 @@ comment awaiting a version:
       response:
         kind: version
   told:
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
     - text: >-
         This conversation asks for a new version of the page rather than a reply.
         Make the change it asks for, stamp the version, then close it with `leaf
@@ -263,7 +295,13 @@ comment awaiting a version:
 comment a newer message answers through:
   event:
     kind: comment
-  told: []
+  told:
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 suggestion:
   event:
@@ -277,6 +315,12 @@ suggestion:
       text: >-
         A suggestion proposes exact replacement text. Apply it verbatim, or reply
         with your reason for declining.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
     - text: >-
         Answer with `leaf reply <page> --for <event-id>`, or with your final message
         on a host that sends it as the reply. `leaf reply` checks any page edit
@@ -300,6 +344,12 @@ design comment:
         A design comment is about how the page looks or behaves. Find what produces
         that, and fix it in this page's own source unless it comes from a shared
         widget or from Leaf itself, or the reader asks for a wider fix.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
     - text: >-
         Answer with `leaf reply <page> --for <event-id>`, or with your final message
         on a host that sends it as the reply. `leaf reply` checks any page edit
@@ -335,6 +385,12 @@ reply:
         The reader answered in a thread; the batch's `conversations` carries the
         thread's context, and `leaf conversation read <page> <conversation-id>`
         reads its history in pages.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
     - text: >-
         Answer with `leaf reply <page> --for <event-id>`, or with your final message
         on a host that sends it as the reply. `leaf reply` checks any page edit

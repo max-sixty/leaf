@@ -147,7 +147,7 @@ spine instead.
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Standing** | Holding a destination or a control inside it: a conversation on the page or in the panel, an Ask, or authored page content. A panel thread's title and conversation are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
 | **Floor** | The place in a layer where the reader stands on nothing: the page's body, the whole thread panel |
-| **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/CLAUDE.md` states, with containment before kind, each landing them at the parent of what it closed |
+| **Unwind** | What Escape takes off, read from what stands in front of the reader rather than from how they reached it: the innermost step of the ladder `skills/leaf/assets/runtime/keyboard/AGENTS.md` states, with containment before kind, each landing them at the parent of what it closed |
 | **Landing** | Where a step leaves the reader: a box at its container, a standing at its floor, a surface at the document, which is the block they are reading, focused and then blurred |
 | **Layer stack** | The one ordered record of the popovers and modal dialogs standing over the page, in the order they opened; the dispatcher tiers scopes over it, and a covering auxiliary surface is its floor without being an entry |
 | **Key badge** | A keycap-shaped carrier for a binding or transient hint code |

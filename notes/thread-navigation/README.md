@@ -13,7 +13,7 @@ to the agent. Cmd/Ctrl+Enter adds a simulated reply. Refresh resets the simulati
 The real Leaf Threads panel implements the compact accordion and remains available
 for feedback independently of the sketch. Counts use a shared column across all rows.
 The real panel's keyboard behavior is defined in
-[Escape unwinds the hierarchy, not the history](../../skills/leaf/assets/runtime/keyboard/CLAUDE.md#escape-unwinds-the-hierarchy-not-the-history).
+[Escape unwinds the hierarchy, not the history](../../skills/leaf/assets/runtime/keyboard/AGENTS.md#escape-unwinds-the-hierarchy-not-the-history).
 The page-local sketch uses Escape to collapse its selected mock conversation; its
 keyboard behavior is illustrative rather than the runtime contract.
 

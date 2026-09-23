@@ -12,7 +12,7 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
-| `read` | user | `POST /api/event` | `messages: [{message, version}]` | acknowledges exact current or historical agent-content versions for this page's one reader; adds no conversation turn or agent work |
+| `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one reader has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no conversation turn or agent work |
 | `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
@@ -123,16 +123,21 @@ sorted identity snapshot the server stamps in `generated`.
 
 ## Threads
 
-Reader acknowledgement is separate from thread attention. On a first visit, each
-agent-authored message body, including a failure receipt or authored widget, is unread;
-an agent reaction is not. The original message id names its first content version,
-and each `edit` id names a new one. The browser posts `read` for exact versions after
-presenting and exposing ordinary prose, or when the reader explicitly marks a thread
-read. A later edit is unread even when the prior version was acknowledged. A summary
-does not acknowledge the messages it covers. Read records belong to the page log and
-apply across tabs and document revisions; they never answer a question, settle a
-workflow, or enter agent delivery. The one-reader page assumption is the page's
-current lifecycle, not a per-account scope.
+Read state is separate from thread attention. On a first visit, each agent-authored
+message body, including a failure receipt or authored widget, is unread; an agent
+reaction is not. The original message id names its first content version, and each
+`edit` id names a new one. A version is read once a `read` event names it — the
+browser posts one after presenting and exposing ordinary prose, or when the reader
+marks a thread read — or once the reader moves in its thread after it: a reply or
+reaction, a resolve or reopen, or an action or request on a widget one of the thread's
+messages carries; a move the reader took back does not count. A later edit is unread
+even when the prior version was read. A
+summary does not mark read the messages it covers. `read_state.unread_content` is the
+one reading; it is published as each browser Thread's `unread` and each
+conversation's `unread` in `page state`. Read records belong to the page log and apply
+across tabs and document revisions; they never answer a question, settle a workflow,
+or enter agent delivery. The one-reader page assumption is the page's current
+lifecycle, not a per-account scope.
 
 An agent comment opens a question. A substantive reply opens or resumes the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`

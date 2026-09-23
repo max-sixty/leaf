@@ -1029,7 +1029,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     # what the browser says inside one is the fetch that was in flight rather than
     # the condition: a refused resource, a connection to a server that has gone, a
     # decoding that stopped halfway. The span is bracketed rather than the wordings
-    # listed (tests/CLAUDE.md, "A test cannot assert over noise it makes itself").
+    # listed (tests/AGENTS.md, "A test cannot assert over noise it makes itself").
     with restarting(page):
         page.goto(url, wait_until="load")
         status = page.get_by_text(

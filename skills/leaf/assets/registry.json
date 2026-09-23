@@ -72,7 +72,7 @@
     "contracts": {}
   },
   "$events": {
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state, x-report, and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `version`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns, if any. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state, x-report, and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the reader's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `version`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns, if any. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
         {
@@ -111,6 +111,16 @@
         },
         {
           "when": {
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
+        },
+        {
+          "when": {
             "required": [
               "token"
             ]
@@ -128,6 +138,16 @@
             }
           },
           "text": "The reader answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages."
+        },
+        {
+          "when": {
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
         },
         {
           "when": {
@@ -577,6 +597,7 @@
         }
       },
       "read": {
+        "bookkeeping": true,
         "record": {
           "type": "object",
           "properties": {

@@ -52,6 +52,11 @@ delivered:
           actions: []
       handling:
         h1: >-
+          If this event's conversation has a null `title` in the batch's `conversations`,
+          name it with `leaf conversation title <page> <conversation-id> --text
+          "<a few words>"`, so the thread panel lists its subject rather than its
+          opening words.
+        h2: >-
           This conversation asks for a new version of the page rather than a reply.
           Make the change it asks for, stamp the version, then close it with `leaf
           resolve <page> --to <conversation-id>`, which refuses until the stamped
@@ -74,7 +79,7 @@ delivered:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1]
+          handling: [h1, h2]
           obligation:
             as_of_seq: 2
             response:

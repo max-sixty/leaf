@@ -1910,13 +1910,31 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     assert stamped.exit_code == 0, stamped.output
     told(page)
 
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-general textarea").fill("Keep reading this revision.")
+    # The hold has to outlast every press this test makes through it, and it takes both
+    # of the following to get there. A composer the reader opened is one of the gestures
+    # a revision install defers to and does not end when focus moves; words in a box the
+    # reader merely has focus in do, and the draft store rather than a hold is what
+    # carries those across the install (`skills/leaf/assets/CLAUDE.md`, "Runtime
+    # ownership").
+    page.locator("#live-reading").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Keep reading this revision.")
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
+    # The fourth row is the one the third revision brings, so wait on the news that
+    # revision lights rather than on the title, which already said this before the write
+    # and so states no ordering at all.
+    expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
-    banner_control(page, ".lf-version").click()
+    # The chooser stands behind More, and a mouse press anywhere outside the composer
+    # stands the composer down (standDown) — so reaching the chooser by mouse would end
+    # the hold on the very gesture that opens the menu, and whether the page had followed
+    # by then would come down to whether a state read landed between the two presses. The
+    # keyboard route leaves the composer standing through both.
+    page.locator(".lf-banner-more").press("Enter")
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    page.locator(".lf-version").press("Enter")
     rows = page.locator(".lf-version-row")
     expect(rows).to_have_count(4)
     same_revision = page.locator('.lf-version-row[data-lf-revision="2"]')
@@ -5121,7 +5139,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     twitch; where apparatus leads something else, that something moves with it —
     a metric's delta sits directly after the value it follows.
 
-    Measured across the recount rather than a redraw, per tests/CLAUDE.md: the
+    Measured across the recount rather than a redraw, per tests/AGENTS.md: the
     transition has to be one the figures actually decide. "1/2 done" to
     "2/2 done" stands 1.61px apart with proportional figures and identical with
     tabular, so deleting the declaration fails this. "0/3 done" to "3/3 done"
@@ -7712,7 +7730,7 @@ def test_worktree_evidence_names_the_arrow_that_stands_on_it(browser, serve):
     a pair the widget picks. A widget row is nearer than the runtime's disclosure scope
     and `lineRows` keeps only the keys the nearer row names, so a head binding Enter and
     Space alone took the arrow off both surfaces while the arrow went on opening the
-    tree — the shape `skills/leaf/assets/CLAUDE.md` names as one promise rather than two.
+    tree — the shape `skills/leaf/assets/AGENTS.md` names as one promise rather than two.
 
     Both surfaces of that promise, because a row naming the wrong keys names them wrongly
     on both — the line the reader sees and the `aria-keyshortcuts` a listener is read —

@@ -114,8 +114,7 @@ import {
   mountBanner,
   paintApproval,
   renderStatus,
-  setThreadCount,
-  setUnreadThreadCount,
+  setThreadCounts,
   stateSignoff,
   toggleBtn,
 } from "./runtime/banner.js";
@@ -406,8 +405,7 @@ app = mountApplication({
       input,
       behavior,
     ),
-  setThreadCount,
-  setUnreadThreadCount,
+  setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
@@ -514,7 +512,7 @@ panelComposer = createPanelComposer({
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
-  unreadCount: () => app.read.unread().length,
+  unreadCount: () => app.read.unreadCount(),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });

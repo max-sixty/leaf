@@ -9655,6 +9655,43 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     round_trip(page)
 
 
+def test_touch_return_keeps_newlines_until_the_reader_taps_submit(browser, serve):
+    html = TARGETS_PAGE.replace(
+        "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(html), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+
+    page.locator(".lf-threads-toggle").click()
+    field = page.locator(".lf-general textarea")
+    field.focus()
+    field.fill("First paragraph")
+    field.press("Enter")
+    field.type("Second paragraph")
+    expect(field).to_have_value("First paragraph\nSecond paragraph")
+    expect(field).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    expect(field).to_be_visible()
+    with sending(page, "the touch comment"):
+        field.locator("xpath=..").locator(".lf-compose-submit").click()
+
+    page.locator(".lf-thread-panel .lf-close-action").click()
+    draft_control(page, "edit", "plan").click()
+    editor = page.locator("#plan textarea")
+    editor.fill("First paragraph")
+    editor.press("Enter")
+    editor.type("Second paragraph")
+    expect(editor).to_have_value("First paragraph\nSecond paragraph")
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
+    with sending(page, "the touch draft"):
+        draft_control(page, "save", "plan").click()
+    expect(page.locator("#plan .lf-draft-body")).to_contain_text("Second paragraph")
+
+
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     """Every surface naming a key promises the press does something now. One table
     kept the words from drifting and not the surfaces: the shortcut bar asked `when`,

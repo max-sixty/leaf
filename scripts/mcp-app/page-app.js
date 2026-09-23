@@ -33,9 +33,13 @@ const quote = document.querySelector("#quote");
 const comment = document.querySelector("#comment");
 const cancel = document.querySelector("#cancel");
 const send = document.querySelector("#send");
-const commentHint = (words) => `${words} · ⏎`;
-comment.setAttribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter");
-send.title = "Send comment (⏎)";
+const touchKeyboard = matchMedia("(pointer: coarse)").matches;
+const commentHint = (words) => (touchKeyboard ? words : `${words} · ⏎`);
+comment.setAttribute(
+  "aria-keyshortcuts",
+  touchKeyboard ? "Meta+Enter Control+Enter" : "Enter Meta+Enter Control+Enter",
+);
+send.title = touchKeyboard ? "Send comment" : "Send comment (⏎)";
 let current = null;
 let currentMode = null;
 let selection = null;
@@ -563,6 +567,7 @@ comment.addEventListener("input", sizeComment);
 comment.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.isComposing || event.shiftKey || event.altKey)
     return;
+  if (touchKeyboard && !event.metaKey && !event.ctrlKey) return;
   event.preventDefault();
   composer.requestSubmit();
 });

@@ -1,5 +1,5 @@
 import { focused, keys } from "../keyboard/scopes.js";
-import { spell } from "../keyboard/bindings.js";
+import { submitBindings, submitHint, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
@@ -8,8 +8,9 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such textarea one input contract: persist each edit, keep the
 // action button and placeholder current, prevent parallel submissions of one local
-// surface (an impatient second click), and submit with Enter. Shift+Enter retains the
-// textarea's native newline. Mod+Enter remains another route to submit. The stylesheet owns
+// surface (an impatient second click), and submit with Enter on a physical keyboard.
+// Shift+Enter retains the textarea's native newline; on touch keyboards Enter does too.
+// Mod+Enter remains another route to submit. The stylesheet owns
 // textarea growth through `field-sizing: content`, within the room supplied by floating
 // placement; script does not derive textarea height from its text. When the surface
 // accepts images, a paste uploads bytes to page media; one that does not says so in a
@@ -21,7 +22,6 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 // the send button, the placeholder, and the composer's placement around what stands.
 // Outside this module, .value is the reader's words alone and nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
-const SEND = "Enter";
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
@@ -174,7 +174,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
-    const sendKeys = spell(SEND);
+    const sendKeys = submitHint();
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();
@@ -201,7 +201,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const label = sendLabel();
       if (sendBtn.getAttribute("aria-label") !== label)
         sendBtn.setAttribute("aria-label", label);
-      sendBtn.title = `${label} (${sendKeys})`;
+      sendBtn.title = sendKeys ? `${label} (${sendKeys})` : label;
       if (focused() === ta) paintInputs();
       else paint();
     };
@@ -316,8 +316,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     keys(ta, "In a text box", [
       {
         id: "text.send",
-        keys: [SEND, "Mod+Enter"],
-        label: sendKeys,
+        keys: submitBindings,
+        label: submitLabel,
         does: "Submit what you have typed",
         line: sends,
         run: () => sendBtn.click(),

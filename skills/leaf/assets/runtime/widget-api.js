@@ -28,7 +28,13 @@ export { conversationInput } from "./conversation/landing.js";
 export { landInConversation } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
-export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
+export {
+  PRESS,
+  labelOf,
+  submitBindings,
+  submitLabel,
+  walkRows,
+} from "./keyboard/bindings.js";
 export {
   commandScope,
   focused,

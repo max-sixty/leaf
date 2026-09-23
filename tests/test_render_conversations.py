@@ -62,6 +62,7 @@ from render_harness import (
     primed,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     shortcut_bar_text,
     take_browser_errors,
@@ -2598,6 +2599,87 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
             "() => document.activeElement.closest('[data-thread]').dataset.thread"
         )
         == lede
+    )
+
+
+def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
+    """A walk to threads somewhere else leaves one history entry however far it goes,
+    so Back returns to the place the user was reading before it and Forward to where
+    it ended. Reading somewhere else ends the walk: the next trip records that place."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
+    url = serve(
+        leaf_page(
+            "Back from a thread",
+            "<h1>Back from a thread</h1>"
+            "<section id=near><p>The first question sits at the top.</p></section>"
+            f"<section id=above>{filler}</section>"
+            "<section id=also><p>A second question sits halfway down.</p></section>"
+            f"<section id=below>{filler}</section>",
+        )
+    )
+    for section in ("near", "also"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": section},
+                "text": f"A question about {section}.",
+            },
+        )
+    page = open_page(browser, url)
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    assert reading > 2000
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    scroll_settled(page)
+    landed = page.evaluate("document.scrollingElement.scrollTop")
+    assert landed < reading - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    first = page.evaluate(
+        "document.activeElement.closest('[data-thread]').dataset.thread"
+    )
+    page.keyboard.press("t")
+    page.wait_for_function(
+        "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
+        " !== first",
+        arg=first,
+    )
+    scroll_settled(page)
+    walked = page.evaluate("document.scrollingElement.scrollTop")
+    assert walked > landed + 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+    page.go_forward()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
+        arg=walked,
+    )
+
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    elsewhere = page.evaluate("document.scrollingElement.scrollTop")
+    assert elsewhere > walked + 1000
+    # Either thread is somewhere else from here; which one Shift+t lands on depends
+    # on whether the walk's card survived the traversal, and the claim does not.
+    page.keyboard.press("Shift+t")
+    page.wait_for_function(
+        "top => document.scrollingElement.scrollTop < top - 1000", arg=elsewhere
+    )
+    scroll_settled(page)
+    assert page.evaluate("history.length") == entries + 2
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
+        arg=elsewhere,
     )
 
 

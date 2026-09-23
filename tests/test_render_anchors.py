@@ -4943,6 +4943,64 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     assert all("detached" not in classes for classes in quote_classes), quote_classes
 
 
+def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve):
+    """A thread the diff seats is a trip like any other: Back returns to where the
+    user was reading, although the surface scrolls itself into view as it takes
+    focus."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(120))
+    url = serve(
+        leaf_page(
+            "Back from a diff thread",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f"<pre></pre></lf-diff><section id=far>{filler}</section>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "data_revision": 1,
+            },
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    assert reading > 2000
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'lf-diff .lf-conversation-thread[data-thread="{root}"]')
+    ).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+
 @pytest.mark.parametrize("scheme", ("light", "dark"))
 def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     browser, serve, scheme

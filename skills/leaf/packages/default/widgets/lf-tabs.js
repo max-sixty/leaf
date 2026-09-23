@@ -4,7 +4,7 @@
  * fragment navigation still reach them — `beforematch` opens the owning tab,
  * and the runtime's reveal() asks the same via the lf-reveal event when it
  * scrolls to a comment anchor. The open tab is view state for this reader,
- * remembered per browser tab in the runtime's tabStore like the scroll position:
+ * remembered per browser tab in the runtime's tabStore:
  * switching is reading, not editing, so it never sends an action and no
  * version carries it — this widget doesn't ride the action channel at all.
  * A tab set that is the main element's sole substantive child, below an optional

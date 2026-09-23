@@ -307,7 +307,7 @@ export function createReadTracking({ markRead, showThread }) {
         firstUnreadBtn.textContent = `Unread ${count}`;
         firstUnreadBtn.setAttribute(
           "aria-label",
-          `${count} unread messages. Go to first unread message`,
+          `${count} unread ${count === 1 ? "message" : "messages"}. Go to first unread message`,
         );
         scheduleScan();
       })
@@ -332,8 +332,6 @@ export function createReadTracking({ markRead, showThread }) {
     begin,
     abort,
     present,
-    scheduleScan,
-    scan,
     observeBody,
     forgetBody,
     markThread,

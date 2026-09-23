@@ -174,7 +174,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
-    const sendKeys = submitHint();
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();
@@ -183,6 +182,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const paint = (contextualHint = inputHint()) => {
       // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
       const standing = focused() === ta;
+      const sendKeys = submitHint();
       const suffix = standing
         ? sendKeys
         : contextualHint?.box === ta
@@ -199,6 +199,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     inputPaints.set(ta, paint);
     const repaint = () => {
       const label = sendLabel();
+      const sendKeys = submitHint();
       if (sendBtn.getAttribute("aria-label") !== label)
         sendBtn.setAttribute("aria-label", label);
       sendBtn.title = sendKeys ? `${label} (${sendKeys})` : label;

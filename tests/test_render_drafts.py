@@ -866,12 +866,12 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     held = []
     first.route("**/api/event", lambda route: held.append(route))
     first.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add option", exact=True
+        "button", name="Add and select option", exact=True
     ).click()
     holding(first, held, 1, "the first added option")
 
     second.locator("#jobs > .lf-another").get_by_role(
-        "button", name="Add option", exact=True
+        "button", name="Add and select option", exact=True
     ).click()
     round_trip(second)
     held_detail = held[0].request.post_data_json["detail"]

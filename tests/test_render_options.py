@@ -530,7 +530,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     )
     expect(box).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
-    assert "add option" in shortcut_bar_text(page)
+    assert "add and select option" in shortcut_bar_text(page)
     page.keyboard.press("ControlOrMeta+Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
@@ -871,7 +871,12 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
         f"cells of #{group} stand apart from the line that joins them: {apart}"
     )
 
-    bare = [c for c in cells if c["opens"] < 0.5]
+    # Done is a full-width button, so its centered label has no option text column.
+    bare = [
+        c
+        for c in cells
+        if c["opens"] < 0.5 and not c["what"].startswith("lf-options-done")
+    ]
     assert not bare, (
         f"cells of #{group} open on the frame while their neighbours hold off it: "
         f"{bare}"
@@ -885,7 +890,7 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     # exactly that, and this line excused it as apparatus. What is compared is the cell,
     # not the caret: a text box holds its words off its own frame, which is the box's and
     # no business of the group's.
-    words = {c["opens"] for c in cells}
+    words = {c["opens"] for c in cells if not c["what"].startswith("lf-options-done")}
     assert len(words) == 1, (
         f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
         "the option the reader writes read as more than one column"
@@ -1742,6 +1747,40 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
              return getSelection().toString(); }"""
     )
     assert "went dark" in spoken and "failure" not in spoken, spoken
+
+
+def test_a_multiple_page_ask_waits_for_done(browser, serve):
+    page = open_page(browser, serve(ASK_PAGE))
+    asks = page.locator(".lf-asks")
+    expect(asks).to_have_text("Asks 0/3")
+    assert (
+        page.locator("#jobs").evaluate(
+            "el => el.querySelector('.lf-another').nextElementSibling.tagName"
+        )
+        == "LF-OPTIONS-DONE"
+    )
+    page.locator("html").evaluate("el => el.classList.add('lf-copy')")
+    expect(page.locator("#jobs lf-options-done")).to_be_hidden()
+    page.locator("html").evaluate("el => el.classList.remove('lf-copy')")
+    page.emulate_media(media="print")
+    expect(page.locator("#jobs lf-options-done")).to_be_hidden()
+    page.emulate_media(media="screen")
+
+    page.locator("#job-mounts").click()
+    page.locator("#job-camera").click()
+    round_trip(page)
+    expect(asks).to_have_text("Asks 0/3")
+    expect(page.locator("#jobs .lf-done")).to_have_attribute("aria-pressed", "false")
+
+    page.locator("#jobs .lf-done").click()
+    round_trip(page)
+    expect(asks).to_have_text("Asks 1/3")
+    expect(page.locator("#jobs .lf-done")).to_have_attribute("aria-pressed", "true")
+
+    page.locator("#br-steel").click()
+    round_trip(page)
+    expect(asks).to_have_text("Asks 2/3")
+    expect(page.locator("#bracket .lf-done")).to_have_count(0)
 
 
 def test_a_pick_states_the_whole_set(browser, serve):

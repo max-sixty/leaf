@@ -186,7 +186,7 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
     row.click()
     field = group.get_by_role("textbox", name="Another option", exact=True)
     field.fill("Insulate the camera battery")
-    group.get_by_role("button", name="Add option", exact=True).click()
+    group.get_by_role("button", name="Add and select option", exact=True).click()
     round_trip(page)
     added = group.locator(":scope > lf-option[data-lf-added]")
     added_id = added.get_attribute("id")

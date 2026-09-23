@@ -288,7 +288,10 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(earlier_place, abs=2)
 
 
-def test_incoming_reply_follows_when_the_panel_has_unfilled_room(browser, serve):
+@pytest.mark.parametrize("later_cards", [0, 3])
+def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
+    browser, serve, later_cards
+):
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "A short conversation.")
     events_model.append_event(
@@ -301,6 +304,8 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(browser, serve)
             "text": "A short first answer.",
         },
     )
+    for index in range(later_cards):
+        panel_comment(serve.page_dir, f"A later conversation {index}.")
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
@@ -497,7 +502,8 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
         )
 
 
-def test_a_later_cards_reader_stays_at_the_list_end(browser, serve):
+@pytest.mark.parametrize("intent", ["focus", "pointer"])
+def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
     url = serve(LONG_PAGE)
     selected = panel_comment(serve.page_dir, "The conversation above.")
     for index in range(14):
@@ -527,6 +533,12 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve):
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     before = threads.evaluate("el => el.scrollTop")
     assert before > 0
+    later_card = threads.locator(":scope > .lf-thread:not([hidden])").last
+    if intent == "focus":
+        later_card.locator(".lf-thread-summary").focus()
+    else:
+        later_card.locator(".lf-thread-summary").hover()
+    later_top = later_card.evaluate("el => el.getBoundingClientRect().top")
 
     events_model.append_event(
         serve.page_dir,
@@ -541,7 +553,9 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve):
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
-    assert threads.evaluate("el => el.scrollTop") == pytest.approx(before, abs=2)
+    assert later_card.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+        later_top, abs=2
+    )
 
 
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):

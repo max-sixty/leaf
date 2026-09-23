@@ -6,9 +6,10 @@
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
-   A new agent turn, or growth of the last one, follows only while that conversation's
-   previous last message is visible near the bottom of the panel. Reading earlier turns
-   keeps the place hold, and a reply in another thread does not move this one.
+   A new agent turn, or growth of the last one, follows only while the list's place hold
+   names that conversation and its previous last message is visible near the bottom of
+   the panel. Reading earlier turns keeps the place hold, and a reply in another thread
+   does not move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
    under each (conversation/placement.js). A run's heading is one node kept across
@@ -149,13 +150,13 @@ const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
 const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
-// The selected conversation's tail runs from its last message through its composer
-// to the card's end. Follow while that tail meets the reachable reading edge and the
-// last message is still visible; its length can change with the draft or later cards.
+// The list's place hold chooses where the reader is. Follow only when it chose this
+// conversation and its latest words are still visible near the landing edge.
 const FOLLOW_ROOM = 80;
-function incomingAtLatest(reading, panelIsOpen) {
+function incomingAtLatest(reading, panelIsOpen, heldCard) {
   if (!panelIsOpen()) return null;
   const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
+  if (heldCard !== card) return null;
   const prior = threadsBox.committedReading.rows.find(
     (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
   )?.descriptor;
@@ -183,19 +184,9 @@ function incomingAtLatest(reading, panelIsOpen) {
     );
   const band = landingBand(threadsBox);
   if (!node || !band) return null;
-  // An unfilled list has no content at the viewport's bottom to scroll toward.
-  const contentEnd = threadsBox
-    .querySelector(":scope > :nth-last-child(1 of :not([hidden]))")
-    .getBoundingClientRect().bottom;
-  const edge = Math.min(band.bottom, contentEnd);
-  const tailStart = node.getBoundingClientRect().bottom;
-  const tailEnd = card.getBoundingClientRect().bottom;
-  if (
-    tailStart < band.top ||
-    tailStart > edge + FOLLOW_ROOM ||
-    tailEnd < edge - FOLLOW_ROOM
-  )
-    return null;
+  const bottom = node.getBoundingClientRect().bottom;
+  const edge = threadsBox.scrollHeight > threadsBox.clientHeight ? band.bottom : bottom;
+  if (bottom < edge - FOLLOW_ROOM || bottom > band.bottom + FOLLOW_ROOM) return null;
   return {
     id: incoming.at(-1)?.id ?? nextLatest.id,
     top: threadsBox.scrollTop,
@@ -397,8 +388,8 @@ export async function renderThreads(collection, commands) {
   const current = () => generation === renderGeneration;
   let reading = rowModel(all, commands);
   configureList(commands);
-  const incoming = incomingAtLatest(reading, commands.panelIsOpen);
   const hold = takeScrollHold(commands.panelIsOpen);
+  const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.reference);
   let held = true;
   let recovered = null;
   try {

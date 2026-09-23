@@ -452,8 +452,10 @@ The causal helpers:
   the document's: a navigation starts it over with the page that carries it.
 - `round_trip(page)` waits until every post the page issued has ended and every
   event attempt in its outbox has a definitive outcome. A request failure alone is
-  not final because the page may retry the same attempt, and a bookkeeping event
-  such as `read` never enters the outbox, so it is over only when its post is.
+  not final because the page may retry the same attempt. A post that skips the
+  outbox — a bookkeeping event such as `read`, the page's own `error` report, a
+  media upload — is over only when the post is, so a test that holds requests on a
+  route releases every one, that report included.
 - `sending(page, what)` encloses a gesture whose own event the assertion behind
   it reads: it waits for one further send to enter the wire and then for its
   trip, so the read cannot answer with the event that stood before the gesture.

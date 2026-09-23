@@ -2026,6 +2026,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
+    holding(page, held_events, 2, "the gesture and the page's report of its failure")
     for route in held_events:
         route.continue_()
     page.unroute("**/api/event")

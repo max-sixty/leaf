@@ -680,9 +680,11 @@ def _until(page, fact, wanted):
 # A browser trip is over when every post the page issued has ended and the outbox holds
 # no attempt without an outcome. Each half misses what the other names. A gesture's
 # request failure ends its post but not its delivery, because the outbox keeps the same
-# attempt and retries; `acked` alone would return on that ambiguous edge. A bookkeeping
-# event such as `read` never enters the outbox (delivery.js), so `pending` is empty
-# while it is still on the wire; `pending` alone returns before the server appends it.
+# attempt and retries; `acked` alone would return on that ambiguous edge. A post that
+# skips the outbox — a bookkeeping event such as `read` (delivery.js), the page's own
+# `error` report, a media upload (layer-client.js) — leaves `pending` empty while it is
+# still on the wire; `pending` alone returns before the server has it. A test that
+# holds requests on a route must release every one, that report included.
 # Neither says whether the runtime then applied the response state; tests assert that
 # on the affected page surface.
 def heard_back(reading):

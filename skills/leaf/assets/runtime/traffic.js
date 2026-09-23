@@ -20,8 +20,9 @@
    outcome, in ledger order: an entry behind a head that is retrying
    stays pending until its turn, even where a read has already shown its attempt landed,
    because an applied reading does not replace a delivery outcome. A bookkeeping event
-   never enters that ledger (delivery.js), so a wait for "what this page sent has come
-   back" consumes both facts: every send acked, and nothing pending. */
+   (delivery.js), the page's error report, and a media upload (layer-client.js) never
+   enter that ledger, so a wait for "what this page sent has come back" consumes both
+   facts: every send acked, and nothing pending. */
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 const ledger = { sends: 0, acked: 0, asked: 0, heard: 0, pending: [] };

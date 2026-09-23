@@ -8824,6 +8824,7 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask list failure"
     ]
+    holding(page, held, 2, "the gesture and the page's report of its failure")
     for route in held:
         route.continue_()
     page.unroute("**/api/event")
@@ -8885,6 +8886,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
+    holding(page, held, 2, "the gesture and the page's report of its failure")
     for route in held:
         route.continue_()
     page.unroute("**/api/event")

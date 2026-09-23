@@ -19,6 +19,7 @@
    the page; `followBounds` runs after every install and patch to pick up new ones. */
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
+const BOUNDED = `[${PAGE_PAINT_ATTRIBUTE.bound}]`;
 const FOLLOWING = `[${PAGE_PAINT_ATTRIBUTE.bound}="end"]`;
 // A box scrolled to within this of its end is at its end: fractional scroll positions
 // on scaled displays leave a pinned box a pixel short.
@@ -30,7 +31,9 @@ const declaresBound = (box) =>
   getComputedStyle(box).getPropertyValue("--lf-bound-box").trim() === "1";
 
 function scrollerOf(bounded) {
-  for (const box of bounded.querySelectorAll("*")) if (declaresBound(box)) return box;
+  // A bound nested inside this one owns its own scroller, so the search stops at it.
+  for (const box of bounded.querySelectorAll("*"))
+    if (declaresBound(box) && box.closest(BOUNDED) === bounded) return box;
   return bounded;
 }
 

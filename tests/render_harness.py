@@ -220,9 +220,9 @@ SAID_PAGE = leaf_page(
     "said",
     """
 <h1 id="h">This week</h1>
-<lf-metrics id="numbers">
+<lf-grid id="numbers">
   <lf-metric id="m-open" value="1,204" delta="+18%" direction="up-good">Open sessions</lf-metric>
-</lf-metrics>
+</lf-grid>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
     <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>

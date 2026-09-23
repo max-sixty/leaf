@@ -11,8 +11,8 @@ and requests another reading at its next deadline; it does not run a second fold
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
-| live Codex activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
-| live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
+| live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` process, held open for its life | process exit |
@@ -20,7 +20,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
+| Codex delivery record | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Page activity describes ownership, carrier availability, and current work. Its
@@ -162,7 +162,7 @@ shapes:
 - A sequence of direct watchers the model itself runs, which Claude Code uses:
   `leaf wait` exits to put a batch in model context, then `leaf wait --ack <delivery-id>` advances
   the captured cursors and becomes the next watcher.
-- One detached process, which Codex uses: it holds the same task-wide wait lease
+- One detached process, which a Codex task uses on either transport: it holds the same task-wide wait lease
   plus an adapter lease of its own, and stores exact batches from every page in
   one task-wide delivery.
 - A host that drives App Server itself, which the website's per-reader container
@@ -202,7 +202,7 @@ the session's next close. An `adapter` or `embedded` carrier declares no nudge a
 needs none: its process queues or starts turns itself, and if that process is gone
 so is the session it served.
 
-In Codex, the adapter collects available input, then freezes the delivery. Input
+In Codex, on either transport, the adapter collects available input, then freezes the delivery. Input
 collected after that boundary belongs to a later delivery. Without an App Server
 observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable
 same-task queue. A failed or uncertain queue call retries the same frozen pointer while
@@ -258,7 +258,7 @@ recovers the same binding — one resuming a task after the fact, or reading the
 task opened for a queued pointer. A lost subscription is not one of those cases:
 losing the starting connection ends the turn rather than opening a gap to read across.
 Reply binding is the hook's contract above and, for the agent,
-`../../references/host-codex.md`, "Codex App Server transport". This is another carrier over
+`../../references/host-codex-app-server.md`, "Replies". This is another carrier over
 the same delivery, page claim, event log, and activity projection, not another
 conversation store or response policy.
 

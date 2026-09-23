@@ -4581,10 +4581,13 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         if c.get("when") == {"required": ["drawing"]}
     ]
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
-    # A drawn comment is told how to read its drawing, then all a plain one is told.
-    # The comment's own clauses, then how to write the reply it owes.
+    # A message is told to acknowledge before anything else, then its own clauses,
+    # then how to write the reply it owes.
+    assert plain[0].startswith("Acknowledge this delivery before anything else")
     assert plain[-len(replying) :] == replying
-    assert drawn == [reading_a_drawing, *plain]
+    # A drawn comment is told everything a plain one is, and how to read its drawing.
+    assert reading_a_drawing in drawn
+    assert [clause for clause in drawn if clause != reading_a_drawing] == plain
     # A thread the reader closed before capture owes nothing, so it is told nothing
     # about answering.
     assert not set(replying) & set(closed)
@@ -7973,6 +7976,69 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         assert [json.loads(line) for line in log.read_text().splitlines()] == [
             ["queue", "--help"]
         ]
+    finally:
+        session_model.cmd_status(page, "idle", "")
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the Codex adapter stayed live after releasing its page",
+    )
+
+
+def test_a_later_codex_start_names_the_running_transport(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """A later start joins the running adapter and names its transport, which is how
+    the host contracts tell the queue from App Server; one asking for an App Server
+    this adapter is not on is refused rather than ignored."""
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    environment = codex_env | {
+        "CODEX_THREAD_ID": "codex-thread",
+        "FAKE_CODEX_LOG": str(log),
+        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
+    }
+
+    def start(*arguments):
+        started = under_codex(
+            shlex.join(
+                [
+                    *LEAF_COMMAND,
+                    "codex",
+                    "start",
+                    str(page),
+                    "--codex-path",
+                    os.path.relpath(program),
+                    *arguments,
+                ]
+            ),
+            environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, err = started.communicate(timeout=60)
+        return started.returncode, out.strip(), err
+
+    try:
+        assert start()[:2] == (0, "Codex delivery started for task codex-thread")
+        # Each start claims the page for its own short-lived Codex, as the delivery
+        # test below explains; keep the claim alive so the adapter stays up. The
+        # refused start restores this claim, and the joining one comes last.
+        claim = service_model.page_claim(page)
+        files_model.write_json(
+            service_model.claim_path(page), {**claim, "pid": os.getpid()}
+        )
+        status, _, err = start("--app-server", "unix:///tmp/elsewhere.sock")
+        assert status != 0
+        assert "not through App Server unix:///tmp/elsewhere.sock" in err
+        assert start()[:2] == (
+            0,
+            "Codex delivery is already active for task codex-thread",
+        )
     finally:
         session_model.cmd_status(page, "idle", "")
         with service_model.PageTransaction(page) as transaction:

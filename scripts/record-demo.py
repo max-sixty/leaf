@@ -139,11 +139,11 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 new version as the checks finish.</p>
 </header>
 
-<lf-metrics id="demo-metrics">
+<lf-grid id="demo-metrics">
   <lf-metric id="demo-progress" value="{progress}"{delta}>checks complete</lf-metric>
   <lf-metric id="demo-errors" value="0.08%">error rate</lf-metric>
   <lf-metric id="demo-p95" value="181 ms">p95 latency</lf-metric>
-</lf-metrics>
+</lf-grid>
 
 <section id="phases">
 <h2>Phases</h2>

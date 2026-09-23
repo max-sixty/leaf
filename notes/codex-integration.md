@@ -1,7 +1,8 @@
 # Further Codex integration work
 
 Leaf's current companion workflow is documented in
-[host-codex.md, “Codex App Server transport”](../skills/leaf/references/host-codex.md#codex-app-server-transport).
+[host-codex.md](../skills/leaf/references/host-codex.md) and
+[host-codex-app-server.md](../skills/leaf/references/host-codex-app-server.md).
 [Session lifetime, “Carriers”](../skills/leaf/scripts/leaf/session-lifetime.md#carriers)
 owns the delivery and connection lifecycle. This note holds open design work.
 

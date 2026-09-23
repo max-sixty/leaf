@@ -76,9 +76,9 @@ has tried; settle that before building it.
 ### Layout
 
 - **Replace the document/workspace choice with layout axes.** Follow the
-  [layout model](notes/layout-model.md): `lf-grid` in flow for dashboards first
-  (#29), then a two-state `lf-workspace` that picks its posture from its own size
-  (#30). **Unconfirmed:** that one global threshold suits the monitor, comparison and
+  [layout model](notes/layout-model.md): a two-state `lf-workspace` that picks its
+  posture from its own size (#30), then the playground, visual review and Ask onto
+  the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
   queue-with-detail pages.
 
 ### The agent's text interface
@@ -96,6 +96,13 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
+- **Give each guidance rule one home.** Around 30 rules are written in two to 14
+  places each, and seven of them already disagree. In almost every disagreement,
+  a short copy (a CLI help string, a delivered clause or a docs paragraph) leaves
+  out a case that the full reference states. Fix the disagreements first, then
+  replace the other copies with pointers.
+  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
+  for each rule.
 
 ## Etc
 
@@ -106,6 +113,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
+- **Multiplayer:** let several readers share a page, each recorded as themselves.
+  Every browser event is `author: "user"` today, so the log cannot say who moved,
+  commented or voted, and nothing records who has the page open. Claude Code
+  Artifacts store a viewer id on each row and resolve names, faces and presence
+  from the host. Settle reader identity and how it reaches the append door before
+  building a feed or presence on it.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   readers return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the host

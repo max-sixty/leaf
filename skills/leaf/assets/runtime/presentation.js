@@ -113,6 +113,8 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   upgraded: "data-lf-upgraded",
   inline: "data-lf-inline",
   space: "data-lf-space",
+  measure: "data-lf-measure",
+  bound: "data-lf-bound",
   exhibit: "data-lf-exhibit",
   yield: "data-lf-yield",
   holds: "data-lf-holds",
@@ -492,9 +494,19 @@ export function dress(root) {
 // room x-space hands out is the document's, and a message is the one place a
 // widget of the page's vocabulary renders outside the document, where the room is the
 // panel's (see msgNode).
+//
+// Two more are facts of the element wherever it renders. x-measure says whether the
+// widget fills the frame holding it (surface) or only groups other blocks (group);
+// undeclared, it is text and keeps the reading measure inside a frame wider than the
+// column. x-bound says it holds
+// its own height and scrolls inside it; `bounds.js` keeps an `end` bound on its newest
+// entry. A page occurrence overrides x-bound with data-bound, as data-width overrides
+// x-space.
 export const MARKED_ANYWHERE = Object.freeze({
   "x-inline": PAGE_PAINT_ATTRIBUTE.inline,
   "x-exhibit": PAGE_PAINT_ATTRIBUTE.exhibit,
+  "x-measure": PAGE_PAINT_ATTRIBUTE.measure,
+  "x-bound": PAGE_PAINT_ATTRIBUTE.bound,
 });
 export const MARKED_IN_PAGE = Object.freeze({
   ...MARKED_ANYWHERE,
@@ -508,20 +520,24 @@ function* elementsIn(root, selector) {
 
 // `markDeclared` exposes a declaration such as x-space as paint, and CSS computes the
 // room after chrome strips and claimed margins.
+// A declaration an authored occurrence may override, and the attribute it is written as.
+const AUTHORED = Object.freeze({ "x-space": "data-width", "x-bound": "data-bound" });
+
 export function markDeclared(root, painted) {
-  if (painted["x-space"]) {
-    for (const el of elementsIn(root, `[${PAGE_PAINT_ATTRIBUTE.space}]`))
-      el.removeAttribute(PAGE_PAINT_ATTRIBUTE.space);
-  }
+  for (const key of Object.keys(AUTHORED))
+    if (painted[key])
+      for (const el of elementsIn(root, `[${painted[key]}]`))
+        el.removeAttribute(painted[key]);
   for (const [key, attr] of Object.entries(painted))
     for (const tag of tagsDeclaring((entry) => entry[key])) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
         el.setAttribute(attr, declared === true ? "" : declared);
     }
-  if (painted["x-space"])
-    for (const el of elementsIn(root, "[data-width]"))
-      el.setAttribute(PAGE_PAINT_ATTRIBUTE.space, el.dataset.width);
+  for (const [key, authored] of Object.entries(AUTHORED))
+    if (painted[key])
+      for (const el of elementsIn(root, `[${authored}]`))
+        el.setAttribute(painted[key], el.getAttribute(authored));
 }
 
 // Words a widget says through an attribute — a metric's number, a chronology entry's time, an

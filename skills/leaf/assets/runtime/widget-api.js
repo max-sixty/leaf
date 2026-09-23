@@ -1,6 +1,12 @@
 /* The one helper surface behavior modules import. Capabilities come from their
    domain owners; optional hosts load when requested. Owners import one another,
-   and leaf.js only boots. */
+   and leaf.js only boots.
+
+   The runtime tree is not the set of importers. Package widget modules and the render
+   gate's probes under `leaf/render-checks/` both reach this file over HTTP from the
+   served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
+   importer comes back empty whether or not the export is reachable. What answers that
+   question is the browser gate, which fails to parse every probe module at once. */
 import { defineRequestElement } from "./request-elements.js";
 
 export { LitElement, html } from "../vendor/browser-runtime.js";

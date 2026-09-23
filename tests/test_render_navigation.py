@@ -174,6 +174,61 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     )
 
 
+def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(READING_REGIONS_PAGE), context=context)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel = page.locator(".lf-thread-panel")
+    expect(panel).to_be_visible()
+    expect(panel).to_have_attribute("aria-modal", "true")
+    page.evaluate(
+        """async () => {
+          const { registerReadingArrangement } = await window.__lfRuntimeImport(
+            '/runtime/reading-regions.js');
+          const list = document.querySelector('.lf-threads');
+          const nested = document.createElement('div');
+          nested.id = 'nested-reading';
+          nested.style.cssText = 'height:100px;overflow:auto';
+          nested.innerHTML = '<button id="nested-focus">Nested</button>' +
+            '<div style="height:1000px"></div>';
+          list.append(nested);
+          const filler = document.createElement('div');
+          filler.style.height = '1000px';
+          list.append(filler);
+          const arrangement = registerReadingArrangement({
+            owner: nested, content: nested,
+            regions: [{ id: 'nested-reading', host: nested, body: nested }],
+          });
+          await arrangement.setReadingPosture('bounded');
+        }"""
+    )
+    nested = page.locator("#nested-reading")
+    list_box = page.locator(".lf-threads")
+    page.locator("#nested-focus").focus()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "() => document.querySelector('#nested-reading').scrollTop > 0"
+    )
+    assert list_box.evaluate("box => box.scrollTop") == 0
+
+    nested_position = nested.evaluate("box => box.scrollTop")
+    close = panel.get_by_role("button", name="Close threads")
+    close.focus()
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    assert nested.evaluate("box => box.scrollTop") == nested_position
+
+    list_box.evaluate("box => box.scrollTop = 0")
+    close.evaluate("button => button.blur()")
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    assert nested.evaluate("box => box.scrollTop") == nested_position
+
+
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     workspace = page.locator("#reading-workspace")
@@ -777,12 +832,12 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         "comparison-current",
         "comparison-proposed",
     ]
-    current.evaluate("el => el.scrollTop = el.scrollHeight")
-    proposed.evaluate("el => el.scrollTop = el.scrollHeight")
-    initial_scrolls = [
-        current.evaluate("el => el.scrollTop"),
-        proposed.evaluate("el => el.scrollTop"),
-    ]
+    initial_scrolls = page.evaluate("""() => {
+        const panes = ["comparison-current", "comparison-proposed"].map(id =>
+            document.querySelector(`#${id} .lf-pane-body`));
+        for (const pane of panes) pane.scrollTop = pane.scrollHeight;
+        return panes.map(pane => pane.scrollTop);
+    }""")
     assert min(initial_scrolls) > 0
 
     page.locator(".lf-threads-toggle").click()
@@ -4993,7 +5048,11 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert geometry["left"] >= 0 and geometry["right"] <= geometry["viewport"], (
             geometry
         )
-        assert geometry["rows"] <= (2 if width == 1280 else 4), geometry
+        # A desktop window holds the whole line in two rows. A narrow one wraps as far
+        # as the platform's font metrics take it, so what it owes the reader is room: the
+        # line keeps to a fifth of the window, however many rows that comes to.
+        if width == 1280:
+            assert geometry["rows"] <= 2, geometry
         assert geometry["height"] <= 800 * 0.2, geometry
     resized(page, 1280, 800)
     expect(page.locator(CHIPS).first).to_be_visible()

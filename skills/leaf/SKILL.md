@@ -61,8 +61,11 @@ directory explicitly; export or copy anything that must outlive the page directo
    is a record whatever else it looks like, since sign-off is offered only on a
    stamped version. A later stamp that turns a quick page into a record takes
    that review first.
-4. Read `references/conversation-loop.md` and exactly one host contract,
-   `references/host-claude-code.md` or `references/host-codex.md`. Set the
+4. Read `references/conversation-loop.md` and exactly one host contract:
+   `references/host-claude-code.md` in Claude Code; in Codex,
+   `references/host-codex-app-server.md` when `LEAF_CODEX_APP_SERVER` is set or the
+   user gave you the task's App Server endpoint, and `references/host-codex.md`
+   otherwise. Set the
    page's status as the conversation reference defines, hand over by the host's
    route, name the gesture available to the reader, and finish the turn with the
    exact URL, or with what the host contract hands over instead.
@@ -114,9 +117,10 @@ retell it: correct a wrong figure in place and drop a superseded claim. Save
 freely as the subject changes and stamp meaningful checkpoints.
 
 While a page is live, telling its reader what you are doing takes priority over doing
-it, as a UI thread handles input before background work. Put each step on the page
-before starting it, and acknowledge reader input on the page before acting on it. Keep
-the watcher running, and hand work longer than a few minutes to background workers
+it, as a UI thread handles input before background work. When reader input arrives,
+acknowledge it first and reply to it next, before any other work, including the work it
+asks for. Put each step on the page before starting it. Keep the watcher running, and
+hand work longer than a few minutes to background workers
 rather than waiting on it yourself, so a new comment reaches you in time to change the
 next step. The page stays yours while they run. `references/conversation-loop.md` names
 the surfaces, when to write each, and what a worker may touch.
@@ -153,8 +157,10 @@ so a phase does not depend on discovering a chain of references.
   work long enough to delegate.
 - `references/host-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
-- `references/host-codex.md`: before the first handoff in Codex, and for the
-  delivery payload its later turns receive.
+- `references/host-codex.md`: before the first handoff in Codex reached through its
+  queue, which includes the desktop app, and for the delivery its later turns receive.
+- `references/host-codex-app-server.md`: before the first handoff in a Codex task
+  Leaf reaches over App Server, and for the delivery turns Leaf starts there.
 
 ### Continue after input
 

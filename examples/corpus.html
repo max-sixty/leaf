@@ -2119,195 +2119,187 @@ export const summarize = checks =>
 </lf-tab>
 
 <lf-tab id="corpus-live-progress" label="Live">
-<lf-monitor id="lp-monitor">
-        <header>
-          <h1>Checkout v2 release</h1>
-          <p class="lede" id="lp-lede">
-            The production canary is paused at 25%. Customer checkout is healthy, but
-            finance export is one row short and must reconcile before traffic expands.
+<h1>Checkout v2 release</h1>
+      <p class="lede" id="lp-lede">
+        The production canary is paused at 25%. Customer checkout is healthy, but
+        finance export is one row short and must reconcile before traffic expands.
+      </p>
+
+      <lf-grid id="lp-status" columns="3">
+        <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+        <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
+        <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+      </lf-grid>
+
+      <aside class="callout" id="lp-current-state">
+        <strong>Paused at 25%</strong>
+        Automatic promotion stopped when the finance-parity check failed. The candidate
+        remains live for canary traffic while Ledger traces a partial-refund fixture
+        mismatch; the exact failing producer is not yet established.
+      </aside>
+      <p id="lp-hold-policy">
+        <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
+        sooner if a customer guardrail fails.
+      </p>
+      <lf-release-actions
+        id="lp-release-actions"
+        candidate="checkout-v2"
+        stable="checkout-v1"
+      >
+        <lf-release-action verb="rollback">
+          <strong>Request rollback to checkout-v1</strong>
+          <p>
+            Ready; returns traffic to the stable release without repairing the missing
+            finance row.
           </p>
-        </header>
+        </lf-release-action>
+      </lf-release-actions>
 
-        <lf-monitor-grid id="lp-regions">
-          <lf-monitor-region id="lp-release" label="Release" zone="release">
-            <header><h2>Release</h2></header>
-            <aside class="callout" id="lp-current-state">
-              <strong>Paused at 25%</strong>
-              Automatic promotion stopped when the finance-parity check failed. The
-              candidate remains live for canary traffic while Ledger traces a
-              partial-refund fixture mismatch; the exact failing producer is not yet
-              established.
-            </aside>
-            <lf-metrics id="lp-metrics">
-              <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-              <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
-            </lf-metrics>
-            <dl class="facts" id="lp-release-facts">
-              <dt>Environment</dt>
-              <dd>Production</dd>
-              <dt>Candidate</dt>
-              <dd><code>checkout-v2</code></dd>
-              <dt>Stable</dt>
-              <dd><code>checkout-v1</code></dd>
-              <dt>Observed</dt>
-              <dd>14:24:44</dd>
-            </dl>
-            <p id="lp-hold-policy">
-              <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
-              sooner if a customer guardrail fails.
-            </p>
+      <lf-grid id="lp-evidence" columns="1fr 1fr">
+        <section id="lp-checks">
+          <h2>Checks</h2>
+          <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
+          <table id="lp-checks-table">
+            <thead>
+              <tr>
+                <th>Check</th>
+                <th>Result</th>
+                <th>Observed / required</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="lp-check-errors">
+                <th scope="row">Error rate</th>
+                <td>
+                  <span class="release-check-result" data-status="pass">Pass</span>
+                </td>
+                <td><code>0.11%</code> / below <code>0.50%</code></td>
+              </tr>
+              <tr id="lp-check-latency">
+                <th scope="row">p95 latency</th>
+                <td>
+                  <span class="release-check-result" data-status="pass">Pass</span>
+                </td>
+                <td><code>184 ms</code> / below <code>300 ms</code></td>
+              </tr>
+              <tr id="lp-check-orders">
+                <th scope="row">Order parity</th>
+                <td>
+                  <span class="release-check-result" data-status="pass">Pass</span>
+                </td>
+                <td><code>2,000</code> / <code>2,000</code></td>
+              </tr>
+              <tr id="lp-check-finance">
+                <th scope="row">Finance export</th>
+                <td>
+                  <span class="release-check-result" data-status="fail">Fail</span>
+                </td>
+                <td><code>1,998</code> / <code>1,999</code> rows</td>
+              </tr>
+              <tr id="lp-check-rollback">
+                <th scope="row">Rollback target</th>
+                <td>
+                  <span class="release-check-result" data-status="pass">Pass</span>
+                </td>
+                <td>3 batches / zero delta</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+        <section id="lp-log">
+          <h2>Run log</h2>
+          <p id="lp-log-note">
+            Example snapshot ending at 14:24:44. New events append without moving a
+            reader who has scrolled back.
+          </p>
+          <lf-text-document
+            id="lp-live-log"
+            source="release-log"
+            data-bound="end"
+          ></lf-text-document>
+        </section>
+      </lf-grid>
 
-            <lf-release-actions
-              id="lp-release-actions"
-              candidate="checkout-v2"
-              stable="checkout-v1"
-            >
-              <lf-release-action verb="rollback">
-                <strong>Request rollback to checkout-v1</strong>
-                <p>
-                  Ready; returns traffic to the stable release without repairing the
-                  missing finance row.
-                </p>
-              </lf-release-action>
-            </lf-release-actions>
+      <section id="lp-release">
+        <h2>Release</h2>
+        <dl class="facts" id="lp-release-facts">
+          <dt>Environment</dt>
+          <dd>Production</dd>
+          <dt>Candidate</dt>
+          <dd><code>checkout-v2</code></dd>
+          <dt>Stable</dt>
+          <dd><code>checkout-v1</code></dd>
+          <dt>Observed</dt>
+          <dd>14:24:44</dd>
+        </dl>
+        <h3 id="lp-steps-heading">Release steps</h3>
+        <lf-milestones id="lp-release-steps">
+          <lf-milestone id="lp-step-build" status="done" when="14:18">
+            <strong>Build and verify the candidate</strong> Image signed and provenance
+            recorded.
+          </lf-milestone>
+          <lf-milestone id="lp-step-canary" status="done" when="14:22">
+            <strong>Deploy the 25% canary</strong> Candidate serving production checkout
+            traffic.
+          </lf-milestone>
+          <lf-milestone id="lp-step-checks" status="blocked" when="now">
+            <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
+            expected rows.
+          </lf-milestone>
+          <lf-milestone id="lp-step-promote" status="planned">
+            <strong>Expand to 100%</strong>
+          </lf-milestone>
+          <lf-milestone id="lp-step-observe" status="planned">
+            <strong>Observe and complete</strong>
+          </lf-milestone>
+        </lf-milestones>
+        <details id="lp-release-notes">
+          <summary>Release notes · 3 changes</summary>
+          <ul>
+            <li>Keep partial-refund state through checkout retries.</li>
+            <li>Write refund adjustments to the finance export.</li>
+            <li>Add parity checks before production promotion.</li>
+          </ul>
+        </details>
+        <details id="lp-release-owners">
+          <summary>Release owners · 5</summary>
+          <lf-roster id="lp-owners">
+            <lf-agent id="lp-agent-deployer" state="waiting">
+              <strong>deployer</strong> Holding promotion at 25% while finance parity is
+              red.
+            </lf-agent>
+            <lf-agent id="lp-agent-ledger" state="working">
+              <strong>ledger</strong> Reconciling <code>co_18427</code> against the
+              candidate export.
+            </lf-agent>
+            <lf-agent id="lp-agent-finance" state="blocked">
+              <strong>finance</strong> Waiting for the missing export row before signing
+              off.
+            </lf-agent>
+            <lf-agent id="lp-agent-observer" state="idle">
+              <strong>observer</strong> Ready to watch the release after promotion.
+            </lf-agent>
+            <lf-agent id="lp-agent-builder" state="done">
+              <strong>builder</strong> Signed the candidate and recorded its provenance.
+            </lf-agent>
+          </lf-roster>
+        </details>
 
-            <h3 id="lp-steps-heading">Release steps</h3>
-            <lf-milestones id="lp-release-steps">
-              <lf-milestone id="lp-step-build" status="done" when="14:18">
-                <strong>Build and verify the candidate</strong> Image signed and
-                provenance recorded.
-              </lf-milestone>
-              <lf-milestone id="lp-step-canary" status="done" when="14:22">
-                <strong>Deploy the 25% canary</strong> Candidate serving production
-                checkout traffic.
-              </lf-milestone>
-              <lf-milestone id="lp-step-checks" status="blocked" when="now">
-                <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
-                expected rows.
-              </lf-milestone>
-              <lf-milestone id="lp-step-promote" status="planned">
-                <strong>Expand to 100%</strong>
-              </lf-milestone>
-              <lf-milestone id="lp-step-observe" status="planned">
-                <strong>Observe and complete</strong>
-              </lf-milestone>
-            </lf-milestones>
-
-            <details id="lp-release-notes">
-              <summary>Release notes · 3 changes</summary>
-              <ul>
-                <li>Keep partial-refund state through checkout retries.</li>
-                <li>Write refund adjustments to the finance export.</li>
-                <li>Add parity checks before production promotion.</li>
-              </ul>
-            </details>
-            <details id="lp-release-owners">
-              <summary>Release owners · 5</summary>
-              <lf-roster id="lp-owners">
-                <lf-agent id="lp-agent-deployer" state="waiting">
-                  <strong>deployer</strong> Holding promotion at 25% while finance
-                  parity is red.
-                </lf-agent>
-                <lf-agent id="lp-agent-ledger" state="working">
-                  <strong>ledger</strong> Reconciling <code>co_18427</code> against the
-                  candidate export.
-                </lf-agent>
-                <lf-agent id="lp-agent-finance" state="blocked">
-                  <strong>finance</strong> Waiting for the missing export row before
-                  signing off.
-                </lf-agent>
-                <lf-agent id="lp-agent-observer" state="idle">
-                  <strong>observer</strong> Ready to watch the release after promotion.
-                </lf-agent>
-                <lf-agent id="lp-agent-builder" state="done">
-                  <strong>builder</strong> Signed the candidate and recorded its
-                  provenance.
-                </lf-agent>
-              </lf-roster>
-            </details>
-            <details id="lp-rollback-procedure">
-              <summary>Rollback procedure · 3 steps</summary>
-              <ol class="steps">
-                <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
-                <li>Drain the candidate after active sessions finish.</li>
-                <li>Verify order counts and finance-export isolation.</li>
-              </ol>
-            </details>
-          </lf-monitor-region>
-
-          <lf-monitor-region id="lp-checks" label="Checks" zone="checks">
-            <header><h2>Checks</h2></header>
-            <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
-            <table id="lp-checks-table">
-              <thead>
-                <tr>
-                  <th>Check</th>
-                  <th>Result</th>
-                  <th>Observed / required</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="lp-check-errors">
-                  <th scope="row">Error rate</th>
-                  <td>
-                    <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
-                  <td><code>0.11%</code> / below <code>0.50%</code></td>
-                </tr>
-                <tr id="lp-check-latency">
-                  <th scope="row">p95 latency</th>
-                  <td>
-                    <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
-                  <td><code>184 ms</code> / below <code>300 ms</code></td>
-                </tr>
-                <tr id="lp-check-orders">
-                  <th scope="row">Order parity</th>
-                  <td>
-                    <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
-                  <td><code>2,000</code> / <code>2,000</code></td>
-                </tr>
-                <tr id="lp-check-finance">
-                  <th scope="row">Finance export</th>
-                  <td>
-                    <span class="release-check-result" data-status="fail">Fail</span>
-                  </td>
-                  <td><code>1,998</code> / <code>1,999</code> rows</td>
-                </tr>
-                <tr id="lp-check-rollback">
-                  <th scope="row">Rollback target</th>
-                  <td>
-                    <span class="release-check-result" data-status="pass">Pass</span>
-                  </td>
-                  <td>3 batches / zero delta</td>
-                </tr>
-              </tbody>
-            </table>
-          </lf-monitor-region>
-
-          <lf-monitor-region id="lp-log" label="Run log" zone="log">
-            <header><h2>Run log</h2></header>
-            <p id="lp-log-note">
-              Example snapshot ending at 14:24:44. New events append without moving a
-              reader who has scrolled back.
-            </p>
-            <lf-text-document id="lp-live-log" source="release-log"></lf-text-document>
-            <details id="lp-code-changes">
-              <summary>Code changes · 2 files, +18 −4</summary>
-              <lf-diff id="lp-release-diff" source="release-patch" snapshot="1">
-                <pre></pre>
-              </lf-diff>
-            </details>
-            <footer>Newest events appear at the end.</footer>
-          </lf-monitor-region>
-        </lf-monitor-grid>
-
-        <footer>
-          Traffic stays at 25% until finance export parity passes or the 14:32 rollback
-          deadline arrives.
-        </footer>
-      </lf-monitor>
+        <details id="lp-rollback-procedure">
+          <summary>Rollback procedure · 3 steps</summary>
+          <ol class="steps">
+            <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
+            <li>Drain the candidate after active sessions finish.</li>
+            <li>Verify order counts and finance-export isolation.</li>
+          </ol>
+        </details>
+        <details id="lp-code-changes">
+          <summary>Code changes · 2 files, +18 −4</summary>
+          <lf-diff id="lp-release-diff" source="release-patch" snapshot="1">
+            <pre></pre>
+          </lf-diff>
+        </details>
+      </section>
 </lf-tab>
 
 <lf-tab id="corpus-pr-walkthrough" label="PR">
@@ -5120,15 +5112,19 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
 
         <section id="bg-metrics-and-chart">
-          <p class="eyebrow bg-feature-elements">lf-metrics · lf-metric · lf-chart</p>
+          <p class="eyebrow bg-feature-elements">lf-grid · lf-metric · lf-chart</p>
           <h3>
-            <strong>Metrics</strong> and <strong>Chart</strong
+            <strong>Grid</strong>, <strong>Metrics</strong>, and <strong>Chart</strong
             ><span class="bg-feature-detail">: values and trends</span>
           </h3>
           <p id="bg-metrics-guide">
-            Metrics show individual values. A Chart compares the values across runs.
+            Metrics show individual values as tiles, and a Chart compares the values
+            across runs. Narrow the window: the metric row and the three-column chart
+            grid rewrap a column at a time, and the template grid under them stacks once
+            it is narrower than 600px. Its log holds its own height and stays on its
+            newest line until you scroll back.
           </p>
-          <lf-metrics id="bg-metrics">
+          <lf-grid id="bg-metrics">
             <lf-metric id="bg-metric-complete" value="12" delta="+3" direction="up-good"
               >checks complete</lf-metric
             >
@@ -5136,31 +5132,78 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               >open failures</lf-metric
             >
             <lf-metric id="bg-metric-neutral" value="4 min">sample duration</lf-metric>
-          </lf-metrics>
-          <lf-chart id="bg-chart" kind="line" y="checks complete">
-            <pre>
+          </lf-grid>
+          <lf-grid id="bg-charts" columns="3">
+            <lf-chart id="bg-chart" kind="line" y="checks complete">
+              <pre>
 run, baseline, candidate
 1, 4, 5
 2, 7, 9
 3, 9, 12
 </pre>
-          </lf-chart>
-          <lf-chart id="bg-chart-bars" kind="bars" y="checks complete">
-            <pre>
+            </lf-chart>
+            <lf-chart id="bg-chart-bars" kind="bars" y="checks complete">
+              <pre>
 run, checks
 first, 5
 second, 9
 third, 12
 </pre>
-          </lf-chart>
-          <lf-chart id="bg-chart-stack" kind="stack" y="checks">
-            <pre>
+            </lf-chart>
+            <lf-chart id="bg-chart-stack" kind="stack" y="checks">
+              <pre>
 run, passed, failed
 first, 5, 3
 second, 9, 2
 third, 12, 0
 </pre>
-          </lf-chart>
+            </lf-chart>
+          </lf-grid>
+          <lf-grid id="bg-run" columns="1fr 2fr">
+            <section id="bg-run-summary">
+              <h4>Third run</h4>
+              <p>
+                Twelve checks complete and none failed. The log beside this cell is the
+                run's own output.
+              </p>
+            </section>
+            <pre id="bg-run-log" data-bound="end">
+12:00:01 runner   start run=3 checks=12
+12:00:04 check    schema ok
+12:00:07 check    migrations ok
+12:00:09 check    importer-unit ok
+12:00:12 check    importer-replay ok
+12:00:15 check    ledger-parity ok
+12:00:18 check    api-contract ok
+12:00:21 check    sdk-build ok
+12:00:24 check    docs-links ok
+12:00:27 check    rollback ok
+12:00:30 check    shadow-diff ok
+12:00:33 check    load-p95 ok
+12:00:36 check    canary-guardrails ok
+12:00:39 runner   done run=3 passed=12 failed=0
+12:00:41 runner   report uploaded
+12:00:44 runner   baseline updated
+12:00:46 runner   workers released
+12:00:48 runner   idle
+12:01:00 watcher  heartbeat seq=0
+12:01:03 watcher  heartbeat seq=3
+12:01:06 watcher  heartbeat seq=6
+12:01:09 watcher  heartbeat seq=9
+12:01:12 watcher  heartbeat seq=12
+12:01:15 watcher  heartbeat seq=15
+12:01:18 watcher  heartbeat seq=18
+12:01:21 watcher  heartbeat seq=21
+12:01:24 watcher  heartbeat seq=24
+12:01:27 watcher  heartbeat seq=27
+12:01:30 watcher  heartbeat seq=30
+12:01:33 watcher  heartbeat seq=33
+12:01:36 watcher  heartbeat seq=36
+12:01:39 watcher  heartbeat seq=39
+12:01:42 watcher  heartbeat seq=42
+12:01:45 watcher  heartbeat seq=45
+</pre>
+          </lf-grid>
         </section>
 
         <section id="bg-code-and-tree">

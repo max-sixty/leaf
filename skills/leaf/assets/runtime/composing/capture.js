@@ -54,14 +54,11 @@ export function selectionAnchor(sel) {
     segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
       ? onlyDatum
       : null;
-  const section =
-    datum?.dataset.lfProjection ??
-    closestAcross(holder, "[id]:not(.lf-ui)")?.id ??
-    null;
   // Identity is the context for projected data. Neighbouring display values may reorder
   // or repeat, so storing their words as prefix/suffix would make incidental layout a
   // second, conflicting answer to which datum the reader selected.
   if (datum) return anchorForDatum(datum, { quote });
+  const section = closestAcross(holder, "[id]:not(.lf-ui)")?.id ?? null;
   const reading = pageText();
   const [start, stop] = spanIn(reading, segments);
   const prefix = cut(

@@ -694,6 +694,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/event-batches.md",
         "skills/leaf/references/host-claude-code.md",
         "skills/leaf/references/host-codex.md",
+        "skills/leaf/references/host-codex-app-server.md",
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",

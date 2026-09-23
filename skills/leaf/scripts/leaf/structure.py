@@ -80,6 +80,12 @@ HEADING_TAGS = {"h2", "h3", "h4", "h5", "h6"}
 # The properties that overflow a column when pinned in pixels. max-width defines the
 # column instead, so it is read there and never counted here.
 OVERFLOW_PROPS = ("width", "min-width")
+# The allocations a page occurrence may state for any block, each attribute with the
+# values it takes: its width in the page's flow, and whether it bounds its own height.
+AUTHORED_ALLOCATIONS = {
+    "data-width": ("column", "wide", "available"),
+    "data-bound": ("start", "end"),
+}
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
 # name → allowed content values (None = free-form). A misspelled name or value
 # would silently declare nothing in the browser, so `version check` owns this
@@ -252,8 +258,8 @@ class SourceDocument:
         self.css = ""
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
         self.attr_widths = []  # {tag, line, value} per width="" counted as pixels
-        # {tag, line, value} per authored responsive allocation request.
-        self.authored_widths = []
+        # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
+        self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
@@ -506,10 +512,11 @@ class SourceDocument:
             )
         if tag in PIXEL_WIDTH_TAGS and attrs.get("width"):
             self.attr_widths.append({"tag": tag, "line": line, "value": attrs["width"]})
-        if "data-width" in attrs:
-            self.authored_widths.append(
-                {"tag": tag, "line": line, "value": attrs["data-width"]}
-            )
+        for attr in AUTHORED_ALLOCATIONS:
+            if attr in attrs:
+                self.authored_allocations.append(
+                    {"tag": tag, "line": line, "attr": attr, "value": attrs[attr]}
+                )
         markers = sorted(name for name in attrs if name.startswith("data-lf-"))
         markers += sorted(
             name

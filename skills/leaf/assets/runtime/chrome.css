@@ -206,7 +206,9 @@
    Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
    class itself. */
 .lf-ui textarea:where(:not(.lf-fab-input)),
-textarea.lf-ui:where(:not(.lf-fab-input)) { padding: 8px 10px; border: 1px solid var(--border-2);
+textarea.lf-ui:where(:not(.lf-fab-input)) {
+  padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
+  border: 1px solid var(--border-2);
   border-radius: 6px; background: var(--card); color: inherit; resize: none;
   field-sizing: content; max-height: 50vh; overflow-y: auto; }
 .lf-ui :is(input, textarea)::placeholder,
@@ -1265,7 +1267,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 1px solid var(--border-2); background: var(--card);
     border-radius: var(--r);
     color: var(--ink-2); font-weight: 400; line-height: 1.3;
-    padding-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
+    padding-block: var(--lf-compose-pad-block, calc((var(--lf-response-height) - 1lh - 2px) / 2));
     box-shadow: 0 2px 8px var(--shade); }
   /* The bar keeps one silhouette through every state it has, so the here ring is cast
      as a shadow beside the lift rather than drawn as an outline the corner would have
@@ -1289,10 +1291,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
     max-height: var(--lf-float-h, 60vh);
-    padding-inline: 12px calc(max(28px, var(--aim-floor)) + 12px);
+    padding-inline: var(--lf-compose-pad-inline-start) calc(max(28px, var(--aim-floor)) + 12px);
     resize: none;
     field-sizing: content; overflow-y: auto; }
-  .lf-fab-bar .lf-compose-field { flex: 0 1 auto; }
+  .lf-fab-bar .lf-compose-field {
+    --lf-compose-pad-block: calc((var(--lf-response-height) - 1lh - 2px) / 2);
+    --lf-compose-pad-inline-start: 12px;
+    flex: 0 1 auto; }
+  .lf-fab-bar .lf-compose-placeholder { line-height: 1.3; }
   .lf-fab-bar .lf-compose-submit {
     inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
     inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }

@@ -414,6 +414,7 @@ app = mountApplication({
   margin: {
     bottomChromeBoxes,
     designModeActive: designMode.active,
+    pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
     comparisonBase: version.comparisonBase,
     comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,

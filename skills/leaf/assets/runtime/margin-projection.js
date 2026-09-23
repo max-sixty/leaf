@@ -187,6 +187,7 @@ export function createMarginProjection({
   panelIsOpen,
   openAsks,
   designModeActive,
+  pointerModeActive,
   comparisonBase,
   comparisonChanges,
   inlineComparison,
@@ -2629,8 +2630,10 @@ export function createMarginProjection({
   // any side of it: the target or anything inside it, its margin cluster, or the card
   // showing its threads. The card shows the threads of the target the user stands at,
   // which is what lets both be up at once, and goes when they stand anywhere else on the
-  // page, let go, or press outside all three. The chrome at large — the banner, a tray —
-  // is where a user works on the page rather than a place on it, and leaves the card.
+  // page, let go, or press outside all three. Keyboard focus passing through the chrome
+  // at large — the banner, a tray — is working on the page rather than a place on it,
+  // and leaves the card; a press anywhere else is the user's attention moving, and
+  // takes it, as a press on another page place does.
   //
   // Arrival through the keyboard shows the card, as arrival through Tab unfolds a
   // cluster; a pointer that lands on a control in a commented block asked for that
@@ -2691,13 +2694,13 @@ export function createMarginProjection({
   function pressAway(event) {
     if (!previewOpen()) return;
     const path = event.composedPath();
-    const stands = [preview, hosts.get(previewEntry?.key), targetFor(previewEntry)];
+    // A pointer mode reinterprets a press on the page as a stroke or an interface comment,
+    // so there a press stands nowhere but in the card itself.
+    const stands = pointerModeActive()
+      ? [preview]
+      : [preview, hosts.get(previewEntry?.key), targetFor(previewEntry)];
     if (stands.some((node) => node && path.includes(node))) return;
     if (path.some(inRetainedContext)) return;
-    // The chrome at large is where the user works rather than a place, as for focus;
-    // another target's cluster is that target.
-    const origin = path[0];
-    if (inChrome(origin) && !closestAcross(origin, "[data-lf-margin-for]")) return;
     closePreview();
   }
 
@@ -2806,7 +2809,9 @@ export function createMarginProjection({
     document.addEventListener("focusin", () => queueMicrotask(followStanding), {
       capture: true,
     });
-    document.addEventListener("pointerdown", pressAway, { capture: true });
+    // Ahead of the document, where a mode claims its presses before anyone else hears
+    // them: whatever a press becomes, it is still the user's attention moving.
+    addEventListener("pointerdown", pressAway, { capture: true });
     document.addEventListener(
       "pointerdown",
       (event) => {

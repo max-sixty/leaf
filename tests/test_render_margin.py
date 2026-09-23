@@ -3695,7 +3695,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
-    page.keyboard.press("Escape")
+    leave_card_by_its_target(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.locator(".lf-page-map-dialog")

@@ -577,8 +577,13 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     expect(versions).to_be_visible()
     box = versions.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    # The door's news is the shelf's to state, and it restates it on every paint. A
+    # newer version puts the urgent latest chip in the menu, so the accent the door
+    # takes is the one the page arrived at rather than one the test wrote on it.
     door = page.locator(".lf-banner-more")
-    door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
+    _publish(serve.page_dir, 3, html, "reworded the suggestion again")
+    told(page)
+    expect(door).to_have_attribute("aria-label", "More page controls, new")
     expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
 
 

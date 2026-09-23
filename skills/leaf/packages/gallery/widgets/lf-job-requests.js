@@ -52,7 +52,6 @@ customElements.define(
               kind: "request",
               verb: "restart",
               detail: { target: row.id, state: row.state },
-              data_revision: snapshot.revision,
             });
           return item;
         },

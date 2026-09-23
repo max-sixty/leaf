@@ -744,7 +744,7 @@ widget's `x-data` input name. Each verb then declares `unit`, a required detail 
 bound to that record key; `bind` maps other required string detail fields to required
 string fields on the record. The module renders its controls with `projectData`, reads
 `widgetController(holder).request(key)` for that row's reading and dispatch. It sends
-the row detail and the `watchData` snapshot's `revision` as `data_revision`.
+the row detail; Leaf stamps the request with the seat's source revision.
 The verbs are offered once by the projected holder; it has no authored offer children.
 The module gives each generated control a keyboard route.
 

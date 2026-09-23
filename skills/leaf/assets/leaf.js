@@ -796,6 +796,7 @@ if (!offlineInteractive) {
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
+  inputs.mount();
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,

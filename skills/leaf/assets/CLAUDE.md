@@ -64,7 +64,7 @@ relative to `runtime/` unless stated otherwise.
 | Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js` |
-| Banner, approvals, and fixed primary/menu control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
+| Banner, approvals, and the row, menu, and gesture control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
@@ -620,7 +620,9 @@ animation can expose the behavior.
 source map) live under `scripts/browser/generated/`. The manifest names its inputs,
 exports, and output hashes; `scripts/CLAUDE.md`
 owns the contributor build and check commands. The internal bundle contains Lit and
-Signals once, with no external imports or runtime compiler. Content modules import
+Signals once, with no external imports or runtime compiler. The Web Awesome bundle
+(`scripts/vendor.py webawesome`) is built separately and carries its own Lit, so a page
+runs two copies of it. Content modules import
 only `runtime/widget-api.js`. Server projection entries carry the declaration admitted from
 their captured revision, so neither active nor historical views reinterpret an event
 through the current DOM's registry.

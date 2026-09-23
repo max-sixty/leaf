@@ -1331,6 +1331,23 @@ class WebsitePageEndpoint(PageEndpoint):
         # The outer Worker has already selected this browser's isolated container.
         return True
 
+    def record_fault(self, error: Exception) -> None:
+        """Keep the container's own copy of a fault the browser was told about.
+
+        Cloudflare reads this container's stdout, so the reason a page answered 500
+        survives the browser that asked. Without it the operational log holds the
+        Worker's reading of that request — its route and its status — and nothing
+        that says which boundary refused or why.
+        """
+        log_agent(
+            "page_fault",
+            route=self.page_root or "/",
+            method=self.method,
+            path=self.path,
+            error=type(error).__name__,
+            detail=bounded_detail(str(error)),
+        )
+
     def _delivery_headers(self) -> dict[str, str]:
         # Every response this adapter sends is already inside this user's private
         # container. Say so at the canonical HTTP boundary as the outer Worker does;

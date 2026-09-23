@@ -859,7 +859,19 @@ class PageEndpoint:
             # browser must retry the same attempt instead of putting its gesture back.
             if prepare and not prepared:
                 self.body_unread = True
+            self.record_fault(error)
             return self._json({"error": f"{type(error).__name__}: {error}"}, 500)
+
+    def record_fault(self, error: Exception) -> None:
+        """Keep a copy of the fault above for a reader other than this browser.
+
+        The kernel has nowhere to keep one. `hosting.py` reserves this server's
+        streams for the handshake its caller reads, and a detached serve's stderr is
+        a pipe nobody drains, so a route that wrote a line per fault could fill it
+        and stop the page answering. The 500's own body is what Leaf says by
+        default, and it reaches the one person still looking at the page. A host
+        whose streams are read overrides this to keep the operator's copy too.
+        """
 
     def _specimen_request(self) -> Response | None:
         """Enter a child only after its parent transport has authorized this request."""

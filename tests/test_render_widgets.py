@@ -1147,9 +1147,9 @@ FEED_PAGE = leaf_page(
 def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_reader_scrolls_back(
     browser, serve
 ):
-    """A widget that rebuilds its entries wholesale (lf-record replaces its children on
-    every change) stays on its newest entry while the reader is at the end, and leaves
-    a reader who scrolled back where they stopped."""
+    """A widget that replaces its children on every change stays on its newest entry
+    while the reader is at the end, and leaves a reader who scrolled back where they
+    stopped."""
     page = open_page(browser, live_url(serve(FEED_PAGE)))
     rebuild = """count => document.getElementById('feed').replaceChildren(
       ...Array.from({length: count}, (_, i) => Object.assign(

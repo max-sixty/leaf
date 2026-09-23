@@ -79,6 +79,7 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from leaf.served_state import browser as browser_served_model
 from leaf.served_state import page as served_page
 from page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
@@ -820,6 +821,61 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
         None,
     )
     assert attention is None
+
+
+def test_thread_attention_names_the_workflow_the_thread_waits_on():
+    """A thread's status reads the workflows that keep it the agent's turn. An input
+    a newer one covers still does, so its pickup or a reply streaming to it keeps
+    reading on the thread; a frozen move that owes nothing does not, so its further
+    stage never stands in for the owed reply's."""
+
+    def workflow(id, seq, subject, stage, answer=None):
+        return {
+            "id": id,
+            "seq": seq,
+            "subject": subject,
+            "stage": stage,
+            "answer": answer,
+            "condition": None,
+            "next_actor": "agent",
+        }
+
+    thread = {"id": "root", "kind": "conversation"}
+    board = {"kind": "widget", "id": "board"}
+    owed = {"kind": "reply", "to": "newer", "for": "newer"}
+    cases = [
+        (
+            [
+                workflow("older", 1, thread, "replying"),
+                workflow("newer", 2, thread, "sent", owed),
+            ],
+            "older",
+        ),
+        (
+            [
+                workflow("older", 1, thread, "picked_up"),
+                workflow("newer", 2, thread, "sent", owed),
+            ],
+            "older",
+        ),
+        (
+            [
+                workflow("newer", 1, thread, "sent", owed),
+                workflow("card-move", 2, board, "picked_up"),
+            ],
+            "newer",
+        ),
+    ]
+    for workflows, expected in cases:
+        threads = [{"root": {"id": "root"}, "resolved": None, "awaits_reader": False}]
+        browser_served_model._apply_thread_attention(
+            threads, {"reader": []}, workflows, {"board": "root"}
+        )
+        assert threads[0]["attention"] == {
+            "kind": "waiting",
+            "reason": "workflow",
+            "workflow": expected,
+        }
 
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):

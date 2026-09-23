@@ -33,10 +33,24 @@ def _apply_thread_attention(
         "answered": 5,
     }
 
+    def at_work(workflow: dict) -> bool:
+        return workflow["stage"] in {"working", "replying"}
+
+    def holds_thread(workflow: dict) -> bool:
+        """Whether this workflow keeps its thread the agent's turn: every one of the
+        thread's own inputs and claims, and a widget move frozen into it while the
+        move is owed or the agent is at work on it. A frozen move that owes nothing
+        shows its receipt on its message and leaves the thread nobody's turn."""
+        return (
+            workflow["subject"]["kind"] == "conversation"
+            or workflow["answer"] is not None
+            or at_work(workflow)
+        )
+
     def priority(workflow: dict) -> tuple:
         if workflow["condition"] is not None:
             category = 2
-        elif workflow["stage"] in {"working", "replying"}:
+        elif at_work(workflow):
             category = 3
         elif workflow["stage"] == "answered":
             category = 0
@@ -77,15 +91,7 @@ def _apply_thread_attention(
                 "reason": "recovery",
                 "workflow": workflow["id"],
             }
-        elif waiting := [
-            workflow
-            for workflow in candidates
-            if workflow["answer"] is not None or workflow["stage"] == "working"
-        ]:
-            # The thread waits on the agent while the agent owes an answer there or
-            # is working there. A move that owes nothing, such as a card moved on a
-            # board frozen into a message, shows its receipt on that message
-            # without making the thread the agent's turn or naming its status.
+        elif waiting := [workflow for workflow in candidates if holds_thread(workflow)]:
             workflow = max(waiting, key=priority)
             thread["attention"] = {
                 "kind": "waiting",

@@ -3,7 +3,7 @@
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
-import { unresolvedAttempts } from "./pending/model.js";
+import { isReadAcknowledgement, unresolvedAttempts } from "./pending/model.js";
 
 export const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -24,7 +24,7 @@ export function createDelivery({
       ledger.nameParent(entry, currentReceipts());
       if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
       const { event } = entry;
-      const reportDelivery = event.kind === "read" ? () => {} : notice;
+      const reportDelivery = isReadAcknowledgement(event) ? () => {} : notice;
       if (entry.readEvent) return { accepted: entry.readEvent };
       const sent = await Promise.race([
         postEvent(event).then(

@@ -37,7 +37,7 @@ import { createReadAcknowledgement } from "./conversation/read.js";
 import { renderMarginThread } from "./conversation/inline.js";
 import { conversationBox as buildConversationBox } from "./conversation/box.js";
 import { messageText } from "./conversation/messages.js";
-import { isConversationEvent } from "./pending/model.js";
+import { isConversationEvent, isReadAcknowledgement } from "./pending/model.js";
 import {
   focusSurface,
   consumeThreads as registerConsumer,
@@ -66,7 +66,7 @@ export function mountApplication(dependencies) {
       ),
   });
   const hasPending = () =>
-    ledger.snapshot().some((entry) => entry.event.kind !== "read");
+    ledger.snapshot().some((entry) => !isReadAcknowledgement(entry.event));
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,

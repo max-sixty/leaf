@@ -41,6 +41,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "data-unread-threads", ""
     )
+    thread_control_width = page.locator(".lf-threads-toggle").bounding_box()["width"]
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -54,6 +55,19 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(page.locator(".lf-first-unread")).to_be_hidden()
     expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
         "data-unread-threads", ""
+    )
+    expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
+        "aria-label", re.compile("unread")
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
+        "title", re.compile(r"^Show or hide the thread panel(?: \(g T\))?$")
+    )
+    assert (
+        abs(
+            page.locator(".lf-threads-toggle").bounding_box()["width"]
+            - thread_control_width
+        )
+        < 1
     )
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}

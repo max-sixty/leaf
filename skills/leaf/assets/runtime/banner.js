@@ -36,9 +36,15 @@ let unreadThreads = 0;
 function paintThreadCounts() {
   toggleBtn.textContent = openThreads === null ? "Threads" : `Threads (${openThreads})`;
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
-  const unread = `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`;
-  toggleBtn.setAttribute("aria-label", `${toggleBtn.textContent}, ${unread}`);
-  toggleBtn.title = `Show or hide the thread panel; ${unread}`;
+  const unread = unreadThreads
+    ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
+    : null;
+  if (unread)
+    toggleBtn.setAttribute("aria-label", `${toggleBtn.textContent}, ${unread}`);
+  else toggleBtn.removeAttribute("aria-label");
+  toggleBtn.title = unread
+    ? `Show or hide the thread panel; ${unread}`
+    : "Show or hide the thread panel";
 }
 export function setThreadCount(count) {
   openThreads = count;

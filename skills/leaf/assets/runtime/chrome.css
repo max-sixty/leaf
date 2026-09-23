@@ -623,10 +623,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
-  .lf-threads-toggle[data-unread-threads]::after {
+  .lf-threads-toggle::after {
     content: ""; display: inline-block; width: 6px; height: 6px;
-    margin-inline-start: 5px; border-radius: 50%; background: var(--accent);
+    margin-inline-start: 5px; border-radius: 50%; background: transparent;
     vertical-align: middle; }
+  .lf-threads-toggle[data-unread-threads]::after { background: var(--accent); }
   /* Horizontally anchored to its own press. Every side the rule does not use is said
      out loud because the popover UA rule is inset: 0 with margin: auto, which otherwise
      centres the menu. */

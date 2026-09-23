@@ -10,10 +10,18 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
 approval when it makes a modest change that fixes tests, the relevant CI checks
 pass on the exact pull request head, and the claimed fix is verified by those
-checks. This includes test-owned failures and
-small product fixes needed to make the tests pass. Changes to workflows,
+checks. This includes test-owned failures and small product fixes needed to make
+the tests pass. Changes to workflows,
 Tend's configuration, CODEOWNERS, or agent instructions still require the
 control-plane owner's fresh approval under the repository ruleset.
+
+Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
+description is `main`'s commit message for that change rather than review
+scaffolding that the merge discards. Hold a claim in it to the standard the diff
+is held to. Attribution is the claim that goes wrong: read which file an earlier
+commit changed off that commit's own per-file diff — `git show <sha> -- <path>`,
+or `--stat` for the shape — because a grep over a whole-directory diff prints
+the matching lines without saying which file each came from.
 
 ## Yolo test environment
 
@@ -28,14 +36,6 @@ needs nightly test coverage, dispatch `ci` on the candidate branch, wait for its
 `nightly` job, and verify the run used the exact head being judged. A browser
 interaction or performance claim that CI does not establish remains unverified;
 leave that change for maintainer review rather than merging it automatically.
-
-Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
-description is `main`'s commit message for that change rather than review
-scaffolding that the merge discards. Hold a claim in it to the standard the diff
-is held to. Attribution is the claim that goes wrong: read which file an earlier
-commit changed off that commit's own per-file diff — `git show <sha> -- <path>`,
-or `--stat` for the shape — because a grep over a whole-directory diff prints
-the matching lines without saying which file each came from.
 
 ## Review threshold
 
@@ -147,6 +147,13 @@ Two test-owned failures recur here:
   behaviour the test names, so the next wording reddens main again.
   `tests/CLAUDE.md` owns the fix under **A test cannot assert over noise it makes
   itself**. The PR is against the test.
+
+## Weekly: interface sweep
+
+Tend cannot run `/ui-sweep` in yolo. Review available CI and source evidence for
+interface defects during the weekly pass, and name any visual or interaction
+question that still needs a live browser in its report. A maintainer performs
+the live sweep.
 
 ## Weekly: vendored browser dependencies
 

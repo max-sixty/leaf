@@ -79,7 +79,9 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(f'.lf-thread[data-id="{drafting["id"]}"] .lf-thread-summary').click()
+    expect(page.locator(f'.lf-thread[data-id="{drafting["id"]}"]')).to_have_attribute(
+        "open", ""
+    )
     draft = page.locator(f'.lf-thread[data-id="{drafting["id"]}"] textarea')
     draft.fill("Keep this draft")
     draft.focus()

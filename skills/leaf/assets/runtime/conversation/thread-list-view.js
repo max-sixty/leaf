@@ -28,39 +28,40 @@ class ThreadListView extends LitElement {
   #rows = [];
   #retaining = false;
   #rollbackFocus = null;
-  #expandedId = null;
+  #expandedKey = null;
 
-  #showExpanded() {
-    const visible = this.navigationThreads();
-    if (!visible.length) return;
-    const chosen =
-      visible.find((card) => card.dataset.id === this.#expandedId) ?? visible[0];
-    this.#expandedId = chosen.dataset.id;
-    chosen.open = true;
-  }
-
-  #chooseFromSummary(card, event) {
-    event.preventDefault();
-    const visible = this.navigationThreads();
-    if (!visible.includes(card)) return;
-    // An open title is still the reader's focus stop for the conversation. A
-    // second press leaves it selected; choosing another title moves disclosure.
-    this.#expandedId = card.dataset.id;
-    this.#showExpanded();
-  }
-
-  navigationThreads() {
+  #visibleRows() {
     const eligible = new Set(
       this.model.rows
         .filter(
           (row) =>
             row.kind === "thread" && row.descriptor.visible && !row.descriptor.folding,
         )
-        .map((row) => row.descriptor.id),
+        .map((row) => row.key),
     );
-    return this.#rows
-      .filter((row) => row.kind === "thread" && eligible.has(row.node.dataset.id))
-      .map((row) => row.node);
+    return this.#rows.filter((row) => row.kind === "thread" && eligible.has(row.key));
+  }
+
+  #showExpanded() {
+    const visible = this.#visibleRows();
+    if (!visible.length) return;
+    const chosen = visible.find((row) => row.key === this.#expandedKey) ?? visible[0];
+    this.#expandedKey = chosen.key;
+    chosen.node.open = true;
+  }
+
+  #chooseFromSummary(card, event) {
+    event.preventDefault();
+    const row = this.#visibleRows().find((row) => row.node === card);
+    if (!row) return;
+    // An open title is still the reader's focus stop for the conversation. A
+    // second press leaves it selected; choosing another title moves disclosure.
+    this.#expandedKey = row.key;
+    this.#showExpanded();
+  }
+
+  navigationThreads() {
+    return this.#visibleRows().map((row) => row.node);
   }
 
   // The shown cards in the page's order, whichever order the list stands in.
@@ -74,10 +75,11 @@ class ThreadListView extends LitElement {
       `[data-id="${CSS.escape(id)}"], [data-mid="${CSS.escape(id)}"]`,
     );
     const card = node?.closest(".lf-thread");
+    const row = this.#rows.find((row) => row.kind === "thread" && row.node === card);
     // Narrowing owns hidden rows. Its completed reveal calls back here; opening
     // one before that would paint no disclosure and invalidate the same transition.
-    if (!card || card.hidden) return;
-    this.#expandedId = card.dataset.id;
+    if (!row || card.hidden) return;
+    this.#expandedKey = row.key;
     this.#showExpanded();
   }
 

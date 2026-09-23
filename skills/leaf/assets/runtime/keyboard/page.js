@@ -63,9 +63,8 @@ standingOn("link", "On a link", "a[href]", [
   { id: "link.follow", keys: ["Enter"], does: "Follow it", line: "follow" },
 ]);
 
-// A disclosure, in either spelling the page has for one. A <details> keeps the
-// state on itself, with the Threads list choosing its one open card; a control a widget
-// built out of a span says the same thing through
+// A disclosure, in either spelling the page has for one. The platform's <details> keeps the
+// state on itself; a control a widget built out of a span says the same thing through
 // ARIA's own attribute, which it already writes for the theme and the screen reader. Two
 // vocabularies, one capability — and a reader standing on a settled group cannot see which
 // of the two they are standing on, so a scope apiece would be the same press answered on
@@ -80,26 +79,13 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
     keys: () => DISCLOSE(focused()),
-    does: () =>
-      focused()?.matches?.(".lf-thread-summary")
-        ? "Open this thread"
-        : "Open or close it",
-    when: () => {
-      const summary = focused();
-      if (!summary?.matches?.(".lf-thread-summary")) return true;
-      return !summary.parentElement.open;
-    },
+    does: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
     // standing, and a word fixed at declaration could only ever say one of them.
-    line: () =>
-      focused()?.matches?.(".lf-thread-summary")
-        ? "open thread"
-        : disclosed(focused())
-          ? "close"
-          : "open",
+    line: () => (disclosed(focused()) ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
-    // <summary>'s click reaches its native toggle or its list-owned selection, and a widget's
+    // <summary>'s click is the toggle the browser was already making, and a widget's
     // control runs the handler its own pointer press runs. Enter and Space are the
     // runtime's here rather than the platform's, because a row owns its whole binding set
     // and the dispatcher takes the key before the platform sees it. One toggle answers all

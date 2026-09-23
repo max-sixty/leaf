@@ -808,6 +808,38 @@ main {
     * { --lf-room: 0px; }
   }
   main > * { --lf-room: inherit; }
+
+  /* Text keeps the reading measure in every frame; a surface fills its frame. In the
+   * page's own flow the column is the measure already, so this matters in a frame wider
+   * than the column, which states the measure as --lf-measure (a grid cell). It
+   * inherits, so it reaches text however deep in the frame it sits.
+   *
+   * Which boxes are which is declared rather than guessed from the frame: a widget says
+   * so in its registry entry (x-measure, painted data-lf-measure, or an x-space past the
+   * column), and the plain HTML elements are named here. A surface is never capped and
+   * clears the measure for everything it draws. A box that only groups blocks passes
+   * the measure through to what it holds, instead of holding a chart in a section to
+   * the width of a paragraph. Everything else is text. The rules have no specificity,
+   * so any rule that sizes a box outranks them. */
+  :where([data-lf-measure="surface"], [data-lf-space]:not([data-lf-space="column"]),
+      table, pre, figure, img, svg, video, canvas, iframe) {
+    --lf-measure: none;
+  }
+  :where(:not([data-lf-measure], [data-lf-space]:not([data-lf-space="column"]),
+      table, pre, figure, img, svg, video, canvas, iframe,
+      section, div, article, header, footer, aside, nav, details, summary, hgroup,
+      search, main)) {
+    max-inline-size: var(--lf-measure);
+  }
+
+  /* A block that bounds its own height scrolls inside it (x-bound, or data-bound on an
+   * occurrence), so a long log or feed never grows the page. `end` follows the newest
+   * entry (bounds.js). Paper has no scroller to hold it, so print shows it whole. */
+  [data-lf-bound], main [data-bound] {
+    max-block-size: var(--lf-bound, 28rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {

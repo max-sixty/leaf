@@ -2,7 +2,7 @@
 
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
-- [Document, page tabs, or workspace](#document-page-tabs-or-workspace)
+- [Composing a page](#composing-a-page)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Live specimens](#live-specimens)
@@ -75,12 +75,39 @@ stands alone, since whoever reads it there has none of the page around it.
 </html>
 ```
 
-## Document, page tabs, or workspace
+## Composing a page
 
-Use ordinary document flow for material the reader takes in sequence. Use a
-workspace when the task needs regions visible together, such as controls beside a
-preview or a queue beside its detail. Both use the same widgets, Asks, comments,
-and revisions; packages supply the vocabulary and guidance for the task.
+Start from a sequential explanation and insert the other compositions where they
+help, keeping the prose around them. A report that gains live status gains a grid;
+it does not become another kind of page, so its comments and anchors stay put.
+
+- **A sequential explanation** is the default: plans, reviews, write-ups. Nothing is
+  declared.
+- **Independent status tiles** are an `lf-grid` inside the explanation. Each cell
+  holds a surface — a metric, chart, table, list or log, with at most a caption —
+  rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
+  A grid of paragraphs is prose cut into columns, and reads worse than the column.
+- **A comparison** is `lf-compare`, which keeps its variants paired at any width.
+- **Controls beside evidence** is a playground, which declares how its controls
+  operate its preview. Use an `lf-workspace` of plain panes for task regions that
+  must stay visible together with no such relationship, such as a queue beside its
+  detail.
+
+`lf-grid` places its direct children as cells. Without `columns` it fits as many
+equal columns as the width allows; `columns="3"` caps that at three, and a template
+such as `columns="1fr 2fr"` gives unequal columns, which stack once the grid is
+narrower than 600px. A grid takes the page's available width, and each cell is a
+frame: text inside keeps the reading measure, while a surface fills the cell. Nest
+a grid in a cell for a cell that spans rows. Let the grid place its cells: page CSS
+that sets a grid's own `display`, `grid-*` or `position` fights it, and `version
+check` says so.
+
+A log, feed, or long listing bounds its own height with `data-bound="end"`, which
+keeps it on its newest line while the reader is at the end and leaves them where
+they scrolled back to otherwise; `data-bound="start"` opens it at the top. Some
+widgets bound themselves by default. Don't make a box scroll vertically with page
+CSS: Leaf keeps no reading position in a scroller it did not make, and `version
+check` advises against one.
 
 Use page tabs for project-scale views that belong to one artifact and share one
 history, Threads panel, Ask inventory, and revision sequence. Make `lf-tabs` the last

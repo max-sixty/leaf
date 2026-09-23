@@ -714,6 +714,8 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
+    "x-measure": "surface",
+    "x-bound": "end",
     "x-upgrade": true
   }
 }

@@ -111,8 +111,9 @@ install reads it, so what survives a run is the part a maintainer copies into
 ## Vendored bundles
 
 `browser/build.mjs` owns the TypeScript sources under `scripts/browser/` and the
-committed outputs: one self-contained ES module and its dependency licenses under
-`skills/leaf/assets/vendor/`, plus a source map and build manifest under
+committed outputs: the framework module, `lit.js` — the page's one copy of Lit, which
+the framework and the Web Awesome bundle both import — and their dependency licenses
+under `skills/leaf/assets/vendor/`, plus source maps and a build manifest under
 `scripts/browser/generated/` for contributors. The manifest records inputs, exports,
 dependencies, and byte hashes. Run `npm ci`,
 then `npm run build:browser` to regenerate them. `npm run check:browser` typechecks

@@ -24,7 +24,7 @@ import {
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
-import { upFrom } from "./shadow.js";
+import { renderedParent, upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -194,11 +194,7 @@ export function createAnchorTravel({
     if (!targetScroller) return;
     // Reveal nested scrollports without writing the document position, then glide the
     // owning reading region once. A wide pre or diagram needs both axes settled first.
-    for (
-      let box = holder;
-      box && box !== targetScroller;
-      box = box.assignedSlot ?? box.parentElement ?? box.getRootNode()?.host ?? null
-    ) {
+    for (let box = holder; box && box !== targetScroller; box = renderedParent(box)) {
       if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
         continue;
       const band = landingBand(box);

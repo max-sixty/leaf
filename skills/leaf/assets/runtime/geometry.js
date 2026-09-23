@@ -1,5 +1,6 @@
 /* This module owns the shared readings of visible boxes and clipping, and the one
  * conversion from viewport boxes to document-positioned chrome. */
+import { setRuntimeRootStyle } from "./root-state.js";
 import { uiInside, under, upFrom } from "./shadow.js";
 
 /* Shared readings of the boxes the page actually shows.
@@ -103,7 +104,8 @@ export function shownBand(el) {
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less
 // the covers stuck over an edge of it. A cover is a sticky box declared through
-// `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header.
+// `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header,
+// a root `lf-tabs` strip.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
 // ignored it would call what is under it shown. The clip walk below applies this band at
 // every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
@@ -130,9 +132,10 @@ const stuckIn = (cover) => {
     if (scrolls(a)) return a;
   return document.scrollingElement;
 };
-// Every shown cover's box, by the scroller it sticks in. Built once per clip pass, since
-// a pass asks it at each ancestor of every item. A detached cover is only skipped: its
-// observer lets it go, and a cover put back and declared again must still be one.
+// Every shown cover's box, by the scroller it sticks in, with the sticky insets it is
+// held at (insetBand). Built once per clip pass, since a pass asks it at each ancestor of
+// every item. A detached cover is only skipped: its observer lets it go, and a cover put
+// back and declared again must still be one.
 const COVERS = Symbol("covers");
 function coversByScroller(clips = null) {
   let index = clips?.get(COVERS);
@@ -142,7 +145,19 @@ function coversByScroller(clips = null) {
     if (!cover.isConnected || !cover.checkVisibility()) continue;
     const scroller = stuckIn(cover);
     if (!index.has(scroller)) index.set(scroller, []);
-    index.get(scroller).push({ cover, box: cover.getBoundingClientRect() });
+    const { left, right, top, bottom } = cover.getBoundingClientRect();
+    const style = getComputedStyle(cover);
+    index.get(scroller).push({
+      cover,
+      box: {
+        left,
+        right,
+        top,
+        bottom,
+        stickyTop: Number.parseFloat(style.top) || 0,
+        stickyBottom: Number.parseFloat(style.bottom) || 0,
+      },
+    });
   }
   clips?.set(COVERS, index);
   return index;
@@ -186,8 +201,13 @@ export function landingInsets(scroller) {
 // scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
 // a cover is is a measurement rather than a constant: a heading or a file path wraps,
 // and the user sets the width by drawing a panel's edge, which posts no event. So the
-// covers are observed rather than measured by whoever renders them, which forces no
-// layout. The tallest is the room, since a landing cannot know which cover will stick
+// covers are observed rather than measured by whoever renders them, and a declaration
+// that replaces covers forces no layout. Only a host's first covers are measured as
+// they are declared, since a first observation comes after the frame's layout: a
+// document's initial fragment landing reads the room in that window, and read as none
+// it stopped a root tab strip's height short, under the strip. A cover that replaces
+// another starts at the room its host already keeps. The tallest is the room, since a
+// landing cannot know which cover will stick
 // over it. A cover that stops rendering (its panel shut) keeps the room it last
 // measured, so a frame that runs before the reopening's observation reads the room
 // rather than none. Called again with the box's current covers, it replaces the set; a
@@ -198,7 +218,11 @@ const coverHosts = new WeakMap();
 let coverObserver = null;
 const paintCoverRoom = (host) => {
   const { property, covers } = coverRooms.get(host);
-  host.style.setProperty(property, `${Math.max(0, ...covers.values())}px`);
+  const room = `${Math.max(0, ...covers.values())}px`;
+  // The document root's inline style is shared with the authored revision, which keeps
+  // only what the runtime registered as its own (root-state.js).
+  if (host === document.documentElement) setRuntimeRootStyle(host, property, room);
+  else host.style.setProperty(property, room);
 };
 const letGo = (cover) => {
   coverObserver.unobserve(cover);
@@ -223,34 +247,55 @@ export function declareCoverRoom(host, property, covers) {
   });
   const prior = coverRooms.get(host)?.covers ?? new Map();
   const next = new Map();
+  const kept = Math.max(0, ...prior.values());
+  const fresh = [];
   for (const cover of covers) {
-    next.set(cover, prior.get(cover) ?? 0);
+    next.set(cover, prior.get(cover) ?? kept);
     if (prior.has(cover)) continue;
+    fresh.push(cover);
     coverHosts.set(cover, host);
     declaredCovers.add(cover);
     coverObserver.observe(cover);
   }
   const left = [...prior.keys()].filter((cover) => !next.has(cover));
   for (const cover of left) letGo(cover);
+  if (!prior.size)
+    for (const cover of fresh)
+      if (cover.isConnected && cover.checkVisibility())
+        next.set(cover, cover.getBoundingClientRect().height);
   coverRooms.set(host, { property, covers: next });
-  // A new cover is measured by its first observation, before the frame paints; one that
-  // left changes the room now.
-  if (left.length) paintCoverRoom(host);
+  if (fresh.length || left.length) paintCoverRoom(host);
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when
 // it straddles it, and a cover resting on another stuck cover straddles the edge the
 // first one leaves, so the covers are taken in order from the edge inward. A cover in
 // the middle of the band is content passing through, not chrome over it. Null once the
 // covers leave no band.
+//
+// A cover may also be stuck short of the edge, at the sticky inset it is held at
+// (`stickyTop`, `stickyBottom`, 0 when absent): a document's covers stick under the
+// banner, so they never reach the root's top edge, and read by straddling alone a
+// stuck root tab strip or `lf-diff` file header hid nothing. Such a cover takes the
+// band from the edge to its far side, the inset with it. The inset is room kept clear
+// for something standing there, the banner in a live page.
 export function insetBand(band, covers) {
   const across = covers.filter(
     (cover) => cover.left < band.right && cover.right > band.left,
   );
   let { top, bottom } = band;
   for (const cover of [...across].sort((a, b) => a.top - b.top))
-    if (cover.top <= top && cover.bottom > top) top = cover.bottom;
+    if (
+      (cover.top <= top || cover.top <= band.top + (cover.stickyTop ?? 0)) &&
+      cover.bottom > top
+    )
+      top = cover.bottom;
   for (const cover of [...across].sort((a, b) => b.bottom - a.bottom))
-    if (cover.bottom >= bottom && cover.top < bottom) bottom = cover.top;
+    if (
+      (cover.bottom >= bottom ||
+        cover.bottom >= band.bottom - (cover.stickyBottom ?? 0)) &&
+      cover.top < bottom
+    )
+      bottom = cover.top;
   return bottom > top ? { ...band, top, bottom } : null;
 }
 // The box an element shows as. An element that generates none of its own — a
@@ -378,7 +423,7 @@ function clipped(box, item, clips, held) {
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
   // itself cannot.
-  for (let a = item; a; a = a.parentElement ?? a.getRootNode()?.host ?? null) {
+  for (let a = item; a; a = upFrom(a)) {
     let c = clips.get(a);
     if (c === undefined) {
       const band = shownBand(a);

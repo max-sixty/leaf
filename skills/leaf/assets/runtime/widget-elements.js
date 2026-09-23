@@ -52,6 +52,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
+import { upFrom } from "./shadow.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -66,8 +67,7 @@ export function reveal(el, mayReveal) {
     throw new TypeError("reveal needs the intent its gesture retained");
   const chain = [];
   const pending = [];
-  for (let a = el; a; a = a.parentElement ?? a.getRootNode()?.host ?? null)
-    chain.push(a);
+  for (let a = el; a; a = upFrom(a)) chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (!mayReveal()) break;

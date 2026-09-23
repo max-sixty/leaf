@@ -6,11 +6,12 @@
 import { reportPageError } from "../layer-client.js";
 import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { containsAcross, pageText } from "../passages.js";
+import { pageText } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads } from "./state.js";
 import { focusThread } from "./focus.js";
+import { under } from "../shadow.js";
 
 const registrations = new Map();
 let claimedIds = new Set();
@@ -70,7 +71,7 @@ export function consumeThreads(owner, render, { invalidate, composition, reveal 
       if (
         !target ||
         target.anchor.section !== owner.id ||
-        !containsAcross(owner, target.element)
+        !under(target.element, owner)
       )
         throw new TypeError(
           `consumeThreads(${owner.localName}) can open only its own projected datum`,
@@ -160,7 +161,7 @@ export function renderSurfaces(collection, placedAt, commands) {
           anchor.section === owner.id &&
           placement?.status === "exact" &&
           placement.datumElement instanceof Element &&
-          containsAcross(owner, placement.datumElement);
+          under(placement.datumElement, owner);
         const target = (key) => {
           const thread = byKey.get(key);
           if (!thread) return null;
@@ -224,7 +225,7 @@ export function renderSurfaces(collection, placedAt, commands) {
         }
         for (const outlet of byOutlet.keys()) {
           if (!outlet.isConnected) byOutlet.delete(outlet);
-          else if (!containsAcross(owner, outlet))
+          else if (!under(outlet, owner))
             throw new Error(
               `consumeThreads(${owner.localName}) returned an outlet outside its widget`,
             );

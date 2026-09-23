@@ -605,6 +605,15 @@ order alone lets the scheduler choose the test's premise. For a stale-state
 test, withhold the exact state response that would otherwise reconcile the page
 and prove both the page's stale view and the server's newer view before release.
 
+Identity is the same question asked of one event. A door that appends returns
+what it accepted — `append_event`, a model command, a CLI command's `--json` —
+so a test names its own event from that answer. The log's last entry names
+whoever wrote last instead, and a page open on that directory writes on its own
+account: its read tracking appends a bookkeeping `read` whenever a scan
+completes, which is any moment the test is inside a command. A read of the tail
+then returns that event, and the assertion behind it looks for an id nothing
+carries.
+
 ### A test cannot assert over noise it makes itself
 
 Instrumentation must not pollute the channel it later asserts is quiet. Chrome

@@ -1,4 +1,4 @@
-/* Page command registration and ordering. Keyboard policy lives in CLAUDE.md.
+/* Page command registration and ordering. Keyboard policy lives in AGENTS.md.
  *
  * Owners contribute pageScope, pageCommand, and pageRung declarations during construction,
  * before the first scope read. This module stores declarations and order; owners supply

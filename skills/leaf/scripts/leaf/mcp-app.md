@@ -19,7 +19,7 @@ dynamic assets, and compact-layout parity remain incomplete.
 ## Authorities
 
 The bundled stdio server is a delivery route over the page model in the root
-`CLAUDE.md`, "The document starts state; the log changes it"; `PageTransaction`
+`AGENTS.md`, "The document starts state; the log changes it"; `PageTransaction`
 remains the read/write boundary. The MCP resource, its iframe shell, and its loopback
 server own no current state, replay, undo, versions, or delivery cursor. Closing an app
 loses only that presentation.
@@ -32,8 +32,9 @@ snapshot renderer to a complete-page result or the reverse.
 
 The resource selects its behavior from an explicit private payload contract:
 `leaf.page/v1` with `mode: page`, or `leaf.snapshot/v1` with `mode: snapshot`.
-Its CSP is the superset required by those two modes: no connect or resource
-domains, and the exact process page origin as its sole frame domain. Snapshot
+Its CSP is the superset required by those two modes: no connect domains, the
+external origins a page may load from (`EXTERNAL_ORIGINS`) as resource domains, and
+the exact process page origin as its sole frame domain. Snapshot
 mode does not use that frame capability.
 
 Both presentation tools return readable tool refusals for an uninitialized
@@ -125,7 +126,7 @@ table header and an eyebrow, and a `<br>` breaks a run the version holds
 unbroken — and an anchor written from it names a passage no reading of the file
 can find. An element anchor names an element of the page, and the app's own shell
 stands on the same composed path wearing ids that belong to no version.
-Everything after that is the gate's (root `CLAUDE.md`, "Validate once and share
+Everything after that is the gate's (root `AGENTS.md`, "Validate once and share
 readings"), and the app shows its refusal with the reader's draft still in the box.
 
 Snapshot mode runs no authored code and does not implement package actions. It

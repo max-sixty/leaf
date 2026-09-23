@@ -716,7 +716,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 
     Use working with DETAIL naming your current work, or waiting with the answer
     you want from the reader. Waiting without DETAIL invites text comments.
-    Use idle when finished; unread input and unanswered reader moves prevent it.
+    Use idle when finished; unacknowledged input and unanswered reader moves
+    prevent it.
 
     With working, --on names an open conversation or page widget and requires
     DETAIL. The reader sees it beside that subject as well as in the banner.

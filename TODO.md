@@ -19,8 +19,8 @@ has tried; settle that before building it.
   activity, selection, and reply editing in the implemented accordion.
 - **Show each Thread's last move in the list.** A collapsed row gives the count and
   attention but not who spoke last or when, so a reader cannot tell a stale Thread
-  from a live one without opening it. The Thread model already computes each
-  Thread's latest message, and nothing reads it.
+  from a live one without opening it. The Thread model already computes when each
+  Thread last moved, edits included, and Recent orders by it; no row shows it.
 - **Keep a long Thread's standing visible.** Let the agent maintain one line at the
   head of a Thread saying what is decided and what remains open, so a reader
   returning to a long discussion knows where it stands before reading it. Decide

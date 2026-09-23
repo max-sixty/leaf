@@ -54,6 +54,22 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     return attrs
 
 
+def answers_ask(record: dict, entry: dict, verb: str) -> bool:
+    """Whether a reader's verb on one authored widget is part of that widget's own
+    Ask's answer: the authored instance asks, and the verb writes the facet one of
+    its answer verbs, or the completion verb `until` names, writes. A swipe on a
+    deck that `finish` answers is part of the answer as much as the finish is. A
+    roll-up originates no Ask."""
+    awaits = entry.get("x-awaits") or {}
+    if awaits.get("rollup") or not asking(record["attrs"], awaits.get("when")):
+        return False
+    states = entry.get("x-state") or {}
+    until = awaits.get("until")
+    verbs = [*awaits.get("answers", []), *([until["verb"]] if until else [])]
+    facets = {states[answer]["facet"] for answer in verbs if answer in states}
+    return verb in states and states[verb]["facet"] in facets
+
+
 def ask_completion(rec: dict, entry: dict, projection: StateProjection) -> bool | None:
     """Whether an Ask's explicit completion verb stands.
 
@@ -127,6 +143,22 @@ def answered_ask(
         answered_verb(rec, projection, verb, entry, byid, spk, registry)
         for verb in (entry.get("x-awaits") or {}).get("answers", [])
     )
+
+
+def ask_answered(
+    rec: dict,
+    entry: dict,
+    projection: StateProjection,
+    byid: dict,
+    spk: dict,
+    registry: dict,
+) -> bool:
+    """Whether the reader's own gestures answer this Ask: its standing completion
+    verb where `until` applies, and otherwise one of its answer verbs."""
+    completed = ask_completion(rec, entry, projection)
+    if completed is not None:
+        return completed
+    return answered_ask(rec, entry, projection, byid, spk, registry)
 
 
 def seat_with_agent(

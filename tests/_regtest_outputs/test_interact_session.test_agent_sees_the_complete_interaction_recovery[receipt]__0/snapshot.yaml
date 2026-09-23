@@ -42,11 +42,12 @@ delivered:
         h1: >-
           The reader asked you to run an operation the page's package defines, once.
           The request id, with the page, identifies it: after an interruption, check
-          whether it already ran before acting. Run it at most once, then record
-          the outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed
-          --text "…"`. The receipt does not change the page: refresh any data the
-          page shows, update `index.html` to reflect the result, and stamp it if
-          it is worth a note.
+          whether it already ran before acting.
+        h2: >-
+          Run it at most once, then record the outcome with exactly one `leaf receipt
+          <page> <request-id> succeeded|failed --text "…"`. The receipt does not
+          change the page: refresh any data the page shows, update `index.html`
+          to reflect the result, and stamp it if it is worth a note.
       events:
         - kind: request
           author: user
@@ -61,6 +62,7 @@ delivered:
             document:
               kind: page
               revision: 1
+            unit: commands
           id: event-2
           ts: <time>
           seq: 2
@@ -70,19 +72,25 @@ delivered:
           conversations: []
           says:
             commands: Restart
-          handling: [h1]
+          handling: [h1, h2]
           obligation:
             as_of_seq: 2
             response:
               kind: receipt
               request: event-2
 
-acknowledged at stop: null
+acknowledged at stop:
+  decision: block
+  reason: |-
+    Leaf needs attention:
+    - <page>: 1 acknowledged reader move with no answer (`leaf receipt <page> event-2 succeeded|failed`).
+
+    Each named command writes the answer its move is owed; a reply may instead be your final message where the host sends it as the reply. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 idle before answer:
-  exit: 0
+  exit: 1
   output: |
-    idle
+    1 acknowledged reader move with no answer (`leaf receipt <page> event-2 succeeded|failed`); answer before idling. Each named command writes the answer its move is owed; a reply may instead be your final message where the host sends it as the reply. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 answer: |
   settled request event-2 as succeeded

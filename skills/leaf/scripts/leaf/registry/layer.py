@@ -1,11 +1,18 @@
 """Layer registry composition and contract validation."""
 
 import re
+from functools import cache
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ASSETS, DATA_CONTRACT_NAME, EXTENSION_SCHEMA, HTML_NAME
+from leaf.schema import (
+    ANSWER_KINDS,
+    ASSETS,
+    DATA_CONTRACT_NAME,
+    EXTENSION_SCHEMA,
+    HTML_NAME,
+)
 
 from .contract import (
     GUIDANCE_READER,
@@ -18,6 +25,17 @@ from .contract import (
 def kernel_event_kinds() -> dict:
     """The fixed event records produced and consumed by Leaf's kernel."""
     return read_registry_declarations(ASSETS / "registry.json")["$events"]["kinds"]
+
+
+@cache
+def bookkeeping_kinds() -> frozenset[str]:
+    """The kinds `$events` declares `bookkeeping`: facts about the reader's view of
+    the page, kept for the page's own readings and never a move the agent answers."""
+    return frozenset(
+        kind
+        for kind, contract in kernel_event_kinds().items()
+        if contract.get("bookkeeping")
+    )
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -80,20 +98,23 @@ def required_layer_declarations(registry: dict, path):
 
 
 def validate_event_handling(events: dict, kinds: dict, path) -> None:
-    """`$events.handling` is read directly by every event a delivery carries, so a
-    layer that restates a kind is held to the shape the consumer assumes: a
-    declared kind, a non-empty list of clauses, each a non-empty `text` and an
-    optional `when` that is a valid JSON Schema. The complete vendored registry
-    must carry the map; individual kind guidance remains optional."""
-    handling = events.get("handling")
-    if not isinstance(handling, dict) or any(
-        kind not in kinds or not _valid_clauses(clauses)
-        for kind, clauses in handling.items()
-    ):
-        raise RegistryError(
-            f"{path}: $events.handling must map declared kinds to a non-empty list "
-            "of clauses, each a non-empty `text` and an optional `when` schema"
-        )
+    """`$events.handling` and `$events.answering` are read directly by every event
+    a delivery carries, so a layer that restates a kind is held to the shape the
+    consumer assumes: a declared event kind or answer kind, a non-empty list of
+    clauses, each a non-empty `text` and an optional `when` that is a valid JSON
+    Schema. The complete vendored registry must carry both maps; individual kind
+    guidance remains optional."""
+    for key, known in (("handling", kinds), ("answering", ANSWER_KINDS)):
+        declared = events.get(key)
+        if not isinstance(declared, dict) or any(
+            kind not in known or not _valid_clauses(clauses)
+            for kind, clauses in declared.items()
+        ):
+            what = "declared kinds" if key == "handling" else "answer kinds"
+            raise RegistryError(
+                f"{path}: $events.{key} must map {what} to a non-empty list "
+                "of clauses, each a non-empty `text` and an optional `when` schema"
+            )
 
 
 def _valid_clauses(clauses) -> bool:
@@ -186,14 +207,28 @@ def validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration) - {"description", "schema", "guidance", "fragments"}
+            or set(declaration)
+            - {"description", "schema", "guidance", "fragments", "records"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional guidance and fragments"
+                "schema, with optional guidance, records and fragments"
+            )
+        records = declaration.get("records")
+        if records is not None and (
+            not isinstance(records, dict)
+            or set(records) != {"items", "key"}
+            or any(
+                not isinstance(field, str) or not field for field in records.values()
+            )
+            or records["items"] == records["key"]
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} records must name distinct "
+                "non-empty items and key fields"
             )
         fragments = declaration.get("fragments")
         if fragments is not None and (
@@ -207,6 +242,15 @@ def validate_layer_declarations(
             raise RegistryError(
                 f"{path}: $data contract {contract!r} fragments must name distinct "
                 "non-empty items, key, and value fields"
+            )
+        if (
+            records
+            and fragments
+            and any(records[field] != fragments[field] for field in ("items", "key"))
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} records and fragments "
+                "must share their items and key fields"
             )
         guidance_errors = sorted(
             GUIDANCE_READER.iter_errors(declaration.get("guidance", {})),

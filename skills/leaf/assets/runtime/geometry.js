@@ -96,6 +96,68 @@ export function shownBand(el) {
     bottom: top + el.clientHeight,
   };
 }
+
+// The two bands of a scrollport, one reading each, beside the clip they start from.
+//
+// `visibleBand` is what the reader can see through a scroller now: its shown band less
+// the sticky chrome standing over an edge of it. A sticky box declares itself with
+// `.lf-pinned` (the thread list's run headings); stuck, it paints over the scroller's
+// contents without clipping them, so a clip walk calls what is under it shown. Read acknowledgement,
+// the summaries a thread card keeps open, and the place a re-render holds all ask this.
+//
+// `landingBand` is where a landing may put something: the shown band less the
+// `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
+// It reserves room for the tallest cover wherever one might stick, so it is never wider
+// than the visible band a landing arrives in.
+export const PINNED = ".lf-pinned";
+export function visibleBand(scroller) {
+  const band = shownBand(scroller);
+  if (!band) return null;
+  const covers = [...scroller.querySelectorAll(PINNED)]
+    .filter((cover) => cover.checkVisibility())
+    .map((cover) => cover.getBoundingClientRect());
+  return insetBand(band, covers);
+}
+export function landingBand(scroller) {
+  const band = shownBand(scroller);
+  if (!band) return null;
+  const inset = landingInsets(scroller);
+  return {
+    left: band.left + inset.left,
+    top: band.top + inset.top,
+    right: band.right - inset.right,
+    bottom: band.bottom - inset.bottom,
+  };
+}
+// How far each edge of `landingBand` stands in from the scroller's shown band: the
+// `scroll-padding` it declares. Callers that measure from the scroller's own box take
+// the clearance here rather than reading the style themselves.
+export function landingInsets(scroller) {
+  const style = getComputedStyle(scroller);
+  const inset = (side) => Number.parseFloat(style[`scrollPadding${side}`]) || 0;
+  return {
+    top: inset("Top"),
+    right: inset("Right"),
+    bottom: inset("Bottom"),
+    left: inset("Left"),
+  };
+}
+// A band less the covers standing over its edges. A cover stands over the top edge when
+// it straddles it, and a cover resting on another stuck cover straddles the edge the
+// first one leaves, so the covers are taken in order from the edge inward. A cover in
+// the middle of the band is content passing through, not chrome over it. Null once the
+// covers leave no band.
+export function insetBand(band, covers) {
+  const across = covers.filter(
+    (cover) => cover.left < band.right && cover.right > band.left,
+  );
+  let { top, bottom } = band;
+  for (const cover of [...across].sort((a, b) => a.top - b.top))
+    if (cover.top <= top && cover.bottom > top) top = cover.bottom;
+  for (const cover of [...across].sort((a, b) => b.bottom - a.bottom))
+    if (cover.bottom >= bottom && cover.top < bottom) bottom = cover.top;
+  return bottom > top ? { ...band, top, bottom } : null;
+}
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is

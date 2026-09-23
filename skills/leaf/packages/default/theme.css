@@ -484,9 +484,8 @@ lf-options:not(:has(> lf-option > strong)) {
              --lf-option-font: var(--t-5)/1.5 var(--sans);
              font: var(--lf-option-font); }
 lf-option { display: block; position: relative; }
-/* The submitted draft keeps its line breaks when it becomes an option. Restrict this to
- * generated options: authored markup carries formatting whitespace around its prose. */
-lf-option[data-lf-added] { white-space: pre-wrap; }
+/* Markdown prose is an inline island beside the option's authored elements and controls. */
+lf-option > .lf-markdown-words, lf-option > .lf-option-words { white-space: normal; }
 /* The card dressing is the titled form's, said so rather than painted on every option
  * and reset by the row form: a reset is a guard reading state another rule wrote, and
  * the row form carried four of them for dressing no row ever showed. The same sentence
@@ -1032,11 +1031,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge { position: absolute;
    * paint rather than layout. */
   .lf-another > .lf-compose-field {
                      --lf-icon-action-hit: var(--lf-option-action-size);
+                     --lf-compose-pad-block: 0px; --lf-compose-pad-inline-start: 0px;
+                     --lf-compose-border-width: 0px;
                      position: static; }
   .lf-another textarea { flex: 1; min-width: 0; min-height: 0; padding: 0;
                      padding-inline-end: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
                      font: var(--lf-option-font); resize: none; }
+  .lf-another .lf-compose-placeholder { font: var(--lf-option-font); }
   .lf-another .lf-compose-submit { --lf-icon-action-hit: var(--lf-option-action-size);
                                   inset-inline-end: var(--lf-option-add-seat-inset);
                                   inset-block-end: var(--lf-option-add-seat-inset); }
@@ -1131,6 +1133,8 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another:not([hidden]) {
                      gap: 0; padding-block: 5px; padding-inline-end: var(--lf-row-gap); }
 lf-options:not(:has(> lf-option > strong)) > .lf-another textarea {
                      margin-inline-start: var(--lf-row-gap); }
+lf-options:not(:has(> lf-option > strong)) > .lf-another {
+                     --lf-compose-text-margin-inline-start: var(--lf-row-gap); }
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
  * made the table's minimum 14px wider than its group under Linux's wider apparatus in a

@@ -5349,6 +5349,60 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
 
 
+# Two files in one manifest, each loaded only when it is opened.
+TWO_FILE_MANIFEST = {
+    "files": [
+        {
+            "key": "first.py",
+            "path": "first.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+            "patch": """diff --git a/first.py b/first.py
+--- a/first.py
++++ b/first.py
+@@ -1 +1 @@
+-return "old first"
++return "new first"
+""",
+        },
+        {
+            "key": "second.py",
+            "path": "second.py",
+            "kind": "patch",
+            "additions": 1,
+            "deletions": 1,
+            "patch": """diff --git a/second.py b/second.py
+--- a/second.py
++++ b/second.py
+@@ -1 +1 @@
+-return "old second"
++return "new second"
+""",
+        },
+    ]
+}
+
+# Hold the second file's fragment until the test releases it.
+HOLD_SECOND_FILE = """
+          window.__leafFragmentRequests = [];
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = (input, init) => {
+            const url = new URL(input instanceof Request ? input.url : String(input),
+                                location.href);
+            if (url.pathname === '/api/data') {
+              const key = url.searchParams.get('key');
+              window.__leafFragmentRequests.push(key);
+              if (key === 'second.py')
+                return new Promise(resolve => {
+                  window.__leafReleaseFragment = () => resolve(originalFetch(input, init));
+                });
+            }
+            return originalFetch(input, init);
+          };
+"""
+
+
 @pytest.mark.parametrize(
     ("activation", "superseded"),
     [("mouse", False), ("keyboard", False), ("mouse", True)],
@@ -5371,38 +5425,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        {
-            "files": [
-                {
-                    "key": "first.py",
-                    "path": "first.py",
-                    "kind": "patch",
-                    "additions": 1,
-                    "deletions": 1,
-                    "patch": """diff --git a/first.py b/first.py
---- a/first.py
-+++ b/first.py
-@@ -1 +1 @@
--return "old first"
-+return "new first"
-""",
-                },
-                {
-                    "key": "second.py",
-                    "path": "second.py",
-                    "kind": "patch",
-                    "additions": 1,
-                    "deletions": 1,
-                    "patch": """diff --git a/second.py b/second.py
---- a/second.py
-+++ b/second.py
-@@ -1 +1 @@
--return "old second"
-+return "new second"
-""",
-                },
-            ]
-        },
+        TWO_FILE_MANIFEST,
     )
     events_model.append_event(
         serve.page_dir,
@@ -5417,23 +5440,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     page = open_page(
         browser,
         url,
-        init_script="""
-          window.__leafFragmentRequests = [];
-          const originalFetch = window.fetch.bind(window);
-          window.fetch = (input, init) => {
-            const url = new URL(input instanceof Request ? input.url : String(input),
-                                location.href);
-            if (url.pathname === '/api/data') {
-              const key = url.searchParams.get('key');
-              window.__leafFragmentRequests.push(key);
-              if (key === 'second.py')
-                return new Promise(resolve => {
-                  window.__leafReleaseFragment = () => resolve(originalFetch(input, init));
-                });
-            }
-            return originalFetch(input, init);
-          };
-        """,
+        init_script=HOLD_SECOND_FILE,
     )
 
     expect(page.locator("lf-diff details")).to_have_count(2)
@@ -5492,6 +5499,45 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py", "second.py"]
+
+
+def test_a_hunk_step_waiting_on_a_file_leaves_a_reader_who_moved_on(browser, serve):
+    """`]` into a file still loading lands only while the reader is where they pressed it.
+
+    The step opens the next file and waits for its fragment. A reader who presses
+    somewhere else in that wait has moved on, and the landing the step owed is dropped
+    rather than dragging them back into the diff when the file arrives.
+    """
+    url = serve(
+        leaf_page(
+            "fragmented diff",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+            "collapsed><pre></pre></lf-diff>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
+    page = open_page(browser, url, init_script=HOLD_SECOND_FILE)
+    page.locator("lf-diff summary").first.click()
+    first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
+    expect(first).to_have_count(1)
+    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.keyboard.press("]")
+    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
+
+    page.keyboard.press("]")
+    page.wait_for_function("typeof window.__leafReleaseFragment === 'function'")
+    page.locator("#title").click()
+    page.evaluate("window.__leafReleaseFragment()")
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
+    ).to_have_count(1)
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() =>"
+        " requestAnimationFrame(resolve)))"
+    )
+    assert page.evaluate("() => document.activeElement === document.body"), (
+        "the step landed in the file after the reader had pressed elsewhere"
+    )
 
 
 def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(

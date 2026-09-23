@@ -220,7 +220,7 @@ def test_the_skill_routes_every_reference_it_ships():
 def test_the_python_instructions_name_every_module_they_own():
     """Every Python owner is named in the instruction scope that routes it."""
     scripts = SKILL_ROOT / "scripts"
-    instructions = (scripts / "CLAUDE.md").read_text(encoding="utf-8")
+    instructions = (scripts / "AGENTS.md").read_text(encoding="utf-8")
     paragraphs = instructions.split("\n\n")
     within = {
         match.group(1): paragraph
@@ -258,13 +258,13 @@ def test_the_python_instructions_name_every_module_they_own():
             outside if module.parent.as_posix() == "." else within[module.parent.name]
         )
     ]
-    assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
+    assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
 
 
 def test_the_tooling_instructions_place_every_vendored_bundle():
     """Whether a rebuild reproduces its bytes must be named where sessions read.
 
-    `scripts/CLAUDE.md` says a clean `git status` after `vendor.py <bundle>` is the
+    `scripts/AGENTS.md` says a clean `git status` after `vendor.py <bundle>` is the
     check that the bundle still matches the script, and that the check holds only for
     the bundles whose every fetched input is pinned. That sentence is what a session
     consults before reading a rebuild's diff as drift or as an upstream patch, so a
@@ -291,7 +291,7 @@ def test_the_tooling_instructions_place_every_vendored_bundle():
     }
     paragraphs = [
         paragraph
-        for paragraph in (ROOT / "scripts" / "CLAUDE.md")
+        for paragraph in (ROOT / "scripts" / "AGENTS.md")
         .read_text(encoding="utf-8")
         .split("\n\n")
         if paragraph.startswith("A bundle reproduces its tracked bytes exactly")
@@ -299,11 +299,11 @@ def test_the_tooling_instructions_place_every_vendored_bundle():
 
     assert bundles, "no bundles read — an empty set places itself"
     assert len(paragraphs) == 1, (
-        "scripts/CLAUDE.md no longer opens one paragraph with "
+        "scripts/AGENTS.md no longer opens one paragraph with "
         f"'A bundle reproduces its tracked bytes exactly': {len(paragraphs)} found"
     )
     unplaced = sorted(name for name in bundles if f"`{name}`" not in paragraphs[0])
-    assert not unplaced, f"unplaced in scripts/CLAUDE.md: {unplaced}"
+    assert not unplaced, f"unplaced in scripts/AGENTS.md: {unplaced}"
 
 
 def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
@@ -318,14 +318,14 @@ def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
     second copy, and the job added without the paragraph would stay green.
     """
     workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     directories = sorted(
         set(re.findall(r"^\s*working-directory:\s*(\S+)", workflow, re.MULTILINE))
     )
 
     assert directories, "no working-directory read — an empty set names itself"
     unnamed = [d for d in directories if f"`{d}/`" not in instructions]
-    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
+    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
 
 
 def test_the_root_instructions_name_every_npm_gate_ci_runs():
@@ -344,19 +344,19 @@ def test_the_root_instructions_name_every_npm_gate_ci_runs():
     routing above states: a list is the second copy, and the gate added without the
     paragraph would stay green.
 
-    Read as `npm run`, and required in `CLAUDE.md` under that same spelling: a bare
+    Read as `npm run`, and required in `AGENTS.md` under that same spelling: a bare
     script name would pass on any word the instructions already carry — `lint`,
     `check` and `format` are each in there — so the next gate named one of those
     would stay green while the paragraph went stale. `npm ci` installs rather than
     gates, and npm's bare `test` alias is not read under this spelling at all.
     """
     workflow = (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     scripts = sorted(set(re.findall(r"\bnpm run ([\w:-]+)", workflow)))
 
     assert scripts, "no npm gate read — an empty set names itself"
     unnamed = [script for script in scripts if f"npm run {script}" not in instructions]
-    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
+    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -376,7 +376,7 @@ def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
     whatever depth it is owned at — `bin/leaf` is a launcher and
     `skills/leaf/assets/` is a tree, and both name their directory.
     """
-    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    instructions = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     tops = {
         relative.parts[0]
         for path in shipped_payload()
@@ -386,7 +386,7 @@ def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
 
     assert directories, "no directories read — an empty set names itself"
     unnamed = [d for d in directories if f"`{d}/" not in instructions]
-    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
+    assert not unnamed, f"unnamed in AGENTS.md: {unnamed}"
 
 
 def test_workflow_shell_continuations_use_literal_blocks():
@@ -705,9 +705,13 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/scripts/leaf/__main__.py",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
-    # AGENTS.md is a genuine symlink to CLAUDE.md, shipped as part of the tracked
-    # tree; the invariant a host's copy needs is that nothing escapes the tree
-    # being copied, not that nothing in it is a link.
+    # Claude imports each canonical instruction file without keeping a second copy.
+    instructions = [p for p in shipped_payload() if p.name == "AGENTS.md"]
+    assert instructions, "no project instructions in the shipped payload"
+    for agents in instructions:
+        assert agents.is_file() and not agents.is_symlink()
+        assert agents.with_name("CLAUDE.md").read_text() == "@AGENTS.md\n"
+    # A host's copy must not contain links that escape the plugin tree.
     escaping = [
         path
         for path in shipped_payload()
@@ -785,7 +789,7 @@ def test_the_mcp_probe_writes_its_evidence_outside_the_candidate_payload():
     `notes/mcp-apps/experiments/<number>/results/`, inside the tracked tree, so every
     probe grew what a host copies by up to a megabyte that no install reads — 47
     result directories and 6.5M of the payload by the time it was measured. The rule
-    `scripts/CLAUDE.md` states is that a script's output lands where git ignores it
+    `scripts/AGENTS.md` states is that a script's output lands where git ignores it
     unless an install reads that output from a committed path, and the runner's own
     assignment is what holds it. Read the directory off the script rather than
     naming it twice, then write where a run writes and ask the payload.
@@ -1062,7 +1066,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     stat moved.
 
     Runtime and vendor stay hard links into the shape across the loan, which is
-    the sharing the reset must not quietly spend (tests/CLAUDE.md, "Fixtures own
+    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures own
     the world they create")."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
@@ -1897,7 +1901,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/CLAUDE.md, "A page is ready when it says what has finished").
+    (tests/AGENTS.md, "A page is ready when it says what has finished").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",

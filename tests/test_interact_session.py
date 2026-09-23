@@ -280,7 +280,7 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     )
     workflows = page_state(page_dir)["workflows"]
     assert [
-        (item["input"], item["stage"], item["requires_response"]) for item in workflows
+        (item["input"], item["stage"], item["answer"] is not None) for item in workflows
     ] == [
         (first["id"], "working", False),
         (second["id"], "sent", True),
@@ -352,11 +352,15 @@ def test_consecutive_reader_inputs_share_one_exact_response_obligation(page_dir)
 
     state = page_state(page_dir)
     assert [
-        (item["input"], item["requires_response"], item["next_actor"])
+        (item["input"], item["answer"], item["next_actor"])
         for item in state["workflows"]
     ] == [
-        (first["id"], False, "agent"),
-        (second["id"], True, "agent"),
+        (first["id"], None, "agent"),
+        (
+            second["id"],
+            {"kind": "reply", "to": second["id"], "for": second["id"]},
+            "agent",
+        ),
     ]
     assert [item["input"] for item in state["activity"]["obligations"]] == [
         second["id"]
@@ -398,13 +402,13 @@ def test_terminal_host_failure_keeps_exact_reader_recovery_without_stop_obligati
     assert (
         workflow["input"],
         workflow["stage"],
-        workflow["requires_response"],
+        workflow["answer"],
         workflow["next_actor"],
         workflow["condition"],
     ) == (
         source["id"],
         "answered",
-        False,
+        None,
         "reader",
         {"kind": "failed", "operation": "response"},
     )
@@ -418,6 +422,9 @@ def test_terminal_host_failure_keeps_exact_reader_recovery_without_stop_obligati
         }
     ]
     assert state["activity"]["obligations"] == []
+    # The move is the reader's to resend, so the banner counts nothing as saved for
+    # the agent to pick up.
+    assert set(state["activity"]["counts"].values()) == {0}
     [thread] = state["browser"]["conversation"]["threads"]
     assert thread["attention"] == {
         "kind": "needs_reader",
@@ -492,7 +499,10 @@ def test_answering_an_older_input_leaves_the_newer_response_obligation(page_dir)
 
     state = page_state(page_dir)
     [workflow] = state["workflows"]
-    assert (workflow["input"], workflow["requires_response"]) == (second["id"], True)
+    assert (workflow["input"], workflow["answer"]["for"]) == (
+        second["id"],
+        second["id"],
+    )
     assert [item["input"] for item in state["activity"]["obligations"]] == [
         second["id"]
     ]
@@ -536,9 +546,9 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     )
 
     state = page_state(page_dir)
-    assert [
-        (item["input"], item["requires_response"]) for item in state["workflows"]
-    ] == [(third["id"], True)]
+    assert [(item["input"], item["answer"]["for"]) for item in state["workflows"]] == [
+        (third["id"], third["id"])
+    ]
 
 
 def test_unrelated_agent_update_does_not_clear_a_standing_reader_ask(page_dir):
@@ -670,7 +680,9 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
     version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice">', 1))
+    version.write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+    )
     publish(page_dir)
     chosen = append_command(
         page_dir,
@@ -1542,7 +1554,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "input": "input-1",
         "seq": 1,
         "coordinate": ["thread", "input-1"],
-        "requires_response": True,
+        "answer": {"kind": "reply", "to": "input-1", "for": "input-1"},
         "stage": "working",
         "ts": (now - timedelta(minutes=20)).isoformat(),
         "detail": "Old work",
@@ -4218,7 +4230,9 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     assert any(receipt["input"] == answer["id"] for receipt in acknowledgments)
     assert before_pickup["kind"] == "working"
     assert before_pickup["counts"]["total"] == 1
-    assert before_pickup["obligations"] == []
+    assert [item["answer"] for item in before_pickup["obligations"]] == [
+        {"kind": "markup", "action": answer["id"]}
+    ]
 
     claim = record_claim(page_dir)
     with service_model.PageTransaction(page_dir) as transaction:
@@ -4231,7 +4245,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     after_pickup = page_state(page_dir)["activity"]
     assert after_pickup["kind"] == "working"
     assert after_pickup["counts"]["handling"] == 1
-    assert after_pickup["obligations"] == []
+    assert [item["input"] for item in after_pickup["obligations"]] == [answer["id"]]
 
     claimed = _status(
         page_dir, "working", "checking the completed choice", "--on", "plan-choice"
@@ -4319,7 +4333,8 @@ def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(pag
 
 
 def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys):
-    """Shared clauses travel once, and each event names only its applicable rules."""
+    """Shared clauses travel once, and each event names only its applicable rules:
+    its kind's, then the answer it owes, and no answer's where it owes none."""
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "waiting", "")
     page_pick = {
@@ -4344,7 +4359,8 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     for event in (
         {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
         {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
-        {"kind": "resolve", "author": "user", "parent": "c1"},
+        {"kind": "comment", "id": "c3", "author": "user", "text": "never mind"},
+        {"kind": "resolve", "author": "user", "parent": "c3"},
         page_pick,
         thread_pick,
     ):
@@ -4355,30 +4371,34 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     handling = header["handling"]
     assert len(handling.values()) == len(set(handling.values()))
     assert shown[0]["handling"][0] in shown[1]["handling"]
-    plain, drawn, resolved, on_page, in_thread = (
-        " ".join(handling[clause] for clause in event["handling"]) for event in shown
+    plain, drawn, closed, resolved, on_page, in_thread = (
+        [handling[clause] for clause in event.get("handling", [])] for event in shown
     )
-    declared = registry_storage.load_registry(page_dir)["$events"]["handling"]
+    declared = registry_storage.load_registry(page_dir)["$events"]
     [reading_a_drawing] = [
         c["text"]
-        for c in declared["comment"]
+        for c in declared["handling"]["comment"]
         if c.get("when") == {"required": ["drawing"]}
     ]
-    [(in_a_thread, thread_answers)] = [
-        (c["when"], c["text"])
-        for c in declared["action"]
-        if "meaning" in c.get("when", {}).get("required", [])
-    ]
-    page_only = [
-        c["text"] for c in declared["action"] if c.get("when") == {"not": in_a_thread}
-    ]
+    replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
     # A drawn comment is told how to read its drawing, then all a plain one is told.
-    assert drawn == f"{reading_a_drawing} {plain}"
-    assert reading_a_drawing not in plain
-    assert resolved == declared["resolve"][0]["text"]
-    assert page_only and thread_answers not in on_page
+    # The comment's own clauses, then how to write the reply it owes.
+    assert plain[-len(replying) :] == replying
+    assert drawn == [reading_a_drawing, *plain]
+    # A thread the reader closed before capture owes nothing, so it is told nothing
+    # about answering.
+    assert not set(replying) & set(closed)
+    assert resolved == [declared["handling"]["resolve"][0]["text"]]
+    # Neither pick lands on a widget either document holds, so neither owes an
+    # answer; the page's own clauses reach only the page pick.
+    page_only = [
+        c["text"]
+        for c in declared["handling"]["action"]
+        if c.get("when", {}).get("not", {}).get("required") == ["meaning"]
+    ]
+    assert page_only
     assert all(text in on_page and text not in in_thread for text in page_only)
-    assert thread_answers in in_thread
+    assert not set(replying) & set(on_page + in_thread)
 
 
 def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
@@ -4387,8 +4407,11 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     comment = {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
-    active = registry_contract.event_clauses(comment, registry)
+    active = registry_contract.event_clauses(
+        {**comment, "obligation": {"response": {"kind": "reply"}}}, registry
+    )
     del registry["$events"]["handling"]
+    del registry["$events"]["answering"]
     registry_path.write_text(json.dumps(registry))
 
     serving(page_dir, 1)
@@ -4426,12 +4449,16 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
         event["id"] for event in selected
     ]
     registry = registry_storage.active_registry(page_dir)
-    expected = [registry_contract.event_clauses(event, registry) for event in selected]
+    expected = [
+        registry_contract.event_clauses(event, registry) for event in batch["events"]
+    ]
     assert [
         [batch["handling"][ref] for ref in event["handling"]]
         for event in batch["events"]
     ] == [[clause["text"] for clause in clauses] for clauses in expected]
-    assert len(batch["handling"]) == 2
+    assert set(batch["handling"].values()) == {
+        clause["text"] for clauses in expected for clause in clauses
+    }
     assert delivery_model.read_delivery(payload["id"]) == payload
 
 
@@ -4722,7 +4749,7 @@ def test_conversation_read_is_exact_and_paginated(page_dir):
     assert [item["author"] for item in reading["content"]] == ["user", "agent"]
     assert reading["content"][1]["parent"] == messages[0]["id"]
     [move] = owed(reading)
-    assert move["response_address"] == {
+    assert move["answer"] == {
         "kind": "reply",
         "to": messages[2]["id"],
         "for": messages[2]["id"],
@@ -5035,7 +5062,7 @@ def test_a_widget_reply_does_not_settle_newer_conversation_input(page_dir):
     assert replied["responds"] == chose["id"]
     after = state_json(page_dir)
     assert after["activity"]["obligations"] == [newer["id"]]
-    assert owed(after)[0]["response_address"] == {
+    assert owed(after)[0]["answer"] == {
         "kind": "reply",
         "to": newer["id"],
         "for": newer["id"],
@@ -5067,7 +5094,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "</lf-options>",
         },
     )
-    chose = append_command(
+    append_command(
         page_dir,
         {
             "kind": "action",
@@ -5081,9 +5108,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     selecting = state_json(page_dir)
     assert [ask["source"] for ask in selecting["asks"]] == ["regions"]
     assert selecting["activity"]["obligations"] == []
-    [workflow] = selecting["workflows"]
-    assert workflow["input"] == chose["id"]
-    assert workflow["requires_response"] is False
+    assert selecting["workflows"] == []
     receive_through(page_dir, last_deliverable_seq(page_dir))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -9433,7 +9458,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     if rewritten:
         answer = json.loads(printed)
         assert answer["decision"] == "block"
-        assert asked["id"] in answer["reason"]
+        assert f"--for {asked['id']}" in answer["reason"]
     else:
         assert printed == ""
 
@@ -9507,7 +9532,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
 
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert asked["id"] in json.loads(capsys.readouterr().out)["reason"]
+    assert f"--for {follow['id']}" in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_reply(
         claimed,
         follow["id"],
@@ -9547,7 +9572,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert ask["id"] in json.loads(capsys.readouterr().out)["reason"]
+    assert f"--for {answered['id']}" in json.loads(capsys.readouterr().out)["reason"]
     conversation_model.cmd_reply(
         claimed,
         answered["id"],
@@ -9615,7 +9640,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    events_model.append_event(
+    answered = events_model.append_event(
         claimed,
         {
             "kind": "reply",
@@ -9628,7 +9653,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert proposal["id"] in reason
-    assert question["id"] in reason
+    assert f"--for {answered['id']}" in reason
 
     lease.close()
 
@@ -10100,7 +10125,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     assert early.output.splitlines() == [
         "waiting — pick one",
         (
-            f"1 reader move with no answer ({comment}); "
+            f"1 reader move with no answer (`leaf reply <page> --for {comment}`); "
             "the page reads waiting once each has one"
         ),
     ]
@@ -10690,7 +10715,7 @@ def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
     server = standing_server(page_dir)
     # The only held window in the suite, because it is the only assertion with nothing
     # to consume: a watcher that never starts states nothing, and the server going on
-    # living is not an event to wait for (tests/CLAUDE.md, "A wait consumes a fact the
+    # living is not an event to wait for (tests/AGENTS.md, "A wait consumes a fact the
     # system states"). So the window is the grace a watcher would have acted after,
     # plus room to act — long enough that the bug, had it been here, would have shown.
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
@@ -11169,3 +11194,265 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
             ),
         )
     )
+
+
+def _watched(page_dir):
+    """A claimed page this session watches, so only its debts reach the hooks."""
+    session_model.cmd_status(page_dir, "waiting", "")
+    session = service_model.page_claim(page_dir)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, session["id"])
+    )
+    assert lease
+    return lease
+
+
+def _stop(capsys):
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    output = capsys.readouterr().out
+    return json.loads(output)["reason"] if output else None
+
+
+def _idle(page_dir):
+    return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), "idle"])
+
+
+def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
+    """Two consecutive reader turns in one thread owe one answer, addressed to the
+    newest. The Stop hook names the command that writes it, and that exact command
+    is accepted: the thread's id, which is the first message's, is not what
+    `--for` takes."""
+    lease = _watched(claimed)
+    first = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why here?"}
+    )
+    second = events_model.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": first["id"], "text": "and when?"},
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+
+    reason = _stop(capsys)
+    [named] = re.findall(r"`leaf reply <page> --for ([^`]+)`", reason)
+    assert named == second["id"]
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(claimed), "--for", named, "--text", "Here, next week."],
+    )
+    assert result.exit_code == 0, result.output
+    assert _stop(capsys) is None
+    lease.close()
+
+
+def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
+    """A pick on a page Ask is owed a version that writes it in. The delivery says
+    so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
+    markup records the pick settles it — one rule, read by every consumer. An edit
+    to a draft that asks nothing is carried by the log and owes nothing."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        "</section>", '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>'
+    )
+    (claimed / "index.html").write_text(source)
+    publish(claimed)
+    lease = _watched(claimed)
+    append_command(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "note",
+            "action": "edit",
+            "detail": {"text": "Green room."},
+        },
+    )
+    assert state_json(claimed)["workflows"] == []
+    picked = append_command(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["backfill-first"]},
+        },
+    )
+    state = state_json(claimed)
+    [workflow] = owed(state)
+    assert workflow["answer"] == {"kind": "markup", "action": picked["id"]}
+    assert state["activity"]["counts"]["total"] == 1
+
+    delivery = delivery_through(claimed, last_deliverable_seq(claimed))
+    [batch] = delivery_model.read_delivery(delivery)["batches"]
+    edited, event = batch["events"]
+    assert "obligation" not in edited
+    assert event["obligation"]["response"] == workflow["answer"]
+    told = [batch["handling"][ref] for ref in event["handling"]]
+    assert any("write it in and stamp a version" in text for text in told)
+    receive_through(claimed, last_deliverable_seq(claimed))
+
+    assert f"records action {picked['id']}" in _stop(capsys)
+    refused = _idle(claimed)
+    assert refused.exit_code == 1
+    assert f"records action {picked['id']}" in refused.output
+
+    (claimed / "index.html").write_text(
+        source.replace(
+            '<lf-option id="backfill-first">', '<lf-option id="backfill-first" chosen>'
+        )
+    )
+    assert stamp(claimed, "Backfill leads").exit_code == 0
+    assert state_json(claimed)["activity"]["obligations"] == []
+    assert _stop(capsys) is None
+    assert _idle(claimed).exit_code == 0
+    lease.close()
+
+
+def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
+    """A multiple-choice Ask finishes with Done. Until then a tick is the reader's
+    own unfinished answer: it is not agent work, the banner does not count it as an
+    update waiting, the delivery tells the agent it owes nothing, and Stop does not
+    hold the turn. Done hands the Ask over, and the answer it owes is a version."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
+    (claimed / "index.html").write_text(source)
+    publish(claimed)
+    lease = _watched(claimed)
+    append_command(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
+    )
+    ticked = state_json(claimed)
+    assert [ask["source"] for ask in ticked["asks"]] == ["choice"]
+    assert ticked["workflows"] == []
+    assert ticked["activity"]["counts"]["total"] == 0
+    assert ticked["activity"]["counts"]["pending"] == 0
+
+    delivery = delivery_through(claimed, last_deliverable_seq(claimed))
+    [batch] = delivery_model.read_delivery(delivery)["batches"]
+    [event] = batch["events"]
+    assert "obligation" not in event
+    told = [batch["handling"][ref] for ref in event["handling"]]
+    assert any(text.startswith("This move owes no answer") for text in told)
+    receive_through(claimed, last_deliverable_seq(claimed))
+    assert _stop(capsys) is None
+
+    done = append_command(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    finished = state_json(claimed)
+    assert finished["asks"] == []
+    [workflow] = owed(finished)
+    assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
+    lease.close()
+
+
+DECK_PAGE = PAGE.replace(
+    "</section>",
+    """<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>
+  <lf-swipe-deck id="triage">
+    <lf-swipe-pile id="queue" verdict="unseen">
+      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
+      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
+      <lf-swipe-card id="card-c"><strong>Retry budget</strong></lf-swipe-card>
+    </lf-swipe-pile>
+    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
+    <lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>
+  </lf-swipe-deck>
+</lf-ask></section>""",
+)
+
+
+def test_a_finished_deck_owes_every_card_the_reader_sorted(page_dir):
+    """An Ask's answer can span units: a deck's cards are each swiped, and only the
+    last one's `finish` answers the Ask. Before the finish the reader is still
+    answering and the agent owes nothing; once it lands, every sorted card is owed
+    its place in the markup, not only the one that finished the deck."""
+    (page_dir / "index.html").write_text(DECK_PAGE)
+    publish(page_dir)
+
+    def sort(card, index, action="swipe"):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "triage",
+                "action": action,
+                "detail": {"card": card, "to": "keep", "index": index},
+            },
+        )
+
+    sort("card-a", 0)
+    sort("card-b", 1)
+    assert state_json(page_dir)["workflows"] == []
+
+    sort("card-c", 2, action="finish")
+    owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
+    assert owed_cards == ["card-a", "card-b", "card-c"]
+
+
+def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
+    """The page's rule holds in thread markup: a swipe before the deck's finish is
+    the reader still answering, so no reply is owed and the Ask stays theirs."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Sort these follow-ups.",
+            "markup": '<lf-swipe-deck id="triage">'
+            '<lf-swipe-pile id="queue" verdict="unseen">'
+            '<lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>'
+            '<lf-swipe-card id="card-b"><strong>Retry budget</strong></lf-swipe-card>'
+            "</lf-swipe-pile>"
+            '<lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>'
+            '<lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>'
+            "</lf-swipe-deck>",
+        },
+    )
+
+    def sort(card, index, action):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "triage",
+                "action": action,
+                "detail": {"card": card, "to": "keep", "index": index},
+            },
+        )
+
+    sort("card-a", 0, "swipe")
+    sorting = state_json(page_dir)
+    assert sorting["workflows"] == []
+    assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
+
+    sort("card-b", 1, "finish")
+    finished = state_json(page_dir)
+    assert finished["asks"] == []
+    assert sorted(item["coordinate"][1] for item in owed(finished)) == [
+        "card-a",
+        "card-b",
+    ]

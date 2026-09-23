@@ -61,7 +61,7 @@ import { captureCarry, restoreCarry } from "./carry.js";
 import { retainReaderIntent } from "./reader-intent.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
-import { clippedContents, shownBox } from "./geometry.js";
+import { clippedContents, landingInsets, shownBox } from "./geometry.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -83,6 +83,7 @@ import {
   wrote,
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
+import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
@@ -692,6 +693,16 @@ export function createVersionController({
   // dropped rather than painted over the base they are standing on now. Reachable because the
   // walk asks per row: it is one fetch per press, and the presses come faster than the network.
   let diffRequest = 0;
+  // A renderer may format authored words while keeping their source on the formatted
+  // island. Compare that source with the unupgraded base document, then use the live
+  // DOM for what a reader can quote and see in an inline comparison.
+  function diffWords(block) {
+    if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
+    const source = block.cloneNode(true);
+    for (const island of source.querySelectorAll("[data-lf-source-words]"))
+      island.replaceWith(document.createTextNode(island.dataset.lfSourceWords));
+    return wrote(source);
+  }
   // A block's key is its *authored* text (`wrote`), which is why that reading exists: it
   // drops even the labels anchoring reads as the page's own words, because the base
   // version is parsed unupgraded and holds none of them.
@@ -702,7 +713,7 @@ export function createVersionController({
     for (const b of root.querySelectorAll(blocks)) {
       if (inChrome(b) || b.closest(opaque)) continue;
       if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
-      let key = wrote(b);
+      let key = diffWords(b);
       // An x-says value is the page's words at the element's edge (renderSaid), so it
       // belongs to what this block says: folded into the key at its declared edge, a
       // version that moves a metric's number or an event's time marks though no prose
@@ -1030,6 +1041,8 @@ export function createVersionController({
         if (mine !== diffRequest) return;
         if (runtime.view?.basis?.through_seq === throughSeq) break;
       }
+      if (mine !== diffRequest) return;
+      await prepareDeclaredInlineMarkdown(doc);
     } catch {
       if (mine === diffRequest) {
         diffPendingBase = null;
@@ -1550,7 +1563,7 @@ export function createVersionController({
   function captureRegion(region = null, blocks = textBlocks()) {
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
-    const inset = Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const inset = landingInsets(box).top;
     const landmarkTop = (top, block, blockTop = top) =>
       block?.matches(HEADING) ? top + Math.max(0, inset - blockTop) : top;
     const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };

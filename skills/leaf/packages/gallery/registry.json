@@ -16,5 +16,102 @@
     "x-exhibit": true,
     "x-upgrade": true,
     "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
+  },
+  "$data": {
+    "contracts": {
+      "job-rows": {
+        "description": "Jobs whose reader can request a restart.",
+        "records": {
+          "items": "rows",
+          "key": "id"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "state": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "rows"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-job-requests": {
+    "description": "One typed restart request seat per keyed job in the bound source.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source"
+    ],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-upgrade": true,
+    "x-data": {
+      "jobs": {
+        "contract": "job-rows",
+        "source": "source"
+      }
+    },
+    "x-request": {
+      "ask": true,
+      "region": true,
+      "records": "jobs",
+      "verbs": {
+        "restart": {
+          "unit": "target",
+          "detail": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "target",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "bind": {
+            "target": "id",
+            "state": "state"
+          }
+        }
+      }
+    }
   }
 }

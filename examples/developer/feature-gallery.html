@@ -403,16 +403,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           count; scroll through a long reply to read all of it. New since you last
           looked marks each current unread stretch, and a collapsed summary counts its
           unread originals until you expand them. Mark thread read, also reachable with
-          m, acknowledges the thread's current messages, including authored content and
-          folded originals. On you still identifies a question that needs an answer,
-          even after it is read.
+          m, marks the thread's current messages read, including authored content and
+          folded originals, and so does replying, answering, or resolving it. A margin
+          control whose thread holds unread replies carries the same dot as Threads. On
+          you still identifies a question that needs an answer, even after it is read.
         </p>
         <p id="bg-thread-notices">
           <strong>New information.</strong> Have the agent add a message after the page
           opens: its status-line notice also reaches the live region without moving
           focus. A new question, response failure, request outcome, or return to page
-          activity uses that same line. The existing replies stay quiet on arrival;
-          rereading a stage or tool update creates no new notice.
+          activity uses that same line. Replies still unread when the page opens are
+          announced once on arrival; rereading a stage or tool update creates no new
+          notice.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -672,6 +674,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             newer update, <code>version check</code> reports that the measurement is
             behind its source.
           </p>
+        </section>
+
+        <section id="bg-record-requests">
+          <h3>Requests from data rows</h3>
+          <p>
+            Press Restart on one job. Its request becomes pending while the other
+            remains ready. The Asks tray holds one question for the whole set.
+          </p>
+          <lf-ask id="bg-jobs-question">
+            <h4>Which job needs a restart?</h4>
+            <lf-job-requests id="bg-jobs" source="gallery-jobs"></lf-job-requests>
+          </lf-ask>
         </section>
       </section>
 
@@ -1077,14 +1091,14 @@ gallery/
                 ></iframe>
                 <kbd
                   class="interaction-keypress"
-                  data-interaction-keypress="⌘/Ctrl + Enter"
+                  data-interaction-keypress="Enter"
                   hidden
                 ></kbd>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
-                Leaf’s real response field submits with ⌘/Ctrl+Enter, then becomes the
-                real inline thread. A seeded comment lets the gallery replay that
+                Leaf’s real response field submits with Enter, then becomes the real
+                inline thread. A seeded comment lets the gallery replay that
                 accepted-send transition without posting another one.
               </figcaption>
             </figure>

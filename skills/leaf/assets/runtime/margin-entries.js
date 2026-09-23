@@ -231,6 +231,13 @@ export function syncMarginTurn(control, awaitsReader) {
   else control.removeAttribute("data-lf-turn");
 }
 
+// Whether a reading carries agent content the reader has not taken in: the same
+// Thread `unread` the panel and banner paint, as one attribute both surfaces share.
+export function syncMarginUnread(control, count) {
+  if (count) keeps(control, "data-lf-unread", "");
+  else control.removeAttribute("data-lf-unread");
+}
+
 function iconFor(control, icon) {
   if (!icon) return null;
   let node = iconNodes.get(control);

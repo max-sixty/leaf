@@ -20,14 +20,14 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
+# The operations that settle a reader move the agent owes, as `workflows` addresses
+# them and `$events.answering` explains them.
+ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
-    "Read current obligations with `leaf page state <page>` and conversation history "
-    "with `leaf conversation read <page> <id>`. Reply using "
-    "`leaf reply <page> --for <event-id> --text ...`, or your final message if the "
-    "host sends it as the reply. For `response.kind: version`, revise and stamp the "
-    "page, then resolve the conversation. If you need clarification first, open "
-    "`leaf comment <page> --section <ask-id>` on the same Ask. "
-    "An explicit reply checks and activates page edits; it leaves the conversation open."
+    "Each named command writes the answer its move is owed; a reply may instead be "
+    "your final message where the host sends it as the reply. Read current "
+    "obligations with `leaf page state <page>` and conversation history with "
+    "`leaf conversation read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, conversation context, and response "
@@ -284,8 +284,9 @@ REPORT_SCHEMA = _verbs_schema(
     updates=True,
 )
 # A request is a one-shot instruction for the host, not state the browser can replay.
-# Its declaration owns the authored offer relation and the typed payload, but no replay
-# form. The linked receipt carries the closed, layer-wide outcome envelope;
+# Its declaration owns the offered verbs and typed payload, but no replay form.
+# Authored holders name child offers; projected holders offer their verbs directly.
+# The linked receipt carries the closed, layer-wide outcome envelope;
 # host-specific evidence belongs in external data.
 REQUEST_SCHEMA = {
     "type": "object",
@@ -295,6 +296,7 @@ REQUEST_SCHEMA = {
         # A matching holder therefore stands inside an x-ask-surface region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
+        "records": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "offers": {
             "type": "object",
             "minProperties": 1,
@@ -312,6 +314,7 @@ REQUEST_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "detail": {"type": "object"},
+                    "unit": {"type": "string", "pattern": f"^{HTML_NAME}$"},
                     "bind": {
                         "type": "object",
                         "minProperties": 1,
@@ -327,7 +330,7 @@ REQUEST_SCHEMA = {
             },
         },
     },
-    "required": ["offers", "verbs"],
+    "required": ["verbs"],
     "additionalProperties": False,
 }
 AWAITS_SCHEMA = {
@@ -447,6 +450,7 @@ EXTENSION_SCHEMA = {
         },
         "x-required-members": CHILDREN_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
+        "x-text-format": {"const": "inline-markdown"},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},

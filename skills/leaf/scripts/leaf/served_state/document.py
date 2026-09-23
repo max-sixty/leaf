@@ -9,8 +9,9 @@ from .wire import browser_projection
 def browser_document(
     page: PageReading,
     threads: dict,
+    data: dict,
 ) -> tuple[dict, StateProjection]:
-    document = read_document(page, threads)
+    document = read_document(page, threads, data)
     return (
         {
             "revision": page.revision,

@@ -57,12 +57,18 @@ workflow with a failed response condition, and hands recovery to the reader. A l
 send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
 put the thread in Needs you without persisting another workflow record.
 
-Consecutive reader turns form one response batch addressed by its newest input.
-Before settlement each input retains a workflow, while only the newest has
-`requires_response` and enters the Stop obligation list. A response to an older
-input removes that input and leaves the newer obligation. A response to the newest
-settles the batch. Widget Asks remain independent and settle through their declared
-state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
+A workflow whose next actor is the agent is owed an answer, and `workflows.py`
+states the answer it takes: a reply, a version for a conversation that asked for one,
+a version whose markup records a reader's answer to a page Ask, or a request's
+receipt. Every owed
+answer blocks the Stop hook and `leaf status idle` once its move is acknowledged; a
+move the reader has not finished — a pick before the Done its Ask declares — is owed
+nothing and has no workflow. Consecutive reader turns form one response batch
+addressed by its newest input. Before settlement each input retains a workflow,
+while only the newest carries the thread's `answer` and enters the Stop obligation
+list. A response to an older input removes that input and leaves the newer
+obligation. A response to the newest settles the batch. Widget Asks remain
+independent and settle through their declared state. Pickup never rewrites `status.json` or makes the page itself Picked up. A
 resolution or authored state that honors a move also settles it; a later version
 note settles a page action whose verb has no authored record form. A note already
 standing when the move arrives cannot answer it. Turn identity decides whether

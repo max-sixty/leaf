@@ -1,5 +1,5 @@
 import { focused, keys } from "../keyboard/scopes.js";
-import { spell } from "../keyboard/bindings.js";
+import { submitBindings, submitHint, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
@@ -8,8 +8,9 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such textarea one input contract: persist each edit, keep the
 // action button and placeholder current, prevent parallel submissions of one local
-// surface (an impatient second click), and submit with `Mod+Enter`. Enter retains the
-// textarea's native newline. The stylesheet owns
+// surface (an impatient second click), and submit with Enter on a physical keyboard.
+// Shift+Enter retains the textarea's native newline; on touch keyboards Enter does too.
+// Mod+Enter remains another route to submit. The stylesheet owns
 // textarea growth through `field-sizing: content`, within the room supplied by floating
 // placement; script does not derive textarea height from its text. When the surface
 // accepts images, a paste uploads bytes to page media; one that does not says so in a
@@ -21,7 +22,6 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 // the send button, the placeholder, and the composer's placement around what stands.
 // Outside this module, .value is the reader's words alone and nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
-const SEND = "Mod+Enter";
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
@@ -127,7 +127,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
     ta.before(field);
-    field.append(ta, sendBtn);
+    const visibleHint = document.createElement("span");
+    visibleHint.className = "lf-compose-placeholder";
+    visibleHint.setAttribute("aria-hidden", "true");
+    const hintLabel = document.createElement("span");
+    const hintKey = document.createElement("kbd");
+    visibleHint.append(hintLabel, hintKey);
+    field.append(ta, visibleHint, sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
@@ -165,16 +171,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       renderMedia();
     };
     hydrate(ta.value);
-    // The hint goes in the placeholder, where it's visible exactly while the box is
-    // empty; the stable accessible name remains independent of that changing hint. The
-    // button's tooltip spells the send key out. The send shortcut is focus-scoped, so
-    // only the focused box may claim it. Unfocused, the placeholder may carry the live
-    // contextual key that enters this exact box. These readings may be functions because
-    // their labels can change while the box stands.
+    // Keep the full native placeholder, but paint a copy so only the key can use mono.
+    // The accessible name stays independent of that changing hint. The send button's
+    // tooltip spells out its key. A focused box claims the send key; an unfocused box
+    // may show the contextual key that enters it. Labels can change while a box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
-    const sendKeys = spell(SEND);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();
@@ -183,6 +186,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const paint = (contextualHint = inputHint()) => {
       // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
       const standing = focused() === ta;
+      const sendKeys = submitHint();
       const suffix = standing
         ? sendKeys
         : contextualHint?.box === ta
@@ -191,6 +195,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = label();
       const placeholder = suffix ? `${word} · ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      if (suffix) {
+        hintLabel.textContent = `${word} · `;
+        hintKey.textContent = suffix;
+      }
       field.classList.toggle("lf-compose-hinted", Boolean(suffix));
       const ariaLabel = name();
       if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
@@ -199,9 +207,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     inputPaints.set(ta, paint);
     const repaint = () => {
       const label = sendLabel();
+      const sendKeys = submitHint();
       if (sendBtn.getAttribute("aria-label") !== label)
         sendBtn.setAttribute("aria-label", label);
-      sendBtn.title = `${label} (${sendKeys})`;
+      sendBtn.title = sendKeys ? `${label} (${sendKeys})` : label;
       if (focused() === ta) paintInputs();
       else paint();
     };
@@ -316,7 +325,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     keys(ta, "In a text box", [
       {
         id: "text.send",
-        keys: [SEND],
+        keys: submitBindings,
+        label: submitLabel,
         does: "Submit what you have typed",
         line: sends,
         run: () => sendBtn.click(),

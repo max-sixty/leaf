@@ -46,23 +46,29 @@ retry key `attempt`, then adds these delivery readings:
   gesture it takes back.
 - `conversations` lists every conversation the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
-- `obligation`, when present, freezes what response was required at capture. Its
+- `obligation`, when present, freezes the answer the event owned at capture. Its
   `as_of_seq` is evidence age and `response` is an addressed operation. `reply`
   names an event or conversation and takes `leaf reply`, or the turn's final
   message where the host binds it ("After the batch"). `version` names a
   conversation and takes a page revision closed with `leaf resolve --to` a message
-  of that thread. `receipt` names a request and takes `leaf receipt`. Re-read
-  current state before writing because later evidence may already have settled the
-  requirement. A reply response carries both `to`, the conversation address to write
-  under, and `for`, the exact event whose obligation the write must still satisfy.
+  of that thread. `markup` names a page action that answers an Ask and takes a
+  stamped version whose markup records it. `receipt` names a request and takes `leaf receipt`. Until
+  the answer is written, the Stop hook holds the turn open and `leaf status idle`
+  refuses. Re-read current state before writing because later evidence may already
+  have settled the requirement. A reply response carries both `to`, the
+  conversation address to write under, and `for`, the exact event whose obligation
+  the write must still satisfy. An event without one owes nothing of its own: a
+  page action that answers no Ask, a pick before the Done its Ask waits for, or a
+  message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text
   once; ids belong only to that batch. Follow every named clause for this event.
   The vendored layer supplies its kind's clauses whose condition the event meets,
-  so a plain comment is not told how to read a drawing and a page widget's pick
-  is not told how a thread answers. A missing or invalid registry leaves the
-  event's `handling` out and the batch's object empty rather than substituting
-  another layer's rules.
+  then the clauses for the answer its `obligation` names, so a plain comment is
+  not told how to read a drawing, a page widget's pick is not told how a thread
+  answers, and an event owing nothing is not told how to answer. A missing or
+  invalid registry leaves the event's `handling` out and the batch's object empty
+  rather than substituting another layer's rules.
 
 The batch-level `conversations` carry each conversation's title (null until named),
 anchor, closure state, earlier messages, and standing gestures on sent widgets.

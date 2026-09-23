@@ -99,6 +99,7 @@ def browser_state(
     now: str,
     live_stream: dict | None = None,
     registries: dict[int, dict] | None = None,
+    data: dict | None = None,
 ) -> dict:
     """The browser's derived reading of one transaction-consistent page snapshot.
 
@@ -122,7 +123,7 @@ def browser_state(
     undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     conversation, conversation_reading = browser_conversation(
-        events, active_registry, threads, live_reply
+        events, active_registry, threads, live_reply, data
     )
     conversation_projection = conversation_reading.projection
 
@@ -134,7 +135,7 @@ def browser_state(
             if revision == active_revision
             else page_reading(document, events, registry_for(revision), revision)
         )
-        document, projection = browser_document(page, threads)
+        document, projection = browser_document(page, threads, data or {"sources": {}})
         classified = {
             **projection.classified,
             **conversation_projection.classified,
@@ -227,6 +228,7 @@ def project_browser_state(
     registries_override: dict[int, dict] | None = None,
     include_active_view: bool = True,
     live_stream: dict | None = None,
+    data: dict | None = None,
 ) -> dict | None:
     """Project only the documents one browser reading can consume.
 
@@ -282,4 +284,5 @@ def project_browser_state(
         now,
         live_stream,
         registries,
+        data,
     )

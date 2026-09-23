@@ -54,3 +54,23 @@ export function summaryRanges(messages, summaries = []) {
   }
   return Object.freeze(ranges);
 }
+
+// Where each run of unread messages starts ("new") and where the read message after one
+// stands ("end"), keyed by message key, across the ranges as the panel shows them. A
+// collapsed summary shows none of its messages, so a run does not continue across it.
+export function unreadBoundaries(ranges) {
+  const boundaries = new Map();
+  let precedingUnread = false;
+  for (const range of ranges) {
+    if (range.kind === "summary" && !range.expanded) {
+      precedingUnread = false;
+      continue;
+    }
+    for (const message of range.kind === "message" ? [range.message] : range.messages) {
+      if (message.unread && !precedingUnread) boundaries.set(message.key, "new");
+      if (!message.unread && precedingUnread) boundaries.set(message.key, "end");
+      precedingUnread = Boolean(message.unread);
+    }
+  }
+  return boundaries;
+}

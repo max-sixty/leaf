@@ -9,9 +9,10 @@ import {
   semanticNewsReading,
 } from "/runtime/semantic-news.js";
 
+// `unread: false` leaves a message out of its thread's server `unread` reading: read
+// already, or not agent content at all (a reaction, a reply still streaming).
 const message = (id, extra = {}) => ({
   id,
-  content_version: extra.edited?.id ?? id,
   seq: 1,
   author: "agent",
   kind: "reply",
@@ -22,6 +23,9 @@ const thread = (id, msgs, attention = null, readerPrompt = null) => ({
   msgs,
   attention,
   reader_prompt: readerPrompt,
+  unread: msgs
+    .filter((item) => item.unread !== false)
+    .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
 });
 const ask = (id, threadId = null) => ({ id, thread: threadId });
 const activity = (kind = "away", extra = {}) => ({
@@ -58,7 +62,7 @@ const responseFailure = (source, kind = "failed") => ({
 
 test("accepted messages and reader obligations arrive together after a quiet baseline", () => {
   const old = reading({
-    threads: [thread("t", [message("old")])],
+    threads: [thread("t", [message("old", { unread: false })])],
     pageAsks: [ask("existing")],
   });
   const baseline = observeSemanticNews(null, old);
@@ -69,7 +73,7 @@ test("accepted messages and reader obligations arrive together after a quiet bas
     threads: [
       thread(
         "t",
-        [message("old"), message("new", { seq: 2, awaits: true })],
+        [message("old", { unread: false }), message("new", { seq: 2, awaits: true })],
         { kind: "needs_reader", reason: "ask" },
         { message: "new", version: "new" },
       ),
@@ -171,9 +175,9 @@ test("current content versions and admitted messages determine arrivals", () => 
           message("stream", {
             addressable: false,
             attempt: "pending",
-            content_version: null,
+            unread: false,
           }),
-          message("reaction", { token: "agree", content_version: null }),
+          message("reaction", { token: "agree", unread: false }),
           message("failed-reply", { failure: "turn_failed" }),
         ]),
       ],
@@ -422,5 +426,64 @@ test("deferred failure wording follows its current condition and stale availabil
   assert.deepEqual(
     currentSemanticNews(interrupted.news, reading(), interrupted.observed),
     [],
+  );
+});
+
+test("agent content is news while it is unread, including on the first reading", () => {
+  const waiting = reading({
+    threads: [
+      thread("t", [
+        message("away", { seq: 1 }),
+        message("seen", { seq: 2, unread: false }),
+      ]),
+    ],
+  });
+  const opened = observeSemanticNews(null, waiting);
+  assert.deepEqual(
+    opened.news.map((item) => item.key),
+    ["content:away"],
+  );
+  assert.equal(
+    semanticNewsNotice(currentSemanticNews(opened.news, waiting, opened.observed)),
+    "Agent replied",
+  );
+  // Taken in before the notice could show — here, or in another tab — it drops out.
+  const taken = reading({
+    threads: [
+      thread("t", [
+        message("away", { seq: 1, unread: false }),
+        message("seen", { seq: 2, unread: false }),
+      ]),
+    ],
+  });
+  assert.deepEqual(currentSemanticNews(opened.news, taken, opened.observed), []);
+  // A reply another tab already read arrives read, and is no news here.
+  const later = observeSemanticNews(
+    opened.observed,
+    reading({
+      threads: [
+        thread("t", [
+          message("away", { seq: 1, unread: false }),
+          message("elsewhere", { seq: 3, unread: false }),
+        ]),
+      ],
+    }),
+  );
+  assert.deepEqual(later.news, []);
+});
+
+test("news is ordered by when each message last moved", () => {
+  const result = observeSemanticNews(
+    null,
+    reading({
+      threads: [
+        thread("a", [message("edited", { seq: 1, edited: { id: "e", seq: 9 } })]),
+        thread("b", [message("plain", { seq: 5 })]),
+      ],
+    }),
+  );
+  assert.deepEqual(
+    result.news.map((item) => item.key),
+    ["content:plain", "content:e"],
   );
 });

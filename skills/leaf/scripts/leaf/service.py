@@ -27,6 +27,7 @@ from leaf.host import (
 )
 from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
+from leaf.registry.layer import bookkeeping_kinds
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
     EVENTS_FILE,
@@ -779,7 +780,7 @@ def unacknowledged(events: list, cursor: int) -> list:
 def requires_agent_attention(event: dict) -> bool:
     """Whether a log event creates host work, rather than reader bookkeeping."""
     return (
-        (event["author"] == "user" and event["kind"] != "read")
+        (event["author"] == "user" and event["kind"] not in bookkeeping_kinds())
         or event["kind"] in {"report", "error"}
         or (event["author"] == "page" and event["kind"] == "action")
     )

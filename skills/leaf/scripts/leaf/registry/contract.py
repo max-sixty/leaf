@@ -80,21 +80,30 @@ CREATED_CHILDREN_DETAIL_SCHEMA = {
 }
 
 
-def event_clauses(event: dict, registry: dict | None) -> list[dict]:
-    """What the layer asks of the agent for one event, read off the vendored
-    `$events.handling`: its kind's clauses whose `when` schema the event record
-    matches, in declared order, so a plain comment is not told how to read a
-    drawing. A project layer restates a kind's clauses merge-patch style, so the
-    event carries the rule the page was vendored with. A missing or invalid
-    registry leaves the event unexplained; it never substitutes instructions from
-    a different layer. What each case of each kind receives from the shipped
+def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
+    """What the layer asks of the agent for one delivered event, read off the
+    vendored `$events`: the event kind's `handling` clauses, then the `answering`
+    clauses of the answer it owes, each kept when its `when` schema matches.
+
+    `entry` is the event record, plus the `obligation` a delivery captured when the
+    event owns an answer (`workflows` owns that derivation). A `when` can therefore
+    read the obligation as well as the record, and an event owing nothing is told
+    nothing about answering: a pick before Done, or a message a newer one in its
+    thread answers through. A project layer restates a kind's clauses merge-patch
+    style, so the event carries the rule the page was vendored with. A missing or
+    invalid registry leaves the event unexplained; it never substitutes instructions
+    from a different layer. What each case of each kind receives from the shipped
     layer, clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
     `test_each_case_of_an_event_is_told_what_the_snapshot_shows`."""
-    clauses = (registry or {}).get("$events", {}).get("handling", {}).get(event["kind"])
+    declared = (registry or {}).get("$events", {})
+    clauses = list(declared.get("handling", {}).get(entry["kind"]) or [])
+    if obligation := entry.get("obligation"):
+        answer = obligation["response"]["kind"]
+        clauses += declared.get("answering", {}).get(answer) or []
     return [
         clause
-        for clause in clauses or []
-        if "when" not in clause or json_validator(clause["when"]).is_valid(event)
+        for clause in clauses
+        if "when" not in clause or json_validator(clause["when"]).is_valid(entry)
     ]
 
 

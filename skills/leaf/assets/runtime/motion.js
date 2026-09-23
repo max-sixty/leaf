@@ -41,7 +41,7 @@ preference.addEventListener("change", (event) => {
 // reduce, and a caller treats "no animation" and "animation finished" as the same
 // state. Every motion this module plays shares one ease and one held-end-frame
 // contract. A duration a caller passes in is still a number this module has no reason
-// for; see CLAUDE.md's "Motion".
+// for; see AGENTS.md's "Motion".
 export function motion(el, keyframes, ms) {
   // First replay happens behind the presentation boundary. Its state should be the
   // first frame the reader sees, not a motion from authored state they never saw; it

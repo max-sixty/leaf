@@ -1,19 +1,14 @@
 ---
 name: running-tend
-description: Project-specific guidance loaded by tend workflows alongside CLAUDE.md.
+description: Project-specific guidance loaded by tend workflows alongside AGENTS.md.
 ---
 
 # Running tend — leaf
 
 ## Landing
 
-Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
-approval when it makes a modest change that fixes tests, the relevant CI checks
-pass on the exact pull request head, and the claimed fix is verified by those
-checks. This includes test-owned failures and small product fixes needed to make
-the tests pass. Changes to workflows,
-Tend's configuration, CODEOWNERS, or agent instructions still require the
-control-plane owner's fresh approval under the repository ruleset.
+Work from Tend lands as a pull request that a maintainer merges. The bot has
+write access, and the `Merge access` ruleset holds merging to admins.
 
 Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
 description is `main`'s commit message for that change rather than review
@@ -23,23 +18,9 @@ commit changed off that commit's own per-file diff — `git show <sha> -- <path>
 or `--stat` for the shape — because a grep over a whole-directory diff prints
 the matching lines without saying which file each came from.
 
-## Yolo test environment
-
-Tend provides `uv`, but does not install Leaf's project dependencies or browser
-system libraries before the agent starts. The agent can sync Python dependencies;
-it cannot use sudo, Docker, or `wt`, or run Leaf's WebKit tests, browser previews,
-`/ui-sweep`, or `scripts/verify-site-local.sh` in this sandbox. Where `CLAUDE.md`
-or `tests/CLAUDE.md` calls for one of those local checks, use the equivalent
-GitHub Actions run on the candidate branch and report what was not run locally.
-The pull request `ci` run covers the everyday and website gates. If the change
-needs nightly test coverage, dispatch `ci` on the candidate branch, wait for its
-`nightly` job, and verify the run used the exact head being judged. A browser
-interaction or performance claim that CI does not establish remains unverified;
-leave that change for maintainer review rather than merging it automatically.
-
 ## Review threshold
 
-Apply `CLAUDE.md`'s **Stage** section to the verdict. Once a change moves Leaf
+Apply `AGENTS.md`'s **Stage** section to the verdict. Once a change moves Leaf
 toward a coherent architecture and its claimed path works, the review is done.
 Reserve findings for architectural seams, cross-runtime invariants, public
 surface traps, regressions on the claimed path, or a central claim or test that
@@ -57,10 +38,15 @@ says what it is — not when the real fix is merely filed behind it.
 
 ## Cloudflare logs
 
-Yolo mode does not pass the `Leaf observability (Tend CI)` token into agent
-sessions. Diagnose with the workflow run and repository evidence. If a deployed
-site failure requires Cloudflare logs to establish its cause, say which evidence
-is missing in the pull request rather than claiming a verified fix.
+`CLOUDFLARE_API_TOKEN` in the agent's environment is the
+`Leaf observability (Tend CI)` token in `worker/README.md`: it reads the
+deployed site's Workers Observability logs and Analytics Engine events and
+cannot deploy. It is set only for an agent answering an issue or a red run on
+`main`, and empty everywhere else. When an issue or a red `publish-site`
+concerns the deployed site, query its logs as that README describes and diagnose
+from the records. Before running a pull request's code in a session that holds
+the token, drop it from that command's environment with
+`env -u CLOUDFLARE_API_TOKEN`.
 
 ## Filing issues in other repos
 
@@ -102,14 +88,14 @@ to read.
 
 ## Review test selection
 
-Before approving a product change, choose the smallest test selection that
-exercises the failures the diff could introduce. Select from the product paths
-and contracts in the diff, not from the test files it happens to touch. Run
-what the sandbox supports locally and use **Yolo test environment** for browser
-and nightly cases. A docs-only or generated-workflow change may need no
-additional test; a selected failure withholds approval.
+Before approving a product change, choose and run the smallest test selection
+that exercises the failures the diff could introduce. Select from the product
+paths and contracts in the diff, not from the test files it happens to touch.
+The review selection supplements the everyday CI gate. A docs-only or
+generated-workflow change may need no additional test; a selected failure
+withholds approval.
 
-For a change that can alter browser startup, apply `CLAUDE.md`'s **Working on the
+For a change that can alter browser startup, apply `AGENTS.md`'s **Working on the
 repository** performance rule. Read the candidate profile from CI and compare it with
 the base. If requests or bytes rise before presentation, check that the PR names the
 user-visible benefit and why the work must happen then.
@@ -121,12 +107,11 @@ together.
 
 ## Reading a red suite
 
-Nearly every test drives a real browser, so the CI traceback can name a symptom
+Nearly every test drives a real browser, so the traceback can name a symptom
 several boundaries after its cause. Find the first violated contract, reproduce at
-the lowest boundary the sandbox can run, then determine whether the product,
-test, or execution environment owns it. Use **Yolo test environment** to verify
-a browser fix after pushing it to a pull request. Failure movement,
-determinism, and clustering can guide that search; none decides who owns the fix.
+the lowest boundary that preserves the failure, then determine whether the product,
+test, or execution environment owns it. Failure movement, determinism, and clustering
+can guide that search; none decides who owns the fix.
 
 Two test-owned failures recur here:
 
@@ -136,7 +121,7 @@ Two test-owned failures recur here:
   needs — a panel still widening the document, a scroll still settling, a
   response landed but not yet reconciled. It surfaces at a wait far from the
   read that caused it, so the traceback names the symptom rather than the cause.
-  `tests/CLAUDE.md` already owns the fix under **State races are arrangements,
+  `tests/AGENTS.md` already owns the fix under **State races are arrangements,
   not probabilities** and **A state the page passes through is not a state to
   poll for**: state the ordering, do not repeat the gesture until it happens to
   hold.
@@ -145,15 +130,15 @@ Two test-owned failures recur here:
   itself is one more member. Read the line's history first (`git log -L`). A set
   that has already grown is describing the noise the suite makes rather than the
   behaviour the test names, so the next wording reddens main again.
-  `tests/CLAUDE.md` owns the fix under **A test cannot assert over noise it makes
+  `tests/AGENTS.md` owns the fix under **A test cannot assert over noise it makes
   itself**. The PR is against the test.
 
 ## Weekly: interface sweep
 
-Tend cannot run `/ui-sweep` in yolo. Review available CI and source evidence for
-interface defects during the weekly pass, and name any visual or interaction
-question that still needs a live browser in its report. A maintainer performs
-the live sweep.
+Run `/ui-sweep` before dependency maintenance. This is the discovery pass for visual
+and interaction behavior the suite has no stated invariant for yet. Follow its
+**Reconcile** route: a reproduced defect becomes a tested repair, while a design
+judgment stays in the run report.
 
 ## Weekly: vendored browser dependencies
 
@@ -184,5 +169,5 @@ registry: rerunning them after an unrelated registry change is how the bundle
 and the lint stay unable to disagree. Pierre and Shiki must move together when
 their compatibility requires it.
 
-Verify the rebuilt bundle through **Yolo test environment**. The browser tests
-load the bundles, so a bad rebuild surfaces there.
+Run the suite afterwards. The browser tests load the bundles, so a bad rebuild
+surfaces there rather than in review.

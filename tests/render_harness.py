@@ -73,7 +73,7 @@ assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
 CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 CORPUS_PAGE = ROOT / "examples" / "corpus.html"
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
-# exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
+# exactly as `leaf page media` names it in a real page directory. examples/AGENTS.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
@@ -906,7 +906,7 @@ def undo(page):
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
 # The console can tell them apart, which is what the reason is chosen for:
-# tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
+# tests/AGENTS.md, "A test cannot assert over noise it makes itself". A refused event
 # request remains unresolved, deliberately: the outbox keeps its attempt and retries.
 def refuse(route):
     """Stop this request with nothing for the page's console to report."""
@@ -966,7 +966,7 @@ def held_stale(context):
 
 # Shared readiness for `open_page` and manual navigation. Initial upgrade/replay
 # stamps remain set during later work, so also require the current presentation
-# and declared post-presentation work to settle. See tests/CLAUDE.md,
+# and declared post-presentation work to settle. See tests/AGENTS.md,
 # "A page is ready when it says what has finished".
 BOTH_STAMPS = """() => {
   if (
@@ -1067,7 +1067,7 @@ def watched(page):
     Console warnings/errors and uncaught exceptions are joined by window errors
     without exceptions, installed through the same `install_window_errors` helper
     the render gate uses. Call before navigation so the init script takes effect.
-    Repeated calls return the existing list. `tests/CLAUDE.md`, "A page is ready
+    Repeated calls return the existing list. `tests/AGENTS.md`, "A page is ready
     when it says what has finished", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
         "watched pages need the function-scoped browser fixture"
@@ -1538,7 +1538,7 @@ class WatchedBrowser:
     `readable` installs the error collector, interception arm, and traffic reading.
     `unwatched` exposes the underlying browser for product gates that deliberately
     open faulty pages and report those faults themselves. Ordinary clean-page
-    journeys use the wrapped browser. Fixture policy lives in `tests/CLAUDE.md`,
+    journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
     "A page is ready when it says what has finished"."""
 
     def __init__(self, browser):
@@ -1597,7 +1597,7 @@ def margins_laid_out(page):
     window — but only on the runs where the frame had not landed yet, which is why the
     same probe condensed on one run and not the next.
 
-    The pending frame is not a fact to wait a frame for (`tests/CLAUDE.md`, "a fixed
+    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "a fixed
     number of animation frames only guesses"), so the work is run instead of guessed at.
     Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
     that of a test reading the layout it produces.
@@ -1664,7 +1664,7 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     outer scroller's smooth movement, rather than a machine-dependent time window.
 
     Each call resets its observation. Timeout reports the selected scroller and
-    its last reading. `tests/CLAUDE.md`, "A wait consumes a fact the system states",
+    its last reading. `tests/AGENTS.md`, "A wait consumes a fact the system states",
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:

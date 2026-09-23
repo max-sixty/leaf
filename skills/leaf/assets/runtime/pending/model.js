@@ -1,12 +1,13 @@
-/* Pure readings of unresolved browser gestures. */
+/* Pure readings of unresolved browser gestures.
+
+   An entry stands here from the gesture until the log's receipt for its attempt has
+   been accounted; `accounted` is that set of attempts. */
 import { PENDING } from "../conversation/identity.js";
 
 export const isConversationEvent = (event) =>
   event.kind === "comment" || event.kind === "reply";
 
 export const isMessageEvent = (event) => isConversationEvent(event) && !event.token;
-
-export const isReadAcknowledgement = (event) => event.kind === "read";
 
 export const conversationForAttempt = (event, timestamp) => ({
   ...event,
@@ -17,67 +18,52 @@ export const conversationForAttempt = (event, timestamp) => ({
 });
 
 export const unresolvedAttempts = (entries) =>
-  entries
-    .filter((entry) => !entry.answered && !isReadAcknowledgement(entry.event))
-    .map((entry) => entry.event.attempt);
+  entries.filter((entry) => !entry.answered).map((entry) => entry.event.attempt);
 
-export const unreadMessages = (entries, receipts) => {
-  const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));
-  return entries
-    .filter(
-      (entry) => entry.message && !entry.rejected && !read.has(entry.event.attempt),
-    )
+const accountedAttempts = (receipts) =>
+  new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));
+
+// The standing entries the log has not yet accounted for, which the page still draws
+// from the gesture rather than from the log.
+const unaccounted = (entries, receipts) => {
+  const accounted = accountedAttempts(receipts);
+  return entries.filter(
+    (entry) => !entry.rejected && !accounted.has(entry.event.attempt),
+  );
+};
+
+export const pendingMessages = (entries, receipts) =>
+  unaccounted(entries, receipts)
+    .filter((entry) => entry.message)
     .map((entry) => entry.message);
-};
 
-const unreadEvents = (entries, receipts, kinds) => {
-  const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));
-  return entries
-    .filter(
-      (entry) =>
-        !entry.rejected &&
-        kinds.includes(entry.event.kind) &&
-        !read.has(entry.event.attempt),
-    )
+const pendingEvents = (entries, receipts, kinds) =>
+  unaccounted(entries, receipts)
+    .filter((entry) => kinds.includes(entry.event.kind))
     .map((entry) => entry.event);
-};
 
-export const pendingReactions = (entries, receipts) => {
-  const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));
-  return entries
-    .filter(
-      (entry) =>
-        entry.conversation?.token && !entry.rejected && !read.has(entry.event.attempt),
-    )
+export const pendingReactions = (entries, receipts) =>
+  unaccounted(entries, receipts)
+    .filter((entry) => entry.conversation?.token)
     .map((entry) => entry.conversation);
-};
 
-export const pendingSettlements = (entries, receipts) => {
-  const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));
-  return entries
+export const pendingSettlements = (entries, receipts) =>
+  unaccounted(entries, receipts)
     .filter(
-      (entry) =>
-        !entry.rejected &&
-        (entry.event.kind === "resolve" || entry.event.kind === "unresolve") &&
-        !read.has(entry.event.attempt),
+      (entry) => entry.event.kind === "resolve" || entry.event.kind === "unresolve",
     )
     .map((entry) => ({ ...entry.event, localParent: entry.namedParent }));
-};
 
 export const pendingApprovals = (entries, receipts) =>
-  unreadEvents(entries, receipts, ["done"]);
+  pendingEvents(entries, receipts, ["done"]);
 
 export const pendingRequests = (entries, receipts) =>
-  unreadEvents(entries, receipts, ["request"]);
+  pendingEvents(entries, receipts, ["request"]);
 
-export const pendingProjectionEntries = (entries, receipts) => {
-  const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));
-  return entries
-    .filter(
-      (entry) => entry.projection && !entry.rejected && !read.has(entry.event.attempt),
-    )
+export const pendingProjectionEntries = (entries, receipts) =>
+  unaccounted(entries, receipts)
+    .filter((entry) => entry.projection)
     .map((entry) => entry.projection);
-};
 
 export const pendingForParent = (entries, id, kinds = null) =>
   entries.find(

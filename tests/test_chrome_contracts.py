@@ -48,14 +48,17 @@ from render_harness import (
 def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     browser, serve
 ):
-    """Only new accepted replies announce, regardless of the panel's disclosure."""
+    """Unread replies announce once each, whether they arrive while the page is open or
+    were waiting when it opened, regardless of the panel's disclosure. The reader keeps
+    a draft open in a thread no reply lands in, so exposure acknowledges none of them."""
     url = serve(leaf_page("Reply arrivals", "<h1>Reply arrivals</h1>"))
     directory = serve.page_dir
-    a = events_model.append_event(
-        directory, {"kind": "comment", "author": "user", "revision": 1, "text": "A"}
-    )
-    b = events_model.append_event(
-        directory, {"kind": "comment", "author": "user", "revision": 1, "text": "B"}
+    drafting, a, b = (
+        events_model.append_event(
+            directory,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
+        )
+        for text in ("Draft here", "A", "B")
     )
     events_model.append_event(
         directory,
@@ -70,13 +73,14 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     page = open_page(browser, url)
     live = page.locator(".lf-live")
     notice = page.locator(".lf-notice")
-    assert "replied" not in live.text_content()
-    expect(notice).not_to_have_class(re.compile(r"\bshow\b"))
+    expect(live).to_have_text("Codex replied")
+    expect(notice).to_have_text("Codex replied")
+    expect(notice).not_to_have_class(re.compile(r"\bshow\b"), timeout=10_000)
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(f'.lf-thread[data-id="{a["id"]}"] .lf-thread-summary').click()
-    draft = page.locator(f'.lf-thread[data-id="{a["id"]}"] textarea')
+    page.locator(f'.lf-thread[data-id="{drafting["id"]}"] .lf-thread-summary').click()
+    draft = page.locator(f'.lf-thread[data-id="{drafting["id"]}"] textarea')
     draft.fill("Keep this draft")
     draft.focus()
     page.evaluate(
@@ -162,7 +166,8 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this draft")
 
-    # A duplicate read and a fresh document make no fresh announcement.
+    # A duplicate read makes no fresh announcement; a fresh document announces what
+    # the reader has still not read.
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
@@ -174,8 +179,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
         "Codex replied",
     ]
     page.reload()
-    expect(notice).not_to_have_class(re.compile(r"\bshow\b"))
-    assert "replied" not in live.text_content()
+    expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
@@ -455,6 +459,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     dismiss = preview.get_by_role("button", name="Dismiss conversation view")
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
+    assert dismiss.evaluate("button => button.closest('.lf-thread-root-meta') !== null")
     centers = preview.evaluate(
         """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
           const rect = preview.querySelector(selector).getBoundingClientRect();
@@ -463,6 +468,45 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     )
     assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
     assert centers[0]["x"] < centers[1]["x"]
+    if thread_count == 2:
+        row = preview.evaluate(
+            """preview => {
+              const meta = preview.querySelector('.lf-thread-root-meta');
+              const middle = selector => {
+                const box = meta.querySelector(selector).getBoundingClientRect();
+                return box.y + box.height / 2;
+              };
+              return {
+                nav: middle('.lf-margin-preview-nav'),
+                author: middle('.lf-conversation-head > b'),
+                actions: middle('.lf-thread-meta-actions'),
+                authorRight: meta.querySelector('.lf-conversation-head')
+                  .getBoundingClientRect().right,
+                navLeft: meta.querySelector('.lf-margin-preview-nav')
+                  .getBoundingClientRect().left,
+                navRight: meta.querySelector('.lf-margin-preview-nav')
+                  .getBoundingClientRect().right,
+                resolveLeft: meta.querySelector('.lf-resolve')
+                  .getBoundingClientRect().left,
+                overflow: meta.scrollWidth - meta.clientWidth,
+              };
+            }"""
+        )
+        assert row["nav"] == pytest.approx(row["actions"], abs=1), row
+        assert row["author"] == pytest.approx(row["actions"], abs=1), row
+        assert row["authorRight"] < row["navLeft"], row
+        assert row["navRight"] < row["resolveLeft"], row
+        assert row["overflow"] == 0, row
+    dismiss.focus()
+    resized(page, 1000, 844)
+    expect(dismiss).to_be_focused()
+    resolve.focus()
+    page.keyboard.press("Tab")
+    expect(dismiss).to_be_focused()
+    dismiss.focus()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread-summary:focus")).to_have_count(1)
 
 
 STATE_PAINT = """el => {
@@ -937,3 +981,117 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(viewer.locator("img")).to_have_attribute("alt", "A media chart")
     page.keyboard.press("Escape")
     expect(media_button).to_be_focused()
+
+
+def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, serve):
+    """The panel's strip reflows the page; the reader stays on the words they were on.
+
+    Narrowing the shell narrows the reading column inside it, so the text re-wraps and
+    the document grows above wherever the reader is standing. The browser's scroll
+    anchoring absorbs that, and nothing in the runtime does: this passes with no script
+    holding the reader's place. That is what makes it the guard. Anchoring is suppressed
+    for any frame in which a box on the anchor's ancestor chain changes a property on the
+    suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
+    is a border and the column does not glide (theme.css, at the body strip), and the
+    panel renders on either side of the frame the shell write lands in, never inside it
+    (`takeShell`, chrome-layout.js). The day any of these regresses, this goes red.
+
+    A re-wrap moves every paragraph by a different amount, so only one of them can be
+    held. The one the reader's place means is the block under the top of the window,
+    which is the block the platform's own anchoring would have chosen; what is further
+    down has grown taller and is expected to have moved.
+    """
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    # Narrow enough that the strip's share of the shell re-wraps this fixture's
+    # paragraphs: the assertion below says so rather than trusting the width.
+    resized(page, 900, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 900")
+    # The reader's place: the page's own block under the window's visible top edge, which
+    # the root states as scroll-padding for native focus navigation.
+    at_the_top = """
+    () => {
+      const edge = Number.parseFloat(
+        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
+      const p = [...document.querySelectorAll('main p')]
+        .find((p) => p.getBoundingClientRect().bottom > edge);
+      return p && { id: p.id, top: p.getBoundingClientRect().top };
+    }
+    """
+    reading = page.evaluate(at_the_top)
+    assert reading, "the fixture put no paragraph under the top of the window"
+    tall = page.evaluate("() => document.documentElement.scrollHeight")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
+        "the window is wide enough that the strip reflowed nothing, so nothing is proved"
+    )
+    opened = page.evaluate(at_the_top)
+    assert opened["id"] == reading["id"]
+    assert opened["top"] == pytest.approx(reading["top"], abs=2)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
+    closed = page.evaluate(at_the_top)
+    assert closed["id"] == reading["id"]
+    assert closed["top"] == pytest.approx(reading["top"], abs=2)
+
+
+def test_a_page_map_update_keeps_the_row_the_reader_was_on(browser, serve):
+    """A state update re-rendering the open Page Map leaves the reader's rows in place.
+
+    A group arriving above the rows in view pushes them down in the list's content by
+    its own height. The place the reader had is the rows they were looking at, so the
+    list follows them by the same amount rather than standing at the scroll offset it
+    had, which would show them one group further down.
+    """
+    fixture = leaf_page(
+        "Page Map place",
+        "".join(f'<p id="place-{index}">Target {index}</p>' for index in range(30)),
+    )
+    page = open_page(browser, serve(fixture))
+    resized(page, 1280, 600)
+    page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const contribute = (key, target, label) => registerMarginContribution({
+            key, target,
+            read: () => ({entries: [marginEntry({key: 'action', icon: 'dot', label})]}),
+            activate: () => {},
+          });
+          for (let index = 0; index < 29; index++)
+            contribute(`place-${index}`, document.querySelector(`#place-${index}`),
+              `Action ${index}`);
+          let at = 29;
+          const moving = contribute(
+            'moving', () => document.querySelector(`#place-${at}`), 'Moving action');
+          window.lfMoveToTop = () => {
+            at = 0;
+            moving.update({immediate: true});
+          };
+        }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    row = dialog.get_by_role("button", name="Action 15", exact=True)
+    row.evaluate("node => node.scrollIntoView({block: 'center'})")
+    top = row.evaluate("node => node.getBoundingClientRect().top")
+    room = dialog.locator(".lf-page-map-list").evaluate(
+        "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    )
+    moving = dialog.get_by_role("button", name="Moving action", exact=True)
+    grown = moving.evaluate(
+        "node => node.closest('.lf-page-map-group').getBoundingClientRect().height"
+    )
+    assert room > grown, "the list cannot follow the rows without passing its end"
+
+    page.evaluate("() => window.lfMoveToTop()")
+    first = dialog.locator(".lf-page-map-action-label-word").first
+    expect(first).to_have_text("Moving action")
+    assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=1
+    )

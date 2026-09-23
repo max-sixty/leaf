@@ -1,6 +1,6 @@
 """Validation of authored changes against standing actions and reports."""
 
-from leaf.passages import EMPTY, collapse, enclosing_of
+from leaf.passages import EMPTY, collapse, enclosing_of, inline_markdown_words
 from leaf.projection import (
     NO_RECORD,
     StateProjection,
@@ -28,7 +28,7 @@ def restatement_errors(
 ) -> list:
     """The other half of the id-survival rule. That one keeps a revision from
     dropping the anchors a user hung on the page; this one keeps it from
-    dropping the decisions they recorded on it. CLAUDE.md carries why the log
+    dropping the decisions they recorded on it. AGENTS.md carries why the log
     outranks the markup and what that cost.
 
     The runtime reconciles every standing action onto every later version, so a
@@ -121,7 +121,14 @@ def restatement_errors(
         # child prose. The event is their previous reading because those children
         # were absent from the action's authored revision.
         generated_words = {
-            collapse(value)
+            collapse(
+                inline_markdown_words(value, added=True)
+                if registry.get(action_specs[e["id"]]["creates"]["child"], {}).get(
+                    "x-text-format"
+                )
+                == "inline-markdown"
+                else value
+            )
             for e in live
             for identity, value in created_children(e, action_specs[e["id"]]).items()
             if identity == sid and isinstance(value, str)

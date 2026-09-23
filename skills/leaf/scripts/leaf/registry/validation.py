@@ -28,7 +28,7 @@ def validate_registry(registry: dict, source) -> dict:
     validate_event_handling(registry["$events"], kinds, path)
     validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
     declarations = element_declarations(registry, path)
-    validate_widget_schemas(declarations, path)
+    validate_widget_schemas(declarations, data, path)
     slots = retirement_slots(registry)
     validate_widget_relations(registry, declarations, data, slots, path)
     validate_retirement_facets(slots, declarations, path)

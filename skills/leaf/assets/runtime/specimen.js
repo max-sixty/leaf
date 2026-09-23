@@ -1,7 +1,14 @@
 /* A specimen is a normally served Leaf page with its own disposable event log.
  * The server captures an authored template and its layer; this owner handles the
  * frame's readiness, reset, and explicit focus entry and return. Passive
- * demonstrations use the same host and remain inert throughout their playback. */
+ * demonstrations use the same host and remain inert throughout their playback.
+ *
+ * `mountSpecimen(frame, {template, passive})` returns a host whose `ready` resolves to
+ * the presented child `Document`; `reset()` replaces the child and resolves the same
+ * way; `enter(returnTo)` activates it and records the control `leave()` returns to;
+ * `destroy()` releases it. The frame emits `lf-specimen-enter` and `lf-specimen-leave`
+ * as the focus boundary changes, including Escape from the child. The authored element
+ * and its isolation contract are page-authoring.md's "Live specimens". */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
 import { discardPageStorage } from "./storage.js";

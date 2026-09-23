@@ -525,7 +525,13 @@
                   and <code>version check</code> advises against page CSS that places an
                   element declaring a role. Every role keeps markup content so packages
                   may contribute differently named structural elements without joining a
-                  closed parent-child vocabulary.
+                  closed parent-child vocabulary. Every role requires a string
+                  <code>id</code>; a pane also requires a string <code>label</code>,
+                  which names its accessible region while a visible heading belongs in
+                  its authored header; a partition requires <code>direction</code> with
+                  the complete <code>columns</code>/<code>rows</code> enum. A workspace
+                  or pane may hold one direct native <code>header</code> first and one
+                  <code>footer</code> last.
                 </p>
               </details>
             </div>

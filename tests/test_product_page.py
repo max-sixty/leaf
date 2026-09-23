@@ -17,6 +17,8 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
+from leaf.registry.contract import event_clauses
+from leaf.registry.storage import active_registry
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from PIL import Image
@@ -213,7 +215,9 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
     A batch names each conversation its events land in, with that conversation's
     metadata, and the page's sample once kept an empty list beside a comment that
     opened one. The entry keys are read off a delivery frozen here rather than
-    listed, so a field the envelope gains has to be written into the page too.
+    listed, so a field the envelope gains has to be written into the page too. Each
+    event's handling is the text the shipped layer delivers for it today, so a
+    reworded clause has to be copied into the sample.
     """
     transcript = html.unescape((DOCS / "how-it-works.html").read_text())
     shown = json.loads(
@@ -226,6 +230,7 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
         stored = next(event for event in page.events if event["id"] == comment["id"])
         real = delivery_model.batch_data(page_dir, page, [stored])
     (real_conversation,) = real["conversations"]
+    registry = active_registry(page_dir)
 
     for batch in shown["batches"]:
         assert batch.keys() == real.keys()
@@ -233,6 +238,10 @@ def test_how_it_works_delivery_has_the_shape_a_real_delivery_has(page_dir):
         assert [c["id"] for c in batch["conversations"]] == list(dict.fromkeys(named))
         for conversation in batch["conversations"]:
             assert conversation.keys() == real_conversation.keys()
+        for event in batch["events"]:
+            shown_clauses = [batch["handling"][h] for h in event["handling"]]
+            delivered = [c["text"] for c in event_clauses(event, registry)]
+            assert shown_clauses == delivered, event["id"]
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

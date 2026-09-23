@@ -215,7 +215,7 @@
     }
   },
   "lf-visual-review": {
-    "description": "A guided review of one typed visual run. Author an empty element with an id, bind its required `run` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps compact case navigation above one wide before-and-after comparison with local focus, full-frame, compare, flip, overlay, fit, and captured-size inspection, opens the exact base and candidate paths, discloses capture provenance after the evidence, records a disposition for each case, and seats case threads beside the selected evidence.",
+    "description": "A guided review of one typed visual run. Author an empty element with an id, bind its required `run` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps compact case navigation above one wide before-and-after comparison with local focus, full-frame, compare, flip, overlay, fit, and captured-size inspection, opens the exact base and candidate paths, discloses capture provenance after the evidence, records a disposition for each case, and seats case threads beside the selected evidence. A case with a `focus` rectangle opens on that area, which stays outlined in the full frames. Inspection choices stay local to the user: they never change the run, its case ids, or a recorded disposition.",
     "type": "object",
     "properties": {
       "id": {

@@ -4170,23 +4170,15 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     )
     (widget_package / "vendor" / "solo.json").write_text('{"accent":"plum"}\n')
     (widget_package / "guidance").mkdir()
-    (widget_package / "guidance" / "author.md").write_text(
-        "# Solo widget\n\nUse one solo.\n"
-    )
-    (widget_package / "guidance" / "worker.md").write_text(
-        "# Solo worker\n\nReport the result.\n"
-    )
+    (widget_package / "guidance" / "author.md").write_text("Use one solo.\n")
+    (widget_package / "guidance" / "worker.md").write_text("Report the result.\n")
 
     theme_package = tmp_path / "night"
     theme_package.mkdir()
     (theme_package / "theme.css").write_text(":root { --solo-night: 1; }\n")
     (theme_package / "guidance").mkdir()
-    (theme_package / "guidance" / "author.md").write_text(
-        "# Night theme\n\nUse after dusk.\n"
-    )
-    (theme_package / "guidance" / "reviewer.md").write_text(
-        "# Night reviewer\n\nCheck the contrast.\n"
-    )
+    (theme_package / "guidance" / "author.md").write_text("Use after dusk.\n")
+    (theme_package / "guidance" / "reviewer.md").write_text("Check the contrast.\n")
 
     page = tmp_path / "page"
     initialized = CliRunner().invoke(
@@ -4214,7 +4206,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         "--solo-night: 1"
     )
     guidance = (page / "guidance" / "author.md").read_text()
-    assert guidance.index("# Solo widget") < guidance.index("# Night theme")
+    assert guidance == (
+        "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
+    )
     assert "Report the result." in (page / "guidance" / "worker.md").read_text()
     assert "Check the contrast." in (page / "guidance" / "reviewer.md").read_text()
 
@@ -4225,7 +4219,16 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
-    assert worker.output == "# Solo worker\n\nReport the result.\n"
+    assert worker.output == "# Package `solo`\n\nReport the result.\n"
+    author = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "author"]
+    )
+    assert author.exit_code == 0, author.output
+    assert author.output.endswith(
+        "# Other audiences\n\nThis page also carries guidance for `reviewer` "
+        "and `worker`. Whoever takes one of those roles, you or an agent you assign, "
+        "reads `leaf page guidance <page> <audience>` before acting in it.\n"
+    )
 
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
@@ -4270,7 +4273,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert not (plain / "widgets" / "lf-command.js").exists()
     assert (command / "widgets" / "lf-command.js").is_file()
     assert list((plain / "guidance").iterdir()) == []
-    assert "# Command Hub package" in (command / "guidance" / "author.md").read_text()
+    assert "# Package `command-hub`" in (command / "guidance" / "author.md").read_text()
     plain_audiences = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
@@ -4283,7 +4286,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
-    assert "# Command Hub coordinator" in coordinator.output
+    assert "# Package `command-hub`" in coordinator.output
     assert "# Data contract `lf-worktree`" in coordinator.output
     assert (
         packaged_registry["$data"]["contracts"]["lf-worktree"]["guidance"][

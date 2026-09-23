@@ -479,7 +479,7 @@ def data_capture(
     lines: str | None,
     label: str | None,
 ) -> None:
-    """Capture FILE as SOURCE's current value and an immutable snapshot."""
+    """Capture the --file PATH as SOURCE's current value and an immutable snapshot."""
     from leaf.data import cmd_data_capture
 
     cmd_data_capture(resolve_dir(dir), source, input_file, lines, label, capture_format)

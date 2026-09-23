@@ -105,10 +105,6 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Give each delivery-loop rule one home.** The acknowledge-then-reply order and
-  what the delivery statuses mean are still written in several places.
-  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
-  for each rule.
 
 ## Etc
 

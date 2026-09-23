@@ -14,7 +14,15 @@ export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
 export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
-export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
+export {
+  declareCoverRoom,
+  landingInsets,
+  shownBand,
+  shownBox,
+  shownParts,
+} from "./geometry.js";
+// Holding the reader's place in a scroller whose contents a widget re-renders.
+export { placeKeeper } from "./reader-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the reader on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.

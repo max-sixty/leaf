@@ -121,6 +121,17 @@ test("the band is the scroller's less a stuck cover", () => {
     { top: visibleBand(scroller).top, bottom: visibleBand(scroller).bottom },
     { top: 30, bottom: 400 },
   );
+  // A cover does not hide what it holds: read for a node inside it, the band keeps it.
+  const label = document.createElement("span");
+  heading.append(label);
+  assert.equal(visibleBand(scroller, label).top, 0);
+  // A heading stuck in a nested scroller is that scroller's, though this one holds it.
+  heading.remove();
+  const inner = document.createElement("div");
+  inner.style.overflowY = "auto";
+  inner.append(heading);
+  scroller.append(inner);
+  assert.equal(visibleBand(scroller).top, 0);
   scroller.remove();
 });
 

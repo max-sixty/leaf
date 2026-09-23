@@ -6094,13 +6094,12 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     room = (
-        "() => getComputedStyle(document.querySelector('.lf-threads'))"
-        ".getPropertyValue('--lf-head-room')"
+        "() => parseFloat(getComputedStyle(document.querySelector('.lf-threads'))"
+        ".getPropertyValue('--lf-head-room'))"
     )
     tallest = """() => Math.max(0, ...[...document.querySelectorAll(
-             '.lf-threads .lf-pinned')].map((h) => Math.round(
-               h.getBoundingClientRect().height)))"""
-    assert page.evaluate(room) == f"{page.evaluate(tallest)}px"
+             '.lf-threads .lf-pinned')].map((h) => h.getBoundingClientRect().height))"""
+    assert page.evaluate(room) == pytest.approx(page.evaluate(tallest), abs=0.5)
 
     # Narrow it until the long heading wraps. The gesture is the reader's own.
     draw_edge(page, edge, -(edge.wide - 320))
@@ -6108,7 +6107,7 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
     assert page.evaluate(tallest) > 38, (
         "no heading wrapped at the narrow end, so the drag changed nothing to notice"
     )
-    assert page.evaluate(room) == f"{page.evaluate(tallest)}px", (
+    assert page.evaluate(room) == pytest.approx(page.evaluate(tallest), abs=0.5), (
         "the room a heading takes was measured at a width the reader has left"
     )
 

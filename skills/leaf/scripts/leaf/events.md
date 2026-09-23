@@ -12,7 +12,7 @@ page and is not a global identifier. The kinds:
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
-| `read` | user | `POST /api/event` | `messages: [{message, version}]` | acknowledges exact current or historical agent-content versions for this page's one reader; adds no conversation turn or agent work |
+| `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one reader has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no conversation turn or agent work |
 | `conversation_title` | agent | `leaf conversation title` | `conversation`, `title` | names a conversation in the panel; latest title wins without adding a turn or settling work |
 | `summary` | agent | `leaf conversation summarize` | `conversation`, `from`, `through`, `text` | replaces one contiguous range with Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
@@ -22,7 +22,7 @@ page and is not a global identifier. The kinds:
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `data_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt` | `request`, `succeeded` or `failed`, `text` | exactly one terminal outcome per accepted request |
-| `pickup` | page | the delivery carrier | `events`, `phase` (`queued` or `opened`), `session`, `turn` | the named reader events reached the durable Codex queue or entered an exact agent turn; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named reader events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the reader |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the reader's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
@@ -123,16 +123,21 @@ sorted identity snapshot the server stamps in `generated`.
 
 ## Threads
 
-Reader acknowledgement is separate from thread attention. On a first visit, each
-agent-authored message body, including a failure receipt or authored widget, is unread;
-an agent reaction is not. The original message id names its first content version,
-and each `edit` id names a new one. The browser posts `read` for exact versions after
-presenting and exposing ordinary prose, or when the reader explicitly marks a thread
-read. A later edit is unread even when the prior version was acknowledged. A summary
-does not acknowledge the messages it covers. Read records belong to the page log and
-apply across tabs and document revisions; they never answer a question, settle a
-workflow, or enter agent delivery. The one-reader page assumption is the page's
-current lifecycle, not a per-account scope.
+Read state is separate from thread attention. On a first visit, each agent-authored
+message body, including a failure receipt or authored widget, is unread; an agent
+reaction is not. The original message id names its first content version, and each
+`edit` id names a new one. A version is read once a `read` event names it — the
+browser posts one after presenting and exposing ordinary prose, or when the reader
+marks a thread read — or once the reader moves in its thread after it: a reply or
+reaction, a resolve or reopen, or an action or request on a widget one of the thread's
+messages carries; a move the reader took back does not count. A later edit is unread
+even when the prior version was read. A
+summary does not mark read the messages it covers. `read_state.unread_content` is the
+one reading; it is published as each browser Thread's `unread` and each
+conversation's `unread` in `page state`. Read records belong to the page log and apply
+across tabs and document revisions; they never answer a question, settle a workflow,
+or enter agent delivery. The one-reader page assumption is the page's current
+lifecycle, not a per-account scope.
 
 An agent comment opens a question. A substantive reply opens or resumes the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
@@ -146,10 +151,14 @@ erase newer reader input. A substantive reply reopens a resolved conversation;
 reactions and host failure receipts leave its closure standing. A later resolution
 closes the conversation again. Reopening restores its still-unanswered widget Asks,
 as an explicit reopen does.
-A host that settles an ask because it cannot start work records `failure`, a nonempty
-host-owned code, on its reply; only the host reply writer can supply it, and the panel
-draws such a reply as a receipt whose head says the message answers nothing, since
-otherwise it is indistinguishable from the answer it stands in for.
+A host that gives up on a move writes the failure the move's answer takes
+(`conversation.fail_answer`): a reply for a message, including one in a conversation
+that asked for a version, a failed `receipt` for a request, and a failed `pickup` for
+an answer to a page Ask. The reply and the pickup carry `failure`, a nonempty
+host-owned code; a receipt has no field for it and says so in the host's words. Only
+the host writer supplies `failure`, and the panel draws such a reply as a receipt whose head says the message
+answers nothing, since otherwise it is indistinguishable from the answer it stands in
+for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
@@ -189,8 +198,8 @@ them:
   message are one append, so the page never observes a move without the message that
   accounts for it. A thread whose root `holds` a command goal cannot move or detach.
 - A comment carrying `response: {kind: version, verb}` asks for a change to authored
-  state. `leaf reply` into that thread is refused, though the reader may still write
-  there, and `resolve` is accepted only once a later stamped version's authored state
+  state. `leaf reply` into that thread is refused, apart from a host failure receipt,
+  though the reader may still write there, and `resolve` is accepted only once a later stamped version's authored state
   answers the originating Ask, or changes its declared answer where the Ask was
   already answered; a log action does not substitute.
 - A message body is Markdown, stored as typed and rendered by the page's own vendored

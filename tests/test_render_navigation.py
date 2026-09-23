@@ -2793,7 +2793,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     header = summary
     expect(card).to_have_attribute("open", "")
     header.click()
-    expect(card).not_to_have_attribute("open", "")
+    expect(card).to_have_attribute("open", "")
     header.click()
     expect(card).to_have_attribute("open", "")
     card.locator(".lf-msg").first.click()
@@ -2804,6 +2804,43 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_threads_panel_keeps_one_visible_thread_open_through_resolution(browser, serve):
+    url = serve(PANEL_PAGE)
+    roots = [panel_comment(serve.page_dir, f"Thread {i}.") for i in range(3)]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+
+    def card(index):
+        return page.locator(f'.lf-threads > .lf-thread[data-id="{roots[index]}"]')
+
+    expanded = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
+    expect(expanded).to_have_count(1)
+    expect(card(0)).to_have_attribute("open", "")
+
+    card(1).locator(":scope > .lf-thread-summary").click()
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
+    card(1).locator(":scope > .lf-thread-summary").click()
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
+    card(1).locator(":scope > .lf-thread-summary").focus()
+    page.keyboard.press("Space")
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
+
+    card(1).get_by_role("button", name="Resolve thread").click()
+    round_trip(page)
+    expect(expanded).to_have_count(1)
+    expect(card(2)).to_have_attribute("open", "")
+    expect(card(2).locator(":scope > .lf-thread-summary")).to_be_focused()
+
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(expanded).to_have_count(1)
+    expect(card(1)).to_have_attribute("open", "")
 
 
 @pytest.mark.parametrize("width", [1200, 600])
@@ -6221,7 +6258,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     assert ask_actions_hint("1–2") in shortcut_bar_text(page)
     expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Escape Meta+Enter Control+Enter 1"
+        "aria-keyshortcuts", "Escape Enter Meta+Enter Control+Enter 1"
     )
     page.keyboard.press("?")
     cancel = page.locator(
@@ -6240,10 +6277,10 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
         "aria-keyshortcuts", "?"
     )
     expect(page.locator(".lf-general textarea")).to_have_attribute(
-        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
     expect(page.locator("#live-question .lf-another textarea")).to_have_attribute(
-        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
     assert page.locator(".lf-version-menu").get_attribute("aria-keyshortcuts") is None
 
@@ -9363,9 +9400,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     )
     page.keyboard.press("c")
     expect(box).to_be_focused()
-    expect(box).to_have_attribute(
-        "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
-    )
+    expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
     send = page.locator(".lf-composer > .lf-compose-field > button")
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
@@ -9383,7 +9418,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
         < send_box["y"] + send_box["height"]
         < (field_box["y"] + field_box["height"])
     )
-    expect(send).to_have_attribute("title", re.compile(r"^Comment \((⌘⏎|Ctrl\+⏎)\)$"))
+    expect(send).to_have_attribute("title", re.compile(r"^Comment \(⏎\)$"))
 
     page.keyboard.press("Tab")
     choices = page.locator(".lf-fab-bar")
@@ -9393,17 +9428,13 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
 
     page.keyboard.press("Enter")
     expect(box).to_be_focused()
-    expect(box).to_have_attribute(
-        "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
-    )
-    expect(send).to_have_attribute("title", re.compile(r"^Suggest \((⌘⏎|Ctrl\+⏎)\)$"))
+    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
+    expect(send).to_have_attribute("title", re.compile(r"^Suggest \(⏎\)$"))
     expect(box).to_have_value(
         re.compile("A paragraph carrying bold text and emphasis inside it")
     )
     page.evaluate(RENDERED)
-    expect(box).to_have_attribute(
-        "placeholder", re.compile(r"^Replacement text .*(⌘⏎|Ctrl\+⏎)$")
-    )
+    expect(box).to_have_attribute("placeholder", re.compile(r"^Replacement text .*⏎$"))
 
 
 def test_a_passage_selection_keeps_native_copy_and_context_menu(browser, serve):
@@ -9458,7 +9489,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     assert general.get_attribute("placeholder") == "Comment on the page"
     general.focus()
     shortcut_bar_text(page)
-    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", general.get_attribute("placeholder"))
+    assert re.search(r"⏎$", general.get_attribute("placeholder"))
     assert general.get_attribute("aria-label") == "Comment on the page"
 
     # Cross A -> B (and sync B) -> C in one turn, before the coalesced focus paint.
@@ -9478,7 +9509,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     assert general.get_attribute("aria-label") == "Comment on the page"
     assert replies.nth(0).get_attribute("placeholder") == "Reply"
     assert replies.nth(0).get_attribute("aria-label") == "Reply"
-    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
+    assert re.search(r"⏎$", replies.nth(1).get_attribute("placeholder"))
     assert replies.nth(1).get_attribute("aria-label") == "Reply"
 
     replies.nth(1).evaluate(
@@ -9490,7 +9521,7 @@ def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, ser
     page.keyboard.press("c")
     expect(replies.nth(1)).to_be_focused()
     shortcut_bar_text(page)
-    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
+    assert re.search(r"⏎$", replies.nth(1).get_attribute("placeholder"))
 
 
 def test_the_key_line_names_the_selected_comment_and_its_other_responses(
@@ -9590,7 +9621,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Every durable editor inserts a newline with Enter and sends with Mod+Enter."""
+    """Every durable editor inserts a newline with Shift+Enter and submits with Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -9617,11 +9648,13 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
         })"""
     )
     field.fill("Send through the compact control.")
-    page.keyboard.press("Enter")
+    page.keyboard.press("Shift+Enter")
     assert page.locator("body").get_attribute("data-composer-shortcut-clicks") is None
     expect(field).to_have_value("Send through the compact control.\n")
-    expect(field).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
-    page.keyboard.press("ControlOrMeta+Enter")
+    expect(field).to_have_attribute(
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
+    )
+    page.keyboard.press("Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
     # The send carried the reader into the thread it became, in its card's reply box:
@@ -9633,13 +9666,55 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     draft_control(page, "edit", "plan").click()
     editor = page.locator("#plan textarea")
     editor.fill("Save through the visible control.")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("Keep the second line.")
+    expect(editor).to_have_value(
+        "Save through the visible control.\nKeep the second line."
+    )
     with sending(page, "the draft shortcut"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator("#plan .lf-draft-body")).to_have_text(
-        "Save through the visible control."
+        page.keyboard.press("Enter")
+    expect(page.locator("#plan .lf-draft-body")).to_contain_text(
+        "Keep the second line."
     )
 
     round_trip(page)
+
+
+def test_touch_return_keeps_newlines_until_the_reader_taps_submit(browser, serve):
+    html = TARGETS_PAGE.replace(
+        "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(html), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+
+    page.locator(".lf-threads-toggle").click()
+    field = page.locator(".lf-general textarea")
+    field.focus()
+    field.fill("First paragraph")
+    field.press("Enter")
+    field.type("Second paragraph")
+    expect(field).to_have_value("First paragraph\nSecond paragraph")
+    expect(field).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    expect(field).to_be_visible()
+    with sending(page, "the touch comment"):
+        field.locator("xpath=..").locator(".lf-compose-submit").click()
+
+    page.locator(".lf-thread-panel .lf-close-action").click()
+    draft_control(page, "edit", "plan").click()
+    editor = page.locator("#plan textarea")
+    editor.fill("First paragraph")
+    editor.press("Enter")
+    editor.type("Second paragraph")
+    expect(editor).to_have_value("First paragraph\nSecond paragraph")
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
+    with sending(page, "the touch draft"):
+        draft_control(page, "save", "plan").click()
+    expect(page.locator("#plan .lf-draft-body")).to_contain_text("Second paragraph")
 
 
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):

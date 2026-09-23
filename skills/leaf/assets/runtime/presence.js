@@ -76,9 +76,20 @@ export const ago = (ts) =>
     return `${Math.round(secs / 86400)}d ago`;
   });
 
-const WORKING_GRACE_MS = 15 * 60 * 1000;
-export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
-  clockValue((now) => Boolean(ts) && now - new Date(ts).getTime() > grace);
+// How long working may go unheard before it reads as quiet. The server's activity fold
+// owns the number and serves it beside `now`; until a state has arrived nothing is
+// quiet, since there is no served clock to measure the silence against either.
+let workingGrace = null;
+export const observeWorkingGrace = (ms) => {
+  workingGrace = ms;
+};
+export const quietSince = (ts) =>
+  clockValue(
+    (now) =>
+      workingGrace !== null &&
+      Boolean(ts) &&
+      now - new Date(ts).getTime() >= workingGrace,
+  );
 
 // Temporal policy belongs to the server's canonical activity fold. The browser uses
 // its calibrated copy of server time only to ask for the next projection when that

@@ -12,7 +12,7 @@ from ..events import (
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
-from ..read_state import read_versions, reader_message_content
+from ..read_state import content_version, unread_content
 from ..requests import request_lifecycles_for, request_phases
 from .wire import browser_projection
 
@@ -62,7 +62,7 @@ def _thread_awaits_reader(
         if not settled:
             return True, {
                 "message": message["id"],
-                "version": message.get("edited", {}).get("id", message["id"]),
+                "version": content_version(message),
             }
     return False, None
 
@@ -107,16 +107,10 @@ def browser_conversation(
         request_phases=request_phases(requests),
     )
     awaiting = asks["awaiting"]
-    acknowledged = read_versions(events)
+    unread = unread_content(events, threads, reading.thread_by_widget)
     open_ask_threads = {ask["thread"] for ask in asks["reader"]}
     rendered_threads = []
     for thread_id, thread in threads.items():
-        for message in thread["msgs"]:
-            if not reader_message_content(message):
-                continue
-            version = message.get("edited", {}).get("id", message["id"])
-            message["content_version"] = version
-            message["unread"] = (message["id"], version) not in acknowledged
         awaits_reader, reader_prompt = _thread_awaits_reader(
             thread_id,
             thread,
@@ -154,6 +148,7 @@ def browser_conversation(
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,
+                "unread": unread[thread_id],
             }
         )
     if live_reply is not None and not any(

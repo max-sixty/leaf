@@ -19,13 +19,12 @@ import {
   conversationForAttempt,
   isConversationEvent,
   isMessageEvent,
-  isReadAcknowledgement,
   pendingApprovals,
   pendingProjectionEntries,
   pendingReactions,
   pendingRequests,
   pendingSettlements,
-  unreadMessages,
+  pendingMessages as pendingConversationMessages,
   unresolvedAttempts,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/conversation/identity.js";
@@ -66,6 +65,12 @@ interface WireAsk {
   thread: string | null;
 }
 
+/** One exact agent content version, as a Thread's `unread` names it. */
+interface ContentVersion {
+  message: string;
+  version: string;
+}
+
 interface WireAsks {
   all: WireAsk[];
   reader: WireAsk[];
@@ -78,9 +83,9 @@ interface WireWorkflow {
   id: string;
   revision: number | null;
   input: string | null;
-  subject: { kind: "thread" | "widget"; id: string };
+  subject: { kind: "conversation" | "widget"; id: string };
   coordinate: unknown;
-  requires_response: boolean;
+  answer: { kind: "reply" | "version" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
   ts: string | null;
   detail: string;
@@ -101,7 +106,7 @@ interface WireWorkflow {
     kind: "ended" | "interrupted" | "stale" | "failed";
     operation: "delivery" | "work" | "response";
   } | null;
-  next_actor: "reader" | "agent" | "none";
+  next_actor: "reader" | "agent";
 }
 
 /** The public Ask record packages read. */
@@ -517,6 +522,10 @@ export function createSemanticApplication({
     } as SemanticDocument,
     authoritative: null as AuthoritativeState | null,
     unresolved: [] as Event[],
+    // Content versions this tab has marked read and the log has not yet answered for.
+    // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
+    // `unresolved` ledger; each leaves once the answer carrying it is applied.
+    markingRead: [] as ContentVersion[],
     phase: "waiting",
     hostAvailable: true,
     data: { revision: -1, sources: {} },
@@ -528,6 +537,7 @@ export function createSemanticApplication({
         descriptors: new Map(),
       },
       null,
+      [],
       [],
       "waiting",
       true,
@@ -546,6 +556,7 @@ export function createSemanticApplication({
     document: SemanticDocument,
     state: AuthoritativeState | null,
     unresolved: Event[],
+    markingRead: ContentVersion[],
     phase: string,
     hostAvailable: boolean,
   ) {
@@ -589,7 +600,7 @@ export function createSemanticApplication({
     // Ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
-    const pendingMessages = unreadMessages(unresolved, receipts);
+    const pendingMessages = pendingConversationMessages(unresolved, receipts);
     const folded = ready
       ? foldThreads(
           state?.browser.conversation.threads ?? [],
@@ -601,19 +612,45 @@ export function createSemanticApplication({
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
     const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
-    // A structural Ask survives prose sent beside it. `foldThreads` clears the
-    // conversation turn the prose answers; the admitted Ask inventory puts back only
-    // the independent obligation that still stands in that thread.
+    // Thread attention is the server's reading, and three local facts adjust it. A
+    // pending send hands the conversation to the agent, which `foldThreads` states. A
+    // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
+    // back the independent obligation that still stands in that thread. A refused send
+    // hands a conversation the server left with the agent back to the reader, whose
+    // Retry it is.
     const owed = new Set(asks.reader.map((ask) => ask.thread));
-    const obligated = folded.map((thread: any) =>
-      owed.has(thread.root.id) && thread.attention?.reason !== "ask"
+    const refused = new Map<string, string>();
+    for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
+      const message = entry.message;
+      const held = document.descriptors.get(entry.event.widget)?.document;
+      const conversation = message
+        ? message.kind === "reply"
+          ? message.parent
+          : message.id
+        : held?.kind === "thread"
+          ? held.thread
+          : undefined;
+      if (conversation) refused.set(conversation, `rejected:${entry.event.attempt}`);
+    }
+    const obligated = folded.map((thread: any) => {
+      if (owed.has(thread.root.id))
+        return thread.attention?.reason === "ask"
+          ? thread
+          : {
+              ...thread,
+              awaits_reader: true,
+              attention: { kind: "needs_reader", reason: "ask", workflow: null },
+            };
+      const retry =
+        refused.get(thread.root.id) ??
+        (thread.root.attempt ? refused.get(PENDING + thread.root.attempt) : undefined);
+      return retry && thread.attention?.kind !== "needs_reader"
         ? {
             ...thread,
-            awaits_reader: true,
-            attention: { kind: "needs_reader", reason: "ask", workflow: null },
+            attention: { kind: "needs_reader", reason: "recovery", workflow: retry },
           }
-        : thread,
-    );
+        : thread;
+    });
     const entriesByMessage = new Map(
       unresolved
         .filter((entry: any) => entry.message)
@@ -628,12 +665,12 @@ export function createSemanticApplication({
         input: message?.id ?? entry.localId,
         subject: message
           ? {
-              kind: "thread",
+              kind: "conversation",
               id: message.kind === "reply" ? message.parent : message.id,
             }
           : { kind: "widget", id: entry.event.widget },
         coordinate: entry.projection?.coordinate ?? null,
-        requires_response: !rejected,
+        answer: null,
         stage: "sending",
         ts: message?.ts ?? null,
         detail: "",
@@ -648,43 +685,21 @@ export function createSemanticApplication({
         next_actor: rejected ? "reader" : "agent",
       };
     };
-    // An optimistic prose reply answers the exact accepted obligation currently
-    // attached to its conversation. Keep that workflow on its original message as
-    // history, but retire its next actor until refusal removes the optimistic reply.
-    const acceptedThreads = new Map<string, any>();
-    for (const thread of state?.browser.conversation.threads ?? []) {
-      acceptedThreads.set(thread.root.id, thread);
-      if (thread.root.attempt) acceptedThreads.set(PENDING + thread.root.attempt, thread);
-    }
-    const answeredWorkflows = new Set(
-      pendingMessages
-        .filter((message: any) => message.kind === "reply")
-        .map((message: any) => acceptedThreads.get(message.parent)?.attention?.workflow)
-        .filter(Boolean),
-    );
-    const acceptedWorkflows = (state ? state.workflows : []).map((workflow) =>
-      answeredWorkflows.has(workflow.id)
-        ? { ...workflow, next_actor: "none" as const }
-        : workflow,
-    );
     const workflows = [
-      ...acceptedWorkflows,
+      ...(state ? state.workflows : []),
       ...pendingMessages.map((message: any) =>
         localWorkflow(entriesByMessage.get(message.id), false),
       ),
       ...unresolved
-        .filter((entry: any) => entry.rejected && !isReadAcknowledgement(entry.event))
+        .filter((entry: any) => entry.rejected)
         .map((entry: any) => localWorkflow(entry, true)),
     ];
-    const pendingReads = unresolved
-      .filter((entry: any) => isReadAcknowledgement(entry.event) && !entry.rejected)
-      .map((entry: any) => entry.event);
     const threads = readThreadRecords(
       obligated,
       document,
       widgets,
       workflows,
-      pendingReads,
+      markingRead,
     );
     return {
       hostAvailable,
@@ -729,6 +744,7 @@ export function createSemanticApplication({
       next.document,
       next.authoritative,
       next.unresolved,
+      next.markingRead,
       next.phase,
       next.hostAvailable,
     );
@@ -852,6 +868,22 @@ export function createSemanticApplication({
     },
     setHostAvailable(hostAvailable: boolean) {
       return publish({ hostAvailable });
+    },
+    markRead(items: ContentVersion[]) {
+      return publish({
+        markingRead: [...publisher.read().markingRead, ...structuredClone(items)],
+      });
+    },
+    settleMarkRead(items: ContentVersion[]) {
+      const remaining = publisher
+        .read()
+        .markingRead.filter(
+          (item) =>
+            !items.some(
+              (done) => done.message === item.message && done.version === item.version,
+            ),
+        );
+      return publish({ markingRead: remaining });
     },
     captureDocument(document: SemanticDocument) {
       if (publisher.read().authoritative)

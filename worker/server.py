@@ -32,7 +32,7 @@ from leaf.codex import (
     app_server_request,
     app_server_turn_start_params,
     clear_stream_activity,
-    delivery_reply_targets,
+    delivery_owed_moves,
     open_app_server_delivery,
     prepare_codex_delivery,
     set_stream_activity,
@@ -40,7 +40,7 @@ from leaf.codex import (
     stream_reply_target,
 )
 from leaf.conversation import (
-    cmd_reply,
+    fail_answer,
     release_delivery_reply,
     reserve_delivery_reply,
 )
@@ -119,18 +119,15 @@ FAULT_DETAIL_LIMIT = 500
 # receipt written in the agent's first person is indistinguishable from an answer,
 # which is the failure this whole path exists to make visible.
 FAILURE_RECEIPTS = {
-    "startup_failed": (
-        "The agent could not be started for this message. Send it again to retry."
-    ),
+    "startup_failed": ("The agent could not be started. Send it again to retry."),
     "rate_limited": (
-        "This public demo is busy right now. Wait a minute, then send the message again."
+        "This public demo is busy right now. Wait a minute, then send it again."
     ),
     # This one says only what the container observed: a turn may well have run — the
     # incident it was written for had one running still — so a sentence about the
     # message never arriving would be wrong exactly where it matters most.
     "turn_failed": (
-        "The agent's turn ended without an answer to this message. "
-        "Send it again to retry."
+        "The agent's turn ended without an answer. Send it again to retry."
     ),
 }
 # The one code the container writes from its own reading of a turn it followed. The
@@ -154,12 +151,8 @@ Reader input arrives inline as a structured `leaf_delivery` tool output or as a
 `leaf-delivery` pointer. Read a pointer with `$LEAF delivery read ID`, using its
 exact id. The host confirms receipt; no work claim is required. For every delivered
 event, read its `handling` clause ids in order from that batch's `handling` object
-and follow those instructions and `obligation.response`.
-
-When first handling a conversation whose title is null, name it with
-`$LEAF conversation title . CONVERSATION_ID --text "Short descriptive title"`.
-Choose a few words identifying its subject (at most 80 characters). Keep the title
-stable; use the same command to rename it only when it no longer describes the discussion.
+and follow those instructions and `obligation.response`. Name a conversation you open
+with `$LEAF conversation title . CONVERSATION_ID --text "<a few words>"`.
 
 Each App Server delivery contains at most one response whose kind is `reply`.
 The normal final message is that reply's only writer: the host binds its destination
@@ -313,13 +306,15 @@ def write_failure_receipt(
 ) -> dict | None:
     """Write the one receipt that tells a reader no answer to their move is coming.
 
-    This is the only writer of a reply carrying `failure`, so a reader meets every
-    giving-up boundary — the Worker's rate limiter, a dispatch that threw, a turn this
-    container followed to nothing — in one shape, and the page has one thing to draw.
+    This is the only host writer of `failure`, so a reader meets every giving-up
+    boundary — the Worker's rate limiter, a dispatch that threw, a turn this
+    container followed to nothing — in one shape per move: `fail_answer` writes the
+    failure the move's own answer takes, whether the move was a message, a request,
+    or an answer to a page Ask.
 
     Only the move is named. A reply's address is not always the move — a gesture on a
     widget frozen into thread markup is answered on the conversation holding it — and
-    `cmd_reply` resolves that from the same reading either way, so naming it here would
+    the writer resolves that from the same reading either way, so naming it here would
     be a second answer to a question the writer already answers. It would also be the
     wrong one on a repeat: the Worker retries the same request, and once the first
     receipt has settled the move, nothing outside the log can say where its reply went.
@@ -332,17 +327,14 @@ def write_failure_receipt(
     it says so, because otherwise a turn that ends without an answer can be receipted
     by nobody at all.
     """
-    accepted = cmd_reply(
+    accepted = fail_answer(
         page_dir,
-        None,
+        responds,
+        failure,
         FAILURE_RECEIPTS[failure],
-        "",
-        for_event=responds,
         attempt=agent_attempt(responds),
-        when_settled="skip",
-        only_if_unclaimed=only_if_unclaimed,
-        failure=failure,
         identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
+        only_if_unclaimed=only_if_unclaimed,
     )
     claim = page_claim(page_dir)
     if claim and claim["harness"] == EmbeddedHarness.name:
@@ -591,14 +583,15 @@ class HostedTurn(CarriedTurn):
     def _receipt_unanswered(self) -> None:
         """Tell the reader no answer is coming, for each move still owed one.
 
-        A turn that completed with a final answer settled its move when that answer
-        was committed, and this passes over it. What is left is every other way a
-        turn can end — failed, interrupted, or completed having said nothing to the
-        reader — where the page would otherwise show a message picked up by a turn
-        that is gone, with no reply and nothing to redeliver it. The receipt claims
-        no more than the absence of an answer, because that is all this observed.
+        A turn that wrote its answers — a final reply, a stamped version, a request
+        receipt — settled those moves, and this passes over them. What is left is
+        every other way a turn can end — failed, interrupted, or completed without
+        writing an answer — where the page would otherwise show a move picked up by a
+        turn that is gone, with no answer and nothing to redeliver it. The receipt
+        claims no more than the absence of an answer, because that is all this
+        observed.
         """
-        targets = delivery_reply_targets(read_delivery(self.delivery_id))
+        targets = delivery_owed_moves(read_delivery(self.delivery_id))
         settled = 0
         swept = False
         try:

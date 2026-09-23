@@ -4238,11 +4238,14 @@ How this text reaches the agent, by example
 
 3. Earlier, the agent started `leaf wait` in the background and went idle. The
    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-   line and builds a delivery for it. For the instructions, `leaf wait` reads the
-   clauses under `$events.handling.comment` in the page's copy of registry.json.
-   Each clause has a `text` and may have a `when`, a JSON Schema the log line must
-   satisfy for the clause to apply. There are @COUNT@; here they all are, with
-   whether the line from step 2 satisfies each `when`:
+   line and builds a delivery for it. The comment is owed a reply, which the
+   delivery records as its `obligation` (step 4). For the instructions, `leaf
+   wait` reads the clauses under `$events.handling.comment` in the page's copy of
+   registry.json, then those under `$events.answering.reply`, the answer it owes.
+   Each clause has a `text` and may have a `when`, a JSON Schema the log line,
+   with its `obligation`, must satisfy for the clause to apply. There are
+   @COUNT@; here they all are, with whether the line from step 2 satisfies each
+   `when`:
 
 @CLAUSES@
 
@@ -4268,10 +4271,11 @@ Step 3, for one example of every case, using the clauses in
 skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
 Each top-level key below names a case and holds:
 
-  event:  the input: a log line's `kind` and the fields some `when` reads,
-          and nothing else. A field no `when` names, such as a comment's
-          `anchor` or `text`, cannot change what the agent is told, so it is
-          left out; the test checks both halves of that.
+  event:  the input: a log line's `kind`, the kind of answer its delivery
+          says it owes (`obligation`), and the fields some `when` reads, and
+          nothing else. A field no `when` names, such as a comment's `anchor`
+          or `text`, cannot change what the agent is told, so it is left out;
+          the test checks both halves of that.
   told:   the output, the clauses that apply to that line, in order. Each
           clause has a `text` and may have a `when`:
   when:   the clause's `when`, exactly as registry.json writes it: a JSON
@@ -4280,8 +4284,9 @@ Each top-level key below names a case and holds:
   text:   the clause's text.
 
 The walkthrough's comment is the first case. No `when` reads any field of its
-log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-and it gets the clauses marked "applies" in step 3. It is recorded as:
+log line from step 2 except `kind`, so the case is that line cut down to `kind`
+and the reply it owes, and it gets the clauses marked "applies" in step 3. It is
+recorded as:
 
 @RECORDED@
 
@@ -4321,35 +4326,41 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
     on_page = {"document": {"kind": "page"}}
+
+    def owes(kind):
+        return {"obligation": {"response": {"kind": kind}}}
+
     cases = {
-        "comment": {"kind": "comment"},
+        "comment": {"kind": "comment", **owes("reply")},
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
+            **owes("reply"),
         },
-        "comment awaiting a version": {
-            "kind": "comment",
-            "response": {"kind": "version"},
-        },
-        "suggestion": {"kind": "comment", "suggestion": True},
-        "design comment": {"kind": "comment", "about": "design"},
+        "comment awaiting a version": {"kind": "comment", **owes("version")},
+        "comment a newer message answers through": {"kind": "comment"},
+        "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
+        "design comment": {"kind": "comment", "about": "design", **owes("reply")},
         "reaction on the page": {"kind": "comment", "token": "+1"},
-        "reply": {"kind": "reply"},
+        "reply": {"kind": "reply", **owes("reply")},
         "reaction on a message": {"kind": "reply", "token": "+1"},
-        "pick on the page": {"kind": "action", "meaning": on_page},
+        "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "pick adding an option": {
             "kind": "action",
             "detail": {"additions": {"mine": "My own way"}},
             "meaning": on_page,
+            **owes("markup"),
         },
+        "pick before Done": {"kind": "action", "meaning": on_page},
         "pick inside a thread": {
             "kind": "action",
             "meaning": {"document": {"kind": "thread"}},
+            **owes("reply"),
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
         "done": {"kind": "done"},
-        "request": {"kind": "request"},
+        "request": {"kind": "request", **owes("receipt")},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},
@@ -4360,18 +4371,29 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     }
 
     declared = registry["$events"]["handling"]
+    answering = registry["$events"]["answering"]
     assert {event["kind"] for event in cases.values()} == set(declared)
+
+    def owed(event):
+        return event.get("obligation", {}).get("response", {}).get("kind")
+
+    assert {owed(event) for event in cases.values()} - {None} == set(answering)
     read = {
         field
-        for clauses in declared.values()
+        for clauses in (*declared.values(), *answering.values())
         for clause in clauses
         if "when" in clause
         for field in fields_named(clause["when"])
     }
     for name, event in cases.items():
-        assert set(event) - {"kind"} <= read, (name, set(event) - {"kind"} - read)
+        unread = set(event) - {"kind", "obligation"} - read
+        assert not unread, (name, unread)
     for kind, clauses in declared.items():
         reached = [told[name] for name, event in cases.items() if event["kind"] == kind]
+        for clause in clauses:
+            assert any(clause in matched for matched in reached), (kind, clause)
+    for kind, clauses in answering.items():
+        reached = [told[name] for name, event in cases.items() if owed(event) == kind]
         for clause in clauses:
             assert any(clause in matched for matched in reached), (kind, clause)
 
@@ -4395,11 +4417,14 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     record, envelope = json.loads(logged), json.loads(printed)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
-    page_clauses = registry_storage.load_registry(page_dir)["$events"]["handling"][
-        "comment"
+    page_events = registry_storage.load_registry(page_dir)["$events"]
+    page_clauses = [
+        *page_events["handling"]["comment"],
+        *page_events["answering"][delivered["obligation"]["response"]["kind"]],
     ]
     applying = registry_contract.event_clauses(
-        record, registry_storage.load_registry(page_dir)
+        {**record, "obligation": delivered["obligation"]},
+        registry_storage.load_registry(page_dir),
     )
     assert [clause["text"] for clause in applying] == [
         batch["handling"][ref] for ref in delivered["handling"]

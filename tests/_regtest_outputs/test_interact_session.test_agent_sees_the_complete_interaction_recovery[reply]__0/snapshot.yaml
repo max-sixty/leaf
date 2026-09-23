@@ -51,14 +51,19 @@ delivered:
           actions: []
       handling:
         h1: >-
-          Reply in the thread with `leaf reply <page> --for <event-id>`, or with
-          your final message on a host that sends it as the reply, and revise the
-          page if the comment calls for it. If that revision removes what the thread
-          is anchored on, move the thread in the same reply with `--section <id>`
-          (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-          subject has left the page. Leave the thread open unless the reader asks
-          you to close it or nothing further could change the outcome. Your reply
-          renders as Markdown, so show code or markup in a fenced block.
+          If this event's conversation has a null `title` in the batch's `conversations`,
+          name it with `leaf conversation title <page> <conversation-id> --text
+          "<a few words>"`, so the thread panel lists its subject rather than its
+          opening words.
+        h2: >-
+          Answer with `leaf reply <page> --for <event-id>`, or with your final message
+          on a host that sends it as the reply. `leaf reply` checks any page edit
+          and makes it live before posting, so revise the page first if the event
+          calls for it. If that revision removes what the thread is anchored on,
+          move the thread in the same reply with `--section <id>` (narrowed by `--quote`
+          or `--part` if needed), or `--detach` it if its subject has left the page.
+          Add `--awaits` only if your reply's prose asks the reader something. Your
+          reply renders as Markdown, so show code or markup in a fenced block.
       events:
         - kind: comment
           author: user
@@ -72,7 +77,7 @@ delivered:
             kind: conversation
             id: event-2
           conversations: [event-2]
-          handling: [h1]
+          handling: [h1, h2]
           obligation:
             as_of_seq: 2
             response:
@@ -84,14 +89,14 @@ acknowledged at stop:
   decision: block
   reason: |-
     Leaf needs attention:
-    - <page>: 1 acknowledged reader move with no answer (event-2).
+    - <page>: 1 acknowledged reader move with no answer (`leaf reply <page> --for event-2`).
 
-    Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`. Reply using `leaf reply <page> --for <event-id> --text ...`, or your final message if the host sends it as the reply. For `response.kind: version`, revise and stamp the page, then resolve the conversation. If you need clarification first, open `leaf comment <page> --section <ask-id>` on the same Ask. An explicit reply checks and activates page edits; it leaves the conversation open.
+    Each named command writes the answer its move is owed; a reply may instead be your final message where the host sends it as the reply. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged reader move with no answer (event-2); answer before idling. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`. Reply using `leaf reply <page> --for <event-id> --text ...`, or your final message if the host sends it as the reply. For `response.kind: version`, revise and stamp the page, then resolve the conversation. If you need clarification first, open `leaf comment <page> --section <ask-id>` on the same Ask. An explicit reply checks and activates page edits; it leaves the conversation open.
+    1 acknowledged reader move with no answer (`leaf reply <page> --for event-2`); answer before idling. Each named command writes the answer its move is owed; a reply may instead be your final message where the host sends it as the reply. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 answer: |
   replied in event-2

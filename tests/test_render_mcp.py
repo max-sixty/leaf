@@ -595,6 +595,37 @@ def test_adaptive_app_falls_back_when_the_complete_page_never_signals_ready(
     consume_browser_errors(page, "404")
 
 
+def test_snapshot_app_touch_return_keeps_comment_newline(browser, page_dir):
+    _, private = app_snapshot(str(page_dir))
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = context.new_page()
+    page.set_content(HOST)
+    page.evaluate("leaf => window.currentLeaf = leaf", private)
+    page.locator("#app").evaluate("(frame, html) => frame.srcdoc = html", app_html())
+    app = next(frame for frame in page.frames if frame.parent_frame == page.main_frame)
+    app.locator("#title").wait_for(state="attached")
+    assert app.evaluate("() => matchMedia('(pointer: coarse)').matches")
+
+    app.locator("#comment-page").click()
+    comment = app.locator("#comment")
+    expect(comment).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
+    assert comment.get_attribute("placeholder") == "Comment on this page"
+    assert app.locator("#send").get_attribute("title") == "Send comment"
+    comment.fill("First paragraph")
+    comment.press("Enter")
+    comment.type("Second paragraph")
+    expect(comment).to_have_value("First paragraph\nSecond paragraph")
+    assert not [
+        call for call in page.evaluate("window.calls") if call["method"] == "tools/call"
+    ]
+    app.locator("#send").click()
+    page.wait_for_function(
+        "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
+    )
+
+
 def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_delivery(
     browser, page_dir
 ):
@@ -624,17 +655,13 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
 
     app.locator("#comment-page").click()
     comment = app.locator("#comment")
-    expect(comment).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter")
-    assert comment.get_attribute("placeholder") in {
-        "Comment on this page · ⌘⏎",
-        "Comment on this page · Ctrl+⏎",
-    }
-    assert app.locator("#send").get_attribute("title") in {
-        "Send comment (⌘⏎)",
-        "Send comment (Ctrl+⏎)",
-    }
+    expect(comment).to_have_attribute(
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
+    )
+    assert comment.get_attribute("placeholder") == "Comment on this page · ⏎"
+    assert app.locator("#send").get_attribute("title") == "Send comment (⏎)"
     comment.fill("Explain the migration boundary.")
-    comment.press("Enter")
+    comment.press("Shift+Enter")
     comment.type("Keep both layers.")
     comment.press("Shift+Enter")
     comment.type("Preserve both histories.")
@@ -644,7 +671,7 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
     assert not [
         call for call in page.evaluate("window.calls") if call["method"] == "tools/call"
     ]
-    comment.press("ControlOrMeta+Enter")
+    comment.press("Enter")
     page.wait_for_function(
         "() => window.calls.filter(call => call.method === 'tools/call').length === 1"
     )

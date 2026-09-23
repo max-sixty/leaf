@@ -48,14 +48,17 @@ from render_harness import (
 def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     browser, serve
 ):
-    """Only new accepted replies announce, regardless of the panel's disclosure."""
+    """Unread replies announce once each, whether they arrive while the page is open or
+    were waiting when it opened, regardless of the panel's disclosure. The reader keeps
+    a draft open in a thread no reply lands in, so exposure acknowledges none of them."""
     url = serve(leaf_page("Reply arrivals", "<h1>Reply arrivals</h1>"))
     directory = serve.page_dir
-    a = events_model.append_event(
-        directory, {"kind": "comment", "author": "user", "revision": 1, "text": "A"}
-    )
-    b = events_model.append_event(
-        directory, {"kind": "comment", "author": "user", "revision": 1, "text": "B"}
+    drafting, a, b = (
+        events_model.append_event(
+            directory,
+            {"kind": "comment", "author": "user", "revision": 1, "text": text},
+        )
+        for text in ("Draft here", "A", "B")
     )
     events_model.append_event(
         directory,
@@ -70,13 +73,16 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     page = open_page(browser, url)
     live = page.locator(".lf-live")
     notice = page.locator(".lf-notice")
-    assert "replied" not in live.text_content()
-    expect(notice).not_to_have_class(re.compile(r"\bshow\b"))
+    expect(live).to_have_text("Codex replied")
+    expect(notice).to_have_text("Codex replied")
+    expect(notice).not_to_have_class(re.compile(r"\bshow\b"), timeout=10_000)
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(f'.lf-thread[data-id="{a["id"]}"] .lf-thread-summary').click()
-    draft = page.locator(f'.lf-thread[data-id="{a["id"]}"] textarea')
+    expect(page.locator(f'.lf-thread[data-id="{drafting["id"]}"]')).to_have_attribute(
+        "open", ""
+    )
+    draft = page.locator(f'.lf-thread[data-id="{drafting["id"]}"] textarea')
     draft.fill("Keep this draft")
     draft.focus()
     page.evaluate(
@@ -162,7 +168,8 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this draft")
 
-    # A duplicate read and a fresh document make no fresh announcement.
+    # A duplicate read makes no fresh announcement; a fresh document announces what
+    # the reader has still not read.
     page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
     )
@@ -174,8 +181,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
         "Codex replied",
     ]
     page.reload()
-    expect(notice).not_to_have_class(re.compile(r"\bshow\b"))
-    assert "replied" not in live.text_content()
+    expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
@@ -455,6 +461,7 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     dismiss = preview.get_by_role("button", name="Dismiss conversation view")
     expect(resolve).to_be_visible()
     expect(dismiss).to_be_visible()
+    assert dismiss.evaluate("button => button.closest('.lf-thread-root-meta') !== null")
     centers = preview.evaluate(
         """preview => ['.lf-resolve', '.lf-margin-preview-close'].map(selector => {
           const rect = preview.querySelector(selector).getBoundingClientRect();
@@ -463,6 +470,45 @@ def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     )
     assert centers[0]["y"] == pytest.approx(centers[1]["y"], abs=1), centers
     assert centers[0]["x"] < centers[1]["x"]
+    if thread_count == 2:
+        row = preview.evaluate(
+            """preview => {
+              const meta = preview.querySelector('.lf-thread-root-meta');
+              const middle = selector => {
+                const box = meta.querySelector(selector).getBoundingClientRect();
+                return box.y + box.height / 2;
+              };
+              return {
+                nav: middle('.lf-margin-preview-nav'),
+                author: middle('.lf-conversation-head > b'),
+                actions: middle('.lf-thread-meta-actions'),
+                authorRight: meta.querySelector('.lf-conversation-head')
+                  .getBoundingClientRect().right,
+                navLeft: meta.querySelector('.lf-margin-preview-nav')
+                  .getBoundingClientRect().left,
+                navRight: meta.querySelector('.lf-margin-preview-nav')
+                  .getBoundingClientRect().right,
+                resolveLeft: meta.querySelector('.lf-resolve')
+                  .getBoundingClientRect().left,
+                overflow: meta.scrollWidth - meta.clientWidth,
+              };
+            }"""
+        )
+        assert row["nav"] == pytest.approx(row["actions"], abs=1), row
+        assert row["author"] == pytest.approx(row["actions"], abs=1), row
+        assert row["authorRight"] < row["navLeft"], row
+        assert row["navRight"] < row["resolveLeft"], row
+        assert row["overflow"] == 0, row
+    dismiss.focus()
+    resized(page, 1000, 844)
+    expect(dismiss).to_be_focused()
+    resolve.focus()
+    page.keyboard.press("Tab")
+    expect(dismiss).to_be_focused()
+    dismiss.focus()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread-summary:focus")).to_have_count(1)
 
 
 STATE_PAINT = """el => {

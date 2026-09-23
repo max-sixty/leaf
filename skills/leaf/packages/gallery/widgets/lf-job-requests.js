@@ -1,4 +1,9 @@
-import { projectData, watchData, widgetController } from "/runtime/widget-api.js";
+import {
+  offer,
+  projectData,
+  watchData,
+  widgetController,
+} from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-job-requests",
@@ -30,10 +35,10 @@ customElements.define(
           const item = prior ?? document.createElement("p");
           if (!prior) {
             const label = document.createElement("strong");
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "lf-btn lf-ui";
-            button.textContent = "Restart";
+            // `offer` is how a widget spells a press: it is what marks the control as
+            // one the layer built, so the hand, the aim floor, the here ring, the
+            // generated target map and the standalone copy all read the same fact.
+            const button = offer("button", "lf-btn", "Restart");
             item.append(label, " · ", button);
           }
           item.querySelector("strong").textContent = `${row.id} (${row.state})`;

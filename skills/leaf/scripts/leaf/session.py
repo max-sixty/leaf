@@ -92,7 +92,7 @@ def cmd_delivery_claim(
     """Mark one exact, still-outstanding move from a delivery as Working.
 
     The immutable delivery supplies the page and candidate event identities. The
-    page transaction re-derives its unsettled interactions and writes the claim
+    page transaction re-derives its unsettled workflows and writes the claim
     under the same log lock, so a stale delivery cannot attach work to a newer
     move merely because both belong to the same thread or widget.
     """
@@ -129,7 +129,7 @@ def cmd_delivery_claim(
             workflows = {
                 item.get("input"): item
                 for item in state["workflows"]
-                if item["requires_response"] or item["subject"]["kind"] == "widget"
+                if item["answer"] is not None or item["subject"]["kind"] == "widget"
             }
             event = next(
                 (
@@ -214,7 +214,8 @@ class Watch:
 
     A tick yields while the page's log lock remains held. The caller decides how
     to deliver the batch before asking for the next tick, so claim transfer,
-    SessionEnd, event arrival, delivery, and pickup recording have one order.
+    SessionEnd, event arrival, and delivery have one order. Pickup is recorded
+    later, when the consumer confirms the delivery under its own transaction.
     A revival releases that transaction before waiting for the service
     transition, then rereads under a new transaction; no delivery snapshot
     crosses that unlocked interval.

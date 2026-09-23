@@ -23,7 +23,6 @@ from pathlib import Path
 
 from .event_contracts import append_admitted
 from .event_log import flocked
-from .events import build_threads
 from .files import read_json, write_json
 from .machine import state_home
 from .passages import active_enclosing, spoken
@@ -135,73 +134,18 @@ def _says(event: dict, by_id: dict[str, dict], reading) -> dict[str, str]:
     }
 
 
-def _response(
-    event: dict,
-    obligation: dict | None,
-    threads: dict,
-    widget_conversations: dict[str, str],
-    receipted_requests: set[str],
-) -> dict | None:
-    """Translate current settlement evidence into an addressed operation."""
-    if event["kind"] == "request" and event["id"] not in receipted_requests:
-        return {"kind": "receipt", "request": event["id"]}
-    if obligation is None:
-        return None
-    target = obligation["subject"]
-    if target["kind"] == "thread":
-        thread = threads.get(target["id"])
-        if thread and (thread["root"].get("response") or {}).get("kind") == "version":
-            return {"kind": "version", "conversation": target["id"]}
-        return {
-            "kind": "reply",
-            "to": obligation["input"],
-            "for": event["id"],
-        }
-    if owner := widget_conversations.get(event.get("widget")):
-        return {"kind": "reply", "to": owner, "for": event["id"]}
-    return None
+def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
+    """Map every event that owns an answer to its exact response address.
 
-
-def _response_context(
-    page_dir: Path, events: list[dict]
-) -> tuple[dict, dict, dict, set]:
-    """Derive the one current response contract shared by capture and writers."""
-    within = active_enclosing(page_dir)
-    roots = thread_roots(events)
-    structure = thread_structure(events)
-    widget_conversations = thread_widgets(structure, roots)
-    threads = build_threads(events, within)
-    obligations = {
-        item["input"]: item
+    The address is the workflow's `answer`, so a delivery, a writer's refusal and
+    the Stop hook name the same operation. An input a newer one in its thread covers
+    owns none; the newest carries the thread's one answer.
+    """
+    return {
+        item["input"]: item["answer"]
         for item in full_state(page_dir, events, layer_identity={})["activity"][
             "obligations"
         ]
-        if item.get("input") is not None
-    }
-    receipted_requests = {
-        event["request"] for event in events if event["kind"] == "receipt"
-    }
-    return obligations, threads, widget_conversations, receipted_requests
-
-
-def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
-    """Map every event that still requires work to its exact response address."""
-    obligations, threads, widget_conversations, receipted_requests = _response_context(
-        page_dir, events
-    )
-    return {
-        event["id"]: response
-        for event in events
-        if (
-            response := _response(
-                event,
-                obligations.get(event["id"]),
-                threads,
-                widget_conversations,
-                receipted_requests,
-            )
-        )
-        is not None
     }
 
 
@@ -263,17 +207,21 @@ def batch_data(
         # does not read is not read for its words at all.
         if registry is not None and (says := _says(event, by_id, reading)):
             entry["says"] = says
-        if clauses := event_clauses(event, registry):
+        response = responses.get(event["id"])
+        obligation = (
+            {"as_of_seq": evidence_seq, "response": response}
+            if response is not None
+            else None
+        )
+        if clauses := event_clauses(
+            {**event, **({"obligation": obligation} if obligation else {})}, registry
+        ):
             entry["handling"] = [
                 clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
                 for clause in clauses
             ]
-        response = responses.get(event["id"])
-        if response is not None:
-            entry["obligation"] = {
-                "as_of_seq": evidence_seq,
-                "response": response,
-            }
+        if obligation is not None:
+            entry["obligation"] = obligation
         captured.append(entry)
     return {
         "page": str(page_dir),
@@ -346,16 +294,18 @@ def record_pickup(
     phase: str = "opened",
     session: str | None = None,
     turn: str | None = None,
+    failure: str | None = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact reader moves.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn. Both are transport
-    evidence, not authored work claims. A queued transition may therefore be
-    followed by an opened transition for the same events, while a retry of the
-    same transition appends nothing.
+    ``opened`` means the batch entered an agent turn; ``failed`` means the host
+    gave up on the moves with the named ``failure`` and no answer is coming.
+    Queued and opened are transport evidence, not authored work claims. A queued
+    transition may therefore be followed by an opened transition for the same
+    events, while a retry of the same transition appends nothing.
     """
-    if phase not in {"queued", "opened"}:
+    if phase not in {"queued", "opened", "failed"}:
         raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
@@ -391,6 +341,7 @@ def record_pickup(
             "phase": phase,
             "session": session,
             "turn": turn,
+            **({"failure": failure} if failure is not None else {}),
         },
     )
 

@@ -97,7 +97,7 @@
    all: the press moves the ring and the focus and leaves the page still. A thread
    ask keeps its centred arrival in the panel's own list. */
 
-import { shownBox, shownParts } from "../geometry.js";
+import { landingInsets, shownBox, shownParts } from "../geometry.js";
 import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
@@ -983,10 +983,9 @@ export function createAskView({
   }
 
   // The screen the reader can use, and the distance two boxes stand apart in it. The
-  // clearance is the scroller's own declared scroll-padding, where it already says how
-  // much of its top edge the banner stands over, rather than a second copy of that number
-  // kept here.
-  const clearanceOf = (box) => parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+  // clearance is the landing band's top inset, which already says how much of the
+  // scroller's top edge the banner stands over.
+  const clearanceOf = (box) => landingInsets(box).top;
   const HEADING = "h1,h2,h3,h4,h5,h6";
 
   // Where the reader arrives at a page ask: the region whose start has to be in front

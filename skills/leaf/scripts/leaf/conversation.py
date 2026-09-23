@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from leaf.asks import local_ask_entry, page_awaiting_values
-from leaf.delivery import current_responses
+from leaf.delivery import current_responses, record_pickup
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -438,8 +438,11 @@ def cmd_reply(
     response address from an ordinary CLI writer.
 
     ``failure`` records a host-owned failure code alongside its presentation text;
-    ordinary agent answers omit it.
+    ordinary agent answers omit it. A failure receipt also answers a conversation
+    that asked for a version: it says no version is coming, which is the one thing
+    a reply there may say.
     """
+    answered_kinds = {"reply"} if failure is None else {"reply", "version"}
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
@@ -516,7 +519,7 @@ def cmd_reply(
             to = expected["to"]
         else:
             expected = responses.get(for_event)
-            if expected is None or expected["kind"] != "reply":
+            if expected is None or expected["kind"] not in answered_kinds:
                 if expected is not None and expected["kind"] == "version":
                     root_id, _ = _thread_root(
                         page_dir, events, to or expected["conversation"]
@@ -535,12 +538,14 @@ def cmd_reply(
                 if when_settled != "post" or to is None:
                     sys.exit(refusal)
             elif to is None:
-                to = expected["to"]
+                to = expected["to"] if expected["kind"] == "reply" else for_event
         assert to is not None
         root_id, root = _thread_root(page_dir, events, to)
-        if (thread_obligation(events, responses, root_id) or {}).get(
-            "kind"
-        ) == "version":
+        if (
+            failure is None
+            and (thread_obligation(events, responses, root_id) or {}).get("kind")
+            == "version"
+        ):
             if when_settled == "skip":
                 return None
             sys.exit(
@@ -549,7 +554,14 @@ def cmd_reply(
             )
         if for_event is not None:
             expected = responses.get(for_event)
-            if expected != {"kind": "reply", "to": to, "for": for_event}:
+            if expected not in (
+                {"kind": "reply", "to": to, "for": for_event},
+                *(
+                    [{"kind": "version", "conversation": root_id}]
+                    if "version" in answered_kinds
+                    else []
+                ),
+            ):
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
@@ -722,6 +734,90 @@ def cmd_reply(
         if relocating:
             event["anchor"] = anchor
         return append_admitted(page, event)
+
+
+def fail_answer(
+    page_dir: Path,
+    responds: str,
+    failure: str,
+    text: str,
+    *,
+    attempt: str,
+    identity: dict,
+    only_if_unclaimed: bool,
+) -> dict | None:
+    """Tell the reader no answer to one move is coming, in the move's own terms.
+
+    A host that gives up on a move settles the obligation the move's workflow
+    `answer` names and hands the next step back to the reader, so a failed move is
+    never left owed with nobody to answer it:
+
+    - a `reply` or `version` answer takes a reply carrying `failure` in its
+      conversation, which the reader resends into;
+    - a `receipt` answer takes a failed receipt, the request's own terminal
+      outcome, which reopens its seat for the reader to press again;
+    - a `markup` answer takes a failed pickup: the reader's Ask answer stands in the
+      log, and answering again sends a new move.
+
+    A move with no answer outstanding writes nothing, except that a repeated reply
+    receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves a move
+    some turn already picked up to the writer following that turn.
+    """
+    with PageTransaction(page_dir) as page:
+        answer = current_responses(page_dir, page.events).get(responds)
+    if answer is not None and answer["kind"] in {"receipt", "markup"}:
+        return _fail_page_answer(
+            page_dir, responds, failure, text, identity, only_if_unclaimed
+        )
+    return cmd_reply(
+        page_dir,
+        None,
+        text,
+        "",
+        for_event=responds,
+        attempt=attempt,
+        when_settled="skip",
+        only_if_unclaimed=only_if_unclaimed,
+        failure=failure,
+        identity=identity,
+    )
+
+
+@contract_writer
+def _fail_page_answer(
+    page_dir: Path,
+    responds: str,
+    failure: str,
+    text: str,
+    identity: dict,
+    only_if_unclaimed: bool,
+) -> dict | None:
+    """Write a receipt or markup failure, rechecking the answer under the lock."""
+    with PageTransaction(page_dir) as page:
+        events = page.events
+        answer = current_responses(page_dir, events).get(responds)
+        if answer is None or (
+            only_if_unclaimed
+            and any(
+                event["kind"] == "pickup" and responds in event["events"]
+                for event in events
+            )
+        ):
+            return None
+        if answer["kind"] == "receipt":
+            return append_admitted(
+                page,
+                {
+                    "kind": "receipt",
+                    "author": "agent",
+                    **identity,
+                    "request": responds,
+                    "status": "failed",
+                    "text": text,
+                },
+            )
+        [move] = [event for event in events if event["id"] == responds]
+        return record_pickup(page, [move], phase="failed", failure=failure)
 
 
 @contract_writer

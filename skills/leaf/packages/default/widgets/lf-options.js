@@ -39,7 +39,7 @@
  * The keyboard walk stops at options. Ask digits choose each authored option, then enter
  * the add field when a digit remains among the Ask's nine contextual bindings. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
- * shared text-box contract: Enter writes a newline and Mod+Enter adds the option. A
+ * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
  * generated option joins the walk on replay just like an authored one.
  *
  * In a thread the existing reply box already owns those words, so Enter from a mark
@@ -94,7 +94,8 @@
  * example decision can't be answered. `settled` still collapses there, because quoting
  * gates the action channel and not presentation.
  *
- * Authored content is never replaced, so there is no failSoft. */
+ * Authored element children stay in place. The layer formats declared Markdown
+ * before this module upgrades the options; generated children use that parser too. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {

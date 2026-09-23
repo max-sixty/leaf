@@ -156,16 +156,16 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     page.keyboard.up("Alt")
 
     # The sequence already names Comment, so the durable composer is the focused field
-    # beside the note. It grows in place, Enter adds a line, and Mod+Enter submits it.
+    # beside the note. It grows in place, Shift+Enter adds a line, and Enter submits it.
     field = open_compact_comment(page, "why here")
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
     one_line = field.bounding_box()["height"]
-    page.keyboard.press("Enter")
+    page.keyboard.press("Shift+Enter")
     page.keyboard.type("because every active session must end before support continues")
     assert field.bounding_box()["height"] > one_line
     expect(page.locator(".lf-composer")).to_have_css("display", "contents")
     with sending(page, "the compact comment"):
-        page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment"
     assert sent["text"] == (
@@ -1179,7 +1179,10 @@ def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_pain
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     """A transient chrome label paints above the page-level trace it summons."""
-    page = open_page(browser, live_url(serve(ASK_PAGE)))
+    single = ASK_PAGE.replace(
+        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+    )
+    page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
     resized(page, 1440, 900)
     with sending(page, "the mounts choice"):

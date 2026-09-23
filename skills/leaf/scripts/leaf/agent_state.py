@@ -394,9 +394,7 @@ def _write_page_state(
         )
         if selected is None:
             raise SystemExit(f"unknown conversation {conversation_id!r}")
-        selected["summaries"] = active_summaries(
-            events, conversation_id, threads[conversation_id]
-        )
+        selected["summaries"] = active_summaries(events, threads)[conversation_id]
         elements = [
             element
             for element in state["elements"]

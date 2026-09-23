@@ -109,6 +109,7 @@ def browser_conversation(
     awaiting = asks["awaiting"]
     unread = unread_content(events, threads, reading.thread_by_widget)
     open_ask_threads = {ask["conversation"] for ask in asks["reader"]}
+    summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
         awaits_reader, reader_prompt = _thread_awaits_reader(
@@ -136,7 +137,7 @@ def browser_conversation(
         for message_id, fragment in reading.structure.fragments.items():
             if ask_sources.intersection(fragment.by_id):
                 protected.add(message_id)
-        summaries = active_summaries(events, thread_id, thread)
+        summaries = summaries_for[thread_id]
         for summary in summaries:
             summary["protected"] = [
                 identity for identity in summary["covers"] if identity in protected

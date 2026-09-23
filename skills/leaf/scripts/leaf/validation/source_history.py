@@ -51,6 +51,9 @@ class RevisionReading(NamedTuple):
 
     active: int
     committed_active: bool
+    # The candidate's captured artifact is the active revision's: its transition
+    # was checked when that revision activated.
+    unchanged: bool
     predecessor: int
     previous: object
     previous_words: dict
@@ -101,6 +104,7 @@ def revision_reading(
     return RevisionReading(
         active,
         committed_active,
+        bool(active and same_as_active and artifact is not None),
         predecessor,
         previous,
         previous_words,

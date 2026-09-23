@@ -336,7 +336,7 @@ def check_source(
                 child_readings,
                 selected,
             )
-            initial = RevisionReading(0, False, 0, SourceDocument(""), {}, {})
+            initial = RevisionReading(0, False, False, 0, SourceDocument(""), {}, {})
             transition = transition_reading(child, child_events, registry, initial)
             child_errors.extend(
                 transition_errors(child, registry, initial, transition, False)
@@ -360,7 +360,9 @@ def check_source(
         events, document, registry, revision
     )
     errors.extend(source_history_errors)
-    if registry is not None and revision.predecessor:
+    # The door admitted every event appended since the active revision activated,
+    # so only a candidate that differs from it can drop a contract history needs.
+    if registry is not None and revision.predecessor and not revision.unchanged:
         errors.extend(
             candidate_vocabulary_gaps(
                 page_dir,

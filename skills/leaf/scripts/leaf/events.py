@@ -258,22 +258,31 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     return threads
 
 
-def active_summaries(events: list, thread_id: str, thread: dict) -> list[dict]:
-    """Current presentation summaries for one conversation.
+def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
+    """Current presentation summaries for every conversation, by conversation id.
 
     Summaries replace overlapping summaries whole. An edit after a summary invalidates
     it when it changes any covered message, because the stored prose no longer
     summarizes the current transcript. The original messages remain the authority.
     """
+    edits = {}
+    written = {}
+    for event in events:
+        if event["kind"] == "edit":
+            edits[event["message"]] = event["seq"]
+        elif event["kind"] == "summary" and event["conversation"] in threads:
+            written.setdefault(event["conversation"], []).append(event)
+    return {
+        thread_id: _thread_summaries(thread, written.get(thread_id, []), edits)
+        for thread_id, thread in threads.items()
+    }
+
+
+def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
     message_ids = [message["id"] for message in thread["msgs"]]
     positions = {identity: index for index, identity in enumerate(message_ids)}
-    edits = {
-        event["message"]: event["seq"] for event in events if event["kind"] == "edit"
-    }
     active = []
-    for event in events:
-        if event["kind"] != "summary" or event["conversation"] != thread_id:
-            continue
+    for event in summaries:
         start = positions.get(event["from"])
         end = positions.get(event["through"])
         if start is None or end is None or start > end:

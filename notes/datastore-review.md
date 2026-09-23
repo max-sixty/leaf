@@ -108,24 +108,12 @@ take the rank in place of `index`. Write the undo reproducer before changing it.
 
 ## Read cost
 
-Measured on a copy of `triage-board` with 10k board moves:
-
-| Step                         | Time    |
-| ---------------------------- | ------- |
-| Parse the log                | 57 ms   |
-| `state_projection`           | 20 ms   |
-| `build_threads`              | 16 ms   |
-| Browser `page_state` (1 read)| 2.6 s   |
-| `leaf page state`            | 1.5 s   |
-
-With 1k threads beside the moves the browser read reaches 5 s. The fold is not the
-cost, so snapshots and incremental folding are not warranted. The profile names:
-
-- `candidate_vocabulary_gaps` re-validates every stored action on every read, and
-  `json_validator` rebuilds its validator per call. Run the check only when the
-  registry fingerprint changes; validate per distinct (tag, verb); cache validators.
-- `active_summaries` scans the whole log once per thread.
-- One read builds `state_projection` and `build_threads` four times each.
+A stamped copy of `triage-board` with 10k board moves reads in about 175 ms in the
+browser and 275 ms through `leaf page state`; with 1k threads beside the moves, about
+220 ms each (best of five, measured). What remains is linear: parsing the log twice
+per read, one `state_projection`, and one `build_threads`. An unstamped page whose
+source moved since its predecessor also pays `continuity_errors`, which folds threads
+three more times. Neither warrants snapshots or incremental folding yet.
 
 ## Redundancy
 

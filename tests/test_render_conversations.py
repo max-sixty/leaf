@@ -2597,7 +2597,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     """A walk to threads somewhere else leaves one history entry however far it goes,
     so Back returns to the place the user was reading before it and Forward to where
-    it ended."""
+    it ended. Reading somewhere else ends the walk: the next trip records that place."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -2655,6 +2655,23 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     page.wait_for_function(
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
         arg=walked,
+    )
+
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    elsewhere = page.evaluate("document.scrollingElement.scrollTop")
+    assert elsewhere > walked + 1000
+    page.keyboard.press("Shift+t")
+    page.wait_for_function(
+        "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
+        " === first",
+        arg=first,
+    )
+    scroll_settled(page)
+    assert page.evaluate("history.length") == entries + 2
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2",
+        arg=elsewhere,
     )
 
 

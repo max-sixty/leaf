@@ -5,8 +5,8 @@
  * subordinate geometry never imports the presenter. A trip keeps its original user
  * intent through hydration, reveal and presentation. Newer input or another trip
  * cancels its landing without cancelling the data the page is loading. A trip to a
- * thread or datum somewhere else leaves one history entry per run of trips, so browser
- * Back returns the user to where they were reading before the run.
+ * thread or datum somewhere else leaves a history entry, so browser Back returns the
+ * user to where they were reading. A walk from thread to thread is one entry.
  */
 
 import {
@@ -47,11 +47,19 @@ export function createAnchorTravel({
   // restores it when Back traverses to it, which is the native restoration history
   // travel keeps (version.js). A push therefore comes before the trip moves anything.
   // A thread already readable where the user stands is no trip and records nothing.
-  // A trip from where another trip landed replaces that landing's entry, so a walk of
-  // any length is one step back to where the user was reading before it began.
-  function depart(url = window.location.href) {
-    if (history.state?.lfTrip) history.replaceState(history.state, "", url);
-    else history.pushState({ lfTrip: true }, "", url);
+  // A thread trip taken while the thread the last trip landed on is still readable
+  // continues that walk: it replaces the walk's entry, which already holds where the
+  // walk began. Once the user has moved off that landing, the next trip pushes again.
+  function depart({ url = window.location.href, thread = null } = {}) {
+    const state = thread ? { lfThread: thread } : null;
+    if (thread && stillLanded()) history.replaceState(state, "", url);
+    else history.pushState(state, "", url);
+  }
+
+  function stillLanded() {
+    const id = history.state?.lfThread;
+    const where = id && (anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element);
+    return Boolean(where && readableDestination(where));
   }
 
   function validateProjectionReference(owner, attribute) {
@@ -93,7 +101,7 @@ export function createAnchorTravel({
 
     const url = new URL(window.location.href);
     url.hash = source.id;
-    depart(url);
+    depart({ url });
     if (!destination) {
       reveal(source, mayArrive);
       scrollRevealedElement(source, scrollBehavior(), "start");
@@ -259,7 +267,7 @@ export function createAnchorTravel({
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     if ((standing || hydrating) && !(standing && readableDestination(standing)))
-      depart();
+      depart({ thread: id });
     if (hydrating) {
       const source = sectionOf(anchor);
       const hydration = source?.lfRevealDatum?.(anchor.datum);

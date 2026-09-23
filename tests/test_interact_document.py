@@ -476,6 +476,20 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         assert refused.revision == previous and not refused.created
 
 
+def test_an_image_loads_only_from_an_origin_the_policy_admits(page_dir):
+    image = '<p><img src="{}" alt="logo"></p>\n</section>'
+    admitted = "https://cdn.jsdelivr.net/gh/twitter/twemoji/assets/svg/1f600.svg"
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</section>", image.format(admitted), 1)
+    )
+    assert revisioning_model.activate_source(page_dir, []).error is None
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</section>", image.format("https://outside.example/a.png"), 1)
+    )
+    refused = revisioning_model.activate_source(page_dir, []).error
+    assert refused and "https://cdn.jsdelivr.net" in refused, refused
+
+
 @pytest.mark.parametrize(
     "authored, expected",
     [
@@ -2671,6 +2685,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     assert lifecycle["seat"] == {
         "document": {"kind": "page", "revision": 1},
         "widget": "commands",
+        "unit": "commands",
     }
     assert lifecycle["phase"] == "pending"
     assert lifecycle["latest"]["request"]["id"] == request["id"]

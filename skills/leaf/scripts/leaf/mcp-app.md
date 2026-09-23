@@ -32,8 +32,9 @@ snapshot renderer to a complete-page result or the reverse.
 
 The resource selects its behavior from an explicit private payload contract:
 `leaf.page/v1` with `mode: page`, or `leaf.snapshot/v1` with `mode: snapshot`.
-Its CSP is the superset required by those two modes: no connect or resource
-domains, and the exact process page origin as its sole frame domain. Snapshot
+Its CSP is the superset required by those two modes: no connect domains, the
+external origins a page may load from (`EXTERNAL_ORIGINS`) as resource domains, and
+the exact process page origin as its sole frame domain. Snapshot
 mode does not use that frame capability.
 
 Both presentation tools return readable tool refusals for an uninitialized

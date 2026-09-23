@@ -25,9 +25,9 @@ from .structure import (
 
 
 def _resource_url(value: str, logical_path: str, asset_root: str) -> str:
-    if value.startswith(("#", "data:")):
-        return value
     target = resolve_dependency(value, logical_path)
+    if target is None:
+        return value
     fragment = urlsplit(value).fragment
     return (
         asset_root.rstrip("/")
@@ -204,7 +204,10 @@ def deliver_document(source: str, asset_root: str) -> str:
         location = element.source_location
         if element.tag == "script" and attrs.get("src"):
             target = resolve_dependency(attrs["src"], "/index.html", module=True)
-            attribute(element, "src", asset_root.rstrip("/") + quote(target, safe="/"))
+            if target is not None:
+                attribute(
+                    element, "src", asset_root.rstrip("/") + quote(target, safe="/")
+                )
         if element.tag == "link" and "stylesheet" in rel_tokens(attrs):
             attribute(
                 element, "href", _resource_url(attrs["href"], "/index.html", asset_root)

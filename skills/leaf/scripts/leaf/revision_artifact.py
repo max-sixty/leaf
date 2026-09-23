@@ -35,7 +35,12 @@ from tree_sitter import Language, Parser
 
 from leaf.files import file_stamp, fsync_parents, list_revisions, revision_path
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
-from leaf.structure import SourceDocument, links_with_rel
+from leaf.structure import (
+    EXTERNAL_ORIGINS,
+    SourceDocument,
+    external_reference,
+    links_with_rel,
+)
 
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
 RESOURCE_TYPES = {
@@ -123,8 +128,17 @@ class RevisionArtifact:
         return json.loads(self.manifest).get("widgets", {})
 
 
-def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
-    """Resolve an authored URL without giving it a filesystem or network escape."""
+def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
+    """Resolve an authored URL without giving it a filesystem or network escape.
+
+    None is a reference the revision does not hold, which stays as written: one to
+    an external origin, and for a stylesheet or media reference a fragment of this
+    document or a data: URL.
+    """
+    if external_reference(specifier) or (
+        not module and specifier.startswith(("#", "data:"))
+    ):
+        return None
     where = f"{importer}: {specifier!r}"
     try:
         parsed = urlsplit(specifier)
@@ -139,7 +153,10 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
         or "\\" in specifier
         or any(ord(char) < 33 for char in specifier)
     ):
-        raise ArtifactError(f"{where}: dependency must be a local URL without a query")
+        raise ArtifactError(
+            f"{where}: dependency must be a local URL without a query, or a URL "
+            f"on one of {', '.join(EXTERNAL_ORIGINS)}"
+        )
     path = unquote(parsed.path)
     if unquote(path) != path or "\\" in path or any(ord(char) < 33 for char in path):
         raise ArtifactError(f"{where}: encoded dependency path is not allowed")
@@ -147,8 +164,6 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
         raise ArtifactError(
             f"{where}: a module import must name a relative or /page/ URL"
         )
-    if not path:
-        return importer  # a CSS fragment refers to this document
     if path.startswith("/"):
         resolved = posixpath.normpath(path)
     else:
@@ -252,14 +267,20 @@ def _css_urls(tokens):
                 if item.type not in {"whitespace", "comment"}
             ]
             if values and values[0].type == "string":
-                if Path(urlsplit(values[0].value).path).suffix != ".css":
+                if (
+                    not external_reference(values[0].value)
+                    and Path(urlsplit(values[0].value).path).suffix != ".css"
+                ):
                     raise ArtifactError(
                         "CSS @import requires a stylesheet with CSS MIME type"
                     )
                 yield values[0].value
             else:
                 imported = list(_css_urls(token.prelude))
-                if not imported or Path(urlsplit(imported[0]).path).suffix != ".css":
+                if not imported or (
+                    not external_reference(imported[0])
+                    and Path(urlsplit(imported[0]).path).suffix != ".css"
+                ):
                     raise ArtifactError(
                         "CSS @import requires a stylesheet with CSS MIME type"
                     )
@@ -390,9 +411,8 @@ def _capture_artifact(
             except UnicodeDecodeError as error:
                 raise ArtifactError(f"{path}: CSS is not UTF-8") from error
             for specifier in _css_dependencies(css):
-                if specifier.startswith(("#", "data:")):
-                    continue
                 edges.append(resolve_dependency(specifier, path))
+        edges = [edge for edge in edges if edge is not None]
         resources[path] = Resource(data, mime, tuple(sorted(set(edges))))
         for edge in edges:
             capture(edge)
@@ -436,6 +456,8 @@ def _capture_artifact(
             path = resolve_dependency(
                 script["attrs"]["src"], "/index.html", module=True
             )
+            if path is None:
+                continue
             if not path.startswith("/page/"):
                 raise ArtifactError(
                     f"{path}: authored module sources must be under /page/"
@@ -443,23 +465,24 @@ def _capture_artifact(
             entries.append(path)
         for link in links_with_rel(authored.links, "stylesheet"):
             path = resolve_dependency(link["attrs"].get("href", ""), "/index.html")
+            if path is None:
+                continue
             if Path(path).suffix != ".css":
                 raise ArtifactError(
                     f"{path}: a stylesheet dependency must have CSS MIME type"
                 )
             entries.append(path)
         for specifier in _css_dependencies(authored.css):
-            if not specifier.startswith(("#", "data:")):
-                entries.append(resolve_dependency(specifier, "/index.html"))
+            entries.append(resolve_dependency(specifier, "/index.html"))
         for inline in authored.inline_styles:
             for specifier in _css_dependencies(inline["style"], declarations=True):
-                if not specifier.startswith(("#", "data:")):
-                    entries.append(resolve_dependency(specifier, "/index.html"))
+                entries.append(resolve_dependency(specifier, "/index.html"))
         entries.extend(authored.media_refs)
         entries.extend(
             resolve_dependency(specifier, "/index.html")
             for specifier in authored.page_resource_refs
         )
+    entries = [entry for entry in entries if entry is not None]
     for entry in entries:
         capture(entry)
 
@@ -701,7 +724,8 @@ def rewrite_module(data: bytes, logical_path: str, prefix: str) -> bytes:
         list(_javascript_imports(data, logical_path))
     ):
         target = resolve_dependency(specifier, logical_path, module=True)
-        data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
+        if target is not None:
+            data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
     return data
 
 

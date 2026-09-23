@@ -1762,7 +1762,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     panel_settled(page)
     status = page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
     receipt = page.locator(f'.lf-msg[data-mid="{board["id"]}"] .lf-msg-sending')
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     page.locator("#fb-cache .lf-grip").focus()
     page.keyboard.press("Enter")
@@ -1771,7 +1771,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         page.keyboard.press("Enter")
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
     expect(receipt).to_have_text("Sent")
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     [moved] = [
         event
@@ -1782,7 +1782,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         delivery_model.record_pickup(transaction, [moved])
     told(page)
     expect(receipt).to_have_text("Picked up")
-    expect(status).to_have_text("")
+    expect(status).to_have_count(0)
 
     events_model.append_event(
         serve.page_dir,
@@ -3238,7 +3238,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     ).to_have_text("On you")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
-    ).to_have_text("")
+    ).to_have_count(0)
 
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()

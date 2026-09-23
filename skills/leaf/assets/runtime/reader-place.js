@@ -14,7 +14,7 @@
    first leaves, hides, or is renamed out of `items`, the next one still standing holds
    the place without recovering an old position. A candidate the render replaced is
    handed across to the node now rendered under its identity; that is how a keyed
-   re-render keeps the place it was holding (repository CLAUDE.md: whatever replaces a
+   re-render keeps the place it was holding (repository AGENTS.md: whatever replaces a
    node hands its state across itself).
 
    The correction follows only reflow: adding `scrollTop` to a node's viewport top gives

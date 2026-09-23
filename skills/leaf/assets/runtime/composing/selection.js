@@ -109,7 +109,7 @@ suggestRow.append(suggestCheck, document.createTextNode("Suggest replacement tex
 // stays in the response bar and never jumps to a second box.
 const composerInput = fabInput;
 // The mark is a paint, and a paint is nothing to a screen reader (see "Paint; don't wrap"
-// in CLAUDE.md). So what the box is anchored to travels as the box's own description,
+// in AGENTS.md). So what the box is anchored to travels as the box's own description,
 // announced on focus — which is more than the visible quote ever said, since nothing
 // pointed a reader at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);

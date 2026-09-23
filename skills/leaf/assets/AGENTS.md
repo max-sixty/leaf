@@ -3,7 +3,7 @@
 This file owns browser-wide contracts: module boundaries, startup, state authority,
 layout, export, and validation. Read each module's header for its local contract.
 Page-authoring rules live in `../references/page-authoring.md`; package contracts live
-in `../references/packages.md`. Repository `CLAUDE.md`, "Cross-runtime invariants", owns
+in `../references/packages.md`. Repository `AGENTS.md`, "Cross-runtime invariants", owns
 rules shared by Python and JavaScript.
 
 Keep each rule with the modules it constrains: local contracts in module headers,
@@ -55,7 +55,7 @@ relative to `runtime/` unless stated otherwise.
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js`, `reader-place.js` |
-| Keyboard commands and their projections | `keyboard/CLAUDE.md` |
+| Keyboard commands and their projections | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `navigation.js`, `reader-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
@@ -128,11 +128,11 @@ Each mutable fact has one writer:
 | message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels and reader-Ask precedence |
 | which Asks stand and which the reader owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the conversation's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
-| when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `CLAUDE.md`, Cross-runtime invariants) |
+| when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `AGENTS.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
-| canonical page activity | the server `activity` fold (root `CLAUDE.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
+| canonical page activity | the server `activity` fold (root `AGENTS.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
 | meaningful new page information | current agent content versions and reader Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded; the first is a quiet baseline. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
@@ -272,7 +272,7 @@ The server's rules for structural and prose obligations live in `../scripts/leaf
 ### Version and conversation windows
 
 A page widget's projection stops at `runtime.currentRevision`; a widget in frozen
-thread markup reads the whole log (root `CLAUDE.md`, Cross-runtime invariants).
+thread markup reads the whole log (root `AGENTS.md`, Cross-runtime invariants).
 
 The server projects threads from the whole log, so a conversation stays current
 on a pinned page even when the document projection remains historical.
@@ -296,7 +296,7 @@ Version-response conversations and their resolution rules are defined in
 ## The widget vocabulary stays open
 
 Core code may name a widget only when the widget is part of how Leaf itself works
-(root `CLAUDE.md`, "Keep the layer open"); the merge grains are
+(root `AGENTS.md`, "Keep the layer open"); the merge grains are
 `../references/packages.md`, "Package contract".
 Shared facts such as languages, tones, idioms, and event definitions belong
 under `$languages`, `$tones`, `$idioms`, and `$events`. A consumer reaching into
@@ -608,7 +608,7 @@ animation can expose the behavior.
 `scripts/browser/build.mjs` owns the compiled TypeScript foundation in
 `vendor/browser-runtime.js`; contributor diagnostics (the manifest, licenses, and
 source map) live under `scripts/browser/generated/`. The manifest names its inputs,
-exports, and output hashes; `scripts/CLAUDE.md`
+exports, and output hashes; `scripts/AGENTS.md`
 owns the contributor build and check commands. The internal bundle contains Lit and
 Signals once, with no external imports or runtime compiler. The Web Awesome bundle
 (`scripts/vendor.py webawesome`) is built separately and carries its own Lit, so a page
@@ -621,7 +621,7 @@ Run `node --check` on the module, formatting, and a focused real-browser test wh
 iterating. What a module decides on its own — a value folded from values, a tree
 question answered from the tree — is tested in `tests/runtime/*.test.mjs`, which imports
 it into a document object model rather than a browser and answers in under a second
-(`npm run test:runtime`); `tests/CLAUDE.md` owns which readings may go there.
+(`npm run test:runtime`); `tests/AGENTS.md` owns which readings may go there.
 A module that reads another owner as it evaluates parses and lints clean and
 fails only in the browser, as `Cannot access X before initialization` at boot; the
 rule and its remedies are under Runtime ownership above. Before handing over a runtime or theme

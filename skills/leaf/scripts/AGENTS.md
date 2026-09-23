@@ -103,7 +103,7 @@ Read the reference that owns the boundary before changing it:
 
 `../references/packages.md` owns the public package contract. The browser's
 parallel projection, passage, registry, and render rules live in
-`../assets/CLAUDE.md`.
+`../assets/AGENTS.md`.
 
 ## Boundaries
 

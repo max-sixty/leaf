@@ -38,7 +38,7 @@ file says which script owns what, and the rules that hold across them.
   `docs/examples.html` through the live published-example server. It refuses fallback
   fonts, pushes the complete image set, and updates the tracked commit pin and catalog.
 
-Edit a source page, then regenerate the corpus. `examples/CLAUDE.md` owns the fixture
+Edit a source page, then regenerate the corpus. `examples/AGENTS.md` owns the fixture
 rules a new or changed example has to meet.
 
 ## Website and demo

@@ -6,7 +6,7 @@ assert once they are visible. The difficult part is arranging the test so that a
 green result could only have come from the behavior named by the test.
 
 This file owns test setup, suite structure, and testing mechanics.
-`skills/leaf/assets/CLAUDE.md` and the code-adjacent contracts routed by
+`skills/leaf/assets/AGENTS.md` and the code-adjacent contracts routed by
 `/developing-leaf` own the product protocols. Keep implementation rules there;
 state here only what a test must observe or control. Each section below is a
 rule, the helper that carries it, and the test that pins it, so a heading is an
@@ -117,7 +117,7 @@ The `test_interact_*.py` modules exercise authored markup, the registry, the
 event log, CLI commands, vendoring, publishing, export, and server lifetime. The
 `test_render_*.py` modules drive the browser runtime and the render gate.
 Full-page navigation and comparison regressions live in `fixtures/pages/`, outside
-the published examples. Their companions follow `examples/CLAUDE.md`; the page and
+the published examples. Their companions follow `examples/AGENTS.md`; the page and
 corpus sweeps include them. File-side fixtures live in `interact_support.py`. Browser process and page
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.

@@ -452,7 +452,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
                     operation["label"],
                     operation["format"],
                 )
-        # The example's companion log, where it ships one (examples/CLAUDE.md), so
+        # The example's companion log, where it ships one (examples/AGENTS.md), so
         # the lint reads the page under the state its own log puts on it.
         seed = example.with_suffix(".jsonl")
         if seed.exists():
@@ -479,7 +479,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
     lf-shot and lf-specimen were outside them from the day each was written.
-    examples/CLAUDE.md carries the rest, including the shapes this floor doesn't
+    examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
@@ -488,7 +488,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
     undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not undemonstrated, (
-        f"no corpus source holds {', '.join(undemonstrated)} — see examples/CLAUDE.md"
+        f"no corpus source holds {', '.join(undemonstrated)} — see examples/AGENTS.md"
     )
 
 
@@ -507,7 +507,7 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     missing = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not missing, (
         f"the feature gallery has no focused specimen for {', '.join(missing)} — "
-        "see examples/CLAUDE.md"
+        "see examples/AGENTS.md"
     )
 
 
@@ -2019,7 +2019,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             )
     assert read, (
         "no seeded event carries markup, so this read nothing — see "
-        "examples/CLAUDE.md on what a log is for"
+        "examples/AGENTS.md on what a log is for"
     )
 
 

@@ -98,8 +98,10 @@ Code with `run_in_background`, and read the URL from its output; stop it the sam
 way, with Ctrl-C or the runner's stop, which ends the server with it. The page lives
 at `.tmp/previews/<example>` for as long as that process does, following source and
 runtime edits at one URL and keeping its feedback across them. Each start builds the
-page fresh from the fixture at a new URL, discarding what the last run left, and a
-start into a slot another preview is still serving is refused. Use `--slot <name>`
+page fresh from the fixture, discarding what the last run left, and a start into a
+slot another preview is still serving is refused. An unclaimed start answers at a new
+URL; a `--user` start usually comes back at the old one, so a tab left open there
+reads the rebuilt page. Use `--slot <name>`
 for another copy. A refused update appears in the preview's output; fix the input and
 it retries.
 

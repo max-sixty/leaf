@@ -118,8 +118,13 @@ class LeafFailed(RuntimeError):
     """A checked `leaf` command exited nonzero, having already said why.
 
     Its own type rather than `SystemExit`, so a refresh can refuse a failed update
-    without also swallowing the exit a SIGTERM raises.
+    without also swallowing the exit a SIGTERM raises. The preview exits with the
+    command's own status.
     """
+
+    def __init__(self, args: tuple, returncode: int):
+        super().__init__(f"leaf {' '.join(args[:2])} exited {returncode}")
+        self.returncode = returncode
 
 
 def leaf(
@@ -144,7 +149,7 @@ def leaf(
     if check and result.returncode != 0:
         if not show_output and result.stdout:
             print(result.stdout, end="", flush=True)
-        raise LeafFailed(f"leaf {' '.join(args[:2])} exited {result.returncode}")
+        raise LeafFailed(args, result.returncode)
 
 
 def slot_name(value: str) -> str:
@@ -869,5 +874,7 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         raise SystemExit(130) from None
+    except LeafFailed as error:
+        raise SystemExit(error.returncode) from None
     except (ValueError, OSError, RuntimeError) as error:
         raise SystemExit(str(error)) from None

@@ -203,6 +203,7 @@ def test_a_leaf_failure_exits_the_preview_without_a_wrapper_traceback(
     assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     assert "refusing to stamp index.html:" in result.stderr
     assert "Traceback" not in result.stdout + result.stderr
+    assert "exited" not in result.stdout + result.stderr
 
 
 def test_a_watch_subscription_collects_before_its_first_read(tmp_path):

@@ -189,7 +189,11 @@ acknowledges that content version. A long reply is acknowledged after its entire
 has passed through the visible reading area; opening a thread or seeing a summary is
 not enough. Authored interactive content uses **Mark thread read** in the thread card,
 also reachable by keyboard, which acknowledges the current versions of all messages
-in that thread. An edit is a new content version and becomes unread again. Read state
+in that thread. Each run of current unread messages begins with **New since you last
+looked** inside the thread, and a closing separator distinguishes later messages that
+are not unread. A collapsed summary shows how many unread originals it covers; expand
+it to see the boundary on each original. An edit is a new content version and becomes
+unread again, even among later messages already read. Read state
 belongs to this page's single reader and survives another tab or visit; it does not
 answer an Ask, change **On you**, deliver agent work, or resolve a thread.
 

@@ -61,6 +61,8 @@ QUEUE_FORMAT = "leaf-codex-queue-v1"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
+# The items a turn's opening may follow: its input, and the model's reasoning.
+OPENING_PRELUDE_ITEM_TYPES = {"userMessage", "functionCallOutput", "reasoning"}
 STREAM_HEARTBEAT_METHODS = {
     "item/commandExecution/outputDelta",
     "item/fileChange/outputDelta",
@@ -349,7 +351,15 @@ class TurnStream:
 
 
 class AppServerEvents:
-    """Fold one task's notifications into activity and terminal readings."""
+    """Fold one task's notifications into activity and terminal readings.
+
+    A turn's reply is its opening and its final answer. The opening is a `commentary`
+    agent message that is the turn's first, written before any item but the turn's
+    input and reasoning: the agent writes it to the user before its first tool call,
+    so the reply starts streaming as soon as the turn does. Every other commentary is
+    the agent's working narration and stays in Codex, including narration written
+    after a tool call by an agent that skipped the opening.
+    """
 
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
@@ -357,23 +367,32 @@ class AppServerEvents:
         self.text: dict[str, str] = {}
         self.message_phases: dict[str, str | None] = {}
         self.message_order: list[str] = []
+        self.opening: str | None = None
+        self.opening_open = True
         self.item_started_at: dict[str, int] = {}
         self.active_items: dict[str, dict] = {}
         self.waiting_kind: str | None = None
 
-    def restore_turn(self, turn: dict) -> str:
+    def restore_turn(self, turn: dict) -> None:
         """Replace transient message state with one resumed provider turn."""
         self.turn_id = turn["id"]
-        self.text.clear()
-        self.message_phases.clear()
-        self.message_order.clear()
-        self.item_started_at.clear()
-        self.active_items.clear()
-        self.waiting_kind = None
+        self._forget_turn()
         for item in turn.get("items", []):
             if item.get("type") == "agentMessage":
                 self._record_message(item)
-        return self.final_text(turn)
+            else:
+                self._close_opening(item)
+
+    def _forget_turn(self) -> None:
+        """Drop everything one turn's items left, so the next turn starts clean."""
+        self.text.clear()
+        self.message_phases.clear()
+        self.message_order.clear()
+        self.opening = None
+        self.opening_open = True
+        self.item_started_at.clear()
+        self.active_items.clear()
+        self.waiting_kind = None
 
     def read(self, message: dict) -> dict | None:
         """Return one transient activity or turn-completion update."""
@@ -394,9 +413,7 @@ class AppServerEvents:
             final = self.final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
-                self.item_started_at.clear()
-                self.active_items.clear()
-                self.waiting_kind = None
+                self._forget_turn()
             return {
                 "turn": completed,
                 "completed": turn.get("status", "completed"),
@@ -433,7 +450,7 @@ class AppServerEvents:
             lifecycle = self._item_lifecycle(params, "started")
             if item["type"] == "agentMessage":
                 self._record_message(item)
-                if item.get("phase") == "commentary":
+                if not self._in_reply(item["id"]):
                     return {"turn": turn_id, "item": lifecycle}
                 self._set_active(item["id"], {"kind": "replying"})
                 if item.get("text"):
@@ -448,6 +465,7 @@ class AppServerEvents:
                     "item": lifecycle,
                     "activity": self._standing_activity(),
                 }
+            self._close_opening(item)
             detail = self._item_detail(item)
             if detail:
                 self._set_active(item["id"], {"kind": "tool", "detail": detail})
@@ -463,7 +481,7 @@ class AppServerEvents:
             self.active_items.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
-                if item.get("phase") == "commentary":
+                if not self._in_reply(item["id"]):
                     return {"turn": turn_id, "item": lifecycle}
                 return {
                     "turn": turn_id,
@@ -482,9 +500,11 @@ class AppServerEvents:
             combined = self.text.get(item_id, "") + params["delta"]
             self.text[item_id] = combined
             if item_id not in self.message_order:
-                self.message_order.append(item_id)
+                self._note_message(item_id)
                 self.message_phases[item_id] = None
-            if self.message_phases.get(item_id) == "commentary":
+            if self.message_phases.get(item_id) == "commentary" and not self._in_reply(
+                item_id
+            ):
                 return None
             self._set_active(item_id, {"kind": "replying"})
             return {
@@ -548,39 +568,65 @@ class AppServerEvents:
         self.active_items.pop(item_id, None)
         self.active_items[item_id] = activity
 
+    def _note_message(self, item_id: str) -> None:
+        self.message_order.append(item_id)
+        if self.opening is None and self.opening_open:
+            self.opening = item_id
+        self.opening_open = False
+
+    def _close_opening(self, item: dict) -> None:
+        if item["type"] not in OPENING_PRELUDE_ITEM_TYPES:
+            self.opening_open = False
+
     def _record_message(self, item: dict) -> None:
         item_id = item["id"]
         if item_id not in self.message_order:
-            self.message_order.append(item_id)
+            self._note_message(item_id)
         self.message_phases[item_id] = item.get("phase")
         self.text[item_id] = item.get("text", "")
 
+    def _in_reply(self, item_id: str) -> bool:
+        """Whether one agent message is part of the turn's reply."""
+        phase = self.message_phases.get(item_id)
+        return phase != "commentary" or item_id == self.opening
+
     def _visible_text(self) -> str:
+        opening = (
+            [self.text[self.opening]]
+            if self.opening is not None
+            and self.message_phases.get(self.opening) == "commentary"
+            and self.text.get(self.opening)
+            else []
+        )
         final = [
             self.text[item_id]
             for item_id in self.message_order
             if self.message_phases.get(item_id) == "final_answer"
             and self.text.get(item_id)
         ]
-        if final:
-            return "\n\n".join(final)
-        unknown = [
-            self.text[item_id]
-            for item_id in self.message_order
-            if self.message_phases.get(item_id) is None and self.text.get(item_id)
-        ]
-        return unknown[-1] if unknown else ""
+        if not final:
+            unknown = [
+                self.text[item_id]
+                for item_id in self.message_order
+                if self.message_phases.get(item_id) is None and self.text.get(item_id)
+            ]
+            final = unknown[-1:]
+        return "\n\n".join(opening + final)
 
-    def final_text(self, turn: dict) -> str:
-        """Return only completed final-answer content suitable for publication."""
-        items = [
-            item for item in turn.get("items", []) if item.get("type") == "agentMessage"
-        ]
-        return "\n\n".join(
-            item.get("text", "")
-            for item in items
-            if item.get("phase") == "final_answer" and item.get("text")
-        )
+    @staticmethod
+    def final_text(turn: dict) -> str:
+        """Return a completed turn's reply: its opening and final answer.
+
+        A turn with no final answer has no reply to publish, whatever its opening said.
+        """
+        opening, final = _reply_parts(turn)
+        return "\n\n".join(opening + final) if final else ""
+
+    @staticmethod
+    def reply_so_far(turn: dict) -> str:
+        """Return the reply a still-running turn has written, opening included."""
+        opening, final = _reply_parts(turn)
+        return "\n\n".join(opening + final)
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
         return {
@@ -650,8 +696,33 @@ class AppServerEvents:
         return None
 
 
+def _reply_parts(turn: dict) -> tuple[list[str], list[str]]:
+    """Split one turn's items into its reply's opening and final-answer texts."""
+    items = turn.get("items", [])
+    first = next(
+        (item for item in items if item["type"] not in OPENING_PRELUDE_ITEM_TYPES),
+        None,
+    )
+    opening = (
+        [first["text"]]
+        if first is not None
+        and first["type"] == "agentMessage"
+        and first.get("phase") == "commentary"
+        and first.get("text")
+        else []
+    )
+    final = [
+        item["text"]
+        for item in items
+        if item["type"] == "agentMessage"
+        and item.get("phase") == "final_answer"
+        and item.get("text")
+    ]
+    return opening, final
+
+
 class AppServerReplyStream:
-    """Project and commit one App Server final answer as its Leaf reply."""
+    """Project and commit one App Server turn's opening and final answer as its reply."""
 
     def __init__(
         self,
@@ -664,9 +735,12 @@ class AppServerReplyStream:
         self.last_update = 0.0
 
     def update(self, update: dict | None) -> bool:
-        """Publish a final-answer item update, throttling only partial deltas."""
+        """Publish a reply message's update, throttling only partial deltas.
+
+        Only the final answer's completion settles the reply; the opening streams it.
+        """
         message = update.get("message") if update is not None else None
-        if message is None or message["phase"] != "final_answer":
+        if message is None or message["phase"] not in {"final_answer", "commentary"}:
             return False
         now = time.monotonic()
         if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
@@ -674,13 +748,15 @@ class AppServerReplyStream:
         published = self.reply.replace(
             message["item"],
             message["text"],
-            settles=message["complete"] and bool(message["text"]),
+            settles=message["complete"]
+            and message["phase"] == "final_answer"
+            and bool(message["text"]),
         )
         self.last_update = now
         return published
 
     def restore(self, text: str) -> bool:
-        """Restore a still-running final answer after reconnecting."""
+        """Restore a still-running reply after reconnecting."""
         return self.reply.replace(None, text)
 
     def finish(

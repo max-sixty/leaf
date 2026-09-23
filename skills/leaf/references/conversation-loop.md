@@ -48,7 +48,7 @@ User input comes before the work in hand, in this order:
 2. Reply to each move that owes a reply, before starting the work it asks for. The
    delivered `answering` clause for a reply says how to write the reply now and how
    to report the result later. In a Codex task Leaf observes over App Server, your
-   final message is the reply, so it is fixed at the end of the turn instead, as
+   turn's first message opens the reply and your final message completes it, as
    `references/host-codex-app-server.md`, "Replies", describes.
 3. Write the page status again, so the banner describes the work that continues
    rather than the last step before the interruption.

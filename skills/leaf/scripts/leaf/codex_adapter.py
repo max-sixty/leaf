@@ -13,7 +13,7 @@ immutable input through `leaf delivery read` and answers with explicit commands,
 reply included. Over App Server, `start_delivery_turn` opens a turn on a connection of
 its own as soon as the task is idle and `DeliveryTurn` follows it there until it ends,
 which is also how the user sees activity and a streamed answer, and why the turn's
-final message is its reply. The private App Server this transport needs is what
+opening and final messages are its reply. The private App Server this transport needs is what
 `leaf codex launch` runs.
 
 `TaskObserver` holds the other connection, on the turns Leaf did not start: the
@@ -312,7 +312,7 @@ class TaskObserver:
                 stream.disconnect()
                 continue
             if turn.get("status") == "inProgress":
-                stream.restore(self.events.final_text(turn))
+                stream.restore(self.events.reply_so_far(turn))
             else:
                 if self.events.turn_id == turn_id:
                     self.events.turn_id = None
@@ -352,7 +352,7 @@ class TaskObserver:
         if status == "inProgress":
             open_stream_turn(self.thread_id, turn_id)
             self._bind(turn_id, delivery_id, target)
-            self.bindings[turn_id].restore(self.events.final_text(turn))
+            self.bindings[turn_id].restore(self.events.reply_so_far(turn))
             return
         self._bind(turn_id, delivery_id, target)
         self._end_turn(turn_id, status, self.events.final_text(turn))

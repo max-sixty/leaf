@@ -2323,6 +2323,39 @@ def test_app_server_events_report_semantic_codex_progress():
         "turn": "turn-live",
         "activity": {"kind": "working", "detail": "Run the browser checks"},
     }
+    # The turn's first agent message opens the reply and streams at once, even as
+    # commentary; the commentary that follows it is working narration and stays private.
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "completedAtMs": 900,
+                "item": {
+                    "id": "opening-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "Checking the page now.",
+                },
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "opening-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 900,
+        },
+        "activity": {"kind": "working"},
+        "message": {
+            "item": "opening-live",
+            "phase": "commentary",
+            "text": "Checking the page now.",
+            "complete": True,
+        },
+    }
     assert events.read(
         {
             "method": "item/started",
@@ -2440,7 +2473,7 @@ def test_app_server_events_report_semantic_codex_progress():
         "message": {
             "item": "message-live",
             "phase": None,
-            "text": "The page is ready for review.",
+            "text": "Checking the page now.\n\nThe page is ready for review.",
             "complete": False,
         },
     }
@@ -2476,7 +2509,7 @@ def test_app_server_events_report_semantic_codex_progress():
         "message": {
             "item": "message-live",
             "phase": None,
-            "text": "The page is ready for review.",
+            "text": "Checking the page now.\n\nThe page is ready for review.",
             "complete": True,
         },
     }
@@ -2489,6 +2522,53 @@ def test_app_server_events_report_semantic_codex_progress():
         "turn": "turn-live",
         "completed": "completed",
         "text": "",
+    }
+    # A completed turn leaves nothing behind: a next turn adopted without its
+    # `turn/started` gets an opening of its own, not this one's.
+    assert events.opening is None and not events.text
+    # The committed reply is the opening and the final answer; a turn that never
+    # reached a final answer commits nothing on the strength of its opening.
+    opening, narration, final = (
+        {"type": "agentMessage", "phase": phase, "text": text}
+        for phase, text in (
+            ("commentary", "Checking the page now."),
+            ("commentary", "Running the browser checks."),
+            ("final_answer", "The page is ready for review."),
+        )
+    )
+    assert (
+        events.final_text({"items": [opening, narration, final]})
+        == "Checking the page now.\n\nThe page is ready for review."
+    )
+    assert events.final_text({"items": [opening, narration]}) == ""
+    # A reconnect mid-turn restores the opening already on screen.
+    assert events.reply_so_far({"items": [opening, narration]}) == (
+        "Checking the page now."
+    )
+    # Narration after a tool call is never the opening, even with no message before it.
+    tool = {"type": "commandExecution", "command": "pytest"}
+    assert events.final_text({"items": [tool, narration, final]}) == (
+        "The page is ready for review."
+    )
+    events.restore_turn({"id": "turn-late", "items": [tool]})
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-late",
+                "completedAtMs": 2_000,
+                "item": {"id": "narration-late", **narration},
+            },
+        }
+    ) == {
+        "turn": "turn-late",
+        "item": {
+            "id": "narration-late",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 2_000,
+        },
     }
 
 

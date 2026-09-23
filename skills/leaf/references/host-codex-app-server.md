@@ -3,10 +3,10 @@
 This contract is for a Codex task Leaf reaches over Codex App Server
 (`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
 connects to the task's server as a second client, so it starts the turns that carry
-user input, watches the task's other turns, and takes each turn's final message as
-its reply. That holds when the task's environment sets `LEAF_CODEX_APP_SERVER`, as a
-`leaf codex launch` terminal does, or when the user gave you the task's App Server
-endpoint. Any other Codex task, the desktop app's included, follows
+user input, watches the task's other turns, and takes each turn's opening and final
+messages as its reply. That holds when the task's environment sets
+`LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or when the user
+gave you the task's App Server endpoint. Any other Codex task, the desktop app's included, follows
 `references/host-codex.md`.
 
 This transport is experimental. Its protocol and browser path have automated
@@ -82,9 +82,12 @@ acknowledges the delivery once it enters that turn, so do not run `leaf wait` or
 
 ## Replies
 
-Each slice contains at most one plain reply. Write that reply as the turn's normal
-final message. Leaf streams it into the addressed thread and commits its completed
-text through the same reply contract as `leaf reply`; do not run `leaf reply` for
+Each slice contains at most one plain reply, and your turn's first message and final
+message write it. Before your first tool call, open with a short message to the user:
+the answer, or what you are about to do. Leaf streams it into the addressed thread at
+once, so the user reads it while you work. Later working messages stay in Codex. Your
+final message completes the reply, and Leaf commits the opening and the final message
+together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
 that response, which refuses it as bound to this delivery's final message. The
 committed reply retains the thread's standing anchor, so the delivered instruction to
 move or detach a thread with reply flags does not apply to it. Settling that move

@@ -154,11 +154,14 @@ event, read its `handling` clause ids in order from that batch's `handling` obje
 and follow those instructions and `obligation.response`.
 
 Each App Server delivery contains at most one response whose kind is `reply`.
-The normal final message is that reply's only writer: the host binds its destination
-before the turn, streams it, and commits the completed text. Do not run `$LEAF reply`
-for a delivered reply, including after editing or publishing. The host retains the
-thread's standing anchor; the event's instructions to move or detach it with reply
-flags do not apply here.
+Your first message of the turn and your final message are that reply's only writers:
+the host binds its destination before the turn, streams both, and commits the
+completed text. Before your first tool call, write a short first message to the user:
+the answer, or what you are about to do. It appears at once; your later working
+messages stay private, and your final message completes the reply. Do not run
+`$LEAF reply` for a delivered reply, including after editing or publishing. The host
+retains the thread's standing anchor; the event's instructions to move or detach it
+with reply flags do not apply here.
 
 A `version` response requires editing and stamping the page, then
 `$LEAF resolve . --to RESPONSE_CONVERSATION`. A `receipt` response runs the requested

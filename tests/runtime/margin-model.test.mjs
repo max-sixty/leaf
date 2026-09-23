@@ -15,7 +15,7 @@ import {
   secondaryCount,
   choosePrimary,
   entryHasMarginHost,
-  awaitingReader,
+  awaitingUser,
 } from "../../skills/leaf/assets/runtime/margin-model.js";
 import { marginMapGroups } from "../../skills/leaf/assets/runtime/margin-map-model.js";
 
@@ -158,14 +158,14 @@ test("an open thread replaces a spilled peer while Page Map retains every action
   );
 });
 
-test("thread aggregation preserves canonical reader attention and Ask precedence", () => {
+test("thread aggregation preserves canonical user attention and Ask precedence", () => {
   const recovery = marker("recovery", "comment", {
-    readerAttention: { label: "Not answered", reason: "workflow" },
+    userAttention: { label: "Not answered", reason: "workflow" },
   });
   const ask = marker("ask", "comment", {
-    readerAttention: { label: "On you", reason: "ask" },
+    userAttention: { label: "On you", reason: "ask" },
   });
-  assert.equal(awaitingReader([recovery]), true);
+  assert.equal(awaitingUser([recovery]), true);
   assert.equal(readingContext({ items: [recovery] }), "Not answered");
   assert.equal(readingContext({ items: [recovery, ask] }), "On you");
 });

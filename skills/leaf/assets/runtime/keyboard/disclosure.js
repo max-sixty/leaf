@@ -6,7 +6,7 @@
    two rows changing one thing spend both of the shortcut bar's hints saying one word twice.
 
    Only the direction that changes something is bound: → over a shut section, ← over an
-   open one, and both where the reader is standing on no disclosure at all, which is the
+   open one, and both where the user is standing on no disclosure at all, which is the
    question the reference asks. So every key a surface names is a key that works, and the
    row's one word covers the three keys it binds.
 
@@ -19,7 +19,7 @@
    keeps the platform's pair alone.
 
    One scope covers both spellings, `details > summary` and ARIA's disclosure pattern
-   (`aria-expanded` on a button), because a reader standing on a settled group cannot see
+   (`aria-expanded` on a button), because a user standing on a settled group cannot see
    which of the two they are standing on. A widget keeping the pattern is covered by
    keeping it rather than by being named. The attribute alone would be too wide: a
    combobox wears it over a box words are typed into, and a treeitem in a walk of its own,
@@ -38,7 +38,7 @@ import { inChrome } from "../passages.js";
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
 // because `shadowStage` calls it, far above the surfaces it repaints for.
 // This pair is what DISCLOSE reads, so a toggle moves every row bound through it — and a
-// row's keys are named on two surfaces, the line the reader sees and the
+// row's keys are named on two surfaces, the line the user sees and the
 // `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
 // standing whichever way the row was when its scope was declared, naming the arrow that no
 // longer moves the section and withholding the one that does. `paintKeys()` is the superset
@@ -72,7 +72,7 @@ export const DISCLOSURE_SELECTOR =
   'details > summary, :is(button, [role="button"])[aria-expanded]';
 
 // Which way the disclosure at this element is standing: open, shut, or null where it is
-// not a disclosure at all — which is a question asked from wherever the reader happens to
+// not a disclosure at all — which is a question asked from wherever the user happens to
 // be, the reference listing a scope the page has rather than the one they are in.
 export function disclosed(el) {
   return !el?.matches?.(DISCLOSURE_SELECTOR)

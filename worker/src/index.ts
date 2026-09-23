@@ -5,16 +5,16 @@
  * product and example page at the edge. A request needing mutation starts the Python
  * Leaf server in a container selected by an opaque browser cookie. The container starts
  * with the same complete page directories and writes only to its own ephemeral
- * filesystem, so one reader can exercise the real event log without changing another
- * reader's page.
+ * filesystem, so one user can exercise the real event log without changing another
+ * user's page.
  * Containers are scoped to the deployed release, so a rollout may reset this explicitly
- * ephemeral state but never sends a new document through an older reader session. The
+ * ephemeral state but never sends a new document through an older user session. The
  * container image itself rolls out after the Worker is already live, so a fresh session
  * can still start on the previous release; the edge serves the published projection in
  * place of that container's answer rather than handing the browser a release no reload
  * can reach. A private revision that changes executable code marks its one required
  * container reload in the URL; every ordinary document navigation stays at the edge.
- * Accepted browser events start their agent task in the already-selected reader
+ * Accepted browser events start their agent task in the already-selected user
  * container without holding the browser acknowledgement open. Analytics Engine records
  * accepted product events; Workers Observability records the content-free execution path.
  */
@@ -103,7 +103,7 @@ const agentResultSchemas = {
       thread: z.string().check(z.minLength(1)),
     }),
   ]),
-  reply: z.discriminatedUnion("status", [
+  fail: z.discriminatedUnion("status", [
     settledAgentResultSchema,
     z.object({
       status: z.literal("appended"),
@@ -524,7 +524,7 @@ async function measuredAgentOperation<T>(
 
 function agentRequest(
   params: AgentTaskParams,
-  action: "start" | "reply",
+  action: "start" | "fail",
   body: object,
 ): Request {
   const root = params.route === "/" ? "" : params.route;
@@ -538,7 +538,7 @@ function agentRequest(
 async function askContainer(
   env: Env,
   params: AgentTaskParams,
-  action: "start" | "reply",
+  action: "start" | "fail",
   body: object,
 ): Promise<AgentResult> {
   const response = await getContainer(env.PAGES, params.containerId).fetch(
@@ -580,10 +580,10 @@ async function runAgentTask(
       askContainer(env, params, "start", { event: params.eventId }),
     );
   }
-  // The words the reader gets belong to the adapter, which declares them beside the
+  // The words the user gets belong to the adapter, which declares them beside the
   // code in `FAILURE_RECEIPTS`; naming the code here is the whole of what this knows.
   return measuredAgentOperation("failure_receipt", params, () =>
-    askContainer(env, params, "reply", {
+    askContainer(env, params, "fail", {
       event: params.eventId,
       failure: "rate_limited",
     }),
@@ -609,7 +609,7 @@ async function dispatchAgentTask(
     });
     try {
       await measuredAgentOperation("failure_receipt", params, () =>
-        askContainer(env, params, "reply", {
+        askContainer(env, params, "fail", {
           event: params.eventId,
           failure: "startup_failed",
         }),
@@ -780,7 +780,7 @@ async function staticState(
 // browser's only move against a foreign release is to reload, and the document it would
 // reload onto is the one this edge just gave it, so handing that answer on leaves the
 // page restarting for as long as the rollout runs. The edge answers for itself instead:
-// the reader is unseated, reads the published projection at the release their document
+// the user is unseated, reads the published projection at the release their document
 // belongs to, and waits to send rather than landing a gesture in a container that is
 // about to be replaced.
 async function rollingOut(

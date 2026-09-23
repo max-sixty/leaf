@@ -1,9 +1,9 @@
 version: 2
 
 # Nothing watched anything here before this file. The pinned versions that stay
-# outside it are the browser bundles', in `scripts/vendor.py`'s PINS table, which
-# `tend-weekly` reads: they are fetched and built by that script rather than
-# resolved from a manifest.
+# outside it are the browser bundles', in `scripts/vendor.py`'s PINS table, and the
+# page payload `package.json` pins for the browser framework build; `tend-weekly`
+# reads both through `scripts/vendor.py --pins`.
 #
 # The uv entry watches the repository's one lock. Its runtime packages are what
 # an install of leaf actually resolves — a bump there changes what every host

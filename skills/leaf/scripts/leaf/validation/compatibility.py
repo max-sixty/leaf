@@ -108,7 +108,7 @@ def candidate_vocabulary_gaps(
         moves that release it. Read against the candidate instead, a part a
         conversation let go of and the author then dropped came back as vocabulary
         the layer no longer speaks, which is not what happened: re-vendoring
-        refused, and a reader reopening the closed thread re-acquired a coordinate
+        refused, and a user reopening the closed thread re-acquired a coordinate
         no revision could restore.
 
         A `leaf reply` transition checks itself by putting an unstamped

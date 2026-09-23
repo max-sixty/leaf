@@ -27,7 +27,7 @@ PROTECTED_REMEDIES = {
         "or resolve it"
     ),
     "state": (
-        "the reader's standing state rests on each: keep the element inside its "
+        "the user's standing state rests on each: keep the element inside its "
         "widget, and the widget may go anywhere on the page, such as a collapsed "
         "section of finished work. To drop it instead, put `restated` on the "
         "rewritten element the state rests on, stamp that version, and drop it in "
@@ -51,6 +51,9 @@ class RevisionReading(NamedTuple):
 
     active: int
     committed_active: bool
+    # The candidate's captured artifact is the active revision's: its transition
+    # was checked when that revision activated.
+    unchanged: bool
     predecessor: int
     previous: object
     previous_words: dict
@@ -101,6 +104,7 @@ def revision_reading(
     return RevisionReading(
         active,
         committed_active,
+        bool(active and same_as_active and artifact is not None),
         predecessor,
         previous,
         previous_words,
@@ -203,7 +207,7 @@ def continuity_errors(
         )
     if misplaced:
         errors.append(
-            "authored reader-generated ids must be direct children of their "
+            "authored user-generated ids must be direct children of their "
             f"sending widgets with the declared child tag: {misplaced}"
         )
     return errors, dropped_advice

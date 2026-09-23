@@ -22,7 +22,7 @@ import { focusThread } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { visibleBand } from "../geometry.js";
+import { shownRect } from "../geometry.js";
 
 function quoteReading(thread, anchors, outline) {
   const group = groupFor(thread, outline, anchors.placedAt);
@@ -69,7 +69,7 @@ export function threadReading(
   const panel = surface === "panel";
   const resolved = Boolean(thread.resolved);
   // A settlement in flight has already flipped `resolved`, because what the page can
-  // draw of a gesture stands in the turn that sends it. The control the reader is left
+  // draw of a gesture stands in the turn that sends it. The control the user is left
   // looking at is therefore the opposite one, offering to take the gesture back, and it
   // wears the word for that: a delivery status is not the result, so there is no
   // "Resolving…" state to name.
@@ -139,7 +139,7 @@ function navigationSummary(navigation, model) {
     >
     <span
       class="lf-thread-status"
-      data-lf-turn=${model.attention?.kind === "needs_reader" ? "reader" : nothing}
+      data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
       title=${
         model.attention?.secondary ? `${status} · ${model.attention.secondary}` : status
       }
@@ -215,19 +215,15 @@ export class ThreadView {
     const heldFocus = this.node.contains(standing);
     let summaryReplacedFocusedMessage = false;
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
-    // Only a summary that was not standing before can swallow what the reader
+    // Only a summary that was not standing before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = standing?.closest?.(".lf-msg[data-mid]")?.dataset.mid;
-      const scrollport = this.node.closest("leaf-thread-list");
-      const boundary = scrollport && visibleBand(scrollport);
+      // Being read is being on screen, on whichever surface holds the card.
+      const clips = new Map();
       const beingRead = new Set(
         [...this.node.querySelectorAll(":scope .lf-msg[data-mid]")]
-          .filter((message) => {
-            if (!message.getClientRects().length || !boundary) return false;
-            const box = message.getBoundingClientRect();
-            return box.bottom > boundary.top && box.top < boundary.bottom;
-          })
+          .filter((message) => shownRect(message, clips))
           .map((message) => message.dataset.mid),
       );
       for (const summary of model.summaries) {
@@ -431,18 +427,6 @@ export class ThreadView {
     } else if (heldFocus && !this.node.contains(standing) && !panel) {
       this.#commands.landInConversation(this.node.querySelector(SAY_BOX) ?? this.node);
     }
-    // A read receipt removes the unread rail and boundary. On a long answer that
-    // rewraps its prose and can clamp a direct landing in the reply box to a new
-    // scroll limit. Land the still-focused reply against the committed geometry.
-    if (
-      panel &&
-      prior?.unreadCount > model.unreadCount &&
-      this.node.querySelector(SAY_BOX) === standing
-    )
-      queueMicrotask(() => {
-        if (focused() === standing && this.#model.id === model.id)
-          void this.#commands.travel.showThread(model.id);
-      });
     return this.node;
   }
 

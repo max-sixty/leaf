@@ -1,6 +1,6 @@
 # Agent usability evals
 
-This is an initial test plan, not a product contract. Leaf has two readers: the
+This is an initial test plan, not a product contract. Leaf has two users: the
 person looking at the rendered page and the agent authoring or continuing it. A
 page succeeds only when both can recover the same meaning.
 
@@ -45,7 +45,7 @@ unrelated declarations compete with the page's subject for attention.
 
 Existing-page inspection now joins authored content, standing decisions, and
 declared data inputs in `leaf page state`'s `content` tree. Its construction origins
-identify how to change each part. Reader decisions survive without being copied
+identify how to change each part. User decisions survive without being copied
 into source. Invalid mutable source remains distinct from the live revision, and
 large fragmented inputs expose a manifest with an exact payload location. The owning
 contract is `skills/leaf/scripts/leaf/page-storage.md`.
@@ -59,7 +59,7 @@ A context-blind continuation check changed one sentence in a copied feature
 gallery using the public CLI and authoring references. It correctly reported the
 selected Trail map, exact two-line draft, and card's first position in Tried.
 The resulting source diff contained only the requested sentence replacement;
-standing reader state and raw data were unchanged. This checks one successful
+standing user state and raw data were unchanged. This checks one successful
 edit route, not a paired comparison or a general comprehension score.
 
 Long conversations add a smaller version of the same problem. A delivered batch
@@ -125,7 +125,7 @@ pass or inspecting instruction wording:
 - the authored page passes the required validation and uses the intended
   lifecycle;
 - every factual answer matches the page's current canonical state;
-- standing reader decisions and stable anchors survive a revision;
+- standing user decisions and stable anchors survive a revision;
 - every delivered event is handled once and the page ends in the right status;
 - an unfamiliar package widget is used from its declarations rather than from a
   guessed tag contract;
@@ -143,11 +143,11 @@ solved the agent experience.
 | Discovery guardrail | A normal request for a concise answer that does not ask for a page or shared review | Leaf does not trigger and no page directory or server is created. |
 | Cold decision page | Evidence and three mutually exclusive choices | One visible Decision contains the evidence and an `lf-options` control; the handoff says what gesture answers it; no duplicate sign-off is invented. |
 | Unfamiliar package | A fixture adds a widget whose name and contract are absent from the base package | The agent discovers it in the page's registry, retrieves its entry, and authors valid markup without reading package source. |
-| Reading parity | Facts are distributed across prose, a disclosure, an inactive tab, a chart, projected data, and a reader-selected option | The agent answers a fixed question set from the current reading with no omissions or stale values. |
+| Reading parity | Facts are distributed across prose, a disclosure, an inactive tab, a chart, projected data, and a user-selected option | The agent answers a fixed question set from the current reading with no omissions or stale values. |
 | Competing authorities | `index.html` conflicts with the last valid revision; a standing action also overrides authored state | The agent identifies what the person currently sees and does not report the rejected source or superseded authored state as current. |
-| Resume a foreign page | Several versions, open and resolved threads, reader overrides, and updated external data | The agent gives the current conclusion, open work, and next required action without treating the event log as a transcript to retell. |
-| Read then revise | Plain prose, a reader-owned draft, live data, and a pinned capture | The agent changes the correct construction input, preserves reader authority, and rebinds a fresh capture when changing pinned data. |
-| Work lands on a handed-over page | A plan, a list of problems found, or a refuted finding, with a reader's pick standing, a milestone rail whose next step is now done, prose the reader has seen that would read better at half the length, a reader-owned draft holding a fact the work moved, and a task line that only asks to note what merged | The title and headings state the present; finished items sit in a collapsed section rather than marked done in the open list; the answered Ask moves there under the words it was picked under and what remains is a new Ask; the rail keeps its done members; the shorter prose is put to the reader as an `lf-suggestion` with the current words verbatim in `lf-old`; the draft's moved fact is written into the draft's body with `restated` on the draft, and no suggestion wraps it. |
+| Resume a foreign page | Several versions, open and resolved threads, user overrides, and updated external data | The agent gives the current conclusion, open work, and next required action without treating the event log as a transcript to retell. |
+| Read then revise | Plain prose, a user-owned draft, live data, and a pinned capture | The agent changes the correct construction input, preserves user authority, and rebinds a fresh capture when changing pinned data. |
+| Work lands on a handed-over page | A plan, a list of problems found, or a refuted finding, with a user's pick standing, a milestone rail whose next step is now done, prose the user has seen that would read better at half the length, a user-owned draft holding a fact the work moved, and a task line that only asks to note what merged | The title and headings state the present; finished items sit in a collapsed section rather than marked done in the open list; the answered Ask moves there under the words it was picked under and what remains is a new Ask; the rail keeps its done members; the shorter prose is put to the user as an `lf-suggestion` with the current words verbatim in `lf-old`; the draft's moved fact is written into the draft's body with `restated` on the draft, and no suggestion wraps it. |
 | Revise after feedback | A comment changes prose beside an already chosen option | The comment is answered; the prose changes; surviving ids and the choice remain; `restated` appears only if the agent deliberately replaces the decision. |
 | Elided conversation | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
 | Mixed event batch | A comment, action, reaction, undo, and page error arrive together | Each event receives its defined treatment; the withdrawn gesture is not carried; acknowledgement advances only after the complete batch is available. |
@@ -169,7 +169,7 @@ Start with three fixture families:
 3. **Resume.** Give the agent only a page directory containing version history,
    one invalid source candidate, two threads, and a standing choice absent from
    authored markup. Ask for the current truth and the next action, then one
-   revision. Score the answer, mutation target, and preservation of reader state.
+   revision. Score the answer, mutation target, and preservation of user state.
 
 `ask-placement-eval/` is one authoring case already runnable: it pastes two
 wordings of the ask guidance into a prompt with three subjects and scores where
@@ -199,7 +199,7 @@ quality.
 
 Compare the former HTML-plus-state path with the current construction-linked
 inspection using the same reading and revision tasks. Score correct mutations as
-well as answers: a reader who understands a value but edits a derived display has
+well as answers: a user who understands a value but edits a derived display has
 not recovered its construction. Measure context cost with large data manifests and
 long conversations, including exact thread selection.
 
@@ -231,9 +231,9 @@ The tabs keep their selection locally; source and the event log cannot supply
 that observation. Closed disclosures and responsive visibility make the same
 distinction relevant elsewhere. The complete document reading should remain
 available, while questions about the current screen need browser observation.
-That observation must come from the reader's actual browser state or an explicit
+That observation must come from the user's actual browser state or an explicit
 capture of it: opening another preview can select a different tab and cannot
-establish what the reader sees.
+establish what the user sees.
 Keep the observed element ids, projected-record labels, and `data-lf-origin`
 addresses beside rendered content so that seeing a value also identifies its
 construction. Reuse those existing declarations instead of adding a separate
@@ -256,11 +256,11 @@ active HTML plus the compact state indexes; construction plus HTML; construction
 plus HTML and browser observation. Keep model settings and tool access equal
 apart from the information being compared.
 
-Cover a reader-owned draft overriding source, live versus pinned data, the
+Cover a user-owned draft overriding source, live versus pinned data, the
 shared-source record case, a chart or diagram referent, and locally selected
 versus hidden content. State the expected answer and mutation target before
 running each case. Check factual answers, the chosen edit owner, preservation of
-reader state, and actual context usage. Do not score visual resemblance or the
+user state, and actual context usage. Do not score visual resemblance or the
 number of JSON lines as comprehension.
 
 First classify each failure: missing information, inaccessible information, or

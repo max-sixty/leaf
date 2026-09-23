@@ -1,9 +1,9 @@
 /* This module owns the shared resizable boundary the thread panel and tray panels are
- * drawn by: its width, its keys and handle, and the reader's remembered answer. How the
+ * drawn by: its width, its keys and handle, and the user's remembered answer. How the
  * shell takes a new width is the layout writer's (`land`, chrome-layout.js's landEdge),
  * handed to each edge, so this module stays outside the owner cycle and an edge can be
  * drawn as its owner evaluates. */
-import { readerStore } from "./storage.js";
+import { userStore } from "./storage.js";
 import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
@@ -13,20 +13,20 @@ import { setRuntimeRootStyle } from "./root-state.js";
 const EDGE_STEP = 24;
 let activeResize = null;
 
-/** A region held to one side of the window, and the boundary the reader draws it by.
+/** A region held to one side of the window, and the boundary the user draws it by.
  *
  * The page has two — the thread panel on the right, the tray panel on the left — and
  * they are the same furniture reflected, so this is one function rather than two
  * near-copies. What differs is what it is handed: which side the region is held to, the
- * width it stands at until the reader says otherwise, how narrow they may draw it, the
+ * width it stands at until the user says otherwise, how narrow they may draw it, the
  * property the cascade reads the standing width from, the key their store keeps the choice
  * under, and one noun, which every surface that names the region says in its own sentence.
  * Nothing below differs, which is the point: the second edge cost a call rather than a
  * copy, and a third would too.
  *
- * The width the reader asked for and the width the region stands at are two facts rather
+ * The width the user asked for and the width the region stands at are two facts rather
  * than one. A window too narrow to honour a choice does not un-make it, and widening that
- * window again is not a request to be told what the reader once said — so the choice is
+ * window again is not a request to be told what the user once said — so the choice is
  * kept and the standing width is derived from it. Everything reads `width`; nothing holds
  * the number.
  *
@@ -44,13 +44,13 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
   let chosen = wide;
   // What the window will allow. Beside the page, half of it, which is the bargain the
   // covering query already strikes for the default width — the page keeps at least what
-  // the region takes — asked here of whatever width this reader chose. Over the page the
+  // the region takes — asked here of whatever width this user chose. Over the page the
   // region takes nothing from it, so the only bound there is the window itself.
   const cap = () => document.documentElement.clientWidth / (over.matches ? 1 : 2);
   // The floor gives way to the cap and not the other way about: a window too narrow for
   // the floor is still the window, and a region wider than the one it stands in has put
   // its own controls off the screen. Asked in two places and written once — of a width the
-  // reader is dragging to, so the edge never goes anywhere their hand did not, and of the
+  // user is dragging to, so the edge never goes anywhere their hand did not, and of the
   // width they chose on some other day, whose window is not this one.
   const held = (want) => Math.min(cap(), Math.max(min, want));
   const width = () => held(chosen);
@@ -70,7 +70,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
       handle.setAttribute("aria-valuemax", String(Math.round(cap())));
       // A boundary with no distance to travel is not a control. This happens to the
       // comment sheet at the supported 320px floor: leaving its separator in the tab
-      // order promised a resize no pointer or arrow could make. Transfer a reader who
+      // order promised a resize no pointer or arrow could make. Transfer a user who
       // was standing on it before taking it away — the browser otherwise silently
       // drops focus to body during a rotation that closes the range.
       const fixed = cap() <= min;
@@ -79,17 +79,17 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
       handle.hidden = fixed;
     }
   }
-  // The reader's answer, taken and kept. Held to the window on the way in, because a drag
+  // The user's answer, taken and kept. Held to the window on the way in, because a drag
   // is direct: what they see is what they asked for, and storing a width the window
   // refused would hand it back to them on some later window as a place they never put the
   // edge.
   function set(want) {
     chosen = Math.round(held(want));
-    readerStore.set(key, String(chosen));
+    userStore.set(key, String(chosen));
     land(state);
   }
   /** The region's own edge, said as what it is: a separator between two regions, which is
-   * the platform's word for a boundary the reader moves. That word is worth having for
+   * the platform's word for a boundary the user moves. That word is worth having for
    * what comes with it — the edge carries the width it stands at, so an arrow step is
    * announced by the platform itself, where a press built for the job would have had to say
    * so in words of its own and would have promised an activation an edge has not got.
@@ -110,7 +110,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
     edge.setAttribute("aria-label", `${noun[0].toUpperCase()}${noun.slice(1)} width`);
     edge.setAttribute("aria-valuemin", String(min));
     edge.tabIndex = 0;
-    // Where on the edge the reader took hold, kept for the length of the drag so the
+    // Where on the edge the user took hold, kept for the length of the drag so the
     // boundary stays under the point they grabbed. Without it the region jumps by up to
     // the handle's own width on the first move, which is the page moving under an aim that
     // had just arrived.
@@ -156,7 +156,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
     };
     for (const ending of ["pointerup", "pointercancel", "lostpointercapture"])
       edge.addEventListener(ending, finish);
-    // Arrows, and not a pair of letters, because the reader is standing on the edge
+    // Arrows, and not a pair of letters, because the user is standing on the edge
     // itself — the direction is the whole of what they have left to say. Away from the
     // side the region is held to widens it, which is the same reading the pointer makes of
     // the same gesture.
@@ -194,11 +194,11 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
     state();
     return edge;
   }
-  // The reader's own answer, put back over the default at the foot of the module, where
+  // The user's own answer, put back over the default at the foot of the module, where
   // every other remembered arrangement is restored. Stated whether or not they have chosen
-  // one, since a reader who has said nothing is a reader whose answer is the default.
+  // one, since a user who has said nothing is a user whose answer is the default.
   function restore() {
-    chosen = parseFloat(readerStore.get(key)) || wide;
+    chosen = parseFloat(userStore.get(key)) || wide;
     state();
   }
   return { width, state, restore, handle, key, over };

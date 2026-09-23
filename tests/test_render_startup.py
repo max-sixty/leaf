@@ -124,7 +124,7 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
 <h1 id="h">CSP boundaries</h1>
 <a id="relative" href="relative-target">Relative target</a>
 <form id="escape" action="https://outside.invalid/collect" method="post">
-  <input name="page-state" value="reader decision">
+  <input name="page-state" value="user decision">
   <button type="submit">Send page state</button>
 </form>
 """,
@@ -335,7 +335,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
-        "interaction": "reader",
+        "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
     }
     context = browser.new_context(
@@ -348,7 +348,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         context=context,
     )
     badge = page.locator(".lf-preview")
-    expect(badge).to_have_text("Reader · fb77@26499ea1abcd+")
+    expect(badge).to_have_text("User · fb77@26499ea1abcd+")
     expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
     page.get_by_role("button", name="More page controls", exact=True).click()
@@ -360,7 +360,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     diagnostics = page.evaluate("() => navigator.clipboard.readText()")
     assert "example: triage-board" in diagnostics
     assert "checkout: fb77" in diagnostics
-    assert "interaction: reader" in diagnostics
+    assert "interaction: user" in diagnostics
     assert "commit: 26499ea1abcd" in diagnostics
     assert "dirty: true" in diagnostics
     assert "layer generation:" in diagnostics
@@ -476,7 +476,7 @@ def test_authored_html_paints_while_runtime_startup_is_held(
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     browser, serve, saved, root_attribute, body_attribute, contained
 ):
-    """Returning readers do not watch saved auxiliary chrome move the document."""
+    """Returning users do not watch saved auxiliary chrome move the document."""
     content = "<h1>Restored surface</h1>"
     if contained:
         content = (
@@ -497,8 +497,8 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     priming.evaluate(
         """async saved => {
             const entry = document.querySelector('script[type="module"][src]');
-            const {readerStore} = await import(new URL('runtime/storage.js', entry.src));
-            for (const [key, value] of Object.entries(saved)) readerStore.set(key, value);
+            const {userStore} = await import(new URL('runtime/storage.js', entry.src));
+            for (const [key, value] of Object.entries(saved)) userStore.set(key, value);
         }""",
         saved,
     )
@@ -1015,7 +1015,7 @@ def test_a_pane_retries_refused_admission_before_retaining_its_layout(browser, s
           main.append(pane);
           const body = leaf.readingRegion(pane.id)?.body;
           const nodes = [...pane.querySelectorAll('*')];
-          pane.querySelector('input').value = 'Reader draft';
+          pane.querySelector('input').value = 'User draft';
           pane.remove();
           const retired = !leaf.readingRegion(pane.id);
           main.append(pane);
@@ -1035,7 +1035,7 @@ def test_a_pane_retries_refused_admission_before_retaining_its_layout(browser, s
         "registered": True,
         "retired": True,
         "retained": True,
-        "value": "Reader draft",
+        "value": "User draft",
     }
 
 
@@ -1679,12 +1679,12 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
 
 
-def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
+def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     browser, serve
 ):
-    """Moves and edits retain their reader origin across unrelated revisions.
+    """Moves and edits retain their user origin across unrelated revisions.
     Incorporating that state into source clears the override reading, and the
-    diff stays quiet about the reader's own move."""
+    diff stays quiet about the user's own move."""
     page = open_page(browser, live_url(serve(JOURNEY_V1)))
 
     # A real drag — the pointer path, where the gesture gate and the poll meet.
@@ -1696,7 +1696,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
         dest["x"] + dest["width"] / 2, dest["y"] + dest["height"] / 2, steps=15
     )
     page.mouse.up()
-    expect(page.locator("#card-x[data-lf-reader-override]")).to_have_count(1)
+    expect(page.locator("#card-x[data-lf-user-override]")).to_have_count(1)
 
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
@@ -1705,7 +1705,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
         '[data-lf-margin-entry-owner="draft:draft-ops"]'
         '[data-lf-margin-entry-key="save"]:visible'
     ).click()
-    expect(page.locator("#draft-ops[data-lf-reader-override]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
     # Both actions must be in the log before the next version publishes, and the
     # page is what says so: it sent them, and counts what has come back.
@@ -1714,8 +1714,8 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
 
     _publish(d, 2, JOURNEY_V2, "revise unrelated prose")
     wait_for_revision(page, 2)
-    expect(page.locator("#card-x[data-lf-reader-override]")).to_have_count(1)
-    expect(page.locator("#draft-ops[data-lf-reader-override]")).to_have_count(1)
+    expect(page.locator("#card-x[data-lf-user-override]")).to_have_count(1)
+    expect(page.locator("#draft-ops[data-lf-user-override]")).to_have_count(1)
 
     _publish(
         d,
@@ -1729,7 +1729,7 @@ def test_reader_overrides_identify_state_that_differs_from_authored_inputs(
     page.wait_for_function(
         "() => !document.querySelector('.lf-status-detail').textContent.startsWith('Connecting')"
     )
-    expect(page.locator("[data-lf-reader-override]")).to_have_count(0)
+    expect(page.locator("[data-lf-user-override]")).to_have_count(0)
 
     # The diff's state half is quiet about the honored move: base state is the
     # base markup plus the fold as of it, which already has the card in Done.
@@ -1834,10 +1834,10 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     """The panel reports where the question currently stands, not that it was once
     answered. A second tab can reject a suggestion the first has already accepted —
     the controls are gone in the tab that decided, not in the one that hasn't
-    polled — and the reader who turned the fix down would otherwise find their
+    polled — and the user who turned the fix down would otherwise find their
     question filed away as answered by it, while the suggestion beside it read as
     rejected. Both readings come off the same log; here is where they have to
-    agree in front of the reader.
+    agree in front of the user.
 
     Then the same rule read the other way: `z` takes the reject back, the accept it
     superseded is the widget's answer once more, and the thread closes under it. The
@@ -1882,7 +1882,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
 
-    # Offered here because the log says the reader made the reject; which tab they
+    # Offered here because the log says the user made the reject; which tab they
     # were in is not something the log records, and not something a withdrawal
     # could turn on. The widget goes back to the markup and the surviving log is
     # replayed onto it, so what the press restores is the accept, not a blank slate.
@@ -2068,7 +2068,7 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     assert [p for p in asked if "mermaid" in p] == ["/vendor/agentic-mermaid.esm.js"]
 
 
-def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
+def test_floating_ui_loads_only_when_a_user_opens_a_response(browser, serve):
     """Pages that receive no response do not pay for its positioning engine."""
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
@@ -2231,8 +2231,8 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     options = page.locator(".lf-thread-panel lf-options#store-pick")
-    expect(options).to_be_hidden()
-    page.locator('.lf-thread[data-id="c-store"] .lf-thread-summary').click()
+    # The sole visible thread is expanded as soon as the panel opens.
+    expect(page.locator('.lf-thread[data-id="c-store"]')).to_have_attribute("open", "")
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
@@ -2312,7 +2312,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
 
 
 def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, serve):
-    """Visibility is the reader lease on a live page. A hidden tab closes its standing
+    """Visibility is the user lease on a live page. A hidden tab closes its standing
     request and neither hears a changed reading nor polls for one; becoming visible opens
     one new stream, whose first word catches the page up. The overridden platform reading
     is the lifecycle input Chromium's headless shell cannot otherwise produce — all of
@@ -2332,7 +2332,7 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     )
     # Once the server has observed the closed socket, a forced opportunity to bump
     # presence must leave the sentinel alone: a hidden, still-open tab no longer
-    # counts as reader attention. Reopening the stream below must replace it.
+    # counts as user attention. Reopening the stream below must replace it.
     page.wait_for_timeout(100)
     files_model.write_json(serve.page_dir / "viewed.json", {"t": 1.0})
     serve.httpd.viewed_at = 0
@@ -2435,7 +2435,7 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     )
 
 
-def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, serve):
+def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, serve):
     """Two reads, two deadlines, because they are answerable to different things.
 
     `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
@@ -2449,11 +2449,11 @@ def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, s
     outside every reading a live container takes. The deploy gate gives that container
     120 seconds for each read it makes of it.
 
-    Every read after presentation answers to the reader instead. The banner's one way
+    Every read after presentation answers to the user instead. The banner's one way
     to say the server stopped answering runs through a read that *completed* with
     nothing, and a read still in flight holds the page's one slot, so this bound is the
     whole time a live page can go on showing a reading the server has abandoned. It
-    stays on a reader's timescale rather than the gate's.
+    stays on a user's timescale rather than the gate's.
     """
     record_read_bounds = """
       window.__leafReadBounds = [];
@@ -2481,11 +2481,11 @@ def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, s
 
 
 def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
-    """The reader's page arrives on the runtime's wait, not on the container's answer.
+    """The user's page arrives on the runtime's wait, not on the container's answer.
 
     Presentation is where durable controls, the heartbeat and the news stream open, so a
     container that accepts the connection and says nothing would otherwise decide whether
-    the reader gets a usable page at all — and the read's own bound is set outside what a
+    the user gets a usable page at all — and the read's own bound is set outside what a
     live container takes, which is far past anyone's patience for a page. The wait ends
     without ending the read: the request stays in flight, no second one opens beside it,
     and the answer that lands after the page has presented offline is applied where it
@@ -2639,7 +2639,7 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
     from under an open tab. It is wrong the other way around — a server behind the
     document it served, which is what the website looks like while a release's containers
     are still starting — because the reload lands on the same document and the next answer
-    says the same thing, so the reader watches the page restart for as long as the
+    says the same thing, so the user watches the page restart for as long as the
     disagreement lasts. The source of documents is the one party that can tell the two
     apart, so the page asks it and then holds still: the answers stay refused, the
     authored page stays readable, and the feed keeps asking until the server is back on
@@ -2724,9 +2724,9 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     A section is its title, so two drafts on a page are one heading and a project
     widget declaring under a heading a standard one already uses joins it. That is
     the scope talking rather than the declaration: "On a draft" names where the
-    reader would be standing, and there is one such place however many modules
+    user would be standing, and there is one such place however many modules
     have something to say about it. Sections used to key on their exact rows, so
-    the same heading twice was two headings — and the reader, who has one keyboard
+    the same heading twice was two headings — and the user, who has one keyboard
     and one draft in front of them, got the reference split in half."""
     html = JOURNEY_V1.replace(
         "</main>",
@@ -2888,7 +2888,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             d, {"kind": "comment", "author": "user", "text": "A later update."}
         )
         told(page)
-        # A newer reader input keeps its own pending delivery while the page's fresh
+        # A newer user input keeps its own pending delivery while the page's fresh
         # work declaration continues to describe what the agent is doing overall.
         expect(text).to_have_text(
             re.compile(
@@ -2901,7 +2901,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(summary).to_have_text("Claude working — revising the plan · 1 waiting")
 
         # A transport that can watch the session's own steps reports one, and the agent
-        # says what the work is. The row keeps the sentence written for the reader; the
+        # says what the work is. The row keeps the sentence written for the user; the
         # step stands beside it in the disclosure, proving the session is still moving.
         declare(
             "working",
@@ -2932,7 +2932,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into one. This read "Claude awaits — select text to
-        # comment" once, which invited the reader to start something on a page already
+        # comment" once, which invited the user to start something on a page already
         # mid-answer and dropped the only news it had: the agent had been holding the
         # question for twenty minutes and nothing on the page said so. The words are
         # the ones the branch with no watcher uses for the same silence, minus its
@@ -2978,7 +2978,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
         # A turn that has only just ended still holds it. An agent that ends its turn
         # with work running can be back a minute later, woken by that work's result
-        # or the reader, and with no margin the page would report every such gap as
+        # or the user, and with no margin the page would report every such gap as
         # an abandonment and take it back again.
         declare("working", "revising the plan", quiet_for=60, turn_ended=30)
         expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
@@ -2991,7 +2991,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=60, turn_ended=5 * 60)
         expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
 
-        # What the page wants back, in the agent's words, where the reader arrives.
+        # What the page wants back, in the agent's words, where the user arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
@@ -3011,7 +3011,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
     expect(summary).to_have_text("Claude away · 1 saved")
 
-    # With nobody listening the same ending carries the remedy, because the reader's
+    # With nobody listening the same ending carries the remedy, because the user's
     # next word has nowhere to land until a session picks the page up again.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
@@ -3059,9 +3059,9 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     The poll carries the server's own now, so the offset is measured rather than
     assumed.
 
-    It is the reader's clock that moves here, because that is the one of the two a page
+    It is the user's clock that moves here, because that is the one of the two a page
     has to survive: the server writes the timestamps it later reads back and cannot
-    disagree with itself, while the reader's machine is not the page's to correct."""
+    disagree with itself, while the user's machine is not the page's to correct."""
     page = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
     text = page.locator(".lf-status-detail")
@@ -3083,7 +3083,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     # An hour fast. A fixed time rather than an installed clock, so the page's own
     # polling keeps running and the next reading is a real one.
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=1))
-    # New words, so the line under test can only be one this reader painted after the
+    # New words, so the line under test can only be one this user painted after the
     # clock moved: an unchanged sentence would pass on the render before it.
     claim("waiting on the shard")
     expect(text).to_have_text(
@@ -3096,9 +3096,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
     """The banner says what the agent is doing; an exact message workflow says
-    which reader question it is doing it about. A status claim updates both readings.
+    which user question it is doing it about. A status claim updates both readings.
 
-    A reader with three questions open and no replies under any of them cannot tell a
+    A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
     answer: the agent said so. What the log holds is what happened, so this is not in
     it — a sentence somebody rewrites every few minutes is a claim, painted as
@@ -3142,7 +3142,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         },
     )
     # Durable delivery into the open turn advances the exact same row in place and
-    # does not disturb another reader move.
+    # does not disturb another user move.
     with service_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [comments[0]])
     told(page)
@@ -3283,7 +3283,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
-    # A conversation the reader has closed asks nothing and shows nothing, for the same
+    # A conversation the user has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
     events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
@@ -3651,7 +3651,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
 
 
 def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
-    """The judgment's third seat, and the only one a reader with six leaves open in a
+    """The judgment's third seat, and the only one a user with six leaves open in a
     row of tabs can see without opening any. The mark is the vendored icon.svg and the
     runtime paints the element it declares in whatever colour the dot is wearing, so the
     tab and the banner are one fact read twice: a palette written out again for the tab
@@ -3687,15 +3687,15 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     with live_watcher(d, page):
         awaits = tone("listening", "awaits")
     # The distinctness is the half agreement alone can't prove: a tab painted once and
-    # never again agrees with a dot that never moved either, and the two states a reader
+    # never again agrees with a dot that never moved either, and the two states a user
     # is choosing between — this page wants me, that one is busy — are exactly the pair
     # that would collapse.
     assert awaits != working, (
-        f"a page awaiting its reader wears the same tab as one that is working ({awaits})"
+        f"a page awaiting its user wears the same tab as one that is working ({awaits})"
     )
 
     # The claimant is gone, so nothing is behind the page: grey in the banner, and grey
-    # in the tab, which is the whole of what the reader can see of it from a tab strip.
+    # in the tab, which is the whole of what the user can see of it from a tab strip.
     record_claim(d, id="s", pid=dead_pid)
     unheld = tone("", "unheld")
     assert unheld not in (
@@ -3726,7 +3726,7 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     assert drawn > 0, "the tab's mark is not an image the browser can decode"
 
 
-def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
+def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     browser, serve
 ):
     """Runtime-supplied words are readable but are not authored prose.
@@ -3999,7 +3999,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")  # out of the box, onto the list
     page.keyboard.press("Escape")  # and out of the panel that holds it
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    # A retired thread lands on the surface the reader's own gesture reaches. With the
+    # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so the margin's
     # thread margin entry and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such destination and the panel answers.

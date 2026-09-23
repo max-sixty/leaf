@@ -1,6 +1,6 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that coordinates one JSON-safe working configuration, one operable preview, one displayed instruction, and one final `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Built-in controls contribute scalar fields; a page module registers structured contributors through `registerContributor(name, defaultSnapshot, {read, apply})` and calls the returned notifier after its gestures. One optional `registerInstructionProvider(values => text)` derives the displayed instruction. Restore, reset, copy, projection, change events, and submission all use the same aggregate values. The page's complete lf-playground declaration gives task-specific values their exact action schema.",
+    "description": "A reusable interactive playground that coordinates one JSON-safe working configuration, one operable preview, one displayed instruction, and one final `choose` action. Put it inside lf-ask when the configuration is a question for the user. Direct children are controls, presets, one preview, and one output. Built-in controls contribute scalar fields; a page module registers structured contributors through `registerContributor(name, defaultSnapshot, {read, apply})` and calls the returned notifier after its gestures. One optional `registerInstructionProvider(values => text)` derives the displayed instruction. Restore, reset, copy, projection, change events, and submission all use the same aggregate values. The page's complete lf-playground declaration gives task-specific values their exact action schema.",
     "type": "object",
     "properties": {
       "id": {
@@ -18,9 +18,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-guidance": {
-      "author": "Use controls for scalar parameters and register a named contributor when a page module owns structured state. The module's read and apply operations join that state to the playground's reset, restore, projection, copy, and submit path; call the returned notifier after every custom gesture. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its captured assets from the page's origin. Use authored value slots for scalar output or one instruction provider for derived prose. The page's complete lf-playground declaration must give the aggregate values an exact task schema."
-    },
     "x-upgrade": true,
     "x-awaits": {
       "region": true,
@@ -112,7 +109,7 @@
     "x-upgrade": false
   },
   "lf-playground-choice": {
-    "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the reader.",
+    "description": "One labeled value in a choice control. The value is stored and reflected; the label is the control text shown to the user.",
     "type": "object",
     "properties": {
       "value": {
@@ -164,7 +161,7 @@
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The real, operable artifact a playground previews. An A/B comparison keeps both candidates here and drives them from one shared input state. Page CSS may bind reflected values from the enclosing lf-playground. An inline page module may consume the playground's public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
+    "description": "The real, operable artifact a playground previews. An A/B comparison mounts both candidates here; `leaf page guidance <page> author` says how one state drives them. Page CSS may bind reflected values from the enclosing lf-playground. An inline page module may consume the playground's public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
     "type": "object",
     "properties": {
       "id": {

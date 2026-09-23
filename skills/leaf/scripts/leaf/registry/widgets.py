@@ -5,10 +5,9 @@ import re
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ATTRIBUTE_KEYS, DATA_SOURCE_NAME, WIDGET_NAME
+from leaf.schema import ATTRIBUTE_KEYS, DATA_SOURCE_NAME, EXTENSION_SCHEMA, WIDGET_NAME
 
 from .contract import (
-    EXTENSION_READER,
     RegistryError,
     declares_string,
     json_validator,
@@ -61,7 +60,9 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
         extensions = {
             key: value for key, value in entry.items() if key.startswith("x-")
         }
-        errors = sorted(EXTENSION_READER.iter_errors(extensions), key=str)
+        errors = sorted(
+            json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
+        )
         if errors:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
@@ -503,7 +504,7 @@ def _validate_widget_predicates(
     if request.get("region") and request.get("ask") is not True:
         raise RegistryError(
             f"{path}: <{tag}> x-request.region requires ask: true — a region "
-            "owns the title of a request that joins the reader's Ask projection"
+            "owns the title of a request that joins the user's Ask projection"
         )
     if request.get("ask") is True and entry.get("x-awaits") is not None:
         raise RegistryError(

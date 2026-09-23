@@ -79,6 +79,7 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
+from leaf.served_state import browser as browser_served_model
 from leaf.served_state import page as served_page
 from page_fixtures import package_selection_args
 from websockets.exceptions import ConnectionClosedError, WebSocketException
@@ -289,7 +290,7 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
         cli_model.cli, ["delivery", "claim", first_delivery["id"]]
     )
     assert stale.exit_code == 0, stale.output
-    assert "no outstanding reader move" in stale.output
+    assert "no outstanding user move" in stale.output
     assert files_model.read_json(page_dir / "status.json") == status
 
     second_delivery = freeze_events(page_dir, [second])
@@ -333,7 +334,7 @@ def test_delivery_claim_refuses_an_event_outside_the_delivery(page_dir):
     assert "is not in delivery" in result.output
 
 
-def test_consecutive_reader_inputs_share_one_exact_response_obligation(page_dir):
+def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
     """Each input keeps progress while the newest address owns batch settlement."""
     first = events_model.append_event(
         page_dir,
@@ -380,7 +381,7 @@ def test_consecutive_reader_inputs_share_one_exact_response_obligation(page_dir)
     assert page_state(page_dir)["workflows"] == []
 
 
-def test_terminal_host_failure_keeps_exact_reader_recovery_without_stop_obligation(
+def test_terminal_host_failure_keeps_exact_user_recovery_without_stop_obligation(
     page_dir,
 ):
     publish(page_dir)
@@ -409,7 +410,7 @@ def test_terminal_host_failure_keeps_exact_reader_recovery_without_stop_obligati
         source["id"],
         "answered",
         None,
-        "reader",
+        "user",
         {"kind": "failed", "operation": "response"},
     )
     assert workflow["activity"] == [
@@ -422,18 +423,18 @@ def test_terminal_host_failure_keeps_exact_reader_recovery_without_stop_obligati
         }
     ]
     assert state["activity"]["obligations"] == []
-    # The move is the reader's to resend, so the banner counts nothing as saved for
+    # The move is the user's to resend, so the banner counts nothing as saved for
     # the agent to pick up.
     assert set(state["activity"]["counts"].values()) == {0}
     [thread] = state["browser"]["conversation"]["threads"]
     assert thread["attention"] == {
-        "kind": "needs_reader",
+        "kind": "needs_user",
         "reason": "recovery",
         "workflow": source["id"],
     }
 
 
-def test_reader_resend_clears_terminal_failure_recovery(page_dir):
+def test_user_resend_clears_terminal_failure_recovery(page_dir):
     publish(page_dir)
     first = events_model.append_event(
         page_dir,
@@ -551,7 +552,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_a_standing_reader_ask(page_dir):
+def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
     publish(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -582,9 +583,9 @@ def test_unrelated_agent_update_does_not_clear_a_standing_reader_ask(page_dir):
     )
 
     [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
-    assert thread["awaits_reader"] is True
+    assert thread["awaits_user"] is True
     assert thread["attention"] == {
-        "kind": "needs_reader",
+        "kind": "needs_user",
         "reason": "ask",
         "workflow": None,
     }
@@ -596,7 +597,7 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
         page_dir, "", "", "", "Is forty enough?", None
     )
     [before] = page_state(page_dir)["browser"]["conversation"]["threads"]
-    assert before["awaits_reader"] is True
+    assert before["awaits_user"] is True
 
     events_model.append_event(
         page_dir,
@@ -609,7 +610,7 @@ def test_settling_reaction_closes_an_agent_root_ask(page_dir):
     )
 
     [after] = page_state(page_dir)["browser"]["conversation"]["threads"]
-    assert after["awaits_reader"] is False
+    assert after["awaits_user"] is False
     assert after["attention"] is None
 
 
@@ -676,6 +677,205 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         "reason": "workflow",
         "workflow": answered["id"],
     }
+
+    # A host that gives up answers the move with a failure reply, which hands it
+    # back to the user rather than settling it.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "responds": answered["id"],
+            "failure": "turn_failed",
+            "text": "No answer is coming.",
+        },
+    )
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["next_actor"], workflow["condition"]) == (
+        answered["id"],
+        "user",
+        {"kind": "failed", "operation": "response"},
+    )
+    assert state["activity"]["obligations"] == []
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert thread["attention"] == {
+        "kind": "needs_user",
+        "reason": "recovery",
+        "workflow": answered["id"],
+    }
+
+
+def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
+    page_dir,
+):
+    """A card moved on a board sent in a reply is a page move in another document:
+    it keeps its delivery receipt, owes the agent nothing, and leaves the thread
+    nobody's turn. A claim makes it Working, and the agent's next turn in the
+    thread takes it in."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
+    registry = json.loads((page_dir / "registry.json").read_text())
+    asked = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Lay the feeder work out on a board.",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "text": "Here is the board.",
+            "markup": registry["lf-board"]["x-example"],
+        },
+    )
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        },
+    )
+
+    def reading():
+        state = page_state(page_dir)
+        [thread] = state["browser"]["conversation"]["threads"]
+        return state, thread["attention"]
+
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
+        moved["id"],
+        {"kind": "widget", "id": "feeder-board"},
+        "sent",
+    )
+    assert workflow["answer"] is None
+    assert state["activity"]["obligations"] == []
+    assert attention is None
+
+    delivery = freeze_events(page_dir, [moved])
+    [event] = delivery["batches"][0]["events"]
+    assert "obligation" not in event
+    claimed = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
+    assert claimed.exit_code == 0, claimed.output
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert workflow["stage"] == "working"
+    assert attention == {
+        "kind": "waiting",
+        "reason": "workflow",
+        "workflow": moved["id"],
+    }
+
+    # A mark is no turn; the agent's next spoken turn takes the move in.
+    events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": asked["id"], "token": "keep"},
+    )
+    state, attention = reading()
+    assert [item["input"] for item in state["workflows"]] == [moved["id"]]
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "initiates": True,
+            "text": "Baffle is in progress now.",
+        },
+    )
+    state, attention = reading()
+    assert state["workflows"] == []
+    assert attention is None
+
+    # Resolution closes the conversation without taking in a move made after it.
+    conversation_model.cmd_resolve(page_dir, asked["id"])
+    later = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+        },
+    )
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["answer"]) == (
+        later["id"],
+        "sent",
+        None,
+    )
+    assert attention is None
+
+
+def test_thread_attention_names_the_workflow_the_thread_waits_on():
+    """A thread's status reads the workflows that keep it the agent's turn. An input
+    a newer one covers still does, so its pickup or a reply streaming to it keeps
+    reading on the thread; a frozen move that owes nothing does not, so its further
+    stage never stands in for the owed reply's."""
+
+    def workflow(id, seq, subject, stage, answer=None):
+        return {
+            "id": id,
+            "seq": seq,
+            "subject": subject,
+            "stage": stage,
+            "answer": answer,
+            "condition": None,
+            "next_actor": "agent",
+        }
+
+    thread = {"id": "root", "kind": "conversation"}
+    board = {"kind": "widget", "id": "board"}
+    owed = {"kind": "reply", "to": "newer", "for": "newer"}
+    cases = [
+        (
+            [
+                workflow("older", 1, thread, "replying"),
+                workflow("newer", 2, thread, "sent", owed),
+            ],
+            "older",
+        ),
+        (
+            [
+                workflow("older", 1, thread, "picked_up"),
+                workflow("newer", 2, thread, "sent", owed),
+            ],
+            "older",
+        ),
+        (
+            [
+                workflow("newer", 1, thread, "sent", owed),
+                workflow("card-move", 2, board, "picked_up"),
+            ],
+            "newer",
+        ),
+    ]
+    for workflows, expected in cases:
+        threads = [{"root": {"id": "root"}, "resolved": None, "awaits_user": False}]
+        browser_served_model._apply_thread_attention(
+            threads, {"user": []}, workflows, {"board": "root"}
+        )
+        assert threads[0]["attention"] == {
+            "kind": "waiting",
+            "reason": "workflow",
+            "workflow": expected,
+        }
 
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
@@ -1185,7 +1385,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     page_dir, capsys, monkeypatch
 ):
     """`leaf status --on` writes one claim at two seats: the page's banner, which
-    reads it, and a receipt on the thread the work is about, which the reader sees
+    reads it, and a receipt on the thread the work is about, which the user sees
     under their own words. One command writes both because they are one sentence, and
     their shared timestamp means a write after a turn has ended renews both together.
 
@@ -1258,7 +1458,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert waiting["work"][0]["detail"] == "reading the traces"
 
     # Nor does a pickup replace the claim: it is a durable transport fact about the
-    # exact reader events and leaves the page-wide status alone.
+    # exact user events and leaves the page-wide status alone.
     serving(page_dir, 1)
     events_model.append_event(
         page_dir,
@@ -1765,7 +1965,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
 
     The observed step proves the session is alive and moving, which is what makes a page
     working over a declaration that says otherwise. What the work *is* is the agent's to
-    say, and a reader waiting on an answer is owed that sentence rather than whichever
+    say, and a user waiting on an answer is owed that sentence rather than whichever
     command the transport saw most recently. So a current declaration keeps the sentence
     and its own date, and the step is reported beside it."""
     serving(claimed, 1)
@@ -1813,7 +2013,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     )
     session_model.cmd_status(claimed, "waiting", "which store should own it")
 
-    # A newer reader move has its own pending delivery; it does not reclassify current
+    # A newer user move has its own pending delivery; it does not reclassify current
     # page work or imply that the observed tool step belongs to that message.
     events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
@@ -1838,7 +2038,7 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     """`delivery claim` writes a sentence so a taken-up move says so at once.
 
     It is Leaf's wording rather than the agent's, and a transport watching the session's
-    real steps knows more than it does, so the step is the one the reader gets. An
+    real steps knows more than it does, so the step is the one the user gets. An
     agent's own sentence, the same command's `--detail`, outranks both."""
     serving(claimed, 1)
     claim = service_model.page_claim(claimed)
@@ -1866,11 +2066,11 @@ def test_leaf_wording_for_a_claim_gives_way_to_a_watched_step(claimed):
     )
 
     session_model.cmd_delivery_claim(
-        delivery["id"], detail="Rewriting the heading the reader asked about"
+        delivery["id"], detail="Rewriting the heading the user asked about"
     )
     stated = page_state(claimed)["activity"]
     assert (stated["detail"], stated["observed"]) == (
-        "Rewriting the heading the reader asked about",
+        "Rewriting the heading the user asked about",
         "Editing index.html",
     )
     lease.close()
@@ -2867,7 +3067,7 @@ def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
     `recv` reports every idle second the same way, so the reading that tells the two
     apart is how long the silence has run against the bound its carrier gave. The
     website gives one because nobody is at that task and a turn nothing will finish
-    holds a reader on a page that says the agent is working. The adapter gives none:
+    holds a user on a page that says the agent is working. The adapter gives none:
     its task is a terminal someone is sitting at, and a turn waiting on an approval
     is silent for exactly as long as they take to answer it.
     """
@@ -3498,9 +3698,9 @@ def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(page_dir, app_ser
 def test_a_refused_turn_gives_up_the_seat_it_reserved(page_dir, app_server):
     """A provider that refuses before executing has started nothing.
 
-    The reserved seat is what stops any other writer answering the reader while the
+    The reserved seat is what stops any other writer answering the user while the
     provider is about to. A start that certainly did not happen gives it up, because
-    until it does the reader has neither an answer nor anything able to say one is
+    until it does the user has neither an answer nor anything able to say one is
     not coming.
     """
     prepared = _codex_delivery(page_dir)
@@ -3558,7 +3758,7 @@ def test_a_turn_this_process_carries_is_not_adopted_by_its_observer(page_dir):
     Two connections may resume one thread and both then receive everything it says,
     so a turn a follower started is announced to the observer too. Adopting it there
     would bind a second reply stream to one delivery, and two writers would answer
-    the reader once each. The observer holds the delivery from before the turn
+    the user once each. The observer holds the delivery from before the turn
     exists, because the turn's own `turn/started` can arrive before the response
     naming it does.
     """
@@ -3607,7 +3807,7 @@ def test_a_connection_that_drops_ends_the_turn_it_was_carrying(page_dir):
     The connection the turn was started on is the only one carrying what that turn
     says, so a follower that loses it will never see the turn finish. It closes the
     turn on the page and gives up the reply seat, which is what lets anything else
-    answer the reader.
+    answer the user.
     """
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
@@ -3682,7 +3882,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_turn(page_dir, monkeypa
     state and releasing the binding open a page transaction of their own, and the
     turn's own work may have left that page unopenable. The turn has ended either
     way, and until its Leaf turn closes and its activity reading comes off, the
-    page tells its reader the agent is still working until the claim's
+    page tells its user the agent is still working until the claim's
     fifteen-minute grace runs out.
     """
     prepared = _codex_delivery(page_dir)
@@ -3720,7 +3920,7 @@ def test_an_observed_turn_whose_reply_cannot_be_written_still_closes(
     picked up, or a delivery whose carrier died mid-turn — so its ending is the only
     one that turn gets. The reply write can fault on the page the turn left behind,
     and the turn is over either way: the page stops reading working, and the seat
-    goes back for whatever writer tells the reader what happened.
+    goes back for whatever writer tells the user what happened.
     """
     prepared = _codex_delivery(page_dir)
     payload = prepared.payload
@@ -3783,7 +3983,7 @@ def test_a_task_that_will_never_take_a_turn_is_reported_rather_than_waited_on(
 ):
     """`systemError` is not a state a task comes out of by being left alone.
 
-    Holding the delivery for an idle task that never arrives leaves the reader's
+    Holding the delivery for an idle task that never arrives leaves the user's
     move picked up, unanswered, and unexplained for the adapter's life. Raising
     puts it in the log and on the delivery loop's retry ladder, where every other
     failure this carrier cannot fix by itself already is.
@@ -4211,7 +4411,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     advanced = stamp(page_dir, "Checked the surrounding plan")
     assert advanced.exit_code == 0, advanced.output
 
-    # The reader still has r1 open after r2 became active. That move is new work,
+    # The user still has r1 open after r2 became active. That move is new work,
     # not something the earlier r2 note could already have answered.
     answer = append_command(
         page_dir,
@@ -4381,11 +4581,14 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         if c.get("when") == {"required": ["drawing"]}
     ]
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
-    # A drawn comment is told how to read its drawing, then all a plain one is told.
-    # The comment's own clauses, then how to write the reply it owes.
+    # A message is told to acknowledge before anything else, then its own clauses,
+    # then how to write the reply it owes.
+    assert plain[0].startswith("Acknowledge this delivery before anything else")
     assert plain[-len(replying) :] == replying
-    assert drawn == [reading_a_drawing, *plain]
-    # A thread the reader closed before capture owes nothing, so it is told nothing
+    # A drawn comment is told everything a plain one is, and how to read its drawing.
+    assert reading_a_drawing in drawn
+    assert [clause for clause in drawn if clause != reading_a_drawing] == plain
+    # A thread the user closed before capture owes nothing, so it is told nothing
     # about answering.
     assert not set(replying) & set(closed)
     assert resolved == [declared["handling"]["resolve"][0]["text"]]
@@ -4591,9 +4794,9 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
     )
 
     # A worker's report wakes the watcher like a user event — it is the
-    # orchestrator's to fold into a version — but the reader's banner count
+    # orchestrator's to fold into a version — but the user's banner count
     # deliberately leaves it out: a report is news the agent owes the page, not
-    # something the reader owes an answer.
+    # something the user owes an answer.
     events_model.append_event(
         page_dir,
         {
@@ -5131,7 +5334,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     blocked = json.loads(capsys.readouterr().out)
     assert blocked["decision"] == "block"
-    assert "1 acknowledged reader move with no answer" in blocked["reason"]
+    assert "1 acknowledged user move with no answer" in blocked["reason"]
     assert answered["id"] in blocked["reason"]
 
     events_model.append_event(
@@ -5235,7 +5438,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     assert new_thread["title"] is None
     assert new_thread["messages"] == []
 
-    # The reader closing a thread from the panel posts a resolve, whose only
+    # The user closing a thread from the panel posts a resolve, whose only
     # pointer at the conversation is the message it names.
     receive_through(page_dir, last_deliverable_seq(page_dir))
     events_model.append_event(
@@ -5314,7 +5517,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     # out because it only encloses the option chosen in it.
     assert shown[0]["says"] == {"m-cap": "Cap retries"}
 
-    # Standing, so a later delivery in this thread carries what the reader
+    # Standing, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it
     # and replies reopening a list they have already ticked.
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -5348,13 +5551,13 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     assert withdrawn["actions"] == []
 
 
-def test_a_delivered_gesture_says_what_the_reader_chose_on_their_version(
+def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     page_dir, capsys
 ):
     """A page gesture is recorded as ids, and the agent reading the batch may
     hold none of the page: it compacted, or another session wrote it. The
     envelope spells out the elements the gesture names, from the revision the
-    reader pressed on, so a later version that rewords an option does not
+    user pressed on, so a later version that rewords an option does not
     change what they chose. A gesture naming only its widget says the whole
     widget, and an undo says what it takes back."""
     asked = PAGE.replace(
@@ -5796,11 +5999,11 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     agrees.
 
     Told otherwise the two disagree silently, and in the worst direction: the
-    reader watches their question reopen while the agent is told, in the same
+    user watches their question reopen while the agent is told, in the same
     breath as their follow-up, that they had already answered it.
 
     The floor lands on the option rather than the group. Before a new reply,
-    only a rewritten answer reopens the thread; the reader's subsequent question
+    only a rewritten answer reopens the thread; the user's subsequent question
     resumes either conversation, and delivery agrees with page state."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
     let_a_pick_settle_a_thread(page_dir)
@@ -6773,7 +6976,7 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
     """Idling is how a leaf ends, and it has to reach the watcher: a wait that
     held on past it left a long-running command open for a page nobody was going
     to press. The server is not
-    the watcher's to end — a reader is free to stay on a page the agent has
+    the watcher's to end — a user is free to stay on a page the agent has
     finished with — so it is left exactly as it stands."""
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "idle", "the page is done")
@@ -6880,7 +7083,7 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     page_dir, capsys
 ):
     """The batch outranks the page's state: an idled leaf can still hold a
-    comment the reader got in before the end, and a wait that exited on the
+    comment the user got in before the end, and a wait that exited on the
     idle instead would strand it unread until a hook complained."""
     serving(page_dir, 1)
     events_model.append_event(
@@ -7304,7 +7507,7 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
     page = codex_claimed_page
     comment = events_model.append_event(
         page,
-        {"kind": "comment", "id": "reader-message", "author": "user", "text": "hi"},
+        {"kind": "comment", "id": "user-message", "author": "user", "text": "hi"},
     )
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
@@ -7407,7 +7610,7 @@ def test_a_delivery_already_being_carried_holds_back_the_next_one(
 ):
     """One turn at a time, and the loop keeps watching pages while it runs.
 
-    A reader who comments again during a turn is collected into a record of their
+    A user who comments again during a turn is collected into a record of their
     own, which waits for the task rather than steering into the answer already
     being written. Holding back is not work done, so the delivery loop falls
     through to its page read instead of spinning on the delivery it cannot offer.
@@ -7454,7 +7657,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     page = codex_claimed_page
     comment = events_model.append_event(
         page,
-        {"kind": "comment", "id": "reader-message", "author": "user", "text": "hi"},
+        {"kind": "comment", "id": "user-message", "author": "user", "text": "hi"},
     )
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
@@ -7784,6 +7987,69 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
     )
 
 
+def test_a_later_codex_start_names_the_running_transport(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """A later start joins the running adapter and names its transport, which is how
+    the host contracts tell the queue from App Server; one asking for an App Server
+    this adapter is not on is refused rather than ignored."""
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    environment = codex_env | {
+        "CODEX_THREAD_ID": "codex-thread",
+        "FAKE_CODEX_LOG": str(log),
+        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
+    }
+
+    def start(*arguments):
+        started = under_codex(
+            shlex.join(
+                [
+                    *LEAF_COMMAND,
+                    "codex",
+                    "start",
+                    str(page),
+                    "--codex-path",
+                    os.path.relpath(program),
+                    *arguments,
+                ]
+            ),
+            environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, err = started.communicate(timeout=60)
+        return started.returncode, out.strip(), err
+
+    try:
+        assert start()[:2] == (0, "Codex delivery started for task codex-thread")
+        # Each start claims the page for its own short-lived Codex, as the delivery
+        # test below explains; keep the claim alive so the adapter stays up. The
+        # refused start restores this claim, and the joining one comes last.
+        claim = service_model.page_claim(page)
+        files_model.write_json(
+            service_model.claim_path(page), {**claim, "pid": os.getpid()}
+        )
+        status, _, err = start("--app-server", "unix:///tmp/elsewhere.sock")
+        assert status != 0
+        assert "not through App Server unix:///tmp/elsewhere.sock" in err
+        assert start()[:2] == (
+            0,
+            "Codex delivery is already active for task codex-thread",
+        )
+    finally:
+        session_model.cmd_status(page, "idle", "")
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the Codex adapter stayed live after releasing its page",
+    )
+
+
 @pytest.mark.parametrize(
     "delivery_fault",
     [None, "retry"],
@@ -7873,7 +8139,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         ] == ["picked_up"]
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
         reason = json.loads(capsys.readouterr().out)["reason"]
-        assert "1 acknowledged reader move with no answer" in reason
+        assert "1 acknowledged user move with no answer" in reason
 
         for text in ("second click", "third click"):
             events_model.append_event(
@@ -9073,7 +9339,7 @@ def test_receiving_a_batch_opens_the_turn_on_every_page_the_session_holds(
     across every page the session holds, so the delivery that answers it has to reach
     the same set: a session holding two leaves would otherwise leave the sibling
     stamped through a turn that is demonstrably running, and two minutes later that
-    leaf tells its own reader the agent left when its turn ended.
+    leaf tells its own user the agent left when its turn ended.
 
     The sibling here never speaks — the batch is the other page's, and the wait ends
     on the first page that delivers. That is exactly the page whose stamp nothing else
@@ -9128,8 +9394,8 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     claimed, tmp_path, capsys
 ):
     """A delivery is not the only observable opening, and it is not the one the
-    banner sends the reader to. The `quiet` banner says to nudge in the terminal;
-    a reader who does that answers where no batch is written, so no carrier ever
+    banner sends the user to. The `quiet` banner says to nudge in the terminal;
+    a user who does that answers where no batch is written, so no carrier ever
     hands one over and nothing would clear the stamp — the page would go on telling
     them to do the thing they just did.
 
@@ -9219,7 +9485,7 @@ def test_a_named_wait_claim_opens_the_turn_without_receiving_its_output(
 
 
 def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
-    """Every ts a seat dates is written here, while the reader's `Date.now()` is
+    """Every ts a seat dates is written here, while the user's `Date.now()` is
     another machine's opinion. The payload states the writer's clock so the reading is
     made against that one; without it a skewed laptop misreads every age on the page,
     in one direction and with nothing to give it away."""
@@ -9300,7 +9566,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     assert str(claimed) in reason and str(second) in reason
     assert reason.count("you haven't picked up") == 2
     assert reason.count(schema_model.ACK_BATCH_INSTRUCTION) == 1
-    # The lines stand together, so the reader reaches every page before the
+    # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
     assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
     snapshot.check(
@@ -9320,12 +9586,12 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     )
 
 
-def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys):
+def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     """A developer preview is a page put up to be looked at, not handed over.
 
     A session inspecting a dozen slots was carrying a dozen copies of the same
-    "no watcher" line into every turn, none of which named anything a reader was
-    waiting on. What must survive the exemption is the reader: a comment left on
+    "no watcher" line into every turn, none of which named anything a user was
+    waiting on. What must survive the exemption is the user: a comment left on
     a preview is as unanswered as one left anywhere else, and the clause that
     reports it runs above this one.
     """
@@ -9339,16 +9605,16 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys)
             "kind": "example",
             "example": "triage-board",
             "checkout": "leaf",
-            "interaction": "reader",
+            "interaction": "user",
             "started": "2026-09-01T10:00:00+00:00",
         },
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # Presence is the whole reading. The serve path's reader raises on a preview
+    # Presence is the whole reading. The serve path's user raises on a preview
     # file it cannot parse, and this guard fails open by saying nothing, so a
-    # reader here would take every page the session holds down without a word.
+    # user here would take every page the session holds down without a word.
     (claimed / schema_model.PREVIEW_FILE).write_text("{not json", encoding="utf-8")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -9468,7 +9734,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     watcher will raise that comment again and every other gate reads the page as
     clean. The failure, from a live channel session: a comment arrived while the
     agent was mid-turn on something else, the agent acknowledged it, answered
-    the person in the terminal instead of on the page, and the reader was left
+    the person in the terminal instead of on the page, and the user was left
     with a question that nothing would ever deliver again."""
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, which is the whole of what clears the guard's other case and
@@ -9486,7 +9752,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert answer["decision"] == "block"
-    assert "1 acknowledged reader move with no answer" in answer["reason"]
+    assert "1 acknowledged user move with no answer" in answer["reason"]
     assert asked["id"] in answer["reason"]
     assert service_model.page_claim(claimed)["turn_closed"] is None
     # An id is all this can name, to a session that may no longer hold a word of
@@ -9495,7 +9761,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
 
     # A reply clears it, and the thread stays open behind it: closing one is the
-    # reader's to do, so an open thread is not an unanswered one.
+    # user's to do, so an open thread is not an unanswered one.
     conversation_model.cmd_reply(
         claimed,
         asked["id"],
@@ -9506,14 +9772,14 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # The reader's follow-up puts the decision back, and this is the case that picks
-    # the reading. The browser posts a follow-up as a reply of the reader's own,
+    # The user's follow-up puts the decision back, and this is the case that picks
+    # the reading. The browser posts a follow-up as a reply of the user's own,
     # so a gate asking whether anyone but them has *ever* spoken is answered
     # "yes" by the reply above and never fires for this thread again — the drop
     # this test is named for, one level down and just as permanent. Reading the
     # last word costs a thread that wants no answer one `leaf resolve`, which is
     # a question the agent is holding the context to settle; the other reading
-    # costs the reader their question, which nobody sees at all.
+    # costs the user their question, which nobody sees at all.
     follow = events_model.append_event(
         claimed,
         {
@@ -9544,7 +9810,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert capsys.readouterr().out == ""
 
     # Closing the thread is the other way to answer for one, for the cases where
-    # waiting on the reader says nothing.
+    # waiting on the user says nothing.
     moot = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "and C?"}
     )
@@ -9556,7 +9822,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # The agent's own decision holds nothing while the reader has yet to answer it:
+    # The agent's own decision holds nothing while the user has yet to answer it:
     # the last word there is the agent's. When they answer in the thread — which
     # is where the panel's reply box puts it — the decision is the agent's again, and
     # it is the last word rather than any reading of the root that says so.
@@ -9585,7 +9851,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     lease.close()
 
 
-def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns_it(
+def test_a_clarification_thread_carries_a_version_response_while_the_user_owns_it(
     claimed, capsys
 ):
     version = claimed / "index.html"
@@ -9661,7 +9927,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
 def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
     """A page directory holds the copy of the layer it was created with, and the
     stamp refuses a copy the current layer has outgrown — by design, since that
-    refusal is what sends an agent to re-vendor. The Stop hook is the one reader
+    refusal is what sends an agent to re-vendor. The Stop hook is the one user
     that must never put the question: `loop-guard.py` fails open, so a raise
     here stands the *whole* guard down, watch clause included, on any page a
     little older than the checkout, and says nothing about it. Found by running
@@ -9716,14 +9982,14 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     lease.close()
 
 
-def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
+def test_a_user_move_no_carrier_will_pick_up_messages_its_claude_code_session(
     server, page_dir, tmp_path, monkeypatch, socket_dir, snapshot
 ):
-    """A running turn's Stop hook refuses to end with a reader move unpicked, and a
+    """A running turn's Stop hook refuses to end with a user move unpicked, and a
     live `leaf wait` delivers one, so the move nobody picks up arrives at a Claude
     Code claim whose turn has closed with no wait lease held — a watcher that died
     after the turn ended. The server then messages that session's socket, found
-    by session id in Claude Code's session registry, once per closed turn: a reader
+    by session id in Claude Code's session registry, once per closed turn: a user
     ticking three boxes must not queue three turns or three approvals, and input
     left unacknowledged when the Stop hook failed open must not silence the next
     closed turn.
@@ -9801,7 +10067,7 @@ def test_a_reader_move_no_carrier_will_pick_up_messages_its_claude_code_session(
         assert str(page_dir.resolve()) in user["message"]["content"]
         snapshot.check(
             yaml_document(
-                "A real reader POST reaches the Claude Code socket after its watcher died.\n"
+                "A real user POST reaches the Claude Code socket after its watcher died.\n"
                 "This is the complete user frame, without the separate authentication frame.",
                 _interaction_prompt_evidence(page_dir, {"socket user frame": user}),
             )
@@ -9881,7 +10147,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     which leaves its page unclaimed and every other page working."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s8")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    # The walk is in path order, so a name ahead of the reader's page is what
+    # The walk is in path order, so a name ahead of the user's page is what
     # puts the unreadable record in front of the batch the session came for.
     stale = tmp_path / "held-preview"
     assert (
@@ -9900,7 +10166,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     files_model.write_json(service_model.claim_path(stale), written_before_811)
 
     # The reported failure: the watcher walks every page the session holds, and
-    # the record it cannot read belongs to a page the reader is not on.
+    # the record it cannot read belongs to a page the user is not on.
     delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert delivered.exception is None, repr(delivered.exception)
     assert delivered.exit_code == 0, repr(delivered.output)
@@ -9912,7 +10178,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     # The same reading answers for the two records a later rename leaves behind,
     # and the Stop hook shows both: a harness name outside this version's table
     # raises in `host.claim_harness`, which dispatches on that value rather than
-    # reading it, and a record missing a field a reader brackets is taken for a
+    # reading it, and a record missing a field a user brackets is taken for a
     # live claim, putting its page back in front of the guard — and in front of
     # `event_endpoint`'s nudge, which brackets `turn_closed` under the append
     # lock.
@@ -9996,7 +10262,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert not service_model.claim_is_active(service_model.page_claim(page))
 
     # A background job's claim names the job's record and no process at all, so the
-    # pid the environment states — dead here — is nothing to this reader. Claimed
+    # pid the environment states — dead here — is nothing to this user. Claimed
     # through the real door, which asks for an initialized page.
     (page / "events.jsonl").write_bytes(b"")
     job = tmp_path / "job"
@@ -10015,7 +10281,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     # A host that multiplexes every session into one process states no process at
     # all, so the claim stands on when the page was last touched. Both halves of
     # that reading: the claim's own stamp carries a page nothing has written to,
-    # and a file under it carries one the session or a reader has since moved.
+    # and a file under it carries one the session or a user has since moved.
     activity = tmp_path / "activity"
     activity.mkdir()
     record_claim(
@@ -10043,7 +10309,7 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert not service_model.claim_is_active(service_model.page_claim(activity))
 
     # A touch inside the grace revives the same claim, which is what keeps a page
-    # the session is still writing to — or a reader still commenting on — served.
+    # the session is still writing to — or a user still commenting on — served.
     (activity / "events.jsonl").write_bytes(b"")
     assert service_model.claim_is_active(service_model.page_claim(activity))
 
@@ -10054,6 +10320,50 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     (other / "events.jsonl").write_bytes(b"")
     record_claim(other, id="guarded")
     assert service_model.owned_pages("guarded") == [other.resolve()]
+
+
+def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_path):
+    """The `PostToolUse` entry prints `hooks/wait-started.json` after a `leaf wait`
+    launch in Claude Code, and nothing anywhere else.
+
+    The command checks both things itself rather than trusting the host's `if`
+    filter: Codex runs the same `hooks.json`, ignores `if`, and fires the entry on
+    every shell call, and a Claude Code build that drops `if` would do the same.
+    Claude Code 2.1.280 honors it. Run the registered command the way a host does:
+    through a shell, payload on stdin.
+    """
+    (entry,) = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"][
+        "PostToolUse"
+    ]
+    (hook,) = entry["hooks"]
+    guidance = json.loads((PLUGIN_ROOT / "hooks" / "wait-started.json").read_text())
+    assert "needs input:" in guidance["hookSpecificOutput"]["additionalContext"]
+    base = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
+
+    def run(command, claude_code):
+        payload = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": command, "run_in_background": True},
+        }
+        env = base | ({"CLAUDECODE": "1"} if claude_code else {})
+        done = subprocess.run(
+            ["sh", "-c", hook["command"]],
+            input=json.dumps(payload),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert (done.returncode, done.stderr) == (0, "")
+        return json.loads(done.stdout) if done.stdout else None
+
+    launch = f"{PLUGIN_ROOT}/bin/leaf wait --ack 64186241"
+    assert run(launch, claude_code=True) == guidance
+    assert run(launch, claude_code=False) is None
+    assert run("git status", claude_code=True) is None
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
@@ -10110,9 +10420,9 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
 
 def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     """`leaf status` reads its transition back so a silent success cannot pass for a
-    no-op. Canonical activity keeps showing an unanswered reader move over a `waiting`
+    no-op. Canonical activity keeps showing an unanswered user move over a `waiting`
     written ahead of it, so the banner the agent believes it set is not the one the
-    reader sees. The readback names the move; once it has an answer the line stands
+    user sees. The readback names the move; once it has an answer the line stands
     alone."""
     events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
@@ -10125,7 +10435,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     assert early.output.splitlines() == [
         "waiting — pick one",
         (
-            f"1 reader move with no answer (`leaf reply <page> --for {comment}`); "
+            f"1 user move with no answer (`leaf reply <page> --for {comment}`); "
             "the page reads waiting once each has one"
         ),
     ]
@@ -10183,7 +10493,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 acknowledged reader move with no answer" in refused.output
+    assert "1 acknowledged user move with no answer" in refused.output
     assert files_model.read_json(claimed / "status.json")["state"] != "idle"
 
     comment = events_model.read_events(claimed)[0]["id"]
@@ -10243,7 +10553,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         == 2
     )
     # A report is the agent's own news, so acknowledging it is the whole of what
-    # it asks for; only a reader's comment owes an answer as well.
+    # it asks for; only a user's comment owes an answer as well.
     assert (
         CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"]).exit_code
         == 0
@@ -10897,8 +11207,8 @@ def test_wait_prints_a_reaction_token_and_ack_covers_it(page_dir, capsys):
 def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
-    does. Nor does an `ok` the reader put on the agent's answer hand the thread back
-    to the agent — a reaction is not the reader speaking. The reader's words are."""
+    does. Nor does an `ok` the user put on the agent's answer hand the thread back
+    to the agent — a reaction is not the user speaking. The user's words are."""
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
     lease = leases_model.take_waiter_lease(
@@ -10928,7 +11238,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # Words under the answer are the reader's last word, and hold the turn as ever.
+    # Words under the answer are the user's last word, and hold the turn as ever.
     events_model.append_event(
         claimed,
         {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
@@ -11218,7 +11528,7 @@ def _idle(page_dir):
 
 
 def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
-    """Two consecutive reader turns in one thread owe one answer, addressed to the
+    """Two consecutive user turns in one thread owe one answer, addressed to the
     newest. The Stop hook names the command that writes it, and that exact command
     is accepted: the thread's id, which is the first message's, is not what
     `--for` takes."""
@@ -11320,7 +11630,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
 
 
 def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
-    """A multiple-choice Ask finishes with Done. Until then a tick is the reader's
+    """A multiple-choice Ask finishes with Done. Until then a tick is the user's
     own unfinished answer: it is not agent work, the banner does not count it as an
     update waiting, the delivery tells the agent it owes nothing, and Stop does not
     hold the turn. Done hands the Ask over, and the answer it owes is a version."""
@@ -11388,9 +11698,9 @@ DECK_PAGE = PAGE.replace(
 )
 
 
-def test_a_finished_deck_owes_every_card_the_reader_sorted(page_dir):
+def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     """An Ask's answer can span units: a deck's cards are each swiped, and only the
-    last one's `finish` answers the Ask. Before the finish the reader is still
+    last one's `finish` answers the Ask. Before the finish the user is still
     answering and the agent owes nothing; once it lands, every sorted card is owed
     its place in the markup, not only the one that finished the deck."""
     (page_dir / "index.html").write_text(DECK_PAGE)
@@ -11420,7 +11730,7 @@ def test_a_finished_deck_owes_every_card_the_reader_sorted(page_dir):
 
 def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
     """The page's rule holds in thread markup: a swipe before the deck's finish is
-    the reader still answering, so no reply is owed and the Ask stays theirs."""
+    the user still answering, so no reply is owed and the Ask stays theirs."""
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
     events_model.append_event(

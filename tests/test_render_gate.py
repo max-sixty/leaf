@@ -58,8 +58,8 @@ from render_cases_layout import (
     motions,
     moved_at,
     page_at_rest,
-    reader_view_restore_cases,
     resize_notice_after_last_probe,
+    user_view_restore_cases,
 )
 from render_cases_navigation import (
     CODE_PAGE,
@@ -722,12 +722,12 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     _until(page, first_trip_home, "heard back the new document's first answer")
 
 
-def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve):
+def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     """Every restore case the layer restores is exercised on one representative page.
 
-    Restoring reader furniture is layer-owned and identical under every authored
+    Restoring user furniture is layer-owned and identical under every authored
     version, so multiplying this reading across the corpus repeats the mechanism rather
-    than adding an input. The probe speaks only to a returning reader, and every finding
+    than adding an input. The probe speaks only to a returning user, and every finding
     here is the arrival pass's. It is held to the restore cases the runtime declares —
     all of them, in order, because a pass that stopped at the first would leave every
     surface after it exactly as unwatched as it was before.
@@ -763,7 +763,7 @@ def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve)
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
     render_checks_model.wait_for_probe(declared, "currentPresented")
-    restore_cases = reader_view_restore_cases(declared)
+    restore_cases = user_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
     option_transition = declared.locator("#wait-day").evaluate(
         "element => getComputedStyle(element).transitionProperty"
@@ -849,16 +849,16 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(browser, 
     )
 
 
-def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
+def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     browser, serve
 ):
-    """A page put back the way the reader left it is simply there, and does not assemble
+    """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
     Standing a tray up is a gesture and gestures move: the tray slides in over a fifth
     of a second and the document steps aside to make the room. Coming back to a tray
     that was already standing is not a gesture — nothing was just decided, and a page
-    that replays the decisions on arrival would be showing the reader a fifth of a
+    that replays the decisions on arrival would be showing the user a fifth of a
     second of furniture instead of what they came back to read. The auxiliary-surface
     owner passes arrival separately from a gesture, so even a tray whose first paint
     waits for presentation appears without an opening slide.
@@ -887,7 +887,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     page's own. The window that opens is also the one this test is about: it is where a
     restore is put back, and standing in it is strictly more than catching it.
 
-    What the reader left standing is the restore case the runtime declares, all of them
+    What the user left standing is the restore case the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
@@ -938,7 +938,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         page.unroute("**/api/state*")
         return moved()
 
-    restore_cases = reader_view_restore_cases(page)
+    restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
@@ -1301,7 +1301,7 @@ DIAGRAM_FAMILIES = {
     "mindmap": "mindmap\n  root((Leaf))\n    Big idea\n    Threads",
     "er-quoted-name": 'erDiagram\n  "Line Item" ||--o{ ORDER : in',
     "timeline": "timeline\n  2025 : Draft\n  2026 : Ship",
-    "journey": "journey\n  title Review\n  section Read\n    Open page: 5: Reader",
+    "journey": "journey\n  title Review\n  section Read\n    Open page: 5: User",
     "quadrant": "quadrantChart\n  x-axis Low --&gt; High\n  y-axis Low --&gt; High\n  A: [0.3, 0.6]",
     "git-graph": "gitGraph\n  commit\n  branch fix\n  commit\n  checkout main\n  merge fix",
     "architecture": "architecture-beta\n  service api(server)[API]\n  service db(database)[DB]\n  api:R --&gt; L:db",
@@ -1678,7 +1678,7 @@ def _author_stateful_verbatim_widget(tmp_path):
     stateful = declarations["lf-stateful"]
     stateful["properties"].update(
         {
-            "reader": {"type": "string"},
+            "user": {"type": "string"},
             "agent": {"type": "string"},
             "restated": {"type": "boolean"},
             "overruled": {"type": "boolean"},
@@ -1692,9 +1692,9 @@ def _author_stateful_verbatim_widget(tmp_path):
                 "required": ["value"],
                 "additionalProperties": False,
             },
-            "facet": "reader",
+            "facet": "user",
             "unit": "widget",
-            "record": {"kind": "value", "attr": "reader", "value": "value"},
+            "record": {"kind": "value", "attr": "user", "value": "value"},
         }
     }
     stateful["x-report"] = {
@@ -1719,7 +1719,7 @@ def _author_stateful_verbatim_widget(tmp_path):
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.reader.value === "corrupt" || state.agent.value === "corrupt")\n'
+        '    if (state.user.value === "corrupt" || state.agent.value === "corrupt")\n'
         '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
         "  }\n"
         "});\n"
@@ -1786,7 +1786,7 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "revision": 1,
             "widget": "edited",
             "action": "edit",
-            "detail": {"text": "Reader's standing draft."},
+            "detail": {"text": "User's standing draft."},
         },
     )
     append_command(
@@ -1854,7 +1854,7 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
         "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
-        '    if (state.reader.value === "corrupt")\n'
+        '    if (state.user.value === "corrupt")\n'
         '      this.closest("lf-shell").querySelector(":scope > p").textContent = '
         '"Child state replaced wrapper prose.";\n'
         "  }\n"
@@ -2047,7 +2047,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 ):
     """Bug-back for the half a reading of the markup cannot see. `textContent` returns a
     hidden light-DOM span and `querySelector` finds it, so a check written against the
-    markup passes on a page whose reader is handed neither word. Asking `says()` for the
+    markup passes on a page whose user is handed neither word. Asking `says()` for the
     words and a box for the clipped one is what tells the two apart — the layer's own
     reading enters a declared root in the host's stead, and a span rendered nowhere has
     no rects."""
@@ -2317,7 +2317,7 @@ AIM_BOXES = """(selectors) => {
       const box = el.getBoundingClientRect();
       // A box and not checkVisibility(): the corpus renders much of itself inside
       // content-visibility sections, which this browser answers no for, and a control
-      // laid out inside one is a control a reader reaches by scrolling to it.
+      // laid out inside one is a control a user reaches by scrolling to it.
       if (!box.width || !box.height) continue;
       const shown = getComputedStyle(el);
       // Hidden, or standing there for a pointer a finger is not: the diff's line
@@ -2541,7 +2541,7 @@ def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
     """The mark pass puts a comment badge in the cell it marks, and the badge is
     two words in `.lf-ui` that wrap in a 33px cell. Read as the cell's words it
     turned this table — single tokens, the theme's honest third case — red the
-    moment a reader commented on it. The runtime's words are not the page's.
+    moment a user commented on it. The runtime's words are not the page's.
 
     The whole gate, rather than this one reading of it: the badge also stood the
     page three hundred pixels wide of itself until the scroller was made to
@@ -2559,14 +2559,14 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     positioned against the page, though, and a table scrolling inside itself holds
     its far column three hundred pixels past the window: the cell was there, the
     word was laid out there with it, and the page grew a sideways scrollbar
-    carrying the reader to a box nobody can see. The scroller answers for it — a
+    carrying the user to a box nobody can see. The scroller answers for it — a
     box that scrolls contains what it scrolls — so the word keeps the place on its
     own cell that every reading of it expects and the table carries it.
 
     Asked at both of the table's scroll positions, since the word travels with the
     cell now rather than standing still while the cell moves; and the cell has to
     be off the table's own edge at the first of them, or nothing here could have
-    escaped. Then the two things the place is for: the reader who takes the skip
+    escaped. Then the two things the place is for: the user who takes the skip
     link, and the gate."""
     url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
     page = open_page(browser, url)
@@ -2607,7 +2607,7 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
         f"the word left the cell it belongs to: {measured}"
     )
 
-    # Reached the way a reader reaches it. `focus()` alone sets :focus and leaves
+    # Reached the way a user reaches it. `focus()` alone sets :focus and leaves
     # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
     # — the skip link would then be asked for its resting form and the failure would
     # talk about `position` (tests/AGENTS.md).
@@ -2714,7 +2714,7 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     page = open_page(browser, serve(example))
     # The lines a diff has drawn, which is not every diff on the page: the shipped patch
     # stands collapsed and fetches one file when it is asked for, so its shadow tree
-    # holds nothing to mark until a reader opens one. The floor below is what keeps that
+    # holds nothing to mark until a user opens one. The floor below is what keeps that
     # from reading as a clean sweep of nothing.
     diffed = page.evaluate(
         """() => [...document.querySelectorAll('lf-diff')]
@@ -2811,7 +2811,7 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
 
 
 def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
-    """An element the reader can see and no mark can be drawn on, which the gate reads
+    """An element the user can see and no mark can be drawn on, which the gate reads
     without pressing a key.
 
     The marks are the Ask walk's ring and an element-anchored comment's outline, and both
@@ -2819,7 +2819,7 @@ def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
     empty one every rect starts as — zero-sized at the document's origin — and the runtime
     hangs the mark on the boxes the element shows through instead. `#veiled` has one and
     is fine. `#ghost` has none, and there the paint has nowhere to land: this is the fault
-    that reached a reader as `d` appearing to do nothing at all, on a page whose remaining
+    that reached a user as `d` appearing to do nothing at all, on a page whose remaining
     decisions were all suggestions, while the gate rendered it green.
 
     TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
@@ -3039,7 +3039,7 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     inside one is painted nowhere. Every other reading calls that well — the column
     check excuses a margin resident, checkVisibility() is true of a clipped box so
     screen and print agree, and the copy, which withholds the clip, shows the words the
-    live page dropped — so the reader is the only party who loses them, and a reviewer
+    live page dropped — so the user is the only party who loses them, and a reviewer
     proofing the export sees a note that never reached anybody.
 
     The question is put to every box rather than to floats alone, since the excuse the
@@ -3051,7 +3051,7 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
     page = open_page(browser, url)
     # elementFromPoint answers about the viewport, so the question can only be put to a
     # note that is in it — LONG_PAGE puts this one four thousand pixels down. The group
-    # is what gets scrolled to, never the note: `overflow: hidden` refuses a reader and
+    # is what gets scrolled to, never the note: `overflow: hidden` refuses a user and
     # not a script, so scrolling to the clipped element hands the group's own box
     # sideways until the note is inside it, and the test then measures a page it made.
     page.locator("#where").scroll_into_view_if_needed()
@@ -3075,13 +3075,13 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
         for f in failures
         if "<aside id=boxed-note> is drawn" in f
         and "outside <lf-options id=where>" in f
-    ], f"a note the reader never sees went out with the handover: {failures}"
+    ], f"a note the user never sees went out with the handover: {failures}"
 
 
 def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     """A box need not float to be lost. The column reading hands a whole subtree to the
     first ancestor that takes its own overflow, and that container answers for what ran
-    out of it only where the reader can still get to it — so the gate asks which kind of
+    out of it only where the user can still get to it — so the gate asks which kind of
     container it was, of every box rather than of floats alone.
 
     And asks it of what the container does rather than of its overflow, which is one of
@@ -3098,7 +3098,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         if "<div id=eaten> is drawn" in f and "outside <div id=clipping>" in f
     ], f"a box drawn nowhere went out with the handover: {failures}"
     assert not [f for f in failures if "reachable" in f or "scrolling" in f], (
-        "a box the reader scrolls to is where its container means it to be"
+        "a box the user scrolls to is where its container means it to be"
     )
     assert not [f for f in failures if "id=hung>" in f and "id=holding>" in f], (
         "a placed box was laid at the door of a static box that never held it"
@@ -3128,7 +3128,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
 
 def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, serve):
     """A scroller's rects say where it is scrolled to, not how far its content reaches,
-    and the gate reads a page the reader has already worked: the runtime scrolls a
+    and the gate reads a page the user has already worked: the runtime scrolls a
     board or a table sideways to bring a comment's anchor into view. Read off the rects,
     every box at the content's start then sits left of the container drawing it and
     reports as lost out of a box showing it perfectly — a handover refused over a page
@@ -3210,9 +3210,9 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
+def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     """A conversation about a table wants room a conversation about a sentence does not,
-    and a tray of long names wants room a tray of short ones does not; only the reader
+    and a tray of long names wants room a tray of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
     of, and the page yields exactly the strip they leave it.
 
@@ -3223,7 +3223,7 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     are one number here — the property the runtime writes — and the reading is what says
     so.
 
-    Then the same edge from the keyboard, because a reader who is not holding a pointer is
+    Then the same edge from the keyboard, because a user who is not holding a pointer is
     still reading the same page, and then a reload, because a width set once and lost on
     the next version is a width they would have to set on every revision."""
     page = open_page(browser, serve(edge.html(), comments=edge.comments))
@@ -3235,7 +3235,7 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     drawn = geometry(page, edge)
 
     # Focus lands on the edge with the drag, so the arrows are live on what the hand was
-    # just holding; the press states that in the form a reader without a pointer makes it.
+    # just holding; the press states that in the form a user without a pointer makes it.
     # Toward the side the region is held to narrows it.
     page.locator(f"{edge.region} .lf-edge").press(
         "ArrowRight" if edge.side == "right" else "ArrowLeft"
@@ -3249,7 +3249,7 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     page.close()
 
     assert default["width"] == edge.wide, (
-        f"the region did not start at the width a reader who has said nothing gets: "
+        f"the region did not start at the width a user who has said nothing gets: "
         f"{default}"
     )
     assert drawn["width"] == edge.wide + 160, (
@@ -3259,7 +3259,7 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
         f"the page yielded a strip of its own rather than the one the region took: {drawn}"
     )
     assert drawn["chosen"] == str(edge.wide + 160), (
-        f"the reader's width was not kept: {drawn}"
+        f"the user's width was not kept: {drawn}"
     )
     assert (stepped["width"], stepped["page"]) == (
         drawn["width"] - 24,
@@ -3272,7 +3272,7 @@ def test_the_reader_draws_an_edge_to_the_width_they_want(browser, serve, edge):
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 @pytest.mark.parametrize("pointer", ["mouse", "touch", "touch-cancel"])
-def test_dragging_an_edge_preserves_reader_state(browser, serve, edge, pointer):
+def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
     """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact."""
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=pointer != "mouse"
@@ -3418,11 +3418,11 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 ):
     """A region may take half of a window it stands beside and no more — the same bargain
     the covering breakpoint strikes one window down, that the page keeps at least what the
-    region takes. A window that shrinks past that is a window, not a retraction: the reader
+    region takes. A window that shrinks past that is a window, not a retraction: the user
     said 580 once, and a laptop lid opened narrower is not them saying 400 instead.
 
     So the choice and the standing width are two facts. Clamping the stored one would read
-    identically on the narrow window and lose the reader's answer for good on the wide one
+    identically on the narrow window and lose the user's answer for good on the wide one
     they came back to, which is the failure this reading is here to catch — the third
     geometry below is the whole of it."""
     narrow, stands = edge.squeeze
@@ -3447,22 +3447,22 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
         f"the page yielded a strip the region was not standing in: {squeezed}"
     )
     assert squeezed["chosen"] == str(edge.wide + 160), (
-        f"the narrow window un-said what the reader had said: {squeezed}"
+        f"the narrow window un-said what the user had said: {squeezed}"
     )
     assert roomy["width"] == edge.wide + 160, (
-        f"the width the reader chose did not come back with the room for it: {roomy}"
+        f"the width the user chose did not come back with the room for it: {roomy}"
     )
 
 
-def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
+def test_both_trays_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
     """Leaves and decisions are the same furniture at two scopes, one at a time on one side of
-    the window, so the width is the side's rather than either tray's. A reader who drew
+    the window, so the width is the side's rather than either tray's. A user who drew
     the edge out to read long names has drawn the edge, and finding the other tray back
     at its default would be one fact kept in two places — which is what a width per tray
     would have been, and what the shared property is instead.
 
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
-    tray of one — the page the reader is already on — is not worth a control, so without
+    tray of one — the page the user is already on — is not worth a control, so without
     a neighbour `g L` is unavailable."""
     page = open_page(browser, serve(ASKS_PAGE))
     trays = EDGES[1]
@@ -3482,7 +3482,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
     page.close()
 
     assert round(leaves) == trays.wide + 160, (
-        f"the second tray came up at a width the reader had already moved: {leaves}"
+        f"the second tray came up at a width the user had already moved: {leaves}"
     )
 
 
@@ -3542,7 +3542,7 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     )
 
 
-def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
+def test_the_render_gate_reports_code_the_user_cannot_tell_from_its_block(
     browser, serve
 ):
     """The syntax reading distinguishes unanswered and faint roles, each painted
@@ -3805,7 +3805,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
-        f"the reader's decisions are not among what the runtime hands the gate: "
+        f"the user's decisions are not among what the runtime hands the gate: "
         f"{standing} — the replay below would be handed nothing and report clean"
     )
     page.close()

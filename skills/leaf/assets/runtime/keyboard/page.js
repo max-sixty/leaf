@@ -1,10 +1,10 @@
-/* The page's own parts: what the reader is standing on when it belongs to no feature,
+/* The page's own parts: what the user is standing on when it belongs to no feature,
    the one press that lets go of it, and the foot of the Escape ladder.
 
    Everything else the page answers is declared by the owner that implements it and joins
    the stack through `register.js`. This file keeps the document's own parts — a link, a
    disclosure — and the presses that are nobody's capability: the browser's caret
-   browsing, letting go of whatever the reader is standing on, and backing out of the
+   browsing, letting go of whatever the user is standing on, and backing out of the
    chrome onto the page.
 
    Importing this module is what puts the page's parts in the register. The let-go is the
@@ -24,11 +24,11 @@ import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
 import { nativeLayers } from "./layer-stack.js";
 import { pageCommand, pageRung, pageScope } from "./register.js";
 
-// Where the reader is standing, when what they are standing on is one of the page's own
+// Where the user is standing, when what they are standing on is one of the page's own
 // parts rather than a widget's own declaration. A widget's control scope cannot cover
 // these: it works a span `offer` made pressable, where these arrive with platform keys
 // already bound. Enter follows an <a> while Space scrolls the page out from under it; both
-// work a disclosure. A generated `g` hint puts the reader on a disclosure, and Tab can put
+// work a disclosure. A generated `g` hint puts the user on a disclosure, and Tab can put
 // them on either. Until a scope existed the line went quiet at exactly the moment they
 // arrived, with the press that finishes the motion unnamed.
 //
@@ -36,7 +36,7 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // the chrome's own links are the leaves tray's and its resolved comments are the panel's,
 // and both of those declare what they answer themselves. Asked of the document at large,
 // "On a link" was had by every page — a machine with one neighbour has a tray full of
-// links — so the reference named it wherever the reader went, on pages holding none to
+// links — so the reference named it wherever the user went, on pages holding none to
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
 // second copy of it is wrong.
@@ -66,7 +66,7 @@ standingOn("link", "On a link", "a[href]", [
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps the
 // state on itself; a control a widget built out of a span says the same thing through
 // ARIA's own attribute, which it already writes for the theme and the screen reader. Two
-// vocabularies, one capability — and a reader standing on a settled group cannot see which
+// vocabularies, one capability — and a user standing on a settled group cannot see which
 // of the two they are standing on, so a scope apiece would be the same press answered on
 // one of them and not the other.
 //
@@ -149,7 +149,7 @@ export function declareStanding({ askHeld, pageState }) {
   });
 }
 
-// The foot of Escape's ladder, the page's own. Above it stand the surfaces a reader can
+// The foot of Escape's ladder, the page's own. Above it stand the surfaces a user can
 // put on — a captured target, a tray, a narrowing, the thread panel, a page mode — each
 // contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
 // out anywhere. This step leaves the chrome, after every surface has had its turn, and
@@ -157,7 +157,7 @@ export function declareStanding({ askHeld, pageState }) {
 // than two spellings of it. It stands down under a native layer too: a popover or a
 // modal is the browser's own mode, its own scope is the way out of it, and the page
 // beneath is not somewhere a press can reach from inside it.
-// AGENTS.md's "The reader has to be standing somewhere" holds the rest.
+// AGENTS.md's "The user has to be standing somewhere" holds the rest.
 pageRung("page", () => {
   if (nativeLayers().length) return null;
   if (holding())

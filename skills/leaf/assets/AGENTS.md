@@ -54,9 +54,9 @@ relative to `runtime/` unless stated otherwise.
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js`, `reader-place.js` |
+| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `navigation.js`, `reader-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `navigation.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
 | Threads and reply surfaces | `conversation/`, `thread-panel.js` |
@@ -94,12 +94,25 @@ The stylesheet boundary follows where rules apply:
   are unavailable in WebKit, and a module-scope await would delay page modules past
   `DOMContentLoaded`.
 
+A selector whose `:has()` stands before its last combinator is restyled from the
+document root. Chrome keeps one invalidation set for every such selector, keyed on
+their rightmost compounds, and a trace of a drag-select shows it scheduling that set on
+`html` for ordinary runtime writes (an `aria-pressed`, a `hidden`, a placeholder, a Lit
+render), none of which touch the rules' own subjects. Each rightmost compound therefore
+selects its targets across the whole document. A
+compound with no class, id, attribute, or type in it (`> :not(.x)`, `> *`) makes
+every such change restyle every element. On a 21,000-element page that cost 40 ms a
+frame for as long as a drag-select lasted. A type costs one restyle for each element
+of that type, so key a repeated element such as `details` or `li` by a class its
+owner writes. `test_no_has_rule_restyles_the_whole_document` enforces the first
+rule; the second is a judgment about how often the type repeats.
+
 The shared `.lf-ui` face starts in the assets root's `shadow.css`, before component
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
 
 Chrome reserves its strip with a transparent body border (`theme.css`), preserving native
-scroll anchoring during reflow. `chrome-layout.js` must not override the reader's position.
+scroll anchoring during reflow. `chrome-layout.js` must not override the user's position.
 Reading arrangements measure available room and minimum size in the bounded candidate
 without changing current geometry, so responsive posture does not depend on the posture
 from which the measurement began.
@@ -126,30 +139,30 @@ Each mutable fact has one writer:
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
 | message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending and the attention local sends imply; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels |
-| which Asks stand and which the reader owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the conversation's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
+| which Asks stand and which the user owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the conversation's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `AGENTS.md`, Cross-runtime invariants) |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
 | canonical page activity | the server `activity` fold (root `AGENTS.md`, Cross-runtime invariants) | the banner and Leaves tray paint it; the browser only asks for a fresh server reading at `next_transition_at` |
-| which agent content the reader has not read | the server's `read_state` reading, shipped as each Thread's `unread` | the publisher removes the versions this tab is marking read; `conversation/read.js` sends `read` for exposed prose and Mark read, outside the gesture queue |
-| meaningful new page information | unread agent content, reader Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded: unread content is news the first time this tab sees it, and everything else is news only against an earlier reading. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
+| which agent content the user has not read | the server's `read_state` reading, shipped as each Thread's `unread` | the publisher removes the versions this tab is marking read; `conversation/read.js` sends `read` for exposed prose and Mark read, outside the gesture queue |
+| meaningful new page information | unread agent content, user Asks, canonical response workflows, request receipts, and page activity in the accepted server reading | `semantic-news.js` compares only readings whose complete document presentation succeeded: unread content is news the first time this tab sees it, and everything else is news only against an earlier reading. `notifications.js` owns the one status-line and live-region queue, and rechecks deferred assertions against the latest successfully presented reading before display |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
-| the narrowing and order of the thread list | the reader's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
-| how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `reader-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
-| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
-| whether the margin card shows, and which target's threads | the reader's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival and let-go, `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark) |
+| the narrowing and order of the thread list | the user's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
+| how much of a scroller's top a pinned cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file |
+| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `user-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the user in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
+| whether the margin card shows, and which target's threads | the user's standing target: focus on the target or inside it, its margin cluster, or the card | `margin-projection.js`'s `followStanding` on focus arrival and let-go, `pressAway` for a press outside the card, its target, and its cluster, and the explicit opens (`t`, a marker, a mark) |
 | the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
-| how much of a scroller the reader can see, and where a landing may put something | the scroller's shown band less its stuck `.lf-pinned` covers, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js` |
-| region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
+| how much of a scroller the user can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
+| region width the user drew | the user's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
-| draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
+| draft generation | the user's draft record | draft-store helpers and `watchDraft` |
 
-Reader state that a document replacement would otherwise destroy has four routes, and
+User state that a document replacement would otherwise destroy has four routes, and
 which one a fact takes is decided by what the fact is, not by where it was noticed:
 the patch keeps the node, so state on a node it did not rewrite needs nothing; an
 authored id gets `carry.js`'s mechanical carry; a module's own state is the module's to
@@ -157,7 +170,7 @@ write to its store and read back under that same id, as the tab store and the dr
 store already do; and a walk restores its standing by declared id on top of those. A
 hold — deferring the revision — is for a gesture that is not a value: an open composer,
 a drag, an unresolved delivery, an open menu. A value never justifies a hold, because a
-hold postpones the loss rather than preventing it: the words die when the reader blurs.
+hold postpones the loss rather than preventing it: the words die when the user blurs.
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts. A rendering may expose state,
@@ -180,7 +193,7 @@ Startup order is load-bearing:
    attach chrome, mount the owners, and wire the shared repaint phases. Repaint invalidations made
    before repaint is mounted retain their intent without executing an incomplete frame.
 2. Begin the first state read without applying its answer.
-3. Restore the reader's arrangement from storage, and let focus go to the page.
+3. Restore the user's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
 5. Index passage fences and authored parent identities, then capture each widget's
    immutable descriptor and typed authored facets from the source DOM.
@@ -201,7 +214,7 @@ Startup order is load-bearing:
 
 Authored HTML paints immediately on every page. The prepaint bootstrap marks the root
 `data-lf-live`, and the render-blocking theme uses that fact to reserve the fixed banner
-and the reader's restored workspace, so mounting the runtime does not move the document.
+and the user's restored workspace, so mounting the runtime does not move the document.
 The same bootstrap projects that stored arrangement before the theme paints; runtime
 restoration replaces the provisional root state with live body state.
 Prose, ordinary links, scrolling, and layout remain usable while widgets upgrade and the
@@ -222,13 +235,13 @@ survived the first projection.
 helpers and the stylesheet collapse arrival animations until that boundary. Its final
 synchronous `PRESENTATION` signal lets box-derived page apparatus replace provisional
 geometry before the browser can paint the presented state. After it, a state change may
-animate only where motion helps the reader follow a change. A failed startup does not
+animate only where motion helps the user follow a change. A failed startup does not
 stamp the page presented as if it had read the log.
 
 ## What crosses to the server
 
 The server does not retain refusal receipts. The condition behind a refusal can change
-without the reader changing the words: a referenced revision can be activated, a parent
+without the user changing the words: a referenced revision can be activated, a parent
 thread can arrive, or a layer can be re-vendored. Caching the refusal would strand a
 valid draft behind an obsolete answer.
 
@@ -262,14 +275,14 @@ revision and the active revision it may install. Version comparison requests its
 from `/api/view` at the sequence already applied to the DOM, keeping related views on
 one log snapshot without projecting all historical revisions on every read.
 
-Python supplies each thread's raw `awaits_reader` and aggregated `attention`.
-`awaitsReader` reads unresolved `attention`, which includes recovery even when the raw
+Python supplies each thread's raw `awaits_user` and aggregated `attention`.
+`awaitsUser` reads unresolved `attention`, which includes recovery even when the raw
 flag is false. The browser never ranks workflows into attention again; it adjusts the
 server's reading for unresolved local sends only. The conversation model sets a thread
 holding an unresolved send to wait on that send, which also retires a failed workflow's
 recovery while keeping its historical message status; the publisher restores a
 standing structural Ask that send cannot answer, and hands a thread the server left
-with the agent back to the reader when a send there is refused. Otherwise refusal
+with the agent back to the user when a send there is refused. Otherwise refusal
 restores the accepted attention.
 The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
 "Threads".
@@ -344,7 +357,7 @@ all lands its far end past the page by definition and still means the document, 
 is why the rule is the gesture's rather than every selection's.
 
 `coveredWords` is the render gate for text that is present in a browser reading
-but unavailable to the reader because of clipping, hiding, generated chrome, or
+but unavailable to the user because of clipping, hiding, generated chrome, or
 another boundary. Keep the runtime's generated markers and the gate's exclusions
 in agreement.
 
@@ -383,10 +396,10 @@ prose and controls while retaining deliberate access to two-dimensional evidence
 
 ### Stability
 
-The page must hold still under the reader's aim. A state change may repaint any
+The page must hold still under the user's aim. A state change may repaint any
 box, but it must not move controls adjacent to the gesture that caused it. News
 arriving without a gesture must not move any chrome control. A content change
-the reader requested may reflow the content it replaces, provided the change is
+the user requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
 A transient hover, focus, or keyboard reveal never changes the space allocated to its
@@ -443,38 +456,40 @@ metadata carries it beside the triggering message; thread cards do not repeat it
 colored edge. Quiet or ended work releases the control. Reduced motion suppresses arrival,
 and repainting or replacing a carrier cannot replay it.
 
-Each Thread's `unread` is the one reading of what the reader has not read. The
+Each Thread's `unread` is the one reading of what the user has not read. The
 Threads toggle's dot and label, the panel's **Unread** jump and per-thread counts, the
 **New since you last looked** boundaries, a margin entry's dot and its Page Map row
-all paint it, so they change together. The server counts a reply, reaction, widget
-answer, resolve, or reopen as reading what the thread held before it; the page adds
-exposure: a whole prose body shown in one surface, whatever its own scrollers still
-hold, since geometry cannot tell how much of a wide code line was read. An authored
-body with widgets is read by answering it or by **Mark thread read**. An edit is a new
-version and reads as unread again.
+all paint it, so they change together. Reading is bookkeeping and never moves the
+reader: a mark inside a conversation is drawn in room the content keeps whether or not
+it is unread, so a receipt changes no box the reader is looking at. The server counts
+a reply, reaction, widget answer, resolve, or reopen as reading what the thread held
+before it; the page adds exposure: a whole prose body shown in one surface, whatever
+its own scrollers still hold, since geometry cannot tell how much of a wide code line
+was read. An authored body with widgets is read by answering it or by **Mark thread
+read**. An edit is a new version and reads as unread again.
 
-Each Thread's canonical `attention` is its aggregate reader obligation or waiting
-workflow. A concrete reader Ask outranks concurrent agent work; that work remains the
-secondary status. Local failure or recovery may add reader-owned attention beyond the
-server's raw `awaits_reader` value. Margin, Page Map, and compact thread rows consume
+Each Thread's canonical `attention` is its aggregate user obligation or waiting
+workflow. A concrete user Ask outranks concurrent agent work; that work remains the
+secondary status. Local failure or recovery may add user-owned attention beyond the
+server's raw `awaits_user` value. Margin, Page Map, and compact thread rows consume
 that same attention instead of deriving another aggregate from member turns or workflow
-stages. Reader attention wears the same two channels in blue — icon and interior — and
+stages. User attention wears the same two channels in blue — icon and interior — and
 says "On you" for an Ask or the exact recovery label in its visible and accessible name.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
-a state the reader must return to or act on, such as failure.
+a state the user must return to or act on, such as failure.
 
 Where the page can produce that result itself, it produces it in the gesture. A
 suggestion decision paints its projected outcome; a comment or reply paints the message
 and opens its thread. Drawing the result moves the words, so the box they were written
-in reads empty in that same turn. The reader's answer stands on screen once, rather than
+in reads empty in that same turn. The user's answer stands on screen once, rather than
 beside a copy of itself still waiting to be sent. The generation is unsettled until the
 log answers, and a refusal returns it to the box. The runtime's send owns both halves
 (`standGesture`), so no box empties or refills itself.
 The application overlays pending work on the log and restores authoritative state on
 refusal. The content and its Undo control are the confirmation,
-so neither path needs a success notice; announce the same outcome for a reader listening
+so neither path needs a success notice; announce the same outcome for a user listening
 to the page. For a message that announcement is `post`'s, made where the gesture is first
 known to be a message, so a box that sends one adds no second announcement. A box whose
 press did something beyond sending writes one notice for both and names the send in it,
@@ -485,14 +500,14 @@ nothing at all.
 
 ### Motion
 
-Nothing the reader must read, press, or decide waits on a clock. Motion runs from a state
-that is already true: a fold collapses room the reader has already been told is going, a
+Nothing the user must read, press, or decide waits on a clock. Motion runs from a state
+that is already true: a fold collapses room the user has already been told is going, a
 carry moves a card that has already arrived. Motion that has to finish before the result
 can be read is a pause.
 
-A motion the reader is waiting to end runs as long as the eye needs to follow a box from
+A motion the user is waiting to end runs as long as the eye needs to follow a box from
 where it was to where it is, and stays under 300ms. A motion that moves nothing carries
-no such bound, so a landing flash or an arrival pulse may run longer; the reader reads
+no such bound, so a landing flash or an arrival pulse may run longer; the user reads
 straight through it.
 
 The `aria-busy` wait above withholds a look rather than a result. It removes a flicker a
@@ -600,11 +615,11 @@ Named journey tests retain behaviors that a generic render reading cannot drive:
 
 - `test_a_refused_attempt_is_re_read_against_the_page_that_refused_it` covers
   refusal without a durable receipt.
-- `test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive`
-  covers every `READER_VIEW_RESTORE_CASES` restore.
+- `test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive`
+  covers every `USER_VIEW_RESTORE_CASES` restore.
 - `test_a_page_nobody_has_touched_scrolls_from_the_keyboard` covers the initial
   focus handoff to `body`.
-- `test_a_commented_block_says_so_to_a_screen_reader` covers the accessible
+- `test_a_commented_block_says_so_to_a_screen_user` covers the accessible
   comment note without polluting the passage.
 - `test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox`
   covers rejection against authoritative history plus later local overlays.
@@ -624,10 +639,10 @@ animation can expose the behavior.
 `vendor/browser-runtime.js`; contributor diagnostics (the manifest, licenses, and
 source map) live under `scripts/browser/generated/`. The manifest names its inputs,
 exports, and output hashes; `scripts/AGENTS.md`
-owns the contributor build and check commands. The internal bundle contains Lit and
-Signals once, with no external imports or runtime compiler. The Web Awesome bundle
-(`scripts/vendor.py webawesome`) is built separately and carries its own Lit, so a page
-runs two copies of it. Content modules import
+owns the contributor build and check commands. The same build writes `vendor/lit.js`,
+the page's one copy of Lit, which the framework bundle imports and which the Web
+Awesome bundle (`scripts/vendor.py webawesome`) imports as well rather than carrying
+its own; neither has any other import or a runtime compiler. Content modules import
 only `runtime/widget-api.js`. Server projection entries carry the declaration admitted from
 their captured revision, so neither active nor historical views reinterpret an event
 through the current DOM's registry.

@@ -3,7 +3,7 @@
 `status.json` is a declaration, not current agent state. The current state is
 `activity`, one server projection over that declaration and the page's stronger
 evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
-and unsettled reader moves. `/api/state`, neighboring-page entries, and
+and unsettled user moves. `/api/state`, neighboring-page entries, and
 agent-facing page state all carry this same projection. Browser code paints it
 and requests another reading at its next deadline; it does not run a second fold.
 
@@ -11,8 +11,8 @@ and requests another reading at its next deadline; it does not run a second fold
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from a turn of the session driving the page | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
-| live Codex activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
-| live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
+| live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | the closed turn this page nudged its session in | `messaged_turn` in the page's claim record | browser-event admission, once the harness's nudge lands | a later closed turn carries a different `turn` |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` process, held open for its life | process exit |
@@ -20,7 +20,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: session, display name, harness, carrier, lifetime | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
+| Codex delivery record | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Page activity describes ownership, carrier availability, and current work. Its
@@ -31,7 +31,7 @@ current turn also proves generic activity before its first work declaration;
 the receipt itself remains Picked up. The banner and Leaves tray consume this
 same reading and present delivery counts separately.
 
-`workflows` is the shared projection for exact reader inputs and proactive subject
+`workflows` is the shared projection for exact user inputs and proactive subject
 work. Each entry names its `input` event when it has one, its `conversation` or `widget`
 `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
@@ -50,25 +50,28 @@ an old failure does not become fresh news after a later successful answer, and
 stale work or delivery evidence is not a response failure.
 
 Ordinary durable stale, ended, interrupted, and failed observations prove uncertainty
-or a stopped operation but no concrete reader recovery gesture, so they remain
+or a stopped operation but no concrete user recovery gesture, so they remain
 agent-owned. A terminal host failure is the exception, whatever the move's answer:
 `workflows.py` names the record each answer takes, and each hands recovery to the
-reader. It settles the Stop obligation; a failed request receipt ends the request
+user. It settles the Stop obligation; a failed request receipt ends the request
 outright, while a failure reply or a failed pickup retains an `answered` workflow with
-a failed response condition until the reader moves again. A local
+a failed response condition until the user moves again. A local
 send refusal similarly has a browser-owned Retry gesture; that unresolved overlay may
 put the thread in Needs you without persisting another workflow record.
 
 A workflow's `stage` and its `answer` are separate readings. The stage reports
-delivery for every move the reader has handed over; the answer, which `workflows.py`
+delivery for every move the user has handed over; the answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a conversation that asked
-for one, a version whose markup records a reader's answer to a page Ask, a request's
+for one, a version whose markup records a user's answer to a page Ask, a request's
 receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
-its move is acknowledged, and only owed answers enter activity counts. A page action
+its move is acknowledged, and only owed answers enter activity counts. A widget move
 that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
-reports delivery until the markup records the move or a later version takes it in.
-A move the reader has not finished — a pick before the Done its Ask declares — has
-not been handed over and has no workflow. Consecutive reader turns form one response batch
+reports delivery until its document takes it in — for a page action, until the markup
+records the move or a later version supersedes it; for a move in frozen thread markup,
+until the agent's next spoken turn in that thread, or a resolution that closes the
+thread after it. It does not make its thread the agent's turn.
+A move the user has not finished — a pick before the Done its Ask declares — has
+not been handed over and has no workflow. Consecutive user turns form one response batch
 addressed by its newest input. Before settlement each input retains a workflow,
 while only the newest carries the thread's `answer` and enters the Stop obligation
 list. A response to an older input removes that input and leaves the newer
@@ -79,7 +82,7 @@ note settles a page action whose verb has no authored record form. A note alread
 standing when the move arrives cannot answer it. Turn identity decides whether
 a receipt belongs to the open turn; ending a turn does not settle its input.
 A delivery's completed final answer retains the exact delivered `responds` address,
-even when a resolution, the reader's ✓, or authored state settled that move during
+even when a resolution, the user's ✓, or authored state settled that move during
 the turn. Its substantive reply reopens the conversation under the ordinary thread
 rule in `events.md`, so the answer returns to Open Threads without making the
 answered move owed again. Failure receipts are omitted once their move is settled.
@@ -105,7 +108,7 @@ or widget the work is about. `leaf delivery claim` instead records one event fro
 immutable delivery after checking under the page lock that the exact move remains
 outstanding; it never transfers a claim to newer input on the same subject. A thread
 claim also records the current unanswered message, so one check-in keeps **Working**
-beside the words that prompted the work even when the reader adds another comment.
+beside the words that prompted the work even when the user adds another comment.
 Nothing in a session touches `status.json` while its turn is over, and its workers
 leave the page to it, so a declaration over work that outlasts the turn stands
 unrenewed until a later turn writes it again.
@@ -142,7 +145,7 @@ claimed and the hooks stand down. `hooks/scripts/loop-guard.py`, which the hosts
 run, decides none of that: it runs this command under `uv` and stays silent when
 it cannot get an answer, so a leaf bug costs a turn nothing.
 
-Only a page handed to a reader owes a watcher, so the unwatched clause passes
+Only a page handed to a user owes a watcher, so the unwatched clause passes
 over a page carrying `preview.json`, which only a checkout's `scripts/preview.py`
 writes; nothing else about that page changes. The guard reads the file's presence
 rather than the serve path's validating reader, because it fails open by saying
@@ -159,10 +162,10 @@ shapes:
 - A sequence of direct watchers the model itself runs, which Claude Code uses:
   `leaf wait` exits to put a batch in model context, then `leaf wait --ack <delivery-id>` advances
   the captured cursors and becomes the next watcher.
-- One detached process, which Codex uses: it holds the same task-wide wait lease
+- One detached process, which a Codex task uses on either transport: it holds the same task-wide wait lease
   plus an adapter lease of its own, and stores exact batches from every page in
   one task-wide delivery.
-- A host that drives App Server itself, which the website's per-reader container
+- A host that drives App Server itself, which the website's per-user container
   uses: it starts the turn directly and needs nothing between them.
 
 Every carrier watches every page the session holds, re-reading the set on each
@@ -199,7 +202,7 @@ the session's next close. An `adapter` or `embedded` carrier declares no nudge a
 needs none: its process queues or starts turns itself, and if that process is gone
 so is the session it served.
 
-In Codex, the adapter collects available input, then freezes the delivery. Input
+In Codex, on either transport, the adapter collects available input, then freezes the delivery. Input
 collected after that boundary belongs to a later delivery. Without an App Server
 observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable
 same-task queue. A failed or uncertain queue call retries the same frozen pointer while
@@ -255,7 +258,7 @@ recovers the same binding — one resuming a task after the fact, or reading the
 task opened for a queued pointer. A lost subscription is not one of those cases:
 losing the starting connection ends the turn rather than opening a gap to read across.
 Reply binding is the hook's contract above and, for the agent,
-`../../references/host-codex.md`, "Codex App Server transport". This is another carrier over
+`../../references/host-codex-app-server.md`, "Replies". This is another carrier over
 the same delivery, page claim, event log, and activity projection, not another
 conversation store or response policy.
 

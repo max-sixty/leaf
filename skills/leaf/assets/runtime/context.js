@@ -83,10 +83,10 @@ export const runtime = {
   get lastEventSeq() {
     return readApplication().authoritative?.browser.basis.through_seq ?? -1;
   },
-  // A chrome placement is moving a box the reader may be standing in, so the focus it
-  // takes off and hands straight back is the layer's own, not the reader going
+  // A chrome placement is moving a box the user may be standing in, so the focus it
+  // takes off and hands straight back is the layer's own, not the user going
   // anywhere. Standing here rather than beside the one placer, because what has to know
-  // is every reader of where the reader stands.
+  // is every reader of where the user stands.
   placingChrome: false,
   get reading() {
     return readApplication().authoritative?.reading ?? null;
@@ -112,7 +112,7 @@ export const runtime = {
   },
 };
 
-// A specimen arrives inert and without the surrounding reader's arrangements.
+// A specimen arrives inert and without the surrounding user's arrangements.
 // The host releases inertness only on explicit entry. Passive gallery replays stay
 // inert and take one state reading; operable specimens run the ordinary live feed.
 export const passiveSpecimen = document.body.hasAttribute("data-lf-specimen-passive");

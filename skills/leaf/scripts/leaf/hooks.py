@@ -104,7 +104,7 @@ def unattended_pages(
         # unacknowledged events twice.
         if not carried:
             # The watcher's whole batch — user events and workers' reports — not the
-            # reader-facing count, which deliberately leaves reports out.
+            # user-facing count, which deliberately leaves reports out.
             n = len(unacknowledged(events, state["cursor"]))
             if n:
                 # The harness's own remedy names this page, so it stays on the
@@ -121,13 +121,13 @@ def unattended_pages(
                     )
                 )
             # Nothing is owed and nothing is listening. That is a debt on a page
-            # handed to a reader, and a developer preview is not one: the same
+            # handed to a user, and a developer preview is not one: the same
             # `preview.json` the browser chrome reads to label it a preview says
             # the page is a rendering of a tracked example, put up to be looked
             # at. A session inspecting a dozen slots would otherwise carry a
             # dozen copies of this one line into every turn. The two clauses that
-            # answer for a real reader stay above it, so a gesture on a preview
-            # still arrives — this exempts the housekeeping, not the reader.
+            # answer for a real user stay above it, so a gesture on a preview
+            # still arrives — this exempts the housekeeping, not the user.
             #
             elif (
                 state["status"]["state"] != "idle"

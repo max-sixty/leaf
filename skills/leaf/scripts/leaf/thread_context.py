@@ -67,7 +67,7 @@ def thread_roots(events: list) -> dict:
 
     A reply whose root the log lost stands as its own thread rather than raising.
     `read_events` skips a line nothing could be done with and keeps reading, and a
-    reader who can see the reply is owed the rest of the page around it."""
+    user who can see the reply is owed the rest of the page around it."""
     root = {}
     for e in events:
         if e["kind"] == "comment":
@@ -198,7 +198,7 @@ def thread_memberships(
 # What one message is, to a wait consumer holding no page: who said it, what they said,
 # the widget they sent with it, and the id an answer names. `seq` is the log
 # position, which is also what marks a message as already delivered. A
-# `suggestion` is the reader proposing exact replacement words rather than
+# `suggestion` is the user proposing exact replacement words rather than
 # describing a change, and the loop owes it a different answer — taken verbatim,
 # or declined with a reason — so a digest that dropped the flag rendered it as
 # ordinary prose and lost the obligation with it.
@@ -233,7 +233,7 @@ SHOWN = 8
 
 # What one gesture on a sent widget is, unfolded. `author` for the same reason a
 # message carries one: who did it is part of what happened, and the alternative
-# is this reading asserting that only the reader ever can.
+# is this reading asserting that only the user ever can.
 ACTION_FIELDS = ("id", "seq", "author", "widget", "action", "detail")
 
 
@@ -271,7 +271,7 @@ def thread_digest(
         "anchor": thread["anchor"],
         "detached_from": thread["detached_from"],
         # Who closed it, or null for a thread still open — a thread an agent
-        # closed is one the reader may never have answered.
+        # closed is one the user may never have answered.
         "resolved": thread["resolved"] and thread["resolved"]["author"],
         "elided": {"messages": len(kept) - len(shown), "actions": 0},
         "messages": [
@@ -295,7 +295,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     they follow on the next lines.
 
     A widget an agent sent is part of the conversation too, so `actions` carries
-    what the reader did to one: without it the question reaches the agent and
+    what the user did to one: without it the question reaches the agent and
     the answer does not, and the reply reopens something already settled.
     `page state` gets none of these, because it folds them into its own `state`
     list with the thread named, and one fact read twice in one object is a fact
@@ -307,7 +307,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     by design — but containment was never the vocabulary's to answer. Folding
     with no page at all was the alternative, and it would show a settlement a
     floor had taken back as standing, and a superseder taken back the same way
-    as masking one: the reader sees their question reopened while the agent is
+    as masking one: the user sees their question reopened while the agent is
     told it was answered, and neither side can see the disagreement.
 
     The actions are unfolded because folding wants the declarations that say
@@ -343,6 +343,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     # delivered gesture names is pinned past the bound; eliding it leaves an
     # action naming ids nothing in the envelope spells out, which is the defect
     # this whole reading exists to fix, surviving in the long-thread case.
+    summaries_for = active_summaries(events, threads)
     carried = []
     for t in named:
         if t not in threads:
@@ -360,7 +361,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             if fragment.by_id.keys() & spoken_for
         )
         digest = thread_digest(threads[t], delivered, pin)
-        summaries = active_summaries(events, t, threads[t])
+        summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}
         # Keep the newest exchange verbatim. The suggested range is one exact,

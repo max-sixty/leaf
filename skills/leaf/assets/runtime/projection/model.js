@@ -164,7 +164,7 @@ export function projectionOrigins(authoredSnapshots, projection) {
       ? value !== authoredFacet(authoredSnapshots, coordinate)
       : true;
     if (!overridesSource) continue;
-    add(e.kind === "action" ? "reader" : "reported", unit);
+    add(e.kind === "action" ? "user" : "reported", unit);
   }
   return [...origins.values()];
 }

@@ -22,7 +22,7 @@ import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
 import { el, offer } from "./widget-elements.js";
-import { placeKeeper } from "./reader-place.js";
+import { placeKeeper } from "./user-place.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -67,8 +67,8 @@ dialogSearch.placeholder = "Find an action, status, or location";
 dialogSearch.label = "Find an action, status, or location in Page Map";
 dialogSearch.size = "s";
 const dialogList = el("div", "lf-page-map-list");
-// A state update or a search re-renders the open sheet; the row the reader was on holds
-// their place in it (reader-place.js), under the map key each row is rendered with.
+// A state update or a search re-renders the open sheet; the row the user was on holds
+// their place in it (user-place.js), under the map key each row is rendered with.
 const place = placeKeeper(dialogList, {
   items: ".lf-page-map-action",
   identity: (row) => row.dataset.lfMapKey,
@@ -276,7 +276,7 @@ export function createPageMapDialog({
       const action = control.lfMapAction;
       if (action.kind === "item") {
         syncMarginAgentWorkflow(control, action.item.workflowReceipt);
-        syncMarginTurn(control, Boolean(action.item.readerAttention));
+        syncMarginTurn(control, Boolean(action.item.userAttention));
       } else
         presentSheetControl(control, action, groupsByKey.get(action.entry.key).actions);
     }
@@ -373,9 +373,9 @@ export function createPageMapDialog({
     dialogSearch.addEventListener("input", renderSheet);
     mapButton.onclick = enterPageMap;
     // Escape is one step of the page's unwind, and a modal's parent is the page it
-    // stands over, so this press lands the reader there. Leaf performs the whole step
-    // rather than letting the platform close the dialog and this owner land the reader
-    // from the `close` event: that event arrives a task later, and a reader whose next
+    // stands over, so this press lands the user there. Leaf performs the whole step
+    // rather than letting the platform close the dialog and this owner land the user
+    // from the `close` event: that event arrives a task later, and a user whose next
     // press is `g` would arm the sequence before the focus moved and disarm it on
     // arrival. The Close button is the other way out and keeps the invoker, the pointer
     // being already on the control that reopens the dialog.

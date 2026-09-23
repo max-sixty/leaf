@@ -1,9 +1,9 @@
 /* Retained comment-panel list reconciliation.
 
-   Every change to this list's content holds the reader's place through it: the renders
+   Every change to this list's content holds the user's place through it: the renders
    `renderThreads` drives, receipt updates among them, and the disclosure the browser
-   drives when a reader opens a card and the named group closes the one that was open.
-   The hold is `reader-place.js`'s, keyed by each card's thread; this module decides only
+   drives when a user opens a card and the named group closes the one that was open.
+   The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
 
@@ -15,29 +15,18 @@
    property the list spends its own inset from. A margin there, or a `top` of zero,
    leaves a strip the list scrolls through in full view.
 
-   Being pinned is `.lf-pinned`, worn by the run headings. It is also what
-   `renderThreads` sweeps to answer how much of the list's top stands covered. That
-   answer is the one number in the list's `scroll-padding` that CSS
-   cannot work out, because a long heading wraps — the tallest is written to
-   `--lf-head-room`, and a `ResizeObserver` on the list writes it again when the reader
-   draws the panel narrower and a heading wraps — a drag posts no event, so a reconcile
-   never comes. Without it a walk lands threads under the heading with the opening
-   words of the comment behind it, which is what
-   `test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel` holds.
-
-   The measurement is taken only while the panel is open, and this is a rule rather
-   than an optimization. Shut, the panel is `display: none` and every heading measures
-   zero, so the number written is not the room a heading takes but the absence of a
-   panel. Taking it anyway costs a forced layout on every reconcile, for a page whose
-   reader may never open the panel at all — and that cost is not notional: it delayed
-   an event's acknowledgement past the window an undo is offered in, so a press the key
-   line had just promised was refused, which
-   `test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll` caught
-   under a loaded machine and nowhere else. The observer covers the reopen, a box
-   arriving being a resize, so the number is written at the first moment it can be
-   right. A retained value from the last open panel is a real measurement and stands
-   until then; the property is unset until the first open, where the `0px` fallback in
-   the rule is the honest answer.
+   Being pinned is `.lf-pinned`, worn by the run headings. The room they take is the
+   one number in the list's `scroll-padding` that CSS cannot work out, because a long
+   heading wraps: each reconcile declares the headings to `declareCoverRoom`
+   (geometry.js), which observes them and writes the tallest to `--lf-head-room`, again
+   when the user draws the panel narrower and a heading wraps with no reconcile to say
+   so. Without it a walk lands threads under the heading with the opening words of the
+   comment behind it, which is what
+   `test_the_room_a_run_heading_takes_follows_the_user_drawing_the_panel` holds.
+   Measuring is the observer's rather than the reconcile's, so a reconcile forces no
+   layout: taken on every reconcile of a shut panel, that cost once delayed an event's
+   acknowledgement past the window an undo is offered in
+   (`test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll`).
 
    Reserved room only reaches a control that lands in it, and a press lands nowhere:
    the browser focuses the card under the pointer and scrolls nothing. So the thread
@@ -47,12 +36,12 @@
    card with three sides. A press lands when it is over rather than as focus arrives,
    because focus arrives on the way down and the press may be the start of a drag
    across the comment's own words; a drag that ends in the thread takes no landing at
-   all. What it lands is the thread the completed gesture leaves the reader in, not the
+   all. What it lands is the thread the completed gesture leaves the user in, not the
    one the focus moved to, so a press on the thread they are already standing in —
    which moves no focus — brings it back like any other.
 
    This is an arrival rule and not a promise about the paint. Scrolling the list under
-   a standing thread cuts its ring again, and nothing re-lands it: the reader is moving
+   a standing thread cuts its ring again, and nothing re-lands it: the user is moving
    away from what they were standing in, and a control under something is a fact about
    where it was put. A thread taller than the list's own scrollport is the excepted
    case in both directions — there is no scroll that shows all of it, which is the same
@@ -70,8 +59,8 @@
    it is in. */
 import { scrollBehavior } from "../motion.js";
 import { narrowingView, threadsBox } from "./panel-elements.js";
-import { placeKeeper } from "../reader-place.js";
-import { PINNED } from "../geometry.js";
+import { placeKeeper } from "../user-place.js";
+import { PINNED, declareCoverRoom } from "../geometry.js";
 import { conversational, threadKey } from "./model.js";
 import { ago } from "../presence.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
@@ -106,45 +95,18 @@ export const openThreads = ({
 const emptyText =
   "No threads yet. Select any text on the page to comment on it, or use the box below.";
 
-// The one number in the list's scroll-padding that CSS cannot work out: a run heading
-// sticks over the top of this box, and a long one wraps, so how much of the top is
-// covered is a measurement rather than a constant. The tallest, not the stuck one — the
-// browser is given one number to scroll by and cannot be told which heading will be under
-// the landing, and reserving more than a shorter heading needs only lands the thread a few
-// pixels lower.
-//
-// It follows the box rather than the log. Wrapping is a function of the list's width, and
-// the reader sets that themselves by dragging the panel's edge — a drag posts no event, so
-// a reconcile never came, and a heading that had grown from one line to two went on being
-// reserved for at one. Threads then landed under it, which is the whole defect this
-// number exists to prevent. Writing a custom property does not resize the observed box,
-// so the observer cannot feed itself.
-function paintHeadRoom(panelIsOpen) {
-  // Not while the panel is shut, which is most of a page's life. Every heading measures
-  // zero in `display: none`, so the answer is never the room a heading takes — it is the
-  // absence of a panel, written at the cost of a forced layout on every reconcile for a
-  // number no reader can be standing in. That cost is not theoretical: under a loaded
-  // machine it delayed an event's acknowledgement past the window an undo is offered in,
-  // and `test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll` lost
-  // its press to a gesture that had not settled yet. The observer fires when the panel
-  // opens — a box arriving is a resize — so the measurement lands the moment it means
-  // something, which is also the only moment it can be right.
-  if (!panelIsOpen()) return;
-  const heads = [...threadsBox.querySelectorAll(PINNED)];
-  threadsBox.style.setProperty(
-    "--lf-head-room",
-    `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
-  );
-}
-// Observed once the chrome is mounted (leaf.js): the list is the panel's.
+// The run headings are the covers standing in this list; a reconcile is what adds and
+// removes them, so each one declares the set (the header says why the room is observed).
+const declareHeadRoom = () =>
+  declareCoverRoom(threadsBox, "--lf-head-room", threadsBox.querySelectorAll(PINNED));
+// Mounted once the chrome is (leaf.js): the list is the panel's.
 export function mountThreadList(panelIsOpen) {
-  new ResizeObserver(() => paintHeadRoom(panelIsOpen)).observe(threadsBox);
   holdThroughDisclosure(panelIsOpen);
 }
 
 // Opening a card is the third thing that reflows this list, beside the two renders, and
 // the only one the browser performs on its own: the named group closes the card that was
-// open, and every card after it — the title the reader just pressed among them — comes up
+// open, and every card after it — the title the user just pressed among them — comes up
 // by that card's open height. Native scroll anchoring answers this only when the node it
 // picked happens to be the pressed card or below it; picked above, it holds the room that
 // did not change and lets the pressed title travel, measured at 186px on an ordinary
@@ -168,7 +130,7 @@ function holdThroughDisclosure(panelIsOpen) {
   );
 }
 
-// The list's place through every change to its content (reader-place.js). A card is
+// The list's place through every change to its content (user-place.js). A card is
 // rendered under its thread's root id, so a card the render rebuilt hands the place to
 // its successor node, and a folding card, renamed out of `.lf-thread`, hands it to the
 // next card still standing.
@@ -221,7 +183,7 @@ const rowModel = (all, commands) => {
   const grow =
     commands.panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
 
-  // Where the reader's own narrowing applies, and the only place it does: the page's
+  // Where the user's own narrowing applies, and the only place it does: the page's
   // marks, the inline conversation seats and the banner's count are readings of the log
   // and go on saying what the log says. What the panel shows is the panel's business,
   // and so is the order it shows it in. Under Recent a run is the day its threads last
@@ -238,12 +200,12 @@ const rowModel = (all, commands) => {
     rows.push(
       Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
     );
-  // Walked in the order the reader chose above. A thread on its way out still stands
+  // Walked in the order the user chose above. A thread on its way out still stands
   // between its neighbours while it folds (foldOut), which is why the walk is over the
   // whole list with the resolved ones taken at their own place. A folding thread is
   // walked by nothing: the log has already settled it, and only its room is still here.
   //
-  // A heading goes in wherever the run changes, so the reader scrolling a list four
+  // A heading goes in wherever the run changes, so the user scrolling a list four
   // thousand pixels long is told which part of the page they are reading about — and,
   // the headings being sticky, is still told halfway down a long run.
   //
@@ -308,7 +270,7 @@ function configureList(commands) {
 }
 
 function postPaint({ count, unread, narrowing }, commands) {
-  paintHeadRoom(commands.panelIsOpen);
+  declareHeadRoom();
   commands.setThreadCounts(count, unread);
   narrowingView.present(narrowing);
   commands.onListChanged();

@@ -1,13 +1,15 @@
 /* This module owns the shared readings of visible boxes and clipping, and the one
  * conversion from viewport boxes to document-positioned chrome. */
-import { uiInside } from "./shadow.js";
+import { uiInside, under, upFrom } from "./shadow.js";
 
 /* Shared readings of the boxes the page actually shows.
 
    `shownBox` returns an element's own box or the union of the boxes its
    `display: contents` descendants paint. `shownParts` returns the visible elements on
    which an outline can be drawn. `shownRect` clips the result through scrolling
-   ancestors and the viewport, stopping ancestor clipping at a fixed-position box.
+   ancestors' visible bands (less the stuck covers over their edges) and the viewport,
+   stopping ancestor clipping at a fixed-position box; it is the one reading of whether
+   something is on screen.
    `clippedRect` applies that same clipping walk to a box measured some other way for an
    element, and `clippedContents` to a box measured from a Range, starting at the element
    that holds the Range and counting that element's own clip. Use:
@@ -30,7 +32,7 @@ import { uiInside } from "./shadow.js";
 // overhang. Body's content box and not its border box, because the strip a standing panel
 // or tray takes is a transparent border (theme.css says why it has to be one), so
 // `getBoundingClientRect().right` is the window's edge rather than the page's. Read live
-// rather than derived from a panel width, since a reader may have drawn the edge
+// rather than derived from a panel width, since a user may have drawn the edge
 // anywhere and the stylesheet decides whether the strip is taken at all.
 export const shellRight = () => {
   const body = document.body;
@@ -55,10 +57,10 @@ export function documentPoint(left, top) {
   };
 }
 
-// What a container lets the reader see of what it holds, or null where it shows all of
+// What a container lets the user see of what it holds, or null where it shows all of
 // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
 // content-visibility both clip while overflow computes `visible`, and a box under either
-// would be drawn at a rect the reader never sees. The band itself is the padding box less
+// would be drawn at a rect the user never sees. The band itself is the padding box less
 // whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
 // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
 // past the edge.
@@ -99,24 +101,60 @@ export function shownBand(el) {
 
 // The two bands of a scrollport, one reading each, beside the clip they start from.
 //
-// `visibleBand` is what the reader can see through a scroller now: its shown band less
-// the sticky chrome standing over an edge of it. A sticky box declares itself with
-// `.lf-pinned` (the thread list's run headings); stuck, it paints over the scroller's
-// contents without clipping them, so a clip walk calls what is under it shown. Read acknowledgement,
-// the summaries a thread card keeps open, and the place a re-render holds all ask this.
+// `visibleBand` is what the user can see through a scroller now: its shown band less
+// the covers stuck over an edge of it. A cover is a sticky box declared through
+// `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header.
+// Stuck, it paints over the scroller's contents without clipping them, so a band that
+// ignored it would call what is under it shown. The clip walk below applies this band at
+// every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
+// summaries a thread card keeps open, arrival checks, chrome placement) all answer "on
+// screen" the same way; the place a re-render holds asks it of its one scroller directly.
+//
+// A cover belongs to the scroller it sticks in, found by climbing out of shadow trees
+// as the clip walk does: a run heading inside the thread list is that list's, not the
+// document's, though the document holds it too. And a cover does not hide itself or what
+// it holds, so the band a node inside one is read against (`item`) leaves that cover out.
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
 // It reserves room for the tallest cover wherever one might stick, so it is never wider
 // than the visible band a landing arrives in.
 export const PINNED = ".lf-pinned";
-export function visibleBand(scroller) {
+const scrolls = (el) => {
+  const { overflowX, overflowY } = getComputedStyle(el);
+  return /auto|scroll|hidden/.test(`${overflowX} ${overflowY}`);
+};
+// The scroller a sticky box sticks in: its nearest scrolling ancestor, else the root.
+const stuckIn = (cover) => {
+  for (let a = upFrom(cover); a && a !== document.documentElement; a = upFrom(a))
+    if (scrolls(a)) return a;
+  return document.scrollingElement;
+};
+// Every shown cover's box, by the scroller it sticks in. Built once per clip pass, since
+// a pass asks it at each ancestor of every item. A detached cover is only skipped: its
+// observer lets it go, and a cover put back and declared again must still be one.
+const COVERS = Symbol("covers");
+function coversByScroller(clips = null) {
+  let index = clips?.get(COVERS);
+  if (index) return index;
+  index = new Map();
+  for (const cover of declaredCovers) {
+    if (!cover.isConnected || !cover.checkVisibility()) continue;
+    const scroller = stuckIn(cover);
+    if (!index.has(scroller)) index.set(scroller, []);
+    index.get(scroller).push({ cover, box: cover.getBoundingClientRect() });
+  }
+  clips?.set(COVERS, index);
+  return index;
+}
+const bandLess = (band, covers, item) =>
+  insetBand(
+    band,
+    covers.filter(({ cover }) => !item || !under(item, cover)).map(({ box }) => box),
+  );
+export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
-  if (!band) return null;
-  const covers = [...scroller.querySelectorAll(PINNED)]
-    .filter((cover) => cover.checkVisibility())
-    .map((cover) => cover.getBoundingClientRect());
-  return insetBand(band, covers);
+  return band && bandLess(band, coversByScroller().get(scroller) ?? [], item);
 }
 export function landingBand(scroller) {
   const band = shownBand(scroller);
@@ -141,6 +179,63 @@ export function landingInsets(scroller) {
     bottom: inset("Bottom"),
     left: inset("Left"),
   };
+}
+// Declaring a box's covers does two things. Each becomes a cover for `visibleBand`, and
+// the room they take is kept on the box as a custom property, so the `scroll-padding` or
+// `scroll-margin` that reads it reserves that room for every native landing (and a
+// scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
+// a cover is is a measurement rather than a constant: a heading or a file path wraps,
+// and the user sets the width by drawing a panel's edge, which posts no event. So the
+// covers are observed rather than measured by whoever renders them, which forces no
+// layout. The tallest is the room, since a landing cannot know which cover will stick
+// over it. A cover that stops rendering (its panel shut) keeps the room it last
+// measured, so a frame that runs before the reopening's observation reads the room
+// rather than none. Called again with the box's current covers, it replaces the set; a
+// cover that leaves the document is let go on its own.
+const declaredCovers = new Set();
+const coverRooms = new WeakMap();
+const coverHosts = new WeakMap();
+let coverObserver = null;
+const paintCoverRoom = (host) => {
+  const { property, covers } = coverRooms.get(host);
+  host.style.setProperty(property, `${Math.max(0, ...covers.values())}px`);
+};
+const letGo = (cover) => {
+  coverObserver.unobserve(cover);
+  declaredCovers.delete(cover);
+};
+export function declareCoverRoom(host, property, covers) {
+  coverObserver ??= new ResizeObserver((entries) => {
+    const touched = new Set();
+    for (const { target, borderBoxSize } of entries) {
+      const host = coverHosts.get(target);
+      const room = host && coverRooms.get(host);
+      if (!room?.covers.has(target)) continue;
+      if (!target.isConnected) {
+        letGo(target);
+        room.covers.delete(target);
+      } else if (target.checkVisibility())
+        room.covers.set(target, borderBoxSize[0]?.blockSize ?? 0);
+      else continue;
+      touched.add(host);
+    }
+    for (const host of touched) paintCoverRoom(host);
+  });
+  const prior = coverRooms.get(host)?.covers ?? new Map();
+  const next = new Map();
+  for (const cover of covers) {
+    next.set(cover, prior.get(cover) ?? 0);
+    if (prior.has(cover)) continue;
+    coverHosts.set(cover, host);
+    declaredCovers.add(cover);
+    coverObserver.observe(cover);
+  }
+  const left = [...prior.keys()].filter((cover) => !next.has(cover));
+  for (const cover of left) letGo(cover);
+  coverRooms.set(host, { property, covers: next });
+  // A new cover is measured by its first observation, before the frame paints; one that
+  // left changes the room now.
+  if (left.length) paintCoverRoom(host);
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when
 // it straddles it, and a cover resting on another stuck cover straddles the edge the
@@ -244,7 +339,7 @@ export function shownParts(el) {
 export function shownRect(item, clips) {
   return clippedRect(shownBox(item), item, clips);
 }
-// Where a member begins, as the reader sees it: the first of the boxes it paints that
+// Where a member begins, as the user sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for
 // anything in flow and different for an inline that wraps, whose bounds run from the
 // column's left margin to its right — so a digit placed on that corner sat four hundred
@@ -285,22 +380,28 @@ function clipped(box, item, clips, held) {
   // itself cannot.
   for (let a = item; a; a = a.parentElement ?? a.getRootNode()?.host ?? null) {
     let c = clips.get(a);
-    if (c === undefined)
+    if (c === undefined) {
+      const band = shownBand(a);
       clips.set(
         a,
         (c = {
-          band: shownBand(a),
+          band,
+          // What stands over the band's edges without clipping it (visibleBand).
+          covers: band ? (coversByScroller(clips).get(a) ?? []) : [],
           // Read here rather than out of shownBand, whose answer is a band and is the
           // render gate's too: what clips a box and what a box is positioned against are
           // two facts, and one of them is this walk's alone.
           fixed: getComputedStyle(a).position === "fixed",
         }),
       );
+    }
     if ((held || a !== item) && c.band) {
-      left = Math.max(left, c.band.left);
-      top = Math.max(top, c.band.top);
-      right = Math.min(right, c.band.right);
-      bottom = Math.min(bottom, c.band.bottom);
+      const band = c.covers.length ? bandLess(c.band, c.covers, item) : c.band;
+      if (!band) return null;
+      left = Math.max(left, band.left);
+      top = Math.max(top, band.top);
+      right = Math.min(right, band.right);
+      bottom = Math.min(bottom, band.bottom);
     }
     if (c.fixed) break;
   }

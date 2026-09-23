@@ -103,7 +103,7 @@ import {
   reserveListClearance,
 } from "./runtime/trays.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
-import { restoreReaderView } from "./runtime/restore-state.js";
+import { restoreUserView } from "./runtime/restore-state.js";
 import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
 import { versionMenu, versionMenuIsOpen } from "./runtime/version-chooser.js";
@@ -350,7 +350,7 @@ const version = createVersionController({
   captureAskStanding: () => asks.captureStanding(),
   restoreAskStanding: (standing) => asks.restoreStanding(standing),
 });
-// Body is the stable programmatic destination when the reader lets go of a control.
+// Body is the stable programmatic destination when the user lets go of a control.
 // Register the stop after version.js snapshots source attributes, so later authored
 // revisions do not mistake it for source state and remove it.
 setRuntimeRootAttribute(document.body, "tabindex", "-1");
@@ -399,11 +399,12 @@ app = mountApplication({
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
   retainConversationFocus: () => retainConversationFocus(panelIsOpen),
-  revealReplyEditor: (input, behavior) =>
+  revealReplyEditor: (input, { behavior, block } = {}) =>
     revealConversation(
       input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
       input,
       behavior,
+      block,
     ),
   setThreadCounts,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
@@ -449,7 +450,7 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 declareReading(version.readingBlock);
 
 // And where it goes instead while a surface covers the page: the page is inert under one,
-// so the reading above cannot take the reader and a step that let go would leave them
+// so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
 // answers both halves for whichever surface is standing — the panel, either tray — and
 // the keyboard register carries the same pair to the dispatcher.
@@ -672,7 +673,6 @@ trays = createTrays({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
@@ -860,14 +860,14 @@ if (!offlineInteractive) {
 }
 
 if (!passiveSpecimen && !offlineInteractive) {
-  restoreReaderView({
+  restoreUserView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
   });
   // The page has just arrived, so nothing holds focus and the first Tab starts at the
-  // skip link. Not the reading landing: a reader who has read nothing has no position
+  // skip link. Not the reading landing: a user who has read nothing has no position
   // for the browser to carry on from.
   releaseFocus();
 }

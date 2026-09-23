@@ -561,7 +561,7 @@ CONTROL_ARCHETYPES = (
         # row at all — before it the next-unreviewed press had no control beside it and
         # the sweep passed it over — and it is also the press with something to prove,
         # because wrapping rewrites the height of every line under the row it is in.
-        # Pressed by its own words, which is where a reader aims and what a native label
+        # Pressed by its own words, which is where a user aims and what a native label
         # activation does either way.
         "name": "diff-tools",
         "target": "#stable-diff .lf-diff-wrap-label",
@@ -586,9 +586,9 @@ CONTROL_ARCHETYPES = (
     {
         # The comparison rail: Before and After stand beside each other above the frames,
         # and each caption chooses its own frame. Pressing After is the transition with
-        # something to prove — the caption the reader leaves and the one they arrive at
+        # something to prove — the caption the user leaves and the one they arrive at
         # both change their active paint, and a rule that spent width on the active word
-        # would move the other caption under the reader's pointer.
+        # would move the other caption under the user's pointer.
         "name": "shot-caption",
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
@@ -623,7 +623,7 @@ CONTROL_ARCHETYPES = (
     {
         # The visual inspector's view and size presses are joined groups whose selected
         # treatment changes in place. Pressing Flip exercises both states while its
-        # Compare, Overlay, and size neighbours stay under the reader's pointer.
+        # Compare, Overlay, and size neighbours stay under the user's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
         "target": '.lf-vr-mode-group > [data-mode="flip"]',
@@ -697,26 +697,26 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     expect(button).to_be_disabled()
 
 
-def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, serve):
+def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
     """Sign-off was one press with no second step, and the heaviest press on the page.
 
-    A reader who meant Threads and hit the button beside it had approved the work, and
+    A user who meant Threads and hit the button beside it had approved the work, and
     nothing on the page or in the log would take it back: `done` was outside
     UNDOABLE_KINDS, so the append door refused the undo and the offer never reached the
     shortcut bar. It is a mark rather than speech, the way a reaction is — the agent is told
     the version is approved, not told something — so the withdrawal is the whole of the
-    correction, and it goes through the outbox and the `z` row every other reader gesture
+    correction, and it goes through the outbox and the `z` row every other user gesture
     uses.
 
     Read at all three levels the fault sat in, because two of them were separately wrong:
     the shortcut bar has to offer the press, the log has to take the undo, and the projection
-    the button reads has to stop counting an approval a reader withdrew — `done` was a
+    the button reads has to stop counting an approval a user withdrew — `done` was a
     raw filter over the whole log, so an accepted undo would have left the button reading
     "✓ Version approved" for ever.
 
     And the tooltip, which is the other half of the same fault: it said "Approve this
     work" whether or not the work had been approved, so the one surface that could tell a
-    reader what the press would do next described one they had already made.
+    user what the press would do next described one they had already made.
     """
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -753,7 +753,7 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
     ], f"the withdrawal is not in the log as its own event: {kinds}"
 
     # And the press is available again, which is what makes this a correction rather than
-    # a page the reader has spent.
+    # a page the user has spent.
     with sending(page, "the second approval"):
         button.click()
     expect(button).to_have_text("✓ Version approved")
@@ -789,7 +789,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     """A page that only informs ends at Threads and offers no terminal action.
 
     The slot the approve button takes on a sign-off page stays empty here rather than
-    picking up a neutral control, which is the fact a reader can see: an informational
+    picking up a neutral control, which is the fact a user can see: an informational
     page asks them for nothing, so it hands them nothing to press.
     """
     page = open_page(browser, serve(LONG_PAGE))
@@ -801,7 +801,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     )
     # Read the run that stands, not the shelf's whole inventory: a control registered
     # for another device is in the row's markup with no presence, and the fact here is
-    # that nothing the reader can press follows Threads.
+    # that nothing the user can press follows Threads.
     expect(page.locator(".lf-banner-actions > *:visible").last).to_have_class(
         re.compile(r"\blf-threads-toggle\b")
     )
@@ -832,7 +832,7 @@ def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, reside
     reach its final width at once and then glide the column there over 180ms, which is
     where the intermediate postures came from and what this test grew up watching; the
     glide is gone, because animating the column's `left` suppressed the browser's scroll
-    anchoring and cost the reader their place every time the panel closed. So the page
+    anchoring and cost the user their place every time the panel closed. So the page
     has exactly one layout, held motion has nothing to hold, and the column is already
     where it belongs on the frame the panel opens.
     """
@@ -868,7 +868,7 @@ def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, reside
     assert landed["shell"] == width - 420
     assert landed["strip"] == 420, (
         "the page yielded the strip as something other than the border that keeps the "
-        f"reader's place: {landed}"
+        f"user's place: {landed}"
     )
     assert initial["resident"] != landed["resident"], (
         "the fixture crossed no responsive posture, so it cannot expose the regression"
@@ -945,7 +945,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         assert_primary_reach(width)
 
     # The keyboard walks the row it can see and reaches the door standing at its start,
-    # and the reading loop is in front of the reader without opening anything.
+    # and the reading loop is in front of the user without opening anything.
     resized(page, 320, 844)
     actions = page.locator(".lf-banner-actions")
     actions.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -1020,7 +1020,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     expect(page.locator(".lf-banner-more")).to_be_visible()
     # Open the door and read what stands behind it rather than counting the menu's
     # markup: the shelf keeps a control registered for another device in that list with
-    # no presence, so inventory and what the reader meets are different readings.
+    # no presence, so inventory and what the user meets are different readings.
     page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(page.locator(".lf-banner-menu > .lf-version")).to_be_visible()
@@ -1066,7 +1066,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     assert pinned.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") == 0
     # A control the page has taken away is taken away wherever it stands. The row's own
     # rules state display for its box, and a rule that states it without excluding the
-    # hidden ones puts an absent destination back between the reader and a real one.
+    # hidden ones puts an absent destination back between the user and a real one.
     expect(pinned.locator(".lf-page-map-toggle")).to_be_hidden()
     assert pinned.locator(".lf-page-map-toggle").evaluate("el => el.offsetWidth") == 0
     expect(pinned.locator(".lf-banner-more")).not_to_have_attribute(
@@ -1087,7 +1087,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         }"""
     )
     assert not seen["onTheRow"] and seen["behindTheDoor"], (
-        f"the phone banner took its page news out of the reader's sight: {seen}"
+        f"the phone banner took its page news out of the user's sight: {seen}"
     )
     positions = pinned.evaluate(
         """async () => {
@@ -1326,7 +1326,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     page.close()
 
     # A control that settles its own decisions disappears while it still owns focus. Hand
-    # the reader to the next standing control instead of silently dropping them on body.
+    # the user to the next standing control instead of silently dropping them on body.
     page = open_page(browser, url.replace("/v1.html", "/v2.html"), pin=True)
     resized(page, 1200, 900)
     stamp_page(serve.page_dir, html, "three")
@@ -1372,7 +1372,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         }"""
     )
     assert "lf-btn" in (landed or ""), (
-        f"the focus transfer left the reader on {landed!r} rather than on a control"
+        f"the focus transfer left the user on {landed!r} rather than on a control"
     )
 
 
@@ -1628,7 +1628,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     somebody said, which are a reply and the passage it is about, and those stay
     copyable.
     """
-    # Anchored, so the thread carries both of the things a reader may want out of the
+    # Anchored, so the thread carries both of the things a user may want out of the
     # panel: the passage it is about and the reply somebody wrote under it.
     url = serve(LONG_PAGE, anchored=[("p40", "Paragraph 40.")])
     page = open_page(browser, url)
@@ -1651,7 +1651,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
                   whole: document.body.textContent.length};
         }"""
     )
-    # Five pixels past the edge: the overshoot a reader gives a drag they meant to end at
+    # Five pixels past the edge: the overshoot a user gives a drag they meant to end at
     # the end of a line, which at the covering width lands mid-line on every paragraph.
     select(page, aim["start"], (aim["edge"] + 5, aim["start"][1]))
     took = page.evaluate("() => getSelection().toString()")
@@ -1661,7 +1661,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     )
 
     # The statement, rather than the surfaces that happened to carry it: apparatus is
-    # unselectable, and what a reader may copy says so for itself.
+    # unselectable, and what a user may copy says so for itself.
     open_layer = page.evaluate(
         """() => {
           const said = '.lf-quote, .lf-msg-body';
@@ -1690,7 +1690,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
         }"""
     )
     assert copyable["quote"] and copyable["reply"], (
-        f"the panel stopped a reader copying the words somebody said: {copyable}"
+        f"the panel stopped a user copying the words somebody said: {copyable}"
     )
 
 
@@ -1802,7 +1802,7 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
     # Every secondary control, from the keyboard, through that one door. The press is the
-    # popover's own invoker, so the menu opens and puts the reader on its first control
+    # popover's own invoker, so the menu opens and puts the user on its first control
     # without anything here focusing it for them.
     want = secondary.evaluate_all(
         """els => els.filter(el => getComputedStyle(el).display !== 'none' &&
@@ -1900,7 +1900,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     )
     expect(page.locator(".lf-focus-candidate-2")).to_be_focused()
 
-    # Semantic presence can change while the reader is inside the overflow without
+    # Semantic presence can change while the user is inside the overflow without
     # repartitioning the list under them or stranding focus on the retired control.
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     answer_all.focus()
@@ -1927,7 +1927,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     """The dot going red is not an announcement.
 
     The banner flipped to the offline colour and rewrote its line while the live region
-    went on holding whatever it last said, so a reader who is not watching the top of the
+    went on holding whatever it last said, so a user who is not watching the top of the
     window learned nothing. A kind changing — work starting, a turn ending, the server
     going — is what is worth interrupting for, and what it says is the banner's own
     sentence rather than a second account of it. The age moving and a count turning over
@@ -2062,7 +2062,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
         step, abs=1
-    ), "an active glide kept moving after the reader asked for reduced motion"
+    ), "an active glide kept moving after the user asked for reduced motion"
 
 
 def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, serve):
@@ -2258,7 +2258,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         page.wait_for_function("() => !document.body.hasAttribute('data-lf-sizing')")
 
     # At the product's 320px floor the comment sheet has no possible width to move
-    # through, so it offers no inert separator. A reader standing on the grip lands on
+    # through, so it offers no inert separator. A user standing on the grip lands on
     # its surviving close control before it disappears; the narrower tray still moves.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2526,7 +2526,7 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     try:
         page.keyboard.press("z")
         holding(page, held, 1, "the undo that reopens the choice")
-        # The reader sees their withdrawal in the widget at once. Whether the Ask is
+        # The user sees their withdrawal in the widget at once. Whether the Ask is
         # open again is the log's reading, and this withdrawal has not reached it, so
         # the prerequisite this verb declares is still unmet and its control shut.
         expect(page.locator("#pick-a")).not_to_have_attribute("chosen", "")
@@ -2549,15 +2549,15 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
 
 
 def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
-    """The reader's own remark must not lock the control it is a remark about.
+    """The user's own remark must not lock the control it is a remark about.
 
-    A conversation standing in the widget's seat takes the decision off the reader's
+    A conversation standing in the widget's seat takes the decision off the user's
     list — the banner stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
-    reader meets first: the POST door only sees a hand-posted event, while here
+    user meets first: the POST door only sees a hand-posted event, while here
     the controller reading paints the control and its dispatcher guards the press, and
     the module has already painted the answer by the time either runs. Reading the
-    reader's list at this door therefore does not refuse the press so much as swallow
+    user's list at this door therefore does not refuse the press so much as swallow
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
@@ -2588,7 +2588,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
         },
     )
     page = open_page(browser, url)
-    # Off the reader's list, which is the whole reason the two readings differ here.
+    # Off the user's list, which is the whole reason the two readings differ here.
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     page.get_by_role("button", name="Accept").click()
@@ -2813,7 +2813,7 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
 
 
 def test_the_banner_opens_a_panel_of_the_machines_leaves(
-    browser, serve, other_leaf, one_reader, tmp_path
+    browser, serve, other_leaf, one_user, tmp_path
 ):
     """The leaves panel, end to end: the banner counts the machine's live pages,
     this one included, a press slides out a left tray headed by this page's own
@@ -2831,14 +2831,14 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         id="s-self",
         cwd=str(tmp_path / "self-work"),
     )
-    page = open_page(browser, url, context=one_reader)
+    page = open_page(browser, url, context=one_user)
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
     banner_control(page, ".lf-others").click()
     others_panel = page.locator(".lf-others-panel")
     expect(others_panel).to_be_visible()
     # This page heads the list, marked and never a link: the panel reads as the
-    # whole machine, and this page is where the reader already is.
+    # whole machine, and this page is where the user already is.
     self_row = others_panel.locator(".lf-others-self")
     expect(self_row.locator(".lf-chip")).to_have_text("this page")
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
@@ -2971,7 +2971,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     )
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
-    # A neighbour waiting on its own reader says so in this seat's shorter words, and
+    # A neighbour waiting on its own user says so in this seat's shorter words, and
     # in the same term its banner uses: one word per state across the product, or a
     # user reading both surfaces has to work out whether they mean the same thing.
     # Its own watcher has to be live for that, which is what the neighbour's held lease
@@ -2982,13 +2982,13 @@ def test_a_panel_row_follows_its_pages_status_live(
     )
     with live_watcher(other_dir, page):
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
-        # And what it is waiting for, because the panel is where a reader picks which
+        # And what it is waiting for, because the panel is where a user picks which
         # page to go to: the row that says a page needs them carries the decision, the way
         # the working row above carries what its agent is doing. The hover holds it
         # whole, with the rest of the account, since the line ellipsizes at the panel's
         # width — and it is the row's hover and not the line's, the innermost title
         # winning where two overlap: a title on the line would answer the hover most
-        # likely to be asking for the rest, a reader pointing at the words that ran out
+        # likely to be asking for the rest, a user pointing at the words that ran out
         # of room, with the one part of the account they can already read.
         files_model.write_json(
             other_dir / "status.json",
@@ -3009,7 +3009,7 @@ def test_a_panel_row_follows_its_pages_status_live(
             "the line carries a tooltip of its own again, which wins under the pointer "
             "over the row's whole account"
         )
-        # A leaf holding words of the reader's that nobody has read is a reason to go
+        # A leaf holding words of the user's that nobody has read is a reason to go
         # to it. The row keeps the live watcher as its primary state and carries the
         # pending count beside it, rather than letting either fact hide the other.
         comment = events_model.append_event(
@@ -3167,10 +3167,10 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
 def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     """A closed leaf leaves the tray on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
-    count a reader glances at to find who needs them would become a tally of
-    everything that has ever run here. This page's own row never drops — a reader
+    count a user glances at to find who needs them would become a tally of
+    everything that has ever run here. This page's own row never drops — a user
     looking at a closed page is still looking at it — so a tray with nothing live
-    left on it still says where the reader is, and the count says (1) for it."""
+    left on it still says where the user is, and the count says (1) for it."""
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
@@ -3203,12 +3203,12 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
 
 
 def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
-    browser, serve, live_leaf, one_reader
+    browser, serve, live_leaf, one_user
 ):
     """Keyed rows preserve a surviving link and hand a removed link to its neighbour."""
     second_url, _ = live_leaf("second", "Middle leaf")
     _, other_dir = live_leaf("other", "The other leaf")
-    page = open_page(browser, serve(LONG_PAGE), context=one_reader)
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
@@ -3374,17 +3374,17 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
 
 
-def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reader):
-    """The tray is a list, and a reader walks it without reaching for the mouse: g L
+def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_user):
+    """The tray is a list, and a user walks it without reaching for the mouse: g L
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc gives that press
-    back — the reader is returned to the reading place they pressed `g L` from, not left
+    back — the user is returned to the reading place they pressed `g L` from, not left
     holding the button that names the tray. The go-to menu names the panel, and the shortcut bar names
     the tray's own keys once focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
-    page = open_page(browser, serve(LONG_PAGE), context=one_reader)
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
     btn = page.locator(".lf-others")
     expect(page.locator(".lf-others-panel")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown"
@@ -3423,7 +3423,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # One press in, one Escape out, and what the Escape gives back is exactly what the
     # press took: the reading place `g L` was pressed from. Landing on the tray's own
-    # button instead would leave a reader who never touched it holding a control, one
+    # button instead would leave a user who never touched it holding a control, one
     # press from reopening what they had just put down.
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("?")
@@ -3437,21 +3437,21 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
     """A fresh page gives ordinary keyboard scrolling to the browser's root scrollport.
 
-    Space, PageDown, and arrows work before a reader has clicked anywhere. Leaf still
+    Space, PageDown, and arrows work before a user has clicked anywhere. Leaf still
     places focus on body so there is a stable page location to return to after chrome,
     but scrolling no longer depends on teaching the browser about a non-root box.
 
     All three keys, because they are one fact about which box the browser is scrolling
     rather than three rows in a table — a fix that reached only the key this test named
-    would read as a working page here and a dead one to the reader. The somewhere is
+    would read as a working page here and a dead one to the user. The somewhere is
     asserted as well as the scrolling, and `body` is where focus sits by default: what
     that pins is the page itself as the place to stand, rather than a box built to hold
-    the reader, which would have a ring to draw and a Tab stop to spend."""
+    the user, which would have a ring to draw and a Tab stop to spend."""
     page = open_page(browser, serve(LONG_PAGE))
     assert page.evaluate("() => document.activeElement === document.body")
     assert (
         page.evaluate("() => getComputedStyle(document.body).outlineStyle") == "none"
-    ), "the page wears a focus ring before the reader has pressed anything"
+    ), "the page wears a focus ring before the user has pressed anything"
 
     for key in ("Space", "PageDown", "ArrowDown"):
         # Programmatic, so the page is still one nobody has put themselves in: a click
@@ -3472,13 +3472,13 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Closing the panel hands the reader back the place they held before they opened it.
+    """Closing the panel hands the user back the place they held before they opened it.
 
     Opened with the pointer from the page, the panel's Escape lands on the page. The click
-    put focus on the toggle, but the reader never chose that button: leaving them on it
+    put focus on the toggle, but the user never chose that button: leaving them on it
     rang a control they did not stand on and handed their next Space to it, so the panel
     they had just dismissed came back and nothing said why. Opened from the keyboard, the
-    toggle was the reader's place, and the same press hands it back — ringed, since a
+    toggle was the user's place, and the same press hands it back — ringed, since a
     keypress closed — with the rung below that takes them off the chrome.
 
     The scroll is what the landing has to hand back. Root scrolling is native now, but a
@@ -3493,7 +3493,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
 
-    # A reader reading: native Space still pages through the document from body.
+    # A user reading: native Space still pages through the document from body.
     page.keyboard.press("Space")
     page.wait_for_function(SCROLLED)
     scroll_settled(page)
@@ -3505,14 +3505,14 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     expect(toggle).to_be_focused()
     assert not page.evaluate(ringed)
 
-    # Closed with the key, the reader is back on the page: nothing rings, and Space is
+    # Closed with the key, the user is back on the page: nothing rings, and Space is
     # the page's again rather than the button's.
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate(on_body)
     assert not page.evaluate(ringed)
     # And body wears no ring of its own, which is the thing a focus does that a blur
-    # cannot: the reader has to be somewhere, and the somewhere must not be drawn.
+    # cannot: the user has to be somewhere, and the somewhere must not be drawn.
     assert (
         page.evaluate("() => getComputedStyle(document.body).outlineStyle") == "none"
     ), "landing on the page drew a ring around it"
@@ -3524,10 +3524,10 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     scroll_settled(page)
 
     # Opened from the keyboard, and left the same way one opened by pointer is: the
-    # panel's parent is the document, so Escape lands the reader there rather than on
+    # panel's parent is the document, so Escape lands the user there rather than on
     # the toggle that reopens it.
     toggle.focus()
-    assert page.evaluate(ringed), "the control the reader is standing on says nothing"
+    assert page.evaluate(ringed), "the control the user is standing on says nothing"
     page.keyboard.press("Enter")
     expect(panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -3548,7 +3548,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
 
     The open auxiliary surface keeps its semantic expanded state and also wears the banner's
     active face. Its peers return to rest as it takes their place, so the tint names
-    exactly the auxiliary surface the reader can see rather than merely the last one pressed.
+    exactly the auxiliary surface the user can see rather than merely the last one pressed.
     A surface beside the page can be replaced directly; a covering surface is modal and
     must close before its banner peers become available again.
     """
@@ -3619,8 +3619,8 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     expect_open("asks")
 
 
-def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve):
-    """A covering Threads sheet is the one place the reader can work until it closes.
+def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
+    """A covering Threads sheet is the one place the user can work until it closes.
 
     The same open panel stands beside the document on a wide window and over it on a
     narrow one. Crossing that line must not rebuild the conversation: the exact thread
@@ -3643,12 +3643,12 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     threads = page.locator(".lf-threads")
 
     def reading_place():
-        """The list's offset, stated to be the reader's own place rather than its limit.
+        """The list's offset, stated to be the user's own place rather than its limit.
 
         A covering sheet gives the list a shorter scrollport than the strip beside the
         document, so the two placements have different scroll limits. An offset sitting
         on either one is moved by the crossing for the limit's reason rather than the
-        reader's, and holding it equal across the crossing would assert nothing. The
+        user's, and holding it equal across the crossing would assert nothing. The
         fixture has to be deep enough that the place stands clear of both, so each
         crossing reads this on the placement it leaves and on the one it arrives at.
         """
@@ -3712,7 +3712,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     # against a reading taken before the panel opened would assert something else: that
     # nothing ever moves the scroller. Crossing the beside line does move it — the strip
     # reflows the page, and the browser's scroll anchoring adjusts the scroller to keep
-    # the reader on their words — so a raw offset is the wrong thing to hold equal.
+    # the user on their words — so a raw offset is the wrong thing to hold equal.
     threads.evaluate("el => el.scrollTop = 0")
     page.locator(".lf-threads").focus()
     covered_at = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -4018,7 +4018,7 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(
     else:
         expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
     # The surface's parent is the document, so that is the landing whichever width it
-    # was left at and whatever the reader was standing on before they asked for it.
+    # was left at and whatever the user was standing on before they asked for it.
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
@@ -4069,7 +4069,7 @@ def test_a_walk_down_the_tray_stops_clear_of_the_shortcut_bar_text(
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the shortcut bar at {line}"
     )
-    # And a reader who scrolls the tray to its end by hand lands in the same place:
+    # And a user who scrolls the tray to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
     tray.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
     last = rows.last.bounding_box()
@@ -4110,7 +4110,7 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_shortcut_bar_text(browser,
     assert last["y"] + last["height"] <= line["y"], (
         f"the walk parked the last row at {last} under the shortcut bar at {line}"
     )
-    # And a reader who scrolls the tray to its end by hand lands in the same place:
+    # And a user who scrolls the tray to its end by hand lands in the same place:
     # scroll-padding answers the walk, the padding under it answers the wheel.
     tray.evaluate("(b) => b.scrollTo({top: b.scrollHeight})")
     last = rows.last.bounding_box()
@@ -4194,10 +4194,10 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
 
 def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     """A box already holding a control of its own needs no stop of the sweep's: the
-    reader reaches what is out of sight through the control. The note the runtime hangs
+    user reaches what is out of sight through the control. The note the runtime hangs
     in every commented block is not such a control. It is a one-pixel transparent button
     that leaves the flow for `position: fixed` the moment it takes focus, so standing on
-    it scrolls nothing, and counting it took the stop off any box a reader had commented
+    it scrolls nothing, and counting it took the stop off any box a user had commented
     on — one comment on a flowchart wider than the window, and the keyboard lost the half
     of the graph hanging off the right of it.
 
@@ -4351,7 +4351,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 
     sweep("the page as it arrives")
 
-    # The panel, and then its list — which is where `g T` lands the reader; `c` there
+    # The panel, and then its list — which is where `g T` lands the user; `c` there
     # enters its page comment box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -4476,7 +4476,7 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     # The document says where it came to rest as it comes to rest there, which is the
     # only thing that separates arriving from still travelling: the glide below reaches
     # its destination a frame or more before the browser calls it over, and a wheel sent
-    # inside that window cancels the animation instead of scrolling — the reader's notch
+    # inside that window cancels the animation instead of scrolling — the user's notch
     # is spent stopping a glide that had already stopped moving.
     page.evaluate("""() => {
         window.lfRestedAt = null;
@@ -4687,7 +4687,7 @@ def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, se
 
 
 def test_a_stale_package_widget_uses_recursive_parent_eligibility(
-    browser, serve, one_reader, tmp_path, monkeypatch
+    browser, serve, one_user, tmp_path, monkeypatch
 ):
     """A project widget gets honest controls and authoritative stale rejection.
 
@@ -4884,9 +4884,9 @@ customElements.define("lf-quota", class extends HTMLElement {
         "</lf-tasks>",
     )
     url = serve(quota_v1, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    stale_held = held_stale(one_reader)
+    stale_held = held_stale(one_user)
     stale = open_page(browser, url, context=stale_held)
-    current = open_page(browser, live_url(url), context=one_reader)
+    current = open_page(browser, live_url(url), context=one_user)
 
     append_command(
         serve.page_dir,
@@ -4901,7 +4901,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     )
     told(current)
     expect(current.locator("#task")).to_have_attribute("status", "blocked")
-    # Status describes work only, so reports cannot create a reader prerequisite.
+    # Status describes work only, so reports cannot create a user prerequisite.
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -5156,7 +5156,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     Most of the layer's rules draw the ring as an outline. Two cast it as a shadow: the
     anchored response bar, whose focused states write `outline: none` so the field and
     its choices keep one silhouette, and the target hint the keyboard is browsing, a chip
-    in a layer nothing can focus. To a reader those are the same band, and a sweep asking
+    in a layer nothing can focus. To a user those are the same band, and a sweep asking
     only the outline answered `no ring here` for both — the bar's own controls came back
     credited to `pressable`, the name of the floor rule whose outline the bar takes away,
     and neither ring's geometry was measured anywhere.
@@ -5461,7 +5461,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
 
 
-def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
+def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     browser, serve
 ):
     """A duration is a way of keeping an animation and no way at all of keeping a
@@ -5473,12 +5473,12 @@ def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
 
     None of which anybody wrote or listened for, and none of which was free: a ring is
     `outline-width`, `outline-offset` and `outline-color` all changing at once, so a
-    reader who asked for no motion got a medium currentColor ring at offset nought
+    user who asked for no motion got a medium currentColor ring at offset nought
     animating into the real one, on every focus, on every page. It is also what a
     computed-style reading of a ring taken in those frames was told, which is how
     `RINGS_DRAWN` came to invent one.
 
-    So this asks the reader's own question — is anything moving — of the control they
+    So this asks the user's own question — is anything moving — of the control they
     just landed on, in the one setting where the answer has to be no."""
     url = serve(LONG_PAGE, comments=3)
     context = browser.new_context(reduced_motion="reduce")
@@ -5507,7 +5507,7 @@ def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     )
     assert seen["moving"] == [], (
         f"the ring is still arriving under reduced motion: {seen['moving']} are "
-        "running, so what the reader sees and what any reading of this control gets "
+        "running, so what the user sees and what any reading of this control gets "
         "is a value on its way rather than the one the rule states"
     )
     # Non-vacuity: a control with no ring has nothing that could have transitioned.
@@ -5661,7 +5661,7 @@ RING_CASES = (
     # thread itself rather than a control inside it.
     ("an inline thread", ("t",), {"ship-review": ((None, "conversation-thread"),)}),
     ("passage search", ("/",), {"corpus": ((".lf-page-search-box", "target-search"),)}),
-    # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
+    # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
     # item the window is showing whatever a page's count is: the browse wraps, so one step
     # back from a fresh open is the second from the end. That item is the lowest on
@@ -5673,7 +5673,7 @@ RING_CASES = (
     # is open, and with the document under it the specimen would stand on nothing and read no
     # page at all. Standing on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
-    # can focus, so the reader's place in that mode is not a stop.
+    # can focus, so the user's place in that mode is not a stop.
     (
         "target hints",
         ("Tab", "s", "Shift+Tab", "Tab"),
@@ -5783,7 +5783,7 @@ RING_REMOTE_CARRIER = {
 
 
 # Whether the page is offering a banner control at all, which is not the same question as
-# whether the reader can see it standing on the row. A control with nothing to show is
+# whether the user can see it standing on the row. A control with nothing to show is
 # drawn away by the banner's own presence writer (paintPresence, display: none), while one
 # the row had no width for is alive behind the fold's menu — and asking a folded control
 # whether it is visible answers no for a page that is offering it perfectly well, which
@@ -5865,10 +5865,10 @@ RING_NEW_STOP = f"""() => {{
   window.__lfSeen.add(e);
   return "new";
 }}"""
-# A focused specimen the reader cannot find, or null when they can.
+# A focused specimen the user cannot find, or null when they can.
 #
 # Three answers count, because the layer leaves "here" drawn in three ways and every one of
-# them is the reader seeing the same thing.
+# them is the user seeing the same thing.
 #
 # The platform's own ring (`outline-style: auto`) is the first and the commonest. Leaf
 # restyles the controls it draws and leaves that ring on the rest — an authored link, a
@@ -5877,7 +5877,7 @@ RING_NEW_STOP = f"""() => {{
 #
 # The layer's here ring is the second, on the stop or on an ancestor: a `choose` group
 # takes the ring for the pick mark inside it, whose own rule states `outline: none`
-# exactly so the two do not both draw, and the reader sees the group.
+# exactly so the two do not both draw, and the user sees the group.
 #
 # What this cannot see, said out loud so a green is not read as more than it is. A
 # joined `lf-options` carrying log news — restated, pending, reported — deliberately
@@ -5896,7 +5896,7 @@ RING_NEW_STOP = f"""() => {{
 #
 # The band cast as a shadow is the third. The anchored response bar draws it that way —
 # its focused states take the outline off so the field and its choices keep one
-# silhouette — and to a reader that is the same ring. It is the sweep's own reading
+# silhouette — and to a user that is the same ring. It is the sweep's own reading
 # (HERE_SHADOW), so the two halves of this file agree on what an accent shadow ring is
 # rather than each keeping a spelling of it: the earlier one here took any shadow
 # carrying the accent, which a wash or a tinted lift would have satisfied. Read on the
@@ -5922,7 +5922,7 @@ SEEN_STOP = f"""() => {{
   }};
   // An ancestor answers only for a ring whose rule named it. Every ancestor on this
   // chain contains the focus by construction, so containing it says nothing; what
-  // separates a ring drawn because the reader is here from one drawn for another
+  // separates a ring drawn because the user is here from one drawn for another
   // reason is that the layer's focus rules say which ring they are and the pointer's
   // do not. An element mark's contour is the case: it is not a named
   // outline, so neither answers the keyboard's question for every stop underneath it.
@@ -6104,7 +6104,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             )
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        # Settled choices are reader view state, so expose their focusable controls.
+        # Settled choices are user view state, so expose their focusable controls.
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
@@ -6148,7 +6148,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         source.locator(":scope > summary").click()
             page.evaluate(RING_FOCUS_START)
             # Threads and a target's own Thread card are one surface offered two ways:
-            # with the panel standing, a thread margin entry sends the reader there instead of
+            # with the panel standing, a thread margin entry sends the user there instead of
             # building the card. The scopes listed above need the panel shut either to expose
             # their own page surface or to exercise the panel's entry route itself.
             if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
@@ -6215,8 +6215,8 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     # derived from where it sits rather than from the corpus's tab order —
                     # which follows the examples directory, and moves when one is added.
                     # `reveal` takes the intent its caller's gesture retained, and
-                    # has no default (runtime/reader-intent.js). This arrangement is
-                    # not a reader's delayed work that a later input may supersede —
+                    # has no default (runtime/user-intent.js). This arrangement is
+                    # not a user's delayed work that a later input may supersede —
                     # it is the test saying what the page must show next — so the
                     # intent it hands over is the one that always holds.
                     target.evaluate(
@@ -6306,7 +6306,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
 
     assert not unseen, (
         "a specimen stood on a control and nothing on screen said where the keyboard was, "
-        "so a reader arriving by Tab has no way to tell: "
+        "so a user arriving by Tab has no way to tell: "
         f"{sorted(unseen)}"
     )
     # Across the causal cases, because a scope can be dead on a page with nothing to put
@@ -6572,10 +6572,10 @@ def _each_aim_surface(page, page_dir):
 
 
 @pytest.mark.parametrize("touch", (False, True))
-def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
+def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
     browser, serve, touch
 ):
-    """A press the reader cannot land on is a capability the page does not have.
+    """A press the user cannot land on is a capability the page does not have.
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
@@ -6610,7 +6610,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
             "kind": "example",
             "example": "corpus",
             "checkout": "fb77",
-            "interaction": "reader",
+            "interaction": "user",
             "started": "2026-08-31T12:00:00+00:00",
         },
     )

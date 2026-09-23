@@ -56,7 +56,7 @@ class PageView:
 
     @property
     def within(self) -> dict:
-        """Where every id sits on the page the reader is looking at."""
+        """Where every id sits on the page the user is looking at."""
         return active_enclosing(self._page_dir)
 
     @property

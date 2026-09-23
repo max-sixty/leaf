@@ -343,7 +343,7 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
     scroll_settled(page)
     # Locator.click scrolls this sticky descendant back to its static-flow position.
-    # A reader clicks the strip where it is painted.
+    # A user clicks the strip where it is painted.
     work_box = work.bounding_box()
     page.mouse.click(
         work_box["x"] + work_box["width"] / 2,
@@ -535,7 +535,7 @@ NESTED_FIT_PAGE = leaf_page(
 )
 
 SCROLLED_FIT_PAGE = leaf_page(
-    "a root in flow a reader has scrolled down",
+    "a root in flow a user has scrolled down",
     """
 <lf-workspace id="fit-workspace">
   <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
@@ -601,13 +601,13 @@ FIT_HEIGHTS = (400, 500, 600, 700, 900)
 def test_a_root_posture_is_the_window_it_stands_in_and_not_the_one_it_came_from(
     browser, serve
 ):
-    """One window allocates one way, whichever window the reader arrived from.
+    """One window allocates one way, whichever window the user arrived from.
 
     A root decides its posture from the minimum its own live layout reports, and flow
     lays that layout out in the reading measure rather than the wide box bounded would
     allocate. Read there, furniture that wraps reports a minimum taller than the posture
-    under decision would ever have, and the window has two stable answers: the reader
-    who shrinks a tall window keeps the bounded desk, while the reader who opens the
+    under decision would ever have, and the window has two stable answers: the user
+    who shrinks a tall window keeps the bounded desk, while the user who opens the
     same window fresh is given flow and cannot resize out of it, because every reading
     taken from flow is the flow reading again.
     """
@@ -715,10 +715,10 @@ def test_root_height_is_the_candidate_main_content_box(browser, serve):
     assert page.evaluate(SETTLED_POSTURE) == "bounded"
 
 
-def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(
+def test_reading_a_root_minimum_leaves_the_user_where_they_had_scrolled_to(
     browser, serve
 ):
-    """Measuring a candidate posture does not move a reader in document flow."""
+    """Measuring a candidate posture does not move a user in document flow."""
     page = open_page(browser, serve(SCROLLED_FIT_PAGE))
     resized(page, 1200, 380)
     assert page.evaluate(SETTLED_POSTURE) == "flow"
@@ -1043,101 +1043,130 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     )
 
 
-def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
+def test_a_release_page_spreads_its_evidence_and_keeps_the_log_on_its_newest_line(
     browser, serve
 ):
-    """The concrete package root owns its shape while the shared lifecycle fits it.
-
-    Its release panel stands beside checks over a log at a desk. A short or narrow
-    reading and Threads turn the page back into authored flow; removing that furniture
-    restores the bounded reading. Reconnection leaves one registration per region."""
+    """A document with grids: status tiles and the evidence pair take the page's width
+    while the prose keeps the column, the pair stacks once the window cannot hold it,
+    and the bounded log opens on its newest line. Paper shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
-    context = browser.new_context(viewport={"width": 1100, "height": 900})
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    monitor = page.locator("#lp-monitor")
+    boxes = """() => Object.fromEntries(
+      ['lp-status', 'lp-evidence', 'lp-checks', 'lp-log', 'lp-lede']
+        .map(id => [id, document.getElementById(id).getBoundingClientRect().toJSON()]))"""
 
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
-    desk = page.evaluate(
-        """() => Object.fromEntries(['lp-release', 'lp-checks', 'lp-log']
-          .map(id => [id, document.querySelector(`#${id}`).getBoundingClientRect()]))"""
+    wide = page.evaluate(boxes)
+    assert wide["lp-status"]["width"] > wide["lp-lede"]["width"] + 400
+    assert wide["lp-checks"]["top"] == wide["lp-log"]["top"]
+    assert wide["lp-checks"]["right"] < wide["lp-log"]["left"]
+    listing = page.locator("#lp-live-log pre")
+    assert listing.evaluate(
+        "pre => pre.scrollHeight > pre.clientHeight && "
+        "pre.scrollHeight - pre.scrollTop - pre.clientHeight <= 2"
+    ), "the bounded log should open on its newest line"
+    expect(page.locator("#lp-live-log figcaption")).to_be_in_viewport()
+
+    resized(page, 560, 900)
+    narrow = page.evaluate(boxes)
+    assert narrow["lp-log"]["top"] >= narrow["lp-checks"]["bottom"]
+    assert narrow["lp-log"]["width"] == narrow["lp-evidence"]["width"]
+
+    page.emulate_media(media="print")
+    assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"
+
+
+GRID_PAGE = leaf_page(
+    "Grid cells are frames",
+    """<h1>Grid</h1>
+<p id="column-prose">The column this page is read at.</p>
+<lf-grid id="wide-one" columns="1">
+  <section id="one-cell">
+    <p id="cell-prose">A paragraph in a cell wider than the column keeps the reading
+    measure, however much room the cell has, so a line stays one the eye can follow
+    back from its end to the start of the next.</p>
+    <table id="cell-table"><tr><th>Surface</th><td>fills the cell</td></tr></table>
+  </section>
+</lf-grid>
+<lf-grid id="surfaces" columns="1">
+  <pre id="cell-pre">a listing that is itself a cell</pre>
+</lf-grid>
+<lf-grid id="template" columns="1fr 2fr">
+  <section id="narrow-cell"><p>One part</p></section>
+  <section id="broad-cell">
+    <p>Two parts</p>
+    <lf-grid id="nested"><p id="nested-a">A</p><p id="nested-b">B</p></lf-grid>
+  </section>
+</lf-grid>""",
+)
+
+
+def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surface_fill(
+    browser, serve
+):
+    """A cell takes the grid's width, not the page's room; text in it keeps the reading
+    measure and a surface fills it. A template's tracks stand as written until the
+    grid is narrower than 600px, where each cell takes the row, and a grid nested in
+    a cell takes none of its parent's template."""
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
+    page = open_page(browser, live_url(serve(GRID_PAGE)), context=context)
+    width = "id => document.getElementById(id).getBoundingClientRect().width"
+    column = page.evaluate(width, "column-prose")
+
+    assert page.evaluate(width, "one-cell") > column + 400
+    assert page.evaluate(width, "cell-prose") == pytest.approx(column, abs=1)
+    assert page.evaluate(width, "cell-table") == page.evaluate(width, "one-cell")
+    assert page.evaluate(width, "cell-pre") == page.evaluate(width, "surfaces")
+
+    narrow, broad = (
+        page.evaluate(width, "narrow-cell"),
+        page.evaluate(width, "broad-cell"),
     )
-    assert desk["lp-checks"]["width"] > desk["lp-release"]["width"]
-    assert desk["lp-checks"]["x"] == desk["lp-log"]["x"]
-    assert desk["lp-checks"]["width"] == desk["lp-log"]["width"]
-    assert desk["lp-checks"]["top"] < desk["lp-log"]["top"]
-    assert desk["lp-release"]["height"] > desk["lp-checks"]["height"]
+    assert broad == pytest.approx(2 * narrow, abs=2)
     assert page.evaluate(
-        "document.documentElement.scrollHeight === document.documentElement.clientHeight"
-    )
-    overflowing = page.locator(
-        "lf-monitor-region > .lf-pane-content > .lf-pane-body"
-    ).evaluate_all(
-        "bodies => bodies.filter(body => body.scrollHeight > body.clientHeight + 1)"
-        ".map(body => body.closest('lf-monitor-region').id)"
-    )
-    assert overflowing, "the custom reading regions all fit, so no cue is exercised"
-    for region_id in overflowing:
-        expect(
-            page.locator(f"#{region_id} > .lf-pane-content > .lf-pane-body")
-        ).to_have_attribute("data-lf-more-below", "")
-    first_overflowing = page.locator(
-        f"#{overflowing[0]} > .lf-pane-content > .lf-pane-body"
-    )
-    first_overflowing.evaluate("body => body.scrollTop = body.scrollHeight")
-    expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
+        """() => { const a = document.getElementById('nested-a').getBoundingClientRect();
+          const b = document.getElementById('nested-b').getBoundingClientRect();
+          return a.top === b.top && Math.abs(a.width - b.width) < 1; }"""
+    ), "a nested count grid should lay out equal columns, not its parent's template"
 
-    resized(page, 1100, 780)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    resized(page, 820, 780)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    flow = page.locator("lf-monitor-region").evaluate_all(
-        "regions => regions.map(region => region.getBoundingClientRect().top)"
-    )
-    assert flow == sorted(flow) and len(set(flow)) == 3, flow
-    resized(page, 390, 844)
-    log = page.locator("#lp-live-log pre")
-    expect(log).to_be_visible()
-    assert log.evaluate("node => node.scrollWidth <= node.clientWidth")
-
-    resized(page, 1100, 900)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    monitor.evaluate(
-        """owner => {
-          const wrapper = document.createElement('div');
-          owner.parentElement.append(wrapper);
-          wrapper.append(owner);
-        }"""
-    )
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    monitor.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
+    resized(page, 560, 900)
     assert page.evaluate(
-        """async () => {
-          const {readingRegions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const wanted = ['lp-release', 'lp-checks', 'lp-log'];
-          const ids = readingRegions().map(region => region.id);
-          return wanted.every(id => ids.filter(candidate => candidate === id).length === 1);
-        }"""
+        """() => { const a = document.getElementById('narrow-cell').getBoundingClientRect();
+          const b = document.getElementById('broad-cell').getBoundingClientRect();
+          return b.top >= a.bottom && a.width === b.width; }"""
     )
 
-    for medium in ("print", "screen"):
-        page.emulate_media(media=medium)
-        if medium == "screen":
-            page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-        tops = page.locator("lf-monitor-region").evaluate_all(
-            "regions => regions.map(region => region.getBoundingClientRect().top)"
-        )
-        assert tops == sorted(tops) and len(set(tops)) == 3, (medium, tops)
-        assert page.locator(".lf-pane-body").evaluate_all(
-            "bodies => bodies.every(body => getComputedStyle(body).overflowY === 'visible')"
-        )
+
+FEED_PAGE = leaf_page(
+    "A feed that follows its newest entry",
+    """<h1>Feed</h1>
+<div id="feed" data-bound="end"></div>""",
+)
+
+
+def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
+    browser, serve
+):
+    """A widget that rebuilds its entries wholesale (lf-record replaces its children on
+    every change) stays on its newest entry while the user is at the end, and leaves
+    a user who scrolled back where they stopped."""
+    page = open_page(browser, live_url(serve(FEED_PAGE)))
+    rebuild = """count => document.getElementById('feed').replaceChildren(
+      ...Array.from({length: count}, (_, i) => Object.assign(
+        document.createElement('p'), {textContent: `entry ${i}`})))"""
+    at_end = """() => { const feed = document.getElementById('feed');
+      return feed.scrollHeight > feed.clientHeight
+        && feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 2; }"""
+    page.evaluate(rebuild, 60)
+    page.wait_for_function(at_end)
+    page.evaluate(rebuild, 90)
+    page.wait_for_function(at_end)
+
+    page.locator("#feed").evaluate("feed => feed.scrollTop = 200")
+    page.wait_for_function("() => document.getElementById('feed').scrollTop === 200")
+    page.evaluate(rebuild, 120)
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
 def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
@@ -1172,14 +1201,15 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    evidence = page.locator("#lp-log > .lf-pane-content > .lf-pane-body")
     log = page.locator("#lp-live-log")
+    listing = log.locator("pre")
 
-    evidence.evaluate("body => body.scrollTop = 120")
+    # A user who scrolled back through the log stays where they stopped.
+    listing.evaluate("pre => pre.scrollTop = 120")
     page.wait_for_function(
-        "() => document.querySelector('#lp-log > .lf-pane-content > .lf-pane-body').scrollTop === 120"
+        "() => document.querySelector('#lp-live-log pre').scrollTop === 120"
     )
-    original = log.text_content()
+    original = listing.text_content()
     data_model.cmd_data_set(
         serve.page_dir,
         "release-log",
@@ -1187,7 +1217,21 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     )
     told(page)
     expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
-    assert evidence.evaluate("body => body.scrollTop") == 120
+    assert listing.evaluate("pre => pre.scrollTop") == 120
+
+    # One at the end follows what arrives there.
+    listing.evaluate("pre => pre.scrollTop = pre.scrollHeight")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "release-log",
+        f"{listing.text_content().rstrip()}\n14:24:54 observer  sample=49 healthy\n",
+    )
+    told(page)
+    expect(log).to_contain_text("14:24:54 observer  sample=49 healthy")
+    page.wait_for_function(
+        """() => { const pre = document.querySelector('#lp-live-log pre');
+          return pre.scrollHeight - pre.scrollTop - pre.clientHeight <= 2; }"""
+    )
 
     current = (serve.page_dir / "index.html").read_text(encoding="utf-8")
     incorporated = current
@@ -1195,11 +1239,11 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         (
             (
                 "The production canary is paused at 25%. Customer checkout is healthy, but\n"
-                "            finance export is one row short and must reconcile before traffic expands."
+                "        finance export is one row short and must reconcile before traffic expands."
             ),
             (
                 "Finance export parity now passes. The production release is expanding from\n"
-                "            the 25% canary to all checkout traffic."
+                "        the 25% canary to all checkout traffic."
             ),
         ),
         (
@@ -1208,14 +1252,13 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         ),
         (
             (
-                "Automatic promotion stopped when the finance-parity check failed. The\n"
-                "              candidate remains live for canary traffic while Ledger traces a\n"
-                "              partial-refund fixture mismatch; the exact failing producer is not yet\n"
-                "              established."
+                "Automatic promotion stopped when the finance-parity check failed. The candidate\n"
+                "        remains live for canary traffic while Ledger traces a partial-refund fixture\n"
+                "        mismatch; the exact failing producer is not yet established."
             ),
             (
                 "The rebuilt export contains every expected order. Traffic is increasing\n"
-                "              while the observer keeps the release checks active."
+                "        while the observer keeps the release checks active."
             ),
         ),
         (
@@ -1233,7 +1276,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         (
             (
                 "<strong>Pass release checks</strong> Finance export has 1,998 of 1,999\n"
-                "                expected rows."
+                "            expected rows."
             ),
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
@@ -2076,7 +2119,7 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     expect(page.locator(":target")).to_have_attribute("id", "move")
 
 
-def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it(
+def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     browser, serve
 ):
     """The roomy margin is a stable reading map rather than a compressed outline.
@@ -2449,7 +2492,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     page.wait_for_function("() => document.scrollingElement.scrollTop >= 750")
     assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
 
-    # Map travel keeps the reader oriented rather than teleporting. Start recording
+    # Map travel keeps the user oriented rather than teleporting. Start recording
     # on the click so preparing the gesture cannot exhaust the frame sequence.
     verify.evaluate("""link => {
       document.scrollingElement.scrollTo({top: 0, behavior: 'instant'});
@@ -2666,7 +2709,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     floor, so one open-and-close removes the map's whole wrapper and puts it back. The
     map is restored from the page's own posture, not from anything the wrapper
     remembers, because a box that has been away answers a style query with the reading
-    it left with: asking the wrapper cost the reader the spine for the rest of the
+    it left with: asking the wrapper cost the user the spine for the rest of the
     session — an outline of thirteen laid rows became a fifteen-pixel heading stub that
     no settle, scroll, or further toggle brought back."""
     source = leaf_page(
@@ -2728,7 +2771,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
 def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     browser, serve
 ):
-    """Crowded destinations remain a complete route when the reader enters it.
+    """Crowded destinations remain a complete route when the user enters it.
 
     The raw document positions leave less than half a line between neighbors. The
     fitted scale keeps every heading, marker, and label distinct without overflowing."""
@@ -3021,7 +3064,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     expect(bubble).to_be_visible()
 
     # WCAG's hover-content route: Escape dismisses the card without requiring the
-    # pointer to move away or transferring focus to a control the reader never used.
+    # pointer to move away or transferring focus to a control the user never used.
     page.keyboard.press("Escape")
     expect(bubble).to_be_hidden()
 
@@ -3293,7 +3336,7 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     ordinary words across lines the moment the thread strip took its margin.
 
     The reading is the visible failure and not the number behind it. A word set across
-    two lines with no hyphen is what the reader sees, and it is what the page-wide
+    two lines with no hyphen is what the user sees, and it is what the page-wide
     `overflow-wrap` does with a box narrower than the word it has to show — the bargain
     leaf makes for paths and shas, arriving here on an English sentence. The premise is
     asserted first: the board must be at its floor and scrolling for the rest, or a
@@ -3407,7 +3450,7 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
 
 
-def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
+def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     browser, serve
 ):
     page = open_page(browser, serve(PLAYGROUND_PAGE))
@@ -4103,7 +4146,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
 
     A playground action enters the ordinary event log, pickup and a work claim use the
     same delivery projection as a host agent, and the agent writes a real local file.
-    The page exposes that file through data, then a reader comment changes the file and
+    The page exposes that file through data, then a user comment changes the file and
     remains anchored on the revised result.
     """
     source_path = (
@@ -4128,7 +4171,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     ).to_have_accessible_name("Checkout needs attention")
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Create notification").click()
-    # The reader can revise the configuration until the host stamps its result.
+    # The user can revise the configuration until the host stamps its result.
     expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
     action = next(
         event
@@ -5229,7 +5272,7 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     with page.expect_request("**/api/event"):
         deck.get_by_role("button", name="← Pass", exact=True).click()
 
-    # The deck is the reader's own gesture on their own widget, so the last card leaves
+    # The deck is the user's own gesture on their own widget, so the last card leaves
     # the queue while its POST is still held. Whether the deck has answered its Ask is
     # the log's reading, so the progress count and the approval gate turn over together
     # when that answer lands.
@@ -5335,7 +5378,7 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     page.route("**/api/event", lambda route: held.append(route))
     pick.click()
     holding(page, held, 1, "the cleared selection")
-    # The pick clears under the reader at once; whether that leaves the Ask unanswered
+    # The pick clears under the user at once; whether that leaves the Ask unanswered
     # is the log's reading, and the gate waits for it.
     expect(page.locator("#release-ship")).not_to_have_attribute("chosen", "")
 
@@ -6103,7 +6146,7 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     visible words distinguishing a proposal from ordinary settled content.
 
     The word also had to change to be worth showing. Pendingness was carried by the
-    word's mere presence, which no reader can perceive — nothing sits alongside to
+    word's mere presence, which no user can perceive — nothing sits alongside to
     compare it against — and `deletion` is ARIA's own name for the completed act, so
     a listener heard the change announced as made while the page was still asking."""
     url = serve(PROPOSED_PAGE)
@@ -6180,7 +6223,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
 
 
-# A change the reader hasn't opened yet. The row hangs off an anchor in the
+# A change the user hasn't opened yet. The row hangs off an anchor in the
 # change, and a collapsed container reports its content's last rendered geometry
 # rather than nothing at all — so a row that trusted a measurement would hang in
 # the margin deciding a change nobody can see.
@@ -6227,7 +6270,7 @@ def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
 def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
     """A replacement's slots paint whole — which is all a dead copy keeps — and on
     the live page the words that differ deepen through the highlight registry, so
-    the reader isn't left to eyeball-diff two paragraphs. Deciding clears the
+    the user isn't left to eyeball-diff two paragraphs. Deciding clears the
     emphasis with the slot it retires: the survivor is plain prose."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     inside = """(id) => Object.fromEntries(['lf-sug-del', 'lf-sug-ins'].map(name =>
@@ -6288,9 +6331,9 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
     """A change inside a collapsed container has no line for its row to hang on,
     and an anchor that isn't rendered is no anchor at all: the row falls back to
     the block it was hoisted to and hangs there in the margin, offering to decide
-    something the reader can't see. It waits instead, and arrives on the change's
+    something the user can't see. It waits instead, and arrives on the change's
     own line the moment the container opens — a real click on the summary, because
-    opening it is the reader's gesture and the reflow it causes is the point."""
+    opening it is the user's gesture and the reflow it causes is the point."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
     waiting = page.locator("[data-lf-margin-for='sug-boxes']")
     expect(page.locator("[data-lf-margin-for='sug-now']")).to_be_visible()
@@ -6312,7 +6355,7 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     """Stepping the Asks opens the closed <details> a change waits inside, and does
     it in the same task as the arrival. The row un-waits on the runtime's reveal signal
     rather than at the observer's next frame: settled asynchronously, the arrival landed
-    on a display:none element and the reader stayed where they were — at the previous
+    on a display:none element and the user stayed where they were — at the previous
     decision — while the announce said otherwise, so Enter was aimed at a decision they
     had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
@@ -6322,7 +6365,7 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     expect(page.locator("#later")).to_have_attribute("open", "")
     expect(page.locator("#sug-boxes[data-lf-ask]")).to_have_count(1)
     # The arrival stands on the suggestion; what the reveal has to have done is leave the
-    # control that answers it a thing the reader can reach, which a display:none control
+    # control that answers it a thing the user can reach, which a display:none control
     # is not.
     expect(
         page.locator("[data-lf-margin-for='sug-boxes'] .lf-sug-accept")
@@ -6376,7 +6419,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
 
     The resulting content and Undo control are sufficient visual confirmation. No
     status or transient notice repeats them, while the live region says the same
-    decision for a reader listening to the page."""
+    decision for a user listening to the page."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     row = page.locator("[data-lf-margin-for='sug-refill']")
     accept = row.locator(".lf-sug-accept")
@@ -6396,7 +6439,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     )
 
     # A strike and two tints say which words are going and which are proposed, and say
-    # it in no text at all: a reader listening got the sentence twice, the two readings
+    # it in no text at all: a user listening got the sentence twice, the two readings
     # contradicting each other, with nothing to say either was a change.
     assert "deletion" in page.locator("#sug-refill lf-old").aria_snapshot()
     assert "insertion" in page.locator("#sug-refill lf-new").aria_snapshot()
@@ -6427,7 +6470,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
         "el => getComputedStyle(el).textDecorationLine + ' ' + getComputedStyle(el).backgroundColor"
     )
     # And the word goes with the marks, the settled slot being ordinary prose now:
-    # a reader listening is told about a change while there is one to decide.
+    # a user listening is told about a change while there is one to decide.
     assert "insertion" not in page.locator("#sug-refill lf-new").aria_snapshot()
     assert "line-through" not in settled and "rgba(0, 0, 0, 0)" in settled, (
         f"settled text still wears a pending mark: {settled}"
@@ -6687,7 +6730,7 @@ def test_an_inline_change_is_swapped_rather_than_folded(browser, serve):
     )
 
 
-def test_a_reader_who_asked_for_less_motion_gets_the_collapse_at_once(browser, serve):
+def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, serve):
     """The fold is a courtesy to the eye, and an eye that asked for stillness is owed
     the outcome instead — the same bargain the board's own FLIP makes.
 
@@ -6705,7 +6748,7 @@ def test_a_reader_who_asked_for_less_motion_gets_the_collapse_at_once(browser, s
     page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
     expect(page.locator("#sug lf-old")).to_be_hidden()
     assert page.evaluate("() => window.__lfHeld.length") == 0, (
-        "a reader who asked for less motion was given a fold to sit through"
+        "a user who asked for less motion was given a fold to sit through"
     )
 
 
@@ -7034,13 +7077,13 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
-    """t/T step the open threads; a/A step the things the page is waiting on the reader
+    """t/T step the open threads; a/A step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
     Both clamp at the ends like every other one-dimensional list, so another press keeps
-    the reader on the edge instead of jumping across the page.
+    the user on the edge instead of jumping across the page.
 
-    The landing is marked on the ask and stands the reader on it, which is the same
+    The landing is marked on the ask and stands the user on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
     control instead put them on whatever the decision's context and evidence had pushed
     off the bottom of the screen. Its contributed actions are directly addressable there;
@@ -7055,7 +7098,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         # for it on the Ask this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
-        # And exactly one decision wears it, the reader standing in one place at a time.
+        # And exactly one decision wears it, the user standing in one place at a time.
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         # Walking changes the ring and not the durable progress count.
         expect(decisions).to_have_text("Asks 1/5")
@@ -7068,7 +7111,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # And back, including one press past the first edge. The step off a suggestion is
     # measured from the suggestion rather than from the ✓ Accept holding the focus —
     # that row is hoisted out into the page margin as a sibling of the block it decides,
-    # so a walk reading it where it hangs would step back onto the change the reader is
+    # so a walk reading it where it hangs would step back onto the change the user is
     # standing on.
     for expected in [*reversed(ASKS_IN_ORDER[:-1]), ASKS_IN_ORDER[0]]:
         page.keyboard.press("Shift+a")
@@ -7091,7 +7134,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
             ASKS_IN_ORDER,
         )
         == []
-    ), "a lent tab stop was left on a decision the reader has walked off"
+    ), "a lent tab stop was left on a decision the user has walked off"
 
     # The overlay and the shortcut bar offer it because there is something to reach.
     page.keyboard.press("?")
@@ -7101,14 +7144,14 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("asks")
 
     # Leaving the ask takes the place off the count the way it takes the ring off the
-    # page: a click into the prose is the reader standing nowhere in the list.
+    # page: a click into the prose is the user standing nowhere in the list.
     page.locator("#h").click()
     expect(page.locator(STANDING_ASK)).to_have_count(0)
     expect(decisions).to_have_text("Asks 1/5")
 
     # An answered decision leaves the walk: deciding the change on its own control is where
-    # the reader now stands, and the next press reaches what followed it rather than the
-    # change they have just settled. The control the reader answered from keeps the
+    # the user now stands, and the next press reaches what followed it rather than the
+    # change they have just settled. The control the user answered from keeps the
     # focus. It leaves the open walk while the completed/total count advances.
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect(decisions).to_have_text("Asks 2/5")
@@ -7123,16 +7166,16 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
     An options group used to be both the state owner and the navigation target. When
     the heading, premise, and evidence stood immediately above it, `d` centred the
-    options and made the reader scroll backward before they could answer. `lf-ask`
+    options and made the user scroll backward before they could answer. `lf-ask`
     encodes that broader unit while the nested x-awaits widget still owns the action:
     the walk rings the region, aligns its opening below the banner, and stands the
-    reader on it.
+    user on it.
 
     On it, and not on the control that answers it, which was where the walk landed until
     the scroll and the focus were measured against each other. The scroll puts the
     region's opening at the top of the window and the answering control is as far down as
     the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
-    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the reader was
+    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the user was
     told to look at one thing while standing on another they could not see, and their next
     Space would have worked it. The picks are the next Tab stops instead, which is what a
     stop at `tabindex: -1` on the region buys: it keeps its place in document order and
@@ -7141,7 +7184,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     # Short enough that even the pick in the card's compact header falls past the foot of
     # the window once the decision's opening is at its head, which is the shape the fault
-    # has: the walk cannot both show the question and stand the reader on its answer.
+    # has: the walk cannot both show the question and stand the user on its answer.
     resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
@@ -7165,7 +7208,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     expect(page.locator("#storage-decision")).to_have_attribute("data-lf-ask", "1")
     expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
     scroll_settled(page)
-    # Where the reader was left is on the screen the walk has just arranged, and the pick
+    # Where the user was left is on the screen the walk has just arranged, and the pick
     # the walk used to stand them on is the measurement that says the two cannot both be.
     standing = page.evaluate(
         """() => {
@@ -7180,7 +7223,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         f"worse than standing on the Ask and nothing below is evidence: {standing}"
     )
     assert 0 <= standing["top"] < standing["height"], (
-        f"the walk left the reader standing off the screen it had just scrolled: "
+        f"the walk left the user standing off the screen it had just scrolled: "
         f"{standing}"
     )
     landed = page.evaluate(
@@ -7410,8 +7453,8 @@ def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve)
     layer it opens declares its own way out.
 
     Nothing records which press opened the layer: Escape reads the layer standing in
-    front of the reader, so the widget owning it owns the step that takes it off, and
-    that step is the same one whether the digit, the control, or a Tab put the reader
+    front of the user, so the widget owning it owns the step that takes it off, and
+    that step is the same one whether the digit, the control, or a Tab put the user
     inside."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
 
@@ -7816,7 +7859,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     control. A suggestion can stand mid-sentence, so it can never satisfy "an ask must
     name itself without context outside the ask" and no region can be written round it.
     Arriving on the change alone put its own top edge under the banner and took the
-    sentence and the heading with it, leaving the reader on the change with nothing on
+    sentence and the heading with it, leaving the user on the change with nothing on
     screen saying what they would be accepting.
 
     The heading, the sentence, and the change are read together: a landing on the
@@ -7869,7 +7912,7 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
     Two asks in a row is the ordinary way to write two, and the second here has no
     heading of its own under its container. The nearest heading written before it is
     then the first ask's own, and arriving there would put a different question in
-    front of the reader as this change's context. A candidate has to share a container
+    front of the user as this change's context. A candidate has to share a container
     with the change for that reason, which also stops the search at the part of the
     document the change is in.
 
@@ -7907,13 +7950,13 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
     )
     # The previous ask's heading is close enough to reach: without the container bound
     # it fits the screen from its own top to this change's foot, so it would be chosen
-    # and the reader would start on the question they are not being asked.
+    # and the user would start on the question they are not being asked.
     assert landed["foot"] - landed["other"] <= landed["view"] - landed["clear"], (
         "the fixture has moved the two asks too far apart for the wrong heading to be "
         "reachable, so this test can no longer tell the container bound is working"
     )
     assert abs(landed["other"] - landed["clear"]) > 2, (
-        "the arrival put the previous ask's heading below the banner, so the reader "
+        "the arrival put the previous ask's heading below the banner, so the user "
         "starts on the question they are not being asked"
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
@@ -7925,7 +7968,7 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
     The placement moves whichever scroller the region belongs to, and for a region on
     the page that is never the card's. So the ask's own box comes into view first, which
     is the one pass that moves a nested scroller. Handing the placement the region alone
-    left the ask unscrolled in its card, with the ring and focus on a change the reader
+    left the ask unscrolled in its card, with the ring and focus on a change the user
     could not see — and the walk's next press repeated the same non-arrival.
     """
     page = open_page(browser, serve(ASK_IN_A_CARD_PAGE))
@@ -7977,10 +8020,10 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
     assert seen["onScreen"], "the change is in its card's band but off the window"
 
 
-def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serve):
+def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve):
     """The press moves the ring and the focus and leaves the page where it stands.
 
-    Rebuilding a view the reader is already looking at is motion that says nothing, and
+    Rebuilding a view the user is already looking at is motion that says nothing, and
     it costs them whatever adjustment they had made within it. The gate reads what the
     page shows of the ask rather than what its own box claims, which is the reading
     commentOnAddressable makes before its own travel.
@@ -7999,12 +8042,12 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     assert arrived > 0, "the walk did not travel to the ask at all"
 
     # A little above that arrival: the region's start is still clear of the banner and
-    # the change's foot is still on screen, so this is the same view with the reader's
+    # the change's foot is still on screen, so this is the same view with the user's
     # own adjustment in it.
     page.evaluate("() => document.scrollingElement.scrollBy(0, -40)")
     scroll_settled(page)
     held = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert held == arrived - 40, "the page did not take the reader's own adjustment"
+    assert held == arrived - 40, "the page did not take the user's own adjustment"
 
     # The press's own announcement is the edge this absence stands behind. `goToAsk`
     # travels before it announces, so a live region that has spoken again is a press whose
@@ -8022,27 +8065,27 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
-        "the walk travelled to an ask the reader could already see"
+        "the walk travelled to an ask the user could already see"
     )
 
 
-def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
-    """The walk measures from the reader, the way Space page travel measures from the scroll position
+def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
+    """The walk measures from the user, the way Space page travel measures from the scroll position
     and t/T from the focused thread. It kept an id of its own instead, so every walk
-    the reader had not made with this key started at the top of the page: scroll
+    the user had not made with this key started at the top of the page: scroll
     halfway down and press `d` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
     Two readings of where they are are left in turn: what they are reading, and where
     the walk itself last left off. The banner's button is no place — pressing it opens
     the tray and leaves the focus on itself, so a walk measured from the focus after it
-    would restart on every press, and the ring is gone from the page by then, the reader
+    would restart on every press, and the ring is gone from the page by then, the user
     being in the banner. A selected passage now enters its comment field immediately;
     while that field stands, letters are text rather than page-navigation keys."""
     page = open_page(browser, serve(ASKS_PAGE))
 
     # A window short enough that reading down the page leaves the top of it behind,
-    # which is the whole of what the reader has to do to be somewhere.
+    # which is the whole of what the user has to do to be somewhere.
     resized(page, 900, 400)
 
     # Scrolled to the change with nothing selected and nothing focused: the decision after
@@ -8053,7 +8096,7 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
 
     # The banner's press opens the tray and keeps the focus, so the walk after it
-    # measures from where the reader stands in the page and steps on rather than
+    # measures from where the user stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     #
     # Reached through `banner_control` rather than by clicking the button where it
@@ -8070,7 +8113,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     """A decision carried by a reply is a decision, and the tray has to name it in its words.
 
     The page holds none of its own, so the one row here is the question Claude put in
-    the conversation — the AskUserQuestion shape, which reaches a reader through the
+    the conversation — the AskUserQuestion shape, which reaches a user through the
     panel and through this tray and nowhere else. It is read here exactly as a group
     on the page is read: the decision's own words, its label first, run together and cut at
     the row's cap. `startswith` for that reason — the cut is the tray's business and
@@ -8275,7 +8318,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
 def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     browser, serve
 ):
-    """What a reader and an agent said to each other is not something the page changed.
+    """What a user and an agent said to each other is not something the page changed.
 
     A widget declaring x-conversation grows a seat on the page, and the layer fills it
     from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
@@ -8287,7 +8330,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     reading can start *inside* generated chrome, and rooted at one of those `<p>`s the
     box above it was no longer over the reading. The base version is parsed unupgraded
     and holds no conversation at all, so every message became an insertion — the
-    reader's own comment and the agent's reply painted as changes to the document, and
+    user's own comment and the agent's reply painted as changes to the document, and
     the count in the version note inflated by both.
 
     The bound is the widget the reading belongs to now, and a conversation seat is
@@ -8348,7 +8391,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     """The edit is one log arrival and both views fold it onto the original message.
 
     Neither view gains a second message. Their standing message nodes survive the
-    arrival, so an edit cannot disturb a reader working elsewhere in the same thread;
+    arrival, so an edit cannot disturb a user working elsewhere in the same thread;
     only the prose inside changes, and both heads disclose that it changed.
     """
     url = serve(CONVERSATION_DIFF_PAGE)
@@ -8442,7 +8485,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
     """A question the agent asked is not one of the runtime's own buttons.
 
-    Design mode lets a reader comment on anything the layer draws, so a thread can be
+    Design mode lets a user comment on anything the layer draws, so a thread can be
     anchored on a widget that arrived in a reply. Two things were then said about it and
     both were wrong. The panel filed it under "The page's own layer", which groups the
     agent's question with the composer and the version chooser — the layer's parts wear
@@ -8551,7 +8594,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
 
 def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
-    """The banner control shows every active Ask, so the reader can review and revise.
+    """The banner control shows every active Ask, so the user can review and revise.
 
     The rows are allAsks() — open and answered — in document order, and a twelfth
     widget joins the tray by declaring x-awaits. Each says what kind of thing is asking,
@@ -8559,7 +8602,7 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
 
     A closed tray holds no rows at all. That is not tidiness: they are the open
     tray's rendering, the banner's count is the closed tray's, and a hidden list of
-    buttons is a set of controls no reader can press — which the press sweep sees as
+    buttons is a set of controls no user can press — which the press sweep sees as
     the page's control set changing under it."""
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
@@ -8824,7 +8867,9 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask list failure"
     ]
-    held.pop(0).continue_()
+    holding(page, held, 2, "the gesture and the page's report of its failure")
+    for route in held:
+        route.continue_()
     page.unroute("**/api/event")
     round_trip(page)
 
@@ -8884,7 +8929,9 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
-    held.pop(0).continue_()
+    holding(page, held, 2, "the gesture and the page's report of its failure")
+    for route in held:
+        route.continue_()
     page.unroute("**/api/event")
     round_trip(page)
 
@@ -8959,7 +9006,7 @@ def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
     expect(page.locator(".lf-asks-answer")).to_have_text("empty")
 
 
-def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
+def test_an_ask_rejects_two_answer_users_even_when_their_words_match(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     banner_control(page, ".lf-asks").click()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
@@ -9015,16 +9062,16 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(progress).to_have_text("Asks 0/4")
 
 
-def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
+def test_a_tray_the_user_left_standing_comes_back_standing(browser, serve):
     """Reloading is not resetting: a tray someone stood up to watch stays stood, the
     rule the thread panel already keeps. Which makes the reload the one moment a
     tray is put up by something other than a press, and that is where it broke — the
     restore ran while the module was still evaluating and filled the tray from a
-    reading of the page's active Asks declared further down the file, so the reader who
+    reading of the page's active Asks declared further down the file, so the user who
     had left it open got a ReferenceError instead of a page.
 
     Nothing static could have caught it and neither could the render gate, which
-    presses no keys and so never has a tray to restore. It took a reader with the
+    presses no keys and so never has a tray to restore. It took a user with the
     tray open pressing reload, which is what this now is."""
     page = open_page(browser, serve(ASKS_PAGE))
     banner_control(page, ".lf-asks").click()
@@ -9043,13 +9090,13 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     )
 
 
-def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
+def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     """Pressing a row uses the same arrival as the Ask walk. It scrolls there, rings the
-    Ask, and stands the reader on its opening context; its controls are the next Tab
+    Ask, and stands the user on its opening context; its controls are the next Tab
     stops, while the numeric action map is already available for direct revision.
 
     The ring lands in two places for one reason: the decision on the page and its row on the
-    tray are two surfaces showing where the reader is standing, painted from the one
+    tray are two surfaces showing where the user is standing, painted from the one
     reading of it (markHere), so neither can say something the other doesn't."""
     page = open_page(browser, serve(ASKS_PAGE))
     # Narrow enough that the tray covers the page. A destination selected from a covering
@@ -9086,13 +9133,13 @@ def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
 
 def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve):
     """A leaf's row is a way out of this page and an Ask's row is a way around it, so
-    pressing one sends the reader into the document — and a tray lying over the
+    pressing one sends the user into the document — and a tray lying over the
     document would be hiding the thing it just sent them to. At a 720px column the two
     overlap on any window under about 1320px, which is most of them, so the strip comes
     out of the page the way the thread panel's does on the other side.
 
     Below twice the tray's own width there is no strip to take, and it covers instead —
-    the same bargain at the same ratio the panel strikes, so a reader who has learned
+    the same bargain at the same ratio the panel strikes, so a user who has learned
     one edge has learned the other."""
     page = open_page(browser, serve(ASKS_PAGE))
     geometry = """() => ({
@@ -9131,10 +9178,10 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     the other — leaving two trays over one edge with the lower unreachable.
 
     Escape names whichever is up rather than saying "close the tray" over two of
-    them, which is the rung the reader is actually holding.
+    them, which is the rung the user is actually holding.
 
     The `other_leaf` fixture is the whole reason the leaves tray has anything to show:
-    a tray of one — the page the reader is already on — is not worth a control, so
+    a tray of one — the page the user is already on — is not worth a control, so
     without a neighbour `g L` is unavailable and there is no second tray to be exclusive
     with."""
     page = open_page(browser, serve(ASKS_PAGE))
@@ -9164,7 +9211,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(leaves).to_be_hidden()
 
     # Exchanging one covering tray for another is lateral, so one Escape closes the
-    # tray standing and lands the reader on the page; the tray it replaced is not put
+    # tray standing and lands the user on the page; the tray it replaced is not put
     # back, and they reach it the way they reached it the first time.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
@@ -9182,8 +9229,8 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
 
     Hanging the ring on the pieces instead covered that and said the wrong thing about
     the change: two outlines meeting down the middle of a sentence, or stacked across
-    two block slots, read as two boxes touching rather than as the one decision the reader is
-    standing in. So what is asserted here is that the reader is taken to the change, and
+    two block slots, read as two boxes touching rather than as the one decision the user is
+    standing in. So what is asserted here is that the user is taken to the change, and
     that the wrapper alone wears the mark, in one box reaching round both slots."""
     page = open_page(browser, serve(ASKS_PAGE))
 
@@ -9204,7 +9251,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
-    # Where the reader now stands, which is what the next press is measured against. The
+    # Where the user now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
     # started is the whole of what says they were carried to the change instead.
     #
@@ -9213,14 +9260,14 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # change happened to be. Giving the question above it a label set one more line and
     # the precondition stopped holding, with nothing wrong anywhere.
     was = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert was > 0, "the reader must have somewhere to have come from"
+    assert was > 0, "the user must have somewhere to have come from"
 
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # The condition everything below rests on, stated rather than assumed: put
     # display: contents back on the wrapper and it measures (0,0), the mark paints
-    # nothing, and the count further down passes on an element no reader can see.
+    # nothing, and the count further down passes on an element no user can see.
     box = page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
@@ -9229,7 +9276,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
 
     # The travel is a glide, so the fact to wait on is that it has finished. Both
     # assertions are then about the landing: measured from the wrapper's own rect the
-    # change sits at the document's origin, so the reader is carried to the top of the
+    # change sits at the document's origin, so the user is carried to the top of the
     # page — up from where they stood, with the change still below the fold.
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") > was, (
@@ -9253,7 +9300,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     assert marks[0]["fragments"] == 1, marks
 
     # And the box reaches round both slots, which a ring on the pieces could not promise:
-    # the reader is standing in the change, not in half of it.
+    # the user is standing in the change, not in half of it.
     assert page.evaluate("""() => {
       const w = document.getElementById('sug-refill').getBoundingClientRect();
       return ['refill-was', 'refill-now'].every(id => {
@@ -9274,7 +9321,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     boxes the decision shows through (shownParts) — the same answer an element-anchored
     comment's outline gives, so the walk's mark and the thread's cannot disagree about
     where a boxless decision is. The outermost mark still names the decision, one place for the
-    reader to be standing."""
+    user to be standing."""
     styled = ASKS_PAGE.replace(
         "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
     )
@@ -9294,7 +9341,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
         "data-lf-ask", "1"
     )
     was = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert was > 0, "the reader must have somewhere to have come from"
+    assert was > 0, "the user must have somewhere to have come from"
 
     page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
@@ -9309,7 +9356,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     assert page.evaluate(fully_shown), "the walk left the change out of the window"
 
     # The decision and the boxes it shows through wear the mark, the decision outermost — one
-    # place to stand, painted where the reader can see it.
+    # place to stand, painted where the user can see it.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')]
       .map(e => e.id || e.tagName)""")
     assert marks == [
@@ -9334,7 +9381,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
 
     The order is why nothing caught it. The note is written after the marks are placed,
     so the first paint of a page sees no note and the ring is right; it moves onto the
-    pixel on the next pass — which the Ask walk always is, the reader having pressed a
+    pixel on the next pass — which the Ask walk always is, the user having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
     ring beside the change instead of on it.
 
@@ -9460,7 +9507,7 @@ def test_a_bar_s_length_is_the_number_it_stands_for(browser, serve):
 
 def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
     """An axis draws every label it has and stops there, so a column narrower than the
-    labels need gives the reader one long word: five winters at a phone's width read
+    labels need gives the user one long word: five winters at a phone's width read
     2021-222022-232023-242024-252025-26, on a page that had already shipped. The bars are
     all still drawn, so a count of marks says the chart is fine and so does every other
     reading the gate has.
@@ -9566,7 +9613,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     page whose runs never get an SVG label at all."""
     page = open_page(browser, serve(CHART_PAGE))
     # The root scrollport must not hide page-content collisions from this reading,
-    # whether the chart starts below the fold or the reader has scrolled to it.
+    # whether the chart starts below the fold or the user has scrolled to it.
     if scroll_to_chart:
         page.locator("#c-line").scroll_into_view_if_needed()
     # Two ticks the drawing places by transform, one stood on the other. The labels stay
@@ -9587,10 +9634,10 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     )
 
 
-def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):
+def test_a_chart_says_its_numbers_to_a_user_who_cannot_see_it(browser, serve):
     """A drawing is where the body went. The module replaces the widget's own <pre> with
     it, so after the upgrade the numbers exist on the page as geometry and nowhere else —
-    a reader on a screen reader is handed a picture and told it is a picture. The label
+    a user on a screen reader is handed a picture and told it is a picture. The label
     is the words back, and it carries the numbers rather than a summary of them, because
     a summary answers a question nobody asked instead of the one the chart is about."""
     page = open_page(browser, serve(CHART_PAGE))
@@ -9609,7 +9656,7 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
 
     The alternative is what a diagram has to do: resolve the tokens in JavaScript and
     write the values into the drawing. That freezes the browser it was drawn in — a copy
-    exported from a light window opens as a light slab for a dark reader, and a scheme
+    exported from a light window opens as a light slab for a dark user, and a scheme
     flipped mid-read leaves the drawing behind. So this asserts both halves: that each
     series is painted the token it names, and that no hex colour was written into the
     drawing at all. The flip is made with no reload, so the nodes under it are the same
@@ -9641,7 +9688,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     """A drawing that scales takes its labels with it. That is what a diagram does, and
     at 63% of its natural size a five-node flowchart's labels went under legibility; a
     chart has no natural size to keep, so it is drawn again for the width it now has and
-    its text stays the size the theme set. The room changes for reasons a reader never
+    its text stays the size the theme set. The room changes for reasons a user never
     asked about — a window narrower than the column, the thread panel taking its strip
     out of one — so this is the ordinary case rather than a window somebody dragged."""
     page = open_page(browser, serve(CHART_PAGE))
@@ -9672,7 +9719,7 @@ def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve)
     different claims: a cell that is not a number is a typo, and a sixth series is a
     palette that has no step for it — the colours are stepped to stay apart under
     colour-blind vision, and a seventh drawn in the second's colour is a chart that lies
-    to some readers and to no others."""
+    to some users and to no others."""
     page = open_page(browser, serve(BAD_CHART_PAGE))
     cell = page.locator("#bad-cell .lf-error").inner_text()
     assert "row 3" in cell and "twelve" in cell, cell
@@ -9685,7 +9732,7 @@ def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve)
     assert "share the x value Q1" in page.locator("#bad-twice .lf-error").inner_text()
     assert "cannot be negative" in page.locator("#bad-sign .lf-error").inner_text()
     assert "infra has no numbers" in page.locator("#bad-blank .lf-error").inner_text()
-    # The source stays under the message: a refusal the reader cannot check is half a
+    # The source stays under the message: a refusal the user cannot check is half a
     # refusal.
     expect(page.locator("#bad-cell .lf-error pre")).to_contain_text("Q2, twelve")
     # A refusal is a box, never a console line: a body the module will not draw is the
@@ -9695,8 +9742,8 @@ def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve)
 
 def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
     """`new Date("2026-06-01")` is UTC midnight, and a scale that renders it in the
-    reader's own zone puts it under May 31 for everybody west of Greenwich — a chart of
-    daily totals silently one day out, in some readers' browsers and not the author's.
+    user's own zone puts it under May 31 for everybody west of Greenwich — a chart of
+    daily totals silently one day out, in some users' browsers and not the author's.
     The context is pinned to a zone where that is true, and the page is asked to confirm
     it: without that confirmation this test passes on a machine whose clock happens to
     be UTC, which is most of them in a container."""
@@ -9723,7 +9770,7 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
 
     The line saying a comment stands on this chart is a child of the element, put there by
     the anchor pass. Replacing the element's children to hold the new drawing took it away
-    — and took it away at the moment the reader narrowed the window or opened the panel to
+    — and took it away at the moment the user narrowed the window or opened the panel to
     read that very comment, for the life of the tab, since nothing puts it back. So the
     drawing lives in a box of its own and the redraw replaces what is in that box.
 
@@ -9759,7 +9806,7 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
     browser, serve
 ):
     """A chart connected inside a closed panel must draw at its visible width once
-    the reader opens the panel and the thread.
+    the user opens the panel and the thread.
 
     A closed native details element can answer layout queries with a nonzero width.
     Read the visible drawing after opening both disclosures; an intermediate absence
@@ -9914,7 +9961,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
 ):
     """A changed row says it changed by the colour behind it, and that colour is the row's
     own background, so it stops where the row's box stops. The renderer sizes the code
-    column to the box that scrolls, which is the width the reader could already see: on
+    column to the box that scrolls, which is the width the user could already see: on
     this patch the fill ran out 2,563px short of the line's end, so scrolling right left
     every addition and deletion sitting on the file's plain paper with nothing to say
     which it was.
@@ -9922,7 +9969,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     Every direction in one reading, because they are one track. The floor that carries the
     fill past the scrollport would, left alone, shrink a short file's rows to its own
     longest line and leave the rest of the box blank; and it measures whatever stands in
-    that column, so a reader's own remark would size the file too. Then again with the
+    that column, so a user's own remark would size the file too. Then again with the
     rows wrapped, where the scrollbar is gone and the room is all there is."""
     page = _bound_diff(browser, serve)
 
@@ -9939,7 +9986,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     # A thread stands in the code column with the lines, and its prose unwrapped is far
     # wider than any of them, so the floor would take it for a line and size the file by
     # the longest remark. `app/routes.py` is what makes that reading sharp: its rows fit
-    # their box, so a comment that reached the measure starts a file the reader could see
+    # their box, so a comment that reached the measure starts a file the user could see
     # whole scrolling sideways — 671px of rows in a 718px box became 796px in 843px.
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
@@ -10146,7 +10193,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     browser, serve
 ):
     """The mirror of the first `]` above, from the same standing: nothing focused inside
-    the diff. That is where an in-page link to the diff's own id leaves a reader, since
+    the diff. That is where an in-page link to the diff's own id leaves a user, since
     `focusDestination` focuses the host, and the diff's keys answer there because the
     scope climb starts at the focused node itself.
 
@@ -10261,7 +10308,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     """One rule, read off the marker `offer` already writes, rather than each widget
-    deciding for itself whether the reader can press what it drew.
+    deciding for itself whether the user can press what it drew.
 
     The measured fault was that they could not tell: on the command hub a chip that
     opened a section and a badge that counted something computed the same ground, the
@@ -10350,7 +10397,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         f"a control with nothing left to do still offers itself: {spent}"
     )
     assert not any(s["cursor"] == "pointer" for s in rest["said"]), (
-        "a label the page wrote takes the hand, so the reader is invited to press words"
+        "a label the page wrote takes the hand, so the user is invited to press words"
     )
     assert rest["saidMarked"] == [False, False], (
         "a static label carries the control marker, so the rule is being kept off it by "

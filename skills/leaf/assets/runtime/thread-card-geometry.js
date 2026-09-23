@@ -9,7 +9,7 @@
    there (`below`), else over it when it fits there (`above`), else under it again. It
    crosses the reading column by no more than the rail's shortfall. Where that crossing
    reaches the `target` the card is about, under and over are measured from the target
-   and cluster together, so a reader standing on the target sees it and its threads at
+   and cluster together, so a user standing on the target sees it and its threads at
    once.
 
    The card is never shortened to make any of that true. Its height is capped by the

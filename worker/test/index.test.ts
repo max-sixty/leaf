@@ -336,7 +336,7 @@ describe("product-site delivery", () => {
         new Request("https://leaf.page/api/performance", {
           method: "POST",
           headers: { Cookie: `__Host-leaf-page=${"14".repeat(16)}` },
-          body: JSON.stringify(startupReport({ private: "reader content" })),
+          body: JSON.stringify(startupReport({ private: "user content" })),
         }),
         environment(),
       );
@@ -380,7 +380,7 @@ describe("product-site delivery", () => {
   // A container still on the previous image answers for a release the edge no longer
   // serves. The browser's only move against a foreign release is to reload, and the
   // document it reloads onto is the one the edge already gave it, so the answer has to
-  // stop here: while the rollout runs, the reader reads the published projection.
+  // stop here: while the rollout runs, the user reads the published projection.
   it("reads the published projection while the container image rolls out", async () => {
     const sessionId = "0c".repeat(16);
     const containerFetch = vi.fn(async () =>
@@ -513,7 +513,7 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("prewarms a fresh reader's container while returning the edge document", async () => {
+  it("prewarms a fresh user's container while returning the edge document", async () => {
     const started = Promise.resolve();
     const start = vi.fn(() => started);
     vi.mocked(getContainer).mockReturnValue({ start } as never);
@@ -609,7 +609,7 @@ describe("product-site delivery", () => {
   });
 
   it.each(["/media/upload.png", "/examples/triage-board/media/upload.png"])(
-    "falls back to the reader's container for uploaded media at %s",
+    "falls back to the user's container for uploaded media at %s",
     async (pathname) => {
       const sessionId = "08".repeat(16);
       const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
@@ -665,7 +665,7 @@ describe("product-site delivery", () => {
   it.each([
     "/examples/triage-board/revisions/r3-aabbccdd.html",
     "/examples/triage-board/versions/v3.html",
-  ])("falls back to the active reader's container for %s", async (pathname) => {
+  ])("falls back to the active user's container for %s", async (pathname) => {
     const sessionId = "18".repeat(16);
     const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
     const containerFetch = vi.fn(
@@ -791,7 +791,7 @@ describe("product-site delivery", () => {
     expect(state.taken).toBeGreaterThan(0);
   });
 
-  it("keeps an identified but inactive reader on passive edge state", async () => {
+  it("keeps an identified but inactive user on passive edge state", async () => {
     const sessionId = "1a".repeat(16);
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/api/state", {
@@ -808,7 +808,7 @@ describe("product-site delivery", () => {
     expect(response.headers.get("Leaf-Session")).toBe("passive");
     expect(response.headers.get("Leaf-Session-Reference")).toBe("698925386266");
     // The edge names the deployed release whatever a container is running, so a
-    // reader asking after a release learns nothing about one from this answer.
+    // user asking after a release learns nothing about one from this answer.
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(getContainer).not.toHaveBeenCalled();
   });
@@ -985,7 +985,7 @@ describe("website event analytics", () => {
       widget: "private-widget-id",
       action: "choose",
       revision: 2,
-      detail: { private: "reader input" },
+      detail: { private: "user input" },
     });
     await request({ kind: "action", attempt: "refused-attempt" });
 
@@ -1024,7 +1024,7 @@ describe("website page agent", () => {
     const handler = containerHandlers.get("LeafWebsiteSession")?.["api.openai.com"];
     expect(handler).toBeDefined();
     const context = {
-      containerId: "reader-container",
+      containerId: "user-container",
       className: "LeafWebsiteSession",
     };
     const response = await handler!(
@@ -1039,7 +1039,7 @@ describe("website page agent", () => {
 
     expect(await response.text()).toBe("ok");
     expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
-      key: "model:reader-container",
+      key: "model:user-container",
     });
     const forwarded = upstream.mock.calls[0][0];
     expect(forwarded.headers.get("Authorization")).toBe("Bearer test-key");
@@ -1083,7 +1083,7 @@ describe("website page agent", () => {
           body: "private prompt",
         }),
         env,
-        { containerId: "reader-container", className: "LeafWebsiteSession" },
+        { containerId: "user-container", className: "LeafWebsiteSession" },
       );
 
       expect(await response.text()).toBe(responseBody);
@@ -1099,7 +1099,7 @@ describe("website page agent", () => {
       ]);
       expect(records[0]).toMatchObject({
         component: "leaf-agent",
-        containerId: "reader-container",
+        containerId: "user-container",
         requestKind: "turn",
         threadId: "app-thread",
         turnId: "app-turn",
@@ -1124,7 +1124,7 @@ describe("website page agent", () => {
     const response = await handler(
       new Request("https://api.openai.com/v1/files", { method: "POST" }),
       environment(),
-      { containerId: "reader-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container", className: "LeafWebsiteSession" },
     );
 
     expect(response.status).toBe(403);
@@ -1151,7 +1151,7 @@ describe("website page agent", () => {
           },
         }),
         env,
-        { containerId: "reader-container", className: "LeafWebsiteSession" },
+        { containerId: "user-container", className: "LeafWebsiteSession" },
       );
 
       expect(response.status).toBe(426);
@@ -1162,7 +1162,7 @@ describe("website page agent", () => {
       expect(logged.mock.calls[0][0]).toMatchObject({
         component: "leaf-agent",
         event: "model_transport_http_fallback",
-        containerId: "reader-container",
+        containerId: "user-container",
         requestKind: "turn",
         threadId: "app-thread",
         turnId: "app-turn",
@@ -1187,7 +1187,7 @@ describe("website page agent", () => {
         body: "{}",
       }),
       env,
-      { containerId: "reader-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container", className: "LeafWebsiteSession" },
     );
 
     expect(response.status).toBe(503);
@@ -1196,7 +1196,7 @@ describe("website page agent", () => {
     vi.unstubAllGlobals();
   });
 
-  it("caps model calls from one reader container", async () => {
+  it("caps model calls from one user container", async () => {
     const denied = {
       limit: vi.fn(async () => ({ success: false })),
     } as unknown as RateLimit;
@@ -1211,7 +1211,7 @@ describe("website page agent", () => {
         body: "{}",
       }),
       env,
-      { containerId: "reader-container", className: "LeafWebsiteSession" },
+      { containerId: "user-container", className: "LeafWebsiteSession" },
     );
 
     expect(response.status).toBe(429);
@@ -1239,7 +1239,7 @@ describe("website page agent", () => {
       const sessionId = "01".repeat(16);
       const sessionReference = "911497130241";
       const eventId = "02".repeat(16);
-      const attempt = "reader-attempt-01";
+      const attempt = "user-attempt-01";
       let resolveAgentStart: (response: Response) => void = () => undefined;
       const agentStart = new Promise<Response>((resolve) => {
         resolveAgentStart = resolve;
@@ -1360,6 +1360,9 @@ describe("website page agent", () => {
     await waitUntil.mock.calls[0][0];
 
     expect(deny).toHaveBeenCalledWith({ key: "203.0.113.2" });
+    expect(containerFetch.mock.calls[1][0].url).toBe(
+      "http://container/examples/triage-board/_leaf/agent/fail",
+    );
     expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: eventId,
       failure: "rate_limited",
@@ -1403,6 +1406,9 @@ describe("website page agent", () => {
     await waitUntil.mock.calls[0][0];
 
     expect(response.status).toBe(200);
+    expect(containerFetch.mock.calls[2][0].url).toBe(
+      "http://container/examples/triage-board/_leaf/agent/fail",
+    );
     expect(await containerFetch.mock.calls[2][0].json()).toEqual({
       event: eventId,
       failure: "startup_failed",

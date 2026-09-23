@@ -174,7 +174,7 @@ def mark_point(page, name, index=0):
     """A point inside a painted range, for a real mouse press. A highlight is not an
     element, so there is nothing for a locator to click.
 
-    On screen, and asserted here, because a press the reader cannot make proves nothing
+    On screen, and asserted here, because a press the user cannot make proves nothing
     about what a press does. A range keeps its client rects while it is scrolled away —
     they simply go negative — so the arithmetic above will hand back a point above the
     window as readily as one in it, and `page.mouse` will press there. Nothing in the
@@ -200,7 +200,7 @@ def mark_point(page, name, index=0):
 
 
 def composer_quote(page):
-    """What the composer says about its own passage, and whether the reader can see it.
+    """What the composer says about its own passage, and whether the user can see it.
     The node stays in the accessibility tree either way — a painted mark has no exposure,
     so it is the box's aria description — which is why this asks the class, not the text."""
     return page.evaluate("""() => {
@@ -304,7 +304,7 @@ stroke="currentColor"></rect></svg><figcaption>A figure, for element anchors.</f
 
 
 def standing_mark(page):
-    """Which passage the page is painting as the comment the reader is standing in, and
+    """Which passage the page is painting as the comment the user is standing in, and
     which elements wear the same fact as an outline. One reading, because the two are one
     paint over two kinds of anchor and a test that asked for only the text half would go
     green on a page whose element marks had stopped answering."""
@@ -329,7 +329,7 @@ def wait_standing(page, text, ids=()):
     """Wait for the page to be marking exactly this comment's passage.
 
     The paint follows focus through the runtime's one coalesced repaint,
-    so it lands a frame after the press that moved the reader. Reading straight after the
+    so it lands a frame after the press that moved the user. Reading straight after the
     key reads the press before its answer, and passes or fails on how loaded the machine
     is. The failure carries what was painted instead, since a timeout on a predicate says
     only that it never came true."""
@@ -337,7 +337,7 @@ def wait_standing(page, text, ids=()):
         page.wait_for_function(STANDING, arg=[text, list(ids)], timeout=4000)
     except PlaywrightTimeout:
         raise AssertionError(
-            f"the page should be marking {text or list(ids)!r} as the comment the reader"
+            f"the page should be marking {text or list(ids)!r} as the comment the user"
             f" is standing in; it is marking {standing_mark(page)}"
         ) from None
 
@@ -366,10 +366,10 @@ def wait_hovered(page, text):
 
 
 def card_body(page, says):
-    """A point low on a comment's card, below the quote — where a reader's hand rests
+    """A point low on a comment's card, below the quote — where a user's hand rests
     while they read the comment, and where nothing presses.
 
-    Low on the card *as the reader sees it*: the list scrolls, so the last card's own
+    Low on the card *as the user sees it*: the list scrolls, so the last card's own
     bottom can sit below the scroller and behind the panel's foot. A point read off the
     card's rect alone lands on the general box there, which hovers no card at all."""
     box = page.locator(".lf-thread").filter(has_text=says).first.bounding_box()
@@ -687,7 +687,7 @@ TWO_COPIES_PAGE = leaf_page(
 # compiling somewhere past ten thousand of them — measured on the corpus: 1.3ms at four
 # hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
 # would land inside the pass that draws every mark on the page, not just this one's. A
-# reader reaches it in one keystroke, so the guard is a page long enough to prove it.
+# user reaches it in one keystroke, so the guard is a page long enough to prove it.
 CEILING_PAGE = leaf_page(
     "everything",
     """
@@ -789,11 +789,11 @@ def _publish(page_dir, version, html, note):
 
 
 @pytest.fixture
-def one_reader(browser):
+def one_user(browser):
     """A browser context two pages can share, which is what makes them tabs.
 
     `Browser.new_page` opens each page in a context of its own, so two of them are two
-    readers with no storage between them — and a draft lives in the reader's store now,
+    users with no storage between them — and a draft lives in the user's store now,
     which is the whole of what these tests are about."""
     return browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
@@ -801,7 +801,7 @@ def one_reader(browser):
 
 
 def compose(page, passage, text=None):
-    """Open the composer on a passage the way a reader does, and type into it.
+    """Open the composer on a passage the way a user does, and type into it.
 
     Without text it only opens, which is how a second tab meets a draft already
     standing on that passage: the two gestures are the same one, so the anchor the
@@ -820,7 +820,7 @@ def compose(page, passage, text=None):
 # mark (a thing to do that becomes a thing the page says once it is pressed).
 # Both spellings a page has for a folded section: the platform's <details>, and a settled
 # option group, which is a span the widget wrote `aria-expanded` onto. They stand together
-# because a reader standing on one cannot see which of the two it is — a fixture holding
+# because a user standing on one cannot see which of the two it is — a fixture holding
 # one of them proves the scope for that spelling and says nothing about the other.
 DISCLOSED_PAGE = leaf_page(
     "disclosed",

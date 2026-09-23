@@ -62,7 +62,7 @@ interface WireAsk {
   tag: string;
   source: string;
   source_tag: string;
-  thread: string | null;
+  conversation: string | null;
 }
 
 /** One exact agent content version, as a Thread's `unread` names it. */
@@ -73,7 +73,7 @@ interface ContentVersion {
 
 interface WireAsks {
   all: WireAsk[];
-  reader: WireAsk[];
+  user: WireAsk[];
   unanswered: WireAsk[];
   awaiting: Record<string, boolean>;
   unanswered_awaiting: Record<string, boolean>;
@@ -106,7 +106,7 @@ interface WireWorkflow {
     kind: "ended" | "interrupted" | "stale" | "failed";
     operation: "delivery" | "work" | "response";
   } | null;
-  next_actor: "reader" | "agent";
+  next_actor: "user" | "agent";
 }
 
 /** The public Ask record packages read. */
@@ -115,7 +115,7 @@ export interface AskRecord {
   tag: string;
   sourceId: string;
   sourceTag: string;
-  thread: string | null;
+  conversation: string | null;
 }
 
 export interface SemanticDocument {
@@ -254,7 +254,7 @@ const projectedParent = (
 
 const NO_ASKS = {
   all: [] as AskRecord[],
-  reader: [] as AskRecord[],
+  user: [] as AskRecord[],
   unanswered: [] as AskRecord[],
   awaiting: {} as Record<string, boolean>,
   unansweredAwaiting: {} as Record<string, boolean>,
@@ -265,29 +265,29 @@ const askRecord = (ask: WireAsk): AskRecord => ({
   tag: ask.tag,
   sourceId: ask.source,
   sourceTag: ask.source_tag,
-  thread: ask.thread,
+  conversation: ask.conversation,
 });
 
 /* The admitted Ask reading, page asks before conversation asks.
  *
- * Which Asks a document holds, which of them the reader still owes, and every
+ * Which Asks a document holds, which of them the user still owes, and every
  * declared target's awaiting value are folded by `leaf.asks` under the same page
  * transaction as the rest of this state. Nothing here folds those declarations
  * again, so an answer reaches these lists when the state its POST returns is
- * adopted — one reading after the widget state the reader sees change at once. */
+ * adopted — one reading after the widget state the user sees change at once. */
 function normalizedAsks(
   view: AuthoritativeState["browser"]["views"][string] | undefined,
   conversation: AuthoritativeState["browser"]["conversation"] | undefined,
 ) {
   const page = view?.document.asks;
   const thread = conversation?.asks;
-  const records = (kind: "all" | "reader" | "unanswered") => [
+  const records = (kind: "all" | "user" | "unanswered") => [
     ...(page?.[kind] ?? []).map(askRecord),
     ...(thread?.[kind] ?? []).map(askRecord),
   ];
   return {
     all: records("all"),
-    reader: records("reader"),
+    user: records("user"),
     unanswered: records("unanswered"),
     awaiting: { ...page?.awaiting, ...thread?.awaiting },
     unansweredAwaiting: {
@@ -616,9 +616,9 @@ export function createSemanticApplication({
     // pending send hands the conversation to the agent, which `foldThreads` states. A
     // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
     // back the independent obligation that still stands in that thread. A refused send
-    // hands a conversation the server left with the agent back to the reader, whose
+    // hands a conversation the server left with the agent back to the user, whose
     // Retry it is.
-    const owed = new Set(asks.reader.map((ask) => ask.thread));
+    const owed = new Set(asks.user.map((ask) => ask.conversation));
     const refused = new Map<string, string>();
     for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
       const message = entry.message;
@@ -638,16 +638,16 @@ export function createSemanticApplication({
           ? thread
           : {
               ...thread,
-              awaits_reader: true,
-              attention: { kind: "needs_reader", reason: "ask", workflow: null },
+              awaits_user: true,
+              attention: { kind: "needs_user", reason: "ask", workflow: null },
             };
       const retry =
         refused.get(thread.root.id) ??
         (thread.root.attempt ? refused.get(PENDING + thread.root.attempt) : undefined);
-      return retry && thread.attention?.kind !== "needs_reader"
+      return retry && thread.attention?.kind !== "needs_user"
         ? {
             ...thread,
-            attention: { kind: "needs_reader", reason: "recovery", workflow: retry },
+            attention: { kind: "needs_user", reason: "recovery", workflow: retry },
           }
         : thread;
     });
@@ -682,7 +682,7 @@ export function createSemanticApplication({
         response: null,
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
-        next_actor: rejected ? "reader" : "agent",
+        next_actor: rejected ? "user" : "agent",
       };
     };
     const workflows = [
@@ -906,7 +906,7 @@ export function createSemanticApplication({
     },
     // Whether this answer could be adopted with `revision` showing, asked without
     // adopting it. A live activation patches the document before it adopts, and a patch
-    // is not something to undo, so the candidate is judged before the reader's page is
+    // is not something to undo, so the candidate is judged before the user's page is
     // touched. One definition read from two places, because two would be one edit away
     // from a document patched to a revision the answer it was patched for declines to
     // speak for.

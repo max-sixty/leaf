@@ -570,7 +570,7 @@ def test_approval_waits_for_a_reading_of_the_log(browser, serve):
 def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
     """An answer the log has not taken in cannot open the irreversible approval.
 
-    The pick is the reader's at once — that is their own gesture drawn on their own
+    The pick is the user's at once — that is their own gesture drawn on their own
     widget. Which Asks still stand is the server's fold, so the count and the gate
     move when the state this POST returns is adopted, and not before."""
     page = open_page(browser, serve(APPROVAL_PAGE))
@@ -702,7 +702,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         "loads": 1,
         "label": "second",
     }
-    # Leaf state crosses; the reader's place on a control does not. A fresh document
+    # Leaf state crosses; the user's place on a control does not. A fresh document
     # cannot know it has found the same control again — an id, a tag and a count among
     # siblings are a shape, not an identity — so it leaves focus on the page, where the
     # page's own keys are live, rather than hand the next press to a guess.

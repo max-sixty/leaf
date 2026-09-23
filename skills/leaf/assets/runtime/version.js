@@ -1,4 +1,4 @@
-/* Version travel, comparison, and reader continuity.
+/* Version travel, comparison, and user continuity.
  *
  * `renderVersions` supplies the immutable chooser reading. `prepareActivation` installs
  * a live revision; `goActive` also returns from a pinned document, while `goVersion`
@@ -58,7 +58,7 @@ import {
 } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
-import { retainReaderIntent } from "./reader-intent.js";
+import { retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { letGo } from "./focus.js";
 import { clippedContents, landingInsets, shownBox } from "./geometry.js";
@@ -141,7 +141,7 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // properties that page-local styles read. The live document also paints its own facts
 // onto those same two elements. Most arrive after this module, but the server's prepaint
 // bootstrap deliberately runs before the module graph and has already written the live
-// shell and provisional reader layout. Authored markup cannot use the `data-lf-` or
+// shell and provisional user layout. Authored markup cannot use the `data-lf-` or
 // `lf-` namespaces, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
@@ -160,7 +160,7 @@ function authoredAttributes(root) {
 }
 // The authored share of the head, which a revision brings with it. Delivery marks
 // what it inserts — the identity markers, the page's canonical address, a
-// publication's card — and that share belongs to the document the reader was
+// publication's card — and that share belongs to the document the user was
 // served rather than to the revision arriving inside it.
 const versionedHeadNode = (node) =>
   !node.hasAttribute("data-lf-runtime") &&
@@ -177,7 +177,7 @@ const versionedHeadNode = (node) =>
 // This document as its author wrote it, kept inert beside the page it became. A patch
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
-// reader's open disclosure, a tab stop the runtime lent, and whatever a page module
+// user's open disclosure, a tab stop the runtime lent, and whatever a page module
 // built. The module graph can define chrome-only elements before this clone, but authored
 // markup cannot contain those tags, so the authored main is still untouched. Runtime-owned
 // head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
@@ -257,7 +257,7 @@ export function createVersionController({
   // The diff was a second press beside it, and everything the two shared was in the
   // menu already. It named the previous version because a control with one label can
   // offer one base, and the previous version is the least useful of them on a page that
-  // ships a version whenever the work moves: what the reader wants marked is what has
+  // ships a version whenever the work moves: what the user wants marked is what has
   // changed since they last looked, which is as far back as they were away. The base is
   // the menu's to say, so every version older than this one offers itself as one.
   //
@@ -288,7 +288,7 @@ export function createVersionController({
     runtime.currentRevision !== null &&
     runtime.active.revision !== runtime.currentRevision;
   // A menu is a transient reading of the chooser, not a layer over the next control a
-  // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
+  // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
   // exit only from the boundary control in the direction being travelled. The native row
   // below closes the menu first and then leaves the browser to complete that same Tab.
   const atVersionBoundary = (end) => versionChooser.atBoundary(end);
@@ -299,9 +299,9 @@ export function createVersionController({
   // — so every door into this menu shows it from the button, and a pointer press that
   // lands on the button gets it back. Escape is Leaf's, and the menu's own row performs
   // the whole of it: the close, and then the page the menu stood over, which is where a
-  // layer's one step lands the reader rather than on the chooser in the banner. Scoping
+  // layer's one step lands the user rather than on the chooser in the banner. Scoping
   // the platform handback to its door rather than to the state is what keeps it off a
-  // light dismissal, which restores nothing on purpose: a reader who pressed away into
+  // light dismissal, which restores nothing on purpose: a user who pressed away into
   // the page is left where they pressed.
   function closeVersionMenu() {
     versionChooser.close();
@@ -339,7 +339,7 @@ export function createVersionController({
   // browser hand-back that lands at its door.
   //
   // v is the one row worth a key of its own: the current page is where the walk ends, and
-  // where a reader who came for the current state is going. It is local to the menu, so the
+  // where a user who came for the current state is going. It is local to the menu, so the
   // page-level destination remains the complete `g V` route rather than a second meaning for
   // a bare letter.
   //
@@ -365,7 +365,7 @@ export function createVersionController({
     ],
     // The walk marks as it goes, which is what the list is for: the note says in words
     // what a version changed and the page behind the menu then says it in the passages
-    // themselves, without the reader having to leave the list to find out. A note is
+    // themselves, without the user having to leave the list to find out. A note is
     // Claude's sentence about a version and the marks are the version's own account of
     // itself, so reading them together is the only way to tell the two apart.
     does: "Walk the versions, marking what changed since the one you are on",
@@ -382,10 +382,10 @@ export function createVersionController({
       // its count again for a press that moved nothing.
       if (row === was) return;
       // The comparison the row states: its own version as the base, or none at all where
-      // that version is not older than the one being read. So the reader walks down to mark
+      // that version is not older than the one being read. So the user walks down to mark
       // from further back and back up to stop, and the row that stops it is the version
       // they are reading — the end of the walk in the direction they came from, which is
-      // why it needs no key of its own and no reader has to be told where it is — and,
+      // why it needs no key of its own and no user has to be told where it is — and,
       // the page having no key for a comparison, the whole of the way off one.
       const version = +row.dataset.lfVersion;
       if (comparable(version)) showComparison(version);
@@ -396,7 +396,7 @@ export function createVersionController({
   // The chooser represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
   // handoff that a popover does not provide. Light dismissal stays native; Escape is the
-  // menu's own row (`version.close`), which closes it and lands the reader on the page.
+  // menu's own row (`version.close`), which closes it and lands the user on the page.
   const VERSIONS = {
     title: "In the versions menu",
     root: () => versionMenu,
@@ -406,10 +406,10 @@ export function createVersionController({
     // reading so the reference documents its rows as unavailable in the remaining scene.
     liveInCommandReference: true,
     // A chooser over the page suspends the page, which the two transient contexts above this one always did
-    // and this one did not — so a reader in the middle of choosing a version could press `l`
+    // and this one did not — so a user in the middle of choosing a version could press `l`
     // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
     // not looking at, or `c` and open the composer under the list. None of it fails loudly:
-    // the press does exactly what it says on a page the reader has stopped reading. The
+    // the press does exactly what it says on a page the user has stopped reading. The
     // worst of them was a page-level key that set a comparison base, which the walk they
     // were standing in then disagreed with — that key is the menu's own business now, and
     // the claim is what would have held it either way. The claim is also what narrows
@@ -420,7 +420,7 @@ export function createVersionController({
       VERSION_WALK,
       OPEN_NUMBER,
       // Two rows, both live at either end of a one-row menu, so the line prints both at
-      // once — and while they shared a word it printed it twice, leaving the reader to
+      // once — and while they shared a word it printed it twice, leaving the user to
       // tell them apart by their keycaps. The direction is the whole difference between
       // them and it is what each says.
       //
@@ -457,7 +457,7 @@ export function createVersionController({
         run: closeVersionMenu,
       },
       // The menu is a layer over the page and its parent is the page, so the one press
-      // that closes it lands the reader back there rather than on the chooser in the
+      // that closes it lands the user back there rather than on the chooser in the
       // banner, which is chrome they may never have stood on: `g V` runs the press from
       // the chooser, and the browser would hand focus back to it. Leaf performs the whole
       // result — close, then land — so the press is not the platform's to complete.
@@ -676,7 +676,7 @@ export function createVersionController({
   let diffPendingBase = null;
   const diffMarked = [];
   // What each marked block said in the base version, and which of those readings the
-  // reader has open. The marks say a block changed; these say what it changed from, at
+  // user has open. The marks say a block changed; these say what it changed from, at
   // the block, so learning it costs no travel to the other version and back.
   //
   // Identity across versions is the id — the fact threads and reading position already
@@ -689,13 +689,13 @@ export function createVersionController({
   const diffBefore = new Map(); // marked element -> the base version's words, or null
   const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
   // The comparison request that owns the page. Every request takes the next number and every
-  // stop takes one too, so a base whose document lands after the reader has moved on is
+  // stop takes one too, so a base whose document lands after the user has moved on is
   // dropped rather than painted over the base they are standing on now. Reachable because the
   // walk asks per row: it is one fetch per press, and the presses come faster than the network.
   let diffRequest = 0;
   // A renderer may format authored words while keeping their source on the formatted
   // island. Compare that source with the unupgraded base document, then use the live
-  // DOM for what a reader can quote and see in an inline comparison.
+  // DOM for what a user can quote and see in an inline comparison.
   function diffWords(block) {
     if (!block.querySelector("[data-lf-source-words]")) return wrote(block);
     const source = block.cloneNode(true);
@@ -775,7 +775,7 @@ export function createVersionController({
     // in a different column, a pick on a different option — has no text of its
     // own. Compare declared facets instead: the base version's state (its markup
     // plus both folds as of it — a report standing at the base painted there
-    // just as an action did, so what the reader saw includes it) against the
+    // just as an action did, so what the user saw includes it) against the
     // live DOM, which already wears the current folds. Body facets are words and
     // the block keys above own them.
     const baseRevision = stamped(baseVersion)?.revision;
@@ -797,7 +797,7 @@ export function createVersionController({
         for (const el of units) {
           const baseEl = doc.getElementById(el.id);
           if (!baseEl) continue; // new to this version: the content half marks it
-          // A reader's action outranks provisional agent news on the same fact;
+          // A user's action outranks provisional agent news on the same fact;
           // otherwise the standing writer is the report. The facet coordinate
           // means an unrelated fact on this unit never enters the choice.
           const coordinate = stateCoordinate(widget.id, el.id, spec);
@@ -817,7 +817,7 @@ export function createVersionController({
       }
     }
     // One pass over everything marked, after both halves, because the two halves mark
-    // for different reasons and a block reached by either is a block a reader can ask
+    // for different reasons and a block reached by either is a block a user can ask
     // about. The words are taken here rather than at the press: this is the one moment
     // the base document is in hand, and holding it open for a press that may never come
     // would keep a whole second document alive for the life of the comparison.
@@ -1005,7 +1005,7 @@ export function createVersionController({
   // The one way a comparison starts, from a row's press, from the walk through the menu,
   // or from an activation putting back the one it dropped. It states a base rather than
   // toggling one — the toggle is a press's own reading of it, and the walk has none to
-  // spend, standing on a row being what makes it the base however many times the reader
+  // spend, standing on a row being what makes it the base however many times the user
   // arrives there. Everything touching the live page happens in one synchronous stretch
   // after the single await: the walk asks for a comparison per row, and a marking pass
   // that could interleave with the next row's would leave two bases' marks standing
@@ -1079,7 +1079,7 @@ export function createVersionController({
   // Comparison reads an inert document. A revision keeps the layer it captured, and the
   // server says so — both this document and the projection beside it answer for that
   // generation rather than the page's — so neither is a delivery answer and neither goes
-  // through the gate. A layer that really did move under the reader reaches them through
+  // through the gate. A layer that really did move under the user reaches them through
   // the state feed, which is the live channel.
   async function authoredDocument(url) {
     const response = await fetch(url);
@@ -1163,9 +1163,9 @@ export function createVersionController({
 
   // Every declared widget in one revision's authored page, named the way its capture
   // named it: by id where the author gave one, and otherwise by tag and place among the
-  // others of that tag. An unnamed widget is as much the reader's as a named one, and
+  // others of that tag. An unnamed widget is as much the user's as a named one, and
   // without a key of its own it could never answer that its markup was unchanged, so
-  // every revision rebuilt it — taking with it whatever the reader had open in it.
+  // every revision rebuilt it — taking with it whatever the user had open in it.
   function widgetKeys(source) {
     const keys = new Map();
     const counts = new Map();
@@ -1224,7 +1224,7 @@ export function createVersionController({
   // Patch against the authored baselines. Retained nodes keep their live state;
   // replacement nodes recover eligible state through carry and Ask restoration.
   async function activateRevision(doc, target) {
-    const currentIntent = retainReaderIntent();
+    const currentIntent = retainUserIntent();
     const view = captureView();
     const askStanding = captureAskStanding();
     // A pending selection is standing too: cancel its old-document request before the
@@ -1319,7 +1319,7 @@ export function createVersionController({
         declared: upgraded,
         // The capture that wrote each revision said what every declared widget in it
         // was written as. A widget the arriving revision spells the same way is the
-        // widget the reader is holding, so it stays.
+        // widget the user is holding, so it stays.
         unchanged: (before, after) => {
           const digest = authoredWidgets[heldKeys.get(before)];
           return Boolean(digest) && arrivingWidgets[arrivingKeys.get(after)] === digest;
@@ -1367,7 +1367,7 @@ export function createVersionController({
       whenApplicationRegionsPresented(["page-interface"], () => true),
     );
     syncLayout();
-    // Presentation can wait on a renderer download while the reader uses the arrivals.
+    // Presentation can wait on a renderer download while the user uses the arrivals.
     // Their newer input owns navigation; values, focus and caret crossed with the nodes
     // synchronously, so yielding here leaves their ongoing editing intact.
     if (currentIntent()) {
@@ -1451,7 +1451,7 @@ export function createVersionController({
       // Step 6 of the startup order, on the same background stretch as the document
       // itself: this revision may carry a tag the standing document never held, and
       // insertion is where its element is constructed. Asked for here so the install
-      // spends nothing on a fetch while the reader is looking at the page. Inside this
+      // spends nothing on a fetch while the user is looking at the page. Inside this
       // try, because the loader keeps a rejected import: one 404 on a module an arriving
       // revision introduces would otherwise reject every later state read for good.
       await importWidgets(doc.querySelector("body > main"));
@@ -1505,7 +1505,7 @@ export function createVersionController({
   // a passage first, then its section, then a raw offset in the same scroller. Document
   // travel stores this reading per tab; restored chrome layout precedes scroll recovery.
 
-  // The page's own text blocks the reader can see, in document order, with the rect of each
+  // The page's own text blocks the user can see, in document order, with the rect of each
   // one's first line — one reading of what is in front of them, for the two questions that
   // ask it: which passage a version change should land them back on (below), and where a
   // walk over the page's Asks starts when they have pointed at nothing.
@@ -1533,7 +1533,7 @@ export function createVersionController({
     for (const block of blocks) {
       // [hidden] needs an explicit skip: hidden="until-found" resolves to
       // content-visibility, under which descendants still report real rects —
-      // but what's behind an inactive tab isn't what the reader is reading.
+      // but what's behind an inactive tab isn't what the user is reading.
       if (
         inChrome(block) ||
         closestAcross(block, "[hidden]") ||
@@ -1551,15 +1551,15 @@ export function createVersionController({
         yield [block, rect];
     }
   }
-  // The one block the reader is on, which is the first the walk above yields. Two
+  // The one block the user is on, which is the first the walk above yields. Two
   // things outside ask it — where an Ask walk starts, and where the keyboard
-  // reference hands a reader back to — and they were asking it in two places with the
+  // reference hands a user back to — and they were asking it in two places with the
   // same expression written out twice.
   const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
 
   // The quote and the section it's searched in come from the same block, or the search is
   // filtered to a section the text isn't in and can only ever fail — restore then falls back
-  // to the section, which doesn't absorb content added above the reader inside it.
+  // to the section, which doesn't absorb content added above the user inside it.
   function captureRegion(region = null, blocks = textBlocks()) {
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
@@ -1592,7 +1592,7 @@ export function createVersionController({
           landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
         view.quote = text;
         // A partially covered paragraph is still a reading place: its visible lines
-        // should stay where the reader left them. A heading identifies the place as a
+        // should stay where the user left them. A heading identifies the place as a
         // whole, so a coordinate that hides its opening words is not a valid heading
         // landmark. Normalize both quote and fallback section state here, once, rather
         // than teaching every restore path to repair it after document replacement.
@@ -1625,7 +1625,7 @@ export function createVersionController({
 
   // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
   // animating from the replacement's raw position is worse than the jump it replaces.
-  // Moving to a mark the reader asked for is the other case, and says so.
+  // Moving to a mark the user asked for is the other case, and says so.
   const hasLandmark = (reading) => Boolean(reading?.quote || reading?.section);
   const rawOffsetFits = (reading, scroller) =>
     reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
@@ -1653,10 +1653,10 @@ export function createVersionController({
     if (section) {
       reveal(section, currentIntent);
       // The shown reading on both sides of the subtraction, because the landmark is
-      // whatever id stands nearest the block the reader was on, and a section that
+      // whatever id stands nearest the block the user was on, and a section that
       // generates no box of its own is one a suggestion wrapping whole sections leaves
       // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
-      // that had somewhere to land did nothing, silently, and left the reader at the top.
+      // that had somewhere to land did nothing, silently, and left the user at the top.
       moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
     } else if (rawOffsetFits(view, box))
       box.scrollTo({ top: view.y, behavior: "instant" });
@@ -1701,7 +1701,7 @@ export function createVersionController({
 
   // A posture change replaces scroll containers without replacing the document. Keep each
   // semantic region's last reading so a pane that becomes inactive does not inherit the
-  // shared page offset when it becomes bounded again. In flow, only the region the reader
+  // shared page offset when it becomes bounded again. In flow, only the region the user
   // is working represents the shared page scroller.
   const regionViews = new Map();
   let lastReadingRegionId = null;
@@ -1750,7 +1750,7 @@ export function createVersionController({
     }
     if (phase === "before") {
       if (retained && postureTransitions.has(owner)) {
-        postureTransitions.get(owner).currentIntent = retainReaderIntent();
+        postureTransitions.get(owner).currentIntent = retainUserIntent();
         return;
       }
       const blocks = textBlocks();
@@ -1761,7 +1761,7 @@ export function createVersionController({
         if (shownRegionBounds(region))
           regionViews.set(region.id, captureRegion(region, blocks));
       postureTransitions.set(owner, {
-        currentIntent: retainReaderIntent(),
+        currentIntent: retainUserIntent(),
         to,
         regions: regions.map(({ id }) => id),
       });
@@ -1842,7 +1842,7 @@ export function createVersionController({
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     const restoreCarryScroll = handoff && restoreCarry(handoff.carry);
-    const currentIntent = retainReaderIntent();
+    const currentIntent = retainUserIntent();
     function landArrival() {
       if (!currentIntent()) return;
       if (handoff) {

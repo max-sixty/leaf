@@ -26,7 +26,7 @@
    bar; under a finger the bar is the taller and the line follows it rather than letting
    it hang over the first row of the patch. A copy with no press to make room for takes
    its ordinary inset back. */
-.lf-diff-file:has(> .lf-diff-file-actions > *) > details > summary,
+.lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head,
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
                                      box-sizing: border-box;
                                      min-height: calc(var(--lf-diff-action-top)
@@ -105,7 +105,7 @@
 .lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) {
                 --lf-diff-actions: calc(var(--lf-diff-press) + var(--lf-diff-action-gap)
                                         + var(--lf-diff-action-h)); }
-.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(details, .lf-diff-rename) {
+.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-rename) {
                 margin-top: calc(-1 * (var(--lf-diff-action-h)
                                        + var(--lf-diff-action-top))); }
 .lf-diff-file-actions { position: relative; z-index: 3; display: flex;
@@ -185,9 +185,10 @@
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same
    sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (paintHeadRoom, lf-diff.js — the thread list writes the same fact under this name for
-   its own pinned headings). */
-:host(.lf-rendered) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
+   (declareHeadRoom, lf-diff.js, through the runtime's `declareCoverRoom`, which keeps the
+   thread list's run headings declared under the same name). Only where the header pins:
+   unpinned, it covers nothing. */
+:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path { font-family: var(--mono); font-size: var(--t-6);
@@ -221,14 +222,14 @@
 }
 /* A changed row's fill stops where the scrollport does. Pierre gives the code column
    `1fr`, which is the width of the box that scrolls, so a line running past that box
-   paints its green or red only as far as the reader could already see: scrolling right
+   paints its green or red only as far as the user could already see: scrolling right
    ran the fill out mid-line and left the rest of the row on the file's plain paper,
    with the added or removed text sitting on nothing. The track takes its floor from the
    longest line instead, and keeps `1fr` over it so a file whose lines all fit still
    fills the box rather than ending at its longest line. `--lf-diff-row-fill` is that
    floor, and wrapping drops it (below): a wrapped line still measures its whole
    unwrapped self at max-content, so a floor left in place would size the column to the
-   very line the reader asked to have wrapped. */
+   very line the user asked to have wrapped. */
 :host(.lf-rendered) code[data-code] {
                           --diffs-code-grid: var(--diffs-grid-number-column-width)
                                              minmax(var(--lf-diff-row-fill, max-content), 1fr); }
@@ -269,11 +270,11 @@
 /* Soft wrap. A diff line is `white-space: pre` and the box it sits in scrolls sideways,
    so the only way to read the end of a long line is a scrollbar at the foot of the whole
    file — twenty-four thousand pixels below the line, on the patch this was measured on.
-   Wrapping trades the diff's column alignment for lines that end where the reader can
-   see them, which is why it is the reader's own switch rather than the default.
+   Wrapping trades the diff's column alignment for lines that end where the user can
+   see them, which is why it is the user's own switch rather than the default.
    The shared body reads its checkbox, so the state has one home and a copy with its
    scripts dropped still works it. Keeping the query inside one subtree also lets
-   WebKit invalidate the line styles when the reader taps the switch. `anywhere` rather than
+   WebKit invalidate the line styles when the user taps the switch. `anywhere` rather than
    `break-word`: what runs long in a patch is paths, URLs, minified data and prose in
    comments, and the first three offer the line box no break opportunity to find.
    The code box gives up its permanent scrollbar with them, since wrapped rows leave it
@@ -304,7 +305,7 @@
   .lf-diff-review:not([data-lf-said]) { display: none !important; }
   .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-file-actions {
                           display: none !important; }
-  .lf-diff-file:not(:has([data-lf-said])) > details > summary,
+  .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-fold > .lf-diff-head,
   .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
   /* The row's pull (above) takes back the press's height, and the press an unreviewed
      file's row is pulled over is gone here: a hidden box has no margins, so a pull on
@@ -312,11 +313,11 @@
      row stayed and drew each file's header 24px inside the file before it, the first
      32px above the widget. Guarded as the neighbour rule is: no said word, nothing on
      the sheet to pull over. */
-  .lf-diff-file:not(:has([data-lf-said])) > :is(details, .lf-diff-rename) { margin-top: 0; }
+  .lf-diff-file:not(:has([data-lf-said])) > :is(.lf-diff-fold, .lf-diff-rename) { margin-top: 0; }
   .lf-diff-filtered { display: block !important; }
   /* Paper wraps whether or not the switch was on, because a clipped line on screen is a
      scroll away and a clipped line on paper is gone: forty rows of the walkthrough's
-     patch came out cut, the worst by 744px, and one of them was the shortcut bar a reader
+     patch came out cut, the worst by 744px, and one of them was the shortcut bar a user
      would have been reading the page to learn. The switch is not on the sheet to press,
      so the sheet cannot be left holding its answer. */
   [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }

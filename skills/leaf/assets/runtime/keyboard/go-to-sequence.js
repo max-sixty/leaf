@@ -13,13 +13,13 @@
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
    `m`, and `t` name filters; all nine are excluded from the generated alphabet. `g g` and
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
-   an edge of the list; from a beside-panel, `g p` returns focus to the page while keeping
-   the panel open. Uppercase mnemonics remain named
+   an edge of the list; `g p` returns focus to the page while leaving open surfaces
+   standing. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
    panel destination toggles that panel, matching its visible control. Completing one that
-   opens a surface leaves the reader in that surface, whose own Escape step is the way out
-   of it — the same step for a surface the reader already had, and none of this sequence's
+   opens a surface leaves the user in that surface, whose own Escape step is the way out
+   of it — the same step for a surface the user already had, and none of this sequence's
    to declare; completing the mnemonic again closes it. These destinations remain available when an auxiliary surface
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
@@ -45,17 +45,17 @@
 
    A press may deliberately leave layers standing while moving focus outside them. That is
    not an Escape rung, because it gives no layer back. The Go-to address states what
-   remains open: beside the document, `g p` returns from the thread panel to the document
-   and keeps both the panel and its narrowing. A panel covering the document cannot make
-   that promise, so its ordinary Escape rung remains the route back.
+   remains open: `g p` returns to the document and keeps beside-page surfaces open,
+   including panel narrowing. A surface covering the document cannot make that promise,
+   so its ordinary Escape rung remains the route back.
 
    A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
-   panel or tray for another, and the surface the reader ends in owns the one step that
+   panel or tray for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
-   is not put back; the reader reaches it the way they reached it the first time.
+   is not put back; the user reaches it the way they reached it the first time.
 
-   The Go-to sequence has no timeout. The reader is not charged a time limit for reading
+   The Go-to sequence has no timeout. The user is not charged a time limit for reading
    the hints just painted. */
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
@@ -77,7 +77,6 @@ import { pageParts } from "../passages.js";
 import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { inPanel as panelFocusIsInside } from "../conversation/panel-elements.js";
 import { threadsBox } from "../conversation/panel-elements.js";
 import {
   currentTray,
@@ -102,7 +101,6 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   panelIsOpen,
-  panelCovers,
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations,
@@ -123,7 +121,6 @@ export function createGoToSequence({
   leavePageMap,
   pageMapIsActive,
 }) {
-  const inPanel = () => panelFocusIsInside(panelIsOpen);
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
   // row's own binding, so a rebinding cannot leave a sentence promising the old press.
@@ -140,10 +137,10 @@ export function createGoToSequence({
   const pageLinks = () =>
     pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
   // The tabs rather than their panels: the visible choice is what wears the hint and
-  // what the reader stands on afterwards. `role=tab` is the platform vocabulary, so an
+  // what the user stands on afterwards. `role=tab` is the platform vocabulary, so an
   // authored tab pattern and lf-tabs take the same route without naming a widget family.
   const pageTabs = () => pageParts('[role="tab"]');
-  // The summaries rather than the boxes they head: a summary is what the reader stands on,
+  // The summaries rather than the boxes they head: a summary is what the user stands on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
   // so a <details> whose author wrote no summary has no visible target here. Every
   // disclosure and not the shut ones, for the reason above: a list counting what is shut
@@ -184,7 +181,7 @@ export function createGoToSequence({
   // A generated native-fragment sentinel can carry the scroll coordinate while remaining
   // absent from the accessibility tree. Such a point sits immediately before the content it
   // names. Never put keyboard focus on aria-hidden apparatus; after the browser follows the
-  // fragment, place the reader on that visible content instead.
+  // fragment, place the user on that visible content instead.
   function fragmentFocusTarget(destination) {
     if (!destination || destination.getAttribute("aria-hidden") !== "true")
       return destination;
@@ -234,7 +231,7 @@ export function createGoToSequence({
       active: (...args) => panelIsOpen(...args),
       // The mnemonic pressed over an open panel closes it outright. The way back out of
       // one it opened is the panel's own step, which is the same step for a panel the
-      // reader already had.
+      // user already had.
       close: () => setPanel(false),
       toggle: true,
     },
@@ -498,7 +495,7 @@ export function createGoToSequence({
     GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
   // The armed window owns every key wherever focus sits. The shared hint session holds
   // the map, the typed prefix, the audible walk, and the scroll freeze; this owner holds
-  // only which kind filter the reader has asked for.
+  // only which kind filter the user has asked for.
   let goToActive = false;
   let targetFilter = null;
 
@@ -559,7 +556,7 @@ export function createGoToSequence({
     }
     const found = hints.arm();
     // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
-    // to exactly the reader who cannot see them.
+    // to exactly the user who cannot see them.
     announce(
       `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
     );
@@ -612,7 +609,7 @@ export function createGoToSequence({
           // without naming a list or taking a digit. This is the thread-local counterpart
           // to the page edges below: k/j place the card inside its panel rather than moving
           // the document to the passage the card is about. It leads while live because it
-          // is the one offer specific to where the reader stands; list members wear their
+          // is the one offer specific to where the user stands; list members wear their
           // Go-to hints directly when the sequence starts.
           keys: THREAD_EDGE_KEYS,
           routes: [
@@ -637,16 +634,13 @@ export function createGoToSequence({
           },
         },
         {
-          id: "navigation.page.return",
-          // This is travel from the panel to the page, not an Escape rung: every layer
-          // remains standing, so the Go-to address says what stays open. A covering panel locks
-          // the document scroller and has no page to hand back; ordinary Escape remains
-          // the truthful route there. It follows the focused thread's own placements so
-          // they keep the short line a reader standing on that card arrived to use.
+          id: "navigation.page.focus",
+          // This changes focus without unwinding an open surface. A covering surface
+          // makes the page inert, so its Escape rung remains the route back.
           keys: PAGE_RETURN_KEYS,
-          does: "Return to the page, keeping the thread panel open",
-          line: "page — threads kept",
-          when: () => atGoToTargets() && inPanel() && !panelCovers(),
+          does: "Focus the page",
+          line: "page",
+          when: () => atGoToTargets() && !coveringAuxiliarySurface(),
           run: () => {
             setGoToSequence(false);
             letGo();
@@ -806,7 +800,7 @@ export function createGoToSequence({
   };
 
   // The way in to the sequence. Its row supplies the same leader every painted Go-to hint uses,
-  // so the letter the reader presses and the letter the page prints cannot diverge.
+  // so the letter the user presses and the letter the page prints cannot diverge.
   //
   // The page-level row promises the sequence rather than any particular ephemeral hint.
   const OPEN_GO_TO = {

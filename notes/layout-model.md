@@ -1,8 +1,11 @@
 # Layout model
 
 A proposal to replace Leaf's document/workspace choice with shared layout primitives
-composed into task components, with a strong document default. Nothing here has
-shipped. Research at `f8660f72`, 22 September 2026, revised after four independent
+composed into task components, with a strong document default. `lf-grid`, the
+text-or-surface declaration, bounded blocks and the page-CSS advice have shipped, and
+their contracts live in `page-authoring.md` ("Composing a page") and
+`packages.md`; the workspace, the remaining package roots and Threads are the slices
+below. Research at `f8660f72`, 22 September 2026, revised after four independent
 reviews and two browser probes. Where a choice was close, this plan takes the one
 with fewer states and elements, because that is the easier position to change from.
 
@@ -43,6 +46,23 @@ each piece of content has one scroller.** The page, a root tab panel, a workspac
 grid cell, and a pane are frames. What a block may take is what its frame gives it:
 nothing inside a frame reaches past it.
 
+A **frame** is a box whose size comes from outside it, not from what it holds. It is a
+role elements take, not a new element. In plain CSS every block already takes its
+width from its parent; a frame also stops Leaf's widening, which grows a `data-width`
+block past the column by borrowing the page's spare room. A frame limits that room to
+its own width. The frames are:
+
+- `main`, the page;
+- a root `lf-tab` panel, `lf-workspace`, and `lf-pane`;
+- each direct child of `lf-grid`, the tile;
+- any box whose theme rule declares `--lf-block-frame: 1`, the existing flag for
+  callouts, `details` and cards.
+
+A plain `section` is not a frame: it only groups blocks, so a wide figure inside one
+still reaches the page's wide width, while the same figure in a grid tile stays in
+the tile. A frame that owns a scroller, such as a pane in a bounded workspace, also
+takes a fixed height from its grid row and `overflow: auto`.
+
 Three questions follow from that rule:
 
 | Question | Values | Owner |
@@ -51,9 +71,13 @@ Three questions follow from that rule:
 | How are sibling blocks placed? | a sequence (default) or a grid | `lf-grid` owns the geometry |
 | Who scrolls this content? | the page; a pane's body when its workspace is bounded; a block that declares its own bound | the page, `lf-workspace`'s posture, or the block |
 
-Prose keeps the column measure inside every frame. A frame's width goes to the
-surfaces it holds, such as charts, tables, logs and code, never to lines of text. A
-two-column grid at 1600px therefore still sets its paragraphs at a readable length.
+Each widget declares how it uses the width its frame gives it, as it declares its
+bound. A widget that sets lines of text (paragraphs, lists, callouts, an Ask's prose)
+stops at the reading measure; a surface (a chart, table, log or code listing) fills
+its frame. The theme declares the plain HTML elements the same way, and an
+undeclared element counts as text. A two-column grid at 1600px therefore still sets
+its paragraphs at a readable length while its charts take the whole tile, and no
+rule on the frame has to guess which of its children is prose.
 
 A block's own bound works like its width: a registry default for widgets that need
 one (a log, a feed, a code listing), and an authored occurrence for anything else.
@@ -66,7 +90,7 @@ own them:
 - **What the siblings mean to each other.** "Independent status items" is a grid of
   tiles. "Alternatives to compare" is `lf-compare`, which keeps its variants paired
   however narrow the page gets. "Controls that operate a preview" is `lf-playground`.
-  "Views the reader switches between" is `lf-tabs`, which carries selection,
+  "Views the user switches between" is `lf-tabs`, which carries selection,
   visibility and keyboard behaviour, not only geometry. A grid owns geometry; the
   component owns the relationship, so a narrower layout changes presentation without
   changing the task.
@@ -91,7 +115,7 @@ and with the page.
 Width and posture are independent. A grid's column count follows the width it is
 given, in either posture; posture decides only heights and who scrolls.
 
-A **view** is what a reader takes in as one part of the page: a section in flow, a
+A **view** is what a user takes in as one part of the page: a section in flow, a
 pane in a workspace, or a tab panel. A **region** is a view that can own its scroll: a
 pane, a tab panel, or the page. Reading position is kept per region. Blocks with their
 own bound stay keyboard-reachable through `reach.js` and are not regions.
@@ -126,12 +150,10 @@ own bound stay keyboard-reachable through `reach.js` and are not regions.
    query would miss. Bounded rules stay under `@media screen`, so copies and print
    flow.
 
-   Opening Threads must not restructure the page the reader is commenting on. Where
-   placing the panel beside a bounded workspace would take the workspace under its
-   minimum, the panel covers instead. Today it covers only at windows of 840px or less
-   (`COVERING` in `chrome-layout.js`), so between about 841px and the width where a
-   bounded workspace and the panel fit side by side, a comment would otherwise flip a
-   monitor to flow. The cost is the modal covering panel from PR #536 at those widths.
+   Opening Threads never changes the space the page gets: the panel slides over the
+   page at every width, so a comment cannot flip a workspace's posture or rewrap a
+   grid. Today the panel pushes the page aside above 840px and covers it below
+   (`COVERING` in `chrome-layout.js`); both the push and that test go.
 
    A probe in Chrome (`frame-probe.html`: banner, `lf-workspace` as a size container,
    four panes with one long, columns `auto-fit minmax(360px, 1fr)`, bounded at
@@ -141,27 +163,26 @@ own bound stay keyboard-reachable through `reach.js` and are not regions.
    |---|---|---|---|
    | 1600×1000 | 4 | bounded, panes 960px | only the long pane's body |
    | 1100×700 | 3 | bounded, panes 330px | only the long pane's body |
-   | 1100×700, 420px panel | 1 | flow | the page |
    | 700×500 | 1 | flow | the page |
    | 390×844 | 1 | flow | the page |
 
 5. **Reading continuity moves with posture.** Today a JS-driven posture change
-   captures the reader's position before the mutation and restores it after
+   captures the user's position before the mutation and restores it after
    (`version.js`). A CSS switch has no "before" moment, so the runtime records the
    reading landmark continuously and restores it when the box that scrolls a region
    changes. Every declared region, the page included, is read this way. This ships
-   with design 4, or crossing the threshold or opening Threads loses the reader's
-   place.
-6. **The page grid reserves space; it does not place blocks.** A grid on `body` holds
-   the banner row, the Threads panel as a track when it sits beside the page, the
-   left trays, and the bottom chrome. Only `main` is placed in it. This is TODO #28.
-   Blocks still grow out of the column; sidenotes stay floats and margin rows stay
-   positioned beside their lines.
+   with design 4, or crossing the threshold loses the user's place.
+6. **Panels slide over the page.** Threads and Leaves overlay the page and never
+   take width from it, so the page is laid out for one width whatever is open. The
+   fixed chrome (banner, left trays, bottom bar) reserves its space as it does today,
+   and no page grid is needed. Blocks still grow out of the column; sidenotes stay
+   floats and margin rows stay positioned beside their lines.
 
 Widgets never choose a posture. `lf-monitor`, `lf-visual-review`, the playground and
 `lf-ask` compose `lf-grid` and `lf-pane` instead of calling `arrangeReadingElement`.
-Agents keep full CSS freedom inside a block; page CSS that changes scrolling or
-placement across Leaf's boundaries is outside the contract.
+Agents keep full CSS freedom inside a block. `leaf version check` warns when page
+CSS makes a box scroll or sets placement on a Leaf layout element, since Leaf's
+reading features cannot reach a scroller they do not know about.
 
 Unchanged: authored order in every posture, stable region ids, registry-declared
 roles, the event log and state model, anchors, Asks, and Threads.
@@ -188,17 +209,18 @@ An agent starts from the explanation and inserts the others where they help, kee
 the surrounding prose. A report that gains live status gains a grid; it is not
 converted into another page type.
 
-Behaviour enforces the rails that do not need judgment: readable prose measure in
+Behaviour enforces the rails that do not need judgment: the declared text measure in
 every frame, content contained in its frame, authored reading order, reachable
 actions, and anchors that survive rearrangement. Guidance covers what does: whether
 information deserves a tile, whether a comparison needs both sides visible at once,
-or whether tabs would hide something the reader needs.
+or whether tabs would hide something the user needs.
 
-Validation can flag the structural shadow of two failures without judging relevance:
-a grid whose cells hold only prose (over-tiling), and page CSS that sets scrolling or
-placement on a Leaf layout element (fighting the rails).
+Validation flags one structural failure: page CSS that makes a box scroll or sets
+placement on a Leaf layout element (fighting the rails). Over-tiling, a grid whose
+cells hold only prose, is left to the recipes' guidance; the evaluation below shows
+whether guidance alone holds.
 
-## How the reader's experience changes
+## How the user's experience changes
 
 - **Wide windows get used.** Status sections, dashboards and monitors spread across
   the width as tiles; plans and reviews keep the prose column.
@@ -207,10 +229,8 @@ placement on a Leaf layout element (fighting the rails).
   prose column.
 - **The first paint is the final layout.** A workspace no longer appears as a long
   column and then snaps to the window.
-- **Commenting never restructures a workspace.** Where Threads beside a bounded
-  workspace would push it under its minimum, the panel covers it instead. On flow
-  pages a narrower content area still rewraps tiles, and the reader's place is
-  restored across it (design 5).
+- **Opening Threads never moves the page.** The panel slides over it at every width,
+  so no column re-centres, no tile rewraps and no workspace changes posture.
 - **Long logs stop growing the page.** A log or feed in a dashboard bounds itself and
   can stay on its newest entry.
 - **Phones get the right height.** The workspace's height follows the visible
@@ -252,8 +272,11 @@ Disadvantages and risks:
   panes hold.
 - **No spans yet.** Layouts where one cell spans rows nest grids, which is more
   markup than a span.
-- **A covering panel at middle widths.** Threads covers a bounded workspace wherever
-  beside would not fit, so commenting there is modal.
+- **Threads covers part of the page at middle widths.** Between roughly 900 and
+  1300px the panel can sit over the right of the text column, including the passage
+  a thread quotes, and over a workspace's right-hand pane. On wider windows it mostly
+  covers empty margin. Keeping the quoted passage clear is later work that does not
+  touch the layout model.
 - **Pane markup gets stricter.** Every pane needs one body element.
 - **Continuity has to be rebuilt,** from JS-announced transitions to continuous
   landmark recording.
@@ -284,12 +307,12 @@ presentation of `lf-tabs`.
 ## Decisions
 
 - **Foundation:** frames allocate, children arrange within them, each piece of
-  content has one scroller; posture is a workspace's responsive policy; prose keeps
-  its measure in every frame.
+  content has one scroller; posture is a workspace's responsive policy; each widget
+  declares whether it sets text, which keeps the reading measure in every frame, or
+  is a surface, which fills its frame.
 - **Posture:** two states, chosen by a container query on `lf-workspace`'s own
   allocation with global thresholds; bounded only where the host gives a finite
-  height, and Threads covers rather than push it under its minimum. JS measurement
-  causes the post-upgrade snap, a per-page threshold computed
+  height. JS measurement causes the post-upgrade snap, a per-page threshold computed
   at save time would reimplement layout and go stale, and pure grid fitting produced
   a third state where the page and a pane both scroll.
 - **Frame element:** keep `lf-workspace` as a local frame rather than an attribute on
@@ -301,25 +324,20 @@ presentation of `lf-tabs`.
 - **Authoring:** recipes in guidance and examples, not an axis questionnaire or
   mandatory templates.
 - **Names:** posture for the policy, workspace for the frame element.
+- **Page CSS:** free inside a block; `leaf version check` warns, rather than refuses,
+  when it makes a box scroll or places a Leaf layout element.
+- **Over-tiling:** guidance only; no check flags a grid of paragraphs.
+- **Panels:** Threads and Leaves always slide over the page and never take its width.
 
 ## Slices
 
 Each slice replaces its old path completely.
 
-- **#29** `lf-grid` in flow, with cells as frames, prose measure inside frames, and
-  blocks that declare their own bound (including following the newest entry). Rebuild
-  `live-progress` as a document with grids and a bounded log, `command-hub`'s status
-  and fleet sections as tiles, and `lf-metrics` as metric tiles.
-- **#32** Rewrite "Document, page tabs, or workspace" in `page-authoring.md` as the
-  four recipes, and the glossary's workspace terms around frames and posture; land
-  with #29.
 - **#30** `lf-workspace` as a size container where its host gives finite height, the
   pane grammar, and continuous reading continuity for every region, the page
-  included, and Threads covering a bounded workspace it would squeeze. Compare the
-  monitor, a comparison and a queue beside its detail before and
-  after; delete `readBoundedFit`, `lf-partition`, and the JS minimum-size readers.
-- **#31** Move `lf-monitor`, `lf-visual-review`, the playground and `lf-ask` onto the
-  grid; delete `arrangeReadingElement` and the package copies of bounded rules.
-- **#28** The page grid for chrome reservation, separately and last. Its acceptance
-  test is `test_taking_the_panels_strip_leaves_the_reader_on_the_same_words` in
-  `tests/test_render_controls.py`.
+  included. Compare a comparison and a queue beside its detail before
+  and after; delete `readBoundedFit`, `lf-partition`, and the JS minimum-size readers.
+- **#31** Move `lf-visual-review`, the playground and `lf-ask` onto the grid; delete
+  `arrangeReadingElement` and the package copies of bounded rules.
+- **#28** Threads slides over the page at every width; delete the push strip,
+  `COVERING`, and `main`'s panel offset.

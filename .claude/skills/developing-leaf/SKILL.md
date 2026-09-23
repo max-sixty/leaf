@@ -10,7 +10,7 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Read this skill's `references/glossary.md` before naming or revising reader-facing elements,
+Read this skill's `references/glossary.md` before naming or revising user-facing elements,
 interaction contexts, navigation, chrome, view state, or an identifier governed by
 those concepts. It is Leaf's canonical implementation vocabulary.
 
@@ -25,6 +25,13 @@ This skill is maintainer workflow, not a second home for product specifications.
 using Leaf read `<root>/skills/leaf/SKILL.md`. Package authors read the public contract
 at `<root>/skills/leaf/references/packages.md`.
 
+## Leave old state out of the handoff
+
+Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
+handoff therefore doesn't tell the user that an existing page, log, or claim
+predates the change, needs re-vendoring, or won't show it, and doesn't list
+reviving that state as follow-up work.
+
 ## Explore an open design
 
 When a new interface leaves a material visual or interaction choice unsettled,
@@ -33,9 +40,9 @@ surface; extend its playground when it owns the same decision. Then follow `Auth
 revise a page` below. Initialize a new page with the
 `playground` package and follow
 `<root>/skills/leaf/packages/playground/guidance/author.md`. Put several coherent
-options in named presets. Build each option far enough that the reader can operate it
-in the shared preview. Controls select the option and its parameters; the reader
-performs the interaction being judged inside the preview. Use the reader's submitted
+options in named presets. Build each option far enough that the user can operate it
+in the shared preview. Controls select the option and its parameters; the user
+performs the interaction being judged inside the preview. Use the user's submitted
 configuration or feedback to choose the one implementation the finished change keeps.
 
 When the subject already exists, implement each proposed behavior in the code that
@@ -47,7 +54,7 @@ copy, and styling. Embed an operable current surface with a live `lf-specimen`,
 following `skills/leaf/references/page-authoring.md`: it hosts a complete Leaf page
 with independent state and the ordinary runtime-owned chrome. The developer gallery's
 choreographed replays use the same host in passive mode; they demonstrate a sequence
-rather than accept reader gestures. Page-local HTML and CSS may frame the comparison
+rather than accept user gestures. Page-local HTML and CSS may frame the comparison
 and build proposed sketches.
 
 ## Prove and hand off a visible change
@@ -94,36 +101,36 @@ startup. Fix the input and the watcher retries.
 
 A preview takes no task claim: it serves through the browser suite's process-owned
 server, with the real HTTP and event log, and its presses go nowhere but the page's
-log. That is what every screenshot and browser check needs. Add `--reader` for a
-preview whose URL goes to the user, at `.tmp/previews/<example>-reader`: the claim
+log. That is what every screenshot and browser check needs. Add `--user` for a
+preview whose URL goes to the user, at `.tmp/previews/<example>-user`: the claim
 carries their comments to `leaf wait`. It carries the agent's own gestures just as
-readily, so a preview this session drives under `--reader` reports each screenshot
-click as an unanswered reader move, and the Stop hook holds the turn open for it. A
+readily, so a preview this session drives under `--user` reports each screenshot
+click as an unanswered user move, and the Stop hook holds the turn open for it. A
 preview of either kind owes no watcher, so the per-turn reminder to start one skips
 it. Do not idle a preview to quiet the loop: `idle` closes the page in the browser
 and changes the banner a visual check may be reading.
-`--reader` also fixes the address: the durable service records it, so the URL
+`--user` also fixes the address: the durable service records it, so the URL
 survives a stop, while an unclaimed preview's server is its watcher's and a new
 watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
 rebuilds it in the other one. A subagent's previews stay claimless, and the session the
-user talks to starts any `--reader` preview: a subagent's claim is that session's
+user talks to starts any `--user` preview: a subagent's claim is that session's
 claim, so that session's Stop hook would answer for the preview's moves either way.
 
 When finished with a preview, run the matching preview command with `--stop` (and
-`--reader` for a reader slot); it waits for the watcher and server to stop. Ctrl-C
+`--user` for a user slot); it waits for the watcher and server to stop. Ctrl-C
 stops a foreground preview. A slot refuses a different source or seeded history so
 it keeps the existing page and feedback. Use `--reset` to discard the selected slot
 and rebuild it from the current fixture.
 
 ### In Codex
 
-1. Start the preview with `--reader`, which serves it at
-   `.tmp/previews/<example>-reader`. `codex start` claims the page, and the
-   durable service `--reader` puts up is what keeps that URL answering for as
+1. Start the preview with `--user`, which serves it at
+   `.tmp/previews/<example>-user`. `codex start` claims the page, and the
+   durable service `--user` puts up is what keeps that URL answering for as
    long as the task lasts.
 2. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
    browser target and `placement: "right"`.
-3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-reader` so
+3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so
    Leaf comments return to the current task.
 4. Tell the user to select page text or use Leaf's comment affordance for a Leaf
    thread. Codex Annotation mode creates visual comments that the user sends with
@@ -137,7 +144,7 @@ the current site, starts the canonical website adapter, uses the host's logged-i
 App Server, asks for one heading edit, and verifies the publication, reply, and changed
 page in Chrome. Its profile reports request acknowledgement, agent activity,
 publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, and
-presentation timings. It stops every process and removes the disposable reader page
+presentation timings. It stops every process and removes the disposable user page
 when it finishes.
 
 This fast loop bypasses the Cloudflare Worker, container allocation and
@@ -173,7 +180,7 @@ Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
 Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
 the pair a comparison-specific `<slot>` name; `--reset` removes any state left
-by an earlier run. Add `--reader` to both when the pair's URLs go to the user,
+by an earlier run. Add `--user` to both when the pair's URLs go to the user,
 or a comment they leave on either page reaches nobody.
 
 ```bash

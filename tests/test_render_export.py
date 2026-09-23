@@ -80,7 +80,7 @@ def preview_slot(tmp_path, monkeypatch):
     either. `retire_preview` does, holding the stop request the watcher reads and
     waiting for its lease, so a watcher that outlived its test is retired rather
     than having its page pulled out from under it. Whatever the test named its
-    slots — `{slot}-reader`, `{slot}-before` — they are all in here.
+    slots — `{slot}-user`, `{slot}-before` — they are all in here.
 
     The root comes back from `previews_root` rather than being spelled twice, so
     the directory this sweeps is the one the script builds slots under.
@@ -104,7 +104,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
             "heat-loss",
             "--slot",
             slot,
-            "--reader",
+            "--user",
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
@@ -292,10 +292,10 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
 def test_a_preview_records_real_gestures_outside_the_task(
     browser, tmp_path, preview_slot, spawn, request
 ):
-    """A preview and a `--reader` one share the event door and differ in lifetime.
+    """A preview and a `--user` one share the event door and differ in lifetime.
 
     The selected runtime's temporary server is held by the watcher rather than a
-    service record. Its log survives source reloads, while a distinct `--reader`
+    service record. Its log survives source reloads, while a distinct `--user`
     slot is claimed for task delivery and cannot be overwritten by an unclaimed one.
     """
     slot, page_dir = preview_slot
@@ -372,9 +372,9 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert driven_process.returncode == 130, driven_stderr
     assert "Traceback" not in driven_stderr
 
-    reader_slot = f"{slot}-reader"
-    reader_dir = page_dir.with_name(reader_slot)
-    reader_command = [
+    user_slot = f"{slot}-user"
+    user_dir = page_dir.with_name(user_slot)
+    user_command = [
         sys.executable,
         str(ROOT / "scripts" / "preview.py"),
         "--source",
@@ -382,13 +382,13 @@ def test_a_preview_records_real_gestures_outside_the_task(
         "--runtime",
         str(runtime),
         "--slot",
-        reader_slot,
-        "--reader",
+        user_slot,
+        "--user",
     ]
 
-    def cleanup_reader():
+    def cleanup_user():
         subprocess.run(
-            [*reader_command, "--stop"],
+            [*user_command, "--stop"],
             cwd=ROOT,
             capture_output=True,
             check=False,
@@ -396,38 +396,38 @@ def test_a_preview_records_real_gestures_outside_the_task(
             timeout=30,
         )
 
-    request.addfinalizer(cleanup_reader)
-    reader_result = subprocess.run(
-        [*reader_command, "--background"],
+    request.addfinalizer(cleanup_user)
+    user_result = subprocess.run(
+        [*user_command, "--background"],
         cwd=ROOT,
         capture_output=True,
         check=False,
         text=True,
         timeout=90,
     )
-    assert reader_result.returncode == 0, (
-        f"stdout:\n{reader_result.stdout}\nstderr:\n{reader_result.stderr}"
+    assert user_result.returncode == 0, (
+        f"stdout:\n{user_result.stdout}\nstderr:\n{user_result.stderr}"
     )
-    reader_url = reader_result.stdout.splitlines()[-1]
-    claim = service_model.page_claim(reader_dir)
+    user_url = user_result.stdout.splitlines()[-1]
+    claim = service_model.page_claim(user_dir)
     assert claim is not None and claim["id"] == os.environ["CLAUDE_CODE_SESSION_ID"]
-    reader = open_page(browser, reader_url)
-    expect(reader.locator(".lf-preview")).to_contain_text(f"Reader · {runtime.name}")
-    with sending(reader, "the reader option pick"):
-        reader.locator("#opt-stage .lf-pick").click()
-    expect(reader.locator("#opt-stage")).to_have_attribute("chosen", "")
-    [reader_event] = [
+    user = open_page(browser, user_url)
+    expect(user.locator(".lf-preview")).to_contain_text(f"User · {runtime.name}")
+    with sending(user, "the user option pick"):
+        user.locator("#opt-stage .lf-pick").click()
+    expect(user.locator("#opt-stage")).to_have_attribute("chosen", "")
+    [user_event] = [
         event
-        for event in events_model.read_events(reader_dir)
+        for event in events_model.read_events(user_dir)
         if event["kind"] == "action" and event["author"] == "user"
     ]
-    assert reader_event["id"] != automated_event["id"]
-    assert reader_event in service_model.unacknowledged(
-        events_model.read_events(reader_dir), 0
+    assert user_event["id"] != automated_event["id"]
+    assert user_event in service_model.unacknowledged(
+        events_model.read_events(user_dir), 0
     )
-    reader_feedback = (reader_dir / "events.jsonl").read_bytes()
+    user_feedback = (user_dir / "events.jsonl").read_bytes()
     refused = subprocess.run(
-        [command for command in reader_command if command != "--reader"],
+        [command for command in user_command if command != "--user"],
         cwd=ROOT,
         capture_output=True,
         check=False,
@@ -435,14 +435,14 @@ def test_a_preview_records_real_gestures_outside_the_task(
         timeout=30,
     )
     assert refused.returncode == 1
-    assert "serves its reader interaction; add --reader to join it" in refused.stderr
+    assert "serves its user interaction; add --user to join it" in refused.stderr
     assert "--reset" in refused.stderr
-    assert (reader_dir / "events.jsonl").read_bytes() == reader_feedback
-    reader.close()
+    assert (user_dir / "events.jsonl").read_bytes() == user_feedback
+    user.close()
 
     reset_driven = spawn(
         [
-            *(command for command in reader_command if command != "--reader"),
+            *(command for command in user_command if command != "--user"),
             "--reset",
         ],
         cwd=ROOT,
@@ -459,8 +459,8 @@ def test_a_preview_records_real_gestures_outside_the_task(
         == "server   preview (no task claim; stops with its watcher and with this "
         "agent session)"
     )
-    assert service_model.page_claim(reader_dir) is None
-    assert reader_event not in events_model.read_events(reader_dir)
+    assert service_model.page_claim(user_dir) is None
+    assert user_event not in events_model.read_events(user_dir)
 
     reset_page = open_page(browser, reset_url)
     expect(reset_page.locator(".lf-preview")).to_contain_text(
@@ -492,11 +492,11 @@ def test_a_detached_preview_keeps_its_gestures_out_of_the_stop_hook(
     Who presses the page and whether the watcher detaches are separate choices.
     While they were one, the only backgroundable preview was the claimed one, and a
     session driving four of them through browser proof read its own presses back as
-    reader input: six Stop hooks blocked on `.tmp/previews/` slots inside subagent
-    worktrees no reader could see.
+    user input: six Stop hooks blocked on `.tmp/previews/` slots inside subagent
+    worktrees no user could see.
 
-    A `--reader` preview still reports its reader, which is the reading
-    `test_a_preview_owes_no_watcher_but_still_carries_its_reader` holds. The
+    A `--user` preview still reports its user, which is the reading
+    `test_a_preview_owes_no_watcher_but_still_carries_its_user` holds. The
     difference is upstream, in whether the preview took a claim at all.
     """
     slot, page_dir = preview_slot
@@ -571,7 +571,7 @@ def test_a_detached_preview_ends_with_the_session_that_started_it(
 ):
     """Every preview is reaped by the session's lifetime; only the route differs.
 
-    A `--reader` preview is reaped through its claim: the serving process exits
+    A `--user` preview is reaped through its claim: the serving process exits
     when the lifetime ends, and the watcher sees an empty service. An unclaimed
     preview holds its server in its own thread, so nothing outside it would ever
     notice. Detached, that left a Python process and a loopback port standing
@@ -633,7 +633,7 @@ def test_a_detached_preview_ends_with_the_session_that_started_it(
     assert not _reachable(url)
 
 
-def watching(tmp_path, preview_slot, reader: bool):
+def watching(tmp_path, preview_slot, user: bool):
     source = tmp_path / "watched.html"
     original = REPLAYED_PAGE
     source.write_text(original, encoding="utf-8")
@@ -648,7 +648,7 @@ def watching(tmp_path, preview_slot, reader: bool):
         str(runtime),
         "--slot",
         slot,
-        *(["--reader"] if reader else []),
+        *(["--user"] if user else []),
         "--background",
     ]
     started = subprocess.run(
@@ -671,13 +671,13 @@ def watching(tmp_path, preview_slot, reader: bool):
 @pytest.fixture
 def watched_preview(tmp_path, preview_slot):
     """A detached watcher on an ordinary preview, which takes no claim."""
-    yield from watching(tmp_path, preview_slot, reader=False)
+    yield from watching(tmp_path, preview_slot, user=False)
 
 
 @pytest.fixture
 def served_preview(tmp_path, preview_slot):
-    """A detached `--reader` watcher, for what only the durable service records."""
-    yield from watching(tmp_path, preview_slot, reader=True)
+    """A detached `--user` watcher, for what only the durable service records."""
+    yield from watching(tmp_path, preview_slot, user=True)
 
 
 def test_a_preview_states_a_lifetime_every_reading_of_a_claim_can_judge(
@@ -783,7 +783,7 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         str(source),
         "--slot",
         slot,
-        "--reader",
+        "--user",
         "--background",
     ]
     ready = tmp_path / "started.json"
@@ -865,14 +865,14 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
         )
 
 
-def test_preview_watches_runtime_and_source_without_losing_reader_state(
+def test_preview_watches_runtime_and_source_without_losing_user_state(
     browser, watched_preview
 ):
     """The open tab follows edits; rejected source never replaces its last good page."""
     source, runtime, directory, command, url = watched_preview
     original = source.read_text(encoding="utf-8")
     page = open_page(browser, url)
-    with sending(page, "the watched reader option pick"):
+    with sending(page, "the watched user option pick"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     feedback = (directory / "events.jsonl").read_bytes()
@@ -944,13 +944,13 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     assert (directory / "events.jsonl").stat().st_ino == inode
 
 
-def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
+def test_resetting_a_preview_discards_user_state_and_starts_it_fresh(
     browser, watched_preview
 ):
     """Reset replaces the selected preview instead of carrying its event log over."""
     source, _, directory, command, url = watched_preview
     page = open_page(browser, url)
-    with sending(page, "the reader option pick before reset"):
+    with sending(page, "the user option pick before reset"):
         page.locator("#opt-shim .lf-pick").click()
     expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
@@ -999,7 +999,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     _, runtime, directory, _, url = watched_preview
     if resource == "widgets/lf-options.js":
         standing = open_page(browser, url)
-        with sending(standing, "the standing reader option pick"):
+        with sending(standing, "the standing user option pick"):
             standing.locator("#opt-shim .lf-pick").click()
         standing.close()
     page = browser.new_page()
@@ -1130,7 +1130,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     Claimed, because the tab recovers at the address it already has: `service.json`
     holds the port across a stop and the access key is the machine's, while an
     unclaimed preview's server is its watcher's, and a fresh watcher mints a port
-    and a key of its own for the next reader to read.
+    and a key of its own for the next user to read.
     """
     _, _, _, command, url = served_preview
     page = browser.new_page()
@@ -2175,7 +2175,7 @@ def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(
     """`bake()` ends in `root.getHTML({ serializableShadowRoots: true })`, which
     Chromium grew in 125. The render gate never bakes, so an older browser passes
     `--render` and then dies inside the probe with `root.getHTML is not a function` —
-    which the export reports as a probe module it could not load, sending the reader
+    which the export reports as a probe module it could not load, sending the user
     to Leaf's own instrumentation rather than to the browser their host handed over.
     Asking the browser's age before the page is opened replaces that with one
     sentence naming the floor and the version.
@@ -2489,9 +2489,7 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     )
 
 
-def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
-    browser, serve, tmp_path
-):
+def test_a_copy_speaks_user_origin_after_live_map_is_removed(browser, serve, tmp_path):
     """A standalone copy keeps the decision's origin after removing live chrome.
 
     Structural state such as a card move still differs from the authored version after
@@ -2509,7 +2507,7 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
         live.keyboard.press("ArrowRight")
         live.keyboard.press("Enter")
     expect(live.locator("#card-importer")).to_have_attribute(
-        "data-lf-reader-override", "1"
+        "data-lf-user-override", "1"
     )
     live.close()
 
@@ -2518,7 +2516,7 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")
     card = page.locator("#card-importer")
-    expect(card).to_have_attribute("data-lf-reader-override", "1")
+    expect(card).to_have_attribute("data-lf-user-override", "1")
     expect(card.locator(":scope > .lf-quiet")).to_have_text("your change")
     expect(page.locator(".lf-chrome")).to_have_count(0)
 
@@ -2581,7 +2579,7 @@ def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
 <h1>Export CSP</h1>
 <a id="relative" href="relative-target">Relative target</a>
 <form id="escape" action="https://outside.invalid/collect" method="post">
-  <input name="page-state" value="reader decision">
+  <input name="page-state" value="user decision">
   <button type="submit">Send page state</button>
 </form>
 """,
@@ -2711,7 +2709,7 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
         })(document.querySelector('main')),
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
-                          // A disclosure the reader can still work, a control's own
+                          // A disclosure the user can still work, a control's own
                           // label, a slot a standing decision deliberately retired, a
                           // slot the markup itself hides, and an element with no box by
                           // design are all fine; what is not is the page's words with
@@ -2746,7 +2744,7 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
         // work is still a control on the page. What a copy may show of a widget's
         // chrome is one the browser works itself and a label the page speaks through
         // (data-lf-said); the rest belonged to a runtime the file has not got, so a
-        // mark reading "choose one" invites a reader who cannot answer it.
+        // mark reading "choose one" invites a user who cannot answer it.
             inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
                 .filter(el => el.checkVisibility() && el.textContent.trim()
                               && !el.matches(':has(input, select, textarea, a[href], button)')
@@ -2809,7 +2807,7 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     )
     assert state["inert"] == [], (
         "the copy still shows a control the file has nothing to work with, which asks "
-        f"the reader for something they cannot give: {state['inert']}"
+        f"the user for something they cannot give: {state['inert']}"
     )
     assert state["offering"] == [], (
         "the copy draws a hand over a gesture it cannot take — the pointer promises "
@@ -2951,7 +2949,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
 
     assert not [name for name in session if name in carried], (
         "the copy is laid out against the exporter's own window rather than the "
-        f"reader's: {carried}"
+        f"user's: {carried}"
     )
 
 

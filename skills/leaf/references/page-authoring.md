@@ -2,7 +2,7 @@
 
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
-- [Document, page tabs, or workspace](#document-page-tabs-or-workspace)
+- [Composing a page](#composing-a-page)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Live specimens](#live-specimens)
@@ -41,7 +41,7 @@ jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
 
 The field the short query leaves out is `description`, and it carries what no
 schema can state: what may go inside the tag, what the widget does when the
-reader acts on it, and how to word the question it puts. Package-defined tags and
+user acts on it, and how to word the question it puts. Package-defined tags and
 `$` facts join the same key list. `leaf page guidance <page>` lists the composed
 guidance audiences and `leaf page guidance <page> <audience>` prints one guide;
 read `author` when it is present, and the assigned audience before acting in any
@@ -75,28 +75,44 @@ stands alone, since whoever reads it there has none of the page around it.
 </html>
 ```
 
-## Document, page tabs, or workspace
+## Composing a page
 
-Use ordinary document flow for material the reader takes in sequence. Use a
-workspace when the task needs regions visible together, such as controls beside a
-preview or a queue beside its detail. Both use the same widgets, Asks, comments,
-and revisions; packages supply the vocabulary and guidance for the task.
+Start from a sequential explanation and insert the other compositions where they
+help, keeping the prose around them. A report that gains live status gains a grid;
+it does not become another kind of page, so its comments and anchors stay put.
+
+- **A sequential explanation** is the default: plans, reviews, write-ups. Nothing is
+  declared.
+- **Independent status tiles** are an `lf-grid` inside the explanation. Each cell
+  holds a surface — a metric, chart, table, list or log, with at most a caption —
+  rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
+  A grid of paragraphs is prose cut into columns, and reads worse than the column.
+- **A comparison** is `lf-compare`, which keeps its variants paired at any width.
+- **Controls beside evidence** is a playground, which declares how its controls
+  operate its preview. Use an `lf-workspace` of plain panes for task regions that
+  must stay visible together with no such relationship, such as a queue beside its
+  detail.
+
+`lf-grid` places its direct children as cells. Without `columns` it fits as many
+equal columns as the width allows; `columns="3"` caps that at three, and a template
+such as `columns="1fr 2fr"` gives unequal columns, which stack once the grid is
+narrower than 600px. A grid takes the page's available width, and each cell is a
+frame: text inside keeps the reading measure, while a surface fills the cell. Nest
+a grid in a cell for a cell that spans rows. Let the grid place its cells: page CSS
+that sets a grid's own `display`, `grid-*` or `position` fights it, and `version
+check` says so.
+
+A log, feed, or long listing bounds its own height with `data-bound="end"`, which
+keeps it on its newest line while the user is at the end and leaves them where
+they scrolled back to otherwise; `data-bound="start"` opens it at the top. Some
+widgets bound themselves by default. Don't make a box scroll vertically with page
+CSS: Leaf keeps no reading position in a scroller it did not make, and `version
+check` advises against one.
 
 Use page tabs for project-scale views that belong to one artifact and share one
-history, Threads panel, Ask inventory, and revision sequence. Make `lf-tabs` the last
-substantive child of `main`; the only substantive content before it may be one native
-`header` carrying the shared title and lede. Any other substantive content in `main`,
-before or after the set, leaves it a framed tabbed section. Each `lf-tab` contains an ordinary document view or one `lf-workspace`; views
-in the same set may use either form. The tab strip becomes the page's top navigation,
-and links, comment anchors, Ask travel, search, and reading-position restoration open
-the view containing their destination.
-Switching page tabs navigates to the chosen panel, with its id in the URL. Browser
-Back and Forward return to the corresponding views. An explicit fragment inside
-a panel opens that panel and reaches the named content.
-
-An `lf-tabs` inside document flow, a pane, or another widget is a tabbed section. Use
-one for local alternatives within the surrounding view. It keeps the framed treatment
-that separates it from adjacent content.
+history, Threads panel, Ask inventory, and revision sequence, and a tabbed section for
+local alternatives within the surrounding view. The `lf-tabs` entry says which
+placement makes which, and how to order and retire views.
 
 For a root workspace, make `lf-workspace` the sole content element directly inside
 `main`, with the page title in its optional direct native `header`. A workspace used as
@@ -121,7 +137,7 @@ page-specific positioning should not be needed to keep a pane or footer reachabl
 
 Choose width separately from document or workspace form. Keep prose at a readable
 measure and let declared visual surfaces use the room their task needs. A wide comparison
-can remain part of a scrolling document. Use a workspace when the reader benefits from
+can remain part of a scrolling document. Use a workspace when the user benefits from
 keeping task regions together, rather than merely to obtain more width.
 
 An individual block or section may request a responsive allocation with
@@ -152,7 +168,7 @@ notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
+shortcuts, live-leaves tray, and active-asks tray. Authors declare user asks
 through the registry's Ask sources and surfaces, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
@@ -185,7 +201,8 @@ Changing the registry or JavaScript opens a fresh document. Leaf restores readin
 position, recoverable drafts, and comparison state. It can also restore focus and
 supported control state when an element keeps its authored id and tag. Element
 instances and arbitrary module state do not survive the reload. Both update paths
-wait while the reader is composing, dragging, or has an unresolved delivery.
+wait while the user is composing, dragging, or undoing, has a gesture the server
+has not yet admitted, or has the version menu open.
 
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
@@ -206,7 +223,7 @@ scripts, event-handler attributes, and `javascript:` URLs.
 A stylesheet, font, module, or image may also come from Google Fonts or a public script
 CDN, the set a Claude artifact page may use: jsdelivr, cdnjs, unpkg, Tailwind's, and
 jQuery's. Name it by its absolute `https://` URL; the page loads it as written, so it
-arrives only while the reader is online. Load a library as a module — jsdelivr's
+arrives only while the user is online. Load a library as a module — jsdelivr's
 `/+esm` builds one from any npm package — since a classic script is refused. A
 reference to any other origin is refused, and the refusal names the ones admitted.
 
@@ -215,7 +232,7 @@ do not turn their contents into source code or markup.
 
 ## Live specimens
 
-Use `lf-specimen` with one direct `template[data-specimen]` to let the reader
+Use `lf-specimen` with one direct `template[data-specimen]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
 element and template stable ids, and put the child page's main content in the
 template:
@@ -260,7 +277,7 @@ template rather than copying rendered controls from the parent. Ordinary
 ## Stable anchors
 
 Give each section, major block, and Leaf element a stable, meaningful `id` at the
-tightest semantic boundary a reader can distinguish. Where a sole child fills a
+tightest semantic boundary a user can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
 Put a titled section's public id on the `<section>`, not on its heading just for
 `lf-toc`: the heading supplies the link text, while the section fragment arrives at
@@ -268,20 +285,20 @@ the complete title, including an eyebrow. A heading may still need its own id fo
 internal relationship such as `aria-labelledby`; that id is not the section's public
 address.
 Threads and reading position attach to those ids across versions, and so does a
-reader comparing this version with an earlier one: the id is how the comparison
+user comparing this version with an earlier one: the id is how the comparison
 finds what the block said before, so a rewritten paragraph keeps the id it had.
 Stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
 attributes. `version check` refuses all three, including a name the runtime does
 not write today — the namespace is reserved, not the list of names in it.
 
-A code block, table, figure, or aside that a reader will point at as a whole also
+A code block, table, figure, or aside that a user will point at as a whole also
 needs a tight id, either on itself or on its immediate semantic container.
 
 ## Reading cost
 
-Open words are read; collapsed words are there when the reader wants them. What
-stands open in the column is what the reader has to take from the page. History,
+Open words are read; collapsed words are there when the user wants them. What
+stands open in the column is what the user has to take from the page. History,
 method, source excerpts, exhaustive support, transcripts, and raw output are
 backing by default and go under `<details>`. Collapsed words stay quotable, and
 the runtime opens the disclosure when a comment or a walk lands inside one. An
@@ -300,9 +317,9 @@ state, over a list, a table, or a board that speaks for itself.
 Show a visible subject with an image instead of describing its appearance. Show
 an interface with a screenshot, and a visual change with an `lf-shot`
 before-and-after capture. A relationship, sequence, or system state transition is
-a diagram. Use a table when the reader compares the same dimensions across items;
+a diagram. Use a table when the user compares the same dimensions across items;
 use `lf-compare` for a few alternatives read as wholes, and `lf-options` when the
-reader must choose among them. A headline measurement is a metric, and a pattern
+user must choose among them. A headline measurement is a metric, and a pattern
 across measurements is a chart. Movable things form a board. Use images only when
 they carry information. The prose beside a shape says only what the shape cannot.
 What is left for prose is the claim, the reason it holds, and the question the page
@@ -310,7 +327,7 @@ is asking. A few sentences hold all three. A section that runs longer is carryin
 either a structure with a shape of its own or backing that belongs under
 `<details>`.
 
-Write for what the reader has seen, which is this conversation and the page so
+Write for what the user has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
 claim they could doubt, and drop the journey once the conclusion replaces it.
 
@@ -332,10 +349,10 @@ Then read the page as the user will. Take the headings on their own first, and
 check that none of them promises a finding it does not give. Confirm that
 referents are introduced, claims have evidence, decisions have controls, diagrams
 add information, and that everything standing open in the column is
-there because the reader needs it.
+there because the user needs it.
 
 Follow the page's links and operate its navigation with pointer and keyboard.
-At each destination, check that the visible content and focus leave the reader
+At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with Asks, start at the top and press `a` through them. At each

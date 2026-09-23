@@ -45,13 +45,13 @@ typeahead while its list is open.
 
 Escape removes one layer of the current interaction and lands at its parent. The
 canonical keyboard route into a state defines that parent; pointer and Tab entry use the
-same route out. The runtime does not record how the reader arrived. The current `t`
+same route out. The runtime does not record how the user arrived. The current `t`
 shortcut departs from entry/exit symmetry as described below.
 
 Containment decides which layer closes first. An inner claim from the focused control
 or active interaction answers first, followed by steps inside the focused surface, then
 that surface, then steps outside it. `STACK` and `RUNG_LADDER` rank siblings. A selection
-left on the page therefore waits while the reader is inside Threads and answers first
+left on the page therefore waits while the user is inside Threads and answers first
 when focus is on the page. Native modal and popover boundaries keep their browser order.
 
 These states have distinct parents:
@@ -68,7 +68,7 @@ These states have distinct parents:
   back to the document. Page-side state added there closes before that step.
 - A conversation in the margin's thread card has the element it is about as its parent.
   Escape from the card lands on that element and leaves the card beside it, because the
-  reader still stands at the same target; the element's let-go then takes both. The card
+  user still stands at the same target; the element's let-go then takes both. The card
   is margin chrome rather than a native layer, so standing on its element and working in
   it are not two layers competing for the keyboard.
 
@@ -118,7 +118,7 @@ walks use lowercase to advance and Shift to go back. A surface may reuse a page 
 the same intent with a nearer destination; other local commands belong to the widget
 scope. The exact rows, rather than a copied key list, state the current bindings.
 
-While the reader stands in an Ask, core projects its widget's ordered Decision commands
+While the user stands in an Ask, core projects its widget's ordered Decision commands
 onto `1` through `9`. A widget's declared route wins while focus is in that widget;
 undeclared digits continue to the Ask projection. The digit and every intrinsic widget
 binding invoke the original command through its stable identity and source scope.

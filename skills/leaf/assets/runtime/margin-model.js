@@ -53,7 +53,7 @@ export const KINDS = Object.freeze(
         priority: 3,
         indication: true,
       },
-      reader: {
+      user: {
         label: "Your change",
         icon: "change",
         priority: 4,
@@ -204,26 +204,26 @@ export function readingState(choice) {
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 // Each member already carries canonical Thread attention. An aggregate keeps a concrete
-// Ask ahead of another reader recovery; it never re-derives attention from turns or
+// Ask ahead of another user recovery; it never re-derives attention from turns or
 // workflow stages.
-const readerAttention = (items) => {
+const userAttention = (items) => {
   let first = null;
   for (const item of items) {
-    const attention = item.readerAttention;
+    const attention = item.userAttention;
     if (!attention) continue;
     if (attention.reason === "ask") return attention;
     first ??= attention;
   }
   return first;
 };
-export const awaitingReader = (items) => Boolean(readerAttention(items));
-// Agent messages the reader has not taken in, across every conversation a reading
+export const awaitingUser = (items) => Boolean(userAttention(items));
+// Agent messages the user has not taken in, across every conversation a reading
 // carries: each Thread's canonical `unread`, summed rather than re-derived.
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
 
 export function readingContext(choice) {
-  const attention = readerAttention(choice?.items ?? []);
+  const attention = userAttention(choice?.items ?? []);
   if (attention) return attention.label;
   const unread = unreadIn(choice?.items ?? []);
   if (unread) return `${unread} unread`;

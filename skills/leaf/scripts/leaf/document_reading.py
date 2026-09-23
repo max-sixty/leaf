@@ -31,7 +31,7 @@ def read_document(
     threads: dict,
     data: dict | None = None,
 ) -> DocumentReading:
-    """Resolve a document's durable state and its reader's outstanding Asks.
+    """Resolve a document's durable state and its user's outstanding Asks.
 
     `spoken` retains authored words because retractions and action ownership are
     based on construction. `passages` removes retired slots; exact replacement

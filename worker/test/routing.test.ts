@@ -20,7 +20,7 @@ import {
 
 const page = (kind: "product" | "example") => ({
   assets: `/_leaf-release/${"a".repeat(64)}/page`,
-  description: "What a reader does here.",
+  description: "What a user does here.",
   directory: "page",
   image: "/media/0123456789abcdef.jpg",
   kind,
@@ -69,7 +69,7 @@ describe("website page routing", () => {
       }),
     ).toThrow('at pages["/"].state');
     // Every page carries the card a shared link unfurls into, so a build that
-    // published one without it is refused here rather than at the reader.
+    // published one without it is refused here rather than at the user.
     const { image: _image, ...cardless } = page("product");
     expect(() =>
       parseSiteManifest({ ...manifest, pages: { "/": cardless } }),
@@ -112,7 +112,7 @@ describe("website page routing", () => {
     expect(route("/examples.html")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();
     // A crawler reads these two off the asset binding; a page route would hand
-    // each reader a container session before it had seen a page.
+    // each user a container session before it had seen a page.
     expect(route("/robots.txt")).toBeNull();
     expect(route("/sitemap.xml")).toBeNull();
     expect(needsPageSlash("/extending", route("/extending")!)).toBe(true);
@@ -128,7 +128,7 @@ describe("website page routing", () => {
       ...pages["/examples/triage-board"],
     });
     expect(isPrivatePageRequest("/_leaf/pages/index/index.html")).toBe(true);
-    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/reply")).toBe(
+    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/fail")).toBe(
       true,
     );
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);

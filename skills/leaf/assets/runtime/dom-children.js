@@ -20,8 +20,8 @@ export function setChildren(parent, nodes, remove = detach) {
    `setChildren` answers for a list its caller already holds. This answers a question the
    live tree cannot be asked at all: what did the author change. Diffing the page against
    the arriving source would answer a different one — what is different about the page —
-   and everything the browser, the runtime, a reader, or a page module has done to that
-   page since it loaded is different about it. A reader's open `<details>` closes, a
+   and everything the browser, the runtime, a user, or a page module has done to that
+   page since it loaded is different about it. A user's open `<details>` closes, a
    tokenizer's spans are torn out of a code block nobody edited, a tab stop the runtime
    lent to put focus somewhere is taken back, and what a page module built inside an
    authored container is swept out as markup the source does not have.
@@ -34,7 +34,7 @@ export function setChildren(parent, nodes, remove = detach) {
 
    The live tree is therefore written only where the author wrote: a text node's differing
    run, an attribute whose value the two sources disagree on, an element one of them has
-   and the other has not. A reader keeps everything else, including the things this had no
+   and the other has not. A user keeps everything else, including the things this had no
    way to recognize as theirs.
 
    What the caller answers, since this module knows no registry, namespace or document:
@@ -77,7 +77,7 @@ export function patchTree(before, after, rules) {
 const tree = (node) => (node.localName === "template" ? node.content : node);
 
 // Only where the two revisions disagree. An attribute they both carry is left exactly as
-// the page has it, which is the whole of how a reader's `<details open>`, a tab stop
+// the page has it, which is the whole of how a user's `<details open>`, a tab stop
 // `focus.js` lent to land them somewhere, and anything a page module wrote survive a
 // revision that never mentioned them.
 function patchAttributes(live, before, after, rules) {
@@ -107,7 +107,7 @@ const tokens = (value) => value.split(/\s+/).filter(Boolean);
 
 // Only the run of words that actually changed. Assigning `data` replaces the node's
 // whole content, and the platform's replace-data step collapses every Range endpoint
-// inside what it replaced — which is the reader's own selection, in exactly the
+// inside what it replaced — which is the user's own selection, in exactly the
 // paragraph a revision rewrote while they were reading it. Trimming to the differing
 // middle leaves every offset on either side of it where it was, so a selection over
 // words the revision kept survives the words beside it changing.
@@ -280,10 +280,10 @@ function alignRest(held, wanted, matches) {
 
 // Inside one edited stretch: these are the siblings the revision rewrote, and a rewrite
 // is still the element it rewrote. Diffed rather than walked in step, because a stretch
-// holds insertions too and a cursor meets them in the two ways that cost a reader their
+// holds insertions too and a cursor meets them in the two ways that cost a user their
 // node. A sibling of another kind above the one they are reading — a heading, a list, an
 // unnamed widget — is nothing the cursor can pair, so it spends the cursor and the
-// reader's own paragraph is left with no partner and removed. A sibling of the same kind
+// user's own paragraph is left with no partner and removed. A sibling of the same kind
 // above it takes the pairing that belonged to the paragraph below.
 //
 // Compared rather than keyed, because what may pair here is not an equality. Two elements

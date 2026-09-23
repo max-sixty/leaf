@@ -24,10 +24,10 @@ file says which script owns what, and the rules that hold across them.
   packages, and copies the source alone otherwise, because vendoring mints a fresh
   layer generation and the generation is part of what a revision is as executable code.
   A preview that re-vendored on every save could therefore only ever show a revision
-  arriving as a fresh document, which is the half of the behavior a reader is least
+  arriving as a fresh document, which is the half of the behavior a user is least
   likely to be looking for.
   `--export` writes the browser-drawn result as one standalone file instead.
-  A preview takes no task claim; `--reader` claims the page so a reader's presses
+  A preview takes no task claim; `--user` claims the page so a user's presses
   reach this session, and `--background` detaches either. `/developing-leaf` states
   which to choose.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
@@ -111,8 +111,9 @@ install reads it, so what survives a run is the part a maintainer copies into
 ## Vendored bundles
 
 `browser/build.mjs` owns the TypeScript sources under `scripts/browser/` and the
-committed outputs: one self-contained ES module and its dependency licenses under
-`skills/leaf/assets/vendor/`, plus a source map and build manifest under
+committed outputs: the framework module, `lit.js` — the page's one copy of Lit, which
+the framework and the Web Awesome bundle both import — and their dependency licenses
+under `skills/leaf/assets/vendor/`, plus source maps and a build manifest under
 `scripts/browser/generated/` for contributors. The manifest records inputs, exports,
 dependencies, and byte hashes. Run `npm ci`,
 then `npm run build:browser` to regenerate them. `npm run check:browser` typechecks
@@ -123,7 +124,9 @@ installation, page initialization, source activation, and export copy or consume
 the committed browser output without invoking a compiler.
 
 `vendor.py` rebuilds the other third-party bundles — all of them by default, or the
-ones you name. Every pinned version sits in one table there, and each bundle lands in the package whose widget
+ones you name. Every version it pins sits in one table there. The page payload the
+browser build bundles (Lit and Signals) is pinned in `package.json` instead, and
+`vendor.py --pins` reads it from there. Each bundle lands in the package whose widget
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 

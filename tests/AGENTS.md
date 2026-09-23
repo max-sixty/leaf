@@ -1,7 +1,7 @@
 # Testing leaf
 
 The suite proves the boundary between an authored page, the browser runtime, the
-event log, and a returning reader. Most failures in that boundary are easy to
+event log, and a returning user. Most failures in that boundary are easy to
 assert once they are visible. The difficult part is arranging the test so that a
 green result could only have come from the behavior named by the test.
 
@@ -285,8 +285,8 @@ leftover server and leaves an unrelated planted server alone.
 
 Panel state and drafts live in `localStorage`, while reading position lives in
 `sessionStorage`. Clear both when a test means a first visit. Two pages are not
-two tabs for a single reader unless they share a browser context:
-`Browser.new_page` creates an independent context; `one_reader` supplies one
+two tabs for a single user unless they share a browser context:
+`Browser.new_page` creates an independent context; `one_user` supplies one
 context for the tests whose subject is shared tab state.
 
 The product-site pages and examples are complete page directories served through the
@@ -315,7 +315,7 @@ Choose the fixture by the boundary under test:
   `event_contracts.admitted_event` without a page directory.
 - `model_folds.py` supplies the same kind of input to `browser_state`. Both model
   helpers compose vocabulary through `model_layer`. File-backed admission,
-  outstanding-reader obligations, and rendered behavior use the fuller fixtures.
+  outstanding-user obligations, and rendered behavior use the fuller fixtures.
 
 `initialized_page` lends one prepared page per composition shape. The next loan
 restores changed files and removes additions. Runtime and vendor files are
@@ -324,7 +324,7 @@ through a layer hard link: re-vendoring replaces files, and the fixture rejects
 an in-place mutation by name. Tests of initialization or composition cross
 `page init` themselves or request their own shape.
 
-## Drive the browser a reader gets
+## Drive the browser a user gets
 
 The browser suite uses Playwright's pinned Chromium headless shell and real
 HTML. The `iphone` fixture is Playwright's WebKit in an iPhone-shaped context, the
@@ -450,9 +450,12 @@ The causal helpers:
   and ended, reads of `/api/state` asked and heard, and the outbox's attempts with
   no outcome yet. It counts attempts, so a retry is a second send. The ledger is
   the document's: a navigation starts it over with the page that carries it.
-- `round_trip(page)` waits until every event attempt sent by that page has a
-  definitive outcome. A request failure alone is not final because the page may
-  retry the same attempt.
+- `round_trip(page)` waits until every post the page issued has ended and every
+  event attempt in its outbox has a definitive outcome. A request failure alone is
+  not final because the page may retry the same attempt. A post that skips the
+  outbox — a bookkeeping event such as `read`, the page's own `error` report, a
+  media upload — is over only when the post is, so a test that holds requests on a
+  route releases every one, that report included.
 - `sending(page, what)` encloses a gesture whose own event the assertion behind
   it reads: it waits for one further send to enter the wire and then for its
   trip, so the read cannot answer with the event that stood before the gesture.
@@ -618,7 +621,7 @@ checks both the interruption and recovery.
 
 ### A repeated gesture has to let the repaint it causes land
 
-Pressing the same key twice inside one round-trip is not a reader pressing it
+Pressing the same key twice inside one round-trip is not a user pressing it
 twice. Work coalesced into a `requestAnimationFrame` runs between a person's two
 presses and between none of a test's, so a fault the repaint itself causes is
 invisible at exactly the rhythm a suite presses at. A walk, or any repeated press

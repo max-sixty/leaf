@@ -1,4 +1,4 @@
-/* Where the reader is standing, split around chrome layout so geometry consumers read
+/* Where the user is standing, split around chrome layout so geometry consumers read
    the content painted in the same frame. repaint.js owns the fixed sequence and leaf.js
    supplies these phases at boot. */
 // Construct the fixed phases from narrow painters. No phase imports a feature's
@@ -32,7 +32,7 @@ export function createStanding({
 
   // Controls and geometry that depend on the laid-out content above.
   function paintStandingGeometry() {
-    // The chips are where the reader can go, beside the ring saying where they are and the
+    // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does — one paint, because a chip repainted by its
     // own door alone went stale on the door it did not
     // have: a poll that retires an Ask moves the list under an armed window, and only the

@@ -129,11 +129,11 @@ def answer_command(answer: dict) -> str:
 
 
 def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many reader moves have no answer and name the command that answers
+    """Say how many user moves have no answer and name the command that answers
     each, addressed as its writer takes it. `of` narrows which moves these are,
     such as the acknowledged ones."""
     commands = "; ".join(answer_command(item["answer"]) for item in obligations)
-    moves = f"reader move{'s' if len(obligations) != 1 else ''}"
+    moves = f"user move{'s' if len(obligations) != 1 else ''}"
     return (
         f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer "
         f"({commands})"
@@ -250,9 +250,9 @@ def canonical_activity(
                 deadlines.append(due)
 
     # Page activity counts the moves the agent owes, one per answer. A receipt
-    # reports delivery for every move the reader handed over, but a move that owes
+    # reports delivery for every move the user handed over, but a move that owes
     # nothing, an input a newer one in its thread answers through, and a failed
-    # answer the reader must resend are no work the banner may promise the agent
+    # answer the user must resend are no work the banner may promise the agent
     # picks up.
     obligations = [item for item in workflows if item["answer"] is not None]
     active = [item for item in workflows if item["stage"] == "working"]
@@ -260,7 +260,7 @@ def canonical_activity(
     active_moves = [
         item for item in obligations if item["stage"] in {"working", "replying"}
     ]
-    # Page work is scoped to the live claimant, not to one reader input. A newer
+    # Page work is scoped to the live claimant, not to one user input. A newer
     # delivery may remain queued or pending while the agent continues other work on
     # the page; its exact progress stays in `workflows` below.
     declared_work = status["state"] == "working" and not status_quiet
@@ -309,7 +309,7 @@ def canonical_activity(
         #
         # What the work *is* comes from the agent, on every host. An observed tool step
         # says a session is alive and moving, which is why it can make a page working
-        # over a declaration that says otherwise; it cannot say what the reader is
+        # over a declaration that says otherwise; it cannot say what the user is
         # waiting for, and a step that replaced the sentence would trade the one reading
         # written for them for the one that happens to be newest. So a current
         # declaration keeps the sentence and its own date, and the step stands beside it

@@ -1,4 +1,4 @@
-/* Reader gestures and drafts that a document replacement would discard. */
+/* User gestures and drafts that a document replacement would discard. */
 import { runtime } from "../context.js";
 import { focused } from "../keyboard/scopes.js";
 import { replyBoxHasDraft } from "../conversation/replies.js";
@@ -19,7 +19,7 @@ export function createEngagement({
 
   function midComposition() {
     const active = focused();
-    const replyDraft = replyBoxHasDraft(active) ?? null;
+    const replyDraft = replyBoxHasDraft(active);
     return (
       composerOpen ||
       Boolean(pageComposerDrawing()) ||

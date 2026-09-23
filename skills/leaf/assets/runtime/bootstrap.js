@@ -5,7 +5,7 @@
   // `_leaf-recovered` is the mark recovery puts on the one document it asks for, so a
   // document that comes back on the same dead release can tell that asking again is
   // not going to produce a different one. Both marks are the runtime's own and leave
-  // the address bar before the reader sees them.
+  // the address bar before the user sees them.
   const recovered = arrived.searchParams.has("_leaf-recovered");
   if (arrived.searchParams.has("_leaf-revision") || recovered) {
     arrived.searchParams.delete("_leaf-revision");
@@ -93,11 +93,11 @@
     };
   }
 
-  // Reader-arranged workspaces are page geometry, so their saved shape must reach the
+  // User-arranged workspaces are page geometry, so their saved shape must reach the
   // document before the module graph that builds their contents. The theme consumes
-  // these provisional root facts; restoreReaderView replaces them with live state.
+  // these provisional root facts; restoreUserView replaces them with live state.
   try {
-    const scope = root.dataset.lfReaderScope ?? "";
+    const scope = root.dataset.lfUserScope ?? "";
     const auxiliarySurface = localStorage.getItem(scope + "lf-auxiliary-surface");
     if (auxiliarySurface === "threads")
       root.toggleAttribute("data-lf-restore-panel", true);
@@ -139,7 +139,7 @@
     else document.addEventListener("DOMContentLoaded", show, { once: true });
 
     // The notice says the page has not started, and a page that presents has started,
-    // so a reader who is using the page would otherwise be reading that Leaf could not
+    // so a user who is using the page would otherwise be reading that Leaf could not
     // start, over a request a second that no answer ends.
     if (!awaits) {
       const presentation = new MutationObserver(() => {
@@ -157,7 +157,7 @@
     }
 
     // A round carries what it learned to the end rather than acting where it learned
-    // it. The round in flight when the page presents resolves after it, and the reader
+    // it. The round in flight when the page presents resolves after it, and the user
     // is then using a page this would otherwise navigate out from under them, so the
     // one place that acts is the one place that has to ask whether the page started.
     const check = async () => {
@@ -168,7 +168,7 @@
         if (response.status === 404) {
           // The release this document names is gone, so nothing this document can load
           // will come back and only a newer one can start the page. Ask for it once,
-          // marked, and past a cache that answered the address the reader typed. A
+          // marked, and past a cache that answered the address the user typed. A
           // marked document that arrives still naming the dead release says something
           // between here and the source is serving a copy of it; asking again lands on
           // that same copy as fast as the network allows, so the page waits on the

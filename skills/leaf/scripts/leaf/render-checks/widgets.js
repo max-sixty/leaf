@@ -56,7 +56,7 @@ const renderedAt = (element) => {
   };
 };
 
-// A generated SVG crosses two boundaries before its paint reaches the reader: a widget
+// A generated SVG crosses two boundaries before its paint reaches the user: a widget
 // turns authored data into attributes, then the page's cascade resolves their custom
 // properties. Resolve each value through a temporary custom property in the element's
 // live cascade, then let the browser validate the resulting tokens for that property.
@@ -205,9 +205,9 @@ export function undeclaredAttrs(declarations) {
 // says, the page's
 // reading obeys. What can still go wrong is a family's, and both failures render
 // perfectly: a module that writes the mark where the log decided nothing silences words
-// the reader can still see and select, and a settled slot can show its words anyway — a
+// the user can still see and select, and a settled slot can show its words anyway — a
 // later layer's rule outranking the default hide, a module re-showing what it folded —
-// leaving the reader selecting words no comment can anchor to, with the refusal
+// leaving the user selecting words no comment can anchor to, with the refusal
 // arriving later, at `leaf comment`, nowhere near the mistake. So the expected outcome
 // comes from the file's reading (`decisions`, folded over this version's log), never
 // from the page, and the page answers only for what it shows.
@@ -276,7 +276,7 @@ export function retiredSlots(holders) {
           found.push(
             `${at} settled \`${h.outcome}\` and its <${tag}> still ` +
               `shows ${JSON.stringify(words)} — those words have left the ` +
-              `page's reading, so the reader can select what no comment can ` +
+              `page's reading, so the user can select what no comment can ` +
               `anchor to; the layer hides a retired slot by default, so ` +
               `something in this family is showing it anyway`,
           );

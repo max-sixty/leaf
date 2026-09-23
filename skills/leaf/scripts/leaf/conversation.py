@@ -26,6 +26,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.requests import receipt_event
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
@@ -77,7 +78,7 @@ def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> N
     Reserving the address is what stops a second writer answering a delivery the
     provider is about to answer itself. A delivery that ends without ever reaching a
     provider turn has no such answer coming, and until the reservation is given up it
-    also blocks the host from saying so, so the reader is left with neither.
+    also blocks the host from saying so, so the user is left with neither.
     """
     _clear_delivery_reply(session_id, delivery_reply_attempt(delivery_id), target)
 
@@ -252,7 +253,7 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     """Whether the page still owes this root the authored answer it asked for.
 
     Both readings below project markup alone: the empty event lists are the gate's
-    subject rather than an omission. The reader's own pick lives in the log, and
+    subject rather than an omission. The user's own pick lives in the log, and
     folding it in moved whichever side of the comparison it happened to fall on —
     before the proposal it answered the originating revision, after it the current
     one — so the same markup resolved or refused according to where one press
@@ -482,7 +483,7 @@ def cmd_reply(
         elif for_event is None:
             if to is not None:
                 sys.exit(
-                    "use --for EVENT_ID to answer reader input; "
+                    "use --for EVENT_ID to answer user input; "
                     "--to ID --initiates starts a new message when no reply is owed"
                 )
             claim = page.active_claim
@@ -746,17 +747,17 @@ def fail_answer(
     identity: dict,
     only_if_unclaimed: bool,
 ) -> dict | None:
-    """Tell the reader no answer to one move is coming, in the move's own terms.
+    """Tell the user no answer to one move is coming, in the move's own terms.
 
     A host that gives up on a move settles the obligation the move's workflow
-    `answer` names and hands the next step back to the reader, so a failed move is
+    `answer` names and hands the next step back to the user, so a failed move is
     never left owed with nobody to answer it:
 
     - a `reply` or `version` answer takes a reply carrying `failure` in its
-      conversation, which the reader resends into;
-    - a `receipt` answer takes a failed receipt, the request's own terminal
-      outcome, which reopens its seat for the reader to press again;
-    - a `markup` answer takes a failed pickup: the reader's Ask answer stands in the
+      conversation, which the user resends into;
+    - a `receipt` answer takes a failed receipt carrying `failure`, the request's
+      own terminal outcome, which reopens its seat for the user to press again;
+    - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
       log, and answering again sends a new move.
 
     A move with no answer outstanding writes nothing, except that a repeated reply
@@ -806,15 +807,7 @@ def _fail_page_answer(
             return None
         if answer["kind"] == "receipt":
             return append_admitted(
-                page,
-                {
-                    "kind": "receipt",
-                    "author": "agent",
-                    **identity,
-                    "request": responds,
-                    "status": "failed",
-                    "text": text,
-                },
+                page, receipt_event(responds, "failed", text, identity, failure)
             )
         [move] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [move], phase="failed", failure=failure)
@@ -826,7 +819,7 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
 
     The message event is immutable: the edit points back to it, so the log retains
     every wording while thread folds project the latest one. Markup stays frozen with
-    the original message because reader actions may already rest on widgets it sent.
+    the original message because user actions may already rest on widgets it sent.
     """
     from leaf.registry.storage import require_registry
 
@@ -901,7 +894,7 @@ def cmd_summarize(
 
 @contract_writer
 def cmd_resolve(page_dir: Path, to: str) -> dict:
-    """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
+    """Close a thread, as the user's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
@@ -936,9 +929,9 @@ def cmd_report(
     references: str | None = None,
 ) -> dict:
     """A worker's provisional news: a declared state change folded onto a page
-    widget, admitted the way the append door admits a reader's action,
+    widget, admitted the way the append door admits a user's action,
     stamped with the posting session's voice, and made against the active revision —
-    the page the reader is looking at. The runtime paints it live; it stands until
+    the page the user is looking at. The runtime paints it live; it stands until
     a stamped revision absorbs or overrules it by id (see `version stamp`), and the
     page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute

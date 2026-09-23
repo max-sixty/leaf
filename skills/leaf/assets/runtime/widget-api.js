@@ -1,6 +1,12 @@
 /* The one helper surface behavior modules import. Capabilities come from their
    domain owners; optional hosts load when requested. Owners import one another,
-   and leaf.js only boots. */
+   and leaf.js only boots.
+
+   The runtime tree is not the set of importers. Package widget modules and the render
+   gate's probes under `leaf/render-checks/` both reach this file over HTTP from the
+   served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
+   importer comes back empty whether or not the export is reachable. What answers that
+   question is the browser gate, which fails to parse every probe module at once. */
 import { defineRequestElement } from "./request-elements.js";
 
 export { LitElement, html } from "../vendor/browser-runtime.js";
@@ -10,13 +16,21 @@ export async function mountSpecimen(frame, options) {
   return owner.mountSpecimen(frame, options);
 }
 
-export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
+export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export { arrangeReadingElement, defineReadingPaneElement } from "./reading-layout.js";
 export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
-export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
+export {
+  declareCoverRoom,
+  landingInsets,
+  shownBand,
+  shownBox,
+  shownParts,
+} from "./geometry.js";
+// Holding the user's place in a scroller whose contents a widget re-renders.
+export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
-// Putting the reader on an element that may be no tab stop of its own, which is what a
+// Putting the user on an element that may be no tab stop of its own, which is what a
 // widget landing them anywhere but a control needs: the lend leaves with the first blur.
 export { focusDestination } from "./focus.js";
 export { openAsks, watchAsks } from "./application.js";
@@ -116,7 +130,7 @@ export {
   targetCandidates,
 } from "./target-references.js";
 export { projectData } from "./application.js";
-export { retainReaderIntent } from "./reader-intent.js";
+export { retainUserIntent } from "./user-intent.js";
 export { tabStore } from "./storage.js";
 export {
   highlightBlocks,

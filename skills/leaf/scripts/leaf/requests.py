@@ -356,24 +356,38 @@ def request_lifecycles(events: list) -> list[dict]:
     ]
 
 
+def receipt_event(
+    request: str,
+    status: str,
+    text: str,
+    identity: dict,
+    failure: str | None = None,
+) -> dict:
+    """The one terminal outcome of a request, before the door admits it.
+
+    Every receipt writer builds its event here. `failure` is the host's code for a
+    request it gave up on; an agent's own outcome, succeeded or failed, omits it.
+    """
+    return {
+        "kind": "receipt",
+        "author": "agent",
+        **identity,
+        "request": request,
+        "status": status,
+        "text": text,
+        **({"failure": failure} if failure is not None else {}),
+    }
+
+
 @contract_writer
 def cmd_receipt(page_dir: Path, request: str, status: str, text) -> dict:
-    """Append the one terminal host outcome linked to a reader request."""
+    """Append the agent's terminal outcome for a user request."""
     # The door reads this module's request and receipt contracts, so the writer
     # beside them reaches it here rather than at import.
     from leaf.event_contracts import append_admitted
 
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
-        accepted = append_admitted(
-            page,
-            {
-                "kind": "receipt",
-                "author": "agent",
-                **message_identity(),
-                "request": request,
-                "status": status,
-                "text": body,
-            },
+        return append_admitted(
+            page, receipt_event(request, status, body, message_identity())
         )
-    return accepted

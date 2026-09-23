@@ -9,7 +9,7 @@ the GIF because that scene is already the one the page's alt text describes — 
 anchored to a marked passage, Claude's reply in the thread, the answered round latest in
 the picker — so shooting them here costs a browser context each and gives them something
 to re-run. The card is here for the same reason: a picture of the product goes stale the
-way the others do, and the one a shared link shows is the first thing most readers see."""
+way the others do, and the one a shared link shows is the first thing most users see."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ STILLS = (
 
 
 # The board as the document first states it, and the words each card carries. Kept as
-# data rather than as markup so the reader's recorded move can be written back into the
+# data rather than as markup so the user's recorded move can be written back into the
 # document the way an agent answers one: same page, the card where they put it.
 CARDS = {
     "card-dryrun": "Dry-run the backfill",
@@ -90,7 +90,7 @@ def absorbed(board: dict[str, list[str]], move: dict) -> dict[str, list[str]]:
 
 
 def last_move(page_dir: Path) -> dict:
-    """The detail of the last board move the reader made on this page."""
+    """The detail of the last board move the user made on this page."""
     moves = []
     for line in (page_dir / "events.jsonl").read_text().splitlines():
         if not line.strip():
@@ -139,11 +139,11 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 new version as the checks finish.</p>
 </header>
 
-<lf-metrics id="demo-metrics">
+<lf-grid id="demo-metrics">
   <lf-metric id="demo-progress" value="{progress}"{delta}>checks complete</lf-metric>
   <lf-metric id="demo-errors" value="0.08%">error rate</lf-metric>
   <lf-metric id="demo-p95" value="181 ms">p95 latency</lf-metric>
-</lf-metrics>
+</lf-grid>
 
 <section id="phases">
 <h2>Phases</h2>
@@ -433,7 +433,7 @@ def shoot_stills(
     work out whether the diff is theirs.
 
     By this point the log holds the whole round — a comment on a marked passage, the
-    reply, the revision stamped for it, the reader's board move and the revision that
+    reply, the revision stamped for it, the user's board move and the revision that
     answers it, the state back to waiting — so a fresh context loading the page arrives
     at the scene docs/index.html describes in its alt text. The version that alt text
     names moves with the pair: a fresh recording is one revision past the shipped v2.
@@ -442,7 +442,7 @@ def shoot_stills(
     setup.
 
     One shot per color scheme, because the page states both and the landing page
-    serves whichever the reader's OS asks for. A scheme is a context-level setting,
+    serves whichever the user's OS asks for. A scheme is a context-level setting,
     not something to toggle on a live page: the vendored diagram palette is read once
     at load, so a flipped page would carry the other scheme's diagrams. The card is
     the third, in light, at the shape an unfurler draws: what it shows is the product,
@@ -452,7 +452,7 @@ def shoot_stills(
     Getting the banner to say "Claude awaits" takes answering the round and then
     stating both halves of attendance. `record` has received the board action, and
     receipt is not an answer: a page action stands until the authored document says
-    what the reader's move said, so the document is written with the card where they
+    what the user's move said, so the document is written with the card where they
     dropped it. Only then is `waiting` true, which is the order
     `references/conversation-loop.md` asks of any turn. Ack has already re-armed the
     wait, whose held lease is the proof the browser renders."""

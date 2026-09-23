@@ -1,5 +1,6 @@
 """Shared registry input, schema, and declaration readings."""
 
+import functools
 import json
 import re
 from datetime import datetime
@@ -12,7 +13,7 @@ from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from leaf.files import read_json
-from leaf.schema import ELEMENT_ID, EXTENSION_SCHEMA, GUIDANCE_SCHEMA
+from leaf.schema import ELEMENT_ID
 
 FORMAT_CHECKER = FormatChecker()
 RFC3339_DATE_TIME = re.compile(
@@ -48,7 +49,20 @@ def schema_resource_registry(schema: dict):
 
 
 def json_validator(schema: dict) -> Draft202012Validator:
-    """One offline schema reader for every authored/event ingress, including formats."""
+    """One offline schema reader for every authored/event ingress, including formats.
+
+    Readers are shared by schema content: a read re-validates every stored event
+    against the handful of schemas its registry declares, and building the resource
+    graph costs far more than validating one small instance against it.
+    """
+    return _validator(json.dumps(schema, sort_keys=True))
+
+
+@functools.lru_cache(maxsize=1024)
+def _validator(canonical: str) -> Draft202012Validator:
+    # Built from its own parse of the key, so a caller that later mutates the dict
+    # it passed cannot change the reader that key names.
+    schema = json.loads(canonical)
     _, registry = schema_resource_registry(schema)
     return Draft202012Validator(
         schema,
@@ -62,15 +76,6 @@ def schema_error(schema: dict, instance) -> str | None:
     error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
     return error.message if error else None
 
-
-# A reader over a schema that never changes is itself a constant. Built where they
-# were used, these two were compiled once per widget and once per data contract: a
-# layer of twenty-eight widgets built the extension reader twenty-eight times on
-# every `page init`, of the ninety-one schema resource graphs an init built at all.
-# Every other reader in this codebase reads a schema its caller supplies, so these
-# are the whole of the case.
-EXTENSION_READER = json_validator(EXTENSION_SCHEMA)
-GUIDANCE_READER = json_validator(GUIDANCE_SCHEMA)
 
 CREATED_CHILDREN_DETAIL_SCHEMA = {
     "type": "object",
@@ -195,7 +200,7 @@ class RegistryError(click.ClickException):
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
-    stamp had fallen behind the running layer met the reader's click with a dead socket
+    stamp had fallen behind the running layer met the user's click with a dead socket
     and no words. Click renders an escaped one bare, at whichever command reached it, so
     a refusal from here reads like every other refusal this CLI writes."""
 

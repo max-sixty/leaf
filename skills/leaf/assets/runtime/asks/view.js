@@ -1,7 +1,7 @@
-/* The ask view: where the reader is standing, the ring that says so, the Asks tray's
+/* The ask view: where the user is standing, the ring that says so, the Asks tray's
    rows, and the walks and arrivals that move between asks.
 
-   Focus is the reader's current place. `focused` follows it through declared shadow
+   Focus is the user's current place. `focused` follows it through declared shadow
    roots. A native label activation may pass through `body` or a focusable container
    between the pointer press and the control's focus; Leaf treats that interval as one
    logical standing without changing DOM focus or preventing label text selection.
@@ -19,14 +19,14 @@
    list, so the way out is the one it always has.
 
    Working an ask and standing in one are different facts, and `markHere`'s ring
-   answers the second. A reader who tabbed to a link inside a question has named something
+   answers the second. A user who tabbed to a link inside a question has named something
    more particular than the question, so a press there means the link's own block; reading
    the ring instead overrode what they named, and made the same markup answer differently
-   according to whether its question was still open. The two agree wherever the reader is
+   according to whether its question was still open. The two agree wherever the user is
    working the ask, which is every arrival the ask walk makes.
 
    `standingConversation` (conversation/landing.js) is the exception, and covers all three
-   containers that hold a conversation the reader can stand in: the panel's thread, a
+   containers that hold a conversation the user can stand in: the panel's thread, a
    conversation seated on the page, and each thread inside that seat. It asks for the box
    rather than for the container's class, because a resolved thread is built by the same
    function and wears the same class while having no box to reach, and a collapsed one
@@ -43,24 +43,24 @@
    Ask rows come from every active local `x-awaits` source and holder declaring
    `x-request.ask`, answered or open, not from a list of ask tags. Where a
    source is nested in an `x-ask-surface` region, the row names the region: its heading,
-   context, and evidence are the ask the reader is being sent to, while the source
+   context, and evidence are the ask the user is being sent to, while the source
    remains the owner of the answer. `addressableSays` supplies each row's own label and the owned
    command scope's `options.answer` supplies its current answer. Selecting a tray row
    travels through the same ask-arrival function as `a` and `A`, so the panel and
    directional walk agree about focus, reveal, arrival placement, and `landed`; only the
    tray's list is wider, preserving answered routes for review and revision.
 
-   An arrival stands the reader on the ask, which is the element the scroll has just
+   An arrival stands the user on the ask, which is the element the scroll has just
    aligned and the one the ring names. The widget's contributed actions are addressable
    there by their declared bindings, with `1`–`9` as the default; its controls remain the
    next Tab stops, a stop at `tabindex: -1` keeping its place in document order. Landing
    the answering control instead puts them as far down the ask as its context and
    evidence are long, off the screen the same gesture arranged. An Ask a page styles
    boxless has nothing to stand on and keeps the control as its landing. A widget rebuilt
-   under a reader is not an arrival and hands back the control they were working
+   under a user is not an arrival and hands back the control they were working
    (`standOn`).
 
-   A directional page walk starts from the reader's place, in this order:
+   A directional page walk starts from the user's place, in this order:
 
    1. current focus;
    2. selection or caret;
@@ -142,7 +142,7 @@ import { ASK_AT } from "./tray-list.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
 import { pageCommand } from "../keyboard/register.js";
 import { PRESENTATION } from "../presentation.js";
-import { retainReaderIntent } from "../reader-intent.js";
+import { retainUserIntent } from "../user-intent.js";
 import {
   applicationPresenter,
   failSoftAfterRetention,
@@ -152,7 +152,7 @@ import {
   watchSemantic,
 } from "../semantic-state.js";
 
-// Contextual actions for the Ask the reader is standing in. These share the binding-badge face
+// Contextual actions for the Ask the user is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
 // focus and the dispatch stack leave the contributed action row reachable.
 export function createAskView({
@@ -186,7 +186,7 @@ export function createAskView({
   async function materializeAsk(ask, intent = null) {
     let target = askNode(ask);
     let source = sourceNode(ask);
-    if ((!target || !source) && ask.thread) {
+    if ((!target || !source) && ask.conversation) {
       if (!panelIsOpen()) {
         if (intent) {
           if (!intent.handoff(() => setPanel(true))) return {};
@@ -380,14 +380,14 @@ export function createAskView({
     return presenter.present();
   }
 
-  // The walk over what the page is waiting on the reader for. It wraps at both ends,
+  // The walk over what the page is waiting on the user for. It wraps at both ends,
   // because asks are a worklist rather than a document to read through: answering one takes
   // it out of the list, so forward is the direction that has somewhere to go, and a walk
   // that clamped there would strand them at the end of it.
   //
-  // Somewhere inside the ask the reader can be stood: one within it, or one hoisted out of
+  // Somewhere inside the ask the user can be stood: one within it, or one hoisted out of
   // it and pointing back (a suggestion's row is the column's child, so that it can hang in
-  // the page margin). Landing on it rather than on the ask puts the reader on something
+  // the page margin). Landing on it rather than on the ask puts the user on something
   // that works it, and Tab walks the rest of that ask's own controls from there.
   //
   // Which ask such a control decides, where the widget hoisted it out of the element (the
@@ -396,15 +396,15 @@ export function createAskView({
   // Chrome that stands *at* an ask without deciding it: the asks tray's rows. Separate
   // from ASK_ROW above, because the two say different things about the same element and
   // one of them has a consumer that must not confuse them — stepAsk looks through ASK_ROW
-  // for the control to put the reader on, and a row that merely points at the ask is not
-  // that control. What they share is this: focus on either means the reader is standing at
+  // for the control to put the user on, and a row that merely points at the ask is not
+  // that control. What they share is this: focus on either means the user is standing at
   // that ask, which is the one question askPlace asks.
   // Where a stand-in stands: the ask decided by the control it re-presents. Separate from
   // ASK_ROW again, and for a sharper reason than ASK_AT's — ASK_ROW names one element per
   // ask, the row lf-suggestion hangs in the margin, and the runtime, the theme and the
   // suite all read `[data-lf-for="<id>"]` as that row. A proxy wearing it would be a second
   // answer to every selector meaning "the row for this change". What a stand-in needs is
-  // only the reading below: focus on it means the reader is standing at the ask its press
+  // only the reading below: focus on it means the user is standing at the ask its press
   // decides.
   const ASK_STANDS = "data-lf-stands";
   // The tab stop this walk lends an ask that holds nothing to work: such an ask has no box
@@ -412,7 +412,7 @@ export function createAskView({
   // and PAGE_PAINT_ATTRIBUTES is the whole of what the runtime may leave standing there (a
   // `tabindex` in it would blind the replay signature to an authored one). So the lend lasts
   // exactly as long as the ring it goes with: the walk hands the stop over as it moves, and
-  // markHere takes it back when the reader leaves.
+  // markHere takes it back when the user leaves.
   //
   // One function for both ends of it, because written as statements at each end the walk's
   // half only ever wrote — it took the last lend's reference with it and left the stop
@@ -426,9 +426,9 @@ export function createAskView({
     askLent = ask;
     if (ask) ask.tabIndex = -1;
   }
-  // Where the walk last left off. Not the same question as where the reader is standing,
+  // Where the walk last left off. Not the same question as where the user is standing,
   // though one answer used to serve both: the ring said where they were and the walk read
-  // its own last landing off it. A reader who has pressed the banner's Asks button is
+  // its own last landing off it. A user who has pressed the banner's Asks button is
   // standing in the banner, and the ring is rightly gone from the page — leaving the walk
   // with nothing to step from but whatever happens to be on screen, which would send the
   // next press back up the page.
@@ -459,7 +459,7 @@ export function createAskView({
   // attribution, so a stand-in stands where the control it forwards to stands. The living
   // margin builds one when a hoisted control spills into a More options group, and the
   // press it forwards decides the same ask. Saying nothing left the proxy standing nowhere:
-  // the ring came off the suggestion for as long as the reader held its own ✗ Reject, and
+  // the ring came off the suggestion for as long as the user held its own ✗ Reject, and
   // the walk measured its next step from the margin rather than from the change.
   //
   // Said in ASK_STANDS rather than in the row's own attribute, because the stand-in is a
@@ -477,7 +477,7 @@ export function createAskView({
   // A place in the document, stated as the ask it belongs to wherever it belongs to one: a
   // control hoisted out of its ask and pointing back at it stands for that ask and not for
   // the block it was hung beside, or stepping back from a suggestion's own ✓ Accept would
-  // land on the suggestion the reader is already standing on.
+  // land on the suggestion the user is already standing on.
   function askPlace(node) {
     const projected = projectionTarget(node);
     if (projected) return projected;
@@ -501,20 +501,20 @@ export function createAskView({
       }) ?? null
     );
   }
-  // The ask the reader is standing in: the one holding the focus, or the one a control
+  // The ask the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides. The innermost of them, an ask being able to hold
   // another (a question inside a suggestion's lf-new) — the list answers in document order,
   // so the last container in the list is the nearest one.
   //
-  // The unanswered asks rather than the reader's list, because standing in a question is
-  // about where the reader is working and not about what they owe. The two part on a widget
+  // The unanswered asks rather than the user's list, because standing in a question is
+  // about where the user is working and not about what they owe. The two part on a widget
   // whose own seat is mid-conversation with the agent: it leaves the list while its pick
   // stays unmade and its controls stay live, and reading the list took the ring off that
-  // widget and moved `c` from the seat the reader was writing in down to whichever option
+  // widget and moved `c` from the seat the user was writing in down to whichever option
   // their focus rested on — a second thread on the child rather than the next line of their
-  // own. The agent's reply put both back. Nothing the reader did moved either. An
+  // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // Asks tray can return the reader to it, and standing there restores the same numeric
+  // Asks tray can return the user to it, and standing there restores the same numeric
   // action route so they can revise the recorded answer.
   //
   // Document focus rather than the inner control, for the reason askPosition gives: a
@@ -538,7 +538,7 @@ export function createAskView({
       : null;
   }
   const standingIn = () => askNode(standingAsk());
-  // Whether the reader holds an Ask at all, answered or not: the standing floor's
+  // Whether the user holds an Ask at all, answered or not: the standing floor's
   // question, which is where letting go lands rather than which Ask is the walk's. The
   // same resolution as above, so a control hoisted into the margin holds the Ask it
   // serves, and an answered Ask keeps its picks a place to stand.
@@ -777,12 +777,12 @@ export function createAskView({
   }
   // Resizing can make routes unreachable or put their controls under a covering tray.
   // Repaint unconditionally so either transition clears the prior projections.
-  // The ring that says so, painted from the focus rather than written where the reader was
+  // The ring that says so, painted from the focus rather than written where the user was
   // put. The walk used to write it, and it then said where the walk had left them rather
   // than where they were: click away, work in the panel, come back tomorrow, and an ask
   // nobody was standing in went on wearing "you are here". Every other way into an ask —
   // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
-  // same place was marked or not by how the reader had reached it.
+  // same place was marked or not by how the user had reached it.
   //
   // TODO(2026-09-06): Keep the Ask-wide location ring for keyboard navigation and
   // tray-directed focus without painting it after an ordinary pointer click inside the
@@ -790,15 +790,15 @@ export function createAskView({
   // around the entire surface even though the focused control already shows the action.
   //
   // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
-  // than about where the reader is: a tray row's press lands the focus by script after a
-  // click, and the ask it brought the reader to would wear nothing at all.
+  // than about where the user is: a tray row's press lands the focus by script after a
+  // click, and the ask it brought the user to would wear nothing at all.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
   // what carries the id captureView writes down and the place askStep measures from,
   // while an outline needs a box to hang on. Every widget in the vocabulary draws one
   // box now — the wrapper that declined to took a form instead, in its own stylesheet,
   // after the ring went out over its pieces and read as two boxes touching rather than
-  // as the one ask the reader is standing in — so on shipped pages the parts are the
+  // as the one ask the user is standing in — so on shipped pages the parts are the
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
@@ -815,28 +815,28 @@ export function createAskView({
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
     );
     // A walk that runs past the foot of an open tray leaves its mark off screen, which is
-    // the tray saying nothing exactly while the reader is using it. `nearest` so a row
+    // the tray saying nothing exactly while the user is using it. `nearest` so a row
     // already in view moves nothing.
     if (row && trayIsOpen("asks")) row.scrollIntoView({ block: "nearest" });
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     // A control-less request can borrow its own tab stop while the broader x-ask-surface
-    // region wears the ring. Keep that stop until the reader leaves the region.
+    // region wears the ring. Keep that stop until the user leaves the region.
     const holder = sourceNode(record);
     if (askLent && askLent !== here && askLent !== holder) lend(null);
     for (const marked of wearing) marked.setAttribute(PAGE_PAINT_ATTRIBUTE.ask, "1");
     paintActionProjections();
   }
-  // The place a node puts the reader in the space this walk measures against, and null where
+  // The place a node puts the user in the space this walk measures against, and null where
   // it puts them outside that space. The chrome stands over the page rather than in it, and
-  // its controls are binding badges the reader holds from wherever they are: a reader who pressed
+  // its controls are binding badges the user holds from wherever they are: a user who pressed
   // the Asks button is standing on it, so measuring from it would send the next press back to
   // the top. The layer is also appended after the page, so once the walk clamped at its edges
-  // instead of wrapping, taking any of it for a place put the reader behind every ask
+  // instead of wrapping, taking any of it for a place put the user behind every ask
   // there is. From a thread in the conversation panel, `a` and `A` both landed on the last.
   //
   // The route runs through the chrome all the same. A widget frozen into a reply is a
-  // ask the walk visits, collected beside the document's, and a reader working its
+  // ask the walk visits, collected beside the document's, and a user working its
   // controls is standing in the ordered space. So what decides it is membership of that
   // space: the ask a hoisted control or a tray row names (askPlace), or the one the
   // node stands inside. The rest of the layer names none.
@@ -846,12 +846,12 @@ export function createAskView({
     const holding = askAt(allAsks(), node);
     return holding ? (askNode(holding) ?? place) : null;
   };
-  // Where the walk measures from: where the reader is standing, rather than where the walk
-  // last put them. It carried an id of its own, so every walk the reader had not made with
+  // Where the walk measures from: where the user is standing, rather than where the walk
+  // last put them. It carried an id of its own, so every walk the user had not made with
   // this key started at the top of the page — select a paragraph and press `d` and you were
   // taken back past everything you had read, and so was anyone scrolled halfway down
   // pressing it for the first time. Space page travel measures from the scroll position and t/T from the
-  // focused thread; this measured from its own memory, which is the one place the reader
+  // focused thread; this measured from its own memory, which is the one place the user
   // isn't.
   //
   // Read in the order of how directly each says where they are: what they have focused,
@@ -870,7 +870,7 @@ export function createAskView({
     }
     const sel = getSelection();
     // A caret counts here, where the composer's reading of the selection (pageSelection)
-    // wants words to quote: a click that placed one is the reader saying where they are.
+    // wants words to quote: a click that placed one is the user saying where they are.
     if (sel?.focusNode) {
       const place = walkPlace(sel.focusNode);
       if (place) return place;
@@ -880,7 +880,7 @@ export function createAskView({
     return (landed?.isConnected ? landed : null) ?? readingBlock();
   }
   // The ask `dir` steps to from there, clamped at the first and last open asks.
-  // Document position rather than an index into the list, because the reader's place is a
+  // Document position rather than an index into the list, because the user's place is a
   // place and not a row: an ask holding it is the one they are standing on, so it is
   // what they step off rather than what they step to.
   function askStep(asks, dir) {
@@ -901,7 +901,7 @@ export function createAskView({
     });
     return dir > 0 ? (reach[0] ?? asks.at(-1)) : (reach.at(-1) ?? asks[0]);
   }
-  // Putting the reader back on the control they were working when a widget rebuilt itself
+  // Putting the user back on the control they were working when a widget rebuilt itself
   // underneath them (rebuild): the control that works this ask — one inside it, or
   // one the widget hoisted into the margin and pointed back at it — or the ask
   // itself, lent a tab stop where it holds nothing to work.
@@ -911,7 +911,7 @@ export function createAskView({
   // the window, and the first control that answers it is as far down the ask as its
   // context and evidence are long: measured on the shipped corpus at 1200x900, the heading
   // stood at 54px and the pick the walk focused ran from 847 to 1107 in a 900px window. So
-  // the reader was told to look at one thing and stood on another, off the bottom of the
+  // the user was told to look at one thing and stood on another, off the bottom of the
   // screen, and their next local action could have worked a control they could not see.
   function standOn(ask, review = false) {
     const source = sourceNode(ask);
@@ -942,15 +942,15 @@ export function createAskView({
     if (ask.matches(":focus")) return;
     // An Ask the page styles boxless generates nothing to stand on, and a lent stop
     // does not change that. There the control that answers it is the only place the
-    // reader can be, which is where every arrival used to land.
+    // user can be, which is where every arrival used to land.
     lend(null);
     standOn(record, review);
   }
 
-  // The reader's standing on an Ask, said in terms a replaced document can still answer.
+  // The user's standing on an Ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
   // Ask is not a shape. Its id is a declared identity that the inventory, the tray rows,
-  // and the walk already resolve against whichever document is standing, so a reader
+  // and the walk already resolve against whichever document is standing, so a user
   // working an Ask when a revision lands is put back on the same Ask rather than dropped
   // to `body`.
   //
@@ -958,22 +958,22 @@ export function createAskView({
   // handed back. Which control inside it they held is not something this can answer: the
   // controls are the widget's, most carry no id of their own, and `standOn`'s first
   // answering control is the walk's landing rule rather than a restore. Handing that back
-  // is the failure version.js's header names — a reader holding the second option was
+  // is the failure version.js's header names — a user holding the second option was
   // given the first, and their next press chose it. The Ask's own opening is the one
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the Ask's digit routes are live there and Space decides nothing.
   //
   // Chrome is excluded because it has nothing to restore: a tray row and a margin entry
   // for the same Ask are keyed by that id already, so a patch hands each of them back as
-  // the same element, still holding the focus the reader put on it.
+  // the same element, still holding the focus the user put on it.
   function captureStanding() {
     const held = documentFocused();
     if (!held || held === document.body || inChrome(held)) return null;
     return standingAsk()?.id ?? null;
   }
 
-  // Put the reader back, once the arriving document has been upgraded and presented.
-  // Standing is restored rather than asserted: a reader the revision left where they were
+  // Put the user back, once the arriving document has been upgraded and presented.
+  // Standing is restored rather than asserted: a user the revision left where they were
   // is already standing there, and an Ask the revision took away is nowhere to stand, so
   // each of those returns and `body` keeps the focus the replacement gave it.
   function restoreStanding(ask) {
@@ -982,13 +982,13 @@ export function createAskView({
     if (record) arriveAt(record);
   }
 
-  // The screen the reader can use, and the distance two boxes stand apart in it. The
+  // The screen the user can use, and the distance two boxes stand apart in it. The
   // clearance is the landing band's top inset, which already says how much of the
   // scroller's top edge the banner stands over.
   const clearanceOf = (box) => landingInsets(box).top;
   const HEADING = "h1,h2,h3,h4,h5,h6";
 
-  // Where the reader arrives at a page ask: the region whose start has to be in front
+  // Where the user arrives at a page ask: the region whose start has to be in front
   // of them for the question to make sense. A widget declaring x-ask-surface states its own —
   // one heading, then the context and evidence, then the control — and this walk is handed
   // that region rather than the widget inside it, so its arrival is simply its start.
@@ -997,7 +997,7 @@ export function createAskView({
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "an ask must name itself without context outside
   // the ask", and no x-ask-surface can be written round it. Landing on the change alone put
-  // its own top edge under the banner and took that sentence with it: the reader arrived
+  // its own top edge under the banner and took that sentence with it: the user arrived
   // at ✓ Accept with nothing on screen saying what they were accepting. So where the
   // author has not declared a region, the document supplies one in the shape a declared
   // region has.
@@ -1005,14 +1005,14 @@ export function createAskView({
   // Candidates widest first — the heading titling this part of the document, then the
   // block the change stands in, or, for a change that is its own block, the block before
   // it. The first whose start still leaves the ask's own foot on screen wins, so a
-  // region never grows past what the reader takes in at once and an ask with nothing
+  // region never grows past what the user takes in at once and an ask with nothing
   // that fits keeps the landing this walk always gave it. That bound is what lets the
   // widest candidate go first: a heading a long way up fails to fit, rather than needing a
   // rule about how far up is too far.
   function arrivalRegion(ask, box) {
     if (registry[ask.localName]?.["x-ask-surface"]) return ask;
     const room = shownBox(box).height - clearanceOf(box);
-    // A region has to be somewhere the reader can be taken. An element generating no box
+    // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
     // paragraph before the change fits every time, and the press then scrolls the page up
@@ -1033,7 +1033,7 @@ export function createAskView({
     // stand under one container, which is what "the heading over this" means and is the
     // whole of the bound the search needs. Without it the nearest preceding heading can
     // be the previous ask's own — two asks written one after another is the ordinary way
-    // to write them — and the reader arrives reading the wrong question as the context
+    // to write them — and the user arrives reading the wrong question as the context
     // for this one. It also stops the walk at the section the ask is in rather than
     // running back through the whole document to find a heading.
     //
@@ -1050,7 +1050,7 @@ export function createAskView({
     // shadow tree take the heading standing over its host.
     //
     // `hidden` goes with `inChrome`: content-visibility leaves real rects behind, so a
-    // block behind a shut disclosure otherwise measures like one the reader can see.
+    // block behind a shut disclosure otherwise measures like one the user can see.
     //
     // Order is asked of the ask as the block's own tree sees it, which for a
     // ask staged in a shadow tree is its host and not the ask. Two nodes in
@@ -1083,13 +1083,13 @@ export function createAskView({
     return [heading, closestAcross(ask, TEXT_BLOCK) ?? before.at(-1)].find(fits) ?? ask;
   }
 
-  // The arrival the reader already has. The press then moves the ring and the focus and
+  // The arrival the user already has. The press then moves the ring and the focus and
   // leaves the page where it stands: they can see the ask and the words around it, and
   // scrolling to rebuild a view they are already looking at is motion that says nothing.
   //
   // Whether the ask itself is readable is `readableDestination`'s question, asked of
   // every edge through whatever clips it — an ask half cut off by a board's own
-  // scroller is not in front of the reader for having a box inside the window. This adds
+  // scroller is not in front of the user for having a box inside the window. This adds
   // the one thing that reading cannot know: the arrival is the region's start, so the
   // start has to be standing clear of the banner too.
   function framed(region, ask, box, readableDestination) {
@@ -1104,13 +1104,13 @@ export function createAskView({
 
   // Standing on one ask: what d and D do once they have decided which, and what a press on
   // a tray row does having been told outright. One function because it is one act — a
-  // second would be a second answer to "how do I put the reader on an ask", and the two
+  // second would be a second answer to "how do I put the user on an ask", and the two
   // would drift the first time either the reveal or the focus rule changed.
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
   // is the one that knows which list it walked: the walk's own or the tray's.
   async function goToAskNow(next, asks) {
-    const mayArrive = retainReaderIntent({
+    const mayArrive = retainUserIntent({
       available: () => hasAsk(allAsks(), next),
     });
     // A thread's ask lives in the panel, which has no geometry while closed — the
@@ -1142,7 +1142,7 @@ export function createAskView({
     if (!target) return false;
     landed = target;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
-    // and markHere says where the reader is standing, rather than both saying the second.
+    // and markHere says where the user is standing, rather than both saying the second.
     arriveAt(next, !unansweredIds().has(next.id));
     // A page Ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
@@ -1151,7 +1151,7 @@ export function createAskView({
     // Which box either travel moves is the travel's own question (scrollerFor) rather than
     // a second one asked here.
     //
-    // A page arrival the reader already has is left alone. The ring and the focus have
+    // A page arrival the user already has is left alone. The ring and the focus have
     // moved to the next ask, which is the whole of what this press had left to say.
     if (inChrome(target)) scrollToElement(target, scrollBehavior(), "center");
     else {
@@ -1162,7 +1162,7 @@ export function createAskView({
         // other than the page's: the placement below moves whichever box scrolls the
         // region, and for a region out on the page that is never the board's own
         // scroller. Handing that placement the region alone left an ask inside a
-        // card unscrolled in its card, with the ring and focus on a change the reader
+        // card unscrolled in its card, with the ring and focus on a change the user
         // could not see. `nearest` is a request to reveal only, which is exactly
         // what this needs and what the placement then builds on.
         scrollToElement(target, "instant", "nearest");
@@ -1253,10 +1253,10 @@ export function createAskView({
     line: "asks",
     when: () => openAsks().length > 0,
     repeat: true,
-    // The same shape as the thread walk: it moves the reader from Ask to Ask rather than
+    // The same shape as the thread walk: it moves the user from Ask to Ask rather than
     // down a level, so the standing scope lets go of whichever one they end on. An Ask
     // seated in a thread is reached through the panel, and the panel is then a level of
-    // its own on the way out, whether this walk opened it or the reader already had it.
+    // its own on the way out, whether this walk opened it or the user already had it.
     run: (binding) => stepAsk(binding === "a" ? 1 : -1),
   });
 

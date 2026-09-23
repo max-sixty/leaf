@@ -22,7 +22,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # where that is declared rather than guessed at per widget. Three keywords carry what
 # can be declared, and a fence carries the rest:
 #
-#   x-says      attribute values the reader sees. renderSaid puts them in the DOM, so
+#   x-says      attribute values the user sees. renderSaid puts them in the DOM, so
 #               they go in here too, at the edge the registry names.
 #   x-verbatim  an upgraded element that preserves its own words around nested upgraded
 #               widget boundaries. The source and document-order occurrence identify
@@ -57,7 +57,7 @@ from .structure import VOID_TAGS, SourceDocument, parse_revision
 # Its word is clipped to nothing and marked as the runtime's (.lf-quiet, .lf-ui), so the
 # browser's own reading of the page skips it exactly as this one never sees it: the two
 # readings agree by both being silent, and a fence would be room reserved for words no
-# reader on either side can reach.
+# user on either side can reach.
 
 # The collapse class, stated outright: the characters a whitespace run is made of, one
 # spelling the set and the regex both derive from, matching leaf.js's COLLAPSE exactly.
@@ -378,7 +378,7 @@ class _PassageParser:
             and self.decided.get(parent["id"]) == entry["x-retired-when"]
             else None
         )
-        # A wall this element raises itself: its words are off the reader's page, whatever
+        # A wall this element raises itself: its words are off the user's page, whatever
         # holds it. Named apart from the inherited half below because the two answer
         # different questions — an element under a withheld data body is still showing
         # its words, and one under a retired slot is not.
@@ -630,7 +630,7 @@ def enclosing_ids(document: SourceDocument) -> dict:
 
 
 def active_enclosing(page_dir: Path) -> dict:
-    """Where every id sits on the page the reader is looking at.
+    """Where every id sits on the page the user is looking at.
 
     The newest valid revision is the live page. A page with no valid revision has
     nowhere for an element to sit."""

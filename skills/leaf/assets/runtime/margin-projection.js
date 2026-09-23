@@ -2679,7 +2679,9 @@ export function createMarginProjection({
     if (panelIsOpen()) {
       const entry = host ? host.lfEntry : threadEntryAt(active);
       if (entry && threadReading(entry) && active.matches(":focus-visible"))
-        accompanyThread(threadIdOf(entry));
+        accompanyThread(
+          threadReading(entry).items.map((item) => sourceItem(item).thread.root.id),
+        );
       return;
     }
     if (host) {

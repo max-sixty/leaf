@@ -6159,39 +6159,68 @@ def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, se
     """With Threads open, the panel's one expanded thread is the element's card.
 
     Arriving at a commented element by keyboard expands that element's thread in the
-    list and leaves the user on the element, with no margin card beside it. A pointer
-    that lands on another element asked for nothing there, and the list stays as it is.
+    list, brings it into the list's view, and leaves the user on the element, with no
+    margin card beside it. A thread of that element already expanded is where the user
+    is on it, perhaps mid-reply, so it stays. A pointer that lands on an element asked
+    for nothing there, and the list stays as it is.
     """
     page = open_page(browser, serve(ASK_PAGE))
-    resized(page, 1440, 900)
+    resized(page, 1440, 380)
     first = seeded_thread(page, serve.page_dir, "#mounts-p")
     second = seeded_thread(page, serve.page_dir, "#heater-p")
+    third = seeded_thread(page, serve.page_dir, "#mounts-p")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-thread-panel")
     expanded = threads.locator(".lf-thread[open]")
+    # Its title whole in the list's view: the thread the list shows is the one it names.
+    in_view = """thread => {
+      const list = thread.closest('leaf-thread-list').getBoundingClientRect();
+      const box = thread.querySelector(':scope > .lf-thread-summary')
+        .getBoundingClientRect();
+      return box.top >= list.top && box.bottom <= list.bottom;
+    }"""
 
+    def card(sent):
+        return threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+
+    # Keyboard modality without Tab, whose own landing in the list would scroll it.
     def arrive(selector):
-        page.keyboard.press("Tab")
+        page.keyboard.press("Shift")
         page.locator(selector).evaluate("node => { node.tabIndex = -1; node.focus(); }")
         expect(page.locator(selector)).to_be_focused()
+        assert page.locator(selector).evaluate("node => node.matches(':focus-visible')")
 
     for passage, sent in (("#heater-p", second), ("#mounts-p", first)):
+        # Out of the list's view first, so the arrival has to bring it back.
+        card(sent).evaluate(
+            """thread => {
+              const list = thread.closest('leaf-thread-list');
+              list.scrollTop = thread.offsetTop > list.scrollHeight / 2
+                ? 0 : list.scrollHeight;
+            }"""
+        )
+        assert not card(sent).evaluate(in_view)
         arrive(passage)
         expect(expanded).to_have_attribute("data-id", sent["id"])
         expect(page.locator(passage)).to_be_focused()
         expect(page.locator(".lf-margin-preview")).to_be_hidden()
-        assert threads.locator(f'.lf-thread[data-id="{sent["id"]}"]').evaluate(
-            """thread => {
-              const list = thread.closest('leaf-thread-list').getBoundingClientRect();
-              const box = thread.getBoundingClientRect();
-              return box.top < list.bottom && box.bottom > list.top;
-            }"""
+        page.wait_for_function(
+            f"() => ({in_view})(document.querySelector("
+            f"'.lf-thread-panel .lf-thread[data-id=\"{sent['id']}\"]'))"
         )
 
-    page.locator("#heater-p").evaluate("node => node.removeAttribute('tabindex')")
+    # The user opens the element's other thread; arriving back at the element keeps it.
+    card(third).locator(":scope > .lf-thread-summary").click()
+    expect(expanded).to_have_attribute("data-id", third["id"])
+    arrive("#mounts-p")
+    expect(expanded).to_have_attribute("data-id", third["id"])
+
+    # A pointer on the other element focuses it without keyboard arrival.
     page.locator("#heater-p").click()
-    expect(expanded).to_have_attribute("data-id", first["id"])
+    expect(page.locator("#heater-p")).to_be_focused()
+    assert not page.locator("#heater-p").evaluate("node => node.matches(':focus-visible')")
+    expect(expanded).to_have_attribute("data-id", third["id"])
 
 
 def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(

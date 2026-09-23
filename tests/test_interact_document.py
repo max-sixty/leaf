@@ -2703,7 +2703,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     # either door, since what settles it is what the log still owes for it.
     settles = (
         f"{request['id']} is a request in this page's log — "
-        f"`leaf receipt <page> {request['id']} succeeded|failed` settles it"
+        f"`leaf receipt <page> {request['id']} succeeded|failed` answers it"
     )
     resolved = CliRunner().invoke(
         cli_model.cli, ["resolve", str(page_dir), "--to", request["id"]]

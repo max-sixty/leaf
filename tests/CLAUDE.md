@@ -43,9 +43,10 @@ npm run test:runtime
 
 A test is nightly when a pull request can land without it: the broad browser corpus in
 most `test_render_*.py` modules, and the published site in `test_site.py`. The everyday
-gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`, and
-`test_render_application_boundary.py`, so the `test_render_` prefix does not say which
-run a file belongs to. A test does not become nightly because it is expensive. Broad discovery skips nightly tests.
+gate keeps `test_chrome_contracts.py`, `test_render_mcp.py`,
+`test_render_application_boundary.py`, and `test_render_semantic_news.py`, so the
+`test_render_` prefix does not say which run a file belongs to. A test does not become
+nightly because it is expensive. Broad discovery skips nightly tests.
 An explicit file, node id, `-k`, `-m`, or `--lf` selection runs what it names. During
 development, select the owning file or one named case and use `-n 0` so the trace and
 process tree stay local:

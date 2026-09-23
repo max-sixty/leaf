@@ -66,14 +66,26 @@ function showNotice(msg, background = null) {
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
-    if (!readerContext && !readerHoldTimer && waitingBackground.length)
-      return showBackground(waitingBackground.shift());
+    if (!readerContext && !readerHoldTimer && showBackground(waitingBackground.shift()))
+      return;
     presentNotice(noticePresentation.message, false);
     showingBackground = null;
   }, NOTICE_MS);
 }
 
-const showBackground = (entry) => showNotice(entry.format(entry.value), entry);
+// A producer may retire a deferred assertion before it reaches the status line.
+// Skip it without spending a visible interval, then take the next queued group.
+function showBackground(entry) {
+  while (entry) {
+    const message = entry.format(entry.value);
+    if (message) {
+      showNotice(message, entry);
+      return true;
+    }
+    entry = waitingBackground.shift();
+  }
+  return false;
+}
 
 const textBackground = (message) => ({
   key: "text",

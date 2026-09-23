@@ -2668,11 +2668,11 @@ def test_back_returns_from_a_thread_the_walk_travelled_to(browser, serve):
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
     elsewhere = page.evaluate("document.scrollingElement.scrollTop")
     assert elsewhere > walked + 1000
+    # Either thread is somewhere else from here; which one Shift+t lands on depends
+    # on whether the walk's card survived the traversal, and the claim does not.
     page.keyboard.press("Shift+t")
     page.wait_for_function(
-        "first => document.activeElement?.closest('[data-thread]')?.dataset.thread"
-        " === first",
-        arg=first,
+        "top => document.scrollingElement.scrollTop < top - 1000", arg=elsewhere
     )
     scroll_settled(page)
     assert page.evaluate("history.length") == entries + 2

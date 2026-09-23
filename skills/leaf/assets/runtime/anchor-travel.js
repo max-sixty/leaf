@@ -58,7 +58,7 @@ export function createAnchorTravel({
 
   function stillLanded() {
     const id = history.state?.lfThread;
-    const where = id && (anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element);
+    const where = id && threadDestination(id);
     return Boolean(where && readableDestination(where));
   }
 
@@ -263,7 +263,7 @@ export function createAnchorTravel({
     const thread = currentThreads().find((candidate) => candidate.root.id === id);
     const anchor = thread?.anchor;
     const hydrating = anchor?.datum && anchors.placedAt(id)?.status !== "outdated";
-    const standing = anchors.marksFor(id)[0] ?? anchors.placedAt(id)?.element;
+    const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     if ((standing || hydrating) && !(standing && readableDestination(standing)))

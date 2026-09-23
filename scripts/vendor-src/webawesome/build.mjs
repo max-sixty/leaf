@@ -21,11 +21,32 @@ await writeFile(
   `import { registerWidgetStyles } from "/runtime/shadow-stage.js";
 registerWidgetStyles("Web Awesome", ${JSON.stringify(theme)});`,
 );
+// Lit is the page's one copy in /vendor/lit.js, which scripts/browser/build.mjs
+// builds in the shape of Lit's `lit-all` bundle: every public module's exports in
+// one namespace, with static-html's tags renamed so they keep their own names here.
+const lit = {
+  name: "leaf-lit",
+  setup(build) {
+    build.onResolve({ filter: /^lit\/static-html\.js$/ }, () => ({
+      path: "static-html",
+      namespace: "leaf-lit",
+    }));
+    build.onLoad({ filter: /.*/, namespace: "leaf-lit" }, () => ({
+      contents:
+        'export { staticHtml as html, staticSvg as svg, staticMathml as mathml, literal, unsafeStatic, withStatic } from "/vendor/lit.js";',
+    }));
+    build.onResolve({ filter: /^lit(\/|$)/ }, () => ({
+      path: "/vendor/lit.js",
+      external: true,
+    }));
+  },
+};
 const result = await build({
   entryPoints: { "webawesome.esm": "entry.mjs", "webawesome-chrome": "chrome.mjs" },
   splitting: true,
   chunkNames: "webawesome/[name]-[hash]",
-  external: ["/runtime/shadow-stage.js"],
+  external: ["/runtime/shadow-stage.js", "/vendor/lit.js"],
+  plugins: [lit],
   bundle: true,
   format: "esm",
   platform: "browser",

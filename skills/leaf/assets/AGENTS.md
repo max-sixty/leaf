@@ -94,6 +94,19 @@ The stylesheet boundary follows where rules apply:
   are unavailable in WebKit, and a module-scope await would delay page modules past
   `DOMContentLoaded`.
 
+A selector whose `:has()` stands before its last combinator is restyled from the
+document root. Chrome keeps one invalidation set for every such selector, keyed on
+their rightmost compounds, and a trace of a drag-select shows it scheduling that set on
+`html` for ordinary runtime writes (an `aria-pressed`, a `hidden`, a placeholder, a Lit
+render), none of which touch the rules' own subjects. Each rightmost compound therefore
+selects its targets across the whole document. A
+compound with no class, id, attribute, or type in it (`> :not(.x)`, `> *`) makes
+every such change restyle every element. On a 21,000-element page that cost 40 ms a
+frame for as long as a drag-select lasted. A type costs one restyle for each element
+of that type, so key a repeated element such as `details` or `li` by a class its
+owner writes. `test_no_has_rule_restyles_the_whole_document` enforces the first
+rule; the second is a judgment about how often the type repeats.
+
 The shared `.lf-ui` face starts in the assets root's `shadow.css`, before component
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
@@ -139,11 +152,11 @@ Each mutable fact has one writer:
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
 | the narrowing and order of the thread list | the reader's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
-| how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `reader-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
+| how much of a scroller's top a pinned cover takes | the tallest declared cover's rendered box | `declareCoverRoom` (`geometry.js`) observes the covers and writes the property a `scroll-padding` or `scroll-margin` reads: the thread list's run headings as `--lf-head-room` on the list (`renderThreads`), each `lf-diff` file header on its file |
+| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `reader-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread; a package takes it through the widget API. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
 | the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
-| how much of a scroller the reader can see, and where a landing may put something | the scroller's shown band less its stuck `.lf-pinned` covers, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js` |
+| how much of a scroller the reader can see, and where a landing may put something | the scroller's shown band less the covers declared through `declareCoverRoom` that stick in it, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js`; `shownRect`'s clip walk applies `visibleBand` at every ancestor, so whether something is on screen has one answer |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
@@ -623,10 +636,10 @@ animation can expose the behavior.
 `vendor/browser-runtime.js`; contributor diagnostics (the manifest, licenses, and
 source map) live under `scripts/browser/generated/`. The manifest names its inputs,
 exports, and output hashes; `scripts/AGENTS.md`
-owns the contributor build and check commands. The internal bundle contains Lit and
-Signals once, with no external imports or runtime compiler. The Web Awesome bundle
-(`scripts/vendor.py webawesome`) is built separately and carries its own Lit, so a page
-runs two copies of it. Content modules import
+owns the contributor build and check commands. The same build writes `vendor/lit.js`,
+the page's one copy of Lit, which the framework bundle imports and which the Web
+Awesome bundle (`scripts/vendor.py webawesome`) imports as well rather than carrying
+its own; neither has any other import or a runtime compiler. Content modules import
 only `runtime/widget-api.js`. Server projection entries carry the declaration admitted from
 their captured revision, so neither active nor historical views reinterpret an event
 through the current DOM's registry.

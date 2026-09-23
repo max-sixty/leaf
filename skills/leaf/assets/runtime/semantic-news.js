@@ -48,11 +48,11 @@ function readerObligations(page, conversation) {
     held.set(JSON.stringify(["page", ask.id]), { source: ask.id, thread: null });
   const askedThreads = new Set();
   for (const ask of conversation.asks.reader) {
-    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
+    held.set(JSON.stringify(["thread", ask.conversation, ask.id]), {
       source: ask.id,
-      thread: ask.thread,
+      thread: ask.conversation,
     });
-    askedThreads.add(ask.thread);
+    askedThreads.add(ask.conversation);
   }
   for (const thread of conversation.threads) {
     if (

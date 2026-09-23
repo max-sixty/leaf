@@ -823,12 +823,12 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
         "comparison-current",
         "comparison-proposed",
     ]
-    current.evaluate("el => el.scrollTop = el.scrollHeight")
-    proposed.evaluate("el => el.scrollTop = el.scrollHeight")
-    initial_scrolls = [
-        current.evaluate("el => el.scrollTop"),
-        proposed.evaluate("el => el.scrollTop"),
-    ]
+    initial_scrolls = page.evaluate("""() => {
+        const panes = ["comparison-current", "comparison-proposed"].map(id =>
+            document.querySelector(`#${id} .lf-pane-body`));
+        for (const pane of panes) pane.scrollTop = pane.scrollHeight;
+        return panes.map(pane => pane.scrollTop);
+    }""")
     assert min(initial_scrolls) > 0
 
     page.locator(".lf-threads-toggle").click()

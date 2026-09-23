@@ -71,16 +71,31 @@ PINS = {
     "@ctrl/tinycolor": "4.1.0",
     "@shoelace-style/localize": "3.2.3",
     "composed-offset-position": "0.0.6",
-    "lit": "3.3.3",
-    "lit-element": "4.2.2",
-    "lit-html": "3.3.3",
-    "@lit/reactive-element": "2.1.2",
     "nanoid": "5.1.16",
 }
 
 
 def spec(package: str) -> str:
     return f"{package}@{PINS[package]}"
+
+
+def browser_pins() -> dict[str, str]:
+    """The page payload `scripts/browser/build.mjs` bundles, at `package.json`'s pins.
+
+    Those pins stay in `package.json`, where the contributor build's lock reads them,
+    rather than a second copy here; the build's manifest says which of them reach a
+    page, which is what `--pins` watches. Lit is one: `lit.js` is the page's only copy,
+    and the Web Awesome bundle imports it.
+    """
+    pinned = json.loads((ROOT / "package.json").read_text())["devDependencies"]
+    manifest = json.loads(
+        (ROOT / "scripts/browser/generated/browser-runtime.manifest.json").read_text()
+    )
+    return {
+        package: pinned[package]
+        for package in manifest["bundledDependencies"]
+        if package in pinned
+    }
 
 
 class Copy(NamedTuple):
@@ -382,6 +397,13 @@ def build_webawesome(work: Path) -> list[Path]:
 
     Both entry points register the same components once. Optional controls remain
     on demand; the shared chunks are core payload because chrome also reads them.
+
+    Lit is not bundled: every Lit import binds to `/vendor/lit.js`, the page's one
+    copy, which `scripts/browser/build.mjs` builds at the version `package.json`
+    pins. That version is installed here beside Web Awesome so npm can say whether
+    it falls inside Web Awesome's declared range; outside it, npm nests Web
+    Awesome's own choice under the package, and the build refuses rather than run
+    Web Awesome against a Lit it was not published for.
     """
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
@@ -392,15 +414,12 @@ def build_webawesome(work: Path) -> list[Path]:
         "@ctrl/tinycolor",
         "@shoelace-style/localize",
         "composed-offset-position",
-        "lit",
-        "lit-element",
-        "lit-html",
-        "@lit/reactive-element",
         "nanoid",
         "@floating-ui/dom",
         "@floating-ui/core",
         "@floating-ui/utils",
     )
+    lit = browser_pins()["lit"]
     run(
         "npm",
         "install",
@@ -408,9 +427,12 @@ def build_webawesome(work: Path) -> list[Path]:
         "--no-package-lock",
         "--silent",
         *(spec(package) for package in packages),
+        f"lit@{lit}",
         spec("esbuild"),
         cwd=work,
     )
+    if (work / "node_modules/@awesome.me/webawesome/node_modules/lit").exists():
+        raise RuntimeError(f"Web Awesome's declared Lit range excludes lit {lit}")
     source = ROOT / "scripts/vendor-src/webawesome"
     for name in ("entry.mjs", "chrome.mjs", "setup.mjs", "build.mjs", "leaf-theme.css"):
         shutil.copyfile(source / name, work / name)
@@ -647,13 +669,13 @@ REBUILDS = {
             "@ctrl/tinycolor",
             "@shoelace-style/localize",
             "composed-offset-position",
-            "lit",
-            "lit-element",
-            "lit-html",
-            "@lit/reactive-element",
             "nanoid",
         )
     },
+    # `browser` is `npm run build:browser`. Lit also reruns `webawesome`, whose build
+    # refuses a Lit outside the range Web Awesome declares.
+    "lit": ("browser", "webawesome"),
+    "@preact/signals-core": ("browser",),
     "esbuild": (
         "agentic-mermaid",
         "floating-ui",
@@ -692,11 +714,8 @@ HELD_BY = {
     "@ctrl/tinycolor": "@awesome.me/webawesome",
     "@shoelace-style/localize": "@awesome.me/webawesome",
     "composed-offset-position": "@awesome.me/webawesome",
-    "lit": "@awesome.me/webawesome",
     "nanoid": "@awesome.me/webawesome",
-    "lit-element": "lit",
-    "lit-html": "lit",
-    "@lit/reactive-element": "lit",
+    "lit": "@awesome.me/webawesome",
 }
 
 
@@ -724,7 +743,7 @@ def newest(package: str, within: str = "latest") -> str:
 
 def report_pins() -> None:
     """Every pin against the newest release it could take, and the bundle to rebuild."""
-    for package, pinned in PINS.items():
+    for package, pinned in {**PINS, **browser_pins()}.items():
         holder = HELD_BY.get(package)
         allowed = (
             run(

@@ -128,7 +128,7 @@ describe("website page routing", () => {
       ...pages["/examples/triage-board"],
     });
     expect(isPrivatePageRequest("/_leaf/pages/index/index.html")).toBe(true);
-    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/reply")).toBe(
+    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/fail")).toBe(
       true,
     );
     expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);

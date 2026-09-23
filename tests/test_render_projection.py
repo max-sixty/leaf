@@ -1950,8 +1950,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     stamped_row.evaluate("row => window.__lfStampedRow = row")
     draft_row.evaluate("row => window.__lfDraftRow = row")
 
-    page.keyboard.press("Escape")
-    banner_control(page, ".lf-latest-chip").click()
+    page.keyboard.press("v")
     expect(page).to_have_title("Live third")
     banner_control(page, ".lf-version").click()
     expect(rows).to_have_count(3)

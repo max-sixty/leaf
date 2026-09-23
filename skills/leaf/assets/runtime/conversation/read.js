@@ -12,9 +12,9 @@
    mark it read: answering its widget does, and so does its thread's Mark read control.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). */
-import { shownRect, visibleBand } from "../geometry.js";
+import { shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
-import { closestAcross, containsAcross } from "../passages.js";
+import { containsAcross } from "../passages.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { firstUnreadBtn, panel, panelWouldCover } from "./panel-elements.js";
@@ -100,23 +100,16 @@ function visibleInterval(body, clips) {
   if (modal && !containsAcross(modal, body)) return null;
   if (panel.open && panelWouldCover() && !containsAcross(panel, body)) return null;
   const box = body.getBoundingClientRect();
+  // Sticky run headings are left out of what is shown (geometry.js, visibleBand), so a
+  // message hidden under one is not read.
   const shown = shownRect(body, clips);
   if (!shown || box.width <= 0 || box.height <= 0) return null;
   if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
-  let top = shown.top;
-  let bottom = shown.bottom;
-  // Sticky run headings paint above the list without clipping its scrollport, so a
-  // message hidden under one is not read: the list's visible band leaves them out.
-  const threadList = closestAcross(body, "leaf-thread-list");
-  const band = threadList && visibleBand(threadList);
-  if (threadList && !band) return null;
-  if (band) {
-    top = Math.max(top, band.top);
-    bottom = Math.min(bottom, band.bottom);
-  }
-  if (bottom <= top) return null;
   return {
-    interval: [Math.max(0, top - box.top), Math.min(box.height, bottom - box.top)],
+    interval: [
+      Math.max(0, shown.top - box.top),
+      Math.min(box.height, shown.bottom - box.top),
+    ],
     height: box.height,
     width: box.width,
     contentHeight: body.scrollHeight,

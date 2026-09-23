@@ -2,19 +2,24 @@
 
 import json
 import re
+import threading
 
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
+from leaf import http as http_model
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
+    _traffic,
+    heard_back,
     holding,
     leaf_page,
     open_page,
     panel_settled,
+    round_trip,
     sending,
     take_browser_errors,
     told,
@@ -239,15 +244,41 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(page.locator(".lf-first-unread")).to_be_hidden()
 
 
-def test_opening_threads_acknowledges_the_first_visible_answer(browser, serve):
+def test_opening_threads_acknowledges_the_first_visible_answer(
+    browser, serve, monkeypatch
+):
+    """Opening Threads over an answer already in view marks it read.
+
+    The read is bookkeeping and never enters the outbox, so the ledger's `pending` is
+    empty while its post is still on the wire. Holding the post before the server
+    appends it puts the log read on that edge every run: a trip judged by the outbox
+    alone is over before the event exists."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "An answer already in view.", author="agent")
     page = open_page(browser, url)
-    with sending(page, "read from expanded thread"):
+    arrived = threading.Event()
+    release = threading.Event()
+    accept = http_model.accept_event
+
+    def hold_the_read(page_dir, event, *args):
+        if event["kind"] == "read":
+            arrived.set()
+            release.wait()
+        return accept(page_dir, event, *args)
+
+    monkeypatch.setattr(http_model, "accept_event", hold_the_read)
+    try:
         page.locator(".lf-threads-toggle").click()
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    expect(card).to_have_attribute("open", "")
-    expect(page.locator(".lf-first-unread")).to_be_hidden()
+        assert arrived.wait(10), "opening Threads sent no read"
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        expect(card).to_have_attribute("open", "")
+        expect(page.locator(".lf-first-unread")).to_be_hidden()
+        on_the_wire = _traffic(page).read()
+        assert on_the_wire.pending == []
+        assert not heard_back(on_the_wire)
+    finally:
+        release.set()
+    round_trip(page)
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]

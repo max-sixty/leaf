@@ -134,14 +134,18 @@ const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 
 export async function importWidgets(scope) {
-  await prepareDeclaredInlineMarkdown(scope);
   // Before the modules import, because a widget's first render asks for these rules and
   // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
   // Asked of the same scope for the same reason, and that is what makes the narrowing
   // safe: `shadowStage` is reachable only from a module, a module loads only where its
   // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
   // same call. The theme is read once for the tab however many scopes ask.
-  if (presentTags(scope, (entry) => entry["x-shadow"]).length) await loadShadowRules();
+  await Promise.all([
+    prepareDeclaredInlineMarkdown(scope),
+    ...(presentTags(scope, (entry) => entry["x-shadow"]).length
+      ? [loadShadowRules()]
+      : []),
+  ]);
   await Promise.all(
     presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
       if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));

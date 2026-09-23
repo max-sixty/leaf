@@ -21,8 +21,9 @@ Each option carries its own title, one consequence, and the evidence needed to
 choose it. When comparable facts help, show the same few facts across the
 alternatives. For an interface or behavior choice, make the relevant interaction
 work inside each option so the reader can try every alternative before choosing.
-Text directly inside an `lf-option` uses the same Markdown formatting as a thread
-reply. HTML children such as `<strong>` titles, chips, and links remain HTML.
+Text directly inside an `lf-option` uses inline Markdown for emphasis, code
+spans, and links. Lists, headings, and fenced code are block syntax and do not
+render there. HTML children such as `<strong>` titles, chips, and links remain HTML.
 Reader-added options preserve their Markdown source across later picks and reloads.
 Hold everything except the disputed treatment constant, and include the current or
 no-treatment case as a neutral control. Put longer rationale or provenance in a

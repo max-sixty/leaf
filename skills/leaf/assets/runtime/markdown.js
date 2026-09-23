@@ -30,8 +30,11 @@ export async function prepareDeclaredInlineMarkdown(scope) {
   const elements = elementsDeclaring(scope, "x-text-format");
   if (declarationFor(scope, "x-text-format")) elements.unshift(scope);
   if (!elements.length) return;
-  if (!(await loadMarkdown()))
-    throw new Error("leaf: inline Markdown renderer failed to load");
+  let failure;
+  if (!(await loadMarkdown((error) => (failure = error))))
+    throw new Error(
+      `leaf: inline Markdown renderer failed to load: ${failure?.message ?? failure}`,
+    );
   for (const element of elements) {
     for (const node of [...element.childNodes]) {
       if (node.nodeType !== Node.TEXT_NODE || !node.data.trim()) continue;

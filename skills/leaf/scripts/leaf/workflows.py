@@ -13,7 +13,7 @@ covers; that thread's one answer, addressed to the newest, settles both.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  completed widget move in frozen thread markup, answered by `leaf reply --for`;
+  move in an answered Ask in frozen thread markup, answered by `leaf reply --for`;
 - `{"kind": "version", "conversation": <thread>}` — a thread the reader opened
   as a request for change, answered by a stamped version and a resolve;
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
@@ -31,7 +31,7 @@ draft or a moved card: the log carries it onto every later version, and the
 reader is waiting on nobody for it.
 """
 
-from .asks import answers_ask, ask_answered, ask_completion
+from .asks import answers_ask, ask_answered
 from .events import awaits_agent, seat_root, spoken_turns
 from .projection import (
     NO_RECORD,
@@ -357,9 +357,9 @@ def canonical_workflows(
                 )
             )
 
-    # Frozen widget actions are answered by the next agent turn in their
-    # conversation, once the reader's declared completion gesture stands. They
-    # have no later authored document to absorb them into.
+    # Frozen widget actions answer an Ask in their conversation, under the same
+    # rule as the page's: owed once the reader has answered it, and answered by the
+    # next agent turn there, since no later authored document absorbs them.
     if conversation is not None:
         for coordinate, (source, _spec) in conversation.projection.actions.items():
             if source["author"] != "user":
@@ -369,13 +369,14 @@ def canonical_workflows(
             if not thread or thread["resolved"]:
                 continue
             record = conversation.by_id[source["widget"]]
-            if (
-                ask_completion(
-                    record,
-                    page.registry.get(record["tag"], {}),
-                    conversation.projection,
-                )
-                is False
+            entry = page.registry.get(record["tag"], {})
+            if not answers_ask(record, entry, source["action"]) or not ask_answered(
+                record,
+                entry,
+                conversation.projection,
+                conversation.by_id,
+                conversation.spoken,
+                page.registry,
             ):
                 continue
             settled = any(

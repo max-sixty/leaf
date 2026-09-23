@@ -159,30 +159,41 @@
         },
         {
           "when": {
-            "not": {
-              "required": [
-                "meaning"
-              ],
-              "properties": {
-                "meaning": {
+            "allOf": [
+              {
+                "not": {
                   "required": [
-                    "document"
+                    "obligation"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "meaning"
                   ],
                   "properties": {
-                    "document": {
+                    "meaning": {
                       "required": [
-                        "kind"
+                        "document"
                       ],
                       "properties": {
-                        "kind": {
-                          "const": "thread"
+                        "document": {
+                          "required": [
+                            "kind"
+                          ],
+                          "properties": {
+                            "kind": {
+                              "const": "thread"
+                            }
+                          }
                         }
                       }
                     }
                   }
                 }
               }
-            }
+            ]
           },
           "text": "The log carries the action onto every later version, so the page keeps it without an edit."
         },

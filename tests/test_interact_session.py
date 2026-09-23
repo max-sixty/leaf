@@ -11402,3 +11402,53 @@ def test_a_finished_deck_owes_every_card_the_reader_sorted(page_dir):
     sort("card-c", 2, action="finish")
     owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
     assert owed_cards == ["card-a", "card-b", "card-c"]
+
+
+def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
+    """The page's rule holds in thread markup: a swipe before the deck's finish is
+    the reader still answering, so no reply is owed and the Ask stays theirs."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Sort these follow-ups.",
+            "markup": '<lf-swipe-deck id="triage">'
+            '<lf-swipe-pile id="queue" verdict="unseen">'
+            '<lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>'
+            '<lf-swipe-card id="card-b"><strong>Retry budget</strong></lf-swipe-card>'
+            "</lf-swipe-pile>"
+            '<lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>'
+            '<lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>'
+            "</lf-swipe-deck>",
+        },
+    )
+
+    def sort(card, index, action):
+        return append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "triage",
+                "action": action,
+                "detail": {"card": card, "to": "keep", "index": index},
+            },
+        )
+
+    sort("card-a", 0, "swipe")
+    sorting = state_json(page_dir)
+    assert sorting["workflows"] == []
+    assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
+
+    sort("card-b", 1, "finish")
+    finished = state_json(page_dir)
+    assert finished["asks"] == []
+    assert sorted(item["coordinate"][1] for item in owed(finished)) == [
+        "card-a",
+        "card-b",
+    ]

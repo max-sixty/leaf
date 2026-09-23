@@ -369,10 +369,6 @@ pick on the page:
         The reader already sees the action applied.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
       text: >-
-        The log carries the action onto every later version, so the page keeps it
-        without an edit.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
-      text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
@@ -396,10 +392,6 @@ pick adding an option:
   told:
     - text: >-
         The reader already sees the action applied.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
-      text: >-
-        The log carries the action onto every later version, so the page keeps it
-        without an edit.
     - when: {"allOf": [{"required": ["detail"], "properties": {"detail": {"required": ["additions"]}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
       text: >-
         When you write it into the markup, each of the action's `additions` becomes
@@ -424,7 +416,7 @@ pick before Done:
   told:
     - text: >-
         The reader already sees the action applied.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+    - when: {"allOf": [{"not": {"required": ["obligation"]}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
       text: >-
         The log carries the action onto every later version, so the page keeps it
         without an edit.

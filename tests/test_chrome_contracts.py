@@ -675,9 +675,17 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     }""")
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
-    banner_control(
-        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
-    ).tap()
+    # The selection's next step stands on the row in the reading loop's place, where
+    # the finger that made the selection finds it; More stays shut.
+    comment = page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Comment on selection"
+    )
+    expect(comment).to_be_visible()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    expect(page.locator(".lf-threads-toggle")).to_be_hidden()
+    box = comment.bounding_box()
+    assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
+    comment.tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
     field.fill("From a phone")
@@ -719,11 +727,27 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     little below: the page makes the room. This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
-    sizes = page.evaluate(
-        "() => [...document.querySelectorAll('input, textarea, select')]"
-        ".map(field => parseFloat(getComputedStyle(field).fontSize))"
-    )
-    assert sizes and min(sizes) >= 16, sizes
+    # Every field in the composed tree, the vendored controls' own native fields in
+    # their shadow roots included: the Threads find box and the Map's search are
+    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    sizes = page.evaluate("""() => {
+      const sizes = {};
+      const walk = (root) => {
+        for (const node of root.querySelectorAll('*')) {
+          if (node.matches('input, textarea, select')) {
+            const host = node.getRootNode().host;
+            const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
+            sizes[name] = Math.min(
+              sizes[name] ?? Infinity, parseFloat(getComputedStyle(node).fontSize));
+          }
+          if (node.shadowRoot) walk(node.shadowRoot);
+        }
+      };
+      walk(document);
+      return sizes;
+    }""")
+    assert any(name.startswith("wa-input.") for name in sizes), sizes
+    assert min(sizes.values()) >= 16, sizes
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(
         "body => parseFloat(getComputedStyle(body).fontSize)"
@@ -745,8 +769,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       getSelection().addRange(range);
     }""")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
-    comment = banner_control(
-        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    comment = page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Comment on selection"
     )
     box = comment.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box

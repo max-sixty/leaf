@@ -100,7 +100,7 @@ Transports own only their input boundary: which kinds and fields they accept,
 how they answer retries, and whether their anchors need file-side capture.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
-server-owned `meaning`; callers cannot send it or `generated`, and retry identity
+server-owned `meaning`; callers cannot send it, and retry identity
 compares the original command fields rather than this enrichment. Actions and
 reports record `document`, the `[owner, unit, facet]` coordinate, and `depends`,
 the direct element identities named by declared state fields. Requests record

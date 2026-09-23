@@ -250,10 +250,10 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
         cli_model.cli, ["delivery", "claim", first_delivery["id"]]
     )
     assert claimed.exit_code == 0, claimed.output
-    assert "working on thread first for event first" in claimed.output
+    assert "working on conversation first for event first" in claimed.output
     status = files_model.read_json(page_dir / "status.json")
     assert status["detail"] == session_model.DELIVERY_CLAIM_DETAIL
-    assert status["handling"]["target"] == {"kind": "thread", "id": "first"}
+    assert status["handling"]["target"] == {"kind": "conversation", "id": "first"}
     assert status["handling"]["event"] == first["id"]
     live = page_state(page_dir)
     assert "handling" not in live["status"]
@@ -1218,7 +1218,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     status = files_model.read_json(page_dir / "status.json")
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
     work = status["work"][0]
-    assert work["subject"] == {"kind": "thread", "id": "c1"}
+    assert work["subject"] == {"kind": "conversation", "id": "c1"}
     assert work["event"] == "c1"
     assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
     assert work["after"] == comment_seq
@@ -1231,7 +1231,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert live["claims"] == [
         {
             "id": work["id"],
-            "target": {"kind": "thread", "id": "c1"},
+            "target": {"kind": "conversation", "id": "c1"},
             "event": "c1",
             "source": "claim",
             "action": "working",
@@ -1553,7 +1553,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "id": "input-1",
         "input": "input-1",
         "seq": 1,
-        "coordinate": ["thread", "input-1"],
+        "coordinate": ["conversation", "input-1"],
         "answer": {"kind": "reply", "to": "input-1", "for": "input-1"},
         "stage": "working",
         "ts": (now - timedelta(minutes=20)).isoformat(),

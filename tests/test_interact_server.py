@@ -5350,7 +5350,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
                 "working",
                 "checking",
                 work={
-                    "subject": {"kind": "thread", "id": "c1"},
+                    "subject": {"kind": "conversation", "id": "c1"},
                     "after": page.events[-1]["seq"],
                 },
             )

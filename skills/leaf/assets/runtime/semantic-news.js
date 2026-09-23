@@ -87,7 +87,7 @@ function responseFailures(workflows) {
       key,
       kind: workflow.condition.kind,
       input: workflow.input,
-      thread: workflow.subject.kind === "thread" ? workflow.subject.id : null,
+      thread: workflow.subject.kind === "conversation" ? workflow.subject.id : null,
       seq: workflow.seq ?? 0,
     };
     failures.set(key, failure);

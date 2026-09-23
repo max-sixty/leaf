@@ -958,7 +958,9 @@ state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
-and `quietSince` refresh the callback only when their result changes. For another
+and `quietSince` refresh the callback only when their result changes. `quietSince(ts)`
+says whether working last heard at `ts` has gone unheard past the server's working
+grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function

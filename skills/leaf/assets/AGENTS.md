@@ -125,7 +125,7 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
-| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels and reader-Ask precedence |
+| message workflow and thread attention | the server's exact-input `workflows` and each Thread's aggregated `attention` | the publisher adds local Sending and the attention local sends imply; message metadata, compact rows, and margin entries share `conversation/workflow.js`'s labels |
 | which Asks stand and which the reader owes | the server's one `leaf.asks` fold, shipped as the view's `document.asks` and the conversation's `asks` | the publisher concatenates the page and thread readings and publishes them unchanged (Authoritative projection, below) |
 | proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | when a document-wide renderer paints | the publication that opened the epoch | each presenter claims its region in the publication and paints on the next pass, in the order `runtime/semantic-state.js` declares (root `AGENTS.md`, Cross-runtime invariants) |
@@ -263,10 +263,13 @@ one log snapshot without projecting all historical revisions on every read.
 
 Python supplies each thread's raw `awaits_reader` and aggregated `attention`.
 `awaitsReader` reads unresolved `attention`, which includes recovery even when the raw
-flag is false. The conversation model clears attention for an unresolved prose reply;
-the publisher restores a standing structural Ask that reply cannot answer. A pending
-resend retires the failed workflow's recovery obligation while retaining its historical
-message status. Refusal restores the accepted attention.
+flag is false. The browser never ranks workflows into attention again; it adjusts the
+server's reading for unresolved local sends only. The conversation model sets a thread
+holding an unresolved send to wait on that send, which also retires a failed workflow's
+recovery while keeping its historical message status; the publisher restores a
+standing structural Ask that send cannot answer, and hands a thread the server left
+with the agent back to the reader when a send there is refused. Otherwise refusal
+restores the accepted attention.
 The server's rules for structural and prose obligations live in `../scripts/leaf/events.md`,
 "Threads".
 

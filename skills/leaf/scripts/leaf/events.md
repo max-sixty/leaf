@@ -22,7 +22,7 @@ page and is not a global identifier. The kinds:
 | `report` | agent or worker | `leaf report` | as `action`, validated by the widget's `x-report`; `--references` supplies its declared role map | provisional state that stands until a stamped revision answers it |
 | `request` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`, and `data_revision` for a projected record; validated by the holder's `x-request` | a durable, non-undoable one-shot instruction to the host, seated on its admitted document, widget, and unit |
 | `receipt` | agent | `leaf receipt` | `request`, `succeeded` or `failed`, `text` | exactly one terminal outcome per accepted request |
-| `pickup` | page | the delivery carrier | `events`, `phase` (`queued` or `opened`), `session`, `turn` | the named reader events reached the durable Codex queue or entered an exact agent turn; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery carrier; a host failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named reader events reached the durable Codex queue or entered an exact agent turn, or the host gave up on them with no answer coming; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf version stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` | one public version mapped to an immutable revision, naming the decisions it took back and the reports or work it answered |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the reader |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the reader's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done) |
@@ -151,10 +151,13 @@ erase newer reader input. A substantive reply reopens a resolved conversation;
 reactions and host failure receipts leave its closure standing. A later resolution
 closes the conversation again. Reopening restores its still-unanswered widget Asks,
 as an explicit reopen does.
-A host that settles an ask because it cannot start work records `failure`, a nonempty
-host-owned code, on its reply; only the host reply writer can supply it, and the panel
-draws such a reply as a receipt whose head says the message answers nothing, since
-otherwise it is indistinguishable from the answer it stands in for.
+A host that gives up on a move records `failure`, a nonempty host-owned code, on the
+failure the move's answer takes (`conversation.fail_answer`): a reply for a message,
+including one in a conversation that asked for a version, a failed `receipt` for a
+request, and a failed `pickup` for an answer to a page Ask. Only the host writer
+supplies it, and the panel draws such a reply as a receipt whose head says the message
+answers nothing, since otherwise it is indistinguishable from the answer it stands in
+for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
@@ -194,8 +197,8 @@ them:
   message are one append, so the page never observes a move without the message that
   accounts for it. A thread whose root `holds` a command goal cannot move or detach.
 - A comment carrying `response: {kind: version, verb}` asks for a change to authored
-  state. `leaf reply` into that thread is refused, though the reader may still write
-  there, and `resolve` is accepted only once a later stamped version's authored state
+  state. `leaf reply` into that thread is refused, apart from a host failure receipt,
+  though the reader may still write there, and `resolve` is accepted only once a later stamped version's authored state
   answers the originating Ask, or changes its declared answer where the Ask was
   already answered; a log action does not substitute.
 - A message body is Markdown, stored as typed and rendered by the page's own vendored

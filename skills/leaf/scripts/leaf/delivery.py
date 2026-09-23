@@ -294,16 +294,18 @@ def record_pickup(
     phase: str = "opened",
     session: str | None = None,
     turn: str | None = None,
+    failure: str | None = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact reader moves.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn. Both are transport
-    evidence, not authored work claims. A queued transition may therefore be
-    followed by an opened transition for the same events, while a retry of the
-    same transition appends nothing.
+    ``opened`` means the batch entered an agent turn; ``failed`` means the host
+    gave up on the moves with the named ``failure`` and no answer is coming.
+    Queued and opened are transport evidence, not authored work claims. A queued
+    transition may therefore be followed by an opened transition for the same
+    events, while a retry of the same transition appends nothing.
     """
-    if phase not in {"queued", "opened"}:
+    if phase not in {"queued", "opened", "failed"}:
         raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
@@ -339,6 +341,7 @@ def record_pickup(
             "phase": phase,
             "session": session,
             "turn": turn,
+            **({"failure": failure} if failure is not None else {}),
         },
     )
 

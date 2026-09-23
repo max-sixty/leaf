@@ -9,7 +9,6 @@
    attention is canonical, while agent work can remain concurrent with it. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
-import { projectThreadAttention } from "./workflow.js";
 
 export const isReaction = (message) => Boolean(message.token);
 export const isAddressable = (message) => message.addressable !== false;
@@ -43,7 +42,15 @@ const pendingSeat = (message) =>
 //
 // The derived facts a pending thread carries are the ones the reader just made true: the
 // agent owes the next word, the reader owes none, and a thread the reader opened with
-// words is a conversation rather than a mark.
+// words is a conversation rather than a mark. Its attention waits on the newest send,
+// whose local workflow shares the pending message's id; every other thread keeps the
+// attention the server derived.
+const sending = (message) => ({
+  kind: "waiting",
+  reason: "workflow",
+  workflow: message.id,
+});
+
 export function foldThreads(threads, messages, reactions, settlements) {
   if (!messages.length && !reactions.length && !settlements.length) return threads;
   // A thread the reader opened answers to two names for as long as this tab holds a
@@ -87,13 +94,14 @@ export function foldThreads(threads, messages, reactions, settlements) {
       thread.resolved = null;
       thread.awaits_agent = true;
       thread.awaits_reader = false;
-      thread.attention = null;
+      thread.attention = sending(reply);
     }
   }
   for (const thread of opened) {
     const said = spoken(thread);
     thread.bare_reaction = isReaction(thread.root) && !said.length;
     thread.awaits_agent = Boolean(said.length);
+    thread.attention = said.length ? sending(said.at(-1)) : null;
   }
   for (const settlement of settlements) {
     const thread = byName.get(settlement.parent) ?? byName.get(settlement.localParent);
@@ -260,7 +268,7 @@ export function readThreadRecords(
     );
     const threadWorkflows = workflows.filter(
       (workflow) =>
-        (workflow.subject.kind === "thread" &&
+        (workflow.subject.kind === "conversation" &&
           workflow.subject.id === thread.root.id) ||
         (workflow.subject.kind === "widget" && widgetIds.has(workflow.subject.id)),
     );
@@ -276,7 +284,7 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       awaits_agent: thread.awaits_agent,
       awaits_reader: thread.awaits_reader,
-      attention: projectThreadAttention(thread.attention ?? null, threadWorkflows),
+      attention: thread.attention ?? null,
       workflows: threadWorkflows,
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

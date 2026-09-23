@@ -56,7 +56,7 @@ const responseFailure = (source, kind = "failed") => ({
   condition: { kind, operation: "response" },
   response: source,
   input: "input",
-  subject: { kind: "thread", id: "t" },
+  subject: { kind: "conversation", id: "t" },
   seq: 3,
 });
 

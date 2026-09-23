@@ -22,6 +22,13 @@ Answers are one of:
 - `{"kind": "receipt", "request": <request>}` — a request, answered by its one
   terminal receipt.
 
+A host that gives up on a move writes the failure its answer takes
+(`conversation.fail_answer`): a reply carrying `failure` in the conversation, a
+failed receipt, or a failed pickup of a page move. A failed receipt is the
+request's own outcome and settles it; the other two leave the move a workflow
+answered with a failed response, whose next actor is the reader, until the reader
+moves again or the markup records the move anyway.
+
 A reader move on an Ask the reader has not finished answering — a pick before
 the Done its group declares, a swipe before the deck's finish — hands nothing to
 the agent, so it is no workflow; once the Ask is answered, every move in its
@@ -237,6 +244,38 @@ def canonical_workflows(
             "response": None,
         }
 
+    def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
+        """The move a host failure record returned to the reader: answered, with a
+        failed response, and the reader's to send again."""
+        returned = workflow(source, target, coordinate, answer=None)
+        returned.update(
+            {
+                "stage": "answered",
+                "ts": record["ts"],
+                "detail": None,
+                "agent": record.get("agent"),
+                "session": record.get("session"),
+                "activity": [
+                    {
+                        "kind": "response",
+                        "detail": None,
+                        "ts": record["ts"],
+                        "session": record.get("session"),
+                        "turn": record.get("turn"),
+                    }
+                ],
+                "condition": {"kind": "failed", "operation": "response"},
+                "next_actor": "reader",
+                "response": {
+                    "id": record["id"],
+                    "attempt": record.get("attempt"),
+                    "state": "failed",
+                    "responds": source["id"],
+                },
+            }
+        )
+        return returned
+
     workflows = []
     clarifications = [
         (thread["root"]["seq"], seat)
@@ -251,8 +290,8 @@ def canonical_workflows(
         unanswered_inputs, response_address = thread_response_batch(turns)
         if thread["resolved"]:
             continue
-        target = {"kind": "thread", "id": thread_id}
-        coordinate = ["thread", thread_id]
+        target = {"kind": "conversation", "id": thread_id}
+        coordinate = ["conversation", thread_id]
         turns_by_id = {message["id"]: message for message in turns}
         for input_id, response in failed_responses.items():
             source = turns_by_id.get(input_id)
@@ -261,34 +300,7 @@ def canonical_workflows(
                 for message in turns
             ):
                 continue
-            failed = workflow(source, target, coordinate, answer=None)
-            failed.update(
-                {
-                    "stage": "answered",
-                    "ts": response["ts"],
-                    "detail": None,
-                    "agent": response.get("agent"),
-                    "session": response.get("session"),
-                    "activity": [
-                        {
-                            "kind": "response",
-                            "detail": None,
-                            "ts": response["ts"],
-                            "session": response.get("session"),
-                            "turn": response.get("turn"),
-                        }
-                    ],
-                    "condition": {"kind": "failed", "operation": "response"},
-                    "next_actor": "reader",
-                    "response": {
-                        "id": response["id"],
-                        "attempt": response.get("attempt"),
-                        "state": "failed",
-                        "responds": input_id,
-                    },
-                }
-            )
-            workflows.append(failed)
+            workflows.append(failed(source, target, coordinate, response))
         if response_address is None:
             continue
         if (thread["root"].get("response") or {}).get("kind") == "version" and any(
@@ -408,8 +420,15 @@ def canonical_workflows(
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
+    # A host that gave up on an owed page move recorded a failed pickup, which hands
+    # the move back to the reader until the markup records it or a newer move
+    # replaces it.
     for source, target, coordinate, answer in moves:
-        if answer is not None and newest[(target["id"], coordinate[1])] is source:
+        if answer is None or newest[(target["id"], coordinate[1])] is not source:
+            continue
+        if gave_up := deliveries.get(source["id"], {}).get("failed"):
+            workflows.append(failed(source, target, coordinate, gave_up))
+        else:
             workflows.append(workflow(source, target, coordinate, answer=answer))
 
     # A request is owed its one terminal receipt whatever became of the seat that

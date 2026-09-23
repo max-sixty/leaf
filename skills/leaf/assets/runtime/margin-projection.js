@@ -995,12 +995,15 @@ export function createMarginProjection({
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
         if (update.revision > runtime.currentRevision) continue;
-        if (update.target.kind === "thread" && representedThreads.has(update.target.id))
+        if (
+          update.target.kind === "conversation" &&
+          representedThreads.has(update.target.id)
+        )
           continue;
         if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
           continue;
         const target =
-          update.target.kind === "thread"
+          update.target.kind === "conversation"
             ? placedAt(update.target.id)?.element
             : elementById(update.target.id);
         const quiet =

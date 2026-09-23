@@ -49,7 +49,7 @@ def _apply_thread_attention(
         subject = workflow["subject"]
         thread_id = (
             subject["id"]
-            if subject["kind"] == "thread"
+            if subject["kind"] == "conversation"
             else thread_by_widget.get(subject["id"])
             if subject["kind"] == "widget"
             else None

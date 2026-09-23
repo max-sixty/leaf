@@ -2,9 +2,10 @@
 
 import copy
 import time
+from datetime import timedelta
 from pathlib import Path
 
-from ..activity import canonical_activity, canonical_stream_reply
+from ..activity import WORKING_GRACE, canonical_activity, canonical_stream_reply
 from ..data import browser_data_from, read_data
 from ..event_log import now_iso
 from ..events import build_threads
@@ -142,6 +143,10 @@ def full_state(
         # neither side can tell from the timestamp alone. Sent so the reading is
         # against the writer's clock rather than the reader's.
         "now": now,
+        # How long working may go unheard before it reads as quiet, measured on that
+        # clock. Activity below is already read against it; a package dating a
+        # worker's own reports asks `quietSince`, which reads this rather than a copy.
+        "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
         # The moment this answer was taken, for a tab holding two. Answers cross — two
         # sockets, one held by a proxy or a test while a later one lands, a POST's
         # answer beside a read — and the log's sequence and the data's revision order

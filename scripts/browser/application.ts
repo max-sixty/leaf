@@ -83,7 +83,7 @@ interface WireWorkflow {
   id: string;
   revision: number | null;
   input: string | null;
-  subject: { kind: "thread" | "widget"; id: string };
+  subject: { kind: "conversation" | "widget"; id: string };
   coordinate: unknown;
   answer: { kind: "reply" | "version" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
@@ -106,7 +106,7 @@ interface WireWorkflow {
     kind: "ended" | "interrupted" | "stale" | "failed";
     operation: "delivery" | "work" | "response";
   } | null;
-  next_actor: "reader" | "agent" | "none";
+  next_actor: "reader" | "agent";
 }
 
 /** The public Ask record packages read. */
@@ -612,19 +612,45 @@ export function createSemanticApplication({
     const widgets = foldWidgetStates(document.authored, projection);
     const projectedRequests = pendingRequests(unresolved, receipts);
     const asks = ready ? normalizedAsks(active, state?.browser.conversation) : NO_ASKS;
-    // A structural Ask survives prose sent beside it. `foldThreads` clears the
-    // conversation turn the prose answers; the admitted Ask inventory puts back only
-    // the independent obligation that still stands in that thread.
+    // Thread attention is the server's reading, and three local facts adjust it. A
+    // pending send hands the conversation to the agent, which `foldThreads` states. A
+    // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
+    // back the independent obligation that still stands in that thread. A refused send
+    // hands a conversation the server left with the agent back to the reader, whose
+    // Retry it is.
     const owed = new Set(asks.reader.map((ask) => ask.thread));
-    const obligated = folded.map((thread: any) =>
-      owed.has(thread.root.id) && thread.attention?.reason !== "ask"
+    const refused = new Map<string, string>();
+    for (const entry of unresolved.filter((entry: any) => entry.rejected)) {
+      const message = entry.message;
+      const held = document.descriptors.get(entry.event.widget)?.document;
+      const conversation = message
+        ? message.kind === "reply"
+          ? message.parent
+          : message.id
+        : held?.kind === "thread"
+          ? held.thread
+          : undefined;
+      if (conversation) refused.set(conversation, `rejected:${entry.event.attempt}`);
+    }
+    const obligated = folded.map((thread: any) => {
+      if (owed.has(thread.root.id))
+        return thread.attention?.reason === "ask"
+          ? thread
+          : {
+              ...thread,
+              awaits_reader: true,
+              attention: { kind: "needs_reader", reason: "ask", workflow: null },
+            };
+      const retry =
+        refused.get(thread.root.id) ??
+        (thread.root.attempt ? refused.get(PENDING + thread.root.attempt) : undefined);
+      return retry && thread.attention?.kind !== "needs_reader"
         ? {
             ...thread,
-            awaits_reader: true,
-            attention: { kind: "needs_reader", reason: "ask", workflow: null },
+            attention: { kind: "needs_reader", reason: "recovery", workflow: retry },
           }
-        : thread,
-    );
+        : thread;
+    });
     const entriesByMessage = new Map(
       unresolved
         .filter((entry: any) => entry.message)
@@ -639,7 +665,7 @@ export function createSemanticApplication({
         input: message?.id ?? entry.localId,
         subject: message
           ? {
-              kind: "thread",
+              kind: "conversation",
               id: message.kind === "reply" ? message.parent : message.id,
             }
           : { kind: "widget", id: entry.event.widget },
@@ -659,27 +685,8 @@ export function createSemanticApplication({
         next_actor: rejected ? "reader" : "agent",
       };
     };
-    // An optimistic prose reply answers the exact accepted obligation currently
-    // attached to its conversation. Keep that workflow on its original message as
-    // history, but retire its next actor until refusal removes the optimistic reply.
-    const acceptedThreads = new Map<string, any>();
-    for (const thread of state?.browser.conversation.threads ?? []) {
-      acceptedThreads.set(thread.root.id, thread);
-      if (thread.root.attempt) acceptedThreads.set(PENDING + thread.root.attempt, thread);
-    }
-    const answeredWorkflows = new Set(
-      pendingMessages
-        .filter((message: any) => message.kind === "reply")
-        .map((message: any) => acceptedThreads.get(message.parent)?.attention?.workflow)
-        .filter(Boolean),
-    );
-    const acceptedWorkflows = (state ? state.workflows : []).map((workflow) =>
-      answeredWorkflows.has(workflow.id)
-        ? { ...workflow, next_actor: "none" as const }
-        : workflow,
-    );
     const workflows = [
-      ...acceptedWorkflows,
+      ...(state ? state.workflows : []),
       ...pendingMessages.map((message: any) =>
         localWorkflow(entriesByMessage.get(message.id), false),
       ),

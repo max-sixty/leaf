@@ -605,7 +605,7 @@ test("one publication keeps per-input workflows and reader-first thread attentio
     {
       id: "first-work",
       input: "root",
-      subject: { kind: "thread", id: "root" },
+      subject: { kind: "conversation", id: "root" },
       stage: "replying",
       activity: [],
       condition: null,
@@ -614,7 +614,7 @@ test("one publication keeps per-input workflows and reader-first thread attentio
     {
       id: "second-work",
       input: "newer",
-      subject: { kind: "thread", id: "root" },
+      subject: { kind: "conversation", id: "root" },
       stage: "queued",
       activity: [],
       condition: null,
@@ -640,10 +640,11 @@ test("one publication keeps per-input workflows and reader-first thread attentio
     { kind: "reply", parent: "root", attempt: "local", text: "Third", revision: 1 },
     "2026-09-22T10:02:00-07:00",
   );
+  // The reader's own send hands the thread to the agent until the log answers it.
   assert.deepEqual(app.read().effective.conversation.all[0].attention, {
     kind: "waiting",
     reason: "workflow",
-    workflow: "first-work",
+    workflow: "pending:local",
   });
 });
 
@@ -692,7 +693,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   app.reject("local");
   assert.deepEqual(app.read().effective.conversation.all[0].attention, {
     kind: "needs_reader",
-    reason: "workflow",
+    reason: "recovery",
     workflow: "rejected:local",
   });
 
@@ -704,7 +705,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
       seq: 1,
       revision: 1,
       input: "root",
-      subject: { kind: "thread", id: "root" },
+      subject: { kind: "conversation", id: "root" },
       stage: "sent",
       activity: [],
       condition: null,
@@ -729,7 +730,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   acceptedApp.reject("next");
   assert.deepEqual(acceptedApp.read().effective.conversation.all[0].attention, {
     kind: "needs_reader",
-    reason: "workflow",
+    reason: "recovery",
     workflow: "rejected:next",
   });
 });
@@ -1109,7 +1110,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
       seq: 1,
       revision: 1,
       input: root.id,
-      subject: { kind: "thread", id: root.id },
+      subject: { kind: "conversation", id: root.id },
       stage: "answered",
       activity: [],
       condition: { kind: "failed", operation: "response" },

@@ -39,7 +39,7 @@ def standing_work_claims(status: dict, events: list) -> list:
     for claim in status.get("work", []):
         subject = claim["subject"]
         after = claim["after"]
-        if subject["kind"] == "thread":
+        if subject["kind"] == "conversation":
             thread = threads.get(subject["id"])
             if thread is None:
                 continue
@@ -150,7 +150,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
                 f"{target} is a resolved comment thread; reopen it before claiming work"
             )
         work = {
-            "subject": {"kind": "thread", "id": target},
+            "subject": {"kind": "conversation", "id": target},
             "after": events[-1]["seq"] if events else 0,
         }
         if awaits_agent(thread):

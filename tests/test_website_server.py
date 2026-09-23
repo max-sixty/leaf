@@ -24,9 +24,11 @@ import verify_site
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_SUBJECTS,
+    PAGE,
     STATED_TIMEOUT,
     Prose,
     append_command,
+    publish,
     running_http_server,
     yaml_document,
 )
@@ -34,13 +36,14 @@ from leaf import codex as leaf_codex
 from leaf.cli import cli
 from leaf.codex import accept_codex_delivery
 from leaf.codex import queue_records as codex_queues
-from leaf.conversation import cmd_resolve
+from leaf.conversation import cmd_reply, cmd_resolve
 from leaf.delivery import current_responses
 from leaf.event_log import append_event, read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import supervised_document
 from leaf.machine import pid_alive
+from leaf.requests import request_lifecycles
 from leaf.revision_artifact import Resource
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
@@ -1551,7 +1554,7 @@ def test_a_start_that_names_no_turn_gives_the_reader_their_message_back(
 
     def refuse(*args, **kwargs):
         with pytest.raises(SystemExit, match="bound to this delivery's final message"):
-            website_server.cmd_reply(
+            cmd_reply(
                 page_dir,
                 comment["id"],
                 "Competing tool reply",
@@ -1733,6 +1736,160 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     assert interrupts == []
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
     assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+
+
+def _page_pick(page_dir: Path) -> dict:
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    )
+    publish(page_dir)
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["backfill-first"]},
+        },
+    )
+
+
+def _request(page_dir: Path) -> dict:
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+            "<strong>Goal</strong>"
+            + COMMAND_SUBJECTS
+            + '<lf-ask id="commands-decision"><h3>What next?</h3>'
+            '<lf-operations id="commands" target="goal" worker="worker" '
+            'worktree="tree">'
+            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+            "</lf-operations></lf-ask></lf-task></lf-command></section>",
+        )
+    )
+    publish(page_dir)
+    return append_command(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+
+
+def _version_request(page_dir: Path) -> dict:
+    # No shipped Ask owns a version-response seat any more, so the page declares one.
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-options"]["x-conversation"] = {
+        "when": {"choose": [True]},
+        "response": {"kind": "version", "verb": "choose"},
+    }
+    registry_path.write_text(json.dumps(registry))
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    )
+    publish(page_dir)
+    return append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Add the camera as the first job.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    ("answer", "owed_move"),
+    (("markup", _page_pick), ("receipt", _request), ("version", _version_request)),
+)
+def test_a_failed_turn_hands_every_kind_of_owed_move_back(
+    page_dir, monkeypatch, answer, owed_move
+):
+    """A turn that ends without answering settles what it was given, whatever it was.
+
+    The hosted site starts a turn for every move that owes an answer: a message, a
+    request, an answer to a page Ask. Each takes the failure its own answer takes,
+    and each leaves the next step with the reader, so none stays owed with no turn
+    coming for it. A request's failed receipt is its lifecycle's own outcome and
+    reopens its seat. A pick keeps standing on the page, and the workflow says it was
+    not answered until the reader answers again. A conversation that asked for a
+    version is told in that conversation.
+    """
+    move = owed_move(page_dir)
+    assert current_responses(page_dir, read_events(page_dir))[move["id"]]["kind"] == (
+        answer
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir,
+        website_server.website_harness("hosted-thread", os.getpid()),
+    )
+
+    class Socket:
+        def recv(self, timeout):
+            return json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {
+                            "id": "app-server-turn",
+                            "status": "completed",
+                            "items": [],
+                        },
+                    },
+                }
+            )
+
+        def close(self):
+            pass
+
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(host, "_interrupt", lambda *args, **kwargs: None)
+    hosted_follower(host, page_dir, prepared, Socket()).follow()
+
+    events = read_events(page_dir)
+    state = website_server.full_state(page_dir, events)
+    assert state["activity"]["obligations"] == []
+    assert website_server.next_unaccepted_agent_event(page_dir) is None
+    returned = [
+        workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
+    ]
+    if answer == "receipt":
+        [receipt] = [event for event in events if event["kind"] == "receipt"]
+        assert (receipt["request"], receipt["status"], receipt["agent"]) == (
+            move["id"],
+            "failed",
+            website_server.WEBSITE_AGENT,
+        )
+        [lifecycle] = request_lifecycles(events)
+        assert lifecycle["phase"] == "ready"
+        assert returned == []
+        return
+    if answer == "markup":
+        [gave_up] = [
+            event
+            for event in events
+            if event["kind"] == "pickup" and event["phase"] == "failed"
+        ]
+        assert (gave_up["events"], gave_up["failure"]) == ([move["id"]], "turn_failed")
+    else:
+        [reply] = [event for event in events if event["kind"] == "reply"]
+        assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
+    [workflow] = returned
+    assert workflow["condition"] == {"kind": "failed", "operation": "response"}
+    assert (workflow["next_actor"], workflow["answer"]) == ("reader", None)
 
 
 def test_a_turn_that_will_not_stop_leaves_the_thread_rather_than_the_reader(
@@ -2769,7 +2926,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert "initiates" not in answer
     # Retrying the same delivery keeps one answer and its original response scope.
     assert (
-        website_server.cmd_reply(
+        cmd_reply(
             page_dir,
             comment["id"],
             "deployment verified",
@@ -2829,7 +2986,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         website_server.website_harness("hosted-thread", os.getpid()),
     )
     [delivery] = accept_codex_delivery("hosted-thread")
-    website_server.cmd_reply(
+    cmd_reply(
         page_dir,
         comment["id"],
         "Done.",
@@ -2863,16 +3020,8 @@ def test_a_host_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     website_server.prepare_codex_delivery(page_dir, harness)
     accept_codex_delivery("hosted-thread")
 
-    reply = website_server.cmd_reply(
-        page_dir,
-        comment["id"],
-        "The host could not start this task.",
-        "",
-        for_event=comment["id"],
-        attempt=website_server.agent_attempt(comment["id"]),
-        when_settled="skip",
-        only_if_unclaimed=True,
-        identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+    reply = website_server.write_failure_receipt(
+        page_dir, comment["id"], "startup_failed"
     )
 
     assert reply is None

@@ -1058,13 +1058,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-compact .lf-msg-head > b { color: var(--ink); font-size: 11px;
     font-weight: 600; overflow-wrap: anywhere; }
   /* The panel's own header may wrap its labels over the accordion's narrow column.
-     Outside it the shared one-row rule stands (shadow.css), so a lengthening receipt
-     ellipsizes in place rather than reflowing a transcript the reader is reading. */
+     Outside it the shared one-row rule stands (shadow.css). */
   .lf-thread-compact .lf-msg-meta { flex-wrap: wrap; gap: 6px;
     font-size: 10px; color: var(--muted); }
-  .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
-  .lf-msg-sending::before { content: "\00b7"; margin-inline-end: 6px;
-    color: var(--muted-2); }
   .lf-thread-compact .lf-msg-body { min-width: 0; margin-top: 4px; font-size: 13px; }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. The rail is one full-height native control, so pointer and keyboard use

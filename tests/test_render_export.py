@@ -2364,7 +2364,22 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
     expect(thread).to_have_count(1)
     expect(thread.locator("button")).not_to_have_count(0)
     if not resolved:
-        expect(thread.locator(".lf-msg-sending")).to_have_text("Working")
+        inline_workflow = thread.locator(".lf-msg-sending")
+        expect(inline_workflow).to_have_text("Working")
+        live.keyboard.press("c")
+        panel_workflow = live.locator(
+            f'.lf-chrome .lf-thread[data-id="{root["id"]}"] .lf-msg-sending'
+        )
+        expect(panel_workflow).to_have_text("Working")
+        workflow_face = """node => {
+          const style = getComputedStyle(node);
+          const separator = getComputedStyle(node, '::before');
+          return [style.color, style.fontWeight, style.whiteSpace,
+            separator.content, separator.color];
+        }"""
+        assert inline_workflow.evaluate(workflow_face) == panel_workflow.evaluate(
+            workflow_face
+        )
     live.emulate_media(media="print")
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
     assert (

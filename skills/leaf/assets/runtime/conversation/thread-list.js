@@ -151,7 +151,7 @@ const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
 // The list's place hold reports what the reader named. Follow while they have not
-// named another conversation and the latest words still meet the landing edge.
+// named another conversation and this conversation's tail meets the landing edge.
 const FOLLOW_ROOM = 80;
 function incomingAtLatest(reading, panelIsOpen, namedCard) {
   if (!panelIsOpen()) return null;
@@ -184,9 +184,15 @@ function incomingAtLatest(reading, panelIsOpen, namedCard) {
     );
   const band = landingBand(threadsBox);
   if (!node || !band) return null;
-  const bottom = node.getBoundingClientRect().bottom;
-  const edge = threadsBox.scrollHeight > threadsBox.clientHeight ? band.bottom : bottom;
-  if (bottom < edge - FOLLOW_ROOM || bottom > band.bottom + FOLLOW_ROOM) return null;
+  const tailStart = node.getBoundingClientRect().bottom;
+  const tailEnd = card.getBoundingClientRect().bottom;
+  const scrolls = threadsBox.scrollHeight > threadsBox.clientHeight;
+  if (
+    tailStart < band.top ||
+    tailStart > band.bottom + FOLLOW_ROOM ||
+    (scrolls && tailEnd < band.bottom - FOLLOW_ROOM)
+  )
+    return null;
   return {
     id: incoming.at(-1)?.id ?? nextLatest.id,
     top: threadsBox.scrollTop,

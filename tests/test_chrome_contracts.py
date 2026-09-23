@@ -343,6 +343,59 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
     )
 
 
+def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "A conversation with a draft.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Earlier answer {index}. " * 5,
+            },
+        )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(".lf-compose textarea").fill(("A draft line.\n" * 8).strip())
+    threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    before = threads.evaluate("el => el.scrollTop")
+    prior = card.locator(".lf-msg").last
+    fold = threads.evaluate(
+        "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+    )
+    assert prior.evaluate("el => el.getBoundingClientRect().bottom") < fold - 80
+    assert prior.evaluate("el => el.getBoundingClientRect().bottom") > threads.evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "This reply grows below the older words and above the draft. " * 20,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before", arg=before
+    )
+    assert card.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ) == pytest.approx(fold, abs=2)
+
+
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
     url = serve(LONG_PAGE)
     other = panel_comment(serve.page_dir, "An earlier conversation.")

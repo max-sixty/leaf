@@ -1706,8 +1706,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
   /* The chrome's own step boxes: the shortcut bar's sequences and its More key, and the
      reference's routes. Every element wearing these stands inside the runtime's
-     container, so the rules do too; the box is the one `.lf-key-badge` states at
-     document level in theme.css, and the two lists stay identical. */
+     container, so the rules do too; the box is the one `.lf-key-badge` states in
+     shadow.css, and the two lists stay identical. */
   .lf-binding-sequence > kbd, .lf-shortcut-more kbd { box-sizing: border-box;
     min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
     border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);

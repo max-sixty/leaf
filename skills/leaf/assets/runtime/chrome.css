@@ -623,6 +623,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
+  /* Keep the marker's box at every count; filling it must not move the button. */
   .lf-threads-toggle::after {
     content: ""; display: inline-block; width: 6px; height: 6px;
     margin-inline-start: 5px; border-radius: 50%; background: transparent;

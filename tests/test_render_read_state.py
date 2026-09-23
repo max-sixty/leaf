@@ -41,6 +41,9 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
         "data-unread-threads", ""
     )
+    expect(page.locator(".lf-threads-toggle")).to_have_attribute(
+        "title", "Show or hide the thread panel; 1 unread thread (g T)"
+    )
     thread_control_width = page.locator(".lf-threads-toggle").bounding_box()["width"]
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -60,7 +63,7 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
         "aria-label", re.compile("unread")
     )
     expect(page.locator(".lf-threads-toggle")).to_have_attribute(
-        "title", re.compile(r"^Show or hide the thread panel(?: \(g T\))?$")
+        "title", "Show or hide the thread panel (g T)"
     )
     assert (
         abs(

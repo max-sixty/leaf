@@ -42,7 +42,7 @@ function paintThreadCounts() {
   if (unread)
     toggleBtn.setAttribute("aria-label", `${toggleBtn.textContent}, ${unread}`);
   else toggleBtn.removeAttribute("aria-label");
-  toggleBtn.title = unread
+  toggleBtn.dataset.lfKeyTitle = unread
     ? `Show or hide the thread panel; ${unread}`
     : "Show or hide the thread panel";
 }

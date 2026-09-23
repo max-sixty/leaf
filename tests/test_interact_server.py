@@ -69,6 +69,7 @@ from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import service as served_service
+from leaf.structure import EXTERNAL_ORIGINS
 from page_fixtures import package_selection_args
 
 
@@ -967,6 +968,47 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
     assert reading["active"]["revision"] == stamped["revision"]
     assert reading["active"]["version"] == stamped["version"]
     assert reading["source_error"] is None
+
+
+def test_a_page_loads_from_the_external_origins_as_written(server, page_dir):
+    """Google Fonts and the script CDNs pass capture and delivery untouched."""
+    font = "https://fonts.googleapis.com/css2?family=Instrument+Sans&display=swap"
+    chart = "https://cdn.jsdelivr.net/npm/chart.js@4/+esm"
+    tailwind = "https://cdn.tailwindcss.com/3.4.1"
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "app.js").write_text(f'import "{chart}";\n')
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            f'<link rel="stylesheet" href="{html.escape(font)}">\n'
+            f'<style>@import url("{font}"); main {{ font-family: "Instrument Sans"; }}'
+            "</style>\n"
+            f'<script type="module" src="{tailwind}"></script>\n'
+            '<script type="module" src="/page/app.js"></script>\n</head>',
+        )
+    )
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    resources = activated.check.artifact.resources
+    assert resources["/page/app.js"].dependencies == ()
+    assert not any(path.startswith("http") for path in resources)
+
+    status, body = fetch(f"{server}/")
+    assert status == 200
+    for url in (html.escape(font), font, tailwind):
+        assert url.encode() in body
+    policy = html.unescape(
+        re.search(rb'http-equiv="Content-Security-Policy" content="([^"]*)"', body)
+        .group(1)
+        .decode()
+    )
+    directives = {
+        name: sources for name, *sources in (part.split() for part in policy.split(";"))
+    }
+    for name in ("default-src", "style-src", "script-src", "img-src"):
+        assert set(EXTERNAL_ORIGINS) <= set(directives[name]), name
+    module = re.search(rb'src="([^"]*/page/app\.js)"', body).group(1).decode()
+    assert fetch(f"{server}{module}")[1].decode() == f'import "{chart}";\n'
 
 
 def test_server_round_trip(server, page_dir):

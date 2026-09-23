@@ -65,6 +65,7 @@ from .server import preview_metadata
 from .service import PageTransaction
 from .specimens import Specimens
 from .structure import (
+    EXTERNAL_SOURCES,
     FRAME_ANCESTORS_CSP,
     PAGE_CSP,
     UTF8_BOM,
@@ -380,7 +381,10 @@ def supervised_document(
     # nonce still decides which script runs. `write_live_shell` composes published
     # documents here too, so the site's static pages carry the allowance to readers
     # no driver polls.
-    csp = PAGE_CSP + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval'"
+    csp = (
+        PAGE_CSP
+        + f"; script-src 'self' 'nonce-{nonce}' 'unsafe-eval' {EXTERNAL_SOURCES}"
+    )
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'
         if release_id is not None

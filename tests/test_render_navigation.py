@@ -3611,14 +3611,16 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
             }"""
         )
         assert landing["target"]["bottom"] <= landing["listBottom"]
-        # At the scroll limit the list cannot align an earlier block with its start.
-        # The reply target and line crossing checks still cover that arrival.
+        # On macOS the 18-paragraph case reaches scrollTop == maximumScroll
+        # (69/69 measured); there is no travel left to align a content block.
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
                 block["top"] == pytest.approx(landing["start"], abs=2)
                 for block in landing["blocks"]
             ), f"the long arrival cut through a content block: {landing}"
-        elif not landing["scroll"]:
+        elif landing["scroll"]:
+            assert landing["target"]["top"] >= landing["start"] - 1
+        else:
             assert landing["blocks"][0]["top"] >= landing["start"] - 1
         assert not landing["crossedLines"], (
             f"the pinned heading cut through a text line: {landing}"

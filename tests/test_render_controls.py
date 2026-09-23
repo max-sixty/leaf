@@ -208,9 +208,15 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     child.lf_traffic = Traffic(child)
     child_url = child.url
     assert child.url != other.url
-    # Each frame takes its page's height, so the containing page scrolls it whole.
+    # A child's startup does not take focus from the page it arrives in.
+    assert page.evaluate("document.activeElement.tagName") != "IFRAME"
+    # Each frame takes its page's height, so the containing page scrolls it whole:
+    # the child's viewport ends where its page does.
     for practice in (child, other):
-        assert practice.evaluate("document.documentElement.scrollHeight <= innerHeight")
+        assert practice.evaluate(
+            "Math.abs(document.querySelector('main').getBoundingClientRect().bottom"
+            " - innerHeight) <= 1"
+        )
 
     # The first click lands on the child's control; there is no entry step.
     with sending(child, "the specimen choice"):

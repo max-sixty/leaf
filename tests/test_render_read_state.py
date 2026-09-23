@@ -729,14 +729,29 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
-    # Below the first screen, the containing page has to scroll to show the specimen,
-    # and what it shows once scrolled there counts.
+    # Below the first screen and taller than the window, the specimen is read through
+    # the band the containing page shows as it scrolls: its edge coming into view shows
+    # nothing, and a later scroll of the containing page shows the message.
     clip.evaluate(
         "element => { element.style.height = ''; element.style.overflow = '';"
         " element.style.marginTop = '2000px'; }"
     )
-    frame.scroll_into_view_if_needed()
-    assert page.evaluate("scrollY") > 1000
+    child.evaluate("""() => {
+        const spacer = document.createElement('div');
+        spacer.style.height = '3000px';
+        document.querySelector('main').append(spacer);
+    }""")
+    page.wait_for_function(
+        "() => document.querySelector('#read-practice iframe').offsetHeight > 3000"
+    )
+    page.evaluate("""() => {
+        const top = document.querySelector('#read-practice iframe')
+            .getBoundingClientRect().top;
+        scrollBy(0, top - innerHeight + 20);
+    }""")
+    page.wait_for_timeout(200)
+    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    page.evaluate("scrollBy(0, 700)")
     expect(child.locator(".lf-first-unread")).to_be_hidden()
 
 

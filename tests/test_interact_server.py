@@ -104,7 +104,7 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     assert b"<html data-lf-contained" in document
-    assert not re.search(rb"<body[^>]*\binert", document)
+    assert re.search(rb"<body[^>]*\binert", document)
     assert fetch(child + "/theme.css") == (200, captured_theme)
     [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
     assert module_path == f"{root}/page/specimen.js".encode()

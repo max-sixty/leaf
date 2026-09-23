@@ -1,9 +1,9 @@
 /* A specimen is a normally served Leaf page with its own disposable event log.
  * The server captures an authored template and its layer; this owner handles the
- * frame's readiness and reset. The frame stays inert until its child presents, so a
- * loading child cannot take focus from the page; after that, focus entering the frame
- * is entry, the way it is for any iframe. The child's final Escape asks the frame's
- * owner to take focus back with `lf-specimen-return`. Passive demonstrations use the
+ * frame's readiness and reset. The child arrives inert, so its startup cannot take
+ * focus from the page; this owner releases a live child once it presents, and after
+ * that focus entering the frame is entry, the way it is for any iframe. The child's
+ * final Escape asks the frame's owner to take focus back with `lf-specimen-return`. Passive demonstrations use the
  * same host and remain inert throughout their playback. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
@@ -76,7 +76,7 @@ export function mountSpecimen(frame, { template, passive = false }) {
   let operation = null;
   let closing = null;
   let loading = null;
-  frame.inert = true;
+  frame.inert = passive;
   frame.toggleAttribute("data-lf-contained", true);
   if (!passive) frame.dataset.lfExport = "document";
 
@@ -99,7 +99,6 @@ export function mountSpecimen(frame, { template, passive = false }) {
   }
 
   async function replace() {
-    frame.inert = true;
     await retire();
     if (destroyed) throw new DOMException("specimen destroyed", "AbortError");
     const { url } = await request(pageUrl("api/specimens"), { template, passive });
@@ -108,7 +107,7 @@ export function mountSpecimen(frame, { template, passive = false }) {
       if (destroyed) throw new DOMException("specimen destroyed", "AbortError");
       loading = new AbortController();
       const doc = await presented(frame, current, loading.signal);
-      frame.inert = passive;
+      if (!passive) doc.body.inert = false;
       return doc;
     } catch (error) {
       await retire();
@@ -137,7 +136,6 @@ export function mountSpecimen(frame, { template, passive = false }) {
     destroy() {
       if (closing) return closing;
       destroyed = true;
-      frame.inert = true;
       loading?.abort();
       window.removeEventListener("pagehide", departing);
       // Retire synchronously even on pagehide. An allocation already in flight

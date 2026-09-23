@@ -43,7 +43,7 @@ function frameBand() {
   let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
   let x = 0;
   let y = 0;
-  for (let current = window; current !== current.top; ) {
+  for (let current = window; current !== current.top;) {
     let frame;
     try {
       frame = current.frameElement;
@@ -123,7 +123,7 @@ export function createReadTracking({ markRead, showThread }) {
   const renderedBodies = new Map();
   const refusedAutomatic = new Set();
   const sizes = new ResizeObserver(() => scheduleScan());
-  const frameObservers = [];
+  const frameWatches = [];
   let committedThreads = [];
   let presented = false;
   let presentationGeneration = 0;
@@ -248,9 +248,11 @@ export function createReadTracking({ markRead, showThread }) {
       coverage = new WeakMap();
     });
     addEventListener("load", scheduleScan, true);
-    // Moving a specimen frame in its parent changes exposure without a scroll or
-    // resize inside the child. Observe each containing frame in its own viewport.
-    for (let current = window; current !== current.top; ) {
+    // What a containing page shows of this one changes without a scroll or resize
+    // inside it: the owner scrolls a frame taller than its viewport through the band
+    // (frameBand), and moving the frame changes it without any scroll at all. Watch
+    // each containing page's scrolling and each frame in its owner's viewport.
+    for (let current = window; current !== current.top;) {
       let frame;
       try {
         frame = current.frameElement;
@@ -263,15 +265,21 @@ export function createReadTracking({ markRead, showThread }) {
         threshold: [0, 1],
       });
       observer.observe(frame);
-      frameObservers.push(observer);
+      owner.addEventListener("scroll", scheduleScan, true);
+      owner.addEventListener("resize", scheduleScan);
+      frameWatches.push(() => {
+        observer.disconnect();
+        owner.removeEventListener("scroll", scheduleScan, true);
+        owner.removeEventListener("resize", scheduleScan);
+      });
       current = owner;
     }
     addEventListener(
       "pagehide",
       () => {
         sizes.disconnect();
-        for (const observer of frameObservers) observer.disconnect();
-        frameObservers.length = 0;
+        for (const unwatch of frameWatches) unwatch();
+        frameWatches.length = 0;
       },
       { once: true },
     );

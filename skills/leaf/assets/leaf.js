@@ -673,7 +673,6 @@ trays = createTrays({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],

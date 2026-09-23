@@ -13,8 +13,8 @@
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `a`, `f`, `h`,
    `m`, and `t` name filters; all nine are excluded from the generated alphabet. `g g` and
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
-   an edge of the list; from a beside-panel, `g p` returns focus to the page while keeping
-   the panel open. Uppercase mnemonics remain named
+   an edge of the list; `g p` returns focus to the page while leaving open surfaces
+   standing. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
    panel destination toggles that panel, matching its visible control. Completing one that
@@ -45,9 +45,9 @@
 
    A press may deliberately leave layers standing while moving focus outside them. That is
    not an Escape rung, because it gives no layer back. The Go-to address states what
-   remains open: beside the document, `g p` returns from the thread panel to the document
-   and keeps both the panel and its narrowing. A panel covering the document cannot make
-   that promise, so its ordinary Escape rung remains the route back.
+   remains open: `g p` returns to the document and keeps beside-page surfaces open,
+   including panel narrowing. A surface covering the document cannot make that promise,
+   so its ordinary Escape rung remains the route back.
 
    A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
    panel or tray for another, and the surface the reader ends in owns the one step that
@@ -77,7 +77,6 @@ import { pageParts } from "../passages.js";
 import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { inPanel as panelFocusIsInside } from "../conversation/panel-elements.js";
 import { threadsBox } from "../conversation/panel-elements.js";
 import {
   currentTray,
@@ -102,7 +101,6 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   panelIsOpen,
-  panelCovers,
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations,
@@ -123,7 +121,6 @@ export function createGoToSequence({
   leavePageMap,
   pageMapIsActive,
 }) {
-  const inPanel = () => panelFocusIsInside(panelIsOpen);
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
   // row's own binding, so a rebinding cannot leave a sentence promising the old press.
@@ -637,16 +634,13 @@ export function createGoToSequence({
           },
         },
         {
-          id: "navigation.page.return",
-          // This is travel from the panel to the page, not an Escape rung: every layer
-          // remains standing, so the Go-to address says what stays open. A covering panel locks
-          // the document scroller and has no page to hand back; ordinary Escape remains
-          // the truthful route there. It follows the focused thread's own placements so
-          // they keep the short line a reader standing on that card arrived to use.
+          id: "navigation.page.focus",
+          // This changes focus without unwinding an open surface. A covering surface
+          // makes the page inert, so its Escape rung remains the route back.
           keys: PAGE_RETURN_KEYS,
-          does: "Return to the page, keeping the thread panel open",
-          line: "page — threads kept",
-          when: () => atGoToTargets() && inPanel() && !panelCovers(),
+          does: "Focus the page",
+          line: "page",
+          when: () => atGoToTargets() && !coveringAuxiliarySurface(),
           run: () => {
             setGoToSequence(false);
             letGo();

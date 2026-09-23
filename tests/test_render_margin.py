@@ -5672,6 +5672,50 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
 
+def test_anchored_thread_reading_keys_and_page_return(browser, serve):
+    """The focused conversation pages its own transcript; g p returns to the page
+    without dismissing the card, and the next d pages the document."""
+    url = serve(PANEL_PAGE)
+    panel_comment(
+        serve.page_dir,
+        "A long comment about capacity. " + "Review the capacity limit. " * 250,
+        {"section": "how-cap"},
+    )
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 700}, reduced_motion="reduce"
+    )
+    page = open_page(browser, url, context=context)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    transcript = preview.locator(".lf-margin-preview-list")
+    assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+
+    page.keyboard.press("d")
+    assert transcript.evaluate("box => box.scrollTop") > 0
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    expect(preview).to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    preview.get_by_role("button", name="Dismiss conversation view").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    expect(preview).to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("d")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > before
+
+    marker.focus()
+    marker_page = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.keyboard.press("d")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > marker_page
+
+
 @pytest.mark.parametrize("width", [1440, 1920])
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     browser, serve, width

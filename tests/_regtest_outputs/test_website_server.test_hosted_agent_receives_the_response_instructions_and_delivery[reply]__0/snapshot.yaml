@@ -59,6 +59,7 @@ turn/start:
       the thread in the same reply with `--section <id>` (narrowed by `--quote`
       or `--part` if needed), or `--detach` it if its subject has left the page.
       Leave the thread open unless the reader asks you to close it or nothing further
-      could change the outcome."},"events":[{"kind":"comment","author":"user","text":"Use
+      could change the outcome. Your reply renders as Markdown, so show code or
+      markup in a fenced block."},"events":[{"kind":"comment","author":"user","text":"Use
       backfill first.","id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":["h1"],"obligation":{"as_of_seq":1,"response":{"kind":"reply","to":"reader-event","for":"reader-event"}}}]}]}'
   turnTrigger: leaf

@@ -1489,6 +1489,10 @@ def resolve(a, b):
 
 > which one wins?
 
+<lf-grid columns="3">
+  <div>a tile</div>
+</lf-grid>
+
 Unsafe destinations stay words: [script](javascript:alert(1)), [inline data](data:text/html,boom), [local file](file:///tmp/secret), and [custom handler](editor://open/project).
 """
 REF_PAGE = leaf_page(

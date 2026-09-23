@@ -57,7 +57,8 @@ delivered:
           is anchored on, move the thread in the same reply with `--section <id>`
           (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
           subject has left the page. Leave the thread open unless the reader asks
-          you to close it or nothing further could change the outcome.
+          you to close it or nothing further could change the outcome. Your reply
+          renders as Markdown, so show code or markup in a fenced block.
       events:
         - kind: comment
           author: user

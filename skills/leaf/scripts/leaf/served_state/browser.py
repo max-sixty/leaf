@@ -77,15 +77,16 @@ def _apply_thread_attention(
                 "reason": "recovery",
                 "workflow": workflow["id"],
             }
-        elif any(
-            workflow["answer"] is not None or workflow["stage"] == "working"
+        elif waiting := [
+            workflow
             for workflow in candidates
-        ):
+            if workflow["answer"] is not None or workflow["stage"] == "working"
+        ]:
             # The thread waits on the agent while the agent owes an answer there or
             # is working there. A move that owes nothing, such as a card moved on a
             # board frozen into a message, shows its receipt on that message
-            # without making the thread the agent's turn.
-            workflow = max(candidates, key=priority)
+            # without making the thread the agent's turn or naming its status.
+            workflow = max(waiting, key=priority)
             thread["attention"] = {
                 "kind": "waiting",
                 "reason": "uncertain" if workflow["condition"] else "workflow",

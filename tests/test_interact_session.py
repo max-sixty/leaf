@@ -677,6 +677,34 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
         "workflow": answered["id"],
     }
 
+    # A host that gives up answers the move with a failure reply, which hands it
+    # back to the reader rather than settling it.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "responds": answered["id"],
+            "failure": "turn_failed",
+            "text": "No answer is coming.",
+        },
+    )
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["next_actor"], workflow["condition"]) == (
+        answered["id"],
+        "reader",
+        {"kind": "failed", "operation": "response"},
+    )
+    assert state["activity"]["obligations"] == []
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert thread["attention"] == {
+        "kind": "needs_reader",
+        "reason": "recovery",
+        "workflow": answered["id"],
+    }
+
 
 def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     page_dir,
@@ -750,6 +778,13 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
         "workflow": moved["id"],
     }
 
+    # A mark is no turn; the agent's next spoken turn takes the move in.
+    events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "agent", "parent": asked["id"], "token": "keep"},
+    )
+    state, attention = reading()
+    assert [item["input"] for item in state["workflows"]] == [moved["id"]]
     events_model.append_event(
         page_dir,
         {
@@ -762,6 +797,28 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     )
     state, attention = reading()
     assert state["workflows"] == []
+    assert attention is None
+
+    # Resolution closes the conversation without taking in a move made after it.
+    conversation_model.cmd_resolve(page_dir, asked["id"])
+    later = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+        },
+    )
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["stage"], workflow["answer"]) == (
+        later["id"],
+        "sent",
+        None,
+    )
     assert attention is None
 
 

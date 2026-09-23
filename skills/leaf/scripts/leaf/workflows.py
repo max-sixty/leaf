@@ -30,7 +30,7 @@ reader-owned draft or a moved card, owes nothing: the log carries it onto every
 later reading of its document. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
-until the agent's next turn in that thread.
+until the agent's next spoken turn in that thread or a resolution after it.
 
 A reader move on an Ask the reader has not finished answering — a pick before
 the Done its group declares, a swipe before the deck's finish — has not been
@@ -376,21 +376,28 @@ def canonical_workflows(
 
     def thread_move(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
         # No later authored document absorbs frozen markup, so the thread's next
-        # agent turn is what settles a move there: the reply addressed to an owed
-        # move, and for a move that owes nothing any agent turn after it, which has
-        # taken the move in as a later version takes in a page move.
+        # spoken agent turn is what settles a move there: the reply addressed to an
+        # owed move, and for a move that owes nothing any agent turn after it, which
+        # has taken the move in as a later version takes in a page move. A reaction
+        # is no turn, and a host's failure reply says no answer is coming rather
+        # than answering. The resolution standing over the thread settles the moves
+        # made before it, and the answer that resolved it; a move made after it is
+        # delivered like any other and keeps its receipt.
         thread_id = conversation.thread_by_widget.get(source["widget"])
         thread = threads.get(thread_id)
-        if not thread or thread["resolved"]:
+        if not thread or (
+            thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
+        ):
             return False, None
         settled = any(
             message["author"] == "agent"
+            and not message.get("failure")
             and (
                 message.get("responds") == source["id"]
                 if owed
                 else message["seq"] > source["seq"]
             )
-            for message in thread["msgs"]
+            for message in spoken_turns(thread)
         )
         return not settled, (
             {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
@@ -443,14 +450,15 @@ def canonical_workflows(
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    # A host that gave up on an owed page move recorded a failed pickup, which hands
-    # the move back to the reader until the markup records it or a newer move
-    # replaces it.
+    # A host that gave up on an owed move recorded the failure its answer takes — a
+    # failed pickup for a page move, a failure reply for a frozen one — which hands
+    # the move back to the reader until the move settles or a newer move replaces it.
     for source, target, coordinate, unsettled, answer in moves:
         if not unsettled or newest[(target["id"], coordinate[1])] is not source:
             continue
         if answer is not None and (
             gave_up := deliveries.get(source["id"], {}).get("failed")
+            or failed_responses.get(source["id"])
         ):
             workflows.append(failed(source, target, coordinate, gave_up))
         else:

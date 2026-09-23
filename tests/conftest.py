@@ -419,6 +419,24 @@ def iphone(_playwright):
         webkit.close()
 
 
+@pytest.fixture
+def scrollbar_browser(_playwright):
+    """The Chromium shell with its scrollbars shown. The shared `browser` launches with
+    Playwright's default `--hide-scrollbars`, under which the root's scrollbar takes no
+    width, so nothing that turns on a classic scrollbar's gutter can be read there. A
+    page still draws overlay scrollbars on some hosts; one that styles
+    `::-webkit-scrollbar` gets a classic bar everywhere. Browser problems are rejected
+    as in `browser`, and its pages arrive readable for the same reason."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    shown = _playwright.chromium.launch(ignore_default_args=["--hide-scrollbars"])
+    try:
+        with clean_browser():
+            yield WatchedBrowser(shown)
+    finally:
+        shown.close()
+
+
 @pytest.fixture(scope="session")
 def headless_shell():
     """The path of a browser that is not installed Chrome, for the tests that hand

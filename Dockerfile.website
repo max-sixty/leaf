@@ -26,7 +26,8 @@ COPY pyproject.toml uv.lock ./
 COPY skills/leaf ./skills/leaf
 RUN uv sync --frozen --no-dev --compile-bytecode \
     && /app/.venv/bin/python -m compileall -q /app/skills/leaf/scripts/leaf \
-    && /app/.venv/bin/leaf --version
+    && /app/.venv/bin/leaf --version \
+    && ln -s /app/.venv/bin/leaf /usr/local/bin/leaf
 
 COPY worker/codex-config.toml /app/.codex/config.toml
 

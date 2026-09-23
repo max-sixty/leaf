@@ -391,7 +391,6 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "snapshot": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "required": ["contract", "source"],
         "additionalProperties": False,
@@ -402,7 +401,7 @@ MEASURED_SCHEMA = {
     "properties": {
         # The x-data input whose source timestamp says whether another run landed.
         "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the source snapshot's recorded instant.
+        # The widget attribute holding the source value's recorded instant.
         "at": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["input", "at"],
@@ -559,6 +558,7 @@ MEDIA_TYPES = {
 }
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
+DATA_DIR = "data"
 EVENTS_FILE = "events.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
@@ -583,7 +583,7 @@ PAGE_STATE_FILES = (
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, "page")
+PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, DATA_DIR, "page")
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.

@@ -4,6 +4,7 @@ import {
   matchesWhen,
   quoted,
   textNodesUnder,
+  upFrom,
 } from "/runtime/widget-api.js";
 import { visualPartProblems } from "/runtime/visual-parts.js";
 import { openRoots } from "./open-roots.js";
@@ -42,7 +43,7 @@ const renderedAt = (element) => {
   const ancestors = [];
   for (let current = element; current;) {
     ancestors.push(current);
-    current = current.parentElement ?? current.getRootNode().host ?? null;
+    current = upFrom(current);
   }
   const owner =
     ancestors.find((el) => el.id && el.localName.includes("-")) ??

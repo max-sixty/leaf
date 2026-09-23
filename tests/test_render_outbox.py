@@ -2372,6 +2372,7 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
     """A preparation await does not freeze the set of unresolved user gestures."""
     url = _serve_preparing_thread(serve)
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.route("**/api/state*", refuse)

@@ -2,13 +2,7 @@
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it; a standalone copy gets its text written into a
-   <style> by the bake.
-
-   Two numbers here are spelled again in the runtime, and a layer test holds each pair
-   equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
-   THREAD_PANEL_W (chrome-layout.js), and `(width <= 600px)` is twice TRAY_SLOT_W (trays.js). A
-   container or media query cannot read a custom property, which is why each query is a
-   literal rather than the --lf-thread-panel-width the runtime writes. */
+   <style> by the bake. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
    inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
@@ -80,8 +74,8 @@
    specificity therefore beats each component's own rule — a default outranking the
    thing it is a default for — and nothing catches it, since a rule that never applies
    renders nothing to gate. So the shared vocabulary's faces are stated page-side, where
-   a component that names the same property wins by coming later: .lf-key-badge and the
-   whole margin-entry family in theme.css, and .lf-ui, .lf-btn and its focus ring,
+   a component that names the same property wins by coming later: the whole margin-entry
+   family in theme.css, and .lf-key-badge, .lf-ui, .lf-btn and its focus ring,
    .lf-chip, a thread mark's note and the aim floor in shadow.css, which also reaches the
    widget trees this sheet never does. What stays here is the paint the runtime lays
    over the page, which has to beat page and widget alike. `box-sizing` stays for the
@@ -847,8 +841,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel[open] { display: flex; }
-  /* A covering panel shares the auxiliary scrim with the trays. A beside panel leaves
-     that scrim hidden, so this non-modal dialog needs no ::backdrop of its own. */
+  /* The panel stands over the page at every width. It shares the auxiliary scrim only
+     where it leaves less than a usable page and covers it; elsewhere the page beside it
+     stays live and no scrim shows. The dialog is shown non-modally either way, so it
+     needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
      the two lines that place it. It draws nothing of its own: the region's inner border
@@ -1034,12 +1030,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-pinned + .lf-thread { padding-top: 4px; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
-  /* A single title row remains when the retained conversation is closed. Count
-     has its own column, so titles and counts keep their keylines across rows. */
+  /* A single title row remains when the retained conversation is closed. Optional
+     labels occupy only the space they use; counts share the trailing keyline. */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     background: transparent; border-radius: 0; }
   .lf-pinned + .lf-thread-compact { padding-top: 0; }
-  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 3ch 80px;
+  .lf-thread-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 3ch;
     align-items: center; gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
     padding: 4px 8px; background: transparent; color: var(--ink);
     text-align: left; font: 500 13px/20px var(--sans); cursor: pointer; }
@@ -1048,14 +1044,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lf-thread-draft { grid-column: 2; color: var(--muted); font-size: 10px; }
+  .lf-thread-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread, .lf-unread-label { color: var(--turn-ink); font-size: 10px;
     font-weight: 700; white-space: nowrap; }
-  .lf-thread-unread { grid-column: 3; }
-  .lf-thread-status { grid-column: 5; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  .lf-thread-status { max-width: 80px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; color: var(--muted); font-size: 11px; }
   .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
-  .lf-thread-count { grid-column: 4; color: var(--muted); font-size: 11px; text-align: right;
+  .lf-thread-count { color: var(--muted); font-size: 11px; text-align: right;
     font-variant-numeric: tabular-nums; }
   /* One inset serves the quote, messages and composer. Author, time and delivery
      form one quiet header. */
@@ -1106,7 +1102,31 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   :is(.lf-summary-expand, .lf-summary-refold):is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: summary-fold;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  .lf-thread-compact > .lf-compose { margin: 16px 8px 8px; }
+  /* The draft's words start and wrap in the same measure as a sent message.
+     Send has its own row below the textarea's scrollport, so every draft line
+     remains clear of it even when the textarea scrolls internally. */
+  .lf-thread-compact > .lf-compose { margin: 16px 0 8px; }
+  .lf-thread-compact > .lf-compose .lf-compose-field {
+    border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-field:has(> textarea:is(:focus, .lf-focus)) {
+    outline: var(--here-ring); --lf-here-ring: text-box;
+    border-color: transparent;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-field > textarea {
+    font-size: 13px; line-height: 1.5; padding: 7px;
+    min-height: 0; border: 0; border-radius: 0; background: transparent;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-field > textarea:is(:focus, .lf-focus) {
+    outline: none; border: 0;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-placeholder {
+    padding-block-start: 7px; padding-inline-start: 7px;
+  }
+  .lf-thread-compact > .lf-compose .lf-compose-submit {
+    position: static; grid-area: 2 / 1; justify-self: end;
+    margin: 0 6px 6px 0;
+  }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1628,13 +1648,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
      same floor the rail does, of the same box: theme.css, at the margin projection. A
-     panel takes its strip out of the shell, so a window wide enough for both is not a
-     page with room for both, and a user who opened one would otherwise lose the map
-     and the markers together. */
+     standing tray takes its strip out of the shell, so a window wide enough for both is
+     not a page with room for both, and a user who opened one would otherwise lose the
+     map and the markers together. The thread panel takes no room but stands over the
+     rail below about 1700px; the layout pass marks the root when it does. */
   @media screen {
     @container lf-shell (width <= 840px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
     }
+    :scope[data-lf-rail-covered] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @media (forced-colors: active) {
     .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }
@@ -1647,11 +1669,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
      real control. Useful transient state balances the line at the opposite edge: a
      semantic walk's live ordinal, or a brief command or arrival notice in its place.
-     syncLayout keeps the line out of a side-by-side thread panel. A covering thread
-     panel makes it inert background, so that foreground does not move it or reserve its
-     own list around it. The chrome root reserves the fixed bottom surface for scroll
-     regions it crosses, so their last lines never end underneath it. Overflow remains a
-     backstop for a window too narrow to hold even the short line. */
+     syncLayout keeps the line out of the thread panel, which stands over the page's right
+     edge. A covering auxiliary surface makes it inert background, so that foreground
+     does not move it or reserve its own list around it. The chrome root reserves the
+     fixed bottom surface for scroll regions it crosses, so their last lines never end
+     underneath it. Overflow remains a backstop for a window too narrow to hold even the
+     short line. */
   :is(.lf-shortcut-bar, .lf-bottom-status) {
     color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
     border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
@@ -1691,8 +1714,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the user cannot press,
      and the box they cost stands over the words and the controls of a page whose window
-     is the smallest one there is. Above the covering-width breakpoint, an attached
-     keyboard can begin a category walk and its position stands alone.
+     is the smallest one there is. An attached keyboard can begin a category walk,
+     and its position stands alone.
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
      Geometry readers ask whether either bottom box is shown. A zero box is the same
@@ -1700,14 +1723,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
+  /* A specimen has no agent attending it, and its fixed bar would stand over its own
+     last block, since its window is exactly as tall as its page. Its banner keeps the
+     one row of actions (theme.css sizes the room); the keys remain behind `?`. */
+  html[data-lf-contained] :scope {
+    .lf-banner-status, .lf-shortcut-bar { display: none; }
+    .lf-banner { grid-template-rows: minmax(0, 1fr); }
+    .lf-banner-actions { grid-row: 1; }
+  }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
   .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
   /* The chrome's own step boxes: the shortcut bar's sequences and its More key, and the
      reference's routes. Every element wearing these stands inside the runtime's
-     container, so the rules do too; the box is the one `.lf-key-badge` states at
-     document level in theme.css, and the two lists stay identical. */
+     container, so the rules do too; the box is the one `.lf-key-badge` states in
+     shadow.css, and the two lists stay identical. */
   .lf-binding-sequence > kbd, .lf-shortcut-more kbd { box-sizing: border-box;
     min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
     border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);

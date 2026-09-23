@@ -101,6 +101,7 @@ import {
   currentTray,
   othersPanel,
   reserveListClearance,
+  trayCovers,
 } from "./runtime/trays.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
@@ -394,7 +395,7 @@ app = mountApplication({
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
-  panelCovers: () => layout.panelCovers(),
+  panelHides: (where) => layout.panelHides(where),
   onConversationChanged: repaint,
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
   retainThreadNarrowing: () => retainNarrowing(app.presentConversation),
@@ -490,7 +491,7 @@ asks = createAskView({
   projectionTarget: app.margin.marginTargetAt,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   setOpenTray: (...args) => trays.setOpenTray(...args),
-  trayCovers: () => trays.traysEdge.over.matches,
+  trayCovers,
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),
@@ -543,7 +544,7 @@ selectionComposer = createSelectionComposer({
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
-  panelCovers: navigation.panelCovers,
+  panelIsOpen,
   landIn: landing.landIn,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   activeInlineThread: () => app.margin.activeInlineThread(),
@@ -654,7 +655,7 @@ layout = createChromeLayout({
 });
 threadPanelController = createThreadPanelController({
   auxiliarySurfaces,
-  panelCovers: navigation.panelCovers,
+  panelCovers: layout.panelCovers,
   elements: { panel, toggleBtn, threadsBox },
   widen: () => widen(app.presentConversation),
   activeInlineThread: app.margin.activeInlineThread,

@@ -10,7 +10,7 @@
 import { sameAnchor } from "./anchor-coordinate.js";
 import { runtimeOwnsScrollerStop } from "./reach.js";
 import { resolvedElement, resolvedPassage } from "./resolved-target.js";
-import { inUi } from "./shadow.js";
+import { inUi, under, upFrom } from "./shadow.js";
 import {
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
@@ -18,7 +18,6 @@ import {
 import {
   blockAt,
   closestAcross,
-  containsAcross,
   DATUM,
   elementById,
   findQuote,
@@ -48,7 +47,7 @@ function currentDatums(source, key) {
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
-      containsAcross(source, datum) &&
+      under(datum, source) &&
       datum.dataset.lfProjection === source.id &&
       datum.dataset.lfDatum === key,
   );
@@ -62,7 +61,7 @@ export const currentDatum = (source, key) => {
 export function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element &&
-    containsAcross(source, supplied) &&
+    under(supplied, source) &&
     supplied.dataset.lfProjection === source.id
     ? supplied
     : null;
@@ -120,15 +119,12 @@ export const visualSelector = () =>
 const interactiveWithoutTabStopSelector = () =>
   `${WORKS_WITHOUT_TAB_STOP},[data-lf-offer]`;
 
-export const parentAcross = (element) =>
-  element?.parentElement ?? element?.getRootNode()?.host ?? null;
-
 const outermostAcross = (element, selector) => {
-  for (let parent = parentAcross(element); parent;) {
+  for (let parent = upFrom(element); parent;) {
     const outer = closestAcross(parent, selector);
     if (!outer) break;
     element = outer;
-    parent = parentAcross(element);
+    parent = upFrom(element);
   }
   return element;
 };
@@ -141,7 +137,7 @@ const claimsVisualGesture = (element) =>
 
 export const unclaimedVisualGesture = (target) => {
   if (inChrome(target) || inUi(target)) return false;
-  for (let element = target; element; element = parentAcross(element))
+  for (let element = target; element; element = upFrom(element))
     if (claimsVisualGesture(element)) return false;
   return true;
 };
@@ -175,7 +171,7 @@ export function isAddressable(at) {
 
 export function addressableAt(node) {
   let at = node?.nodeType === 1 ? node : node?.parentElement;
-  for (; at; at = parentAcross(at)) if (isAddressable(at)) return at;
+  for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
   return null;
 }
 
@@ -260,13 +256,13 @@ const addressableAimTarget = (addressable) => ({
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
 export const anchorForDatum = (datum, fields = {}) => {
-  const dataRevision = Number(datum.dataset.lfSourceRevision);
+  const sourceRevision = datum.dataset.lfSourceRevision;
   return {
     section: datum.dataset.lfProjection,
     datum: datum.dataset.lfDatum,
     ...fields,
-    ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
-      ? { source: datum.dataset.lfSource, data_revision: dataRevision }
+    ...(datum.dataset.lfSource && sourceRevision
+      ? { source: datum.dataset.lfSource, source_revision: sourceRevision }
       : {}),
   };
 };
@@ -275,7 +271,7 @@ export function datumAimTarget(datum) {
   if (!(datum instanceof Element) || !datum.matches(DATUM)) return null;
   const anchor = anchorForDatum(datum);
   const owner = sectionOf(anchor);
-  if (!owner || !containsAcross(owner, datum)) return null;
+  if (!owner || !under(datum, owner)) return null;
   return {
     anchor,
     element: datum,
@@ -323,16 +319,16 @@ export function resolveAnchor(anchor, text = "") {
     const source = sectionOf(anchor);
     const datums = currentDatums(source, anchor.datum);
     const anchoredToData =
-      typeof anchor.source === "string" && Number.isInteger(anchor.data_revision);
+      typeof anchor.source === "string" && typeof anchor.source_revision === "string";
     const basis = datums[0] ?? source;
     const basisMatches =
       !anchoredToData ||
       (basis?.dataset.lfSource === anchor.source &&
-        Number(basis.dataset.lfSourceRevision) === anchor.data_revision);
+        basis.dataset.lfSourceRevision === anchor.source_revision);
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =
-        contextual instanceof Element && containsAcross(source, contextual)
+        contextual instanceof Element && under(contextual, source)
           ? contextual
           : source;
       if (!(fallback instanceof Element)) return null;
@@ -348,8 +344,7 @@ export function resolveAnchor(anchor, text = "") {
     if (datums.length > 1) return null;
     if (!datums.length) {
       const virtual = source?.lfDataDatum?.(anchor.datum);
-      if (!(virtual instanceof Element) || !containsAcross(source, virtual))
-        return null;
+      if (!(virtual instanceof Element) || !under(virtual, source)) return null;
       return {
         ...resolvedElement({ element: virtual }),
         datumElement: null,

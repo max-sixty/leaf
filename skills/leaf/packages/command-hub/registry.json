@@ -699,23 +699,5 @@
     ],
     "x-content": "markup",
     "x-upgrade": false
-  },
-  "lf-record": {
-    "description": "The page's consequential action receipts, projected in log order. It renders user actions, external requests and their linked receipts, held comments, resolutions, reports, and publications with their targets and payload summaries. Folds and read-only disclosures do not enter because the log never recorded them. This is evidence, not another state store.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
-    },
-    "required": [
-      "id"
-    ],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-measure": "surface",
-    "x-bound": "end",
-    "x-upgrade": true
   }
 }

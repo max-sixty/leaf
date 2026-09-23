@@ -160,6 +160,8 @@ import {
   threadAttention,
   workflowLabel,
 } from "./conversation/workflow.js";
+import { renderedParent } from "./shadow.js";
+import { retainUserIntent } from "./user-intent.js";
 
 // Whether the margin's rail stands, as the stylesheet decided it: theme.css states the
 // posture on `main` where it claims the rail, and this reads that answer rather than
@@ -251,8 +253,7 @@ export function createMarginProjection({
       const chain = [];
       for (let node = target; node;) {
         chain.push(node);
-        node =
-          node.assignedSlot ?? node.parentElement ?? node.getRootNode()?.host ?? null;
+        node = renderedParent(node);
       }
       return chain.reverse();
     };
@@ -2209,7 +2210,24 @@ export function createMarginProjection({
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
       sourceItem(item).thread,
-      { nav: previewNav.hidden ? null : previewNav, close: previewClose },
+      {
+        nav: previewNav.hidden ? null : previewNav,
+        close: previewClose,
+        prepareLanding: () => {
+          const target = targetFor(previewEntry);
+          const mayLand = retainUserIntent({
+            source: focused(),
+            available: () => target?.isConnected,
+            fallback: bannerControlDoor(mapButton),
+          });
+          return {
+            optimistic: () => {
+              if (preview.matches(":popover-open")) return false;
+              return mayLand.handoff(() => focusDestination(target));
+            },
+          };
+        },
+      },
     );
     node.dataset.lfMarginEntry = item.id;
     node.lfMarginItem = item.id;
@@ -2574,10 +2592,12 @@ export function createMarginProjection({
   // card needs no trip, since placeThreadPreview keeps it inside the viewport.
   function openPageThread(id, { focus = "reply", travel = true } = {}) {
     if (!panelIsOpen()) {
+      // The trip starts before the surface takes focus, which scrolls it into view: the
+      // trip records the place the user leaves, so it has to find them still there.
+      if (travel && claimed(id)) scrollToThread(id);
       const local = focusSurface(id, { focus });
       if (local) {
         closePreview();
-        if (travel) scrollToThread(id);
         return local;
       }
       const thread = openInlineThread(id, {

@@ -37,6 +37,9 @@ from render_cases_interaction import (
 from render_cases_layout import (
     serious_axe_violations,
 )
+from render_cases_navigation import (
+    source_revision,
+)
 from render_cases_widgets import (
     CUT_BOXES_PAGE,
 )
@@ -1845,10 +1848,15 @@ def test_export_waits_for_the_snapshot_the_browser_can_receive(
                 "text": "Arrived after the preview snapshot.",
             },
         )
-        data_path = serve.page_dir / "data.json"
-        later_data = json.loads(data_path.read_text(encoding="utf-8"))
-        later_data["revision"] += 1
-        data_path.write_text(json.dumps(later_data), encoding="utf-8")
+        # A source that appears after the snapshot moves the page's data version.
+        files_model.write_json(
+            serve.page_dir / "data.json",
+            {"sources": {"later": {"contract": "text-document"}}},
+        )
+        (serve.page_dir / "data").mkdir(exist_ok=True)
+        files_model.write_json(
+            serve.page_dir / "data" / "later.json", "Arrived after the snapshot."
+        )
 
         exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
 
@@ -1967,7 +1975,7 @@ def test_a_live_specimen_exports_as_an_isolated_rendered_document(
     child.get_by_text("More context", exact=True).click()
     expect(child.get_by_text("Native disclosure survives.")).to_be_visible()
     expect(child.locator("script")).to_have_count(0)
-    expect(page.get_by_role("button", name="Enter specimen")).to_have_count(0)
+    expect(page.get_by_role("button", name="Reset", exact=True)).to_have_count(0)
     assert requests == [out.as_uri()]
 
 
@@ -2336,7 +2344,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
                 "section": "patch",
                 "datum": '["app.py","new",1]',
                 "source": "review-patch",
-                "data_revision": 1,
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
         },
     )
@@ -2636,6 +2644,9 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     and a hand or a grab under the pointer — and every question is put to the markers
     rather than to any widget."""
     url = serve(CORPUS_PAGE)
+    live = open_page(browser, url)
+    live_routes = live.locator(".lf-activity-target").count()
+    live.close()
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
@@ -2658,6 +2669,9 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
         toServer: [...document.querySelectorAll('[src^="/"], [href^="/"]')]
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
+        // A route whose press the copy drops still names where the row happened.
+        activity: [...document.querySelectorAll('.lf-activity-target')]
+            .map(target => target.textContent.trim()),
         presented: document.body.dataset.lfPresented,
         themeMarker: getComputedStyle(document.querySelector('main'))
             .getPropertyValue('--lf-reading-column').trim(),
@@ -2743,9 +2757,11 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
         // The claim a disarmed attribute leaves standing, since a control nothing can
         // work is still a control on the page. What a copy may show of a widget's
         // chrome is one the browser works itself and a label the page speaks through
-        // (data-lf-said); the rest belonged to a runtime the file has not got, so a
-        // mark reading "choose one" invites a user who cannot answer it.
-            inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
+        // (data-lf-said), or a copy of words it says elsewhere (data-lf-echo); the rest
+        // belonged to a runtime the file has not got, so a mark reading "choose one"
+        // invites a user who cannot answer it.
+            inert: [...document.querySelectorAll(
+                '[data-lf-offer]:not([data-lf-said], [data-lf-echo])')]
                 .filter(el => el.checkVisibility() && el.textContent.trim()
                               && !el.matches(':has(input, select, textarea, a[href], button)')
                               // A label may name a native control outside its offered
@@ -2788,6 +2804,10 @@ def test_the_exported_corpus_stands_on_its_own(browser, serve, tmp_path):
     )
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
+    assert live_routes, "the corpus carries no activity feed to read"
+    assert len(state["activity"]) == live_routes and all(state["activity"]), (
+        "an activity row's route left the copy with the words naming its target"
+    )
     assert state["presented"] == "1", "the copy was taken before presentation finished"
     assert state["themeMarker"] == "1", (
         "the theme didn't inline; the copy opens unstyled"

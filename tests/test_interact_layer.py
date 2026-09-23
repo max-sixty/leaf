@@ -33,6 +33,7 @@ from interact_support import (
     shipped_payload,
 )
 from leaf import cli as cli_model
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -68,6 +69,7 @@ EXPECTED_PAGE_DIRECTORIES = (
     "vendor",
     "guidance",
     "media",
+    "data",
     "page",
 )
 
@@ -1021,10 +1023,6 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
-    assert interact_files.read_json(page_dir / "data.json") == {
-        "revision": 0,
-        "sources": {},
-    }
 
 
 def test_init_and_revendoring_preserve_the_page_owned_contribution(
@@ -1493,9 +1491,9 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
-    """A media query cannot read a custom property, so the sheets state the covering
-    widths, the strip-taking tray, the width properties, and the Ask stamp as literals
-    while the runtime lays out and paints by the constants. Held equal here rather than
+    """A media query cannot read a custom property, so the sheets state the tray's
+    covering width, the strip-taking tray, the width properties, and the Ask stamp as
+    literals while the runtime lays out and paints by the constants. Held equal here rather than
     trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
@@ -1508,22 +1506,17 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
 
-    panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
     tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
     assert 'covers: () => key !== "asks" || trayCovers(),' in trays
     for spelling in (
-        f"(width <= {panel * 2}px)",
-        f"(width > {panel * 2}px)",
         f"(width <= {tray * 2}px)",
-        "var("
-        + constant(r'^export const THREAD_PANEL_PROP = "([^"]+)";', layout)
-        + ")",
+        "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout) + ")",
         "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-restore-tray="asks"]',
+        "html[data-lf-restore-asks]",
         'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
@@ -1553,7 +1546,6 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     """The classic bootstrap cannot import modules, so the layer gate ties its storage
     and responsive geometry literals to the runtime owners it precedes."""
     assets = schema_model.ASSETS
-    layout = (assets / "runtime" / "chrome-layout.js").read_text()
     trays = (assets / "runtime" / "trays.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     theme = (assets / "theme.css").read_text()
@@ -1568,19 +1560,15 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     auxiliary_surfaces = (assets / "runtime" / "auxiliary-surfaces.js").read_text()
     for pattern, source in (
         (r'^export const AUXILIARY_SURFACE_KEY = "([^"]+)";', auxiliary_surfaces),
-        (r'key: "(lf-thread-panel-width)"', layout),
         (r'key: "(lf-tray-slot-width)"', trays),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem(scope + "{key}")' in bootstrap
 
     for literal in (
-        constant(r"^export const THREAD_PANEL_W = (\d+);", layout),
-        constant(r"^const THREAD_PANEL_MIN = (\d+);", layout),
         constant(r"^const TRAY_SLOT_W = (\d+);", trays),
         constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
-        "data-lf-restore-panel",
-        "data-lf-restore-tray",
+        "data-lf-restore-asks",
     ):
         assert literal in theme
 
@@ -1796,11 +1784,13 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["source"]["live"] is False
     assert "write index.html first" in state["source"]["error"]
     assert state["event_seq"] == 0
-    assert state["data"] == {"file": "data.json", "revision": 0}
-    assert interact_files.read_json(page / state["data"]["file"]) == {
-        "revision": 0,
-        "sources": {},
-    }
+    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert (
+        data_model.read_data(page, json.loads((page / "registry.json").read_text()))[
+            "sources"
+        ]
+        == {}
+    )
 
 
 def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
@@ -4259,9 +4249,9 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
         "lf-task",
         "lf-command",
         "lf-worktree",
-        "lf-record",
     }
     assert orchestration.isdisjoint(plain_registry)
+    assert "lf-activity" in plain_registry
     assert orchestration <= packaged_registry.keys()
     assert "$command" not in plain_registry
     assert "$command" in packaged_registry
@@ -4331,7 +4321,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         "request": {
             "contract": "pull-request",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert "pull-request" in registry["$data"]["contracts"]
@@ -4340,7 +4329,6 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
         "document": {
             "contract": "text-document",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert (page / "widgets" / "lf-call-diff.js").is_file()
@@ -4366,7 +4354,6 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         "run": {
             "contract": "visual-run",
             "source": "source",
-            "snapshot": "snapshot",
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"

@@ -1,20 +1,20 @@
 # Datastore review
 
 A review of Leaf's two stores — the event log for user and agent state, and
-`data.json` for external data — against what Airtable-like pages need: rows a user
+the per-source files under `data/` for external data — against what Airtable-like pages need: rows a user
 adds, cells a user edits, rows a user reorders, and data other processes supply
 or read. Measurements used synthetic logs outside the repository; each claim is
 marked measured, read (from code), or inferred.
 
-The boundary between the stores is right: typed external values live in `data.json`,
-decisions live in the log, and the log names values by source and revision. Neither a
+The boundary between the stores is right: typed external values live under `data/`,
+decisions live in the log, and the log names values by source and source revision. Neither a
 document store (Claude Artifacts' `db`, Firestore) nor a CRDT fits: both drop the
 single validating append door, per-event attribution, undo, and `version check`,
 and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
 would be the derived current-state file `AGENTS.md` rules out.
 
-What is wrong sits below that boundary. Most findings reduce to three missing or
-conflated identities: a row, a source revision, and a position.
+What is wrong sits below that boundary. Most findings reduce to two missing
+identities: a row and a position.
 
 ## Row identity
 
@@ -66,32 +66,11 @@ A table then declares:
 The same unit with `{record, input}` gives a user cell edits on rows an external
 process supplies, which today reach only `datum` anchors and requests.
 
-## Source revision
+## Request staleness
 
-One global counter in `data.json` serves as the store stamp, each source's revision,
-and the snapshot id:
-
-- An immutable snapshot fragment is refused as stale when another source moves:
-  `data_fragment` checks the global revision before looking up the snapshot
-  (`data.py` `data_fragment`; `runtime/data.js` repeats it). Reproduced with a probe;
-  `lf-diff` paints a fragment error in that window. (measured)
-- `http.py` picks the 409 by matching `" is stale; current revision is "` in the
-  message. (read)
-- `data_revision` means the global counter in `origin` and `/api/data`, and the
-  source's revision in anchors and requests. (read)
-- `revisions[]` exists only to answer "was N ever this source's revision". (read)
-- Every `/api/state` carries every source's current value and every retained
-  snapshot, and every `data set` rewrites all of them. (read)
-
-Proposal: a per-source revision, and values by reference. `data.json` becomes an
-index, `{sources: {id: {contract, rev, kept: [rev]}}}`; each value is an immutable file
-served at `/api/data/<source>/<rev>`, which cannot go stale, so the 409 disappears.
-`/api/state` carries `{source: {contract, rev}}`. A snapshot is a kept rev.
-`{source, rev}` is the one reference form everywhere.
-
-A request's stale-press check compares the whole source revision
-(`requests.py`), so any refresh voids every in-flight press on every row; decide it
-per row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
+A request's stale-press check compares the source's revision (`requests.py`), so a
+refresh of one source voids every in-flight press on every row of it; decide it per
+row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
 
 ## Position
 
@@ -127,10 +106,9 @@ three more times. Neither warrants snapshots or incremental folding yet.
 - `fragments` is `records` plus one deferred field, declared beside it with an
   agreement rule and four `records or fragments` fallbacks. `records: {items, key,
   deferred?}`.
-- `label` and `lines` are envelope fields read by two widgets; about 250 lines of Git
-  patch parsing sit in core `data.py` for the diff package. Both belong to their
-  contracts and packages, with one `leaf data set [--keep]`.
-- `working_data_documents` has no callers.
+- About 250 lines of Git patch parsing sit in core `data.py` for the diff package,
+  and `data capture --lines` slices text for one contract. Both belong to their
+  contracts and packages, leaving one `leaf data set`.
 
 ## Other processes
 

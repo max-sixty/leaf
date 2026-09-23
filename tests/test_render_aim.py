@@ -1869,17 +1869,13 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     panel_settled(page)
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
-    # say. A fixed box is not clipped by the root scrollport, while body is the page shell
-    # narrowed to the column standing beside the panel — so the panel measured through the
-    # page flow's ancestors came back wholly clipped away, and a mode whose row promises a
-    # click on the chrome drew nothing over the chrome. Wide enough for the panel to stand
-    # beside the page, which is where the shell and the panel part company.
+    # say. A fixed box is not clipped by the root scrollport, so the panel measured through
+    # the page flow's ancestors came back wholly clipped away, and a mode whose row
+    # promises a click on the chrome drew nothing over the chrome. Wide enough for the
+    # panel to stand over a live page rather than cover it.
     resized(page, 1280, 800)
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-thread-panel').getBoundingClientRect().left"
-        " >= document.body.clientWidth"
-    )
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     page.keyboard.press("l")
     box = page.locator(".lf-thread-panel").bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)

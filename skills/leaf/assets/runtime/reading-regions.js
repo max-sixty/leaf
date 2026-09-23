@@ -16,10 +16,10 @@
    Hidden connected regions remain registered and return
    null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an id. */
 import { shownBox, shownRect } from "./geometry.js";
-import { containsAcross } from "./passages.js";
 import { pageScroller } from "./scrolling.js";
 import { layoutChanged } from "./widget-elements.js";
 import { reachReadingScroller } from "./reach.js";
+import { under, upFrom } from "./shadow.js";
 
 const regions = new Map();
 const readingArrangements = new Set();
@@ -27,12 +27,7 @@ const transitionWatchers = new Set();
 
 const depthOf = (node) => {
   let depth = 0;
-  for (
-    let current = node;
-    current;
-    current = current.parentElement ?? current.getRootNode()?.host ?? null
-  )
-    depth += 1;
+  for (let current = node; current; current = upFrom(current)) depth += 1;
   return depth;
 };
 
@@ -48,8 +43,7 @@ const readingArrangementFor = (node) =>
   [...readingArrangements]
     .filter(
       (readingArrangement) =>
-        readingArrangement.owner.isConnected &&
-        containsAcross(readingArrangement.owner, node),
+        readingArrangement.owner.isConnected && under(node, readingArrangement.owner),
     )
     .sort((a, b) => depthOf(b.owner) - depthOf(a.owner))[0];
 
@@ -59,7 +53,7 @@ const parentReadingArrangement = (readingArrangement) =>
       (candidate) =>
         candidate !== readingArrangement &&
         candidate.owner.isConnected &&
-        containsAcross(candidate.content, readingArrangement.owner),
+        under(readingArrangement.owner, candidate.content),
     )
     .sort((a, b) => depthOf(b.owner) - depthOf(a.owner))[0];
 
@@ -123,7 +117,7 @@ export const readingRegions = () =>
 
 export const readingRegionFor = (node) => {
   const region = [...regions.values()]
-    .filter((candidate) => live(candidate) && containsAcross(candidate.host, node))
+    .filter((candidate) => live(candidate) && under(node, candidate.host))
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return region && regionRecord(region);
 };
@@ -136,7 +130,7 @@ export const readingRegionFor = (node) => {
 export const containingReadingRegionFor = (node) => {
   let region = readingRegionFor(node);
   while (region) {
-    if (containsAcross(region.body, node)) return region;
+    if (under(node, region.body)) return region;
     region = readingRegionFor(region.host.parentElement);
   }
   return undefined;
@@ -158,9 +152,7 @@ export function effectiveScroller(regionOrNode) {
   const containing = [...regions.values()]
     .filter(
       (candidate) =>
-        candidate !== region &&
-        live(candidate) &&
-        containsAcross(candidate.body, region.host),
+        candidate !== region && live(candidate) && under(region.host, candidate.body),
     )
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
@@ -170,7 +162,8 @@ export function effectiveScroller(regionOrNode) {
 // than search for one. The document's for everything the document holds — and the
 // panel's own list for a widget an agent put in a reply, which is scrolled by that and
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
-// that never comes.
+// that never comes. The list answers here as any region does: the panel registers it as
+// its bounded reading region (`mountPanelReadingRegion`).
 export const scrollerFor = (el) => {
   const region = containingReadingRegionFor(el);
   return region ? effectiveScroller(region) : pageScroller;
@@ -205,7 +198,7 @@ export async function preserveReadingRegions(owner, change) {
     owner,
     from: null,
     to: null,
-    regions: readingRegions().filter((region) => containsAcross(owner, region.host)),
+    regions: readingRegions().filter((region) => under(region.host, owner)),
   };
   // A second choice can supersede an unfinished layout. Its intermediate geometry
   // must not overwrite the reading captured before the first choice.
@@ -285,7 +278,7 @@ export function registerReadingArrangement({ owner, content, regions: declared =
 
   const affectedRegions = () =>
     [...regions.values()]
-      .filter((region) => live(region) && containsAcross(owner, region.host))
+      .filter((region) => live(region) && under(region.host, owner))
       .map(regionRecord);
 
   const handle = {

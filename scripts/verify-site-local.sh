@@ -7,7 +7,17 @@ repo_root=$(git rev-parse --show-toplevel)
 log="$repo_root/.tmp/wrangler-dev.log"
 release=${LEAF_SITE_RELEASE:-$(jq --raw-output .release "$repo_root/.tmp/site/_leaf/site.json")}
 
-(cd "$repo_root/worker" && npx wrangler dev --port 8787) > "$log" 2>&1 &
+# Chrome and Docker share this host, which is only ever true here: a reader's container
+# runs on Cloudflare, so nothing in production starts one on the machine drawing the
+# page. Chromium answers a host IP-address change by flushing its socket pools with
+# ERR_NETWORK_CHANGED, loopback included, and starting a container adds a host interface.
+# Prewarm puts that start in the background of the document response, so it lands inside
+# the module loads this pass measures and can abort a page's entry module before it
+# arrives. Without it the only thing that starts a container is the activation read this
+# script's verifier makes and waits on, with no page loading beside it, so the host's
+# interfaces are settled for every load the browser is measured on. Production keeps
+# prewarm, and the pass over the deployed release exercises it there.
+(cd "$repo_root/worker" && npx wrangler dev --port 8787 --var AGENT_PREWARM:false) > "$log" 2>&1 &
 server=$!
 cleanup() {
   kill "$server" 2>/dev/null || true

@@ -143,7 +143,7 @@ test("semantic publication opens before subscribers and seals the newest nested 
       assert.equal(coordinator.read().semanticEpoch, 1);
       const renderer = coordinator.attach("widget", {});
       presentation = renderer.present("offline", held);
-      app.acceptData({ revision: 0, sources: {} });
+      app.acceptData({ version: "empty", sources: {} }, 1);
     });
 
   lifecycle.length = 0;
@@ -219,7 +219,7 @@ test("one widget selection publishes optimistic state and delivery without writa
     selected.read().authored.decision.value = "corrupt";
   }, TypeError);
   const beforeUnrelated = seen.length;
-  app.acceptData({ revision: 0, sources: { unrelated: { value: true } } });
+  app.acceptData({ version: "unrelated", sources: { unrelated: { value: true } } }, 1);
   assert.equal(seen.length, beforeUnrelated);
   app.reject("first");
   assert.equal(selected.read().state.decision.action, null);
@@ -269,8 +269,14 @@ test("projected requests expose one lifecycle per data record", () => {
   const app = setup([[rows.id, rows]]);
   const accepted = state(2);
   accepted.browser.views[1].document.requests = [
-    { seat: { widget: "jobs", unit: "alpha", data_revision: 1 }, phase: "pending" },
-    { seat: { widget: "jobs", unit: "beta", data_revision: 1 }, phase: "ready" },
+    {
+      seat: { widget: "jobs", unit: "alpha", source_revision: "0123456789abcdef" },
+      phase: "pending",
+    },
+    {
+      seat: { widget: "jobs", unit: "beta", source_revision: "0123456789abcdef" },
+      phase: "ready",
+    },
     { seat: { widget: "jobs", unit: "gone", offered: false }, phase: "ready" },
   ];
   app.adopt(accepted);
@@ -284,7 +290,7 @@ test("projected requests expose one lifecycle per data record", () => {
       widget: "jobs",
       action: "restart",
       detail: { target: "beta" },
-      data_revision: 1,
+      source_revision: "0123456789abcdef",
       revision: 1,
       attempt: "pending-beta",
     },
@@ -547,7 +553,7 @@ test("document capture and its matching admitted reading publish atomically", ()
   assert.deepEqual(seen.at(-1), [2, 2, 2, true, "accept"]);
 });
 
-test("accepted reading order includes non-event activity and independent source revisions", () => {
+test("accepted reading order includes non-event activity and data taken in order", () => {
   const app = setup();
   const newer = { ...state(3), activity: { phase: "agent", held: true } };
   assert.equal(app.adopt(newer), true);
@@ -555,8 +561,11 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.read().authoritative.reading, "reading-3");
   assert.deepEqual(app.read().effective.activity, newer.activity);
   const before = app.read().semanticEpoch;
-  assert.equal(app.acceptData({ revision: 2, sources: { input: { value: 5 } } }), true);
-  assert.equal(app.acceptData({ revision: 1, sources: {} }), false);
+  assert.equal(
+    app.acceptData({ version: "b", sources: { input: { value: 5 } } }, 2),
+    true,
+  );
+  assert.equal(app.acceptData({ version: "a", sources: {} }, 1), false);
   assert.ok(app.read().semanticEpoch > before);
   assert.equal(app.read().data.sources.input.value, 5);
 });

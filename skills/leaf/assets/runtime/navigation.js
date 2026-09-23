@@ -1,9 +1,6 @@
 /* This module owns user travel. */
 import { clampedRow } from "./keyboard/bindings.js";
-import {
-  inPanel as panelFocusIsInside,
-  panelWouldCover,
-} from "./conversation/panel-elements.js";
+import { inPanel as panelFocusIsInside } from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
 import { narrowed, threadSearchActive } from "./conversation/narrowing.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
@@ -198,7 +195,6 @@ export function createNavigation({
   coveringAuxiliaryScroller,
   threadDestinations,
 }) {
-  const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
   const walkThreads = (dir) => stepThread(dir, threadDestinations, panelIsOpen);
@@ -271,7 +267,6 @@ export function createNavigation({
   });
 
   return {
-    panelCovers,
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: move,
     stepThread: walkThreads,

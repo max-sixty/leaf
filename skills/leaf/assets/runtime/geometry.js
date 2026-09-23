@@ -1,5 +1,6 @@
 /* This module owns the shared readings of visible boxes and clipping, and the one
  * conversion from viewport boxes to document-positioned chrome. */
+import { setRuntimeRootStyle } from "./root-state.js";
 import { uiInside, under, upFrom } from "./shadow.js";
 
 /* Shared readings of the boxes the page actually shows.
@@ -29,20 +30,9 @@ import { uiInside, under, upFrom } from "./shadow.js";
    declared items with no visible part on which a mark can land. */
 // Where the page's shell ends on the right — the far edge of the room the document has,
 // which is what a margin resident is placed against and what the response surface may not
-// overhang. Body's content box and not its border box, because the strip a standing panel
-// or tray takes is a transparent border (theme.css says why it has to be one), so
-// `getBoundingClientRect().right` is the window's edge rather than the page's. Read live
-// rather than derived from a panel width, since a user may have drawn the edge
-// anywhere and the stylesheet decides whether the strip is taken at all.
-export const shellRight = () => {
-  const body = document.body;
-  const { borderLeftWidth } = getComputedStyle(body);
-  return (
-    body.getBoundingClientRect().left +
-    (Number.parseFloat(borderLeftWidth) || 0) +
-    body.clientWidth
-  );
-};
+// overhang. Nothing takes a strip on the right: the thread panel stands over the page, and
+// the one strip-taking tray yields its room as a border on body's left.
+export const shellRight = () => document.body.getBoundingClientRect().right;
 // Whether two boxes share any pixel. The one spelling of a question three chrome passes
 // ask: placement, badge reservation, and the clear part left of a box behind furniture.
 export const overlaps = (a, b) =>
@@ -69,18 +59,22 @@ export function documentPoint(left, top) {
 // band a handover is refused against and the band the page paints to are one reading.
 // Written twice they disagreed twice, each copy right about one of the two things above
 // and wrong about the other.
+//
+// The element's own document answers, so a specimen can ask it of the containing page's
+// boxes in that page's viewport coordinates.
 export function shownBand(el) {
+  const doc = el.ownerDocument;
   // The root element's border box travels with the document, while its scrollport stays
   // pinned to the viewport. Every other scroller's visible band can be derived from its
   // own box; the root is the platform-defined exception.
-  if (el === document.scrollingElement)
+  if (el === doc.scrollingElement)
     return {
       left: 0,
       top: 0,
-      right: document.documentElement.clientWidth,
-      bottom: document.documentElement.clientHeight,
+      right: doc.documentElement.clientWidth,
+      bottom: doc.documentElement.clientHeight,
     };
-  const s = getComputedStyle(el);
+  const s = doc.defaultView.getComputedStyle(el);
   if (
     s.overflowX === "visible" &&
     s.overflowY === "visible" &&
@@ -103,7 +97,8 @@ export function shownBand(el) {
 //
 // `visibleBand` is what the user can see through a scroller now: its shown band less
 // the covers stuck over an edge of it. A cover is a sticky box declared through
-// `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header.
+// `declareCoverRoom` (below): the thread list's run headings, an `lf-diff` file header,
+// a root `lf-tabs` strip.
 // Stuck, it paints over the scroller's contents without clipping them, so a band that
 // ignored it would call what is under it shown. The clip walk below applies this band at
 // every ancestor, so `shownRect` and the readings built on it (read acknowledgement, the
@@ -130,9 +125,10 @@ const stuckIn = (cover) => {
     if (scrolls(a)) return a;
   return document.scrollingElement;
 };
-// Every shown cover's box, by the scroller it sticks in. Built once per clip pass, since
-// a pass asks it at each ancestor of every item. A detached cover is only skipped: its
-// observer lets it go, and a cover put back and declared again must still be one.
+// Every shown cover's box, by the scroller it sticks in, with the sticky insets it is
+// held at (insetBand). Built once per clip pass, since a pass asks it at each ancestor of
+// every item. A detached cover is only skipped: its observer lets it go, and a cover put
+// back and declared again must still be one.
 const COVERS = Symbol("covers");
 function coversByScroller(clips = null) {
   let index = clips?.get(COVERS);
@@ -142,7 +138,19 @@ function coversByScroller(clips = null) {
     if (!cover.isConnected || !cover.checkVisibility()) continue;
     const scroller = stuckIn(cover);
     if (!index.has(scroller)) index.set(scroller, []);
-    index.get(scroller).push({ cover, box: cover.getBoundingClientRect() });
+    const { left, right, top, bottom } = cover.getBoundingClientRect();
+    const style = getComputedStyle(cover);
+    index.get(scroller).push({
+      cover,
+      box: {
+        left,
+        right,
+        top,
+        bottom,
+        stickyTop: Number.parseFloat(style.top) || 0,
+        stickyBottom: Number.parseFloat(style.bottom) || 0,
+      },
+    });
   }
   clips?.set(COVERS, index);
   return index;
@@ -186,8 +194,13 @@ export function landingInsets(scroller) {
 // scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
 // a cover is is a measurement rather than a constant: a heading or a file path wraps,
 // and the user sets the width by drawing a panel's edge, which posts no event. So the
-// covers are observed rather than measured by whoever renders them, which forces no
-// layout. The tallest is the room, since a landing cannot know which cover will stick
+// covers are observed rather than measured by whoever renders them, and a declaration
+// that replaces covers forces no layout. Only a host's first covers are measured as
+// they are declared, since a first observation comes after the frame's layout: a
+// document's initial fragment landing reads the room in that window, and read as none
+// it stopped a root tab strip's height short, under the strip. A cover that replaces
+// another starts at the room its host already keeps. The tallest is the room, since a
+// landing cannot know which cover will stick
 // over it. A cover that stops rendering (its panel shut) keeps the room it last
 // measured, so a frame that runs before the reopening's observation reads the room
 // rather than none. Called again with the box's current covers, it replaces the set; a
@@ -198,7 +211,11 @@ const coverHosts = new WeakMap();
 let coverObserver = null;
 const paintCoverRoom = (host) => {
   const { property, covers } = coverRooms.get(host);
-  host.style.setProperty(property, `${Math.max(0, ...covers.values())}px`);
+  const room = `${Math.max(0, ...covers.values())}px`;
+  // The document root's inline style is shared with the authored revision, which keeps
+  // only what the runtime registered as its own (root-state.js).
+  if (host === document.documentElement) setRuntimeRootStyle(host, property, room);
+  else host.style.setProperty(property, room);
 };
 const letGo = (cover) => {
   coverObserver.unobserve(cover);
@@ -223,34 +240,55 @@ export function declareCoverRoom(host, property, covers) {
   });
   const prior = coverRooms.get(host)?.covers ?? new Map();
   const next = new Map();
+  const kept = Math.max(0, ...prior.values());
+  const fresh = [];
   for (const cover of covers) {
-    next.set(cover, prior.get(cover) ?? 0);
+    next.set(cover, prior.get(cover) ?? kept);
     if (prior.has(cover)) continue;
+    fresh.push(cover);
     coverHosts.set(cover, host);
     declaredCovers.add(cover);
     coverObserver.observe(cover);
   }
   const left = [...prior.keys()].filter((cover) => !next.has(cover));
   for (const cover of left) letGo(cover);
+  if (!prior.size)
+    for (const cover of fresh)
+      if (cover.isConnected && cover.checkVisibility())
+        next.set(cover, cover.getBoundingClientRect().height);
   coverRooms.set(host, { property, covers: next });
-  // A new cover is measured by its first observation, before the frame paints; one that
-  // left changes the room now.
-  if (left.length) paintCoverRoom(host);
+  if (fresh.length || left.length) paintCoverRoom(host);
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when
 // it straddles it, and a cover resting on another stuck cover straddles the edge the
 // first one leaves, so the covers are taken in order from the edge inward. A cover in
 // the middle of the band is content passing through, not chrome over it. Null once the
 // covers leave no band.
+//
+// A cover may also be stuck short of the edge, at the sticky inset it is held at
+// (`stickyTop`, `stickyBottom`, 0 when absent): a document's covers stick under the
+// banner, so they never reach the root's top edge, and read by straddling alone a
+// stuck root tab strip or `lf-diff` file header hid nothing. Such a cover takes the
+// band from the edge to its far side, the inset with it. The inset is room kept clear
+// for something standing there, the banner in a live page.
 export function insetBand(band, covers) {
   const across = covers.filter(
     (cover) => cover.left < band.right && cover.right > band.left,
   );
   let { top, bottom } = band;
   for (const cover of [...across].sort((a, b) => a.top - b.top))
-    if (cover.top <= top && cover.bottom > top) top = cover.bottom;
+    if (
+      (cover.top <= top || cover.top <= band.top + (cover.stickyTop ?? 0)) &&
+      cover.bottom > top
+    )
+      top = cover.bottom;
   for (const cover of [...across].sort((a, b) => b.bottom - a.bottom))
-    if (cover.bottom >= bottom && cover.top < bottom) bottom = cover.top;
+    if (
+      (cover.bottom >= bottom ||
+        cover.bottom >= band.bottom - (cover.stickyBottom ?? 0)) &&
+      cover.top < bottom
+    )
+      bottom = cover.top;
   return bottom > top ? { ...band, top, bottom } : null;
 }
 // The box an element shows as. An element that generates none of its own — a
@@ -325,8 +363,7 @@ export function shownParts(el) {
 // `position: fixed` element clips it, so the ancestors past that one are answering about a
 // flow the element left. Every box in the chrome is behind one — the thread panel is
 // fixed, so a reply box measured through the page flow's ancestors came back wholly clipped
-// away at any window wide enough for the panel to stand beside the page rather than over
-// it. The one caller before this asked
+// away whenever the page had scrolled. The one caller before this asked
 // only about the page's own items, none of which is ever inside a fixed box, which is why
 // the walk could be written as "every ancestor" and read as complete.
 //
@@ -378,7 +415,7 @@ function clipped(box, item, clips, held) {
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
   // itself cannot.
-  for (let a = item; a; a = a.parentElement ?? a.getRootNode()?.host ?? null) {
+  for (let a = item; a; a = upFrom(a)) {
     let c = clips.get(a);
     if (c === undefined) {
       const band = shownBand(a);

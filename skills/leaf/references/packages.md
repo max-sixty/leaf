@@ -446,7 +446,9 @@ handed across to its re-rendered successor. The document needs none: native scro
 anchoring holds it. A sticky box that covers the top of its scroller declares the room
 it takes with `declareCoverRoom(host, property, covers)`, which keeps `property` on
 `host` at the tallest cover's height for a `scroll-padding` or `scroll-margin` to read,
-so every landing, native or the runtime's, arrives below it.
+so every landing, native or the runtime's, arrives below it. The same declaration tells
+the runtime that what passes under the cover is not on screen, for read acknowledgement,
+arrival checks, and chrome placement.
 
 What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a

@@ -1242,13 +1242,14 @@ customElements.define(
     // headings; here it is read as `scroll-margin-top` on the rows, so a landing arrives
     // below the header rather than behind it. Per file, because each header pins over its
     // own rows and one number for all of them would spend the widest path's wrap on
-    // every landing.
+    // every landing. Declared only where the header pins: unpinned, it covers nothing.
     declareHeadRoom() {
+      const pinned = this.dataset.lfDiffPinned !== undefined;
       for (const file of this.shadowRoot?.querySelectorAll("details") ?? [])
         declareCoverRoom(
           file,
           "--lf-head-room",
-          file.querySelectorAll(":scope > summary"),
+          pinned ? file.querySelectorAll(":scope > summary") : [],
         );
     }
 

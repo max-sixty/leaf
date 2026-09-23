@@ -15,12 +15,6 @@ has tried; settle that before building it.
   board or table, and populated conversation in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior. Set one focus-ring weight for every keyboard target.
-- **Make Thread notifications useful.** Follow the
-  [Thread plan](notes/threads.md#notifications-and-unread-state): use canonical
-  workflow, Ask, and request outcomes to choose meaningful arrivals, then define
-  what a reader must see before a reply counts as read. That boundary then marks
-  unread Threads in the list and puts a "new since you last looked" divider where
-  a returning reader's history resumes.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
 - **Show each Thread's last move in the list.** A collapsed row gives the count and
@@ -78,14 +72,6 @@ has tried; settle that before building it.
   about 4px past the text column; `slice` keeps it inside, with a squared-off end
   where a code span breaks. Compare both in a rendered narrow column before
   choosing the treatment.
-
-### Layout
-
-- **Replace the document/workspace choice with layout axes.** Follow the
-  [layout model](notes/layout-model.md): `lf-grid` in flow for dashboards first
-  (#29), then a two-state `lf-workspace` that picks its posture from its own size
-  (#30). **Unconfirmed:** that one global threshold suits the monitor, comparison and
-  queue-with-detail pages.
 
 ### The agent's text interface
 

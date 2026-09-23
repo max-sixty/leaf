@@ -72,7 +72,8 @@ def unread_content(
     `threads` is the `build_threads` fold keyed by root id; `thread_by_widget` maps a
     widget carried in a thread message to that thread's root.
     """
-    thread_of_message = {
+    # A thread's root id names it even when the log lost the opening message.
+    thread_of_message = {root: root for root in threads} | {
         message["id"]: root
         for root, thread in threads.items()
         for message in thread["msgs"]

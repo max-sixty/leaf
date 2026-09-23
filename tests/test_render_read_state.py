@@ -466,7 +466,8 @@ def test_a_wide_code_reply_is_acknowledged_once_shown(browser, serve):
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-first-unread").click()
+    with sending(page, "wide reply read"):
+        page.locator(".lf-first-unread").click()
     code = page.locator(f'.lf-msg[data-mid="{root}"] pre').first
     assert code.evaluate("element => element.scrollWidth > element.clientWidth")
     expect(page.locator(".lf-first-unread")).to_be_hidden()

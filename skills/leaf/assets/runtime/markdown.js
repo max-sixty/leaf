@@ -43,9 +43,14 @@ export function loadMarkdown(onError = null) {
       breaks: true,
       // Runtime-supplied Markdown may describe code containing angle brackets, but it
       // never gets an HTML execution door. Widgets enter through separately validated
-      // markup fields.
+      // markup fields. A line that opens with a tag starts an HTML block, which only
+      // ever arrives here as someone showing markup, so it reads as the code block it
+      // is: escaped inline, its lines and indentation would collapse into one run.
       renderer: {
-        html: (token) => escapeHtml(token.text),
+        html(token) {
+          if (!token.block) return escapeHtml(token.text);
+          return this.code({ text: token.text, lang: "html", escaped: false });
+        },
         link(token) {
           const markup = module.Renderer.prototype.link.call(this, token);
           const link = renderedElement(markup, "a");

@@ -206,7 +206,7 @@
               ]
             }
           },
-          "text": "This event's thread has grown long, and its entry in the batch's `conversations` carries a `summary_hint`. Once you have replied, summarize the range the hint names, as the Leaf skill's `references/conversation-threads.md`, \"Summarize a long discussion\", says."
+          "text": "This event's thread has grown long, and its entry in the batch's `conversations` carries a `summary_hint`. Once you have replied, read the messages from its `from` through its `through` and summarize them with `leaf conversation summarize <page> <conversation-id> --from <from> --through <through>`, as the Leaf skill's `references/conversation-threads.md`, \"Summarize a long discussion\", says."
         },
         {
           "when": {

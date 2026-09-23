@@ -5121,12 +5121,6 @@ def test_summary_hint_keeps_the_latest_spoken_exchange_outside_reactions(page_di
     assert digest["summary_hint"] == {
         "from": spoken[0]["id"],
         "through": spoken[7]["id"],
-        "operation": "conversation summarize",
-        "instruction": (
-            "Consider summarizing this older exchange. Read the original messages "
-            "in the suggested range first; "
-            "keep the newer exchange outside the summary."
-        ),
     }
     assert digest["summary_hint"]["through"] not in {
         middle_reaction["id"],

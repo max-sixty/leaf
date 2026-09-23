@@ -54,6 +54,17 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     return attrs
 
 
+def answers_ask(record: dict, entry: dict, verb: str) -> bool:
+    """Whether a reader's verb on one authored widget answers that widget's own Ask:
+    the authored instance asks, and the verb is one of its declared answers or the
+    completion verb `until` names. A roll-up originates no Ask."""
+    awaits = entry.get("x-awaits") or {}
+    if awaits.get("rollup") or not asking(record["attrs"], awaits.get("when")):
+        return False
+    until = awaits.get("until")
+    return verb in awaits.get("answers", []) or bool(until and until["verb"] == verb)
+
+
 def ask_completion(rec: dict, entry: dict, projection: StateProjection) -> bool | None:
     """Whether an Ask's explicit completion verb stands.
 

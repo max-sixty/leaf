@@ -680,7 +680,9 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
 
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
     version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice">', 1))
+    version.write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+    )
     publish(page_dir)
     chosen = append_command(
         page_dir,
@@ -9448,12 +9450,13 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     )
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    answer = json.loads(capsys.readouterr().out)
-    assert answer["decision"] == "block"
-    # The pick stands in neither arm's markup, so it holds the turn either way; the
-    # question it answered comes back only where the version took the answer back.
-    assert "whose markup records action" in answer["reason"]
-    assert (f"--for {asked['id']}" in answer["reason"]) is rewritten
+    printed = capsys.readouterr().out
+    if rewritten:
+        answer = json.loads(printed)
+        assert answer["decision"] == "block"
+        assert f"--for {asked['id']}" in answer["reason"]
+    else:
+        assert printed == ""
 
 
 def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):
@@ -11240,11 +11243,26 @@ def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
 def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
     """A pick on a page Ask is owed a version that writes it in. The delivery says
     so, the Stop hook and `idle` hold the agent to it, and the stamped version whose
-    markup records the pick settles it — one rule, read by every consumer."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    markup records the pick settles it — one rule, read by every consumer. An edit
+    to a draft that asks nothing is carried by the log and owes nothing."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        "</section>", '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>'
+    )
     (claimed / "index.html").write_text(source)
     publish(claimed)
     lease = _watched(claimed)
+    append_command(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "note",
+            "action": "edit",
+            "detail": {"text": "Green room."},
+        },
+    )
+    assert state_json(claimed)["workflows"] == []
     picked = append_command(
         claimed,
         {
@@ -11263,7 +11281,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
 
     delivery = delivery_through(claimed, last_deliverable_seq(claimed))
     [batch] = delivery_model.read_delivery(delivery)["batches"]
-    [event] = batch["events"]
+    edited, event = batch["events"]
+    assert "obligation" not in edited
     assert event["obligation"]["response"] == workflow["answer"]
     told = [batch["handling"][ref] for ref in event["handling"]]
     assert any("write it in and stamp a version" in text for text in told)

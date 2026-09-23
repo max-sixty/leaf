@@ -59,7 +59,8 @@ put the thread in Needs you without persisting another workflow record.
 
 A workflow whose next actor is the agent is owed an answer, and `workflows.py`
 states the answer it takes: a reply, a version for a conversation that asked for one,
-a version whose markup records a page action, or a request's receipt. Every owed
+a version whose markup records a reader's answer to a page Ask, or a request's
+receipt. Every owed
 answer blocks the Stop hook and `leaf status idle` once its move is acknowledged; a
 move the reader has not finished — a pick before the Done its Ask declares — is owed
 nothing and has no workflow. Consecutive reader turns form one response batch

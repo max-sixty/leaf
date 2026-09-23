@@ -159,6 +159,35 @@
         },
         {
           "when": {
+            "not": {
+              "required": [
+                "meaning"
+              ],
+              "properties": {
+                "meaning": {
+                  "required": [
+                    "document"
+                  ],
+                  "properties": {
+                    "document": {
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "thread"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "text": "The log carries the action onto every later version, so the page keeps it without an edit."
+        },
+        {
+          "when": {
             "allOf": [
               {
                 "required": [
@@ -239,7 +268,7 @@
               ]
             }
           },
-          "text": "This move owes no answer of its own: it does not finish the reader's answer yet, such as a pick before the Done its group waits for, or a later move on the same widget carries the answer."
+          "text": "This move owes no answer of its own: it answers no Ask, a later move on the same widget carries the answer, or it does not finish the answer yet, such as a pick before the Done its group waits for."
         }
       ],
       "request": [
@@ -303,7 +332,7 @@
       ],
       "markup": [
         {
-          "text": "Continue the work the action selects or unblocks. The log carries the action onto every later version, but the page shows it as waiting on you until the markup records it: write it in and stamp a version."
+          "text": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Continue the work it selects or unblocks, then write it in and stamp a version."
         }
       ],
       "receipt": [

@@ -16,16 +16,20 @@ Answers are one of:
   completed widget move in frozen thread markup, answered by `leaf reply --for`;
 - `{"kind": "version", "conversation": <thread>}` — a thread the reader opened
   as a request for change, answered by a stamped version and a resolve;
-- `{"kind": "markup", "action": <action>}` — a page action the authored markup
-  does not yet record, answered by a stamped version that writes it in;
+- `{"kind": "markup", "action": <action>}` — a page action that answers the
+  widget's Ask and the authored markup does not yet record, answered by a stamped
+  version that writes it in;
 - `{"kind": "receipt", "request": <request>}` — a request, answered by its one
   terminal receipt.
 
 A reader move that does not yet complete the Ask it belongs to — a pick before
 the Done its group declares — hands nothing to the agent, so it is no workflow.
+Neither is a page action that answers no Ask, such as an edit to a reader-owned
+draft or a moved card: the log carries it onto every later version, and the
+reader is waiting on nobody for it.
 """
 
-from .asks import ask_completion
+from .asks import answers_ask, ask_completion
 from .events import awaits_agent, seat_root, spoken_turns
 from .projection import (
     NO_RECORD,
@@ -319,12 +323,11 @@ def canonical_workflows(
         for coordinate, (source, spec) in page.projection.actions.items():
             widget, unit, facet = coordinate
             record = page.document.by_id.get(widget)
+            entry = page.registry.get(record["tag"], {}) if record else {}
             if (
-                record is not None
-                and ask_completion(
-                    record, page.registry.get(record["tag"], {}), page.projection
-                )
-                is False
+                record is None
+                or not answers_ask(record, entry, source["action"])
+                or ask_completion(record, entry, page.projection) is False
             ):
                 continue
             unsettled = page_action_unsettled(

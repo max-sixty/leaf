@@ -183,7 +183,9 @@ function incomingAtLatest(reading, panelIsOpen) {
   const band = visibleBand(threadsBox);
   if (!node || !band) return null;
   const bottom = node.getBoundingClientRect().bottom;
-  if (bottom < band.bottom - 80 || bottom > band.bottom + 2) return null;
+  const unseen =
+    threadsBox.scrollHeight - threadsBox.clientHeight - threadsBox.scrollTop;
+  if (unseen > 2 || bottom > band.bottom + 2 || bottom < band.top) return null;
   return {
     id: incoming.at(-1)?.id ?? nextLatest.id,
     top: threadsBox.scrollTop,
@@ -421,7 +423,7 @@ export async function renderThreads(collection, commands) {
     if (current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2)
       threadsBox
         .querySelector(`.lf-msg[data-mid="${CSS.escape(incoming.id)}"]`)
-        ?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
+        ?.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
   } catch (error) {
     if (!current()) return;
     await retainCommitted(current, reading, error);

@@ -203,6 +203,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads")
+    page.locator(".lf-thread[open] .lf-compose textarea").fill("A short follow-up.")
     assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
     at_end = threads.evaluate("el => el.scrollTop")
@@ -247,7 +248,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             "author": "agent",
             "agent": "Codex",
             "message": newest["id"],
-            "text": "The answer grows while the reader is following it. " * 15,
+            "text": "The answer grows while the reader is following it. " * 120,
         },
     )
     page.evaluate(
@@ -256,6 +257,16 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     page.wait_for_function(
         "before => document.querySelector('.lf-threads').scrollTop > before",
         arg=before_growth,
+    )
+    page.wait_for_function(
+        """id => {
+          const list = document.querySelector('.lf-threads');
+          const message = list.querySelector(`[data-mid="${id}"]`);
+          const bottom = list.getBoundingClientRect().bottom -
+            parseFloat(getComputedStyle(list).scrollPaddingBottom);
+          return Math.abs(message.getBoundingClientRect().bottom - bottom) <= 2;
+        }""",
+        arg=newest["id"],
     )
 
     threads.evaluate("el => el.scrollTop -= 160")
@@ -558,8 +569,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     )
     assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
     assert short["send"]["right"] < short["textarea"]["right"]
-    assert short["send"]["bottom"] < short["textarea"]["bottom"]
-    assert short["padding"] >= short["send"]["width"] + 10
+    assert short["send"]["y"] >= short["textarea"]["bottom"]
+    assert short["padding"] == pytest.approx(7, abs=1)
     assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
         short["message"]["right"], abs=1
@@ -585,15 +596,25 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert grown["inputFont"] == grown["messageFont"]
     assert grown["textStart"] == pytest.approx(grown["message"]["x"], abs=1)
     assert grown["textEnd"] == pytest.approx(grown["message"]["right"], abs=1)
-    assert grown["padding"] < short["padding"]
+    assert grown["padding"] == pytest.approx(short["padding"], abs=1)
+    assert grown["send"]["y"] >= grown["textarea"]["bottom"]
     assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-    assert grown["send"]["bottom"] == pytest.approx(
-        grown["textarea"]["bottom"] - 6, abs=1
-    )
+    assert grown["send"]["bottom"] > grown["textarea"]["bottom"]
     assert grown["send"]["y"] > short["send"]["y"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0
+
+    textarea.fill("A long draft remains readable while scrolling. " * 120)
+    assert textarea.evaluate("el => el.scrollHeight > el.clientHeight")
+    for position in (0, 80, 99999):
+        textarea.evaluate("(el, top) => el.scrollTop = top", position)
+        scrolling = geometry()
+        assert scrolling["send"]["y"] >= scrolling["textarea"]["bottom"]
+        assert scrolling["textStart"] == pytest.approx(scrolling["message"]["x"], abs=1)
+        assert scrolling["textEnd"] == pytest.approx(
+            scrolling["message"]["right"], abs=1
+        )
 
 
 @pytest.mark.parametrize("thread_count", [1, 2])

@@ -5,6 +5,7 @@ import { pageParts } from "../passages.js";
 import { inChrome, layerPart } from "../passages.js";
 import { clockValue, serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
+import { hostIn } from "../shadow.js";
 import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
@@ -40,11 +41,7 @@ import { threadSummary } from "./model.js";
 // page holds, and where the page holds it is where those words are. A place in no tree at
 // all — an element a version activation has replaced — is no place, which is the same
 // answer an anchor that resolves nowhere gets.
-const inPage = (el) => {
-  let at = el;
-  while (at && at.getRootNode() !== document) at = at.getRootNode().host ?? null;
-  return at;
-};
+const inPage = (el) => hostIn(el, document);
 
 const threadPlace = (t, placedAt) =>
   inPage(placedAt(t.root.id)?.element ?? (t.anchor ? sectionOf(t.anchor) : null));

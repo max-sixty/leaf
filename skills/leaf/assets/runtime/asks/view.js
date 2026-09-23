@@ -110,7 +110,6 @@ import {
 } from "../keyboard/bindings.js";
 import {
   closestAcross,
-  containsAcross,
   elementById,
   elementFromPointAcross,
   inChrome,
@@ -151,6 +150,7 @@ import {
   readApplication,
   watchSemantic,
 } from "../semantic-state.js";
+import { hostIn, under } from "../shadow.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -497,7 +497,7 @@ export function createAskView({
     return (
       asks.findLast((ask) => {
         const candidate = askNode(ask);
-        return candidate && (candidate === place || containsAcross(candidate, place));
+        return candidate && (candidate === place || under(place, candidate));
       }) ?? null
     );
   }
@@ -655,8 +655,7 @@ export function createAskView({
     ].every(([atX, atY]) => {
       const onTop = elementFromPointAcross(atX, atY);
       return (
-        containsAcross(bindingBadge, onTop) ||
-        (transparentControl && containsAcross(control, onTop))
+        under(onTop, bindingBadge) || (transparentControl && under(onTop, control))
       );
     });
   }
@@ -1045,7 +1044,7 @@ export function createAskView({
     // declared shadow tree as well, and it concatenates each root's answer rather than
     // composing one order, so the last heading it reported could be from another tree
     // entirely — a worse answer than the one this misses. The crossing worth having is
-    // on the two questions asked of each block: `containsAcross` for the container, and
+    // on the two questions asked of each block: `under` for the container, and
     // the host climb below for the order, which together let an ask staged inside a
     // shadow tree take the heading standing over its host.
     //
@@ -1060,22 +1059,16 @@ export function createAskView({
     // filter therefore kept the blocks after such an ask too, and the last heading in
     // the container won — the wrong-question arrival this bound exists to remove, in the
     // one shape the crossing above was written to serve.
-    const seenBy = (block) => {
-      const root = block.getRootNode();
-      let node = ask;
-      while (node && node.getRootNode() !== root)
-        node = node.getRootNode().host ?? null;
-      return node;
-    };
+    const seenBy = (block) => hostIn(ask, block.getRootNode());
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
       const from = seenBy(block);
       return (
         from &&
         !inChrome(block) &&
         !block.closest("[hidden]") &&
-        !containsAcross(block, ask) &&
+        !under(ask, block) &&
         block.parentElement &&
-        containsAcross(block.parentElement, ask) &&
+        under(ask, block.parentElement) &&
         from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
       );
     });

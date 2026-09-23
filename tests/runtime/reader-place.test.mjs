@@ -73,6 +73,11 @@ test("covers standing over a band's edges take their room off it", () => {
   // A cover beside the band covers nothing of it; covers taking all of it leave none.
   assert.deepEqual(insetBand(band, [box(96, 130, 400, 500)]), band);
   assert.equal(insetBand(band, [box(90, 510)]), null);
+  // A cover stuck at its sticky inset, under a banner, takes the band to its foot; the
+  // same box in flow further down is content passing through.
+  const stuck = (top, bottom) => ({ ...box(top, bottom), stickyTop: 42 });
+  assert.deepEqual(insetBand(band, [stuck(142, 190)]), { ...band, top: 190 });
+  assert.deepEqual(insetBand(band, [stuck(260, 308)]), band);
 });
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less

@@ -2,6 +2,7 @@ import {
   quoteFrom,
   says,
   textNodesUnder,
+  upFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "/runtime/widget-api.js";
@@ -242,10 +243,10 @@ export function unreadSyntax() {
     const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
     return (hi + 0.05) / (lo + 0.05);
   };
-  const up = (el) => el.parentElement ?? el.getRootNode().host ?? null;
   const under = (el) => {
     const layers = [];
-    for (let a = el; a; a = up(a)) layers.unshift(getComputedStyle(a).backgroundColor);
+    for (let a = el; a; a = upFrom(a))
+      layers.unshift(getComputedStyle(a).backgroundColor);
     return layers;
   };
   const seen = new Set(),
@@ -262,7 +263,7 @@ export function unreadSyntax() {
     if (seen.has(`${role} on ${on}`)) continue;
     seen.add(`${role} on ${on}`);
     const ink = paint(...layers, getComputedStyle(span).color);
-    const plain = paint(...layers, getComputedStyle(up(span)).color);
+    const plain = paint(...layers, getComputedStyle(upFrom(span)).color);
     const read = ratio(ink, on);
     if (String(ink) === String(plain))
       found.set(

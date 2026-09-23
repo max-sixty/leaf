@@ -21,15 +21,14 @@ import {
   PRESS,
   beginWalk,
   commands,
+  declareCoverRoom,
   layoutChanged,
   listWalkPosition,
   offer,
   once,
   preserveReadingRegions,
   relabel,
-  removeRuntimeRootStyle,
   selectableOffer,
-  setRuntimeRootStyle,
   tabStore,
 } from "/runtime/widget-api.js";
 
@@ -56,12 +55,11 @@ customElements.define(
     #root = false;
     #contextObserver = null;
     #strip = null;
-    #stripResize = null;
+    #covering = false;
 
     connectedCallback() {
       if (!once(this)) {
         this.#watchRootContext();
-        this.#watchStrip();
         this.#syncRootContext();
         this.#listenForHistory();
         return this.#listenForDiff();
@@ -158,7 +156,7 @@ customElements.define(
         },
       ]);
       this.prepend(strip);
-      this.#watchStrip();
+      this.#declareCover();
       this.classList.add("lf-rendered"); // the upgraded marker every widget uses
       // Restore this reader's tab; a remembered id always resolves in later
       // versions because check forbids dropping ids. Restoration happens here,
@@ -185,9 +183,6 @@ customElements.define(
       this.#historyEvents = null;
       this.#contextObserver?.disconnect();
       this.#contextObserver = null;
-      this.#stripResize?.disconnect();
-      this.#stripResize = null;
-      this.#clearStickyClearance();
     }
 
     #listenForDiff() {
@@ -269,7 +264,7 @@ customElements.define(
           if (child) layoutChanged(child);
         }
       }
-      this.#syncStickyClearance();
+      this.#declareCover();
       if (wasRoot !== this.#root) layoutChanged(this);
     }
 
@@ -295,30 +290,21 @@ customElements.define(
       });
     }
 
-    #watchStrip() {
-      this.#stripResize?.disconnect();
-      this.#stripResize = null;
-      if (!this.#strip) return;
-      this.#stripResize = new ResizeObserver(() => this.#syncStickyClearance());
-      this.#stripResize.observe(this.#strip);
-      this.#syncStickyClearance();
-    }
-
-    #syncStickyClearance() {
-      if (!this.#root || !this.#strip?.isConnected) {
-        this.#clearStickyClearance();
-        return;
-      }
-      setRuntimeRootStyle(
+    // A root strip sticks under the banner, over the document it indexes, so it is a
+    // cover there (`declareCoverRoom`): what it stands over is not on screen, and the room
+    // it takes is kept as `--lf-root-tab-clear`, which the document's `scroll-padding`
+    // reads. The document's covers are one set, so only a set that declared its strip
+    // withdraws one, and a tab set nested in a root panel never clears the root's. A strip
+    // that leaves the document is let go on its own.
+    #declareCover() {
+      const covering = this.#root && Boolean(this.#strip?.isConnected);
+      if (!covering && !this.#covering) return;
+      this.#covering = covering;
+      declareCoverRoom(
         document.documentElement,
         "--lf-root-tab-clear",
-        `${this.#strip.getBoundingClientRect().height}px`,
+        covering ? [this.#strip] : [],
       );
-    }
-
-    #clearStickyClearance() {
-      if (!document.querySelector('body > main > lf-tabs[data-lf-tabs-context="root"]'))
-        removeRuntimeRootStyle(document.documentElement, "--lf-root-tab-clear");
     }
 
     #listenForHistory() {

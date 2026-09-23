@@ -18,9 +18,10 @@
    element of its own and is the one reading that does subtract the chrome at the foot,
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { banner } from "../banner.js";
-import { containsAcross, elementFromPointAcross, inChrome } from "../passages.js";
+import { elementFromPointAcross, inChrome } from "../passages.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { overlaps, shownParts, shownRect, startsAt } from "../geometry.js";
+import { under } from "../shadow.js";
 
 // The top of the room the reader has. Chrome above the page covers what it stands over
 // without clipping those boxes, so every reading of usable room starts below it.
@@ -174,9 +175,7 @@ export function keyBadgePlacement() {
         Math.max(covered, Math.min(innerHeight - 1, (aim.top + aim.bottom) / 2)),
       );
       if (!member) return !inChrome(onTop);
-      return exposure === "self"
-        ? member.contains(onTop)
-        : containsAcross(member, onTop);
+      return exposure === "self" ? member.contains(onTop) : under(onTop, member);
     });
   };
 

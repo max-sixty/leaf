@@ -33,6 +33,7 @@ import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
+import { retainReaderIntent } from "./reader-intent.js";
 
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
@@ -128,7 +129,7 @@ export function createAnchorControls({
     let current = resolveAnchor(control.lfAnchor, pageText());
     let element = targetParts(current)[0] ?? targetElement(current);
     if (!element) return;
-    reveal(element);
+    reveal(element, retainReaderIntent());
     current = resolveAnchor(control.lfAnchor, pageText());
     element = targetParts(current)[0] ?? targetElement(current);
     element?.scrollIntoView({

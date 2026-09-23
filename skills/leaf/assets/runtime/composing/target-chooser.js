@@ -59,6 +59,7 @@ registerBannerControl({
   key: "cancel-selection",
   control: targetChooserCancel,
   rank: BANNER_CONTROL_RANK.cancelSelection,
+  seat: "gesture",
   present: false,
 });
 const selectElement = el("button", "lf-btn", "Select element");

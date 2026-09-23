@@ -127,7 +127,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
     ta.before(field);
-    field.append(ta, sendBtn);
+    const visibleHint = document.createElement("span");
+    visibleHint.className = "lf-compose-placeholder";
+    visibleHint.setAttribute("aria-hidden", "true");
+    const hintLabel = document.createElement("span");
+    const hintKey = document.createElement("kbd");
+    visibleHint.append(hintLabel, hintKey);
+    field.append(ta, visibleHint, sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
@@ -165,12 +171,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       renderMedia();
     };
     hydrate(ta.value);
-    // The hint goes in the placeholder, where it's visible exactly while the box is
-    // empty; the stable accessible name remains independent of that changing hint. The
-    // button's tooltip spells the send key out. The send shortcut is focus-scoped, so
-    // only the focused box may claim it. Unfocused, the placeholder may carry the live
-    // contextual key that enters this exact box. These readings may be functions because
-    // their labels can change while the box stands.
+    // Keep the full native placeholder, but paint a copy so only the key can use mono.
+    // The accessible name stays independent of that changing hint. The send button's
+    // tooltip spells out its key. A focused box claims the send key; an unfocused box
+    // may show the contextual key that enters it. Labels can change while a box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
@@ -188,8 +192,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         : contextualHint?.box === ta
           ? contextualHint.label
           : "";
-      const placeholder = suffix ? `${label()} · ${suffix}` : label();
+      const word = label();
+      const placeholder = suffix ? `${word} · ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      if (suffix) {
+        hintLabel.textContent = `${word} · `;
+        hintKey.textContent = suffix;
+      }
+      field.classList.toggle("lf-compose-hinted", Boolean(suffix));
       const ariaLabel = name();
       if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
         ta.setAttribute("aria-label", ariaLabel);
@@ -325,5 +335,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     return sync;
   }
 
-  return { wireInput, paintInputs };
+  // A focus move can finish after a card's placement. Paint its box in that same
+  // turn so the binding is present when the newly focused card first appears.
+  return {
+    wireInput,
+    paintInputs,
+    mount: () => document.addEventListener("focusin", paintInputs),
+  };
 }

@@ -211,7 +211,7 @@ let goToSequence;
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
   focusable: FOCUSABLE,
-  moveContentFrame: (change) => layout.moveContentFrame(change),
+  takeShell: (surface) => layout.takeShell(surface),
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.margin.renderMargin();
@@ -798,6 +798,7 @@ if (!offlineInteractive) {
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
+  inputs.mount();
   mountKeyboard({
     goToSequenceActive: goToSequence.goToSequenceActive,
     setGoToSequence: goToSequence.setGoToSequence,

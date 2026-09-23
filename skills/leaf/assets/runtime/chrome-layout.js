@@ -235,12 +235,19 @@ export function createChromeLayout({
   // carries rests on an ordering (theme.css, at the body strip): nothing may move the
   // reading column except the container-query recalc that runs inside layout, and showing
   // the panel's dialog in the same batch as the shell write switches that hold off —
-  // measured at 900px, the reader landed three paragraphs back. So a caller with a surface
-  // to render does it either side of this call.
+  // measured at 900px, the reader landed three paragraphs back. So the frame is private,
+  // and what leaves this module is `takeShell`, which carries a surface's key rather than
+  // a callback: a surface owner has no way to render inside it, and renders either side.
   function moveContentFrame(change) {
     change();
     pageShifted();
     layoutMarginRows();
+  }
+  function takeShell(surface) {
+    moveContentFrame(() => {
+      if (surface) document.body.dataset.lfAuxiliarySurface = surface;
+      else delete document.body.dataset.lfAuxiliarySurface;
+    });
   }
   // Field sizing and every other chrome-size change feed the one layout pass.
   // The document shell's size also feeds the page repaint door: content landing can move
@@ -335,7 +342,7 @@ export function createChromeLayout({
   return {
     syncLayout,
     mountLayoutObservers,
-    moveContentFrame,
+    takeShell,
     landEdge,
     commentsEdge,
     panelCovers,

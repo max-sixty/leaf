@@ -19,6 +19,7 @@ import { constructSheet, marksSheet } from "./stylesheets.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
+import { watchPassageRoot } from "./passages.js";
 import { watchExternalLinks } from "./presentation.js";
 
 // A package stylesheet that arrives with an on-demand widget module belongs wherever
@@ -77,6 +78,9 @@ export function shadowStage(host, nodes) {
   // Fragment hydration can add a sheet while the reader uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);
+  // The page reading walks in here at the host's place in the string, and its observer
+  // does not cross the boundary on its own.
+  watchPassageRoot(root);
   watchExternalLinks(root);
   return root;
 }

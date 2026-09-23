@@ -6,7 +6,7 @@
    widget-authored body has no general contract for its hidden internal states, so its
    thread's explicit Mark read control acknowledges it. Reading never answers an Ask.
    Each observation pass batches newly completed versions into one event. */
-import { shownRect } from "../geometry.js";
+import { shownRect, visibleBand } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { closestAcross, containsAcross } from "../passages.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -111,21 +111,15 @@ function visibleInterval(body, clips) {
   if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
   let top = shown.top;
   let bottom = shown.bottom;
-  // Sticky run headings paint above the list without clipping its scrollport.
-  // Subtract their occupied edge so a message hidden under one is not called read.
+  // Sticky run headings paint above the list without clipping its scrollport, so a
+  // message hidden under one is not read: the list's visible band leaves them out.
   const threadList = closestAcross(body, "leaf-thread-list");
-  if (threadList)
-    for (const heading of threadList.querySelectorAll(".lf-pinned")) {
-      if (!heading.checkVisibility()) continue;
-      const cover = heading.getBoundingClientRect();
-      if (
-        cover.left < shown.right &&
-        cover.right > shown.left &&
-        cover.top <= top &&
-        cover.bottom > top
-      )
-        top = Math.max(top, cover.bottom);
-    }
+  const band = threadList && visibleBand(threadList);
+  if (threadList && !band) return null;
+  if (band) {
+    top = Math.max(top, band.top);
+    bottom = Math.min(bottom, band.bottom);
+  }
   if (bottom <= top) return null;
   return {
     interval: [Math.max(0, top - box.top), Math.min(box.height, bottom - box.top)],

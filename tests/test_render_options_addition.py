@@ -192,7 +192,18 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     add = page.locator("#bracket > .lf-another .lf-compose-submit")
     field.click()
     expect(page.locator("#bracket > .lf-another > .lf-key-badge")).to_be_hidden()
+    hint = page.locator("#bracket > .lf-another .lf-compose-placeholder")
+    expect(hint).to_be_visible()
+    assert hint.locator("kbd").evaluate(
+        "key => getComputedStyle(key).fontFamily"
+    ) == page.evaluate(
+        "() => getComputedStyle(document.body).getPropertyValue('--mono').trim()"
+    )
+    assert hint.locator("span").evaluate(
+        "label => getComputedStyle(label).fontFamily"
+    ) == field.evaluate("box => getComputedStyle(box).fontFamily")
     field.fill("Something the author missed")
+    expect(hint).to_be_hidden()
     expect(add).to_be_visible()
     add_box = add.bounding_box()
     assert abs(add_box["x"] + add_box["width"] / 2 - shown["centerX"]) < 0.5

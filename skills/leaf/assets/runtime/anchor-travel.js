@@ -14,7 +14,7 @@ import {
   sectionOf,
   suppliedDatum,
 } from "./anchor-resolution.js";
-import { clippedContents, shownBand, shownBox, shownRect } from "./geometry.js";
+import { clippedContents, landingBand, shownBox, shownRect } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
@@ -76,7 +76,8 @@ export function createAnchorTravel({
     url.hash = source.id;
     history.pushState(null, "", url);
     if (!destination) {
-      scrollToElement(source, scrollBehavior(), "start");
+      reveal(source, mayArrive);
+      scrollRevealedElement(source, scrollBehavior(), "start");
       if (missing) announce(missing);
       return false;
     }
@@ -140,8 +141,9 @@ export function createAnchorTravel({
     moveScrollerBy(box, centreBy(element, block, box), behavior);
   }
 
+  // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
-    reveal(element);
+    reveal(element, retainReaderIntent());
     scrollRevealedElement(element, behavior, block);
   }
 
@@ -193,13 +195,9 @@ export function createAnchorTravel({
     ) {
       if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
         continue;
-      const band = shownBand(box);
+      const band = landingBand(box);
       if (!band) continue;
-      const style = getComputedStyle(box);
-      const left = band.left + (parseFloat(style.scrollPaddingLeft) || 0);
-      const right = band.right - (parseFloat(style.scrollPaddingRight) || 0);
-      const top = band.top + (parseFloat(style.scrollPaddingTop) || 0);
-      const bottom = band.bottom - (parseFloat(style.scrollPaddingBottom) || 0);
+      const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
       let byX = 0;
       if (destination.left < left && destination.right <= right)
@@ -219,7 +217,7 @@ export function createAnchorTravel({
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = destinationHolder(where);
     if (!holder) return;
-    reveal(holder);
+    reveal(holder, retainReaderIntent());
     scrollRevealedRange(where, behavior);
   }
 

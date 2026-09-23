@@ -711,9 +711,17 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     }""")
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
-    banner_control(
-        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
-    ).tap()
+    # The selection's next step stands on the row in the reading loop's place, where
+    # the finger that made the selection finds it; More stays shut.
+    comment = page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Comment on selection"
+    )
+    expect(comment).to_be_visible()
+    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    expect(page.locator(".lf-threads-toggle")).to_be_hidden()
+    box = comment.bounding_box()
+    assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
+    comment.tap()
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(field).to_be_focused()
     field.fill("From a phone")
@@ -755,11 +763,27 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     little below: the page makes the room. This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
-    sizes = page.evaluate(
-        "() => [...document.querySelectorAll('input, textarea, select')]"
-        ".map(field => parseFloat(getComputedStyle(field).fontSize))"
-    )
-    assert sizes and min(sizes) >= 16, sizes
+    # Every field in the composed tree, the vendored controls' own native fields in
+    # their shadow roots included: the Threads find box and the Map's search are
+    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    sizes = page.evaluate("""() => {
+      const sizes = {};
+      const walk = (root) => {
+        for (const node of root.querySelectorAll('*')) {
+          if (node.matches('input, textarea, select')) {
+            const host = node.getRootNode().host;
+            const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
+            sizes[name] = Math.min(
+              sizes[name] ?? Infinity, parseFloat(getComputedStyle(node).fontSize));
+          }
+          if (node.shadowRoot) walk(node.shadowRoot);
+        }
+      };
+      walk(document);
+      return sizes;
+    }""")
+    assert any(name.startswith("wa-input.") for name in sizes), sizes
+    assert min(sizes.values()) >= 16, sizes
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(
         "body => parseFloat(getComputedStyle(body).fontSize)"
@@ -781,8 +805,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
       getSelection().addRange(range);
     }""")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
-    comment = banner_control(
-        page, ".lf-banner-menu .lf-btn:text-is('Comment on selection')"
+    comment = page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Comment on selection"
     )
     box = comment.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
@@ -949,3 +973,117 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(viewer.locator("img")).to_have_attribute("alt", "A media chart")
     page.keyboard.press("Escape")
     expect(media_button).to_be_focused()
+
+
+def test_taking_the_panels_strip_leaves_the_reader_on_the_same_words(browser, serve):
+    """The panel's strip reflows the page; the reader stays on the words they were on.
+
+    Narrowing the shell narrows the reading column inside it, so the text re-wraps and
+    the document grows above wherever the reader is standing. The browser's scroll
+    anchoring absorbs that, and nothing in the runtime does: this passes with no script
+    holding the reader's place. That is what makes it the guard. Anchoring is suppressed
+    for any frame in which a box on the anchor's ancestor chain changes a property on the
+    suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
+    is a border and the column does not glide (theme.css, at the body strip), and the
+    panel renders on either side of the frame the shell write lands in, never inside it
+    (`takeShell`, chrome-layout.js). The day any of these regresses, this goes red.
+
+    A re-wrap moves every paragraph by a different amount, so only one of them can be
+    held. The one the reader's place means is the block under the top of the window,
+    which is the block the platform's own anchoring would have chosen; what is further
+    down has grown taller and is expected to have moved.
+    """
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    # Narrow enough that the strip's share of the shell re-wraps this fixture's
+    # paragraphs: the assertion below says so rather than trusting the width.
+    resized(page, 900, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 900")
+    # The reader's place: the page's own block under the window's visible top edge, which
+    # the root states as scroll-padding for native focus navigation.
+    at_the_top = """
+    () => {
+      const edge = Number.parseFloat(
+        getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0;
+      const p = [...document.querySelectorAll('main p')]
+        .find((p) => p.getBoundingClientRect().bottom > edge);
+      return p && { id: p.id, top: p.getBoundingClientRect().top };
+    }
+    """
+    reading = page.evaluate(at_the_top)
+    assert reading, "the fixture put no paragraph under the top of the window"
+    tall = page.evaluate("() => document.documentElement.scrollHeight")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
+        "the window is wide enough that the strip reflowed nothing, so nothing is proved"
+    )
+    opened = page.evaluate(at_the_top)
+    assert opened["id"] == reading["id"]
+    assert opened["top"] == pytest.approx(reading["top"], abs=2)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate("() => document.documentElement.scrollHeight") == tall
+    closed = page.evaluate(at_the_top)
+    assert closed["id"] == reading["id"]
+    assert closed["top"] == pytest.approx(reading["top"], abs=2)
+
+
+def test_a_page_map_update_keeps_the_row_the_reader_was_on(browser, serve):
+    """A state update re-rendering the open Page Map leaves the reader's rows in place.
+
+    A group arriving above the rows in view pushes them down in the list's content by
+    its own height. The place the reader had is the rows they were looking at, so the
+    list follows them by the same amount rather than standing at the scroll offset it
+    had, which would show them one group further down.
+    """
+    fixture = leaf_page(
+        "Page Map place",
+        "".join(f'<p id="place-{index}">Target {index}</p>' for index in range(30)),
+    )
+    page = open_page(browser, serve(fixture))
+    resized(page, 1280, 600)
+    page.evaluate(
+        """async () => {
+          const {marginEntry, registerMarginContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const contribute = (key, target, label) => registerMarginContribution({
+            key, target,
+            read: () => ({entries: [marginEntry({key: 'action', icon: 'dot', label})]}),
+            activate: () => {},
+          });
+          for (let index = 0; index < 29; index++)
+            contribute(`place-${index}`, document.querySelector(`#place-${index}`),
+              `Action ${index}`);
+          let at = 29;
+          const moving = contribute(
+            'moving', () => document.querySelector(`#place-${at}`), 'Moving action');
+          window.lfMoveToTop = () => {
+            at = 0;
+            moving.update({immediate: true});
+          };
+        }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    row = dialog.get_by_role("button", name="Action 15", exact=True)
+    row.evaluate("node => node.scrollIntoView({block: 'center'})")
+    top = row.evaluate("node => node.getBoundingClientRect().top")
+    room = dialog.locator(".lf-page-map-list").evaluate(
+        "list => list.scrollHeight - list.clientHeight - list.scrollTop"
+    )
+    moving = dialog.get_by_role("button", name="Moving action", exact=True)
+    grown = moving.evaluate(
+        "node => node.closest('.lf-page-map-group').getBoundingClientRect().height"
+    )
+    assert room > grown, "the list cannot follow the rows without passing its end"
+
+    page.evaluate("() => window.lfMoveToTop()")
+    first = dialog.locator(".lf-page-map-action-label-word").first
+    expect(first).to_have_text("Moving action")
+    assert row.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=1
+    )

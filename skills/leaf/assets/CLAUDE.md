@@ -54,7 +54,7 @@ relative to `runtime/` unless stated otherwise.
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js` |
+| Reading arrangements and scrolling | `reading-regions.js`, `reading-layout.js`, `scrolling.js`, `reach.js`, `reader-place.js` |
 | Keyboard commands and their projections | `keyboard/CLAUDE.md` |
 | Focus and navigation | `focus.js`, `navigation.js`, `reader-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
@@ -64,7 +64,7 @@ relative to `runtime/` unless stated otherwise.
 | Margin placement | `margin-layout.js`, `thread-card-geometry.js` |
 | Passage reading and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor paint, controls, and travel | `anchor-paint.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `visual-parts.js` |
-| Banner, approvals, and fixed primary/menu control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
+| Banner, approvals, and the row, menu, and gesture control seats | `banner.js`, `banner-status-view.js`, `banner-approval.js`, `banner-shelf.js` |
 | Trays and neighboring pages | `trays.js`, `live-leaves.js`, `live-leaves-list.js` |
 | Activity timing and updates | `presence.js`, `updates.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
@@ -139,9 +139,10 @@ Each mutable fact has one writer:
 | auxiliary-surface selection | the auxiliary-surface owner's one registered key | `select` closes the previous surface before opening the next; `restore` reserves its room and `present` completes state-dependent arrival |
 | the narrowing and order of the thread list | the reader's find words, lifecycle, scope, subject, and detached-placement facets, and Page or Recent order | `renarrow`, `revealThread`, and `widen`; neither of the last two changes the order |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| the thread list's viewport position through reflow | the live reference card in the open panel | one hold, taken by whatever reflows the list: `renderThreads` for generated presentation, receipt updates, provisional work, and resolution folds, and `holdThroughDisclosure` for the room the named-details group gives back when a reader opens a card |
+| a nested scroller's viewport position through a re-render | one reference node in the scroller's visible band, handed across to whatever the render puts under its identity | `reader-place.js`'s place hold, taken by whatever re-renders the scroller: the thread list's `renderThreads` (generated presentation, receipt updates, provisional work, resolution folds) and `holdThroughDisclosure`, the Page Map's `renderSheet`, and the margin card's `buildThreadCard` for the same thread. The document's scroller takes none: native anchoring holds it, and `takeShell` (`chrome-layout.js`) keeps surface rendering out of the frame that anchoring rests on |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival. A press's correction is instant, because the click that follows it in the same gesture writes this same scroll and a write cancels an animation instead of superseding it (`landing.js`, at `land`) |
-| the margin card's place in its transcript | the card list's own scroll, which the browser holds through reflow | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
+| the margin card's place in its transcript | the card list's own scroll, held through a re-render of the same thread by the place hold above | a landing through `revealConversation`, a send revealing its reply, and `buildThreadCard` starting another thread at the top; placing the card writes none |
+| how much of a scroller the reader can see, and where a landing may put something | the scroller's shown band less its stuck `.lf-pinned` covers, or less its declared `scroll-padding` | `visibleBand` and `landingBand` in `geometry.js` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects, tiered over the layer stack the popovers and modal dialogs pushed; for Escape, inner steps, then the surface holding focus with whatever stands inside it, then every step rooted outside it | the dispatcher and each visible key surface read the same binding-specific ownership |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
@@ -609,7 +610,9 @@ animation can expose the behavior.
 source map) live under `scripts/browser/generated/`. The manifest names its inputs,
 exports, and output hashes; `scripts/CLAUDE.md`
 owns the contributor build and check commands. The internal bundle contains Lit and
-Signals once, with no external imports or runtime compiler. Content modules import
+Signals once, with no external imports or runtime compiler. The Web Awesome bundle
+(`scripts/vendor.py webawesome`) is built separately and carries its own Lit, so a page
+runs two copies of it. Content modules import
 only `runtime/widget-api.js`. Server projection entries carry the declaration admitted from
 their captured revision, so neither active nor historical views reinterpret an event
 through the current DOM's registry.

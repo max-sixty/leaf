@@ -379,9 +379,9 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
 def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     """Why a source-versioned datum was not displayed by its declared seat.
 
-    Current source values are replaceable, so an older valid revision may race a
-    replacement and is admitted as an already-outdated comment. An authored
-    snapshot selection is immutable and therefore has one exact revision.
+    Source values are replaceable and nothing keeps the ones they replaced, so a
+    revision other than the source's current one is admitted as a comment on a
+    value that has since changed: the reader and a replacement may have raced.
     """
     anchor = event.get("anchor") or {}
     source = anchor.get("source")
@@ -399,31 +399,9 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     ]
     if not bindings:
         return f"datum anchor source {source!r} is not bound by section {section!r}"
-
-    stored = view.data
-    revision = anchor["data_revision"]
-    if revision > stored["revision"]:
-        return (
-            f"datum anchor data revision {revision} is newer than page data "
-            f"revision {stored['revision']}"
-        )
-    source_store = stored["sources"].get(source)
-    if source_store is None:
+    if source not in view.contracts:
         return f"datum anchor source {source!r} has never been supplied to this page"
-
-    for binding in bindings:
-        snapshot_attr = binding.get("snapshot")
-        selected = rec["attrs"].get(snapshot_attr) if snapshot_attr else None
-        if selected is None:
-            if revision in source_store["revisions"]:
-                return None
-            continue
-        if revision == int(selected) and selected in source_store.get("snapshots", {}):
-            return None
-    return (
-        f"datum anchor data revision {revision} was never displayed from source "
-        f"{source!r} by section {section!r}"
-    )
+    return None
 
 
 def action_contract_error(view, event: dict, events: list, registry: dict):
@@ -545,7 +523,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
                     parser.lf_elements,
                     registry,
                     {"kind": "page", "revision": revision},
-                    view.data,
+                    view.data(registry),
                 )
             ),
         )
@@ -562,7 +540,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
                     thread.elements,
                     registry,
                     {"kind": "thread"},
-                    view.data,
+                    view.data(registry),
                 )
             ),
             reading=thread,
@@ -657,7 +635,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
         )
     page = page_reading(document, events, registry, event["revision"])
     threads = build_threads(events, page.within)
-    document_state = read_document(page, threads, view.data)
+    document_state = read_document(page, threads, view.data(registry))
     conversation, _reading = browser_conversation(events, registry, threads)
     unanswered = [
         *document_state.asks["unanswered"],

@@ -122,28 +122,36 @@ function navigationSummary(navigation, model) {
   const draft = Boolean(loadDraft("reply:" + model.key)?.trim());
   return html`<summary class="lf-thread-summary" title=${title}>
     <span class="lf-thread-topic">${title}</span>
-    <span class="lf-thread-draft">${draft ? "Draft" : nothing}</span>
-    ${
-      model.unreadCount
-        ? html`<span
-            class="lf-thread-unread"
-            aria-label=${`${model.unreadCount} unread`}
-            >${model.unreadCount} unread</span
-          >`
-        : nothing
-    }
+    <span class="lf-thread-meta">
+      ${draft ? html`<span class="lf-thread-draft">Draft</span>` : nothing}
+      ${
+        status
+          ? html`<span
+              class="lf-thread-status"
+              data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
+              title=${
+                model.attention?.secondary
+                  ? `${status} · ${model.attention.secondary}`
+                  : status
+              }
+              >${status}</span
+            >`
+          : nothing
+      }
+      ${
+        model.unreadCount
+          ? html`<span
+              class="lf-thread-unread"
+              aria-label=${`${model.unreadCount} unread`}
+              >${model.unreadCount} unread</span
+            >`
+          : nothing
+      }
+    </span>
     <span
       class="lf-thread-count"
       aria-label=${`${count} ${count === 1 ? "message" : "messages"}`}
       >${count}</span
-    >
-    <span
-      class="lf-thread-status"
-      data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
-      title=${
-        model.attention?.secondary ? `${status} · ${model.attention.secondary}` : status
-      }
-      >${status}</span
     >
   </summary>`;
 }
@@ -553,7 +561,11 @@ export class ThreadView {
       id: () => this.#model.id,
       resolved: model.resolved,
       prepareLanding:
-        model.surface === "panel" ? () => this.#prepareLanding(model.resolved) : null,
+        model.surface === "panel"
+          ? () => this.#prepareLanding(model.resolved)
+          : model.surface === "margin" && !model.resolved
+            ? this.#marginControls?.prepareLanding
+            : null,
       ...this.#commands.settlement,
     }).catch(() => {});
   };
@@ -563,7 +575,10 @@ export class ThreadView {
     if (!model.quote?.anchored || !model.quote.found) return;
     if (event.detail !== 0 && reachedForWords(event.currentTarget)) return;
     const travel = this.#commands.travel;
-    if (travel.panelCovers()) travel.setPanel(false);
+    // A passage the open panel stands over would land out of sight, so the panel makes
+    // way for it; one clear of the panel lands with the panel still open beside it.
+    const where = travel.threadDestination(model.id);
+    if (where && travel.panelHides(where)) travel.setPanel(false);
     travel.scrollToThread(model.id, {
       land: () => travel.focusSurface(this.#model.id),
     });

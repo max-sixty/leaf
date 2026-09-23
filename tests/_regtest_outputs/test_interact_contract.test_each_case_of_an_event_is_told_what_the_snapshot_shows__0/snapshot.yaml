@@ -65,15 +65,14 @@
 #      clause 5, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves rather than
-#              what it says. Its anchor's `section` is a widget's id or a runtime
-#              part's: `lf-banner`, `lf-threads-toggle` (the Threads panel),
-#              `lf-leaves` (the leaves panel), `lf-versions`, `lf-composer`,
-#              `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`
-#              or `lf-command-reference`; `part`, when present, names the control the
-#              click landed on. Find the source that produces what it names and fix it
-#              in this page's own source, unless the behavior belongs to a package's
-#              widget or the user asks for a wider fix: then change the package as the
-#              Leaf skill's `references/packages.md` says, re-vendor, and note the
+#              what it says. Its anchor's `section` is a widget's id or, when it
+#              starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
+#              `lf-threads` (the Threads panel), `lf-asks`, `lf-versions` or
+#              `lf-composer`; `part`, when present, names the control the click landed
+#              on. Find the source that produces what it names and fix it in this
+#              page's own source, unless the behavior belongs to a package's widget or
+#              the user asks for a wider fix: then change the package as the Leaf
+#              skill's `references/packages.md` says, re-vendor, and note the
 #              re-vendor on the stamp. A fix that belongs in Leaf itself is the user's
 #              to raise, as the Leaf skill's "Improve Leaf through use" says. The
 #              stamped version that carries the fix is the result the reply reports.
@@ -474,10 +473,9 @@ design comment:
     - when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
       text: >-
         A design comment is about how the page looks or behaves rather than what
-        it says. Its anchor's `section` is a widget's id or a runtime part's: `lf-banner`,
-        `lf-threads-toggle` (the Threads panel), `lf-leaves` (the leaves panel),
-        `lf-versions`, `lf-composer`, `lf-comment-button` (the margin's Comment
-        control), `lf-shortcut-bar` or `lf-command-reference`; `part`, when present,
+        it says. Its anchor's `section` is a widget's id or, when it starts `lf-`,
+        a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads
+        panel), `lf-asks`, `lf-versions` or `lf-composer`; `part`, when present,
         names the control the click landed on. Find the source that produces what
         it names and fix it in this page's own source, unless the behavior belongs
         to a package's widget or the user asks for a wider fix: then change the
@@ -783,8 +781,11 @@ request:
   told:
     - text: >-
         The user asked you to run an operation the page's package defines; the package's
-        guidance says what it means. The request id, with the page, identifies it:
-        after an interruption, check whether it already ran before acting.
+        guidance says what the operation means and what to check before running
+        it: `leaf page guidance <page>` lists its audiences, and the one that runs
+        requests, such as `coordinator`, is the guide to read. The request id, with
+        the page, identifies it: after an interruption, check whether it already
+        ran before acting.
     - text: >-
         Run it at most once, then record its outcome with exactly one `leaf receipt
         <page> <request-id> succeeded|failed --text "…"`. The receipt does not change

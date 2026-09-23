@@ -16,7 +16,10 @@ the `codex queue` command — so preparing, accepting, opening and abandoning on
 here rather than beside either carrier. The immutable payload itself belongs to
 `delivery`; what this module keeps is which task holds it and how far it has got.
 
-Which delivery is offered, and when, is a carrier's own policy: the adapter's queue
+Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
+reserves the reply seat, sends `turn/start`, and says whether a failed start may have
+left a turn running. Which delivery is offered, when, and what an uncertain start
+means for the turn it may have made are each carrier's own policy: the adapter's offer
 loop and the website's turn follower each keep theirs.
 """
 
@@ -32,7 +35,11 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
-from .conversation import DeliveryReply, release_delivery_reply
+from .conversation import (
+    DeliveryReply,
+    release_delivery_reply,
+    reserve_delivery_reply,
+)
 from .delivery import (
     DELIVERY_FORMAT,
     DeliveryIdConflict,
@@ -57,7 +64,7 @@ from .service import (
 )
 
 START_TIMEOUT = 20
-QUEUE_FORMAT = "leaf-codex-queue-v1"
+RECORD_FORMAT = "leaf-codex-delivery-v1"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
@@ -73,6 +80,10 @@ STREAM_THROTTLED_METHODS = (
 
 class AppServerRequestRejected(RuntimeError):
     """The App Server definitively rejected a request before executing it."""
+
+
+class AppServerDeliveryUncertain(RuntimeError):
+    """A delivery may have started, but its acknowledgement was lost."""
 
 
 def app_server_socket_path(endpoint: str) -> Path | None:
@@ -212,6 +223,46 @@ def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
         },
         "turnTrigger": "leaf",
     }
+
+
+def start_app_server_delivery(send, thread_id: str, payload: dict) -> str:
+    """Start one delivery's turn on an idle thread with its reply seat reserved.
+
+    `send(method, params)` is the carrier's request on its own connection, under
+    its own request ids.
+
+    The seat is reserved before `turn/start` goes out, so no other writer answers
+    the delivery its final message is about to answer. What happens to the seat when
+    the start fails depends on what the failure says. A definitive refusal
+    (`AppServerRequestRejected`) or an answer naming no turn means no turn exists,
+    so the seat goes back before this raises. A request that went out with no answer
+    raises `AppServerDeliveryUncertain` with the seat still reserved: a turn carrying
+    this delivery may be running, and until something sees it, no other writer may
+    answer for the delivery. Each carrier decides what an uncertain start means for
+    the turn it may have made.
+    """
+    reply_target = stream_reply_target(payload)
+    if reply_target is not None:
+        reserve_delivery_reply(thread_id, payload["id"], reply_target)
+    try:
+        started = send("turn/start", app_server_turn_start_params(thread_id, payload))
+    except AppServerRequestRejected:
+        if reply_target is not None:
+            release_delivery_reply(thread_id, payload["id"], reply_target)
+        raise
+    # An interrupt mid-request leaves the same uncertainty and keeps the seat too, but
+    # it passes through unwrapped so it ends the process rather than reading as a
+    # start to retry.
+    except Exception as error:
+        raise AppServerDeliveryUncertain(
+            f"the Codex App Server turn was not acknowledged: {error}"
+        ) from error
+    turn_id = (started.get("turn") or {}).get("id")
+    if not turn_id:
+        if reply_target is not None:
+            release_delivery_reply(thread_id, payload["id"], reply_target)
+        raise RuntimeError("Codex App Server returned no turn id")
+    return turn_id
 
 
 def _initialize_params(name: str, title: str) -> dict:
@@ -946,28 +997,28 @@ def delivery_lock_path(session_id: str) -> Path:
     return session_state_path(session_id, "delivery.lock")
 
 
-def queue_path(session_id: str, delivery_id: str) -> Path:
+def record_path(session_id: str, delivery_id: str) -> Path:
     validate_delivery_id(delivery_id)
     return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
-def archive_queue(path: Path, queue: dict) -> None:
-    """Move completed queue state out of the adapter's hot scan."""
-    if queue["state"] == "accepted" and all(
-        batch["receipted"] for batch in queue["batches"]
+def archive_record(path: Path, record: dict) -> None:
+    """Move completed delivery records out of the adapter's hot scan."""
+    if record["state"] == "accepted" and all(
+        batch["receipted"] for batch in record["batches"]
     ):
         history_path = path.parent / "history" / path.name
         history_path.parent.mkdir(parents=True, exist_ok=True)
         path.replace(history_path)
 
 
-def write_queue(path: Path, queue: dict) -> None:
+def write_record(path: Path, record: dict) -> None:
     """Store one delivery record, retiring it once nothing is owed on it."""
-    write_json(path, queue)
-    archive_queue(path, queue)
+    write_json(path, record)
+    archive_record(path, record)
 
 
-def queue_records(session_id: str) -> list[tuple[Path, dict]]:
+def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
     """Every standing delivery record one task holds, oldest first."""
     directory = delivery_dir(session_id)
     if not directory.is_dir():
@@ -978,29 +1029,27 @@ def queue_records(session_id: str) -> list[tuple[Path, dict]]:
             validate_delivery_id(path.stem)
         except ValueError:
             continue
-        queue = read_json(path)
-        if queue is None or queue.get("format") != QUEUE_FORMAT:
+        record = read_json(path)
+        if record is None or record.get("format") != RECORD_FORMAT:
             continue
-        if queue["state"] == "collecting" and not all(
-            "handling" in batch for batch in queue["batches"]
+        if record["state"] == "collecting" and not all(
+            "handling" in batch for batch in record["batches"]
         ):
             continue
-        if queue["state"] == "offering":
+        if record["state"] == "offering":
             payload = read_json(delivery_path(path.stem))
             if payload is None or payload.get("format") != DELIVERY_FORMAT:
                 continue
-        records.append((path, queue))
+        records.append((path, record))
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
 
-def _collecting_queue(
-    session_id: str,
-    queues: list[tuple[Path, dict]] | None = None,
-) -> tuple[Path, dict] | None:
+def _collecting_record(session_id: str) -> tuple[Path, dict] | None:
     """The one record still collecting events for this task, if it has one."""
-    records = queue_records(session_id) if queues is None else queues
     current = [
-        (path, queue) for path, queue in records if queue["state"] == "collecting"
+        (path, record)
+        for path, record in delivery_records(session_id)
+        if record["state"] == "collecting"
     ]
     if len(current) > 1:
         raise RuntimeError(
@@ -1035,18 +1084,18 @@ def delivery_pointer_prompt(delivery_id: str, payload: dict | None = None) -> st
 
 @dataclass(frozen=True)
 class PreparedDelivery:
-    """One immutable delivery and the queue address that prepared it, if any."""
+    """One immutable delivery and the delivery record that prepared it, if any."""
 
     prompt: str
     payload: dict
     claim_transition: tuple[dict | None, dict] | None = field(
         default=None, compare=False, repr=False
     )
-    queue_path: Path | None = field(default=None, compare=False, repr=False)
+    record_path: Path | None = field(default=None, compare=False, repr=False)
 
 
-def _readdress_queue(path: Path) -> Path:
-    """Give a collecting queue a fresh identity after a delivery collision."""
+def _readdress_record(path: Path) -> Path:
+    """Give a collecting record a fresh identity after a delivery collision."""
     while True:
         candidate = new_delivery_id()
         replacement = path.with_name(f"{candidate}.json")
@@ -1056,28 +1105,28 @@ def _readdress_queue(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
+def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
     """Freeze one payload before offering its permanent pointer."""
-    if queue["state"] == "offering":
+    if record["state"] == "offering":
         payload_path = delivery_path(path.stem)
         payload = read_json(payload_path)
         if payload is None:
             raise RuntimeError("the Codex delivery payload is missing")
         return PreparedDelivery(
-            delivery_pointer_prompt(path.stem, payload), payload, queue_path=path
+            delivery_pointer_prompt(path.stem, payload), payload, record_path=path
         )
 
     while True:
         try:
             payload = freeze_delivery(
-                queue["batches"],
+                record["batches"],
                 delivery_id=path.stem,
-                created_at=queue["created_at"],
+                created_at=record["created_at"],
             )
             break
         except DeliveryIdConflict:
-            path = _readdress_queue(path)
-    queue["batches"] = [
+            path = _readdress_record(path)
+    record["batches"] = [
         {
             "page": batch["page"],
             "session": batch["session"],
@@ -1086,12 +1135,12 @@ def offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
             ],
             "receipted": False,
         }
-        for batch in queue["batches"]
+        for batch in record["batches"]
     ]
-    queue["state"] = "offering"
-    write_queue(path, queue)
+    record["state"] = "offering"
+    write_record(path, record)
     return PreparedDelivery(
-        delivery_pointer_prompt(path.stem, payload), payload, queue_path=path
+        delivery_pointer_prompt(path.stem, payload), payload, record_path=path
     )
 
 
@@ -1101,27 +1150,27 @@ def append_batch(
     transaction: PageTransaction,
     batch: list[dict],
 ) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's one collecting queue."""
-    current = _collecting_queue(session_id)
+    """Append fresh events to the task's one collecting record."""
+    current = _collecting_record(session_id)
     if current is None:
         while True:
             delivery_id = new_delivery_id()
-            path = queue_path(session_id, delivery_id)
+            path = record_path(session_id, delivery_id)
             if not path.exists() and read_json(delivery_path(delivery_id)) is None:
                 break
         path.parent.mkdir(parents=True, exist_ok=True)
-        queue = {
-            "format": QUEUE_FORMAT,
+        record = {
+            "format": RECORD_FORMAT,
             "state": "collecting",
             "created_at": time.time(),
             "batches": [],
         }
     else:
-        path, queue = current
+        path, record = current
 
     delivered = {
         (entry["page"], event["seq"], event["id"])
-        for entry in queue["batches"]
+        for entry in record["batches"]
         for event in entry["events"]
     }
     fresh = [
@@ -1134,7 +1183,7 @@ def append_batch(
 
     replies = sum(
         obligation["response"]["kind"] == "reply"
-        for entry in queue["batches"]
+        for entry in record["batches"]
         for event in entry["events"]
         if (obligation := event.get("obligation")) is not None
     )
@@ -1161,9 +1210,9 @@ def append_batch(
         "session": session_id,
         "receipted": False,
     }
-    queue["batches"].append(entry)
-    write_queue(path, queue)
-    return path, len(queue["batches"]) - 1, entry
+    record["batches"].append(entry)
+    write_record(path, record)
+    return path, len(record["batches"]) - 1, entry
 
 
 def delivery_owed_moves(payload: dict) -> list[dict]:
@@ -1207,11 +1256,11 @@ def stream_reply_target(payload: dict) -> dict | None:
 
 def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:
     """Resolve one task-owned delivery identity to its plain reply address."""
-    path = queue_path(session_id, delivery_id)
+    path = record_path(session_id, delivery_id)
     records = (path, path.parent / "history" / path.name)
     if not any(
         (recorded := read_json(record)) is not None
-        and recorded.get("format") == QUEUE_FORMAT
+        and recorded.get("format") == RECORD_FORMAT
         for record in records
     ):
         return None
@@ -1222,9 +1271,9 @@ def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | No
     return stream_reply_target(payload) if payload is not None else None
 
 
-def delivery_queue_state(session_id: str, delivery_id: str) -> str | None:
-    """Read one delivery's transport state from its live or archived queue record."""
-    path = queue_path(session_id, delivery_id)
+def delivery_record_state(session_id: str, delivery_id: str) -> str | None:
+    """Read one delivery's transport state from its live or archived delivery record."""
+    path = record_path(session_id, delivery_id)
     with flocked(delivery_lock_path(session_id)):
         record = read_json(path)
         if record is None:
@@ -1247,9 +1296,9 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
             with flocked(lock):
                 pending = next(
                     (
-                        (path, queue)
-                        for path, queue in queue_records(session_id)
-                        if queue["state"] in {"collecting", "offering"}
+                        (path, record)
+                        for path, record in delivery_records(session_id)
+                        if record["state"] in {"collecting", "offering"}
                     ),
                     None,
                 )
@@ -1284,14 +1333,14 @@ def accept_codex_delivery(
     lock = delivery_lock_path(session_id)
     with flocked(lock):
         offered = [
-            (path, queue)
-            for path, queue in queue_records(session_id)
-            if queue["state"] == "offering"
+            (path, record)
+            for path, record in delivery_records(session_id)
+            if record["state"] == "offering"
         ]
         if len(offered) != 1:
             raise RuntimeError("the Codex task has no delivery to accept")
-        path, queue = offered[0]
-        batches = [dict(batch) for batch in queue["batches"]]
+        path, record = offered[0]
+        batches = [dict(batch) for batch in record["batches"]]
 
     accepted = []
     for batch in batches:
@@ -1318,14 +1367,14 @@ def accept_codex_delivery(
             )
 
     with flocked(lock):
-        queue = read_json(path)
-        if queue is None or queue["state"] != "offering":
+        record = read_json(path)
+        if record is None or record["state"] != "offering":
             raise RuntimeError("the Codex delivery changed before it was accepted")
-        for batch in queue["batches"]:
+        for batch in record["batches"]:
             batch["receipted"] = True
-        queue["state"] = "accepted"
-        queue["transport"] = {"phase": phase, "turn": turn}
-        write_queue(path, queue)
+        record["state"] = "accepted"
+        record["transport"] = {"phase": phase, "turn": turn}
+        write_record(path, record)
     return accepted
 
 
@@ -1364,7 +1413,7 @@ def open_app_server_delivery(
     turn: str,
 ) -> str:
     """Bind a provider-observed App Server delivery to its turn."""
-    if delivery_queue_state(session_id, delivery_id) == "offering":
+    if delivery_record_state(session_id, delivery_id) == "offering":
         accepted = accept_codex_delivery(session_id, turn=turn)
         matching = [
             delivery
@@ -1385,11 +1434,11 @@ def abandon_codex_delivery(session_id: str, event_id: str) -> None:
     with flocked(lock):
         matching = [
             path
-            for path, queue in queue_records(session_id)
-            if queue["state"] == "offering"
+            for path, record in delivery_records(session_id)
+            if record["state"] == "offering"
             and any(
                 event["id"] == event_id
-                for batch in queue["batches"]
+                for batch in record["batches"]
                 for event in batch["events"]
             )
         ]

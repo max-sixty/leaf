@@ -112,9 +112,9 @@ export const runtime = {
   },
 };
 
-// A specimen arrives inert and without the surrounding user's arrangements.
-// The host releases inertness only on explicit entry. Passive gallery replays stay
-// inert and take one state reading; operable specimens run the ordinary live feed.
+// A specimen arrives without the surrounding user's arrangements. Passive gallery
+// replays stay inert and take one state reading; operable specimens run the ordinary
+// live feed.
 export const passiveSpecimen = document.body.hasAttribute("data-lf-specimen-passive");
 
 export const agentName = () => runtime.agent;

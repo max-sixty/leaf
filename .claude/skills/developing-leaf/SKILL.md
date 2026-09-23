@@ -52,7 +52,7 @@ shipped example or fixture. When the user asks for sketches without implementati
 keep the current surface as a baseline and derive each sketch from its actual controls,
 copy, and styling. Embed an operable current surface with a live `lf-specimen`,
 following `skills/leaf/references/page-authoring.md`: it hosts a complete Leaf page
-with independent state and the ordinary runtime-owned chrome. The developer gallery's
+with independent state, laid out as a block of the containing page. The developer gallery's
 choreographed replays use the same host in passive mode; they demonstrate a sequence
 rather than accept user gestures. Page-local HTML and CSS may frame the comparison
 and build proposed sketches.
@@ -112,8 +112,12 @@ and changes the banner a visual check may be reading.
 `--user` also fixes the address: the durable service records it, so the URL
 survives a stop, while an unclaimed preview's server is its watcher's and a new
 watcher answers somewhere else. A slot keeps the mode it was built in; `--reset`
-rebuilds it in the other one. A subagent's previews stay claimless, and the session the
-user talks to starts any `--user` preview: a subagent's claim is that session's
+rebuilds it in the other one. `--reset` discards the slot's `service.json` with the
+rest of the page, and `--slot` names a different page, so after either, hand over
+the URL the command prints. Any other address question about a `--user` preview is
+a served page's, which `<root>/skills/leaf/references/serving-pages.md`, "Address
+and authentication", answers. A subagent's previews stay claimless, and the session
+the user talks to starts any `--user` preview: a subagent's claim is that session's
 claim, so that session's Stop hook would answer for the preview's moves either way.
 
 When finished with a preview, run the matching preview command with `--stop` (and
@@ -214,6 +218,9 @@ read `<root>/skills/leaf/references/serving-pages.md` and re-vendor it with the
 checkout launcher. A served page follows that reference's stop, init, start
 sequence. Fix or report a compatibility refusal without falling back to the
 installed plugin.
+
+A page that explains how a Leaf interface behaves lets the reader operate it;
+`references/specimen-explainers.md` covers that pattern.
 
 ## Refresh the public catalog stills
 

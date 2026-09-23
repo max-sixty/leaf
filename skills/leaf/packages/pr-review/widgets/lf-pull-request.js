@@ -128,7 +128,7 @@ function renderDescription(element, source) {
   return true;
 }
 
-function renderCard(record, prior, snapshot, descriptionChanged) {
+function renderCard(record, prior, descriptionChanged) {
   const card = prior ?? buildCard();
   const identityLabel = card.querySelector(".lf-pr-identity-label");
   const status = card.querySelector(".lf-pr-status");
@@ -155,10 +155,7 @@ function renderCard(record, prior, snapshot, descriptionChanged) {
     )
   )
     descriptionChanged.value = true;
-  const capture = snapshot?.snapshot
-    ? ` · ${snapshot.label || `snapshot ${snapshot.snapshot}`}`
-    : "";
-  setText(observed, `Observed ${ago(record.observedAt)}${capture}`);
+  setText(observed, `Observed ${ago(record.observedAt)}`);
   observed.title = record.observedAt;
   renderFacts(card, record);
   renderChecks(card, record.checks);
@@ -193,7 +190,7 @@ customElements.define(
           (next, prior) =>
             next.missing
               ? renderMissing(prior)
-              : renderCard(next, prior, snapshot, descriptionChanged),
+              : renderCard(next, prior, descriptionChanged),
           { snapshot },
         );
         return descriptionChanged.value;

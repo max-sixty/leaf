@@ -47,28 +47,19 @@ retry key `attempt`, then adds these delivery readings:
 - `conversations` lists every conversation the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
 - `obligation`, when present, freezes the answer the event owned at capture. Its
-  `as_of_seq` is evidence age and `response` is an addressed operation. `reply`
-  names an event or conversation and takes `leaf reply`, or the turn's final
-  message where the host binds it ("After the batch"). `version` names a
-  conversation and takes a page revision closed with `leaf resolve --to` a message
-  of that thread. `markup` names a page action that answers an Ask and takes a
-  stamped version whose markup records it. `receipt` names a request and takes `leaf receipt`. Until
-  the answer is written, the Stop hook holds the turn open and `leaf status idle`
-  refuses. Re-read current state before writing because later evidence may already
-  have settled the requirement. A reply response carries both `to`, the
-  conversation address to write under, and `for`, the exact event whose obligation
-  the write must still satisfy. An event without one owes nothing of its own: a
-  page action that answers no Ask, a pick before the Done its Ask waits for, or a
-  message a newer one in its thread answers through.
+  `as_of_seq` is evidence age, and `response` names the answer (`reply`, `version`,
+  `markup` or `receipt`) with the address it is written under; the event's `answering`
+  clauses say how to write it. Until the answer is written, the Stop hook holds the
+  turn open and `leaf status idle` refuses. Re-read current state before writing
+  because later evidence may already have settled the requirement. A reply response
+  carries both `to`, the conversation address to write under, and `for`, the exact
+  event whose obligation the write must still satisfy. An event without one owes
+  nothing of its own: a page action that answers no Ask, a pick before the Done its
+  Ask waits for, or a message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text
-  once; ids belong only to that batch. Follow every named clause for this event.
-  The vendored layer supplies its kind's clauses whose condition the event meets,
-  then the clauses for the answer its `obligation` names, so a plain comment is
-  not told how to read a drawing, a page widget's pick is not told how a thread
-  answers, and an event owing nothing is not told how to answer. A missing or
-  invalid registry leaves the event's `handling` out and the batch's object empty
-  rather than substituting another layer's rules.
+  once; ids belong only to that batch. Follow every named clause for this event:
+  together they cover this event's case and the answer it owes.
 
 The batch-level `conversations` carry each conversation's title (null until named),
 anchor, closure state, earlier messages, and standing gestures on sent widgets.
@@ -79,8 +70,6 @@ Use `leaf conversation read <page> <conversation-id>` for an exact, bounded
 current reading and paginate with `--after`; use `leaf events <page>
 --conversation <conversation-id>` only for raw-log diagnostics. `leaf transcript
 <page>` is the human-facing Markdown export.
-
-A reaction carries its token, plus `means` when its package defines one.
 
 Long-thread context may include `summary_hint`; a pointer-only host can surface the
 same suggestion as XML. It names a contiguous message range to consider summarizing.
@@ -126,8 +115,8 @@ retry, even if a later delivery also includes newer events; your host contract o
 the wait and acknowledgement route.
 
 `leaf wait` ends one of two ways: exit 0 with one JSON envelope on stdout, the next input, or exit 2 with the ending named on
-stderr. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. The
-initial wait says on stderr when it revived a dead server. The endings:
+stderr. Exit 1 from `leaf wait --ack` means the acknowledgement was refused. A wait
+that restarted a dead server says so on stderr. The endings:
 
 - `the leaf ended` or `the leaves ended`: every page left in the watch is idle.
   `nothing to watch`: the session holds none. End the loop.
@@ -154,9 +143,5 @@ delivery receipt.
 Acknowledgement is transport receipt, not semantic settlement. Record every
 still-current obligation with the Leaf operation its `response` names, then
 re-enter the host's wait loop: `waiting` after every obligation has been answered and
-the user owns the next move, `working` while you continue. A plain reply is
-`leaf reply`, except in a Codex task Leaf observes over App Server, where your final
-message is that operation (`references/host-codex-app-server.md`, "Replies").
-`page state` lists every standing reaction under `reactions`; a package-supplied
-`means` appears when present. Resolve a page reaction once the live revision has
-acted on it.
+the user owns the next move, `working` while you continue.
+`page state` lists every standing reaction under `reactions`.

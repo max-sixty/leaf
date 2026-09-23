@@ -10,6 +10,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
+from leaf.registry.storage import read_page_registry
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -996,6 +997,12 @@ customElements.define('lf-feed', class extends HTMLElement {
   }
 });
 """
+
+
+def source_revision(page_dir, source):
+    """The revision a reader of `source` receives now, as an anchor records it."""
+    registry = read_page_registry(page_dir).registry
+    return data_model.read_data(page_dir, registry)["sources"][source]["revision"]
 
 
 def data_projection_page(serve):

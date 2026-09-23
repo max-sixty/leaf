@@ -437,19 +437,13 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
         (d / "index.html").write_text(example.read_text())
         for operation in data_operations(example):
             if operation["kind"] == "set":
-                data_model.cmd_data_set(
-                    d,
-                    operation["source"],
-                    operation["value"],
-                    operation["capture_label"],
-                )
+                data_model.cmd_data_set(d, operation["source"], operation["value"])
             else:
                 data_model.cmd_data_capture(
                     d,
                     operation["source"],
                     operation["input_file"],
                     operation["lines"],
-                    operation["label"],
                     operation["format"],
                 )
         # The example's companion log, where it ships one (examples/AGENTS.md), so
@@ -596,12 +590,6 @@ def test_corpus_is_generated_from_the_examples():
     )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
-    )
-    _, capture_revisions = corpus.composed_data()
-    gallery_snapshot = capture_revisions["gallery-source"]
-    assert (
-        f'source="gallery-source"\n            snapshot="{gallery_snapshot}"'
-        in committed
     )
 
 
@@ -1966,19 +1954,13 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         for operation in data_operations(example):
             if operation["kind"] == "set":
-                data_model.cmd_data_set(
-                    d,
-                    operation["source"],
-                    operation["value"],
-                    operation["capture_label"],
-                )
+                data_model.cmd_data_set(d, operation["source"], operation["value"])
             else:
                 data_model.cmd_data_capture(
                     d,
                     operation["source"],
                     operation["input_file"],
                     operation["lines"],
-                    operation["label"],
                     operation["format"],
                 )
         # Published, because the door is only open on a page a user could be

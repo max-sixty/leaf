@@ -1,9 +1,6 @@
-# Code review
-
-This is a trial of a package primarily for authoring guidance. It supplies no
-widgets; select the evidence packages the review needs alongside it. These
-suggestions help a user judge a code change, with the page's form left to the
-author.
+This package supplies no widgets; select the evidence packages the review needs
+alongside it. These suggestions help a user judge a code change, with the page's
+form left to the author.
 
 Lead with the review finding, the behavior that changes, and any unresolved
 risks. Identify the revision reviewed and distinguish the change author's
@@ -18,5 +15,5 @@ can make the comparison readable without reconstructing two unrelated diagrams.
 Choose evidence for the question: `diagram` for behavior or structure, `diff` for
 the exact patch, and `pr-review` for a captured pull-request brief or call-tree
 diff. Standard code, table, and disclosure elements can carry a focused invariant,
-test result, or remaining uncertainty. Use a review-progress control when the
-user needs to inspect every file, and an Ask when a specific decision is owed.
+test result, or remaining uncertainty. Set `lf-diff`'s `review` attribute when the
+user needs to inspect every file, and use an Ask when a specific decision is owed.

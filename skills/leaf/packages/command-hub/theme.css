@@ -66,7 +66,7 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
 /* A command's head stacks from the room the command has, which a command inside a
-   worker's disclosure or beside an open panel has less of than the window says. */
+   worker's disclosure or beside an open tray has less of than the window says. */
 lf-command { container: lf-command / inline-size; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;

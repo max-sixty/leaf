@@ -26,12 +26,14 @@
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
-// one stands at a time. The strip-taking auxiliary surfaces—Threads and Asks—take room when the
-// viewport can hold them and cover the page under their respective media query otherwise;
-// Leaves always covers because its rows leave this page. Auxiliary modality is a shared
-// inert boundary outside this geometry owner; the reference and Page Map keep native
-// `showModal()`. The shell's
-// inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
+// one stands at a time. Threads and Leaves always stand over the page and never take width
+// from it, so the page is laid out for one width whatever is open. Leaves covers it, and
+// Threads covers it only where it leaves less than a usable page (`panelCovers`). The Asks tray is the
+// one surface that takes a strip: it stands beside the page where the viewport can hold
+// it and covers the page under its media query otherwise (trays.js). Auxiliary modality
+// is a shared inert boundary outside this geometry owner; the reference and Page Map
+// keep native `showModal()`. The shell's inline size already reflects the strip a beside
+// tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, `--lf-sidebar-posture`, and `--lf-rail-posture` are CSS-owned readings
 // resolved on `main`, which is the named `lf-content-frame` style container a margin
 // resident asks for them; `--lf-shell-inset-left`
@@ -44,6 +46,8 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { overlaps } from "./geometry.js";
+import { under } from "./shadow.js";
+import { panelEdgeOver } from "./conversation/panel-elements.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a user who has not moved its edge. 420 since
@@ -57,32 +61,19 @@ import { setRuntimeRootStyle } from "./root-state.js";
 // Opening or closing an auxiliary surface calls its state setter and schedules the shared layout
 // and key paint. User gestures remember their intent; an ephemeral developer replay
 // uses the same transition without replacing it.
-export const THREAD_PANEL_W = 420;
+const THREAD_PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
 // standing up in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
 // so it is the narrowest width anything has laid a thread's reply box and its two
 // actions out at; below it nothing says they still fit. Wanting the panel gone is what
 // closing it is for, and narrowing it to nothing is not the same wish.
 const THREAD_PANEL_MIN = 320;
-// The window under which yielding the strip is worse than being covered by it, as a
-// query rather than a number, because three things ask it: the rule that takes the strip,
-// the rule that hands scrolling to the sheet instead, and the runtime, for what follows
-// from which of those the page is under. Written as the covering half, since that is the
-// half the runtime asks about; the strip is its complement, spelled `not` where it is
-// taken.
-//
-// Asked of the default width and not of the user's own, so widening the panel can never
-// flip the posture out from under the hand doing it: a panel dragged past half its window
-// would otherwise stop standing beside the page and cover it instead, which is the whole
-// page rearranging itself in answer to one pixel of a drag. What the user's width does
-// answer to is the edge's own `cap`, which holds it to the same bargain this line
-// strikes — the page keeps at least what the panel takes — without putting the posture
-// itself in play.
-export const COVERING = `(width <= ${THREAD_PANEL_W * 2}px)`;
-// Where each standing width is written, and where the cascade reads it. chrome.css
-// spells the same name and the same covering width, and the layer test holds the two
-// spellings equal, since a stylesheet cannot read a constant.
-export const THREAD_PANEL_PROP = "--lf-thread-panel-width";
+// The least page worth leaving live beside the panel: the same 320px, the narrowest
+// window anything here is laid out in. Narrower than that, what shows beside the panel
+// is a sliver no one can read or work in, so the panel covers the page instead.
+const PAGE_MIN = 320;
+// Where the standing width is written, and where the cascade reads it.
+const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 export function createChromeLayout({
   panelIsOpen,
@@ -100,26 +91,61 @@ export function createChromeLayout({
   repaint,
   repaintPage,
 }) {
-  const panelCovers = () => panelIsOpen() && commentsEdge.over.matches;
+  // The panel stands over the page at every width and takes no room from it. It covers
+  // the page — the modal boundary that makes the page inert — only where what it leaves
+  // beside it is less than a usable page (`PAGE_MIN`): a phone's window by default, or
+  // anywhere a user draws it that wide. Asked of the width it stands at rather than of a
+  // breakpoint, because what makes the page unusable is how much of it the panel leaves,
+  // and nothing about the window alone says that. The window is `innerWidth`, which
+  // counts the root's scrollbar: the covering boundary locks the root's scroll, a classic
+  // scrollbar leaves with it, and a reading of the client width would grow by the bar,
+  // answer that the panel no longer covers, drop the lock, and flip back on every sync.
+  // The panel's own width can only grow as the lock widens its cap, which keeps it
+  // covering.
+  const panelCovers = () =>
+    panelIsOpen() && innerWidth - commentsEdge.width() < PAGE_MIN;
+  // Whether the open panel hides a destination — an element or a range — on the page:
+  // it covers the whole page, or it stands over most of the destination, more than half
+  // its width. A block the width of the column keeps most of itself clear of the panel at
+  // a desktop window and is seen where it stands; words at the right end of a line, or a
+  // box in the right margin, land under it. A destination inside the panel is the panel's
+  // own to show. Travel that promises to show it closes the panel when this is true.
+  const panelHides = (where) => {
+    if (!panelIsOpen()) return false;
+    const node = where instanceof Range ? where.startContainer : where;
+    if (under(node, panel)) return false;
+    if (panelCovers()) return true;
+    const rect = where.getBoundingClientRect();
+    return rect.right - Math.max(rect.left, panelEdgeOver(node)) > rect.width / 2;
+  };
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
-  // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
+  // box it reads: the strip the page yields to a tray is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
   function syncLayout() {
     scheduleThreadPreviewPosition();
-    const panelBeside = panelIsOpen() && !panelCovers();
+    const panelLive = panelIsOpen() && !panelCovers();
     const overlapsAcross = (one, other) =>
       one.left < other.right && other.left < one.right;
     const foot = panelFoot.getBoundingClientRect();
-    // Beside the page, the thread panel owns the right strip all the way to its foot. Cap
-    // the line's room at that strip rather than letting a long hint cross into the panel.
-    shortcutBarEl.style.setProperty(
-      "--lf-shortcut-bar-right",
-      (panelBeside ? commentsEdge.width() : 0) + "px",
+    // Over a live page, the thread panel owns the right of the window all the way to its
+    // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
+    const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
+    shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
+    bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
+    // The rail stands in the page's right margin, and over a live page the panel stands
+    // over that margin at any window short of about 1700px. The markers are still drawn,
+    // under the panel, so the rail's own posture says nothing; what says the user lost
+    // them is a rail row the panel's edge reaches. Where one does, the banner offers the
+    // Page Map in their place, as it does where the rail is not drawn at all (chrome.css).
+    const panelLeft = panelLive ? panel.getBoundingClientRect().left : Infinity;
+    const railCovered = [
+      ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
+    ].some(
+      (row) =>
+        !row.classList.contains("lf-docked") &&
+        row.getBoundingClientRect().right > panelLeft,
     );
-    bottomStatusEl.style.setProperty(
-      "--lf-shortcut-bar-right",
-      (panelBeside ? commentsEdge.width() : 0) + "px",
-    );
+    panel.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered", railCovered);
     // The line keeps its viewport foot. A covering auxiliary surface makes it inert
     // background, so content growing in that foreground surface is not a collision and
     // cannot move the line.
@@ -203,7 +229,7 @@ export function createChromeLayout({
     dockSeats();
   }
   // The response bar lives in the viewport plane, and syncLayout is where its usable
-  // reading boundary changes shape — the panel takes or returns its strip and a resize
+  // reading boundary changes shape — a tray takes or returns its strip and a resize
   // moves every rect. Re-place it against the durable anchor so it cannot overhang the
   // narrowed shell.
   function syncFloats() {
@@ -216,7 +242,7 @@ export function createChromeLayout({
   //
   // It used to glide there over 180ms. That glide animated `main`'s `left`, which is a
   // scroll-anchoring suppression trigger on every frame it ran, so the page bought a
-  // moving column at the price of dropping the user each time the panel closed. The
+  // moving column at the price of dropping the user each time a strip was returned. The
   // browser carries them now (theme.css, at the body strip), and the column jumps — which
   // is what every editor with a side panel does, and cheaper than it looks against words
   // that stay put.
@@ -234,8 +260,8 @@ export function createChromeLayout({
   // the reflow. What may not go inside is a surface's own rendering. The hold the browser
   // carries rests on an ordering (theme.css, at the body strip): nothing may move the
   // reading column except the container-query recalc that runs inside layout, and showing
-  // the panel's dialog in the same batch as the shell write switches that hold off —
-  // measured at 900px, the user landed three paragraphs back. So the frame is private,
+  // a surface in the same batch as the shell write switches that hold off — measured at
+  // 900px, the user landed three paragraphs back. So the frame is private,
   // and what leaves this module is `takeShell`, which carries a surface's key rather than
   // a callback: a surface owner has no way to render inside it, and renders either side.
   function moveContentFrame(change) {
@@ -323,6 +349,7 @@ export function createChromeLayout({
   function landEdge(state) {
     const apply = () => {
       state();
+      syncAuxiliarySurfaces();
       syncLayout();
     };
     if (document.body.hasAttribute("data-lf-sizing")) apply();
@@ -335,7 +362,7 @@ export function createChromeLayout({
     min: THREAD_PANEL_MIN,
     prop: THREAD_PANEL_PROP,
     key: "lf-thread-panel-width",
-    covering: COVERING,
+    over: () => true,
     land: landEdge,
   });
 
@@ -346,5 +373,6 @@ export function createChromeLayout({
     landEdge,
     commentsEdge,
     panelCovers,
+    panelHides,
   };
 }

@@ -44,14 +44,14 @@ Commands:
 ## data
 Usage: leaf data [OPTIONS] COMMAND [ARGS]...
 
-  Manage current values and immutable file captures.
+  Manage each bound source's current value, one JSON file per source.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  capture  Capture a bound UTF-8 file.
-  clear    Clear current and unreferenced captures.
+  capture  Set a bound source from a UTF-8 file.
+  clear    Remove one source's current value.
   set      Replace one bound source value.
 
 ## package

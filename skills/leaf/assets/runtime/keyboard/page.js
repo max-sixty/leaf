@@ -164,11 +164,11 @@ pageRung("page", () => {
     return standingFloor()
       ? null
       : { says: "back to the page", does: "Back out onto the page", out: letGo };
-  // An entered specimen has one more containing page. Its own controls and
-  // standing unwind first; the host owns the final focus handoff, not another
-  // keyboard listener competing with this register.
+  // A specimen has one more containing page. Its own controls and standing unwind
+  // first; the frame's owner takes the focus back, not another keyboard listener
+  // competing with this register.
   const frame = window.frameElement;
-  return frame?.hasAttribute("data-lf-contained") && !document.body.inert
+  return frame?.hasAttribute("data-lf-contained")
     ? {
         says: "return to containing page",
         does: "Leave this specimen and return to its containing page",

@@ -16,10 +16,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
 
+from .data import source_file
 from .event_log import now_iso, read_events
 from .files import write_json
 from .revision_artifact import RevisionArtifact
 from .revisioning import activate_source
+from .schema import DATA_DIR, DATA_FILE
 from .structure import SourceDocument
 from .thread_context import specimen_events
 
@@ -86,12 +88,26 @@ class Specimens:
             # dependencies of the authored revision. Preserve those bytes too.
             if (parent / "media").is_dir():
                 shutil.copytree(parent / "media", child / "media", dirs_exist_ok=True)
+            # The child reads the data the parent reading it was built from held,
+            # which for a frozen preview is not what the parent's files hold now.
+            write_json(
+                child / DATA_FILE,
+                {
+                    "sources": {
+                        name: {"contract": reading["contract"]}
+                        for name, reading in data["sources"].items()
+                    }
+                },
+            )
+            (child / DATA_DIR).mkdir()
+            for name, reading in data["sources"].items():
+                if "value" in reading:
+                    write_json(source_file(child, name), reading["value"])
             (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),
                 encoding="utf-8",
             )
-            write_json(child / "data.json", data)
             write_json(
                 child / "status.json",
                 {

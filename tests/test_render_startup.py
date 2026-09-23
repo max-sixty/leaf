@@ -53,6 +53,7 @@ from render_cases_navigation import (
     composer_quote,
     data_projection_page,
     live_watcher,
+    source_revision,
 )
 from render_cases_widgets import (
     CHART_PAGE,
@@ -458,25 +459,23 @@ def test_authored_html_paints_while_runtime_startup_is_held(
 
 
 @pytest.mark.parametrize(
-    ("saved", "root_attribute", "body_attribute"),
+    "saved",
     [
-        (
-            {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
-            "data-lf-restore-panel",
-            "data-lf-auxiliary-surface",
-        ),
-        (
-            {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
-            "data-lf-restore-tray",
-            "data-lf-auxiliary-surface",
-        ),
+        {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
+        {"lf-auxiliary-surface": "asks", "lf-tray-slot-width": "280"},
     ],
 )
 @pytest.mark.parametrize("contained", [False, True])
 def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
-    browser, serve, saved, root_attribute, body_attribute, contained
+    browser, serve, saved, contained
 ):
-    """Returning users do not watch saved auxiliary chrome move the document."""
+    """Returning users do not watch saved auxiliary chrome move the document: the
+    Asks tray's strip is reserved before the runtime loads, and Threads covers the page
+    and takes nothing from it."""
+    root_attribute = "data-lf-restore-asks"
+    body_attribute = "data-lf-auxiliary-surface"
+    # Only the strip-taking tray has a shape to hold before the runtime arrives.
+    reserves = saved["lf-auxiliary-surface"] == "asks"
     content = "<h1>Restored surface</h1>"
     if contained:
         content = (
@@ -490,7 +489,7 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     if contained:
         host = context.new_page()
         host.goto(url, wait_until="load")
-        expect(host.get_by_role("button", name="Enter specimen")).to_be_enabled()
+        expect(host.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
         url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")
@@ -513,7 +512,11 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
             page.goto(url, wait_until="commit")
         displayed(page)
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator("html")).to_have_attribute(root_attribute, re.compile(".*"))
+        root = expect(page.locator("html"))
+        if reserves:
+            root.to_have_attribute(root_attribute, re.compile(".*"))
+        else:
+            root.not_to_have_attribute(root_attribute, re.compile(".*"))
         initial = page.locator("body > main").bounding_box()
 
         held.pop().continue_()
@@ -3305,7 +3308,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("")
+    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
 
@@ -3753,12 +3756,12 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     }, "authored prose, projected data, and runtime apparatus became conflated"
 
     api = page.locator('[data-lf-datum="api"]')
+    seen = source_revision(serve.page_dir, "deployments")
     origin = {
         "input": "rows",
         "source": "deployments",
         "contract": "deployment-rows",
-        "revision": 1,
-        "data_revision": 1,
+        "revision": seen,
         "path": [0, "value"],
     }
     assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == origin
@@ -3775,7 +3778,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
         "datum": "api",
         "quote": "Ready",
         "source": "deployments",
-        "data_revision": 1,
+        "source_revision": seen,
     }
 
     data_model.cmd_data_set(
@@ -3786,8 +3789,10 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
             {"key": "api", "value": "Running"},
         ],
     )
+    replaced = source_revision(serve.page_dir, "deployments")
+    assert replaced != seen
     expect(page.locator('[data-lf-datum="api"]')).to_have_attribute(
-        "data-lf-source-revision", "2"
+        "data-lf-source-revision", replaced
     )
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator('[data-lf-datum="api"]')).not_to_have_class(
@@ -3800,8 +3805,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
     assert api.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
-        "revision": 2,
-        "data_revision": 2,
+        "revision": replaced,
         "path": [1, "value"],
     }, "the source coordinate must follow construction order, not the datum key"
     expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
@@ -4182,35 +4186,33 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     )
 
 
-def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
+def test_a_captured_source_stays_pointable_and_pinned_in_an_export(
     browser, serve, tmp_path
 ):
+    """A captured file reads under its authored label and follows its source. A
+    revision that binds a source id nothing rewrites keeps the reviewed words through
+    later writes to the first source, and an export carries that pinned provenance."""
+    long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
     source_page = leaf_page(
         "captured source",
-        """
+        f"""
 <h1 id="title">Leaf skill</h1>
-<lf-text-document id="skill-source" source="leaf-skill" language="markdown"></lf-text-document>
+<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
 """,
     )
     url = live_url(serve(source_page))
     text_file = tmp_path / "SKILL.md"
     text_file.write_bytes(b"# Leaf\r\n\r\nOriginal instructions.\r\n")
-    long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
-    data_model.cmd_data_capture(
-        serve.page_dir, "leaf-skill", text_file, "1:3", long_label
-    )
+    data_model.cmd_data_capture(serve.page_dir, "leaf-skill", text_file, "1:3")
 
     page = open_page(browser, url)
-    expect(page.locator("lf-text-document figcaption")).to_have_text(
-        f"{long_label} · lines 1–3"
-    )
+    expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
     origin = {
         "input": "document",
         "source": "leaf-skill",
         "contract": "text-document",
-        "revision": 1,
-        "data_revision": 1,
+        "revision": source_revision(serve.page_dir, "leaf-skill"),
     }
     datum = page.locator('[data-lf-datum="document"]')
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == origin
@@ -4229,22 +4231,20 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
-        "revision": 2,
-        "data_revision": 2,
+        "revision": source_revision(serve.page_dir, "leaf-skill"),
     }
     current = (serve.page_dir / "index.html").read_text()
     _publish(
         serve.page_dir,
         2,
-        current.replace(
-            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
-        ).replace(">10 ms</lf-num>", ">11 ms</lf-num>"),
-        "froze the reviewed source",
+        current.replace('source="leaf-skill"', 'source="leaf-skill-reviewed"').replace(
+            ">10 ms</lf-num>", ">11 ms</lf-num>"
+        ),
+        "pinned the reviewed source",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("lf-text-document figcaption")).to_have_text(
-        f"{long_label} · lines 1–3 · snapshot 1"
-    )
+    data_model.cmd_data_capture(serve.page_dir, "leaf-skill-reviewed", text_file, "1:3")
+    expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
@@ -4296,15 +4296,19 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     copy.goto(out.as_uri(), wait_until="load")
     assert copy.locator('[data-lf-datum="document"]').evaluate(
         "node => JSON.parse(node.dataset.lfOrigin)"
-    ) == {**origin, "data_revision": 3, "snapshot": "1"}
+    ) == {
+        **origin,
+        "source": "leaf-skill-reviewed",
+        "revision": source_revision(serve.page_dir, "leaf-skill-reviewed"),
+    }
     expect(copy.locator('[data-lf-datum="document"] code')).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
     assert copy.locator("script").count() == 0
 
 
-def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
-    """Overlapping reads order data by its own revision, not by arrival time."""
+def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
+    """Overlapping reads order data by when the server took them, not by arrival."""
     delay_second_state = """
       const nativeFetch = window.fetch.bind(window);
       let stateCalls = 0;
@@ -4376,7 +4380,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     def older_events_with_new_data(route):
         response = route.fetch()
         state = response.json()
-        if state["data"]["revision"] < 2:
+        if state["data"]["version"] == older["data"]["version"]:
             route.fulfill(status=response.status, json=state)
             return
         state["events"] = older["events"]
@@ -4394,7 +4398,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
         ],
     )
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
-    assert crossed, "the data revision never arrived beside the stale event tail"
+    assert crossed, "the new data never arrived beside the stale event tail"
     expect(
         page.locator(".lf-thread", has_text="This event must not disappear")
     ).to_have_count(1)
@@ -4518,15 +4522,15 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
             message = error.message;
           }
           const next = structuredClone(runtime.data);
-          next.revision += 1;
-          next.sources.deployments.revision += 1;
-          acceptData(next);
+          next.version = 'next-version';
+          next.sources.deployments.revision = 'next-revision';
+          acceptData(next, runtime.state.taken);
           stopCaptured();
           return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )
     assert result == {
-        "currentRevision": 1,
+        "currentRevision": source_revision(serve.page_dir, "deployments"),
         "unbound": None,
         "absent": None,
         "captured": [None],
@@ -4542,26 +4546,21 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
 
     The captured publisher selection registers its replacement synchronously, while
     subscriber notification begins its paint. Compare the old rendering, replacement,
-    and immutable capture to prove each completed projection retains its own provenance.
+    and a pinned source nothing rewrites to prove each completed projection retains its
+    own provenance.
     """
     authored = leaf_page(
         "source provenance",
         '<h1 id="title">Source</h1>'
         '<lf-text-document id="live" source="document" language="python"></lf-text-document>'
-        '<lf-text-document id="frozen" source="document" language="python"></lf-text-document>',
+        '<lf-text-document id="pinned" source="pinned" language="python"></lf-text-document>',
     )
     url = live_url(serve(authored))
-    data_model.cmd_data_set(
-        serve.page_dir, "document", 'route = "old"', capture_label="first capture"
-    )
-    stamp_page(
-        serve.page_dir,
-        authored.replace('id="frozen"', 'id="frozen" snapshot="1"'),
-        "Keep the original source beside the live value",
-    )
+    data_model.cmd_data_set(serve.page_dir, "document", 'route = "old"')
+    data_model.cmd_data_set(serve.page_dir, "pinned", 'route = "old"')
     page = open_page(browser, url)
     expect(page.locator("#live code")).to_have_text('route = "old"')
-    expect(page.locator("#frozen code")).to_have_text('route = "old"')
+    expect(page.locator("#pinned code")).to_have_text('route = "old"')
     result = page.evaluate(
         """async () => {
           const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
@@ -4588,16 +4587,17 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
             observer.observe(mounted, {childList: true, subtree: true});
           });
           const original = runtime.data;
+          const taken = runtime.state.taken;
           try {
             // Mount starts watchData's delivery before acceptance advances. The
             // publisher selection captures the replacement in this turn, but the real
             // syntax await keeps the old projectData paint behind acceptance.
             source.after(mounted);
             const newer = structuredClone(original);
-            newer.revision = 2;
-            newer.sources.document.revision = 2;
+            newer.version = 'newer-version';
+            newer.sources.document.revision = 'newer-revision';
             newer.sources.document.value = 'route = "new"';
-            acceptData(newer);
+            acceptData(newer, taken);
             await firstProjection;
             const beforeNotification = read(mounted);
             await notifyDataSubscribers();
@@ -4605,31 +4605,32 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
               beforeNotification,
               mounted: read(mounted),
               live: read(source),
-              frozen: read(document.querySelector('#frozen')),
+              pinned: read(document.querySelector('#pinned')),
             };
           } finally {
             observer.disconnect();
             mounted.remove();
-            runtime.data = original;
+            acceptData(original, taken);
             await notifyDataSubscribers();
           }
         }"""
     )
-    old = {"text": 'route = "old"', "source": "document", "revision": "1"}
-    new = {"text": 'route = "new"', "source": "document", "revision": "2"}
+    revision = source_revision(serve.page_dir, "document")
+    old = {"text": 'route = "old"', "source": "document", "revision": revision}
+    new = {"text": 'route = "new"', "source": "document", "revision": "newer-revision"}
     assert result == {
         "beforeNotification": old,
         "mounted": new,
         "live": new,
-        "frozen": old,
+        "pinned": {**old, "source": "pinned"},
     }
 
 
-def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser, serve):
-    """Each data notification owns the revision it dispatched.
+def test_a_superseded_async_data_render_cannot_stamp_the_newer_version(browser, serve):
+    """Each data notification owns the version it dispatched.
 
     Two async subscriber deliveries overlap. Releasing the older one after newer data
-    was accepted must not stamp that newer revision while its own delivery is still held;
+    was accepted must not stamp that newer version while its own delivery is still held;
     render checks and presentation use the stamp as proof that every subscriber is done.
     """
     page = open_page(browser, data_projection_page(serve))
@@ -4639,6 +4640,7 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
           const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
+          const taken = runtime.state.taken;
           const releases = new Map();
           const stop = watchData(widget, 'rows', snapshot => {
             const value = snapshot?.value?.[0]?.value;
@@ -4649,40 +4651,38 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
             while (!releases.has(value))
               await new Promise(resolve => setTimeout(resolve, 0));
           };
-          const dataAt = (revision, value) => ({
+          const dataAt = (version, value) => ({
             ...structuredClone(runtime.data),
-            revision,
+            version,
             sources: {
               ...structuredClone(runtime.data.sources),
               deployments: {
                 ...structuredClone(runtime.data.sources.deployments),
-                revision,
+                revision: version,
                 value: [{key: 'api', value}],
               },
             },
           });
-          const before = document.body.getAttribute('data-lf-data-revision');
-          const olderRevision = runtime.data.revision + 1;
-          acceptData(dataAt(olderRevision, 'Held older'));
+          const before = document.body.getAttribute('data-lf-data-version');
+          acceptData(dataAt('older', 'Held older'), taken);
           const older = notifyDataSubscribers();
           await waitFor('Held older');
-          const newerRevision = olderRevision + 1;
-          acceptData(dataAt(newerRevision, 'Held newer'));
+          acceptData(dataAt('newer', 'Held newer'), taken);
           const newer = notifyDataSubscribers();
           await waitFor('Held newer');
 
           releases.get('Held older')();
           await older;
-          const afterOlder = document.body.getAttribute('data-lf-data-revision');
+          const afterOlder = document.body.getAttribute('data-lf-data-version');
           releases.get('Held newer')();
           await newer;
-          const afterNewer = document.body.getAttribute('data-lf-data-revision');
+          const afterNewer = document.body.getAttribute('data-lf-data-version');
           stop();
-          return {before, afterOlder, afterNewer, newerRevision};
+          return {before, afterOlder, afterNewer};
         }"""
     )
     assert result["afterOlder"] == result["before"], result
-    assert result["afterNewer"] == str(result["newerRevision"]), result
+    assert result["afterNewer"] == "newer", result
 
 
 def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
@@ -4744,7 +4744,7 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
           const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
-          const before = document.body.getAttribute('data-lf-data-revision');
+          const before = document.body.getAttribute('data-lf-data-version');
           let mountDeliveries = 0;
           const stopMount = watchData(widget, 'rows', () => {
             mountDeliveries += 1;
@@ -4753,7 +4753,7 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
           await notifyDataSubscribers();
           await notifyDataSubscribers();
           stopMount();
-          const afterMount = document.body.getAttribute('data-lf-data-revision');
+          const afterMount = document.body.getAttribute('data-lf-data-version');
 
           let deliveries = 0;
           const stopUpdate = watchData(widget, 'rows', () => {
@@ -4767,11 +4767,11 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
             if (throwingDeliveries > 1)
               throw new Error('synchronous update projection failed');
           });
-          const revision = runtime.data.revision + 1;
+          const version = 'next-version';
           const next = structuredClone(runtime.data);
-          next.revision = revision;
-          next.sources.deployments.revision = revision;
-          acceptData(next);
+          next.version = version;
+          next.sources.deployments.revision = 'next-revision';
+          acceptData(next, runtime.state.taken);
           await notifyDataSubscribers();
           await notifyDataSubscribers();
           stopUpdate();
@@ -4781,15 +4781,15 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
             mountDeliveries,
             throwingDeliveries,
             afterMount,
-            afterUpdate: document.body.getAttribute('data-lf-data-revision'),
-            revision,
+            afterUpdate: document.body.getAttribute('data-lf-data-version'),
+            version,
           };
         }"""
     )
     assert result["mountDeliveries"] == 1, result
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
-    assert result["afterUpdate"] == str(result["revision"]), result
+    assert result["afterUpdate"] == result["version"], result
     errors = consume_browser_errors(
         page,
         "data subscriber failed: mount projection failed",
@@ -4824,10 +4824,11 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
             if (++calls > 1) return new Promise(resolve => { release = resolve; });
           });
+          const initial = runtime.data.version;
           const next = structuredClone(runtime.data);
-          next.revision++;
-          next.sources.deployments.revision = next.revision;
-          acceptData(next);
+          next.version = 'next-version';
+          next.sources.deployments.revision = 'next-revision';
+          acceptData(next, runtime.state.taken);
           const selectedBeforeNotify = {
             calls,
             pending: readApplicationPresentation().pending.some(region =>
@@ -4839,21 +4840,26 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           let complete = false;
           const again = notifyDataSubscribers().then(() => { complete = true; });
           await new Promise(resolve => setTimeout(resolve, 0));
-          const before = {complete, calls, ready: document.body.dataset.lfDataRevision};
+          const before = {complete, calls, ready: document.body.dataset.lfDataVersion};
           release();
           await Promise.all([first, again]);
           stop();
           return {
             selectedBeforeNotify,
             before,
-            after: document.body.dataset.lfDataRevision,
-            revision: next.revision,
+            after: document.body.dataset.lfDataVersion,
+            version: next.version,
+            initial,
           };
         }"""
     )
     assert result["selectedBeforeNotify"] == {"calls": 1, "pending": True}
-    assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
-    assert result["after"] == str(result["revision"])
+    assert result["before"] == {
+        "complete": False,
+        "calls": 2,
+        "ready": result["initial"],
+    }
+    assert result["after"] == result["version"]
 
 
 def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, serve):

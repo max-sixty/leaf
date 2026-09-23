@@ -319,15 +319,13 @@
                 <p>
                   Each input names a <code>$data.contracts</code> contract and the
                   declared canonical string attribute whose authored value is this
-                  page's source id. An optional <code>snapshot</code> names a declared
-                  positive-decimal attribute that selects an immutable source snapshot;
-                  without it the input follows the current value. An optional source
-                  attribute leaves that input absent; <code>watchData</code> delivers
-                  null. Several widgets may bind the same source to the same contract.
-                  Across immutable versions and widgets frozen into threads, one source
-                  cannot mean two contracts; use a new source id for a new meaning. A
-                  module subscribes by widget and input name, never by a package-owned
-                  source name.
+                  page's source id. The input follows the source's current value. An
+                  optional source attribute leaves that input absent;
+                  <code>watchData</code> delivers null. Several widgets may bind the
+                  same source to the same contract. Across immutable versions and
+                  widgets frozen into threads, one source cannot mean two contracts; use
+                  a new source id for a new meaning. A module subscribes by widget and
+                  input name, never by a package-owned source name.
                 </p>
               </details>
             </div>
@@ -525,7 +523,13 @@
                   and <code>version check</code> advises against page CSS that places an
                   element declaring a role. Every role keeps markup content so packages
                   may contribute differently named structural elements without joining a
-                  closed parent-child vocabulary.
+                  closed parent-child vocabulary. Every role requires a string
+                  <code>id</code>; a pane also requires a string <code>label</code>,
+                  which names its accessible region while a visible heading belongs in
+                  its authored header; a partition requires <code>direction</code> with
+                  the complete <code>columns</code>/<code>rows</code> enum. A workspace
+                  or pane may hold one direct native <code>header</code> first and one
+                  <code>footer</code> last.
                 </p>
               </details>
             </div>

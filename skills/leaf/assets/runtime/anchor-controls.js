@@ -19,7 +19,6 @@ import {
 import {
   declaredVisualParts,
   fragmentId,
-  parentAcross,
   resolveAnchor,
   unclaimedVisualGesture,
   visualAt,
@@ -31,6 +30,7 @@ import { commandScope } from "./keyboard/scopes.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
+import { upFrom } from "./shadow.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -84,7 +84,7 @@ export function createAnchorControls({
       candidate.getRootNode() instanceof ShadowRoot
         ? candidate.getRootNode().host
         : candidate;
-    for (let current = seat; current; current = parentAcross(current))
+    for (let current = seat; current; current = upFrom(current))
       if (current.matches?.("details")) seat = current;
     return seat;
   }

@@ -19,7 +19,6 @@ import {
   targetSurface,
 } from "./resolved-target.js";
 import {
-  containsAcross,
   elementFromPointAcross,
   inChrome,
   pageText,
@@ -27,6 +26,7 @@ import {
   rangeOf,
 } from "./passages.js";
 import { bareReaction } from "./conversation/model.js";
+import { under } from "./shadow.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
@@ -170,7 +170,7 @@ export function createAnchorPaint({
                   y >= rect.top &&
                   y <= rect.bottom,
               )
-            : containsAcross(where, deep);
+            : under(deep, where);
         if (hit) return id;
       }
     return null;

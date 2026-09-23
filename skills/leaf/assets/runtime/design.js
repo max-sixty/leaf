@@ -3,10 +3,11 @@ import { documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
 import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
-import { closestAcross, containsAcross, inChrome } from "./passages.js";
+import { closestAcross, inChrome } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
+import { under } from "./shadow.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -155,7 +156,7 @@ export function createDesignMode({
     }
     // The reads.
     const clips = new Map();
-    const under = banner.getBoundingClientRect().bottom;
+    const bannerFoot = banner.getBoundingClientRect().bottom;
     const placed = addressables.map((addressable) => {
       const entry = legendBoxes.get(addressable);
       entry.radius ??= getComputedStyle(addressable).borderRadius;
@@ -190,7 +191,7 @@ export function createDesignMode({
         height: r.bottom - r.top + 2 + "px",
         borderRadius: radius,
       });
-      const inward = r.top - legendTagH < under;
+      const inward = r.top - legendTagH < bannerFoot;
       box.classList.toggle("lf-in", inward);
       if (!tagW) continue;
       const left = r.left - 1;
@@ -241,7 +242,7 @@ export function createDesignMode({
     if (!el) return null;
     const control = closestAcross(at, controls());
     const part =
-      control && control !== el && (marginTarget === el || containsAcross(el, control))
+      control && control !== el && (marginTarget === el || under(control, el))
         ? controlWord(control)
         : "";
     return { element: el, part };

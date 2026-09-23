@@ -56,6 +56,7 @@
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { setChildren } from "../dom-children.js";
+import { under } from "../shadow.js";
 
 // Runtime-supplied data is a third kind of page word: it is neither prose the author
 // put in the version nor apparatus the runtime asks the user to operate. It belongs
@@ -91,12 +92,6 @@ const projectedDescendants = (root) => {
     (element) =>
       element.dataset.lfProjection === root.id && element.hasAttribute("data-lf-datum"),
   );
-};
-
-const containedBy = (root, node) => {
-  for (let at = node; at; at = at.parentElement ?? at.getRootNode()?.host ?? null)
-    if (at === root) return true;
-  return false;
 };
 
 export function createDataProjection({ invalidateDom }) {
@@ -195,7 +190,7 @@ export function createDataProjection({ invalidateDom }) {
         throw new Error(
           `projectData(${root.id}) render reused the node for key ${key}`,
         );
-      if (nested && !containedBy(root, node))
+      if (nested && !under(node, root))
         throw new Error(
           `projectData(${root.id}) render(${key}) returned an element outside its root`,
         );

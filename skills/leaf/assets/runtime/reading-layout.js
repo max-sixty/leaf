@@ -13,8 +13,8 @@ import { LAYOUT, layoutChanged } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
 import { focused } from "./keyboard/scopes.js";
 import { focusDestination, readCaret } from "./focus.js";
-import { containsAcross } from "./passages.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
+import { under } from "./shadow.js";
 
 const generated = (className) => {
   const node = document.createElement("div");
@@ -70,7 +70,7 @@ export function arrangeReadingElement({
   // Building wrappers temporarily disconnects the same authored controls. Transfer
   // their focus in this turn, before asynchronous layout can admit another gesture.
   const active = focused();
-  const held = active && containsAcross(owner, active) ? active : null;
+  const held = active && under(active, owner) ? active : null;
   const caret = readCaret(held);
   const content = generated(`lf-reading-content lf-${role}-content`);
   const body = role === "pane" ? generated("lf-reading-body lf-pane-body") : content;

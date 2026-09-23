@@ -286,6 +286,51 @@ def test_root_tabs_reach_the_chosen_contents_and_follow_browser_history(browser,
     expect(evidence).to_be_focused()
 
 
+def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
+    """The root strip sticks under the banner and paints over the document, so what
+    passes under it is not on screen: `shownRect`, the one reading of that, clips a
+    block behind the stuck strip to the strip's foot. The strip never reaches the
+    document's top edge, which the banner holds, so it counts as stuck at the sticky
+    inset it is held at. At the top of the page the strip is in flow and hides nothing."""
+    page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
+    resized(page, 1280, 720)
+    READ = """async () => {
+      const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+      const geometry = await import(
+        new URL('runtime/geometry.js', new URL(entry, location.href)).href
+      );
+      const strip = document
+        .querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect();
+      const behind = document.querySelector('#plan-stages h2');
+      return {
+        strip: {top: strip.top, bottom: strip.bottom},
+        behind: behind.getBoundingClientRect().toJSON(),
+        band: geometry.visibleBand(document.scrollingElement).top,
+        shown: geometry.shownRect(behind, new Map())?.top,
+      };
+    }"""
+    page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    assert page.evaluate(READ)["band"] == 0
+    # Stick the strip, then scroll the heading half under it.
+    page.evaluate("scrollTo({top: 600, behavior: 'instant'})")
+    scroll_settled(page)
+    at = page.evaluate(READ)
+    page.evaluate(
+        "y => scrollTo({top: y, behavior: 'instant'})",
+        page.evaluate("scrollY")
+        + at["behind"]["top"]
+        - at["strip"]["bottom"]
+        + at["behind"]["height"] / 2,
+    )
+    scroll_settled(page)
+    stuck = page.evaluate(READ)
+    assert stuck["strip"]["top"] > 0, stuck
+    assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
+    assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
+    assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
+
+
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
     source = (
         ROOT_TABS_PAGE.read_text()
@@ -1147,9 +1192,9 @@ FEED_PAGE = leaf_page(
 def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     browser, serve
 ):
-    """A widget that rebuilds its entries wholesale (lf-record replaces its children on
-    every change) stays on its newest entry while the user is at the end, and leaves
-    a user who scrolled back where they stopped."""
+    """A widget that replaces its children on every change stays on its newest entry
+    while the user is at the end, and leaves a user who scrolled back where they
+    stopped."""
     page = open_page(browser, live_url(serve(FEED_PAGE)))
     rebuild = """count => document.getElementById('feed').replaceChildren(
       ...Array.from({length: count}, (_, i) => Object.assign(

@@ -372,7 +372,7 @@ export function bake() {
     "input, select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
   const scriptedOffer =
-    "[data-lf-offer]:not([data-lf-said]):is(" +
+    "[data-lf-offer]:not([data-lf-said], [data-lf-echo]):is(" +
     ":not([data-lf-offer=''], input), :not(:has(*)):not(input, select, textarea, a[href], summary))";
   const keepsBrowserControl = (container) =>
     container.querySelector(browserControl) ||
@@ -400,7 +400,13 @@ export function bake() {
       if (attr.name.startsWith("aria-") && attr.name !== "aria-hidden")
         container.removeAttribute(attr.name);
   }
-  all("[data-lf-offer][data-lf-said]").forEach((offered) => {
+  // An echoed label on a press strikes the same bargain on paper: the press goes and
+  // the words stay, since they are the only thing naming the row it stands in. An echo
+  // on an empty-valued route is a fragment link that still works in the copy, so it
+  // keeps its href.
+  all(
+    "[data-lf-offer]:is([data-lf-said], [data-lf-echo]:not([data-lf-offer='']))",
+  ).forEach((offered) => {
     let el = offered;
     if (el.matches("button, input, select, textarea, a[href], summary")) {
       const staticWord = document.createElement("span");

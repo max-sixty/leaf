@@ -69,6 +69,11 @@ test("covers standing over a band's edges take their room off it", () => {
   // A cover beside the band covers nothing of it; covers taking all of it leave none.
   assert.deepEqual(insetBand(band, [box(96, 130, 400, 500)]), band);
   assert.equal(insetBand(band, [box(90, 510)]), null);
+  // A cover stuck at its sticky inset, under a banner, takes the band to its foot; the
+  // same box in flow further down is content passing through.
+  const stuck = (top, bottom) => ({ ...box(top, bottom), stickyTop: 42 });
+  assert.deepEqual(insetBand(band, [stuck(142, 190)]), { ...band, top: 190 });
+  assert.deepEqual(insetBand(band, [stuck(260, 308)]), band);
 });
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
@@ -142,6 +147,24 @@ test("the band is the scroller's less a stuck cover", () => {
   widget.attachShadow({ mode: "open" }).append(heading);
   scroller.append(widget);
   assert.equal(visibleBand(scroller).top, 30);
+  scroller.remove();
+});
+
+test("a host's first cover keeps its room from the declaration on", () => {
+  // The first observation comes after the frame's layout, and a document's initial
+  // fragment landing reads the room before it: declared, the room is already there.
+  const { scroller } = laidOut();
+  const strip = document.createElement("div");
+  strip.getBoundingClientRect = () => new DOMRect(0, 42, 300, 47);
+  scroller.append(strip);
+  declareCoverRoom(scroller, "--lf-strip-room", [strip]);
+  assert.equal(scroller.style.getPropertyValue("--lf-strip-room"), "47px");
+  // A cover replacing it starts at the room the host keeps rather than at none.
+  const next = document.createElement("div");
+  next.getBoundingClientRect = () => new DOMRect(0, 42, 300, 30);
+  scroller.append(next);
+  declareCoverRoom(scroller, "--lf-strip-room", [next]);
+  assert.equal(scroller.style.getPropertyValue("--lf-strip-room"), "47px");
   scroller.remove();
 });
 

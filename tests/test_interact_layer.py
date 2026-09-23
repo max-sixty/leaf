@@ -4259,9 +4259,9 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
         "lf-task",
         "lf-command",
         "lf-worktree",
-        "lf-record",
     }
     assert orchestration.isdisjoint(plain_registry)
+    assert "lf-activity" in plain_registry
     assert orchestration <= packaged_registry.keys()
     assert "$command" not in plain_registry
     assert "$command" in packaged_registry

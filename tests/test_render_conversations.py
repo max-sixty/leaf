@@ -11,6 +11,7 @@ from click.testing import CliRunner
 from interact_support import append_command, record_claim
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
@@ -1726,6 +1727,70 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         "&& node.previousElementSibling.matches('time')"
     ), "the message status did not follow its relative timestamp"
     expect(status).to_have_text("Working")
+
+
+def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
+    browser, serve
+):
+    """A board the agent sent in a reply takes a moved card as a page board does: the
+    reply carrying the board reports the move's delivery, and the thread stays nobody's
+    turn, since the move answers no Ask. The agent's next turn in the thread takes the
+    move in, and the receipt leaves."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Lay the work out.", {"section": "how-cap"})
+    board = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root,
+            "responds": root,
+            "text": "Here is the board.",
+            "markup": '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
+            '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
+            '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
+        },
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    status = page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-status')
+    receipt = page.locator(f'.lf-msg[data-mid="{board["id"]}"] .lf-msg-sending')
+    expect(status).to_have_text("")
+
+    page.locator("#fb-cache .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    with sending(page, "the card move"):
+        page.keyboard.press("Enter")
+    expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
+    expect(receipt).to_have_text("Sent")
+    expect(status).to_have_text("")
+
+    [moved] = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(transaction, [moved])
+    told(page)
+    expect(receipt).to_have_text("Picked up")
+    expect(status).to_have_text("")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root,
+            "initiates": True,
+            "text": "Cache is done, then.",
+        },
+    )
+    told(page)
+    expect(receipt).to_have_count(0)
+    expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
 
 
 def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):

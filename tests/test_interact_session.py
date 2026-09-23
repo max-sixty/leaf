@@ -678,6 +678,93 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
+def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
+    page_dir,
+):
+    """A card moved on a board sent in a reply is a page move in another document:
+    it keeps its delivery receipt, owes the agent nothing, and leaves the thread
+    nobody's turn. A claim makes it Working, and the agent's next turn in the
+    thread takes it in."""
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None and activated.revision == 1
+    registry = json.loads((page_dir / "registry.json").read_text())
+    asked = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Lay the feeder work out on a board.",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "text": "Here is the board.",
+            "markup": registry["lf-board"]["x-example"],
+        },
+    )
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "feeder-board",
+            "action": "move",
+            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+        },
+    )
+
+    def reading():
+        state = page_state(page_dir)
+        [thread] = state["browser"]["conversation"]["threads"]
+        return state, thread["attention"]
+
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert (workflow["input"], workflow["subject"], workflow["stage"]) == (
+        moved["id"],
+        {"kind": "widget", "id": "feeder-board"},
+        "sent",
+    )
+    assert workflow["answer"] is None
+    assert state["activity"]["obligations"] == []
+    assert attention is None
+
+    delivery = freeze_events(page_dir, [moved])
+    [event] = delivery["batches"][0]["events"]
+    assert "obligation" not in event
+    claimed = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
+    assert claimed.exit_code == 0, claimed.output
+    state, attention = reading()
+    [workflow] = state["workflows"]
+    assert workflow["stage"] == "working"
+    assert attention == {
+        "kind": "waiting",
+        "reason": "workflow",
+        "workflow": moved["id"],
+    }
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": asked["id"],
+            "initiates": True,
+            "text": "Baffle is in progress now.",
+        },
+    )
+    state, attention = reading()
+    assert state["workflows"] == []
+    assert attention is None
+
+
 def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
     version = page_dir / "index.html"
     version.write_text(

@@ -59,31 +59,38 @@ def _apply_thread_attention(
     for thread in threads:
         if thread["resolved"]:
             thread["attention"] = None
-        elif thread["root"]["id"] in reader_threads or thread["awaits_reader"]:
+            continue
+        if thread["root"]["id"] in reader_threads or thread["awaits_reader"]:
             thread["attention"] = {
                 "kind": "needs_reader",
                 "reason": "ask",
                 "workflow": None,
             }
-        elif candidates := by_thread.get(thread["root"]["id"]):
-            if recovery := [
-                workflow
-                for workflow in candidates
-                if workflow["next_actor"] == "reader"
-            ]:
-                workflow = max(recovery, key=priority)
-                thread["attention"] = {
-                    "kind": "needs_reader",
-                    "reason": "recovery",
-                    "workflow": workflow["id"],
-                }
-            else:
-                workflow = max(candidates, key=priority)
-                thread["attention"] = {
-                    "kind": "waiting",
-                    "reason": "uncertain" if workflow["condition"] else "workflow",
-                    "workflow": workflow["id"],
-                }
+            continue
+        candidates = by_thread.get(thread["root"]["id"], [])
+        if recovery := [
+            workflow for workflow in candidates if workflow["next_actor"] == "reader"
+        ]:
+            workflow = max(recovery, key=priority)
+            thread["attention"] = {
+                "kind": "needs_reader",
+                "reason": "recovery",
+                "workflow": workflow["id"],
+            }
+        elif any(
+            workflow["answer"] is not None or workflow["stage"] == "working"
+            for workflow in candidates
+        ):
+            # The thread waits on the agent while the agent owes an answer there or
+            # is working there. A move that owes nothing, such as a card moved on a
+            # board frozen into a message, shows its receipt on that message
+            # without making the thread the agent's turn.
+            workflow = max(candidates, key=priority)
+            thread["attention"] = {
+                "kind": "waiting",
+                "reason": "uncertain" if workflow["condition"] else "workflow",
+                "workflow": workflow["id"],
+            }
         else:
             thread["attention"] = None
 

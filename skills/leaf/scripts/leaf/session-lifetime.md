@@ -64,9 +64,12 @@ delivery for every move the reader has handed over; the answer, which `workflows
 states, is what the agent owes it: a reply, a version for a conversation that asked
 for one, a version whose markup records a reader's answer to a page Ask, a request's
 receipt, or null. Every owed answer blocks the Stop hook and `leaf status idle` once
-its move is acknowledged, and only owed answers enter activity counts. A page action
+its move is acknowledged, and only owed answers enter activity counts. A widget move
 that answers no Ask, such as a draft edit or a moved card, owes nothing: its workflow
-reports delivery until the markup records the move or a later version takes it in.
+reports delivery until its document takes it in — for a page action, until the markup
+records the move or a later version supersedes it; for a move in frozen thread markup,
+until the agent's next turn in that thread. It does not make its thread the agent's
+turn.
 A move the reader has not finished — a pick before the Done its Ask declares — has
 not been handed over and has no workflow. Consecutive reader turns form one response batch
 addressed by its newest input. Before settlement each input retains a workflow,

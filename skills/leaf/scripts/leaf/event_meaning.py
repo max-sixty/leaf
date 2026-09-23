@@ -65,7 +65,14 @@ def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dic
     entry = registry[record["tag"]]
     admitted = dict(event)
     if event["kind"] == "request":
-        admitted["meaning"] = {"document": document}
+        request = entry["x-request"]
+        spec = request["verbs"][event["action"]]
+        unit = (
+            event["detail"][spec["unit"]]
+            if request.get("records")
+            else event["widget"]
+        )
+        admitted["meaning"] = {"document": document, "unit": unit}
     else:
         admitted["meaning"] = state_meaning(event, entry, document)
         spec = entry["x-state" if event["kind"] == "action" else "x-report"][
@@ -101,12 +108,30 @@ def stored_meaning_error(
         document = {"kind": "thread"}
     entry = registry[record["tag"]]
     expected = (
-        {"document": document}
+        {
+            "document": document,
+            "unit": (
+                event["detail"][entry["x-request"]["verbs"][event["action"]]["unit"]]
+                if entry["x-request"].get("records")
+                else event["widget"]
+            ),
+        }
         if event["kind"] == "request"
         else state_meaning(event, entry, document)
     )
     if event["meaning"] != expected:
         return f"{event['kind']} {event['id']} changes admitted meaning from {event['meaning']!r} to {expected!r}"
+    if event["kind"] == "request":
+        before_request = recorded_registry[recorded["tag"]]["x-request"]
+        after_request = entry["x-request"]
+        before = before_request["verbs"][event["action"]]
+        after = after_request["verbs"][event["action"]]
+        if (
+            before_request.get("records") != after_request.get("records")
+            or before.get("bind") != after.get("bind")
+            or before.get("unit") != after.get("unit")
+        ):
+            return f"request {event['id']} changes its admitted record binding"
     if event["kind"] in {"action", "report"}:
         channel = "x-state" if event["kind"] == "action" else "x-report"
         before = recorded_registry[recorded["tag"]][channel][event["action"]]

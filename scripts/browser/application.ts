@@ -162,7 +162,7 @@ export interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          requests?: { seat: { widget: string }; phase: string }[];
+          requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number }; phase: string }[];
           asks?: WireAsks;
         };
         undo?: { event: Event }[];
@@ -174,7 +174,7 @@ export interface AuthoritativeState {
     conversation: {
       threads: Thread[];
       projection: WireProjection;
-      requests?: { seat: { widget: string }; phase: string }[];
+      requests?: { seat: { document?: object; widget: string; unit: string; data_revision?: number }; phase: string }[];
       asks?: WireAsks;
       done?: Event[];
     };
@@ -219,7 +219,7 @@ function normalizedProjection(
 }
 
 const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
-  seat: { document: descriptor.document, widget: descriptor.id },
+  seat: { document: descriptor.document, widget: descriptor.id, unit: descriptor.id },
   attempts: [],
   latest: null,
   phase: "ready",
@@ -391,25 +391,56 @@ function widgetReading(
   );
 
   const request = (declaration["x-request"] ?? null) as {
-    verbs?: Record<string, unknown>;
+    records?: string;
+    verbs?: Record<string, { unit?: string }>;
   } | null;
-  const projectedRequest = pending.find(
-    (entry) => entry.event.kind === "request",
-  )?.event;
+  const pendingRequests = pending
+    .filter((entry) => entry.event.kind === "request")
+    .map((entry) => entry.event);
   const lifecycles =
     descriptor.document.kind === "thread"
       ? root.effective.lifecycle.conversation.requests
       : root.effective.lifecycle.page.requests;
-  const lifecycle = projectedRequest
+  const requestUnits: Record<string, {
+    seat: { document?: object; widget: string; unit: string; data_revision?: number };
+    phase: string;
+    attempts?: unknown[];
+    latest?: unknown;
+  }> = Object.fromEntries(
+    (lifecycles ?? [])
+      .filter((item) => item.seat.widget === descriptor.id)
+      .map((item) => [item.seat.unit, item]),
+  );
+  for (const event of pendingRequests) {
+    const spec = request?.verbs?.[event.action];
+    const unit = request?.records
+      ? String((event.detail as Record<string, unknown>)[spec?.unit ?? ""])
+      : descriptor.id;
+    requestUnits[unit] = {
+      seat: requestUnits[unit]?.seat ?? {
+        document: descriptor.document,
+        widget: descriptor.id,
+        unit,
+      },
+      attempts: [{ request: event, receipt: null }],
+      latest: { request: event, receipt: null },
+      phase: "pending",
+    };
+  }
+  const lifecycle = !request?.records && pendingRequests.length
     ? {
-        seat: { document: descriptor.document, widget: descriptor.id },
-        attempts: [{ request: projectedRequest, receipt: null }],
-        latest: { request: projectedRequest, receipt: null },
+        seat: { document: descriptor.document, widget: descriptor.id, unit: descriptor.id },
+        attempts: [{ request: pendingRequests[0], receipt: null }],
+        latest: { request: pendingRequests[0], receipt: null },
         phase: "pending",
       }
-    : (lifecycles?.find((item) => item.seat.widget === descriptor.id) ??
-      emptyLifecycle(descriptor));
-  const offered = new Set(descriptor.offers.map(({ verb }) => verb));
+    : (!request?.records ? requestUnits[descriptor.id] : null) ??
+      emptyLifecycle(descriptor);
+  const offered = new Set(
+    request?.records
+      ? Object.keys(request.verbs ?? {})
+      : descriptor.offers.map(({ verb }) => verb),
+  );
   const requests = Object.fromEntries(
     Object.keys(request?.verbs ?? {}).map((verb) => [
       verb,
@@ -420,7 +451,9 @@ function widgetReading(
           root.phase !== "waiting" &&
           !descriptor.quoted &&
           offered.has(verb) &&
-          lifecycle.phase === "ready",
+          (request?.records
+            ? Object.values(requestUnits).some((seat) => seat.phase === "ready")
+            : lifecycle.phase === "ready"),
         unavailable: root.effective.hostAvailable
           ? null
           : "no agent or server is available",
@@ -451,6 +484,7 @@ function widgetReading(
     actions,
     requests,
     request: lifecycle,
+    requestUnits,
     delivery: pending.map((entry) => ({
       attempt: entry.event.attempt,
       kind: entry.event.kind,

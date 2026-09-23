@@ -475,6 +475,19 @@ function createWidgetController(owner) {
       if (semantic) validateReferences(descriptor, command);
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const before = read();
+      const request = descriptor.declaration["x-request"];
+      if (command.kind === "request" && request?.records) {
+        const field = request.verbs[command.verb]?.unit;
+        const unit = command.detail?.[field];
+        const seat = before.requestUnits?.[unit];
+        if (
+          typeof unit !== "string" ||
+          !unit ||
+          seat?.phase !== "ready" ||
+          seat.seat.data_revision !== command.data_revision
+        )
+          return null;
+      }
       if (undo && !undoCandidate(before, command.target)) return null;
       if (
         semantic &&

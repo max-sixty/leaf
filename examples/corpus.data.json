@@ -120,6 +120,18 @@
     }
   },
   "gallery-latency": 184,
+  "gallery-jobs": {
+    "rows": [
+      {
+        "id": "indexer",
+        "state": "stopped"
+      },
+      {
+        "id": "notifier",
+        "state": "stopped"
+      }
+    ]
+  },
   "gallery-visual-run": {
     "title": "Optional packages move to focused pages",
     "observedAt": "2026-09-11T18:30:00-07:00",

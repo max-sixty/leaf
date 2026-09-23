@@ -2671,6 +2671,7 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
     assert lifecycle["seat"] == {
         "document": {"kind": "page", "revision": 1},
         "widget": "commands",
+        "unit": "commands",
     }
     assert lifecycle["phase"] == "pending"
     assert lifecycle["latest"]["request"]["id"] == request["id"]

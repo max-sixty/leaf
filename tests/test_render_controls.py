@@ -103,6 +103,24 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
+
+
+def test_projected_request_rows_have_independent_buttons(browser, serve):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    rows = page.locator("#bg-jobs p")
+    expect(rows).to_have_count(2)
+    first = rows.nth(0).get_by_role("button", name="Restart")
+    second = rows.nth(1).get_by_role("button", name="Restart")
+    expect(first).to_be_enabled()
+    expect(second).to_be_enabled()
+
+    first.focus()
+    page.keyboard.press("Enter")
+    expect(first).to_be_disabled()
+    expect(second).to_be_enabled()
+    second.click()
+    expect(second).to_be_disabled()
+
 TARGETING_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
 )

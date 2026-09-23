@@ -254,6 +254,38 @@ test("an offline document publishes every host command as unavailable", () => {
   assert.equal(reading.state.decision.action, "accept");
 });
 
+test("projected requests expose one lifecycle per data record", () => {
+  const rows = {
+    ...descriptor,
+    id: "jobs",
+    tag: "lf-jobs",
+    declaration: {
+      "x-request": {
+        records: "jobs",
+        verbs: { restart: { unit: "target" } },
+      },
+    },
+  };
+  const app = setup([[rows.id, rows]]);
+  const accepted = state(2);
+  accepted.browser.views[1].document.requests = [
+    { seat: { widget: "jobs", unit: "alpha", data_revision: 1 }, phase: "pending" },
+    { seat: { widget: "jobs", unit: "beta", data_revision: 1 }, phase: "ready" },
+  ];
+  app.adopt(accepted);
+  let reading = app.selectWidget(rows).read();
+  assert.equal(reading.requestUnits.alpha.phase, "pending");
+  assert.equal(reading.requestUnits.beta.phase, "ready");
+  assert.equal(reading.requests.restart.available, true);
+  app.enqueue({ kind: "request", widget: "jobs", action: "restart",
+    detail: { target: "beta" }, data_revision: 1, revision: 1,
+    attempt: "pending-beta" }, "now");
+  reading = app.selectWidget(rows).read();
+  assert.equal(reading.requestUnits.alpha.phase, "pending");
+  assert.equal(reading.requestUnits.beta.phase, "pending");
+  assert.equal(reading.requests.restart.available, false);
+});
+
 test("an owner requirement follows publisher-projected position with authored fallback", () => {
   const oldOwner = {
     ...descriptor,

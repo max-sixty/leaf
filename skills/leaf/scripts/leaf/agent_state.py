@@ -129,13 +129,14 @@ def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | N
 
 
 def _read_active_document(
-    page_dir: Path, events: list, registry: dict, revision: int | None
+    page_dir: Path, events: list, registry: dict, revision: int | None,
+    data: dict | None = None,
 ) -> DocumentReading | None:
     if revision is None:
         return None
     page = page_reading(parse_revision(page_dir, revision), events, registry, revision)
     threads = build_threads(events, page.within)
-    return read_document(page, threads)
+    return read_document(page, threads, data)
 
 
 def _base_state(
@@ -357,10 +358,10 @@ def _write_page_state(
             "session_cwd",
         )
     }
-    document = _read_active_document(page_dir, events, registry, revision)
+    stored_data = read_data(page_dir)
+    document = _read_active_document(page_dir, events, registry, revision, stored_data)
     spoken = document.spoken if document is not None else {}
     threads = build_threads(events, enclosing_of(spoken))
-    stored_data = read_data(page_dir)
     thread_reading = frozen_thread_reading(events, registry)
     requests = request_lifecycles(events)
     state = _base_state(
@@ -391,6 +392,7 @@ def _write_page_state(
         thread_reading.elements,
         registry,
         {"kind": "thread"},
+        stored_data,
     )
     state["asks"] += thread_ask_readings(
         events,

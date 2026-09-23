@@ -1242,9 +1242,9 @@ UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
     """
 <h1 id="h">Nothing to break on</h1>
-<lf-metrics id="numbers">
+<lf-grid id="numbers">
   <lf-metric id="m-token" value="a_very_long_unbroken_identifier">Bucket key</lf-metric>
-</lf-metrics>
+</lf-grid>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
 <lf-tree id="tree"><pre>

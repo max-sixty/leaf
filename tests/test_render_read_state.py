@@ -33,8 +33,8 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
         root,
         f"Update {number}.",
         (
-            f'<lf-metrics><lf-metric id="read-update-{number}" value="{number}">'
-            "Completed steps</lf-metric></lf-metrics>"
+            f'<lf-grid id="read-row-{number}"><lf-metric id="read-update-{number}" value="{number}">'
+            "Completed steps</lf-metric></lf-grid>"
         ),
         for_event=for_event,
         initiates=for_event is None,
@@ -155,7 +155,7 @@ def test_unread_agent_root_boundary_precedes_hoisted_header(browser, serve):
         "",
         "",
         "Review this metric.",
-        '<lf-metrics><lf-metric id="root-metric" value="1">Completed steps</lf-metric></lf-metrics>',
+        '<lf-grid id="root-row"><lf-metric id="root-metric" value="1">Completed steps</lf-metric></lf-grid>',
     )["id"]
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()

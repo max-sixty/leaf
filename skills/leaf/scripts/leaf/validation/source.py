@@ -21,6 +21,7 @@ from leaf.styles import (
     css_syntax_errors,
     inline_presentation_override_errors,
     inline_style_at,
+    layout_css_advice,
     root_tokens,
 )
 from leaf.thread_context import comment_ids, specimen_events, thread_structure
@@ -39,7 +40,7 @@ from leaf.validation.instances import (
     widget_errors,
 )
 from leaf.validation.markup import (
-    authored_width_errors,
+    authored_allocation_errors,
     id_errors,
     media_errors,
     missing_outline,
@@ -94,7 +95,7 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
 
     errors.extend(structure_errors(parser))
     errors.extend(page_boundary_errors(parser))
-    errors.extend(authored_width_errors(parser))
+    errors.extend(authored_allocation_errors(parser))
 
     for script in parser.external_scripts:
         if (
@@ -265,6 +266,7 @@ def _source_advice(
         ),
         *unpointable_blocks(parser),
         *missing_outline(parser, registry or {}),
+        *layout_css_advice(parser, registry or {}),
     ]
 
 

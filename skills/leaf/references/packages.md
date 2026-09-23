@@ -159,13 +159,21 @@ under `$idioms` in the package's
 A rule that draws a box's inset — padding, border, or tinted field — declares
 `--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
-runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`, and
-`[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
-tags. `x-space: wide` requests the shared capped evidence width; `x-space: available`
-requests all room left after enclosing frames, chrome, and actual margin residents.
-That is the package default, and a page occurrence's `data-width` overrides it
-(`page-authoring.md`, "Document, page tabs, or workspace"). Neither chooses the
-widget's internal layout; the package arranges its own content inside the allocation.
+runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`,
+`[data-lf-measure]`, `[data-lf-bound]`, and `[data-lf-exhibit]`; shared selectors read
+those attributes instead of naming widget tags. `x-space: wide` requests the shared
+capped evidence width; `x-space: available` requests all room left after enclosing
+frames, chrome, and actual margin residents. That is the package default, and a page
+occurrence's `data-width` overrides it (`page-authoring.md`, "Composing a page").
+Neither chooses the widget's internal layout; the package arranges its own content
+inside the allocation. A widget that draws a surface rather than setting text — a
+chart, table, log, or listing — declares `x-measure: surface`, so it fills a grid cell
+or pane while text there keeps the reading measure; `x-space` wide or available
+implies it. A widget that only holds other blocks, such as tabs or a comparison,
+declares `x-measure: group` and passes the measure through to them. A log or feed declares `x-bound: end` (or `start`) to hold its own height and
+scroll inside it; a page occurrence's `data-bound` overrides that. When the scroller
+should be a box inside the widget, such as a listing under a caption that stays in
+view, the package theme moves the bound there under `[data-lf-bound]`.
 A package whose available surface preserves a drawing's natural
 inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
 distinguish honest source overflow from room withheld by the page; Leaf resets the fact

@@ -5,6 +5,7 @@ stylesheets. Their results are read-only; edits select a new cache entry.
 """
 
 from functools import lru_cache
+from itertools import pairwise
 
 import tinycss2
 
@@ -344,3 +345,123 @@ def inline_presentation_override_errors(parser: SourceDocument) -> list:
                     f"{declaration.lower_name} important"
                 )
     return errors
+
+
+# ---------- page CSS that fights the layout ----------
+# Leaf keeps the reader's place in the regions it knows: the page, a pane, a bounded
+# block. Page CSS stays free inside a block, so these are advice rather than errors: a
+# box the page makes scroll vertically keeps no reading position across a revision or a
+# reflow, and a layout element the page places itself is geometry the layout no longer
+# owns. Sideways scrolling is the theme's own answer to a wide table or listing, and a
+# bound says nothing about it, so only the block axis is read.
+SCROLL_VALUES = {"auto", "scroll"}
+SCROLL_PROPS = {"overflow", "overflow-y", "overflow-block"}
+PLACEMENT_PROPS = {"display", "position", "float", "order", "columns", "column-count"}
+PLACEMENT_PREFIXES = ("grid", "flex")
+COMBINATORS = {">", "+", "~"}
+
+
+def _split_commas(tokens):
+    part = []
+    for token in tokens:
+        if token.type == "literal" and token.value == ",":
+            yield part
+            part = []
+        else:
+            part.append(token)
+    yield part
+
+
+def _subject_tags(tokens) -> set:
+    """The type selectors of each complex selector's subject — the element a rule
+    styles, not an ancestor it names as context. `:is()` and `:where()` pass their
+    arguments through; `:not()` and `:has()` name other elements."""
+    tags = set()
+    for complex_ in _split_commas(tokens):
+        subject, after_combinator = [], False
+        for token in complex_:
+            if token.type == "whitespace" or (
+                token.type == "literal" and token.value in COMBINATORS
+            ):
+                after_combinator = True
+                continue
+            if after_combinator:
+                subject, after_combinator = [], False
+            subject.append(token)
+        # A pseudo-element (`::before`) is a box of its own, not the element named.
+        if any(
+            a.type == b.type == "literal" and a.value == b.value == ":"
+            for a, b in pairwise(subject)
+        ):
+            continue
+        previous = None
+        for token in subject:
+            if token.type == "ident" and not (
+                previous is not None
+                and previous.type == "literal"
+                and previous.value in {".", ":"}
+            ):
+                tags.add(token.lower_value)
+            elif token.type == "function" and token.lower_name in {"is", "where"}:
+                tags |= _subject_tags(token.arguments)
+            previous = token
+    return tags
+
+
+def _scrolls(block) -> list:
+    return [
+        declaration.lower_name
+        for declaration in block
+        if declaration.type == "declaration"
+        and declaration.lower_name in SCROLL_PROPS
+        and SCROLL_VALUES
+        & {t.lower_value for t in declaration.value if t.type == "ident"}
+    ]
+
+
+def _places(block) -> list:
+    return [
+        declaration.lower_name
+        for declaration in block
+        if declaration.type == "declaration"
+        and (
+            declaration.lower_name in PLACEMENT_PROPS
+            or declaration.lower_name.startswith(PLACEMENT_PREFIXES)
+        )
+    ]
+
+
+def layout_css_advice(parser: SourceDocument, registry: dict) -> list:
+    """Page CSS that makes a box scroll, or that places an element declaring a reading
+    role. Each line names the rule and the property."""
+    layout_tags = {
+        tag
+        for tag, entry in registry.items()
+        if not tag.startswith("$") and entry.get("x-reading-role")
+    }
+    advice = []
+    stated = [
+        (
+            f"rule `{selector}`",
+            block,
+            _subject_tags(tinycss2.parse_component_value_list(selector)),
+        )
+        for selector, block, _ in css_rules(parser.css)
+    ] + [
+        (inline_style_at(inline), css_block(inline["style"]), {inline["tag"]})
+        for inline in parser.inline_styles
+    ]
+    for where, block, subjects in stated:
+        for prop in _scrolls(block):
+            advice.append(
+                f"{where} sets {prop} to scroll, and Leaf keeps no reading position "
+                "in a scroller page CSS makes; bound the block with "
+                "data-bound=start|end instead"
+            )
+        if placed := sorted(subjects & layout_tags):
+            for prop in _places(block):
+                advice.append(
+                    f"{where} sets {prop} on <{'>, <'.join(placed)}>, whose geometry "
+                    "the layout owns"
+                )
+    return advice

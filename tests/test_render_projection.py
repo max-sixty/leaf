@@ -2370,8 +2370,8 @@ def test_a_word_the_revision_adds_to_a_surviving_element_is_said(browser, serve)
     first = leaf_page(
         "Said first",
         '<h1 id="sd-title">Said</h1>\n'
-        '<lf-metrics id="sd-metrics"><lf-metric id="sd-metric" value="42">'
-        "checks complete</lf-metric></lf-metrics>",
+        '<lf-grid id="sd-metrics"><lf-metric id="sd-metric" value="42">'
+        "checks complete</lf-metric></lf-grid>",
     )
     second = first.replace("Said first", "Said second").replace(
         'value="42"', 'value="45" delta="+3"'

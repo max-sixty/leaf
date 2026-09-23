@@ -7,6 +7,7 @@ import {
   watchExternalLinks,
 } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
+import { followBounds } from "./bounds.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
@@ -215,6 +216,7 @@ async function settle(presentation, scope, arrived, presented) {
   await presentation.present(scope, Promise.all(arrived.map(dress)));
   await presented();
   reachScrollers(scope);
+  followBounds();
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {

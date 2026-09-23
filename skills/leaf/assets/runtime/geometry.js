@@ -201,8 +201,12 @@ export function landingInsets(scroller) {
 // scroller's `scroll-padding` for the runtime's own, through `landingInsets`). How tall
 // a cover is is a measurement rather than a constant: a heading or a file path wraps,
 // and the reader sets the width by drawing a panel's edge, which posts no event. So the
-// covers are observed rather than measured by whoever renders them, which forces no
-// layout. The tallest is the room, since a landing cannot know which cover will stick
+// covers are observed rather than measured by whoever renders them, and a declaration
+// that replaces covers forces no layout. Only a host's first covers are measured as
+// they are declared, since a first observation comes after the frame's layout: a
+// document's initial fragment landing reads the room in that window, and read as none
+// it stopped a root tab strip's height short, under the strip. A cover that replaces
+// another starts at the room its host already keeps. The tallest is the room, since a landing cannot know which cover will stick
 // over it. A cover that stops rendering (its panel shut) keeps the room it last
 // measured, so a frame that runs before the reopening's observation reads the room
 // rather than none. Called again with the box's current covers, it replaces the set; a
@@ -242,19 +246,24 @@ export function declareCoverRoom(host, property, covers) {
   });
   const prior = coverRooms.get(host)?.covers ?? new Map();
   const next = new Map();
+  const kept = Math.max(0, ...prior.values());
+  const fresh = [];
   for (const cover of covers) {
-    next.set(cover, prior.get(cover) ?? 0);
+    next.set(cover, prior.get(cover) ?? kept);
     if (prior.has(cover)) continue;
+    fresh.push(cover);
     coverHosts.set(cover, host);
     declaredCovers.add(cover);
     coverObserver.observe(cover);
   }
   const left = [...prior.keys()].filter((cover) => !next.has(cover));
   for (const cover of left) letGo(cover);
+  if (!prior.size)
+    for (const cover of fresh)
+      if (cover.isConnected && cover.checkVisibility())
+        next.set(cover, cover.getBoundingClientRect().height);
   coverRooms.set(host, { property, covers: next });
-  // A new cover is measured by its first observation, before the frame paints; one that
-  // left changes the room now.
-  if (left.length) paintCoverRoom(host);
+  if (fresh.length || left.length) paintCoverRoom(host);
 }
 // A band less the covers standing over its edges. A cover stands over the top edge when
 // it straddles it, and a cover resting on another stuck cover straddles the edge the

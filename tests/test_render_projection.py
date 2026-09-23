@@ -2131,7 +2131,9 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     expect(page).to_have_title("Prose first")
     chip = page.locator(".lf-latest-chip")
     expect_banner_control_offered(chip)
-    banner_control(page, ".lf-latest-chip").click()
+    page.locator(".lf-banner-more").press("Enter")
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    chip.press("Enter")
 
     expect(page).to_have_title("Prose second")
     expect(page.locator("#pr-edited")).to_have_text(
@@ -3453,7 +3455,9 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
 
     # An explicit press may override the hold: the live address and the durable panel
     # draft both survive the new document.
-    banner_control(page, ".lf-latest-chip").click()
+    page.locator(".lf-banner-more").press("Enter")
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    page.locator(".lf-latest-chip").press("Enter")
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
     expect(general).to_have_value("Do not replace the page under these words.")

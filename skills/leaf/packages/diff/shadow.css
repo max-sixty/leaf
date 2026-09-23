@@ -185,9 +185,10 @@
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    document declares its banner through scroll-padding-top; this is the rest of the same
    sum, measured because a wrapped path makes it a number no stylesheet can work out
-   (paintHeadRoom, lf-diff.js — the thread list writes the same fact under this name for
-   its own pinned headings). */
-:host(.lf-rendered) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
+   (declareHeadRoom, lf-diff.js, through the runtime's `declareCoverRoom`, which keeps the
+   thread list's run headings declared under the same name). Only where the header pins:
+   unpinned, it covers nothing. */
+:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-head-room, 0px); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path { font-family: var(--mono); font-size: var(--t-6);

@@ -18,6 +18,7 @@ import {
   paintKeys,
   projectData,
   consumeThreads,
+  declareCoverRoom,
   relabel,
   retainReaderIntent,
   scrollBehavior,
@@ -591,8 +592,6 @@ customElements.define(
       this.rendering = (this.rendering ?? 0) + 1;
       this.stopWatching?.();
       this.stopWatching = null;
-      this.headRoom?.disconnect();
-      this.headRoom = null;
       this.manifestEntries = null;
       this.manifestSnapshot = null;
       this.sharedStyles = null;
@@ -676,8 +675,7 @@ customElements.define(
               ({ node }) => node,
               { nested: true, labelOf: datumLabel, snapshot },
             );
-          this.paintHeadRoom();
-          this.watchHeadRoom();
+          this.declareHeadRoom();
           this.classList.add("lf-rendered");
         } finally {
           resume();
@@ -779,8 +777,7 @@ customElements.define(
         this.replaceChildren();
         this.stageManifest();
         this.projectManifest();
-        this.paintHeadRoom();
-        this.watchHeadRoom();
+        this.declareHeadRoom();
         this.classList.add("lf-rendered");
       } finally {
         resume();
@@ -1242,23 +1239,20 @@ customElements.define(
 
     // How much of the top a pinned file header covers, which is the one number the theme
     // cannot work out: a long path wraps, so the header's height is whatever it rendered
-    // at, and on this corpus that is anything from one line to three. The thread list
-    // writes the same fact under the same name for its own run headings; here it is read
-    // as `scroll-margin-top` on the rows, so a landing arrives below the header rather
-    // than behind it. Per file, because each header pins over its own rows and one
-    // number for all of them would spend the widest path's wrap on every landing.
-    paintHeadRoom() {
+    // at, and on this corpus that is anything from one line to three. The runtime keeps
+    // that room declared (`declareCoverRoom`), as it does for the thread list's run
+    // headings; here it is read as `scroll-margin-top` on the rows, so a landing arrives
+    // below the header rather than behind it. Per file, because each header pins over its
+    // own rows and one number for all of them would spend the widest path's wrap on
+    // every landing. Declared only where the header pins: unpinned, it covers nothing.
+    declareHeadRoom() {
+      const pinned = this.dataset.lfDiffPinned !== undefined;
       for (const file of this.shadowRoot?.querySelectorAll("details") ?? [])
-        file.style.setProperty(
+        declareCoverRoom(
+          file,
           "--lf-head-room",
-          `${file.querySelector("summary")?.offsetHeight ?? 0}px`,
+          pinned ? file.querySelectorAll(":scope > summary") : [],
         );
-    }
-
-    watchHeadRoom() {
-      if (this.headRoom) return;
-      this.headRoom = new ResizeObserver(() => this.paintHeadRoom());
-      this.headRoom.observe(this);
     }
 
     // Where the reader stands inside this diff. A row, a header, or a control in the

@@ -10,6 +10,7 @@ from interact_support import (
     append_command,
     record_claim,
 )
+from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -103,6 +104,50 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 SWIPE_GALLERY = next(path for path in CORPUS_SOURCES if path.stem == "swipe-gallery")
+
+
+def test_projected_request_rows_have_independent_buttons(browser, serve):
+    url = serve(FEATURE_GALLERY)
+    data_model.cmd_data_set(serve.page_dir, "gallery-latency", 184)
+    page = open_page(browser, url)
+    source_revision, store_revision = page.evaluate("""() => {
+      const snapshot = document.querySelector('#bg-jobs').snapshot;
+      return [snapshot.revision, snapshot.origin.data_revision];
+    }""")
+    assert source_revision != store_revision
+    rows = page.locator("#bg-jobs p")
+    expect(rows).to_have_count(2)
+    first = rows.nth(0).get_by_role("button", name="Restart")
+    second = rows.nth(1).get_by_role("button", name="Restart")
+    expect(first).to_be_enabled()
+    expect(second).to_be_enabled()
+
+    first.focus()
+    with page.expect_response("**/api/event") as posted:
+        page.keyboard.press("Enter")
+    assert posted.value.status == 200
+    assert posted.value.request.post_data_json["data_revision"] == source_revision
+    expect(first).to_be_disabled()
+    expect(second).to_be_enabled()
+    assert page.evaluate("""async () => {
+      const holder = document.querySelector('#bg-jobs');
+      const {dispatchWidget} = await window.__lfRuntimeImport('/runtime/application.js');
+      const {widgetDescriptor} = await window.__lfRuntimeImport('/runtime/widget-descriptors.js');
+      const descriptor = widgetDescriptor(holder);
+      const duplicate = dispatchWidget(descriptor, {
+        kind: 'request', verb: 'restart',
+        detail: {target: 'indexer', state: 'stopped'},
+      });
+      const missing = dispatchWidget(descriptor, {
+        kind: 'request', verb: 'restart',
+        detail: {target: 'unknown', state: 'stopped'},
+      });
+      return [duplicate, missing];
+    }""") == [None, None]
+    second.click()
+    expect(second).to_be_disabled()
+
+
 TARGETING_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "targeting-gallery"
 )

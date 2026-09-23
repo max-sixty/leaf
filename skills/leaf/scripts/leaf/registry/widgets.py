@@ -13,6 +13,7 @@ from .contract import (
     declares_string,
     json_validator,
     reference_relation_error,
+    schema_resource_registry,
     state_specs,
     visual_part_attribute,
 )
@@ -44,7 +45,7 @@ def _recorded_attributes(entry: dict) -> set[str]:
     }
 
 
-def validate_widget_schemas(declarations: dict, path) -> None:
+def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
     # First validate every declaration in isolation. Cross-declaration checks run only after this
     # pass, so their result cannot depend on which widget happened to be written first.
     for tag, entry in declarations.items():
@@ -117,6 +118,67 @@ def validate_widget_schemas(declarations: dict, path) -> None:
                 detail_properties = spec["detail"].get("properties", {})
                 required = set(spec["detail"].get("required", []))
                 widget_properties = entry.get("properties", {})
+                records_input = entry.get("x-request", {}).get("records")
+                record_properties = {}
+                record_required = set()
+                if records_input:
+                    data_input = entry.get("x-data", {}).get(records_input)
+                    if data_input is None:
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request records names unknown "
+                            f"x-data input {records_input!r}"
+                        )
+                    contract = data["contracts"][data_input["contract"]]
+                    record_spec = contract.get("records") or contract.get("fragments")
+                    if record_spec is None:
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request records input "
+                            f"{records_input!r} has no record key declaration"
+                        )
+                    schema = contract["schema"]
+                    _resource, schema_registry = schema_resource_registry(schema)
+                    resolver = schema_registry.resolver()
+
+                    def resolved(node, resolver=resolver):
+                        while isinstance(node, dict) and "$ref" in node:
+                            node = resolver.lookup(node["$ref"]).contents
+                        return node
+
+                    collection = resolved(
+                        schema.get("properties", {}).get(record_spec["items"], {})
+                    )
+                    item = resolved(collection.get("items", {}))
+                    if (
+                        schema.get("type") != "object"
+                        or collection.get("type") != "array"
+                        or item.get("type") != "object"
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request records input "
+                            f"{records_input!r} needs an object with an array "
+                            "of object records in its data contract"
+                        )
+                    record_properties = item.get("properties", {})
+                    record_required = set(item.get("required", []))
+                    key = record_spec["key"]
+                    if key not in record_required or not declares_string(
+                        resolved(record_properties.get(key, {}))
+                    ):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request record key {key!r} "
+                            "must be a required string in the data contract"
+                        )
+                    unit = spec.get("unit")
+                    if unit is None or spec.get("bind", {}).get(unit) != key:
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request verb `{verb}` must bind "
+                            f"its unit detail field to record key {key!r}"
+                        )
+                elif "unit" in spec:
+                    raise RegistryError(
+                        f"{path}: <{tag}> x-request verb `{verb}` has a unit "
+                        "without a records input"
+                    )
                 for field, attribute in spec.get("bind", {}).items():
                     if field not in detail_properties or field not in required:
                         raise RegistryError(
@@ -129,18 +191,25 @@ def validate_widget_schemas(declarations: dict, path) -> None:
                             f"{path}: <{tag}> x-request verb `{verb}` binds detail "
                             f"field `{field}`, which must be a string"
                         )
-                    attribute_schema = widget_properties.get(attribute, {})
-                    if attribute_schema.get("type") != "string":
+                    attribute_schema = (
+                        resolved(record_properties.get(attribute, {}))
+                        if records_input
+                        else widget_properties.get(attribute, {})
+                    )
+                    if not declares_string(attribute_schema):
                         raise RegistryError(
                             f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
                             f"to `{attribute}`, which is not a declared string attribute"
                         )
-                    if attribute not in entry.get("required", []):
+                    if attribute not in (
+                        record_required if records_input else entry.get("required", [])
+                    ):
                         raise RegistryError(
                             f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
-                            f"to `{attribute}`, which is not a required authored attribute"
+                            f"to `{attribute}`, which is not a required "
+                            f"{'record field' if records_input else 'authored attribute'}"
                         )
-                    if attribute in recorded_attributes:
+                    if not records_input and attribute in recorded_attributes:
                         raise RegistryError(
                             f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
                             f"to `{attribute}`, which is written by x-state or x-report"
@@ -262,8 +331,18 @@ def _validate_widget_structure(
                 "element declaration must require an id"
             )
         verbs = set(request["verbs"])
+        if request.get("records"):
+            if "offers" in request:
+                raise RegistryError(
+                    f"{path}: <{tag}> projected x-request offers verbs on the holder, "
+                    "without authored child offers"
+                )
+        elif "offers" not in request:
+            raise RegistryError(
+                f"{path}: <{tag}> authored x-request needs child offers"
+            )
         offered = set()
-        for member, attribute in request["offers"].items():
+        for member, attribute in request.get("offers", {}).items():
             member_entry = declarations.get(member)
             if member_entry is None:
                 raise RegistryError(
@@ -305,7 +384,7 @@ def _validate_widget_structure(
                     f"names undeclared verbs {unknown}"
                 )
             offered.update(values)
-        if missing := sorted(verbs - offered):
+        if not request.get("records") and (missing := sorted(verbs - offered)):
             raise RegistryError(
                 f"{path}: <{tag}> x-request verbs {missing} cannot be offered "
                 "by any declared child widget"

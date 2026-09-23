@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from ..activity import canonical_activity, canonical_stream_reply
-from ..data import browser_data, browser_data_from
+from ..data import browser_data_from, read_data
 from ..event_log import now_iso
 from ..events import build_threads
 from ..files import active_descriptor, version_descriptors
@@ -85,6 +85,7 @@ def full_state(
         present = presence_override
         live_stream = live_stream_override
     now = now_override or now_iso()
+    stored_data = data_override if data_override is not None else read_data(page_dir)
     browser = project_browser_state(
         page_dir,
         events,
@@ -96,6 +97,7 @@ def full_state(
         registry_override=registry_override,
         registries_override=registries_override,
         live_stream=live_stream,
+        data=stored_data,
     )
     activity = project_activity(
         page_dir,
@@ -157,11 +159,7 @@ def full_state(
             else version_descriptors(page_dir, events)
         ),
         "source_error": source_error,
-        "data": (
-            browser_data_from(copy.deepcopy(data_override), selected_registry)
-            if data_override is not None
-            else browser_data(page_dir, selected_registry)
-        ),
+        "data": (browser_data_from(copy.deepcopy(stored_data), selected_registry)),
         **present,
         "activity": activity,
         "workflows": workflows,

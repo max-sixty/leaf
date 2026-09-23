@@ -136,7 +136,10 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
             "id": "first",
             "widget": "old-seat",
             "action": "submit",
-            "meaning": {"document": {"kind": "page", "revision": 1}},
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "unit": "old-seat",
+            },
         },
         {
             "kind": "receipt",
@@ -150,7 +153,10 @@ def test_request_outcomes_keep_receipts_after_the_seat_is_removed():
             "id": "second",
             "widget": "old-seat",
             "action": "submit",
-            "meaning": {"document": {"kind": "page", "revision": 1}},
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "unit": "old-seat",
+            },
         },
         {
             "kind": "receipt",

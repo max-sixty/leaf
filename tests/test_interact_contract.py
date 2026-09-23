@@ -4335,12 +4335,23 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
             **owes("reply"),
         },
+        "comment with a pasted image": {
+            "kind": "comment",
+            "text": "this looks off ![screenshot](/media/0a1b2c.png)",
+            **owes("reply"),
+        },
         "comment awaiting a version": {"kind": "comment", **owes("version")},
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
         "reaction on the page": {"kind": "comment", "token": "+1"},
         "reply": {"kind": "reply", **owes("reply")},
+        "reply with a pasted image": {
+            "kind": "reply",
+            "text": "like this ![sketch](/media/3d4e5f.png)",
+            **owes("reply"),
+        },
+        "reply in a thread awaiting a version": {"kind": "reply", **owes("version")},
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "pick adding an option": {

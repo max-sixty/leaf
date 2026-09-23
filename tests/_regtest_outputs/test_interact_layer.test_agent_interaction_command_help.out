@@ -118,8 +118,8 @@ Usage: leaf comment [OPTIONS] PAGE
   --section points at a passage, general where neither does \u2014 a question about
   the work as a whole.
 
-  The user answers it in the browser and resolves it there. Refuses a quote the
-  active revision does not hold, or holds more than once.
+  The user answers it in the browser. Refuses a quote the active revision does
+  not hold, or holds more than once.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -164,11 +164,9 @@ Usage: leaf resolve [OPTIONS] PAGE
 
   Close a thread as the agent.
 
-  For a version response, revise and stamp the requested change before
-  resolving. Otherwise answer any outstanding user input before resolving, and
-  leave closing to the user unless they requested it or no further discussion
-  could change the outcome. Completing the work alone is not a reason to close
-  its thread. The panel names who resolved it.
+  The user ordinarily closes a thread; the Leaf skill's references/conversation-
+  threads.md says when the agent does. Refuses a thread that asked for a version
+  until a stamped version answers it. The panel names who resolved it.
 
 Options:
   --to ID  a message in the thread to close  [required]

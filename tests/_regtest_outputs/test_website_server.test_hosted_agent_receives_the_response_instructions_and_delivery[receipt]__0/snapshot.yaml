@@ -48,11 +48,11 @@ turn/start:
   toolOutput:
     name: leaf_delivery
     output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[],"handling":{"h1":"The
-      user asked you to run an operation the page''s package defines, once. The
-      request id, with the page, identifies it: after an interruption, check whether
-      it already ran before acting.","h2":"Run it at most once, then record the
-      outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed
-      --text \"\u2026\"`. The receipt does not change the page: refresh any data
-      the page shows, update `index.html` to reflect the result, and stamp it if
-      it is worth a note."},"events":[{"kind":"request","author":"user","revision":1,"widget":"commands","action":"restart","detail":{"target":"goal","worker":"worker","worktree":"tree"},"meaning":{"document":{"kind":"page","revision":1},"unit":"commands"},"id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"widget","id":"commands"},"conversations":[],"says":{"commands":"Restart"},"handling":["h1","h2"],"obligation":{"as_of_seq":1,"response":{"kind":"receipt","request":"user-event"}}}]}]}'
+      user asked you to run an operation the page''s package defines; the package''s
+      guidance says what it means. The request id, with the page, identifies it:
+      after an interruption, check whether it already ran before acting.","h2":"Run
+      it at most once, then record its outcome with exactly one `leaf receipt <page>
+      <request-id> succeeded|failed --text \"\u2026\"`. The receipt does not change
+      the page: refresh any data the page shows, update `index.html` to reflect
+      the result, and stamp it if it is worth a note."},"events":[{"kind":"request","author":"user","revision":1,"widget":"commands","action":"restart","detail":{"target":"goal","worker":"worker","worktree":"tree"},"meaning":{"document":{"kind":"page","revision":1},"unit":"commands"},"id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"widget","id":"commands"},"conversations":[],"says":{"commands":"Restart"},"handling":["h1","h2"],"obligation":{"as_of_seq":1,"response":{"kind":"receipt","request":"user-event"}}}]}]}'
   turnTrigger: leaf

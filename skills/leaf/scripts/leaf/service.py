@@ -780,10 +780,8 @@ def unacknowledged(events: list, cursor: int) -> list:
 def requires_agent_attention(event: dict) -> bool:
     """Whether a log event creates host work, rather than user bookkeeping."""
     return (
-        (event["author"] == "user" and event["kind"] not in bookkeeping_kinds())
-        or event["kind"] in {"report", "error"}
-        or (event["author"] == "page" and event["kind"] == "action")
-    )
+        event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
+    ) or event["kind"] in {"report", "error"}
 
 
 def claim_update_sources(status: dict) -> list[dict]:

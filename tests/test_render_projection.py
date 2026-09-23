@@ -3451,9 +3451,11 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect_banner_control_offered(page.locator(".lf-latest-chip"))
 
-    # An explicit press may override the hold: the live address and the durable panel
-    # draft both survive the new document.
-    banner_control(page, ".lf-latest-chip").click()
+    # Leaving the textarea releases the hold. The live address and durable panel
+    # draft survive the arriving document without a confirmation press.
+    general.press("Tab")
+    expect(general).not_to_be_focused()
+    told(page)
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
     expect(general).to_have_value("Do not replace the page under these words.")
@@ -3464,8 +3466,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         approval.element_handle(),
     )
 
-    # Keep editing after the explicit release. The chip press necessarily took focus,
-    # so state the active-composition condition again before asking v3 to honor it.
+    # Keep editing after the first release, then ask v3 to honor the hold again.
     general.focus()
     expect(general).to_be_focused()
     (serve.page_dir / "index.html").write_text(LIVE_V3)

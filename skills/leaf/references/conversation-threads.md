@@ -18,10 +18,10 @@ cross-boundary text instead of creating a detached comment. It prints the id of
 the thread it opened, which `leaf status --on`, `leaf edit --to`, and
 `leaf resolve --to` take.
 
-Give a conversation a short, descriptive title when you open it or first handle
-the user's thread. Choose a few words that identify its subject in the thread
-panel. Keep the title stable; rename it only when it no longer describes the
-discussion.
+Give a conversation you open a short, descriptive title, and name an untitled one
+the user opened when a delivered message in it says to. Choose a few words that
+identify its subject in the thread panel. Keep the title stable; rename it only
+when it no longer describes the discussion.
 
 ```bash
 leaf conversation title <page> <conversation-id> --text "Afternoon workshop"
@@ -50,28 +50,9 @@ and link it from the reply that reports it, with a fragment link such as
 result, keep the thread anchored to that page section. Keep the discussion active
 if the outcome is not yet incorporated or the user still owes an explicit review.
 
-A browser comment may carry a drawing of one or more strokes that continue across the
-page. A drawing whose first stroke began over or in the margin beside an addressable
-element anchors there; one begun where no addressable element shares its line belongs to
-the page whole. Treat it as visual evidence for that ordinary thread. Its `says` is the
-page's words the drawing stood over when it was drawn, from the first word inside the
-ink's extents to the last. That is the neighbourhood of the mark rather than the mark:
-an arrow across a paragraph says the paragraph. It is absent where the extents hold no
-words, as over a picture or in a margin. An anchored
-drawing's `strokes` are offsets from that element's top-left corner, and `box` is the
-element's width and height at the time, so a stroke's share of the box says which part
-of a picture it marks; a page drawing has no `box`, and its strokes are offsets from the
-document's origin. Use any accompanying text, and reply or revise through the same path
-as any other comment.
-
-A user may paste an image into any thread text box; the message carries it as an
-ordinary Markdown image at `/media/<digest>.<ext>`. Resolve
-that path beneath the absolute page directory named by the delivered batch and inspect
-the image itself before replying; alt text is a label, not evidence of what the pixels
-show.
-
-Send one the same way: run `leaf page media <page> <file>` and write the printed path as
-an ordinary Markdown image in the message's text. The door refuses a `/media/…` the page
+A user may paste an image into any thread text box, and a delivered message that
+carries one says how to read it. To send one, run `leaf page media <page> <file>` and
+write the printed path as an ordinary Markdown image in the message's text. The door refuses a `/media/…` the page
 directory cannot answer, in text as in markup, because the log is append-only and a
 broken image posted to it stays broken. It reads the link and image destinations the
 runtime resolves, so a path written about in a sentence stays prose.
@@ -123,13 +104,9 @@ null current anchor and the prior anchor as `detached_from`. A later reply may m
 to a genuine replacement. Open a new thread for a different subject. Held command-goal
 threads cannot move or detach.
 
-A thread the user opened as a request for change, delivered as a `version`
-obligation, takes no reply from you: the next stamped version is its answer. Where the
-change needs clarification first, open a separate thread on the same Ask with
-`leaf comment <page> --section <ask-id>`; the user's answer hands both threads back
-to you. The original stays open until authored state in a later stamped version
-answers the Ask it came from, or changes the declared answer where the Ask was already
-answered, and `leaf resolve` accepts it only then.
+A thread the user opened as a request for change is delivered with a `version`
+obligation: the next stamped version is its answer rather than a reply, and its
+delivered `answering` clause says when it can be resolved.
 
 A declared visual part is held only while a live conversation's current anchor names
 it, so a version may drop the part once every thread on it has moved, detached, or
@@ -173,9 +150,11 @@ new thread. `--json` prints the posted event instead, whose
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
-user asks, when an event rule requires resolution, or when no review or
-follow-up can change the outcome. Completing the requested work does not meet
-that bar by itself; when uncertain, leave the thread open. Reply before resolving:
+user asks, when a delivered event's handling says to, as for a reaction or a
+version request, or when no review or follow-up can change the outcome.
+Completing the requested work does not meet that bar by itself; when uncertain,
+leave the thread open. Answer any unanswered user message in the thread before
+resolving it:
 
 ```bash
 leaf resolve <page> --to <thread-id>

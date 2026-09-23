@@ -21,10 +21,6 @@ Each option carries its own title, one consequence, and the evidence needed to
 choose it. When comparable facts help, show the same few facts across the
 alternatives. For an interface or behavior choice, make the relevant interaction
 work inside each option so the user can try every alternative before choosing.
-Text directly inside an `lf-option` uses inline Markdown for emphasis, code
-spans, and links. Lists, headings, and fenced code are block syntax and do not
-render there. HTML children such as `<strong>` titles, chips, and links remain HTML.
-User-added options preserve their Markdown source across later picks and reloads.
 Hold everything except the disputed treatment constant, and include the current or
 no-treatment case as a neutral control. Put longer rationale or provenance in a
 disclosure after the Ask. Use a short option that points
@@ -39,33 +35,16 @@ pick, so nothing tells the user their first answer is gone. Author the
 exclusive group only where the options rule each other out; where a set is
 answerable — work to start, checks to run, risks to accept — allow it.
 
-On the page the group's last cell is an option the user writes, saying
-`Another option`, so author the alternatives you actually mean and no catch-all
-beside them: a `Something else` option takes a click where that cell takes the
-answer. Its Ask address is the digit after the listed options when one of the nine
-addresses remains. Submitting the cell creates and selects a real option. It reaches you as
-the group's ordinary `choose` action, with `detail.additions` mapping the complete
-set of user-added option ids to their words. In a `multiple` group, the user
-presses Done after adding and choosing their options. In a thread the reply box
-already owns free-form words, so the group carries no add cell of its own.
+On the page the group ends with an `Another option` cell the user writes in
+(the `lf-options` entry describes it), so author the alternatives you actually
+mean and no catch-all beside them: a `Something else` option takes a click where
+that cell takes the answer. If an added option needs clarification, open a
+separate exact-section thread anchored to its event-supplied id. When editing that
+option's markup, follow `authoring-revisions.md`'s user-state rules.
 
-The standing `choose` action answers a single-choice Ask immediately and preserves
-generated options across revisions. A `multiple` Ask stays open until Done, on the
-page and in a thread. If an added option needs clarification,
-open a separate exact-section thread anchored to its event-supplied id. When
-editing that option's markup, follow `authoring-revisions.md`'s user-state rules.
-
-An ask must name itself without context outside the ask. Begin `lf-ask` with
-one ordinary heading, then include any introduction or evidence and the
-actionable widget. That heading is the question: it stays in the document's
-hierarchy, is available to selection and comments, names the Asks tray row, and
-is where `a` / `A` arrives. The nested widget still owns the answer or request
-lifecycle.
-
-The author's preferred option may end its chip row with an ordinary tinted chip,
-such as `<lf-chip tone="ok">recommended</lf-chip>`. Keep the reason in that option
-as ordinary prose, such as `<em>My take: this is the safest rollout.</em>`. The chip
-is advice; `chosen` alone records the user's pick.
+Begin each `lf-ask` with one ordinary heading that states the question, so the Ask
+names itself without context outside it; the `lf-ask` entry says what else that
+heading does.
 
 A page whose approval unblocks work declares:
 
@@ -73,5 +52,6 @@ A page whose approval unblocks work declares:
 <meta name="lf-review" content="sign-off">
 ```
 
-An informational page omits it. Approval becomes available after every Ask on the
-page is answered.
+An informational page omits it. The banner offers approval only on a stamped
+version that declares it, and enables it once every Ask on the page and in its
+threads is answered.

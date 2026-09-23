@@ -3,21 +3,12 @@
 The page's summary, checks, and log describe the observed release. Keep them current
 from the deployment system rather than interpreting the log in the browser.
 
-A `rollback` request from `lf-release-actions` is a one-shot instruction to the host.
-Before acting, verify that the authored `candidate` is still receiving traffic and that
-the authored `stable` release is still the intended rollback target. Key the operation
-on the page and the request id together; a request id is unique within its page, not
-across pages. On recovery, inspect the deployment system for that request or its result
-before sending another rollback. A button press means requested, not completed.
-
-After the deployment system accepts or refuses the operation, record exactly one result:
-
-```bash
-leaf receipt "$PAGE" <request-id> succeeded --text "Rollback to checkout-v1 completed"
-# or
-leaf receipt "$PAGE" <request-id> failed --text "checkout-v1 is no longer eligible"
-```
-
-Refresh the release observations and save a new authored revision when the result changes
-the release state. Do not acknowledge the event batch until the request has reached the
-durable deployment executor.
+A `rollback` request from `lf-release-actions` asks for a rollback; it has not
+happened yet. Before acting, verify that the authored `candidate` is still receiving
+traffic and that the authored `stable` release is still the intended rollback target.
+The delivered request's handling says how to key it and record its receipt. On
+recovery, the deployment system is where to look for that request or its result before
+sending another rollback. Write the receipt once the deployment system accepts or
+refuses the operation, and refresh the release observations the result changes. Do not
+acknowledge the event batch until the request has reached the durable deployment
+executor.

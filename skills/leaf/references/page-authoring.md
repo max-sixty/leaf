@@ -110,20 +110,9 @@ CSS: Leaf keeps no reading position in a scroller it did not make, and `version
 check` advises against one.
 
 Use page tabs for project-scale views that belong to one artifact and share one
-history, Threads panel, Ask inventory, and revision sequence. Make `lf-tabs` the last
-substantive child of `main`; the only substantive content before it may be one native
-`header` carrying the shared title and lede. Any other substantive content in `main`,
-before or after the set, leaves it a framed tabbed section. Each `lf-tab` contains an ordinary document view or one `lf-workspace`; views
-in the same set may use either form. The tab strip becomes the page's top navigation,
-and links, comment anchors, Ask travel, search, and reading-position restoration open
-the view containing their destination.
-Switching page tabs navigates to the chosen panel, with its id in the URL. Browser
-Back and Forward return to the corresponding views. An explicit fragment inside
-a panel opens that panel and reaches the named content.
-
-An `lf-tabs` inside document flow, a pane, or another widget is a tabbed section. Use
-one for local alternatives within the surrounding view. It keeps the framed treatment
-that separates it from adjacent content.
+history, Threads panel, Ask inventory, and revision sequence, and a tabbed section for
+local alternatives within the surrounding view. The `lf-tabs` entry says which
+placement makes which, and how to order and retire views.
 
 For a root workspace, make `lf-workspace` the sole content element directly inside
 `main`, with the page title in its optional direct native `header`. A workspace used as
@@ -212,7 +201,8 @@ Changing the registry or JavaScript opens a fresh document. Leaf restores readin
 position, recoverable drafts, and comparison state. It can also restore focus and
 supported control state when an element keeps its authored id and tag. Element
 instances and arbitrary module state do not survive the reload. Both update paths
-wait while the user is composing, dragging, or has an unresolved delivery.
+wait while the user is composing, dragging, or undoing, has a gesture the server
+has not yet admitted, or has the version menu open.
 
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state

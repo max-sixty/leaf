@@ -50,13 +50,11 @@ surviving branch and ids. A user-generated option can become an ordinary
 authored option under its owning group; retain its event-supplied id and words.
 Its effective id can also anchor a separate clarification thread directly.
 
-Worker reports remain provisional until adjudicated. Write the reported state
-into markup to absorb a report, or mark its element `overruled` and explain why
-in the version note. An unrelated revision may leave the report standing.
+A worker's report stays provisional until a stamped version answers it, as its
+delivered `handling` says.
 
-To deliberately replace state established by an action, put `restated` on the
-rewritten element and explain why in the version note. Without `restated`, replay
-restores the user's state and `version check` refuses a conflicting version.
+To deliberately replace state established by an action, follow the registry's
+`$restated`.
 
 ## Make changes easy to find
 
@@ -103,11 +101,5 @@ there.
 Before handing the page back, check that its status and outstanding work agree
 with what you report to the user.
 
-When one page needs several views, use one `lf-tabs` tab set and put the primary
-current view first: ordering makes it
-the default for a user with no saved panel or reading position, and a saved
-panel or restored position takes precedence. Context an earlier run still owes
-the current one goes in a collapsed `<details>` inside the relevant tab, with any
-passage whose id anchors an open thread or holds a standing decision. Threads,
-asks, versions, and sign-off still cover the whole page, so none of that runtime
-chrome belongs inside a tab.
+When one page needs several views, use one `lf-tabs` tab set; its entry says how
+to order the views and retire an earlier one.

@@ -131,7 +131,7 @@ const seenScroller = (coveringAuxiliaryScroller) =>
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
 // panel or anchored conversation beside the page. Inside a covering surface the focused
 // region still wins; its own scrollport may be nested in that surface. The covering
-// scrollport catches focus that has not yet moved in from the control that opened it.
+// scrollport catches focus with no region, such as a blurred stop.
 const stepScroller = (coveringAuxiliaryScroller) => {
   const covering = coveringAuxiliaryScroller();
   const region = readingRegionFor(document.activeElement);

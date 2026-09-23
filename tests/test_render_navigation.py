@@ -214,10 +214,19 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
     )
     assert list_box.evaluate("box => box.scrollTop") == 0
 
-    panel.get_by_role("button", name="Close threads").focus()
+    nested_position = nested.evaluate("box => box.scrollTop")
+    close = panel.get_by_role("button", name="Close threads")
+    close.focus()
     page.keyboard.press("d")
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert nested.evaluate("box => box.scrollTop") > 0
+    assert nested.evaluate("box => box.scrollTop") == nested_position
+
+    list_box.evaluate("box => box.scrollTop = 0")
+    close.evaluate("button => button.blur()")
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    assert nested.evaluate("box => box.scrollTop") == nested_position
 
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):

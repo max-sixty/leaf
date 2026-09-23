@@ -46,6 +46,11 @@ def package_vendor(package: str) -> Path:
     return PACKAGES / package / "vendor"
 
 
+# The contributor build's pins, which its lock resolves. `esbuild` is one: the browser
+# framework build and every bundle here run the same release, so it is pinned there
+# once and read from there.
+PACKAGE_PINS = json.loads((ROOT / "package.json").read_text())["devDependencies"]
+
 # Every pinned version, exact and in one place. A range would let a dependency
 # move under a bundle nobody rebuilt, and then the tracked bytes stop being what
 # this file produces. `esbuild` is the tool the browser bundles share rather than
@@ -66,7 +71,7 @@ PINS = {
     "@floating-ui/core": "1.8.0",
     "@floating-ui/utils": "0.2.12",
     "shiki": "4.4.3",
-    "esbuild": "0.28.2",
+    "esbuild": PACKAGE_PINS["esbuild"],
     "@awesome.me/webawesome": "3.13.0",
     "@ctrl/tinycolor": "4.1.0",
     "@shoelace-style/localize": "3.2.3",
@@ -87,14 +92,13 @@ def browser_pins() -> dict[str, str]:
     page, which is what `--pins` watches. Lit is one: `lit.js` is the page's only copy,
     and the Web Awesome bundle imports it.
     """
-    pinned = json.loads((ROOT / "package.json").read_text())["devDependencies"]
     manifest = json.loads(
         (ROOT / "scripts/browser/generated/browser-runtime.manifest.json").read_text()
     )
     return {
-        package: pinned[package]
+        package: PACKAGE_PINS[package]
         for package in manifest["bundledDependencies"]
-        if package in pinned
+        if package in PACKAGE_PINS
     }
 
 
@@ -677,6 +681,7 @@ REBUILDS = {
     "lit": ("browser", "webawesome"),
     "@preact/signals-core": ("browser",),
     "esbuild": (
+        "browser",
         "agentic-mermaid",
         "floating-ui",
         "highlight",

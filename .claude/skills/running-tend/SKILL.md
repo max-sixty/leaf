@@ -160,7 +160,8 @@ declares and what the report calls movement is movement that can be taken. A pin
 whose holder the table is missing is the one that reads wrong: check a surprising
 offer against the declaring package before taking it, and add the row.
 `esbuild` is the tool the builds share rather than payload, so it moves when
-a bundle needs it rather than on every release.
+a bundle needs it rather than on every release. Its row reads `package.json`'s
+pin, which the browser framework build shares: bump it there.
 
 On drift, bump the entry in PINS and run `scripts/vendor.py <bundle>` — the
 rebuilt bundle is the commit, not the version string on its own. A `browser` row

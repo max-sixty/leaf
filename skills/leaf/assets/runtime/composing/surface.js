@@ -33,8 +33,8 @@
    covering panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
    Threads list takes it; an unrelated focused control keeps it. A partially exposed
-   page remains interactive whenever the bar fits its actual remaining room. Enter
-   inserts a newline; `Mod+Enter` sends. Tab extends the bar with the layer's reaction
+   page remains interactive whenever the bar fits its actual remaining room. Shift+Enter
+   inserts a newline; Enter sends. Tab extends the bar with the layer's reaction
    tokens. A layer with no reaction vocabulary keeps the bar's Comment and Suggest
    fallback.
 

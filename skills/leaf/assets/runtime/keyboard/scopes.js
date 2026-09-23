@@ -4,7 +4,7 @@
    Standing in a surface is where focus is, not merely that the surface is open. A tray's
    or panel's own button lives in the banner, so opening by pointer leaves the reader
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
-   text box the letter is a character, Enter writes a newline, and arrows move the caret.
+   text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.
    The typing scope claims those text-editing keys, so a reader reaches a surface's
    letters and walks from its list rather than from its composer.
 

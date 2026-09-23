@@ -72,6 +72,11 @@ item.
 |---|---|
 | **Page shell** | The body-level responsive sizing envelope after chrome reservations |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
+| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a workspace, a pane, a grid cell, or any box declaring `--lf-block-frame: 1`. What it holds takes the frame's width, never the page's room |
+| **Grid** | `lf-grid`, which places its direct children in two dimensions |
+| **Cell** | A direct child of a grid; a frame |
+| **Text** and **surface** | How a block uses its frame's width: text keeps the reading measure, a surface (`x-measure: surface`, or `x-space` past the column) fills the frame; a group (`x-measure: group`) passes the measure to what it holds |
+| **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); not a reading region |
 | **Workspace** | An authored structural composition that keeps task regions together |
 | **Pane** | A leaf in a workspace composition that owns one reading region |
 | **Partition** | A binary structural node arranging two panes or partitions |

@@ -1043,101 +1043,130 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     )
 
 
-def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
+def test_a_release_page_spreads_its_evidence_and_keeps_the_log_on_its_newest_line(
     browser, serve
 ):
-    """The concrete package root owns its shape while the shared lifecycle fits it.
-
-    Its release panel stands beside checks over a log at a desk. A short or narrow
-    reading and Threads turn the page back into authored flow; removing that furniture
-    restores the bounded reading. Reconnection leaves one registration per region."""
+    """A document with grids: status tiles and the evidence pair take the page's width
+    while the prose keeps the column, the pair stacks once the window cannot hold it,
+    and the bounded log opens on its newest line. Paper shows the log whole."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
-    context = browser.new_context(viewport={"width": 1100, "height": 900})
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
     page = open_page(browser, live_url(serve(example)), context=context)
-    monitor = page.locator("#lp-monitor")
+    boxes = """() => Object.fromEntries(
+      ['lp-status', 'lp-evidence', 'lp-checks', 'lp-log', 'lp-lede']
+        .map(id => [id, document.getElementById(id).getBoundingClientRect().toJSON()]))"""
 
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
-    desk = page.evaluate(
-        """() => Object.fromEntries(['lp-release', 'lp-checks', 'lp-log']
-          .map(id => [id, document.querySelector(`#${id}`).getBoundingClientRect()]))"""
+    wide = page.evaluate(boxes)
+    assert wide["lp-status"]["width"] > wide["lp-lede"]["width"] + 400
+    assert wide["lp-checks"]["top"] == wide["lp-log"]["top"]
+    assert wide["lp-checks"]["right"] < wide["lp-log"]["left"]
+    listing = page.locator("#lp-live-log pre")
+    assert listing.evaluate(
+        "pre => pre.scrollHeight > pre.clientHeight && "
+        "pre.scrollHeight - pre.scrollTop - pre.clientHeight <= 2"
+    ), "the bounded log should open on its newest line"
+    expect(page.locator("#lp-live-log figcaption")).to_be_in_viewport()
+
+    resized(page, 560, 900)
+    narrow = page.evaluate(boxes)
+    assert narrow["lp-log"]["top"] >= narrow["lp-checks"]["bottom"]
+    assert narrow["lp-log"]["width"] == narrow["lp-evidence"]["width"]
+
+    page.emulate_media(media="print")
+    assert listing.evaluate("pre => getComputedStyle(pre).maxHeight") == "none"
+
+
+GRID_PAGE = leaf_page(
+    "Grid cells are frames",
+    """<h1>Grid</h1>
+<p id="column-prose">The column this page is read at.</p>
+<lf-grid id="wide-one" columns="1">
+  <section id="one-cell">
+    <p id="cell-prose">A paragraph in a cell wider than the column keeps the reading
+    measure, however much room the cell has, so a line stays one the eye can follow
+    back from its end to the start of the next.</p>
+    <table id="cell-table"><tr><th>Surface</th><td>fills the cell</td></tr></table>
+  </section>
+</lf-grid>
+<lf-grid id="surfaces" columns="1">
+  <pre id="cell-pre">a listing that is itself a cell</pre>
+</lf-grid>
+<lf-grid id="template" columns="1fr 2fr">
+  <section id="narrow-cell"><p>One part</p></section>
+  <section id="broad-cell">
+    <p>Two parts</p>
+    <lf-grid id="nested"><p id="nested-a">A</p><p id="nested-b">B</p></lf-grid>
+  </section>
+</lf-grid>""",
+)
+
+
+def test_a_grid_cell_is_a_frame_that_holds_text_to_the_measure_and_lets_a_surface_fill(
+    browser, serve
+):
+    """A cell takes the grid's width, not the page's room; text in it keeps the reading
+    measure and a surface fills it. A template's tracks stand as written until the
+    grid is narrower than 600px, where each cell takes the row, and a grid nested in
+    a cell takes none of its parent's template."""
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
+    page = open_page(browser, live_url(serve(GRID_PAGE)), context=context)
+    width = "id => document.getElementById(id).getBoundingClientRect().width"
+    column = page.evaluate(width, "column-prose")
+
+    assert page.evaluate(width, "one-cell") > column + 400
+    assert page.evaluate(width, "cell-prose") == pytest.approx(column, abs=1)
+    assert page.evaluate(width, "cell-table") == page.evaluate(width, "one-cell")
+    assert page.evaluate(width, "cell-pre") == page.evaluate(width, "surfaces")
+
+    narrow, broad = (
+        page.evaluate(width, "narrow-cell"),
+        page.evaluate(width, "broad-cell"),
     )
-    assert desk["lp-checks"]["width"] > desk["lp-release"]["width"]
-    assert desk["lp-checks"]["x"] == desk["lp-log"]["x"]
-    assert desk["lp-checks"]["width"] == desk["lp-log"]["width"]
-    assert desk["lp-checks"]["top"] < desk["lp-log"]["top"]
-    assert desk["lp-release"]["height"] > desk["lp-checks"]["height"]
+    assert broad == pytest.approx(2 * narrow, abs=2)
     assert page.evaluate(
-        "document.documentElement.scrollHeight === document.documentElement.clientHeight"
-    )
-    overflowing = page.locator(
-        "lf-monitor-region > .lf-pane-content > .lf-pane-body"
-    ).evaluate_all(
-        "bodies => bodies.filter(body => body.scrollHeight > body.clientHeight + 1)"
-        ".map(body => body.closest('lf-monitor-region').id)"
-    )
-    assert overflowing, "the custom reading regions all fit, so no cue is exercised"
-    for region_id in overflowing:
-        expect(
-            page.locator(f"#{region_id} > .lf-pane-content > .lf-pane-body")
-        ).to_have_attribute("data-lf-more-below", "")
-    first_overflowing = page.locator(
-        f"#{overflowing[0]} > .lf-pane-content > .lf-pane-body"
-    )
-    first_overflowing.evaluate("body => body.scrollTop = body.scrollHeight")
-    expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
+        """() => { const a = document.getElementById('nested-a').getBoundingClientRect();
+          const b = document.getElementById('nested-b').getBoundingClientRect();
+          return a.top === b.top && Math.abs(a.width - b.width) < 1; }"""
+    ), "a nested count grid should lay out equal columns, not its parent's template"
 
-    resized(page, 1100, 780)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    resized(page, 820, 780)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    flow = page.locator("lf-monitor-region").evaluate_all(
-        "regions => regions.map(region => region.getBoundingClientRect().top)"
-    )
-    assert flow == sorted(flow) and len(set(flow)) == 3, flow
-    resized(page, 390, 844)
-    log = page.locator("#lp-live-log pre")
-    expect(log).to_be_visible()
-    assert log.evaluate("node => node.scrollWidth <= node.clientWidth")
-
-    resized(page, 1100, 900)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
-
-    monitor.evaluate(
-        """owner => {
-          const wrapper = document.createElement('div');
-          owner.parentElement.append(wrapper);
-          wrapper.append(owner);
-        }"""
-    )
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
-    monitor.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
+    resized(page, 560, 900)
     assert page.evaluate(
-        """async () => {
-          const {readingRegions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const wanted = ['lp-release', 'lp-checks', 'lp-log'];
-          const ids = readingRegions().map(region => region.id);
-          return wanted.every(id => ids.filter(candidate => candidate === id).length === 1);
-        }"""
+        """() => { const a = document.getElementById('narrow-cell').getBoundingClientRect();
+          const b = document.getElementById('broad-cell').getBoundingClientRect();
+          return b.top >= a.bottom && a.width === b.width; }"""
     )
 
-    for medium in ("print", "screen"):
-        page.emulate_media(media=medium)
-        if medium == "screen":
-            page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-        tops = page.locator("lf-monitor-region").evaluate_all(
-            "regions => regions.map(region => region.getBoundingClientRect().top)"
-        )
-        assert tops == sorted(tops) and len(set(tops)) == 3, (medium, tops)
-        assert page.locator(".lf-pane-body").evaluate_all(
-            "bodies => bodies.every(body => getComputedStyle(body).overflowY === 'visible')"
-        )
+
+FEED_PAGE = leaf_page(
+    "A feed that follows its newest entry",
+    """<h1>Feed</h1>
+<div id="feed" data-bound="end"></div>""",
+)
+
+
+def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_reader_scrolls_back(
+    browser, serve
+):
+    """A widget that rebuilds its entries wholesale (lf-record replaces its children on
+    every change) stays on its newest entry while the reader is at the end, and leaves
+    a reader who scrolled back where they stopped."""
+    page = open_page(browser, live_url(serve(FEED_PAGE)))
+    rebuild = """count => document.getElementById('feed').replaceChildren(
+      ...Array.from({length: count}, (_, i) => Object.assign(
+        document.createElement('p'), {textContent: `entry ${i}`})))"""
+    at_end = """() => { const feed = document.getElementById('feed');
+      return feed.scrollHeight > feed.clientHeight
+        && feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 2; }"""
+    page.evaluate(rebuild, 60)
+    page.wait_for_function(at_end)
+    page.evaluate(rebuild, 90)
+    page.wait_for_function(at_end)
+
+    page.locator("#feed").evaluate("feed => feed.scrollTop = 200")
+    page.wait_for_function("() => document.getElementById('feed').scrollTop === 200")
+    page.evaluate(rebuild, 120)
+    page.evaluate("() => new Promise(requestAnimationFrame)")
+    assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
 def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
@@ -1172,14 +1201,15 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    evidence = page.locator("#lp-log > .lf-pane-content > .lf-pane-body")
     log = page.locator("#lp-live-log")
+    listing = log.locator("pre")
 
-    evidence.evaluate("body => body.scrollTop = 120")
+    # A reader who scrolled back through the log stays where they stopped.
+    listing.evaluate("pre => pre.scrollTop = 120")
     page.wait_for_function(
-        "() => document.querySelector('#lp-log > .lf-pane-content > .lf-pane-body').scrollTop === 120"
+        "() => document.querySelector('#lp-live-log pre').scrollTop === 120"
     )
-    original = log.text_content()
+    original = listing.text_content()
     data_model.cmd_data_set(
         serve.page_dir,
         "release-log",
@@ -1187,7 +1217,21 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     )
     told(page)
     expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
-    assert evidence.evaluate("body => body.scrollTop") == 120
+    assert listing.evaluate("pre => pre.scrollTop") == 120
+
+    # One at the end follows what arrives there.
+    listing.evaluate("pre => pre.scrollTop = pre.scrollHeight")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "release-log",
+        f"{listing.text_content().rstrip()}\n14:24:54 observer  sample=49 healthy\n",
+    )
+    told(page)
+    expect(log).to_contain_text("14:24:54 observer  sample=49 healthy")
+    page.wait_for_function(
+        """() => { const pre = document.querySelector('#lp-live-log pre');
+          return pre.scrollHeight - pre.scrollTop - pre.clientHeight <= 2; }"""
+    )
 
     current = (serve.page_dir / "index.html").read_text(encoding="utf-8")
     incorporated = current
@@ -1195,11 +1239,11 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         (
             (
                 "The production canary is paused at 25%. Customer checkout is healthy, but\n"
-                "            finance export is one row short and must reconcile before traffic expands."
+                "        finance export is one row short and must reconcile before traffic expands."
             ),
             (
                 "Finance export parity now passes. The production release is expanding from\n"
-                "            the 25% canary to all checkout traffic."
+                "        the 25% canary to all checkout traffic."
             ),
         ),
         (
@@ -1208,14 +1252,13 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         ),
         (
             (
-                "Automatic promotion stopped when the finance-parity check failed. The\n"
-                "              candidate remains live for canary traffic while Ledger traces a\n"
-                "              partial-refund fixture mismatch; the exact failing producer is not yet\n"
-                "              established."
+                "Automatic promotion stopped when the finance-parity check failed. The candidate\n"
+                "        remains live for canary traffic while Ledger traces a partial-refund fixture\n"
+                "        mismatch; the exact failing producer is not yet established."
             ),
             (
                 "The rebuilt export contains every expected order. Traffic is increasing\n"
-                "              while the observer keeps the release checks active."
+                "        while the observer keeps the release checks active."
             ),
         ),
         (
@@ -1233,7 +1276,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         (
             (
                 "<strong>Pass release checks</strong> Finance export has 1,998 of 1,999\n"
-                "                expected rows."
+                "            expected rows."
             ),
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
@@ -8824,7 +8867,9 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask list failure"
     ]
-    held.pop(0).continue_()
+    holding(page, held, 2, "the gesture and the page's report of its failure")
+    for route in held:
+        route.continue_()
     page.unroute("**/api/event")
     round_trip(page)
 
@@ -8884,7 +8929,9 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
-    held.pop(0).continue_()
+    holding(page, held, 2, "the gesture and the page's report of its failure")
+    for route in held:
+        route.continue_()
     page.unroute("**/api/event")
     round_trip(page)
 

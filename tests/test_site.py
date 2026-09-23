@@ -1080,9 +1080,8 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
     A second element under `main` is what tells the runtime the workspace is not the
     page's root, so a note dropped there costs the example the bounded allocation it
     is published to demonstrate. The root is read by the class the runtime marks any
-    arranged workspace with, not by tag: `lf-monitor` is as much a root as
-    `lf-workspace`, and the rule has to hold for whichever tag the corpus reaches for
-    next.
+    arranged workspace with, not by tag, so the rule holds for whichever tag the corpus
+    reaches for next.
     """
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})

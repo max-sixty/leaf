@@ -129,6 +129,7 @@
         <nav class="reference-index" aria-label="Registry keys">
           <a href="#x-ask-surface"><code>x-ask-surface</code></a>
           <a href="#x-awaits"><code>x-awaits</code></a>
+          <a href="#x-bound"><code>x-bound</code></a>
           <a href="#x-content"><code>x-content</code></a>
           <a href="#x-conversation"><code>x-conversation</code></a>
           <a href="#x-data"><code>x-data</code></a>
@@ -138,6 +139,7 @@
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
           <a href="#x-lines"><code>x-lines</code></a>
+          <a href="#x-measure"><code>x-measure</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-outline"><code>x-outline</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
@@ -236,6 +238,19 @@
                   a blanket answer offered by the banner.
                 </p>
               </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-bound">
+            <h3><code>x-bound</code></h3>
+            <div class="reference-copy">
+              <p>
+                The element holds its own height and scrolls inside it, so a long log or
+                feed never grows the page: <code>start</code> opens at its first line
+                and <code>end</code> follows its newest entry while the reader is at the
+                end, and stays where the reader scrolled back to otherwise. An authored
+                occurrence may state or override it with data-bound=start|end; the
+                runtime paints it as data-lf-bound.
+              </p>
             </div>
           </section>
           <section class="reference-entry" id="x-content">
@@ -382,6 +397,25 @@
               </p>
             </div>
           </section>
+          <section class="reference-entry" id="x-measure">
+            <h3><code>x-measure</code></h3>
+            <div class="reference-copy">
+              <p>How the element uses the width of the frame holding it.</p>
+              <details class="reference-more">
+                <summary aria-label="Full x-measure contract">Full contract</summary>
+                <p>
+                  Undeclared, it is text and keeps the reading measure inside a frame
+                  wider than the column. <code>surface</code> (a chart, table, log or
+                  listing) fills the frame; x-space wide or available implies it.
+                  <code>group</code> only holds other blocks (tabs, a comparison, a
+                  grid, a pane), so it passes the measure through to them instead of
+                  holding everything it contains to the width of a paragraph. The
+                  runtime paints the declaration as data-lf-measure; the theme declares
+                  the plain HTML elements the same way.
+                </p>
+              </details>
+            </div>
+          </section>
           <section class="reference-entry" id="x-measured">
             <h3><code>x-measured</code></h3>
             <div class="reference-copy">
@@ -478,13 +512,22 @@
               <p>
                 The structural role an element supplies: workspace receives the page
                 allocation among optional header/footer slots and exactly one body
-                element, pane is one labeled reading region, and partition divides
-                exactly two direct pane or partition roles in columns or rows.
-                Role-derived validation reads this declaration rather than tag names.
-                Every role keeps markup content so packages may contribute differently
-                named structural elements without joining a closed parent-child
-                vocabulary.
+                element, pane is one labeled reading region, partition divides exactly
+                two direct pane or partition roles in columns or rows, and grid places
+                its direct children as cells in two dimensions.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-reading-role contract">
+                  Full contract
+                </summary>
+                <p>
+                  Role-derived validation reads this declaration rather than tag names,
+                  and <code>version check</code> advises against page CSS that places an
+                  element declaring a role. Every role keeps markup content so packages
+                  may contribute differently named structural elements without joining a
+                  closed parent-child vocabulary.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-refers">

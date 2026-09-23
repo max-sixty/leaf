@@ -4666,6 +4666,53 @@ def test_check_takes_column_width_from_vendored_theme(page_dir):
     assert "exceeds column (720px)" in result.output
 
 
+def test_check_advises_page_css_that_scrolls_a_box_or_places_a_layout_element(
+    page_dir,
+):
+    """Page CSS stays free, so both are advice: a scroller Leaf did not make is one its
+    reading features cannot reach, and a grid the page places is geometry the layout
+    no longer owns. Styling a cell, or text inside one, is neither."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
+            " main lf-grid { display: flex } lf-grid > p { color: red }"
+            " .wide { overflow-x: auto } lf-grid::before { display: block }"
+            " #cells { grid-template-columns: 1fr }</style>",
+        ).replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><lf-grid id="cells"><p>One</p><p>Two</p></lf-grid>'
+            '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert "rule `.feed` sets overflow-y to scroll" in result.output
+    assert "sets overflow to scroll" in result.output
+    assert "rule `main lf-grid` sets display on <lf-grid>" in result.output
+    assert "rule `#cells` sets grid-template-columns on <lf-grid>" in result.output
+    assert "lf-grid > p" not in result.output
+    assert ".wide" not in result.output
+    assert "lf-grid::before" not in result.output
+
+
+def test_check_rejects_an_invalid_bound_and_loose_grid_text(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><pre data-bound="bottom">log</pre>'
+            '<lf-grid id="cells">loose<p>Two</p></lf-grid>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert (
+        "data-bound='bottom'> (line 9) has an invalid value; expected one of start, "
+        in (result.output)
+    )
+    assert "x-reading-role grid holds its cells as elements" in result.output
+
+
 def test_check_rejects_an_unknown_authored_width(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -4676,8 +4723,8 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "invalid authored width; expected one of available, column, wide"
-        in result.output
+        "<table data-width='full'> (line 9) has an invalid value; expected one of "
+        "column, wide, available" in result.output
     )
 
 

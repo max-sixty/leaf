@@ -909,7 +909,7 @@ graph LR
   </lf-card></lf-column>
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
-<lf-metrics id="nums">
+<lf-grid id="nums">
   <lf-metric id="me1" value="410ms">p95, with the path it measures
     <lf-diagram id="in-metric"><pre>
 graph LR
@@ -917,7 +917,7 @@ graph LR
   B --> C[worker]
 </pre></lf-diagram>
   </lf-metric>
-</lf-metrics>
+</lf-grid>
 <lf-tasks id="plan">
   <lf-task id="t-outer" status="active"><strong>Rebuild the feeders</strong>
     <lf-task id="t-inner" status="review"><strong>Fit the baffles</strong>

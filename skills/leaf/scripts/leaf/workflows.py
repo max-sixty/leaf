@@ -124,7 +124,7 @@ def page_action_unsettled(
     acted on was written before the move reached anyone.
     """
     _widget, unit, _facet = coordinate
-    if source["author"] != "user" or unit not in parser.by_id:
+    if unit not in parser.by_id:
         return False
     authored = markup_facet(unit, spec, parser.by_id, spk, registry)
     if owed and authored is not NO_RECORD:
@@ -418,10 +418,12 @@ def canonical_workflows(
     moves = []
     for projection, by_id, spoken, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
-            record = by_id.get(source["widget"])
-            if source["author"] != "user" or record is None:
+            if source["author"] != "user":
                 continue
-            entry = page.registry.get(record["tag"], {})
+            # The projection admits only actions whose widget the markup holds
+            # and whose tag declares the verb.
+            record = by_id[source["widget"]]
+            entry = page.registry[record["tag"]]
             owed = answers_ask(record, entry, source["action"])
             if owed and not ask_answered(
                 record, entry, projection, by_id, spoken, page.registry

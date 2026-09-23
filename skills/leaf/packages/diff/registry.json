@@ -75,6 +75,7 @@
     },
     "additionalProperties": false,
     "x-content": "data",
+    "x-measure": "surface",
     "x-data": {
       "document": {
         "contract": "unified-diff",

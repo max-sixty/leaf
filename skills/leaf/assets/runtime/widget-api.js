@@ -46,6 +46,10 @@ export {
 } from "./margin-entries.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
+// The render gate's layout probe measures the root scrollport through this facade:
+// `leaf/render-checks/layout.js` imports it from the served `/runtime/widget-api.js`,
+// so the runtime tree holds no importer of its own.
+export { pageScroller } from "./scrolling.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {
   compoundReadingRegionId,

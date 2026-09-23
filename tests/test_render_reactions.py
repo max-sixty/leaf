@@ -189,7 +189,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar.locator(".lf-fab-input")).not_to_be_focused()
     page.keyboard.press("c")
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
-        "placeholder", re.compile(r"^Comment… .*(⌘⏎|Ctrl\+⏎)$")
+        "placeholder", re.compile(r"^Comment… .*⏎$")
     )
     expect(bar.locator(".lf-fab-input")).to_have_attribute("autocomplete", "off")
     expect(bar.locator(".lf-fab-input")).to_have_attribute(

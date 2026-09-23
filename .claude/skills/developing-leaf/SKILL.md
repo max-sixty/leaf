@@ -185,18 +185,22 @@ Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
 the pair a comparison-specific `<slot>` name; each start discards whatever an
 earlier run left in it. Add `--user` to both when the pair's URLs go to the user,
-or a comment they leave on either page reaches nobody.
+or a comment they leave on either page reaches nobody. Each preview holds its shell
+until stopped, so run the two as separate long-running commands:
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
   --runtime "$baseline_root" \
   --slot <slot>-baseline
+```
+
+```bash
 "$candidate_root/scripts/preview.py" --source <candidate-source.html> \
   --runtime "$candidate_root" \
   --slot <slot>-candidate
 ```
 
-Run each as its own long-running command. Each verifies the checkout launcher,
+Each verifies the checkout launcher,
 prepares its independent page, watches that runtime and source, and prints its exact
 URL. After stopping both previews, remove the temporary checkout:
 

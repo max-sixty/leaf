@@ -114,18 +114,30 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     )
 
 
+def answer_command(answer: dict) -> str:
+    """The one command that writes an answer, with the id it is addressed to."""
+    if answer["kind"] == "reply":
+        return f"`leaf reply <page> --for {answer['for']}`"
+    if answer["kind"] == "receipt":
+        return f"`leaf receipt <page> {answer['request']} succeeded|failed`"
+    if answer["kind"] == "version":
+        return (
+            "a stamped version, then "
+            f"`leaf resolve <page> --to {answer['conversation']}`"
+        )
+    return f"a stamped version whose markup records action {answer['action']}"
+
+
 def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many reader moves have no answer and name each by the id it is
-    answered through: a thread's own, and the event of any other move. `of`
-    narrows which moves these are, such as the acknowledged ones."""
-    ids = ", ".join(
-        obligation["subject"]["id"]
-        if obligation["subject"]["kind"] == "thread"
-        else obligation["input"]
-        for obligation in obligations
-    )
+    """Say how many reader moves have no answer and name the command that answers
+    each, addressed as its writer takes it. `of` narrows which moves these are,
+    such as the acknowledged ones."""
+    commands = "; ".join(answer_command(item["answer"]) for item in obligations)
     moves = f"reader move{'s' if len(obligations) != 1 else ''}"
-    return f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer ({ids})"
+    return (
+        f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer "
+        f"({commands})"
+    )
 
 
 def transition_due(activity: dict, now_iso: str) -> bool:
@@ -241,16 +253,20 @@ def canonical_activity(
     # Local receipts may retain a claim on the earlier message that prompted it
     # while the subject's newest move keeps its own delivery receipt. Page activity
     # still counts one interaction per semantic coordinate, taking the newest move.
+    # Only moves the agent owes count: a failed answer hands its move back to the
+    # reader, and the banner's saved count must not promise the agent picks it up.
     outstanding_by_coordinate = {
         tuple(item["coordinate"]): item
         for item in workflows
-        if item.get("input") is not None
+        if item.get("input") is not None and item["next_actor"] == "agent"
     }
     outstanding = list(outstanding_by_coordinate.values())
-    obligations = [item for item in outstanding if item["requires_response"]]
+    obligations = [item for item in workflows if item["answer"] is not None]
     active = [item for item in workflows if item["stage"] == "working"]
     active_now = [item for item in active if not item["quiet"]]
-    active_moves = [item for item in outstanding if item["stage"] == "working"]
+    active_moves = [
+        item for item in outstanding if item["stage"] in {"working", "replying"}
+    ]
     # Page work is scoped to the live claimant, not to one reader input. A newer
     # delivery may remain queued or pending while the agent continues other work on
     # the page; its exact progress stays in `workflows` below.

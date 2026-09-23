@@ -94,7 +94,8 @@
  * example decision can't be answered. `settled` still collapses there, because quoting
  * gates the action channel and not presentation.
  *
- * Authored content is never replaced, so there is no failSoft. */
+ * Authored element children stay in place. The layer formats declared Markdown
+ * before this module upgrades the options; generated children use that parser too. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {

@@ -642,7 +642,7 @@ def owed(state):
     """The workflows one agent-facing state still owes an answer.
 
     `activity.obligations` names them by id, so this is the join an agent makes to
-    reach a move's stage, subject, or response address.
+    reach a move's stage, subject, or answer.
     """
     standing = set(state["activity"]["obligations"])
     return [item for item in state["workflows"] if item["id"] in standing]

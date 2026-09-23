@@ -1,7 +1,8 @@
 /* One synchronous Lit owner for complete panel, page, outlet and margin threads.
 
-   Immutable descriptors contain generated presentation only. Retained native editors
-   and frozen message widgets keep their mechanical lifetime outside those values.
+   Immutable descriptors contain generated presentation only. Retained native editors,
+   margin controls and frozen message widgets keep their mechanical lifetime outside
+   those values.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. */
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
@@ -174,6 +175,7 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #growing = false;
   #navigation = null;
+  #marginControls = null;
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -197,6 +199,10 @@ export class ThreadView {
 
   setNavigation(navigation) {
     this.#navigation = navigation;
+  }
+
+  setMarginControls(controls) {
+    this.#marginControls = controls;
   }
 
   get model() {
@@ -263,19 +269,24 @@ export class ThreadView {
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = this.#settlement(model);
     const markRead = panel && model.unreadCount ? this.#markReadControl() : null;
+    const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let headerActions = null;
-    if (!model.resolved || model.folding) {
+    if (!model.resolved || model.folding || marginControls) {
       this.#metadataActions.className = "lf-thread-meta-actions";
-      const actions = markRead ? [markRead, settlement] : [settlement];
+      const actions = marginControls
+        ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
+        : markRead
+          ? [markRead, settlement]
+          : [settlement];
       for (const child of [...this.#metadataActions.children])
         if (!actions.includes(child)) child.remove();
-      if (markRead && markRead.parentNode !== this.#metadataActions)
-        this.#metadataActions.insertBefore(
-          markRead,
-          settlement.parentNode === this.#metadataActions ? settlement : null,
-        );
-      if (settlement.parentNode !== this.#metadataActions)
-        this.#metadataActions.append(settlement);
+      actions.forEach((control, index) => {
+        if (this.#metadataActions.children[index] !== control)
+          this.#metadataActions.insertBefore(
+            control,
+            this.#metadataActions.children[index] ?? null,
+          );
+      });
       headerActions = this.#metadataActions;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
@@ -388,7 +399,7 @@ export class ThreadView {
         )}
         ${model.reply ? this.#reply.node : nothing}
         ${
-          model.resolved && !model.folding
+          model.resolved && !model.folding && !marginControls
             ? html`<div
                 class=${panel ? "lf-thread-actions" : "lf-conversation-resolved lf-ui"}
               >
@@ -590,7 +601,7 @@ export class ThreadView {
       ]);
     }
     const button = this.node.querySelector(
-      ":scope .lf-thread-meta-actions > .lf-resolve, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
+      ":scope .lf-thread-meta-actions > .lf-resolve, :scope .lf-thread-meta-actions > .lf-reopen, :scope > .lf-thread-actions > .lf-reopen, :scope > .lf-conversation-resolved > .lf-reopen",
     );
     if (button && !this.#keys.has(button)) {
       this.#keys.add(button);

@@ -28,6 +28,7 @@ import {
   verbatimOwnerIdentity,
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
+import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -139,7 +140,12 @@ export async function importWidgets(scope) {
   // safe: `shadowStage` is reachable only from a module, a module loads only where its
   // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
   // same call. The theme is read once for the tab however many scopes ask.
-  if (presentTags(scope, (entry) => entry["x-shadow"]).length) await loadShadowRules();
+  await Promise.all([
+    prepareDeclaredInlineMarkdown(scope),
+    ...(presentTags(scope, (entry) => entry["x-shadow"]).length
+      ? [loadShadowRules()]
+      : []),
+  ]);
   await Promise.all(
     presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
       if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));

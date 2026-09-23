@@ -1910,13 +1910,31 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     assert stamped.exit_code == 0, stamped.output
     told(page)
 
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-general textarea").fill("Keep reading this revision.")
+    # The hold has to outlast every press this test makes through it, and it takes both
+    # of the following to get there. A composer the reader opened is one of the gestures
+    # a revision install defers to and does not end when focus moves; words in a box the
+    # reader merely has focus in do, and the draft store rather than a hold is what
+    # carries those across the install (`skills/leaf/assets/CLAUDE.md`, "Runtime
+    # ownership").
+    page.locator("#live-reading").click(click_count=3)
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Keep reading this revision.")
     (serve.page_dir / "index.html").write_text(LIVE_V3)
     told(page)
+    # The fourth row is the one the third revision brings, so wait on the news that
+    # revision lights rather than on the title, which already said this before the write
+    # and so states no ordering at all.
+    expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
-    banner_control(page, ".lf-version").click()
+    # The chooser stands behind More, and a mouse press anywhere outside the composer
+    # stands the composer down (standDown) — so reaching the chooser by mouse would end
+    # the hold on the very gesture that opens the menu, and whether the page had followed
+    # by then would come down to whether a state read landed between the two presses. The
+    # keyboard route leaves the composer standing through both.
+    page.locator(".lf-banner-more").press("Enter")
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    page.locator(".lf-version").press("Enter")
     rows = page.locator(".lf-version-row")
     expect(rows).to_have_count(4)
     same_revision = page.locator('.lf-version-row[data-lf-revision="2"]')

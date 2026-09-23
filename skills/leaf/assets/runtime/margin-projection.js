@@ -341,7 +341,6 @@ export function createMarginProjection({
   preview.id = "lf-margin-preview";
   preview.setAttribute("popover", "auto");
   preview.setAttribute("role", "dialog");
-  const previewHead = el("div", "lf-margin-preview-head");
   const previewClose = el(
     "button",
     "lf-btn lf-icon-action lf-close-action lf-margin-preview-close",
@@ -350,7 +349,7 @@ export function createMarginProjection({
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Dismiss conversation view");
   previewClose.title = "Dismiss conversation view (Esc)";
-  const previewNav = el("div", "lf-margin-preview-nav");
+  const previewNav = el("span", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
     "button",
@@ -363,10 +362,9 @@ export function createMarginProjection({
   previewNext.append(iconElement("next", "lf-action-icon"));
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
-  previewNav.append(previewPosition, previewPrevious, previewNext);
-  previewHead.append(previewNav, previewClose);
+  previewNav.append(previewPrevious, previewPosition, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewList);
+  preview.append(previewList);
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the reader's place in it under the event id it is rendered with (reader-place.js).
   const previewPlace = placeKeeper(previewList, {
@@ -2095,6 +2093,9 @@ export function createMarginProjection({
   }
 
   function buildThreadCard(entry, requestedItem = null) {
+    const focusedControl = [previewPrevious, previewNext, previewClose].find(
+      (control) => control === document.activeElement,
+    );
     const focusedNode = preview.contains(document.activeElement)
       ? document.activeElement.closest?.("[data-lf-margin-entry]")
       : null;
@@ -2124,7 +2125,7 @@ export function createMarginProjection({
     keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
-    previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;
+    previewPosition.textContent = `${selectedIndex + 1}/${threadItems.length}`;
     previewPrevious.disabled = selectedIndex === 0;
     previewNext.disabled = selectedIndex === threadItems.length - 1;
     const nodes = selected ? [previewItemNode(selected)] : [];
@@ -2146,6 +2147,10 @@ export function createMarginProjection({
           previewClose);
       destination.focus({ preventScroll: true });
     }
+    if (focusedControl && document.activeElement !== focusedControl)
+      (previewNav.hidden ? previewClose : focusedControl).focus({
+        preventScroll: true,
+      });
     placeThreadPreview();
     previewPlace.finish(hold);
   }
@@ -2177,6 +2182,7 @@ export function createMarginProjection({
     renderMarginThread(
       node.querySelector(":scope > .lf-margin-thread-body"),
       sourceItem(item).thread,
+      { nav: previewNav.hidden ? null : previewNav, close: previewClose },
     );
     node.dataset.lfMarginEntry = item.id;
     node.lfMarginItem = item.id;

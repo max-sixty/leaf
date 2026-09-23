@@ -1500,38 +1500,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       calc(100vh - var(--lf-banner-h) - 16px)); margin: 0;
     overflow: hidden; }
   .lf-margin-preview[data-lf-thread]:popover-open { display: flex; flex-direction: column; }
-  .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
-    gap: 8px; }
-  /* Dismiss rides the conversation's own meta row, where the settlement action sits,
-     so it starts at the card's inset plus the thread's own padding rather than above
-     that row. */
-  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
-    position: absolute; z-index: 3; inset-inline-end: 12px;
-    inset-block-start: calc(12px + var(--sp-1));
-    align-items: flex-start; flex: none; }
-  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
-      .lf-margin-preview-nav:not([hidden])) {
-    position: static; justify-content: flex-end; margin-bottom: 8px; }
-  /* Navigation takes its own row. Keep Dismiss beside Resolve below it, with the
-     same control floor setting the navigation row's height in pointer and touch UI. */
-  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head:has(
-      .lf-margin-preview-nav:not([hidden])) .lf-margin-preview-close {
-    position: absolute; inset-inline-end: 12px;
-    inset-block-start: calc(12px + max(28px, var(--aim-floor)) + 8px + var(--sp-1)); }
+  .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
-    gap: 4px; color: var(--muted-2); font-size: var(--t-6); }
+    gap: 0; color: var(--muted-2); font-size: 10px; }
   .lf-margin-preview-nav[hidden] { display: none; }
-  .lf-margin-preview-position { margin-inline-end: 2px; }
+  .lf-margin-preview-position { white-space: nowrap; }
   .lf-margin-preview-step { border: 0;
     background: transparent; color: var(--muted); }
+  .lf-margin-preview-step:first-child > .lf-action-icon { inset-inline-start: 4px; }
+  .lf-margin-preview-step:last-child > .lf-action-icon { inset-inline-end: 4px; }
   .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
     color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; }
-  /* The subject and its actions stay outside the conversation's scrollport. The
-     retained settlement action rides the conversation's meta row, which sticks to the
-     top of that scrollport, and Dismiss is positioned on that row beside it. */
+  /* The selected conversation scrolls inside the card. Its first message and
+     controls share one sticky metadata row. */
   .lf-margin-preview[data-lf-thread] .lf-margin-preview-list {
     min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     scroll-padding-block: var(--here-ring-room); }
@@ -1551,8 +1535,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
   .lf-margin-preview[data-lf-thread] .lf-thread-root-meta { position: sticky; z-index: 2;
-    top: 0; padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px);
-    background: var(--paper); }
+    top: 0; background: var(--paper);
+    align-items: center; gap: 4px; min-height: max(28px, var(--aim-floor));
+    padding-inline-end: 0; }
+  .lf-margin-preview[data-lf-thread] .lf-thread-root-meta > .lf-conversation-head {
+    display: flex; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-head .lf-msg-meta {
+    flex: 1; overflow: hidden; }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-head .lf-msg-sending {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

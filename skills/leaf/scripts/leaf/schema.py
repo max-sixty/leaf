@@ -24,8 +24,8 @@ WIDGET_KINDS = {"action", "report", "request"}
 # them and `$events.answering` explains them.
 ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
-    "Each named command writes the answer its move is owed; a reply may instead be "
-    "your final message where the host sends it as the reply. Read current "
+    "Each named command writes the answer its move is owed; in a Codex task Leaf "
+    "observes over App Server, the reply is your final message instead. Read current "
     "obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )

@@ -46,7 +46,8 @@ class Harness:
       host's Stop and prompt hooks. It is the one carrier that stops while its
       session lives on, which is why it is the one with a `nudge`.
     - Codex has a detached adapter that outlives the turn and proves itself by
-      holding the adapter lease.
+      holding the adapter lease. It queues each delivery with `codex queue`, or
+      starts its turn over the task's App Server when Leaf can reach one.
     - An embedded host drives Codex App Server itself and starts the turns;
       nothing outside it carries input in.
     """
@@ -174,7 +175,8 @@ _POLL_UNIFIED_EXEC = (
 
 
 class CodexHarness(EnvironmentHarness):
-    """Codex: one detached adapter carries every page the task holds.
+    """Codex: one detached adapter carries every page the task holds, over
+    `codex queue` or, when Leaf can reach the task's App Server, that server.
 
     LEAF_SESSION_ID outranks CODEX_THREAD_ID because a worker Codex launches
     with an id of its own means that id, and the thread it happens to run under
@@ -243,8 +245,8 @@ class CodexHarness(EnvironmentHarness):
         if listening:
             return f"Poll {_POLL_UNIFIED_EXEC}."
         return (
-            f"Start `leaf codex start {page_dir}` so later updates queue new "
-            "turns in this task."
+            f"Start `leaf codex start {page_dir}` so later updates reach this "
+            "task in new turns."
         )
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:

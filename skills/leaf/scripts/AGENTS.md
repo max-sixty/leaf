@@ -58,13 +58,14 @@ The main owners are:
 - `specimens`: disposable child pages built from captured templates and selected
   conversations, with independent event logs and server-owned lifetimes;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the Codex App Server connection every carrier speaks, the turn each one
-  carries on the connection that started it, its activity and final-answer readings,
-  the page writers those readings reach a reader through, and the durable delivery
-  records a carrier prepares, accepts, opens, and abandons;
-- `codex_adapter`: the detached carrier behind `leaf codex start` — its observing App
-  Server client, the turns it carries for that task, its `codex queue` fallback, page
-  receipts, adapter leases, and the private App Server terminal launcher;
+- `codex`: the durable delivery records every Codex carrier prepares, accepts, opens,
+  and abandons, and, for the carriers that are App Server clients, the connection, the
+  turn each one carries on the connection that started it, its activity and
+  final-answer readings, and the page writers those readings reach a reader through;
+- `codex_adapter`: the detached carrier behind `leaf codex start` — its two
+  transports, the default `codex queue` and an observing App Server client with the
+  turns it starts for that task, page receipts, adapter leases, and the private App
+  Server terminal launcher;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;

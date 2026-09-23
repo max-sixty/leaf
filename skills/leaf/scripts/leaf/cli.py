@@ -796,10 +796,6 @@ def comment(
         print(json.dumps(accepted, ensure_ascii=False))
         return
     click.echo(f"opened thread {accepted['id']}")
-    click.echo(
-        f"name it: leaf conversation title {dir} {accepted['id']} "
-        '--text "<a few words>"'
-    )
 
 
 @cli.command(short_help="Reply to a thread as the agent.")

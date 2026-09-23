@@ -22,6 +22,7 @@ import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { focused, paintKeys } from "./keyboard/scopes.js";
 import { el, offer } from "./widget-elements.js";
+import { placeKeeper } from "./reader-place.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -66,6 +67,13 @@ dialogSearch.placeholder = "Find an action, status, or location";
 dialogSearch.label = "Find an action, status, or location in Page Map";
 dialogSearch.size = "s";
 const dialogList = el("div", "lf-page-map-list");
+// A state update or a search re-renders the open sheet; the row the reader was on holds
+// their place in it (reader-place.js), under the map key each row is rendered with.
+const place = placeKeeper(dialogList, {
+  items: ".lf-page-map-action",
+  identity: (row) => row.dataset.lfMapKey,
+  active: () => dialog.open,
+});
 const dialogEmpty = el(
   "p",
   "lf-page-map-empty",
@@ -241,7 +249,7 @@ export function createPageMapDialog({
   function renderSheet() {
     const standing = focused();
     const active = dialog.contains(standing) ? standing : null;
-    const heldScroll = dialogList.scrollTop;
+    const hold = place.take();
     const query = dialogSearch.value.trim().toLocaleLowerCase();
     const searchTextByKey = new Map(
       entries.map((entry) => {
@@ -292,7 +300,7 @@ export function createPageMapDialog({
       ? "No matching actions, statuses, or locations"
       : "No margin controls, status indicators, or locations yet";
     dialogEmpty.hidden = shown !== 0;
-    dialogList.scrollTop = heldScroll;
+    place.finish(hold);
     if (active) {
       if (!active.isConnected || !active.checkVisibility())
         dialogSearch.focus({ preventScroll: true });

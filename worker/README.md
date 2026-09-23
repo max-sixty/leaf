@@ -94,7 +94,7 @@ WHERE blob6 = '239383829012'
 ORDER BY timestamp
 ```
 
-Leaf uses two Cloudflare tokens, one for each holder. Neither is stored in this
+Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
 repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
 permissions below are Cloudflare's permission groups under the names its token API
 reports:
@@ -103,6 +103,7 @@ reports:
 | --- | --- | --- |
 | `Leaf agent administration` | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine |
 | `Leaf site deploy (CI)` | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account | `publish-site`, through the `cloudflare-deploy` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account | Tend's agent, through the `tend` environment |
 
 The account also serves Workers and zones that are not Leaf's, so each token that edits
 a Worker names the Workers it may edit. `Individual Workers Editor` deploys and
@@ -120,11 +121,16 @@ code. Zone permissions apply only to the zones a token names. No token here chan
 Worker outside Leaf, reads another Worker's code, or manages DNS, members, billing, or
 API tokens; changing a domain or minting a token takes the account owner's own login.
 
-The account-wide entries expose logs. The machine agent token reads every Worker's
-Observability records and every Analytics Engine dataset on the account, and
-`Workers Metadata Read-Only` lets it open a live tail on any Worker. A leaked
-token could disclose those records. Tend's yolo workflows do not pass a Cloudflare
-token to the agent.
+What the account-wide entries expose is logs. The agent token and the Tend CI token read
+every Worker's Observability records and every Analytics Engine dataset on the account,
+and `Workers Metadata Read-Only` lets the agent token open a live tail on any Worker;
+that is what a leaked token would give away. The Tend CI token sits in the job's
+environment, which the agent inherits, so any code the agent runs can read it.
+`.config/tend.yaml` therefore hands it only to agents answering an issue or a red run on
+`main`. Reviews, mentions on pull requests, and the scheduled polls — the notifications
+poll reviews fork pull requests — run with it empty. An agent answering an issue can
+still fetch a pull request's code for itself, and `running-tend` has it drop the token
+before running that code; that is an instruction, not a mechanism.
 
 On the maintainer's machine, the `Cloudflare Leaf agent administration` item in the
 `Max` 1Password vault holds the token of the same name. An agent reads it through the
@@ -399,7 +405,9 @@ npm run deploy:dev --prefix worker
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a
 `cloudflare-deploy` GitHub environment in `max-sixty/leaf` whose deployment branch
 policy allows only `main`, and `Leaf site deploy (CI)` as that environment's
-`CLOUDFLARE_API_TOKEN` secret. The domain already uses Cloudflare nameservers; a
+`CLOUDFLARE_API_TOKEN` secret. The `tend` environment holds `Leaf observability (Tend
+CI)` under the same name and branch policy, so manual workflow dispatches from other
+branches cannot read either token. The domain already uses Cloudflare nameservers; a
 successful deployment makes the Worker the `leaf.page` origin. The deployed Worker also
 needs an `OPENAI_API_KEY` Wrangler secret. Deployment checks that the binding exists
 before changing production, then runs one private Codex turn through the public site and
@@ -417,15 +425,11 @@ gh api --method POST \
   -f name=main -f type=branch
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env cloudflare-deploy
+gh secret set CLOUDFLARE_API_TOKEN \
+  --repo max-sixty/leaf --env tend
 cd worker
 npx wrangler secret put OPENAI_API_KEY
 ```
-
-In yolo mode, Tend can merge ordinary changes into `main` without maintainer
-approval. The next `publish-site` run can use code from such a change with the
-`cloudflare-deploy` credential; the `main` policy is not an approval gate.
-The workflow's manual dispatch has no inputs, so it does not add a
-payload-steering path that would require a reviewer.
 
 Create each token from **Manage Account → Account API Tokens** with exactly the
 permissions in the token table above, setting the Workers scope to the named Workers

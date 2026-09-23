@@ -132,6 +132,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 import { bannerControlDoor } from "./banner-shelf.js";
 import { threadCardGeometry } from "./thread-card-geometry.js";
+import { placeKeeper } from "./reader-place.js";
 import {
   isLiveWorkflow,
   isPageWidgetWorkflow,
@@ -364,6 +365,12 @@ export function createMarginProjection({
   previewHead.append(previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
+  // The card's transcript is re-rendered on every reading of its thread; a message holds
+  // the reader's place in it under the event id it is rendered with (reader-place.js).
+  const previewPlace = placeKeeper(previewList, {
+    items: ".lf-conversation-msg[data-event]",
+    identity: (message) => message.dataset.event,
+  });
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -2082,7 +2089,10 @@ export function createMarginProjection({
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
-    if (previewThreadItem !== (selected?.id ?? null)) previewList.scrollTop = 0;
+    // Another thread starts at its top; the same one re-rendering keeps the reader's place.
+    const arriving = previewThreadItem !== (selected?.id ?? null);
+    const hold = arriving ? null : previewPlace.take();
+    if (arriving) previewList.scrollTop = 0;
     previewThreadItem = selected?.id ?? null;
     const targetHeading =
       targetFor(entry)?.querySelector(":scope > strong")?.textContent;
@@ -2124,6 +2134,7 @@ export function createMarginProjection({
       destination.focus({ preventScroll: true });
     }
     placeThreadPreview();
+    previewPlace.finish(hold);
   }
 
   function stepPreviewThread(step) {

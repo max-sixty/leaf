@@ -19,6 +19,7 @@ import {
   projectData,
   consumeThreads,
   relabel,
+  retainReaderIntent,
   scrollBehavior,
   shadowStage,
   notice,
@@ -1317,7 +1318,10 @@ customElements.define(
     // ones after it, so a closed file is opened only once the step has actually reached
     // it: a reader on the last hunk of the third file loads the fourth and stops, rather
     // than every remaining file to discover there is nothing past them.
+    // Opening a file may wait on the network, and the reader may have moved on by then:
+    // both walks capture the pressing gesture's intent first and land only while it stands.
     async stepHunk(back) {
+      const mayLand = retainReaderIntent();
       const here = this.hereNode();
       const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
       const standing = here
@@ -1326,6 +1330,7 @@ customElements.define(
       for (let index = Math.max(standing, 0); index < order.length; index++) {
         const entry = order[index];
         await this.openEntry(entry);
+        if (!mayLand()) return;
         const heads = hunkHeads(entry);
         const head = (back ? [...heads].reverse() : heads).find((line) =>
           this.beyond(line.node, here, back),
@@ -1403,12 +1408,14 @@ customElements.define(
     }
 
     async nextUnreviewed() {
+      const mayLand = retainReaderIntent();
       const entry = this.nextReviewEntry();
       if (!entry) return;
       this.reviewCursor = entry;
       if (entry.details) {
         entry.details.open = true;
         await this.loadManifestEntry(entry);
+        if (!mayLand()) return;
       }
       const target = entry.details?.firstElementChild ?? entry.review;
       target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });

@@ -72,7 +72,7 @@
     "contracts": {}
   },
   "$events": {
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state, x-report, and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it. `handling` remains layer-owned: per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema the event record must match. Each delivered event carries the text of the clauses its record matches, so an event is told only its own case, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state, x-report, and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A `pickup` is the page-owned durable transport fact that named reader events reached their next consumer; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `version`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns, if any. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
         {
@@ -82,26 +82,6 @@
             ]
           },
           "text": "The reader drew on the page. `drawing.says`, when present, holds the page's words under the drawing, which can be more than the ink covers. On a drawing anchored to an element, `drawing.strokes` are offsets from that element's top-left corner and `drawing.box` is its width and height, so the marks can be placed on a picture of it; a drawing on the whole page has no `box`, and its offsets start at the page's top-left corner. Any `text` explains the mark."
-        },
-        {
-          "when": {
-            "required": [
-              "response"
-            ],
-            "properties": {
-              "response": {
-                "required": [
-                  "kind"
-                ],
-                "properties": {
-                  "kind": {
-                    "const": "version"
-                  }
-                }
-              }
-            }
-          },
-          "text": "This comment asks for a new version of the page, not a reply. Change the Ask's declared answer in the next stamped version, then `leaf resolve <page> --to <comment-id>`. If you need the reader's answer first, open a separate thread on the same Ask with `leaf comment <page> --section <ask-id>`."
         },
         {
           "when": {
@@ -131,37 +111,6 @@
         },
         {
           "when": {
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "token"
-                  ]
-                },
-                {
-                  "required": [
-                    "response"
-                  ],
-                  "properties": {
-                    "response": {
-                      "required": [
-                        "kind"
-                      ],
-                      "properties": {
-                        "kind": {
-                          "const": "version"
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "text": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."
-        },
-        {
-          "when": {
             "required": [
               "token"
             ]
@@ -178,7 +127,7 @@
               ]
             }
           },
-          "text": "The reader answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages. Reply with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply; `leaf reply` checks any page edit and makes it live before posting. Add `--awaits` only if your reply's prose asks the reader something. Finishing the requested work is not a reason to `leaf resolve` the thread; the reader usually closes it."
+          "text": "The reader answered in a thread; the batch's `conversations` carries the thread's context, and `leaf conversation read <page> <conversation-id>` reads its history in pages."
         },
         {
           "when": {
@@ -196,7 +145,7 @@
       ],
       "unresolve": [
         {
-          "text": "The reader reopened a closed thread. If its latest reader message was never answered, answer it with `leaf reply <page> --for <that message's id>`; otherwise you owe nothing."
+          "text": "The reader reopened a closed thread. The reopening owes nothing of its own; if the thread's latest reader message was never answered, `leaf conversation read <page> <conversation-id>` shows the `answer` its workflow still owes."
         }
       ],
       "done": [
@@ -207,35 +156,6 @@
       "action": [
         {
           "text": "The reader already sees the action applied."
-        },
-        {
-          "when": {
-            "not": {
-              "required": [
-                "meaning"
-              ],
-              "properties": {
-                "meaning": {
-                  "required": [
-                    "document"
-                  ],
-                  "properties": {
-                    "document": {
-                      "required": [
-                        "kind"
-                      ],
-                      "properties": {
-                        "kind": {
-                          "const": "thread"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "text": "The log carries the action onto every later version, so the page keeps it without an edit. Until the markup records it, though, the page shows it as waiting on you, so write it in when you next revise the page."
         },
         {
           "when": {
@@ -283,9 +203,6 @@
           "text": "When you write it into the markup, each of the action's `additions` becomes an ordinary lf-option in the group, keeping the id and words the event gives, with the picked options marked `chosen`."
         },
         {
-          "text": "Continue the work the action selects or unblocks."
-        },
-        {
           "when": {
             "not": {
               "required": [
@@ -316,6 +233,43 @@
         },
         {
           "when": {
+            "not": {
+              "required": [
+                "obligation"
+              ]
+            }
+          },
+          "text": "This move owes no answer of its own: it does not finish the reader's answer yet, such as a pick before the Done its group waits for, or a later move on the same widget carries the answer."
+        }
+      ],
+      "request": [
+        {
+          "text": "The reader asked you to run an operation the page's package defines, once. The request id, with the page, identifies it: after an interruption, check whether it already ran before acting."
+        }
+      ],
+      "undo": [
+        {
+          "text": "The reader took back the gesture that `undoes` names. Treat the two as cancelling out: do not answer or record the withdrawn gesture. Undoing an action that answered or closed a thread reopens that thread."
+        }
+      ],
+      "report": [
+        {
+          "text": "A worker reported provisional state for a page widget. In the next stamped version, write it into the markup, or mark the element `overruled` and say why in the version note. Do not end the page with a report left unanswered."
+        }
+      ],
+      "error": [
+        {
+          "text": "The page's runtime reported a failure the reader saw. Fix the page or widget and save the fix. It is a diagnostic: reply only if the reader asked about it."
+        }
+      ]
+    },
+    "answering": {
+      "reply": [
+        {
+          "text": "Answer with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply. `leaf reply` checks any page edit and makes it live before posting, so revise the page first if the event calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something."
+        },
+        {
+          "when": {
             "required": [
               "meaning"
             ],
@@ -339,27 +293,22 @@
               }
             }
           },
-          "text": "The widget is in a thread message, so reply in that thread. In a group that allows several picks, only the `answer` action, sent when the reader presses Done, needs that reply; the toggles before it arrive too but need none."
+          "text": "The widget is in a thread message: continue the work the reader's answer selects or unblocks, and answer in that thread."
         }
       ],
-      "request": [
+      "version": [
         {
-          "text": "The reader asked you to run an operation the page's package defines, once. The request id, with the page, identifies it: after an interruption, check whether it already ran before acting. Run it at most once, then record the outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed --text \"…\"`. The receipt does not change the page: refresh any data the page shows, update `index.html` to reflect the result, and stamp it if it is worth a note."
+          "text": "This conversation asks for a new version of the page rather than a reply. Make the change it asks for, stamp the version, then close it with `leaf resolve <page> --to <conversation-id>`, which refuses until the stamped version's authored state answers the Ask."
         }
       ],
-      "undo": [
+      "markup": [
         {
-          "text": "The reader took back the gesture that `undoes` names. Treat the two as cancelling out: do not answer or record the withdrawn gesture. Undoing an action that answered or closed a thread reopens that thread."
+          "text": "Continue the work the action selects or unblocks. The log carries the action onto every later version, but the page shows it as waiting on you until the markup records it: write it in and stamp a version."
         }
       ],
-      "report": [
+      "receipt": [
         {
-          "text": "A worker reported provisional state for a page widget. In the next stamped version, write it into the markup, or mark the element `overruled` and say why in the version note. Do not end the page with a report left unanswered."
-        }
-      ],
-      "error": [
-        {
-          "text": "The page's runtime reported a failure the reader saw. Fix the page or widget and save the fix. It is a diagnostic: reply only if the reader asked about it."
+          "text": "Run it at most once, then record the outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed --text \"…\"`. The receipt does not change the page: refresh any data the page shows, update `index.html` to reflect the result, and stamp it if it is worth a note."
         }
       ]
     },

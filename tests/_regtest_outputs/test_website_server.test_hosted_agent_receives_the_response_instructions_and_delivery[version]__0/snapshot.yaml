@@ -53,9 +53,9 @@ turn/start:
   toolOutput:
     name: leaf_delivery
     output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[{"id":"reader-event","title":null,"anchor":{"section":"choice"},"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"This
-      comment asks for a new version of the page, not a reply. Change the Ask''s
-      declared answer in the next stamped version, then `leaf resolve <page> --to
-      <comment-id>`. If you need the reader''s answer first, open a separate thread
-      on the same Ask with `leaf comment <page> --section <ask-id>`."},"events":[{"kind":"comment","author":"user","text":"Use
+      conversation asks for a new version of the page rather than a reply. Make
+      the change it asks for, stamp the version, then close it with `leaf resolve
+      <page> --to <conversation-id>`, which refuses until the stamped version''s
+      authored state answers the Ask."},"events":[{"kind":"comment","author":"user","text":"Use
       backfill first.","anchor":{"section":"choice"},"response":{"kind":"version","verb":"choose"},"id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":["h1"],"obligation":{"as_of_seq":1,"response":{"kind":"version","conversation":"reader-event"}}}]}]}'
   turnTrigger: leaf

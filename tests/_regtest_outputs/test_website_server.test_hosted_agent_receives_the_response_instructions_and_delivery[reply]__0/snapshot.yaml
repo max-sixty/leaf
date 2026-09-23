@@ -52,13 +52,13 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[{"id":"reader-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Reply
-      in the thread with `leaf reply <page> --for <event-id>`, or with your final
-      message on a host that sends it as the reply, and revise the page if the comment
-      calls for it. If that revision removes what the thread is anchored on, move
-      the thread in the same reply with `--section <id>` (narrowed by `--quote`
-      or `--part` if needed), or `--detach` it if its subject has left the page.
-      Leave the thread open unless the reader asks you to close it or nothing further
-      could change the outcome."},"events":[{"kind":"comment","author":"user","text":"Use
+    output: '{"format":"leaf-delivery-v2","id":"00000001","created_at":1790096400.0,"batches":[{"page":"/page","through_seq":1,"conversations":[{"id":"reader-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Answer
+      with `leaf reply <page> --for <event-id>`, or with your final message on a
+      host that sends it as the reply. `leaf reply` checks any page edit and makes
+      it live before posting, so revise the page first if the event calls for it.
+      If that revision removes what the thread is anchored on, move the thread in
+      the same reply with `--section <id>` (narrowed by `--quote` or `--part` if
+      needed), or `--detach` it if its subject has left the page. Add `--awaits`
+      only if your reply''s prose asks the reader something."},"events":[{"kind":"comment","author":"user","text":"Use
       backfill first.","id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":["h1"],"obligation":{"as_of_seq":1,"response":{"kind":"reply","to":"reader-event","for":"reader-event"}}}]}]}'
   turnTrigger: leaf

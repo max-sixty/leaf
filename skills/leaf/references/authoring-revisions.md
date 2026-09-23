@@ -42,7 +42,8 @@ The event log preserves reader choices, generated options, moves, edits, and
 suggestion outcomes across revisions. Leave their authored inputs unchanged
 unless the content needs revision. The page directory and standalone export
 preserve that state without it being copied into markup, but a reader's action
-on the page shows as waiting on you until the markup records it.
+on the page shows as waiting on you, and holds your turn open, until a stamped
+version's markup records it.
 
 When incorporating a decided suggestion into surrounding prose, retain its
 surviving branch and ids. A reader-generated option can become an ordinary

@@ -7,7 +7,6 @@ from .asks import thread_ask_readings
 from .construction import constructed_content
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
-from .delivery import current_responses
 from .document_reading import DocumentReading, read_document
 from .events import active_summaries, bare_reaction, build_threads, is_reaction
 from .files import (
@@ -77,20 +76,14 @@ def _conversation_interaction(item: dict) -> dict:
     return translated
 
 
-def _conversation_workflows(
-    workflows: list[dict], responses: dict[str, dict]
-) -> list[dict]:
+def _conversation_workflows(workflows: list[dict]) -> list[dict]:
     """Translate only Leaf-owned protocol fields in the shared browser reading.
 
     Every obligation is one of the workflows listed beside it, so an agent reads it
-    by id: its stage and subject are canonical, while `response_address` supplies
-    the current writer operation without replacing provisional response evidence.
+    by id: its stage, subject and `answer` — the operation that settles it — are
+    canonical, while `response` carries provisional response progress.
     """
-    translated = [_conversation_interaction(item) for item in workflows]
-    for item in translated:
-        if item["requires_response"] and (response := responses.get(item.get("input"))):
-            item["response_address"] = response
-    return translated
+    return [_conversation_interaction(item) for item in workflows]
 
 
 def _conversation_update(update: dict) -> dict:
@@ -379,9 +372,7 @@ def _write_page_state(
         **activity,
         "obligations": [item["id"] for item in activity["obligations"]],
     }
-    state["workflows"] = _conversation_workflows(
-        served["workflows"], current_responses(page_dir, events)
-    )
+    state["workflows"] = _conversation_workflows(served["workflows"])
     if document is not None:
         _apply_document_state(
             state, document, events, revision, threads, stored_data, registry

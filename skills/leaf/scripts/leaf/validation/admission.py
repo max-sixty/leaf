@@ -132,6 +132,11 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
         return f"{held}, and nothing is owed for it"
     if owed["kind"] == "receipt":
         return f"{held} — `leaf receipt <page> {value} succeeded|failed` settles it"
+    if owed["kind"] == "markup":
+        return (
+            f"{held} — the next stamped version answers it by recording it in the "
+            "markup"
+        )
     if owed["kind"] == "version":
         return (
             f"{held} — its thread takes a page version rather than a reply; "

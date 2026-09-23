@@ -4,7 +4,7 @@ before reply:
   exit: 0
   output: |
     waiting — pick one
-    1 reader move with no answer (event-1); the page reads waiting once each has one
+    1 reader move with no answer (`leaf reply <page> --for event-1`); the page reads waiting once each has one
 
 after reply:
   exit: 0

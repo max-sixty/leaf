@@ -1,4 +1,29 @@
-"""Canonical workflows for exact reader inputs and proactive subject work."""
+"""Canonical workflows for exact reader inputs and proactive subject work.
+
+A workflow is one reader move the agent still owes something on, with the
+strongest delivery or work evidence held for it. It is also the one derivation
+of that obligation: `answer` is the addressed operation that settles the move,
+and every consumer — delivery handling, `page state`, activity counts, the Stop
+hook, `leaf status idle`, the banner, and the margin — reads it here rather than
+deciding again what the agent owes. The rule is single: a move whose next actor
+is the agent blocks the agent until its answer is written. The one move that owes
+without an address of its own is a reader input a newer input in the same thread
+covers; that thread's one answer, addressed to the newest, settles both.
+
+Answers are one of:
+
+- `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
+  completed widget move in frozen thread markup, answered by `leaf reply --for`;
+- `{"kind": "version", "conversation": <thread>}` — a thread the reader opened
+  as a request for change, answered by a stamped version and a resolve;
+- `{"kind": "markup", "action": <action>}` — a page action the authored markup
+  does not yet record, answered by a stamped version that writes it in;
+- `{"kind": "receipt", "request": <request>}` — a request, answered by its one
+  terminal receipt.
+
+A reader move that does not yet complete the Ask it belongs to — a pick before
+the Done its group declares — hands nothing to the agent, so it is no workflow.
+"""
 
 from .asks import ask_completion
 from .events import awaits_agent, seat_root, spoken_turns
@@ -135,7 +160,7 @@ def canonical_workflows(
         target: dict,
         coordinate: list[str],
         *,
-        requires_response: bool,
+        answer: dict | None,
     ) -> dict:
         claim = interaction_claims.get(source["id"]) or effective_claims.get(
             (target["kind"], target["id"])
@@ -175,7 +200,7 @@ def canonical_workflows(
             "revision": source.get("revision"),
             "subject": target,
             "coordinate": coordinate,
-            "requires_response": requires_response,
+            "answer": answer,
             "stage": stage,
             "ts": evidence.get("ts"),
             "fallback_stage": (
@@ -230,12 +255,7 @@ def canonical_workflows(
                 for message in turns
             ):
                 continue
-            failed = workflow(
-                source,
-                target,
-                coordinate,
-                requires_response=False,
-            )
+            failed = workflow(source, target, coordinate, answer=None)
             failed.update(
                 {
                     "stage": "answered",
@@ -272,14 +292,23 @@ def canonical_workflows(
             continue
         # Every exact input keeps its own transport/work evidence. The response
         # contract deliberately coalesces consecutive reader turns onto the newest
-        # address, so only that workflow is a stop obligation.
+        # address, so only that workflow carries the answer.
+        answer = (
+            {"kind": "version", "conversation": thread_id}
+            if (thread["root"].get("response") or {}).get("kind") == "version"
+            else {
+                "kind": "reply",
+                "to": response_address["id"],
+                "for": response_address["id"],
+            }
+        )
         for source in unanswered_inputs:
             workflows.append(
                 workflow(
                     source,
                     target,
                     coordinate,
-                    requires_response=source is response_address,
+                    answer=answer if source is response_address else None,
                 )
             )
     # A page action stays unsettled only while the authored document still lags
@@ -289,6 +318,15 @@ def canonical_workflows(
     if page is not None:
         for coordinate, (source, spec) in page.projection.actions.items():
             widget, unit, facet = coordinate
+            record = page.document.by_id.get(widget)
+            if (
+                record is not None
+                and ask_completion(
+                    record, page.registry.get(record["tag"], {}), page.projection
+                )
+                is False
+            ):
+                continue
             unsettled = page_action_unsettled(
                 coordinate,
                 source,
@@ -303,8 +341,7 @@ def canonical_workflows(
                     source,
                     {"kind": "widget", "id": widget},
                     [widget, unit, facet],
-                    False,
-                    unsettled,
+                    {"kind": "markup", "action": source["id"]} if unsettled else None,
                 )
             )
 
@@ -320,9 +357,15 @@ def canonical_workflows(
             if not thread or thread["resolved"]:
                 continue
             record = conversation.by_id[source["widget"]]
-            completed = ask_completion(
-                record, page.registry[record["tag"]], conversation.projection
-            )
+            if (
+                ask_completion(
+                    record,
+                    page.registry.get(record["tag"], {}),
+                    conversation.projection,
+                )
+                is False
+            ):
+                continue
             settled = any(
                 message["kind"] == "reply"
                 and message["author"] == "agent"
@@ -334,8 +377,9 @@ def canonical_workflows(
                     source,
                     {"kind": "widget", "id": source["widget"]},
                     list(coordinate),
-                    completed is not False,
-                    not settled,
+                    None
+                    if settled
+                    else {"kind": "reply", "to": thread_id, "for": source["id"]},
                 )
             )
 
@@ -347,18 +391,25 @@ def canonical_workflows(
     # margin entry each in the margin. Chosen before a receipt is minted, so a claim is
     # spent on a move that survives rather than on one dropped here.
     newest: dict[tuple[str, str], dict] = {}
-    for source, target, coordinate, _requires_response, _unsettled in moves:
+    for source, target, coordinate, _answer in moves:
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    for source, target, coordinate, requires_response, unsettled in moves:
-        if unsettled and newest[(target["id"], coordinate[1])] is source:
+    for source, target, coordinate, answer in moves:
+        if answer is not None and newest[(target["id"], coordinate[1])] is source:
+            workflows.append(workflow(source, target, coordinate, answer=answer))
+
+    # A request is owed its one terminal receipt whatever became of the seat that
+    # offered it, so it reads from the log alone.
+    receipted = {event["request"] for event in events if event["kind"] == "receipt"}
+    for source in events:
+        if source["kind"] == "request" and source["id"] not in receipted:
             workflows.append(
                 workflow(
                     source,
-                    target,
-                    coordinate,
-                    requires_response=requires_response,
+                    {"kind": "widget", "id": source["widget"]},
+                    ["request", source["id"]],
+                    answer={"kind": "receipt", "request": source["id"]},
                 )
             )
 
@@ -377,7 +428,7 @@ def canonical_workflows(
                 "revision": claim.get("revision"),
                 "subject": target,
                 "coordinate": [target["kind"], target["id"]],
-                "requires_response": False,
+                "answer": None,
                 "stage": "working",
                 "ts": claim["ts"],
                 "detail": claim["text"],

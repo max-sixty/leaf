@@ -25,11 +25,14 @@
 #
 # 3. Earlier, the agent started `leaf wait` in the background and went idle. The
 #    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
-#    line and builds a delivery for it. For the instructions, `leaf wait` reads the
-#    clauses under `$events.handling.comment` in the page's copy of registry.json.
-#    Each clause has a `text` and may have a `when`, a JSON Schema the log line must
-#    satisfy for the clause to apply. There are 6; here they all are, with
-#    whether the line from step 2 satisfies each `when`:
+#    line and builds a delivery for it. The comment is owed a reply, which the
+#    delivery records as its `obligation` (step 4). For the instructions, `leaf
+#    wait` reads the clauses under `$events.handling.comment` in the page's copy of
+#    registry.json, then those under `$events.answering.reply`, the answer it owes.
+#    Each clause has a `text` and may have a `when`, a JSON Schema the log line,
+#    with its `obligation`, must satisfy for the clause to apply. There are
+#    6; here they all are, with whether the line from step 2 satisfies each
+#    `when`:
 #
 #      clause 1, does not apply:
 #        when: {"required": ["drawing"]}
@@ -41,39 +44,36 @@
 #              whole page has no `box`, and its offsets start at the page's top-left
 #              corner. Any `text` explains the mark.
 #      clause 2, does not apply:
-#        when: {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}
-#        text: This comment asks for a new version of the page, not a reply. Change
-#              the Ask's declared answer in the next stamped version, then `leaf
-#              resolve <page> --to <comment-id>`. If you need the reader's answer
-#              first, open a separate thread on the same Ask with `leaf comment <page>
-#              --section <ask-id>`.
-#      clause 3, does not apply:
 #        when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
 #        text: A suggestion proposes exact replacement text. Apply it verbatim, or
 #              reply with your reason for declining.
-#      clause 4, does not apply:
+#      clause 3, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves. Find what
 #              produces that, and fix it in this page's own source unless it comes
 #              from a shared widget or from Leaf itself, or the reader asks for a
 #              wider fix.
-#      clause 5, applies:
-#        when: {"not": {"anyOf": [{"required": ["token"]}, {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}]}}
-#        text: Reply in the thread with `leaf reply <page> --for <event-id>`, or with
-#              your final message on a host that sends it as the reply, and revise the
-#              page if the comment calls for it. If that revision removes what the
-#              thread is anchored on, move the thread in the same reply with
-#              `--section <id>` (narrowed by `--quote` or `--part` if needed), or
-#              `--detach` it if its subject has left the page. Leave the thread open
-#              unless the reader asks you to close it or nothing further could change
-#              the outcome.
-#      clause 6, does not apply:
+#      clause 4, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Read the token and the `means`
 #              its package gives, if any, and act on it if it calls for a change;
 #              reply only if its meaning is unclear. Once the page reflects it, close
 #              it with `leaf resolve <page> --to <event-id>`. It never blocks
 #              publishing a version, and it does not wait on an answer.
+#      clause 5, applies:
+#        (no `when`, so it always applies)
+#        text: Answer with `leaf reply <page> --for <event-id>`, or with your final
+#              message on a host that sends it as the reply. `leaf reply` checks any
+#              page edit and makes it live before posting, so revise the page first if
+#              the event calls for it. If that revision removes what the thread is
+#              anchored on, move the thread in the same reply with `--section <id>`
+#              (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
+#              subject has left the page. Add `--awaits` only if your reply's prose
+#              asks the reader something.
+#      clause 6, does not apply:
+#        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
+#        text: The widget is in a thread message: continue the work the reader's
+#              answer selects or unblocks, and answer in that thread.
 #
 # 4. `leaf wait` prints the delivery as JSON and exits. The agent's host hands that
 #    output to the agent as the result of the background command, which wakes it.
@@ -112,7 +112,7 @@
 #              }
 #            ],
 #            "handling": {
-#              "h1": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome."
+#              "h1": "Answer with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply. `leaf reply` checks any page edit and makes it live before posting, so revise the page first if the event calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something."
 #            },
 #            "events": [
 #              {
@@ -162,10 +162,11 @@
 # skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
 # Each top-level key below names a case and holds:
 #
-#   event:  the input: a log line's `kind` and the fields some `when` reads,
-#           and nothing else. A field no `when` names, such as a comment's
-#           `anchor` or `text`, cannot change what the agent is told, so it is
-#           left out; the test checks both halves of that.
+#   event:  the input: a log line's `kind`, the kind of answer its delivery
+#           says it owes (`obligation`), and the fields some `when` reads, and
+#           nothing else. A field no `when` names, such as a comment's `anchor`
+#           or `text`, cannot change what the agent is told, so it is left out;
+#           the test checks both halves of that.
 #   told:   the output, the clauses that apply to that line, in order. Each
 #           clause has a `text` and may have a `when`:
 #   when:   the clause's `when`, exactly as registry.json writes it: a JSON
@@ -174,22 +175,25 @@
 #   text:   the clause's text.
 #
 # The walkthrough's comment is the first case. No `when` reads any field of its
-# log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-# and it gets the clauses marked "applies" in step 3. It is recorded as:
+# log line from step 2 except `kind`, so the case is that line cut down to `kind`
+# and the reply it owes, and it gets the clauses marked "applies" in step 3. It is
+# recorded as:
 #
 #      comment:
 #        event:
 #          kind: comment
+#          obligation:
+#            response:
+#              kind: reply
 #        told:
-#          - when: {"not": {"anyOf": [{"required": ["token"]}, {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}]}}
-#            text: >-
-#              Reply in the thread with `leaf reply <page> --for <event-id>`, or with your
-#              final message on a host that sends it as the reply, and revise the page
-#              if the comment calls for it. If that revision removes what the thread is
-#              anchored on, move the thread in the same reply with `--section <id>` (narrowed
-#              by `--quote` or `--part` if needed), or `--detach` it if its subject has
-#              left the page. Leave the thread open unless the reader asks you to close
-#              it or nothing further could change the outcome.
+#          - text: >-
+#              Answer with `leaf reply <page> --for <event-id>`, or with your final message
+#              on a host that sends it as the reply. `leaf reply` checks any page edit
+#              and makes it live before posting, so revise the page first if the event
+#              calls for it. If that revision removes what the thread is anchored on, move
+#              the thread in the same reply with `--section <id>` (narrowed by `--quote`
+#              or `--part` if needed), or `--detach` it if its subject has left the page.
+#              Add `--awaits` only if your reply's prose asks the reader something.
 #
 # After changing a clause, re-record this file and review the diff:
 #
@@ -198,16 +202,18 @@
 comment:
   event:
     kind: comment
+    obligation:
+      response:
+        kind: reply
   told:
-    - when: {"not": {"anyOf": [{"required": ["token"]}, {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}]}}
-      text: >-
-        Reply in the thread with `leaf reply <page> --for <event-id>`, or with your
-        final message on a host that sends it as the reply, and revise the page
-        if the comment calls for it. If that revision removes what the thread is
-        anchored on, move the thread in the same reply with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Leave the thread open unless the reader asks you to close
-        it or nothing further could change the outcome.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`, or with your final message
+        on a host that sends it as the reply. `leaf reply` checks any page edit
+        and makes it live before posting, so revise the page first if the event
+        calls for it. If that revision removes what the thread is anchored on, move
+        the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part` if needed), or `--detach` it if its subject has left the page.
+        Add `--awaits` only if your reply's prose asks the reader something.
 
 comment with a drawing:
   event:
@@ -215,6 +221,9 @@ comment with a drawing:
     drawing:
       format: leaf-drawing/2
       strokes: [[[0, 0], [9, 9]]]
+    obligation:
+      response:
+        kind: reply
   told:
     - when: {"required": ["drawing"]}
       text: >-
@@ -225,67 +234,75 @@ comment with a drawing:
         can be placed on a picture of it; a drawing on the whole page has no `box`,
         and its offsets start at the page's top-left corner. Any `text` explains
         the mark.
-    - when: {"not": {"anyOf": [{"required": ["token"]}, {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}]}}
-      text: >-
-        Reply in the thread with `leaf reply <page> --for <event-id>`, or with your
-        final message on a host that sends it as the reply, and revise the page
-        if the comment calls for it. If that revision removes what the thread is
-        anchored on, move the thread in the same reply with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Leave the thread open unless the reader asks you to close
-        it or nothing further could change the outcome.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`, or with your final message
+        on a host that sends it as the reply. `leaf reply` checks any page edit
+        and makes it live before posting, so revise the page first if the event
+        calls for it. If that revision removes what the thread is anchored on, move
+        the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part` if needed), or `--detach` it if its subject has left the page.
+        Add `--awaits` only if your reply's prose asks the reader something.
 
 comment awaiting a version:
   event:
     kind: comment
-    response:
-      kind: version
+    obligation:
+      response:
+        kind: version
   told:
-    - when: {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}
-      text: >-
-        This comment asks for a new version of the page, not a reply. Change the
-        Ask's declared answer in the next stamped version, then `leaf resolve <page>
-        --to <comment-id>`. If you need the reader's answer first, open a separate
-        thread on the same Ask with `leaf comment <page> --section <ask-id>`.
+    - text: >-
+        This conversation asks for a new version of the page rather than a reply.
+        Make the change it asks for, stamp the version, then close it with `leaf
+        resolve <page> --to <conversation-id>`, which refuses until the stamped
+        version's authored state answers the Ask.
+
+comment a newer message answers through:
+  event:
+    kind: comment
+  told: []
 
 suggestion:
   event:
     kind: comment
     suggestion: true
+    obligation:
+      response:
+        kind: reply
   told:
     - when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
       text: >-
         A suggestion proposes exact replacement text. Apply it verbatim, or reply
         with your reason for declining.
-    - when: {"not": {"anyOf": [{"required": ["token"]}, {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}]}}
-      text: >-
-        Reply in the thread with `leaf reply <page> --for <event-id>`, or with your
-        final message on a host that sends it as the reply, and revise the page
-        if the comment calls for it. If that revision removes what the thread is
-        anchored on, move the thread in the same reply with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Leave the thread open unless the reader asks you to close
-        it or nothing further could change the outcome.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`, or with your final message
+        on a host that sends it as the reply. `leaf reply` checks any page edit
+        and makes it live before posting, so revise the page first if the event
+        calls for it. If that revision removes what the thread is anchored on, move
+        the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part` if needed), or `--detach` it if its subject has left the page.
+        Add `--awaits` only if your reply's prose asks the reader something.
 
 design comment:
   event:
     kind: comment
     about: design
+    obligation:
+      response:
+        kind: reply
   told:
     - when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
       text: >-
         A design comment is about how the page looks or behaves. Find what produces
         that, and fix it in this page's own source unless it comes from a shared
         widget or from Leaf itself, or the reader asks for a wider fix.
-    - when: {"not": {"anyOf": [{"required": ["token"]}, {"required": ["response"], "properties": {"response": {"required": ["kind"], "properties": {"kind": {"const": "version"}}}}}]}}
-      text: >-
-        Reply in the thread with `leaf reply <page> --for <event-id>`, or with your
-        final message on a host that sends it as the reply, and revise the page
-        if the comment calls for it. If that revision removes what the thread is
-        anchored on, move the thread in the same reply with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Leave the thread open unless the reader asks you to close
-        it or nothing further could change the outcome.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`, or with your final message
+        on a host that sends it as the reply. `leaf reply` checks any page edit
+        and makes it live before posting, so revise the page first if the event
+        calls for it. If that revision removes what the thread is anchored on, move
+        the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part` if needed), or `--detach` it if its subject has left the page.
+        Add `--awaits` only if your reply's prose asks the reader something.
 
 reaction on the page:
   event:
@@ -303,17 +320,23 @@ reaction on the page:
 reply:
   event:
     kind: reply
+    obligation:
+      response:
+        kind: reply
   told:
     - when: {"not": {"required": ["token"]}}
       text: >-
         The reader answered in a thread; the batch's `conversations` carries the
         thread's context, and `leaf conversation read <page> <conversation-id>`
-        reads its history in pages. Reply with `leaf reply <page> --for <event-id>`,
-        or with your final message on a host that sends it as the reply; `leaf reply`
-        checks any page edit and makes it live before posting. Add `--awaits` only
-        if your reply's prose asks the reader something. Finishing the requested
-        work is not a reason to `leaf resolve` the thread; the reader usually closes
-        it.
+        reads its history in pages.
+    - text: >-
+        Answer with `leaf reply <page> --for <event-id>`, or with your final message
+        on a host that sends it as the reply. `leaf reply` checks any page edit
+        and makes it live before posting, so revise the page first if the event
+        calls for it. If that revision removes what the thread is anchored on, move
+        the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part` if needed), or `--detach` it if its subject has left the page.
+        Add `--awaits` only if your reply's prose asks the reader something.
 
 reaction on a message:
   event:
@@ -331,21 +354,21 @@ pick on the page:
     meaning:
       document:
         kind: page
+    obligation:
+      response:
+        kind: markup
   told:
     - text: >-
         The reader already sees the action applied.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
       text: >-
-        The log carries the action onto every later version, so the page keeps it
-        without an edit. Until the markup records it, though, the page shows it
-        as waiting on you, so write it in when you next revise the page.
-    - text: >-
-        Continue the work the action selects or unblocks.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
-      text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
+    - text: >-
+        Continue the work the action selects or unblocks. The log carries the action
+        onto every later version, but the page shows it as waiting on you until
+        the markup records it: write it in and stamp a version.
 
 pick adding an option:
   event:
@@ -356,26 +379,46 @@ pick adding an option:
     meaning:
       document:
         kind: page
+    obligation:
+      response:
+        kind: markup
   told:
     - text: >-
         The reader already sees the action applied.
-    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
-      text: >-
-        The log carries the action onto every later version, so the page keeps it
-        without an edit. Until the markup records it, though, the page shows it
-        as waiting on you, so write it in when you next revise the page.
     - when: {"allOf": [{"required": ["detail"], "properties": {"detail": {"required": ["additions"]}}}, {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}]}
       text: >-
         When you write it into the markup, each of the action's `additions` becomes
         an ordinary lf-option in the group, keeping the id and words the event gives,
         with the picked options marked `chosen`.
-    - text: >-
-        Continue the work the action selects or unblocks.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
       text: >-
         If you need clarification, ask in a thread on the picked option. To override
         the pick in a later version, mark the element `restated` and say why in
         the version note.
+    - text: >-
+        Continue the work the action selects or unblocks. The log carries the action
+        onto every later version, but the page shows it as waiting on you until
+        the markup records it: write it in and stamp a version.
+
+pick before Done:
+  event:
+    kind: action
+    meaning:
+      document:
+        kind: page
+  told:
+    - text: >-
+        The reader already sees the action applied.
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+      text: >-
+        If you need clarification, ask in a thread on the picked option. To override
+        the pick in a later version, mark the element `restated` and say why in
+        the version note.
+    - when: {"not": {"required": ["obligation"]}}
+      text: >-
+        This move owes no answer of its own: it does not finish the reader's answer
+        yet, such as a pick before the Done its group waits for, or a later move
+        on the same widget carries the answer.
 
 pick inside a thread:
   event:
@@ -383,16 +426,24 @@ pick inside a thread:
     meaning:
       document:
         kind: thread
+    obligation:
+      response:
+        kind: reply
   told:
     - text: >-
         The reader already sees the action applied.
     - text: >-
-        Continue the work the action selects or unblocks.
+        Answer with `leaf reply <page> --for <event-id>`, or with your final message
+        on a host that sends it as the reply. `leaf reply` checks any page edit
+        and makes it live before posting, so revise the page first if the event
+        calls for it. If that revision removes what the thread is anchored on, move
+        the thread in the same reply with `--section <id>` (narrowed by `--quote`
+        or `--part` if needed), or `--detach` it if its subject has left the page.
+        Add `--awaits` only if your reply's prose asks the reader something.
     - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
       text: >-
-        The widget is in a thread message, so reply in that thread. In a group that
-        allows several picks, only the `answer` action, sent when the reader presses
-        Done, needs that reply; the toggles before it arrive too but need none.
+        The widget is in a thread message: continue the work the reader's answer
+        selects or unblocks, and answer in that thread.
 
 resolve:
   event:
@@ -406,9 +457,9 @@ unresolve:
     kind: unresolve
   told:
     - text: >-
-        The reader reopened a closed thread. If its latest reader message was never
-        answered, answer it with `leaf reply <page> --for <that message's id>`;
-        otherwise you owe nothing.
+        The reader reopened a closed thread. The reopening owes nothing of its own;
+        if the thread's latest reader message was never answered, `leaf conversation
+        read <page> <conversation-id>` shows the `answer` its workflow still owes.
 
 done:
   event:
@@ -421,15 +472,19 @@ done:
 request:
   event:
     kind: request
+    obligation:
+      response:
+        kind: receipt
   told:
     - text: >-
         The reader asked you to run an operation the page's package defines, once.
         The request id, with the page, identifies it: after an interruption, check
-        whether it already ran before acting. Run it at most once, then record the
-        outcome with exactly one `leaf receipt <page> <request-id> succeeded|failed
-        --text "…"`. The receipt does not change the page: refresh any data the
-        page shows, update `index.html` to reflect the result, and stamp it if it
-        is worth a note.
+        whether it already ran before acting.
+    - text: >-
+        Run it at most once, then record the outcome with exactly one `leaf receipt
+        <page> <request-id> succeeded|failed --text "…"`. The receipt does not change
+        the page: refresh any data the page shows, update `index.html` to reflect
+        the result, and stamp it if it is worth a note.
 
 undo:
   event:

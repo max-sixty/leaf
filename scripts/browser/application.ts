@@ -80,7 +80,7 @@ interface WireWorkflow {
   input: string | null;
   subject: { kind: "thread" | "widget"; id: string };
   coordinate: unknown;
-  requires_response: boolean;
+  answer: { kind: "reply" | "version" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
   ts: string | null;
   detail: string;
@@ -598,7 +598,7 @@ export function createSemanticApplication({
             }
           : { kind: "widget", id: entry.event.widget },
         coordinate: entry.projection?.coordinate ?? null,
-        requires_response: !rejected,
+        answer: null,
         stage: "sending",
         ts: message?.ts ?? null,
         detail: "",

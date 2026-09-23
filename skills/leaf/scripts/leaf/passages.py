@@ -347,11 +347,10 @@ class _PassageParser:
         if tag in VOID_TAGS:
             return
         entry = self.registry.get(tag) or {}
-        # A declared text-format element owns one prose run across its parsed
-        # Markdown and existing inline HTML, like the runtime's blockAt.
+        # The innermost open text block, if any: the runtime's `closest(TEXT_BLOCK)`.
         tb = (
             self._fresh()
-            if tag in TEXT_BLOCK_TAGS or entry.get("x-text-format")
+            if tag in TEXT_BLOCK_TAGS
             else (parent["tb"] if parent else None)
         )
         block = tb if tb else self._fresh()

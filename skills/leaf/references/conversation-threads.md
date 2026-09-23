@@ -44,8 +44,8 @@ The thread panel is a narrow column beside the page, so a paragraph that reads f
 in chat is a wall there. A reply says what changed or where to look: a sentence or
 two, or one short paragraph or list item per point when there are several. The page
 carries the evidence, and a stamp's changelog carries the full list of changes.
-When a discussion produces a decision or defers work, revise the page first, then
-link the outcome from the reply with a fragment link such as
+When a discussion produces a decision or defers work, record the outcome on the page
+and link it from the reply that reports it, with a fragment link such as
 `[the decision](#decision)`. When the rationale matters to a reader using the
 result, keep the thread anchored to that page section. Keep the discussion active
 if the outcome is not yet incorporated or the reader still owes an explicit review.

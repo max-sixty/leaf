@@ -17,9 +17,9 @@
  * diagram renderer also accepts CSS variables, but its palette applies to semantic
  * diagram roles rather than data series. Here the class on each mark is the series key.
  *
- * The vendored bundle loads lazily, once, and only on pages that draw something: every
- * x-upgrade module is imported on every page, so a static import would put 384KB in front
- * of every reader of every page for the sake of the few that hold a chart. */
+ * The vendored bundle loads once, on the first draw rather than with this module: a chart
+ * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
+ * it instead of loading in front of a reader who never opens that panel. */
 import {
   dataBody,
   failSoft,

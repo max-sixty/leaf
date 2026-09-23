@@ -28,7 +28,7 @@
 #    line and builds a delivery for it. For the instructions, `leaf wait` reads the
 #    clauses under `$events.handling.comment` in the page's copy of registry.json.
 #    Each clause has a `text` and may have a `when`, a JSON Schema the log line must
-#    satisfy for the clause to apply. There are 6; here they all are, with
+#    satisfy for the clause to apply. There are 7; here they all are, with
 #    whether the line from step 2 satisfies each `when`:
 #
 #      clause 1, does not apply:
@@ -68,7 +68,13 @@
 #              unless the reader asks you to close it or nothing further could change
 #              the outcome. Your reply renders as Markdown, so show code or markup in
 #              a fenced block.
-#      clause 6, does not apply:
+#      clause 6, applies:
+#        when: {"not": {"required": ["token"]}}
+#        text: If this event's conversation has a null `title` in the batch's
+#              `conversations`, name it with `leaf conversation title <page>
+#              <conversation-id> --text "<a few words>"`, so the thread panel lists
+#              its subject rather than its opening words.
+#      clause 7, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Read the token and the `means`
 #              its package gives, if any, and act on it if it calls for a change;
@@ -113,7 +119,8 @@
 #              }
 #            ],
 #            "handling": {
-#              "h1": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome. Your reply renders as Markdown, so show code or markup in a fenced block."
+#              "h1": "Reply in the thread with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply, and revise the page if the comment calls for it. If that revision removes what the thread is anchored on, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Leave the thread open unless the reader asks you to close it or nothing further could change the outcome. Your reply renders as Markdown, so show code or markup in a fenced block.",
+#              "h2": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
 #            },
 #            "events": [
 #              {
@@ -136,7 +143,8 @@
 #                  "1946b466"
 #                ],
 #                "handling": [
-#                  "h1"
+#                  "h1",
+#                  "h2"
 #                ],
 #                "obligation": {
 #                  "as_of_seq": 2,
@@ -192,6 +200,12 @@
 #              left the page. Leave the thread open unless the reader asks you to close
 #              it or nothing further could change the outcome. Your reply renders as Markdown,
 #              so show code or markup in a fenced block.
+#          - when: {"not": {"required": ["token"]}}
+#            text: >-
+#              If this event's conversation has a null `title` in the batch's `conversations`,
+#              name it with `leaf conversation title <page> <conversation-id> --text "<a
+#              few words>"`, so the thread panel lists its subject rather than its opening
+#              words.
 #
 # After changing a clause, re-record this file and review the diff:
 #
@@ -211,6 +225,12 @@ comment:
         left the page. Leave the thread open unless the reader asks you to close
         it or nothing further could change the outcome. Your reply renders as Markdown,
         so show code or markup in a fenced block.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 comment with a drawing:
   event:
@@ -238,6 +258,12 @@ comment with a drawing:
         left the page. Leave the thread open unless the reader asks you to close
         it or nothing further could change the outcome. Your reply renders as Markdown,
         so show code or markup in a fenced block.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 comment awaiting a version:
   event:
@@ -251,6 +277,12 @@ comment awaiting a version:
         Ask's declared answer in the next stamped version, then `leaf resolve <page>
         --to <comment-id>`. If you need the reader's answer first, open a separate
         thread on the same Ask with `leaf comment <page> --section <ask-id>`.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 suggestion:
   event:
@@ -271,6 +303,12 @@ suggestion:
         left the page. Leave the thread open unless the reader asks you to close
         it or nothing further could change the outcome. Your reply renders as Markdown,
         so show code or markup in a fenced block.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 design comment:
   event:
@@ -292,6 +330,12 @@ design comment:
         left the page. Leave the thread open unless the reader asks you to close
         it or nothing further could change the outcome. Your reply renders as Markdown,
         so show code or markup in a fenced block.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 reaction on the page:
   event:
@@ -320,6 +364,12 @@ reply:
         if your reply's prose asks the reader something. Finishing the requested
         work is not a reason to `leaf resolve` the thread; the reader usually closes
         it. Your reply renders as Markdown, so show code or markup in a fenced block.
+    - when: {"not": {"required": ["token"]}}
+      text: >-
+        If this event's conversation has a null `title` in the batch's `conversations`,
+        name it with `leaf conversation title <page> <conversation-id> --text "<a
+        few words>"`, so the thread panel lists its subject rather than its opening
+        words.
 
 reaction on a message:
   event:

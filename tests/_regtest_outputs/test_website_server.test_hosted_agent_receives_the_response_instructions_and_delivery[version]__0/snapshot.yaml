@@ -15,12 +15,8 @@ thread/start:
     `leaf-delivery` pointer. Read a pointer with `$LEAF delivery read ID`, using its
     exact id. The host confirms receipt; no work claim is required. For every delivered
     event, read its `handling` clause ids in order from that batch's `handling` object
-    and follow those instructions and `obligation.response`.
-
-    When first handling a conversation whose title is null, name it with
-    `$LEAF conversation title . CONVERSATION_ID --text "Short descriptive title"`.
-    Choose a few words identifying its subject (at most 80 characters). Keep the title
-    stable; use the same command to rename it only when it no longer describes the discussion.
+    and follow those instructions and `obligation.response`. Name a conversation you open
+    with `$LEAF conversation title . CONVERSATION_ID --text "<a few words>"`.
 
     Each App Server delivery contains at most one response whose kind is `reply`.
     The normal final message is that reply's only writer: the host binds its destination
@@ -56,6 +52,10 @@ turn/start:
       comment asks for a new version of the page, not a reply. Change the Ask''s
       declared answer in the next stamped version, then `leaf resolve <page> --to
       <comment-id>`. If you need the reader''s answer first, open a separate thread
-      on the same Ask with `leaf comment <page> --section <ask-id>`."},"events":[{"kind":"comment","author":"user","text":"Use
-      backfill first.","anchor":{"section":"choice"},"response":{"kind":"version","verb":"choose"},"id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":["h1"],"obligation":{"as_of_seq":1,"response":{"kind":"version","conversation":"reader-event"}}}]}]}'
+      on the same Ask with `leaf comment <page> --section <ask-id>`.","h2":"If this
+      event''s conversation has a null `title` in the batch''s `conversations`,
+      name it with `leaf conversation title <page> <conversation-id> --text \"<a
+      few words>\"`, so the thread panel lists its subject rather than its opening
+      words."},"events":[{"kind":"comment","author":"user","text":"Use backfill
+      first.","anchor":{"section":"choice"},"response":{"kind":"version","verb":"choose"},"id":"reader-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"conversation","id":"reader-event"},"conversations":["reader-event"],"handling":["h1","h2"],"obligation":{"as_of_seq":1,"response":{"kind":"version","conversation":"reader-event"}}}]}]}'
   turnTrigger: leaf

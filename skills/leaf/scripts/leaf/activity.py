@@ -78,7 +78,10 @@ def _reply_evidence(reply: dict) -> dict:
     return {
         key: reply.get(key)
         for key in ("state", "session", "turn", "reply_to", "responds", "settles")
-    } | {"has_text": bool(reply.get("text"))}
+    } | {
+        **({"attempt": reply["attempt"]} if reply.get("attempt") else {}),
+        "has_text": bool(reply.get("text")),
+    }
 
 
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:

@@ -43,6 +43,11 @@ unknown old turn, has a stale work condition while retaining its durable stage.
 A provisional response is Replying only on the input named by its `responds`
 address. Disconnect, interruption, and failure require the response's own state.
 Successful settlement removes the workflow; the logged answer remains its evidence.
+For an interrupted or failed response, the workflow's `response` names the exact
+delivery attempt when one exists. A durable failure receipt also names its reply
+event id. Browser notices read this current workflow condition and source identity:
+an old failure does not become fresh news after a later successful answer, and
+stale work or delivery evidence is not a response failure.
 
 Ordinary durable stale, ended, interrupted, and failed observations prove uncertainty
 or a stopped operation but no concrete reader recovery gesture, so they remain

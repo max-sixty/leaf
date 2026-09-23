@@ -2,7 +2,7 @@
  * chooser. Each claims a complete press before authored controls can act on it. */
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
-import { pointerAt } from "../pointer.js";
+import { pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
 
@@ -144,9 +144,9 @@ export function createAim({
       if (claimedPress) standDown(ev.target);
     }
     if (!claimedPress) return;
-    // A click carrying no pointer press is keyboard activation and belongs to the control
-    // it is on; the user's Enter must reach that control whatever the last pointer did.
-    if (ev.type === "click" && !ev.detail) return;
+    // Keyboard activation belongs to the control it is on, whatever the last pointer
+    // did, and every captured press mode reads that the one way (pointer.js).
+    if (pressIsKeyboardActivation(ev)) return;
     // Not on pointerdown, whose cancellation takes the mouse events with it — the click this
     // aim ends on included. On mousedown, which is where the selection, the focus and a
     // native drag would start, and on the click, since ⌥ on a link is a download.

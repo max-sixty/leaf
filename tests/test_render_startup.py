@@ -1878,7 +1878,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     )
     told(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "reject")
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (0)")
     reopened = page.locator('.lf-threads > .lf-thread[data-id="c1"]')
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
 

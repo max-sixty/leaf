@@ -24,11 +24,11 @@ def _thread_awaits_reader(
     awaiting: dict[str, bool],
     structure,
     open_ask_threads: set[str],
-) -> bool:
+) -> tuple[bool, dict | None]:
     if thread["resolved"]:
-        return False
+        return False, None
     if thread_id in open_ask_threads:
-        return True
+        return True, None
     turns = spoken_turns(thread)
     tokens = registry.get("$reactions", {}).get("tokens", {})
     for index in range(len(turns) - 1, -1, -1):
@@ -57,14 +57,14 @@ def _thread_awaits_reader(
         if message["kind"] != "reply":
             if structural is False:
                 continue
-            if not settled:
-                return True
-            continue
-        if structural is False or (structural is None and not message.get("awaits")):
+        elif structural is False or (structural is None and not message.get("awaits")):
             continue
         if not settled:
-            return True
-    return False
+            return True, {
+                "message": message["id"],
+                "version": message.get("edited", {}).get("id", message["id"]),
+            }
+    return False, None
 
 
 def _answers_live_reply(event: dict, live_reply: dict) -> bool:
@@ -115,7 +115,7 @@ def browser_conversation(
             version = message.get("edited", {}).get("id", message["id"])
             message["content_version"] = version
             message["unread"] = (message["id"], version) not in acknowledged
-        awaits_reader = _thread_awaits_reader(
+        awaits_reader, reader_prompt = _thread_awaits_reader(
             thread_id,
             thread,
             registry,
@@ -148,6 +148,7 @@ def browser_conversation(
                 **thread,
                 "awaits_agent": awaits_agent_now,
                 "awaits_reader": awaits_reader,
+                "reader_prompt": reader_prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,

@@ -28,10 +28,12 @@ import {
 } from "./conversation/messages.js";
 import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
-  agentReplyArrivals,
-  agentReplyNotice,
-  combineAgentReplyArrivals,
-} from "./conversation/arrivals.js";
+  combineSemanticNews,
+  currentSemanticNews,
+  observeSemanticNews,
+  semanticNewsNotice,
+  semanticNewsReading,
+} from "./semantic-news.js";
 
 export function createStateApplication({
   prepareActivation,
@@ -45,7 +47,8 @@ export function createStateApplication({
   accountPending,
   paintKeys,
 }) {
-  let observedAgentReplies = null;
+  let observedSemanticNews = null;
+  let presentedNewsReading = null;
   const markupRead = new Set();
   let stateApplying = false;
   let admission = Promise.resolve();
@@ -189,21 +192,27 @@ export function createStateApplication({
         if (runtime.reading !== null)
           document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
         accountPending(state.browser.receipts ?? []);
-        const replyReading = agentReplyArrivals(
-          observedAgentReplies,
-          state.browser.conversation.threads,
-        );
-        observedAgentReplies = replyReading.observed;
-        if (replyReading.arrivals.length)
-          notice(agentReplyNotice(replyReading.arrivals), {
+        // Only the accepted candidate that this full document just presented can
+        // establish news. A queued notice formats against the latest such reading,
+        // so a later answer does not repeat a superseded failure or edit.
+        presentedNewsReading = semanticNewsReading(state);
+        const reading = observeSemanticNews(observedSemanticNews, presentedNewsReading);
+        observedSemanticNews = reading.observed;
+        if (reading.news.length) {
+          const format = (value) =>
+            semanticNewsNotice(
+              currentSemanticNews(value, presentedNewsReading, observedSemanticNews),
+            );
+          notice(format(reading.news), {
             background: true,
             group: {
-              key: "agent-replies",
-              value: replyReading.arrivals,
-              combine: combineAgentReplyArrivals,
-              format: agentReplyNotice,
+              key: "semantic-news",
+              value: reading.news,
+              combine: combineSemanticNews,
+              format,
             },
           });
+        }
       } catch (error) {
         reportPageError(`State presentation failed: ${error?.message ?? error}`);
         throw error;

@@ -1509,6 +1509,35 @@ def test_the_data_wait_follows_a_source_rewritten_under_it(browser, serve):
     assert render_checks_model.wait_for_presentation(page, held, 0) is None
 
 
+def test_the_data_wait_follows_a_source_back_to_the_version_the_page_shows(
+    browser, serve
+):
+    """A source can move away and back between the gate's read and the page's. The page
+    never sees the version the gate holds, and the reading it does see changes nothing
+    it shows, yet it is a reading the server took later, so the page has caught up."""
+    url = serve(
+        leaf_page(
+            "returning source",
+            '<h1>Notes</h1><lf-text-document id="notes" source="notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page = open_page(browser, url)
+    reads = []
+    page.route("**/api/state*", lambda route: reads.append(route))
+    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    held = render_gate_scheme.served(page, url, "/api/state").json()
+    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    for read in reads:
+        read.continue_()
+    page.unroute("**/api/state*")
+    page._leaf_probe_timeout_ms = 5_000
+
+    assert render_checks_model.wait_for_presentation(page, held, 0) is None
+    expect(page.locator("#notes code")).to_have_text("First.\n")
+
+
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     browser, serve, tmp_path, monkeypatch
 ):

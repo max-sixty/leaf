@@ -32,14 +32,30 @@ export function acceptData(candidate, taken) {
     Array.isArray(candidate.sources)
   )
     throw new TypeError("state data must carry a version and sources");
-  return applicationState.acceptData(candidate, taken);
+  const changed = applicationState.acceptData(candidate, taken);
+  // A reading that finds the data already presented is presented as it arrives.
+  if (!changed && document.body.dataset.lfDataVersion === runtime.data.version)
+    stampData(runtime.data.version);
+  return changed;
+}
+
+// The readiness stamp: the data version presented, and when the server took the
+// newest reading the page accepted. Render checks and export compare it with their own
+// state read. Any process may rewrite a source, so the page can move past the reader's
+// version, and a page that has presented a reading taken no earlier has caught up.
+function stampData(version) {
+  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataVersion, version);
+  document.body.setAttribute(
+    PAGE_PAINT_ATTRIBUTE.dataTaken,
+    String(applicationState.dataTaken()),
+  );
 }
 
 const subscriptions = new Set();
 let subscriptionSequence = 0;
 
 export async function notifyDataSubscribers() {
-  const { version, taken } = runtime.data;
+  const version = runtime.data.version;
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
   const regions = current.map((subscription) => subscription.region);
@@ -49,16 +65,9 @@ export async function notifyDataSubscribers() {
   );
   // The version becomes a readiness fact only after every subscriber has settled. A
   // rejected package render is reported at its own boundary rather than turning every
-  // later state read into the same page-wide failure. Render checks and export compare
-  // this stamp with their own state read, so a data-only page cannot be read while an
-  // asynchronous projection is still pending. Beside the version goes the `taken` of
-  // the reading that brought it: any process may rewrite a source, so the page can move
-  // past the reader's version, and a page presenting a reading taken no earlier than
-  // the reader's has caught up.
-  if (version !== null && runtime.data.version === version) {
-    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataVersion, version);
-    document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.dataTaken, String(taken));
-  }
+  // later state read into the same page-wide failure. A data-only page therefore
+  // cannot be read while an asynchronous projection is still pending.
+  if (version !== null && runtime.data.version === version) stampData(version);
 }
 
 // A source value remains the server snapshot's to own. Subscribers name one input on

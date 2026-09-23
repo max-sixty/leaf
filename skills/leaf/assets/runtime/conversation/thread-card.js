@@ -683,9 +683,10 @@ export class ThreadView {
           if (!mayLand()) return false;
           const kept = openThreads();
           const destination = kept[at] ?? kept[at - 1] ?? this.#commands.listRoot;
-          if (destination.matches?.(".lf-thread"))
+          if (destination.matches?.(".lf-thread")) {
+            destination.open = true;
             focusThread(destination, { preventScroll: true });
-          else destination.focus({ preventScroll: true });
+          } else destination.focus({ preventScroll: true });
           mayRestore = travel.retainPanelLanding(destination);
           return true;
         },

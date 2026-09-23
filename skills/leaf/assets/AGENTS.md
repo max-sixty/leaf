@@ -623,10 +623,10 @@ animation can expose the behavior.
 `vendor/browser-runtime.js`; contributor diagnostics (the manifest, licenses, and
 source map) live under `scripts/browser/generated/`. The manifest names its inputs,
 exports, and output hashes; `scripts/AGENTS.md`
-owns the contributor build and check commands. The internal bundle contains Lit and
-Signals once, with no external imports or runtime compiler. The Web Awesome bundle
-(`scripts/vendor.py webawesome`) is built separately and carries its own Lit, so a page
-runs two copies of it. Content modules import
+owns the contributor build and check commands. The same build writes `vendor/lit.js`,
+the page's one copy of Lit, which the framework bundle imports and which the Web
+Awesome bundle (`scripts/vendor.py webawesome`) imports as well rather than carrying
+its own; neither has any other import or a runtime compiler. Content modules import
 only `runtime/widget-api.js`. Server projection entries carry the declaration admitted from
 their captured revision, so neither active nor historical views reinterpret an event
 through the current DOM's registry.

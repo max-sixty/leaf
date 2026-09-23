@@ -38,6 +38,7 @@ from render_cases_widgets import (
     GENERIC_VISUAL_WIDGETS,
 )
 from render_harness import (
+    BOARD_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
     _traffic,
@@ -56,6 +57,7 @@ from render_harness import (
     stamp_page,
     ticked,
     told,
+    undo,
     wait_for_revision,
 )
 
@@ -3883,35 +3885,20 @@ def test_a_thread_waiting_on_the_reader_colors_its_margin_entry(browser, serve):
 
 
 def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
-    """Two classified cards share a widget claim, but each receipt arrives only once.
+    """Two moved cards share a widget claim, but each receipt arrives only once.
 
     The visible Page Map joins those same arrivals; reopening it later or repainting
     the two units cannot restart either pulse.
     """
-    two_units = leaf_page(
-        "Two classifications",
-        """
-<h1>Two classifications</h1>
-<lf-ask id="triage-decision"><h2>Which cards should we keep?</h2>
-  <lf-swipe-deck id="triage">
-    <lf-swipe-pile id="queue" verdict="unseen">
-      <lf-swipe-card id="card-heater"><strong>Heater</strong></lf-swipe-card>
-      <lf-swipe-card id="card-baffle"><strong>Baffle</strong></lf-swipe-card>
-    </lf-swipe-pile>
-    <lf-swipe-pile id="pass" verdict="pass"></lf-swipe-pile>
-    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
-  </lf-swipe-deck>
-</lf-ask>
-""",
-    )
-    page = open_page(browser, live_url(serve(two_units)))
+    page = open_page(browser, live_url(serve(BOARD_PAGE)))
     resized(page, 1440, 900)
     for card in ("card-heater", "card-baffle"):
-        with sending(page, f"classify {card}"):
-            page.locator("#triage").get_by_role(
-                "button", name="Keep →", exact=True
-            ).click()
-        expect(page.locator(f"#keep > #{card}")).to_be_visible()
+        page.locator(f"#{card} .lf-grip").focus()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowRight")
+        with sending(page, f"move {card}"):
+            page.keyboard.press("Enter")
+        expect(page.locator(f"#col-done > #{card}")).to_be_visible()
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -3948,9 +3935,9 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
             "status",
             str(serve.page_dir),
             "working",
-            "Checking both classified cards",
+            "Checking both moved cards",
             "--on",
-            "triage",
+            "sprint",
         ],
     )
     assert claim.exit_code == 0, claim.output
@@ -6700,8 +6687,21 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
     assert position() == initial
 
 
-def test_a_shipped_board_keeps_its_column_when_a_margin_thread_appears(browser, serve):
-    """A page-edge thread does not move the readable column on the shipped board."""
+def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_gesture(
+    browser, serve
+):
+    """The reader's first move must not be the gesture that pays for the margin.
+
+    Moving a card raises an acknowledgment status at the page edge. Reserved only while
+    that status stood, the strip arrived with the move and left again with the undo, and
+    the column moved 29px each way — for a reading the page had always been going to
+    offer. So the reservation is read off what the page declares, a tag whose registry
+    entry has an action or work channel, and the column stands where it will stand
+    before the reader touches anything.
+
+    Measured on the shipped board rather than a fixture, because the strip is only worth
+    reserving where a real page's width, its claims and its exhibits meet; a fixture
+    built to make those agree would prove nothing about any page a reader opens."""
     example = next(page for page in EXAMPLES if page.stem == "triage-board")
     page = open_page(browser, live_url(serve(example)))
     margins_laid_out(page)
@@ -6709,35 +6709,31 @@ def test_a_shipped_board_keeps_its_column_when_a_margin_thread_appears(browser, 
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
 
-    page.locator("#triage-lede").click(click_count=3)
-    page.locator(".lf-fab-input").click()
-    page.locator(".lf-composer textarea").fill("Check this plan.")
-    with sending(page, "the anchored comment"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    comment = events_model.read_events(serve.page_dir)[-1]
-    assert comment["kind"] == "comment"
+    page.locator("#card-export .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator("#col-defer #card-export")).to_have_count(1)
     margins_laid_out(page)
+    # Without a status in the margin the readings below would agree for the wrong reason.
     expect(page.locator(".lf-margin-cluster")).to_have_count(1)
     assert (
         page.locator("main").evaluate(
             "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
         )
         == column
-    ), "raising the thread moved the readable column"
+    ), "raising the acknowledgment status moved the readable column"
 
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": comment["id"]},
-    )
-    told(page)
-    expect(page.locator(".lf-margin-cluster")).to_have_count(0)
+    undo(page)
+    expect(page.locator("#col-next #card-export")).to_have_count(1)
     margins_laid_out(page)
     assert (
         page.locator("main").evaluate(
             "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
         )
         == column
-    ), "resolving the thread moved the readable column"
+    ), "withdrawing the move handed the strip back and moved the column with it"
 
 
 def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):

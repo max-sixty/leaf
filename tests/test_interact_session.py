@@ -10322,6 +10322,50 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     assert service_model.owned_pages("guarded") == [other.resolve()]
 
 
+def test_a_leaf_wait_launch_under_claude_code_carries_the_closing_guidance(tmp_path):
+    """The `PostToolUse` entry prints `hooks/wait-started.json` after a `leaf wait`
+    launch in Claude Code, and nothing anywhere else.
+
+    The command checks both things itself rather than trusting the host's `if`
+    filter: Codex runs the same `hooks.json`, ignores `if`, and fires the entry on
+    every shell call, and a Claude Code build that drops `if` would do the same.
+    Claude Code 2.1.280 honors it. Run the registered command the way a host does:
+    through a shell, payload on stdin.
+    """
+    (entry,) = json.loads((PLUGIN_ROOT / "hooks" / "hooks.json").read_text())["hooks"][
+        "PostToolUse"
+    ]
+    (hook,) = entry["hooks"]
+    guidance = json.loads((PLUGIN_ROOT / "hooks" / "wait-started.json").read_text())
+    assert "needs input:" in guidance["hookSpecificOutput"]["additionalContext"]
+    base = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    base["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
+
+    def run(command, claude_code):
+        payload = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": command, "run_in_background": True},
+        }
+        env = base | ({"CLAUDECODE": "1"} if claude_code else {})
+        done = subprocess.run(
+            ["sh", "-c", hook["command"]],
+            input=json.dumps(payload),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert (done.returncode, done.stderr) == (0, "")
+        return json.loads(done.stdout) if done.stdout else None
+
+    launch = f"{PLUGIN_ROOT}/bin/leaf wait --ack 64186241"
+    assert run(launch, claude_code=True) == guidance
+    assert run(launch, claude_code=False) is None
+    assert run("git status", claude_code=True) is None
+
+
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
     """The script a host actually runs decides nothing; it runs the `leaf` CLI
     under uv, out of the payload project beside it.

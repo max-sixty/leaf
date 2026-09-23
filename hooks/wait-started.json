@@ -1,0 +1,6 @@
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUse",
+    "additionalContext": "`leaf wait` is now watching your pages in the background. Claude Code's session list shows this session as Working while it runs. If this turn leaves anything only the user can give (an answer on the page, or a decision about other work), end your closing reply with a line `needs input: <what you want back>` (200 characters or fewer, on its own line, not in a code block) so the list groups the session as waiting on the user."
+  }
+}

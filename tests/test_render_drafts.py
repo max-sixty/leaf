@@ -3441,7 +3441,7 @@ def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, se
     assert page_now > page_was, "the document did not move for a key of its own"
     scroll_settled(page)
 
-    resized(page, 500, 600)
+    resized(page, 400, 600)
     panel_settled(page)
     (page_was, threads_was), (page_now, threads_now) = press_down()
     assert page_now == page_was, (

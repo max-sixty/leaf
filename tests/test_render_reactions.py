@@ -698,6 +698,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     item = page.locator('[data-lf-margin-for="sug-refill"]')

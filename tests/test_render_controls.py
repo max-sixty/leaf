@@ -39,6 +39,7 @@ from render_cases_layout import (
     MANY_ASKS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
+    ONE_ASK,
     PANEL_DIFF_MARKUP,
     RING_NAMES,
     SHOT_SRC,
@@ -53,6 +54,7 @@ from render_cases_layout import (
     rings_drawn,
     serious_axe_violations,
     standing_ring,
+    toggle_asks,
     token_colour,
 )
 from render_cases_navigation import (
@@ -821,9 +823,10 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
 
 @pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
 def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, resident):
-    """Opening Threads never makes the page visit an intermediate responsive posture.
+    """Opening the Asks tray never makes the page visit an intermediate responsive
+    posture.
 
-    The two cases supply a left sidebar and a right sidenote. Opening the panel at 1440px
+    The two cases supply a left sidebar and a right sidenote. Opening the tray at 1440px
     withdraws either real margin resident, and the column moves in opposite directions
     across the two cases, so a shell that arrived in stages would be caught going the
     wrong way in one of them.
@@ -832,13 +835,13 @@ def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, reside
     reach its final width at once and then glide the column there over 180ms, which is
     where the intermediate postures came from and what this test grew up watching; the
     glide is gone, because animating the column's `left` suppressed the browser's scroll
-    anchoring and cost the user their place every time the panel closed. So the page
-    has exactly one layout, held motion has nothing to hold, and the column is already
-    where it belongs on the frame the panel opens.
+    anchoring and cost the user their place every time a strip was returned. So the
+    page has exactly one layout, held motion has nothing to hold, and the column is
+    already where it belongs on the frame the tray opens.
     """
     source = leaf_page(
         "Responsive resident",
-        f'<aside class="{resident}">Margin resident.</aside><h1>Reading</h1>',
+        f'<aside class="{resident}">Margin resident.</aside><h1>Reading</h1>{ONE_ASK}',
     )
     page = open_page(browser, serve(source), init_script=HOLD_MOTION)
     width = 1440
@@ -849,8 +852,7 @@ def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, reside
         })"""
     )
 
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
+    toggle_asks(page)
     landed = page.evaluate(
         """() => {
           const main = document.querySelector('main');
@@ -858,15 +860,16 @@ def test_an_auxiliary_surface_lands_one_responsive_layout(browser, serve, reside
           const border = getComputedStyle(body);
           return {
             shell: body.clientWidth,
-            moving: main.getAnimations().length + window.__lfHeld.length,
+            moving: main.getAnimations().length
+              + window.__lfHeld.filter((motion) => motion.effect.target === main).length,
             columnX: main.getBoundingClientRect().x,
-            strip: parseFloat(border.borderRightWidth) || 0,
+            strip: parseFloat(border.borderLeftWidth) || 0,
             resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
-    assert landed["shell"] == width - 420
-    assert landed["strip"] == 420, (
+    assert landed["shell"] == width - 300
+    assert landed["strip"] == 300, (
         "the page yielded the strip as something other than the border that keeps the "
         f"user's place: {landed}"
     )
@@ -3622,9 +3625,10 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
 def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     """A covering Threads sheet is the one place the user can work until it closes.
 
-    The same open panel stands beside the document on a wide window and over it on a
-    narrow one. Crossing that line must not rebuild the conversation: the exact thread
-    in focus, the general draft, and the list's reading place survive both directions.
+    The same open panel leaves the page beside it live on a wide window and covers it
+    where it leaves too little of a narrow one. Crossing that line must not rebuild the
+    conversation: the exact thread in focus, the general draft, and the list's reading
+    place survive both directions.
     While it covers, Tab, the Leaf reading keys, native paging, and the wheel all stay in
     the panel; none can move to or scroll the covered document. Closing gives a keyboard
     entrant their prior page focus and unchanged document reading back.
@@ -3645,8 +3649,8 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     def reading_place():
         """The list's offset, stated to be the user's own place rather than its limit.
 
-        A covering sheet gives the list a shorter scrollport than the strip beside the
-        document, so the two placements have different scroll limits. An offset sitting
+        A covering sheet can give the list a different scrollport from the panel over a
+        live page, so the two placements have different scroll limits. An offset sitting
         on either one is moved by the crossing for the limit's reason rather than the
         user's, and holding it equal across the crossing would assert nothing. The
         fixture has to be deep enough that the place stands clear of both, so each
@@ -3667,7 +3671,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     identity = thread.get_attribute("data-id")
     assert identity, "the fixture established no thread to stand on"
 
-    resized(page, 500, 640)
+    resized(page, 400, 640)
     panel_settled(page)
     assert page.locator("main").evaluate("el => el.inert")
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
@@ -3702,7 +3706,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     panel_settled(page)
     expect(open_filter).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
-    resized(page, 500, 640)
+    resized(page, 400, 640)
     panel_settled(page)
     expect(open_filter).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
@@ -3748,7 +3752,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
     assert reading_place() == pytest.approx(list_at, abs=1)
-    resized(page, 500, 640)
+    resized(page, 400, 640)
     panel_settled(page)
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
@@ -3776,14 +3780,14 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     cannot become a pointer or keyboard target while the sheet still claims modal
     semantics. Closing restores the updated document.
     """
-    url = serve(LONG_PAGE, comments=2)
+    source = LONG_PAGE.replace('<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ASK}')
+    url = serve(source)
     page = open_page(browser, live_url(url))
-    resized(page, 700, 640)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    resized(page, 500, 640)
+    toggle_asks(page)
     assert page.locator("main").evaluate("el => el.inert")
 
-    revised = LONG_PAGE.replace(
+    revised = source.replace(
         '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'
     )
     stamp_page(serve.page_dir, revised, "replace the document")
@@ -3793,8 +3797,8 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     state = page.evaluate(
         """() => ({
           inert: document.querySelector('main').inert,
-          modal: document.querySelector('.lf-thread-panel').getAttribute('aria-modal'),
-          focusInside: document.querySelector('.lf-thread-panel').contains(document.activeElement),
+          modal: document.querySelector('.lf-asks-panel').getAttribute('aria-modal'),
+          focusInside: document.querySelector('.lf-asks-panel').contains(document.activeElement),
         })"""
     )
     assert state == {
@@ -3803,10 +3807,9 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
+    page.get_by_role("button", name="Close asks").click()
+    expect(page.locator(".lf-asks-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-threads-toggle")).to_be_focused()
 
 
 def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serve):
@@ -3963,73 +3966,66 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     expect(scrim).to_be_hidden()
     assert not page.locator("main").evaluate("el => el.inert")
 
+    # Threads stands over the page at every width. Where it leaves a usable page beside
+    # it, there is no scrim and that page stays live; where what it leaves is a sliver —
+    # a 430px phone leaves ten pixels — it covers the page. The window's own width does
+    # not move as the covering lock takes the root's scroll: the gutter is stable.
     threads_door = page.locator(".lf-threads-toggle")
     threads_door.click()
     panel_settled(page)
-    expect(scrim).to_be_hidden()
-    assert not page.locator("main").evaluate("el => el.inert")
-    resized(page, 700, 700)
+    for width in (1200, 760):
+        resized(page, width, 700)
+        panel_settled(page)
+        expect(scrim).to_be_hidden()
+        assert not page.locator("main").evaluate("el => el.inert")
+    resized(page, 430, 700)
     panel_settled(page)
     expect(scrim).to_be_visible()
     assert page.locator("main").evaluate("el => el.inert")
-    assert page.locator(".lf-thread-panel").evaluate(
-        "panel => Number(getComputedStyle(panel).zIndex) > "
-        "Number(getComputedStyle(document.querySelector('.lf-auxiliary-scrim')).zIndex)"
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    open_width = page.evaluate("() => document.documentElement.clientWidth")
+    threads_door.click()
+    panel_settled(page)
+    assert page.evaluate("() => document.documentElement.clientWidth") == open_width, (
+        "taking the covering scroll lock changed the window's width under the panel"
     )
+    resized(page, 1200, 700)
+    panel_settled(page)
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     expect(threads_door).to_be_focused()
-    expect(scrim).to_be_hidden()
 
 
-@pytest.mark.parametrize(
-    ("key", "surface", "close_name"),
-    [
-        ("Shift+t", ".lf-thread-panel", "Close threads"),
-        ("Shift+a", ".lf-asks-panel", "Close asks"),
-    ],
-)
-def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(
-    browser, serve, key, surface, close_name
-):
-    """Auxiliary placement does not retire a live return; closing its surface does."""
+def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
+    """Auxiliary placement does not retire a live return; closing its surface does. The
+    Asks tray is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
     origin.focus()
+    tray = page.locator(".lf-asks-panel")
+    opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
-    page.keyboard.press(key)
-    if surface == ".lf-thread-panel":
-        panel_settled(page)
-    else:
-        expect(page.locator(surface)).to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Shift+a")
+    expect(tray).to_have_class(opened)
     assert page.locator("main").evaluate("el => el.inert")
 
     resized(page, 1000, 640)
-    if surface == ".lf-thread-panel":
-        panel_settled(page)
     assert not page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(surface)).to_have_class(re.compile(r"\bopen\b"))
+    expect(tray).to_have_class(opened)
 
     page.keyboard.press("Escape")
-    if surface == ".lf-thread-panel":
-        panel_settled(page, open=False)
-    else:
-        expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(tray).not_to_have_class(opened)
     # The surface's parent is the document, so that is the landing whichever width it
     # was left at and whatever the user was standing on before they asked for it.
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
-    page.keyboard.press(key)
-    if surface == ".lf-thread-panel":
-        panel_settled(page)
-    page.get_by_role("button", name=close_name).click()
-    if surface == ".lf-thread-panel":
-        panel_settled(page, open=False)
-    else:
-        expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Shift+a")
+    page.get_by_role("button", name="Close asks").click()
+    expect(tray).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
         "closing the auxiliary surface left its keyboard return frame live"
@@ -4401,13 +4397,9 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     """The browser root scrolls the document and the panel keeps its own scrollport.
 
-    Body is the yielding page shell rather than a third scroll region: beside a wide
-    panel the room it gives the document ends where the panel begins, while native
-    document scrolling remains rooted in html.
-
-    That room is body's content box. The strip is a transparent border (theme.css, at the
-    body strip, says why it has to be one rather than the margin it was), so the box body
-    draws now reaches the window and the border is the strip the panel stands in."""
+    Body is the page shell rather than a third scroll region. The panel stands over the
+    page and takes no room from it, so the shell keeps the window's width while native
+    document scrolling remains rooted in html."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -4423,30 +4415,81 @@ def test_page_and_panel_scroll_in_separate_regions(browser, serve):
                  bodyRight: """
         + SHELL_BOX
         + """.right,
-                 threadsLeft: box(threads).left };
+                 window: document.documentElement.clientWidth };
     }"""
     )
 
     assert geom["rootIsScroller"] and geom["rootScrolls"]
     assert geom["bodyOverflow"] == "visible", geom
     assert geom["threadsScroll"], "the panel did not establish its own scrollport"
-    assert geom["bodyRight"] <= geom["threadsLeft"], (
-        f"scroll regions overlap: the page ends at {geom['bodyRight']}px, "
-        f"the thread list starts at {geom['threadsLeft']}px"
+    assert geom["bodyRight"] == pytest.approx(geom["window"], abs=1), (
+        f"the page yielded room to the panel standing over it: {geom}"
     )
+
+
+@pytest.mark.parametrize(
+    ("width", "quote", "stays_open"),
+    [
+        (1000, "left-words", True),
+        (1000, "right-words", False),
+        (1920, "right-words", True),
+    ],
+)
+def test_a_quote_closes_the_panel_only_when_its_passage_would_land_under_it(
+    browser, serve, width, quote, stays_open
+):
+    """Pressing a card's quote promises to show its passage. The panel stands over the
+    right of the page, so a passage at the right of the column lands under it at a
+    desktop width: there the panel makes way. A passage clear of the panel lands with
+    the panel still open beside it, as does the same right-hand passage in a window
+    wide enough that the panel stands over empty margin."""
+    source = leaf_page(
+        "quote travel",
+        "<h1>Quote travel</h1>"
+        '<p id="left">Left words open this line.</p>'
+        + "".join(f"<p>Filler {i}. " + "Words. " * 30 + "</p>" for i in range(20))
+        + '<p id="right" style="text-align: right">Right words close this line.</p>'
+        + "".join(f"<p>Tail {i}. " + "Words. " * 30 + "</p>" for i in range(20)),
+    )
+    words = {
+        "left-words": ("left", "Left words"),
+        "right-words": ("right", "Right words"),
+    }
+    section, text = words[quote]
+    page = open_page(browser, serve(source, anchored=[(section, text)]))
+    resized(page, width, 800)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(".lf-threads > .lf-thread").first
+    card.locator(":scope > .lf-thread-summary").click()
+    card.locator(".lf-quote").click()
+    if stays_open:
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
+    else:
+        panel_settled(page, open=False)
+    page.wait_for_function(
+        """() => { const m = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
+                   return m.top >= 0 && m.bottom <= innerHeight; }"""
+    )
+    if stays_open:
+        panel_left = page.locator(".lf-thread-panel").bounding_box()["x"]
+        mark_right = page.evaluate(
+            "() => [...CSS.highlights.get('lf-mark')][0].getBoundingClientRect().right"
+        )
+        assert mark_right <= panel_left, "the passage landed under the open panel"
 
 
 def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
-    """Under 720px the panel covers the page instead of squeezing it, and the
-    covered page gives up scrolling with its width: a wheel moves the sheet's
-    thread list and never the page behind it. A quote is a promise to show a passage,
-    so pressing one dismisses the covering sheet and lands on visible paper. The
-    resize path reaches the same states, the posture being a
-    media query's and the panel stating only that it is open."""
+    """Where the panel leaves no usable page it covers the page, and the covered page gives
+    up scrolling: a wheel moves the sheet's thread list and never the page behind it. A
+    quote is a promise to show a passage, so pressing one dismisses the covering sheet
+    and lands on visible paper. The resize path reaches the same states, the posture
+    being the panel's width against the window's and the panel stating only that it is
+    open."""
     page = open_page(
         browser, serve(LONG_PAGE, comments=12, anchored=[("p40", "Paragraph 40.")])
     )
-    resized(page, 500, 600)
+    resized(page, 400, 600)
 
     # A reading position first, so surviving the sheet is observable.
     page.mouse.move(120, 300)
@@ -4457,12 +4500,12 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    # One wheel over the page's visible sliver, one over the sheet. Waiting on the
-    # second proves both were processed — input stays in order — so the first
-    # having moved nothing is a real outcome rather than a race.
-    page.mouse.move(60, 300)
+    # Two wheels over the sheet, one where it stands over the banner's row and one over
+    # its list. Waiting on the second proves both were processed — input stays in order —
+    # so the page having moved nothing is a real outcome rather than a race.
+    page.mouse.move(60, 20)
     page.mouse.wheel(0, 400)
-    page.mouse.move(400, 300)
+    page.mouse.move(300, 300)
     page.mouse.wheel(0, 400)
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before, (
@@ -4512,16 +4555,19 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.mouse.wheel(0, 200)
     page.wait_for_function(f"() => document.scrollingElement.scrollTop > {at_mark}")
 
-    # The resize path: narrowing onto an open panel locks, widening unlocks.
+    # The resize path: narrowing onto an open panel locks, widening unlocks, and neither
+    # takes room from the page.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     resized(page, 1000, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden' && getComputedStyle(document.body).borderRightWidth !== '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden'"
+        " && getComputedStyle(document.body).borderRightWidth === '0px'"
     )
-    resized(page, 500, 600)
+    resized(page, 400, 600)
     page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden' && getComputedStyle(document.body).borderRightWidth === '0px'"
+        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden'"
+        " && getComputedStyle(document.body).borderRightWidth === '0px'"
     )
 
 
@@ -4532,10 +4578,10 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     not peers: modality puts the panel above the scrim and makes the bar inert background.
     Treating their rectangles as a collision made every newline in the panel's composer
     lift the unrelated bar by one line. The live walk status stays above that panel and
-    still reserves the list it can cover. Beside the page, the live bar yields the
-    panel's actual strip."""
+    still reserves the list it can cover. Over a live page, the live bar yields the
+    panel's actual width."""
     context = browser.new_context(
-        viewport={"width": 600, "height": 900}, reduced_motion="reduce"
+        viewport={"width": 400, "height": 900}, reduced_motion="reduce"
     )
     page = open_page(browser, serve(ADDRESSED_PAGE, comments=6), context=context)
     page.locator(".lf-threads-toggle").click()
@@ -4605,12 +4651,12 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
         f"the last walked thread landed under its live status: {walked}"
     )
 
-    # Beside the page, the bar is live page chrome and yields the panel's whole strip.
+    # Over a live page, the bar is live page chrome and stops at the panel's edge.
     resized(page, 1200, 900)
     beside = boxes()
     assert not beside["lineInert"], beside
     assert beside["shortcut_bar"]["right"] <= beside["foot"]["left"] + 1, (
-        f"the line crossed into the panel it stands beside: {beside}"
+        f"the line crossed into the panel standing over the page: {beside}"
     )
 
 

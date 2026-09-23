@@ -2,13 +2,7 @@
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
    reconciliation never meets it; a standalone copy gets its text written into a
-   <style> by the bake.
-
-   Two numbers here are spelled again in the runtime, and a layer test holds each pair
-   equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
-   THREAD_PANEL_W (chrome-layout.js), and `(width <= 600px)` is twice TRAY_SLOT_W (trays.js). A
-   container or media query cannot read a custom property, which is why each query is a
-   literal rather than the --lf-thread-panel-width the runtime writes. */
+   <style> by the bake. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
    inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
@@ -847,8 +841,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel[open] { display: flex; }
-  /* A covering panel shares the auxiliary scrim with the trays. A beside panel leaves
-     that scrim hidden, so this non-modal dialog needs no ::backdrop of its own. */
+  /* The panel stands over the page at every width. It shares the auxiliary scrim only
+     where it leaves less than a usable page and covers it; elsewhere the page beside it
+     stays live and no scrim shows. The dialog is shown non-modally either way, so it
+     needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
      the two lines that place it. It draws nothing of its own: the region's inner border
@@ -1628,13 +1624,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-page-map-actions { display: grid; gap: 2px; }
   /* The banner offers the whole Page Map wherever the rail is not drawn, and asks the
      same floor the rail does, of the same box: theme.css, at the margin projection. A
-     panel takes its strip out of the shell, so a window wide enough for both is not a
-     page with room for both, and a user who opened one would otherwise lose the map
-     and the markers together. */
+     standing tray takes its strip out of the shell, so a window wide enough for both is
+     not a page with room for both, and a user who opened one would otherwise lose the
+     map and the markers together. The thread panel takes no room but stands over the
+     rail below about 1700px; the layout pass marks the root when it does. */
   @media screen {
     @container lf-shell (width <= 840px) {
       .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
     }
+    :scope[data-lf-rail-covered] .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
   }
   @media (forced-colors: active) {
     .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }
@@ -1647,11 +1645,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
      real control. Useful transient state balances the line at the opposite edge: a
      semantic walk's live ordinal, or a brief command or arrival notice in its place.
-     syncLayout keeps the line out of a side-by-side thread panel. A covering thread
-     panel makes it inert background, so that foreground does not move it or reserve its
-     own list around it. The chrome root reserves the fixed bottom surface for scroll
-     regions it crosses, so their last lines never end underneath it. Overflow remains a
-     backstop for a window too narrow to hold even the short line. */
+     syncLayout keeps the line out of the thread panel, which stands over the page's right
+     edge. A covering auxiliary surface makes it inert background, so that foreground
+     does not move it or reserve its own list around it. The chrome root reserves the
+     fixed bottom surface for scroll regions it crosses, so their last lines never end
+     underneath it. Overflow remains a backstop for a window too narrow to hold even the
+     short line. */
   :is(.lf-shortcut-bar, .lf-bottom-status) {
     color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
     border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
@@ -1691,8 +1690,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the user cannot press,
      and the box they cost stands over the words and the controls of a page whose window
-     is the smallest one there is. Above the covering-width breakpoint, an attached
-     keyboard can begin a category walk and its position stands alone.
+     is the smallest one there is. An attached keyboard can begin a category walk,
+     and its position stands alone.
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
      Geometry readers ask whether either bottom box is shown. A zero box is the same

@@ -22,7 +22,9 @@ from render_cases_layout import (
     BANNER_ORDER,
     banner_control,
     button_radius,
+    toggle_asks,
     token_colour,
+    with_one_ask,
 )
 from render_cases_navigation import _publish
 from render_harness import (
@@ -990,8 +992,43 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(media_button).to_be_focused()
 
 
-def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serve):
-    """The panel's strip reflows the page; the user stays on the words they were on.
+@pytest.mark.parametrize("width", [900, 1400])
+def test_threads_cover_the_page_and_leave_its_column_where_it_was(
+    browser, serve, width
+):
+    """Opening Threads never moves the page: the panel stands over the right of the
+    window at every width, so the reading column keeps its place, its width and its
+    wrapping, and the document neither grows nor scrolls under it. The page beside the
+    panel stays live rather than going inert behind a covering boundary."""
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    resized(page, width, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 900")
+    shape = """() => {
+      const main = document.querySelector('body > main').getBoundingClientRect();
+      return {
+        left: main.left, width: main.width,
+        scroll: document.scrollingElement.scrollTop,
+        tall: document.documentElement.scrollHeight,
+        shell: document.body.clientWidth,
+      };
+    }"""
+    before = page.evaluate(shape)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
+    panel = page.locator(".lf-thread-panel").bounding_box()
+    assert panel["x"] + panel["width"] == pytest.approx(width, abs=1)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
+
+
+def test_taking_the_asks_trays_strip_leaves_the_user_on_the_same_words(browser, serve):
+    """The Asks tray's strip reflows the page; the user stays on the words they were on.
 
     Narrowing the shell narrows the reading column inside it, so the text re-wraps and
     the document grows above wherever the user is standing. The browser's scroll
@@ -1000,7 +1037,7 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     for any frame in which a box on the anchor's ancestor chain changes a property on the
     suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
     is a border and the column does not glide (theme.css, at the body strip), and the
-    panel renders on either side of the frame the shell write lands in, never inside it
+    tray renders on either side of the frame the shell write lands in, never inside it
     (`takeShell`, chrome-layout.js). The day any of these regresses, this goes red.
 
     A re-wrap moves every paragraph by a different amount, so only one of them can be
@@ -1008,10 +1045,11 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     which is the block the platform's own anchoring would have chosen; what is further
     down has grown taller and is expected to have moved.
     """
-    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    page = open_page(browser, serve(with_one_ask(LONG_PAGE)))
     # Narrow enough that the strip's share of the shell re-wraps this fixture's
-    # paragraphs: the assertion below says so rather than trusting the width.
-    resized(page, 900, 640)
+    # paragraphs, and wide enough that the tray stands beside the page rather than
+    # covering it: the assertions below say so rather than trusting the width.
+    resized(page, 700, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 900")
     # The user's place: the page's own block under the window's visible top edge, which
     # the root states as scroll-padding for native focus navigation.
@@ -1028,8 +1066,8 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     assert reading, "the fixture put no paragraph under the top of the window"
     tall = page.evaluate("() => document.documentElement.scrollHeight")
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
+    expect(page.locator(".lf-asks-panel")).not_to_have_attribute("aria-modal", "true")
     assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
         "the window is wide enough that the strip reflowed nothing, so nothing is proved"
     )
@@ -1037,8 +1075,7 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     assert opened["id"] == reading["id"]
     assert opened["top"] == pytest.approx(reading["top"], abs=2)
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
+    toggle_asks(page, open=False)
     assert page.evaluate("() => document.documentElement.scrollHeight") == tall
     closed = page.evaluate(at_the_top)
     assert closed["id"] == reading["id"]

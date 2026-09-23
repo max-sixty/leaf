@@ -16,7 +16,7 @@ import { shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
-import { firstUnreadBtn, panel, panelWouldCover } from "./panel-elements.js";
+import { firstUnreadBtn, panel } from "./panel-elements.js";
 import { readThreads } from "./state.js";
 import { under, upFrom } from "../shadow.js";
 
@@ -90,8 +90,15 @@ function visibleInterval(body, clips) {
     if (owner.inert || owner.getAttribute?.("aria-hidden") === "true") return null;
   const modal = document.querySelector("dialog:modal");
   if (modal && !under(body, modal)) return null;
-  if (panel.open && panelWouldCover() && !under(body, panel)) return null;
   const box = body.getBoundingClientRect();
+  // The thread panel stands over the right of the page, so a message it overlaps is not
+  // read however much of it the page's own clips leave.
+  if (
+    panel.open &&
+    !under(body, panel) &&
+    box.right > panel.getBoundingClientRect().left + EPSILON
+  )
+    return null;
   // Sticky run headings are left out of what is shown (geometry.js, visibleBand), so a
   // message hidden under one is not read.
   const shown = shownRect(body, clips);

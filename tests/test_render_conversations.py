@@ -1145,6 +1145,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -1210,6 +1211,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
         },
     )["id"]
     page = open_page(browser, url)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -4054,6 +4056,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
         for_event=root,
     )
     page = open_page(browser, url, init_script=HOLD_MOTION)
+    resized(page, 1920, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     inline = page.locator(f'#jobs .lf-conversation-thread[data-thread="{root}"]')
@@ -5581,7 +5584,7 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
 
-    context = browser.new_context(viewport={"width": 800, "height": 900})
+    context = browser.new_context(viewport={"width": 400, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

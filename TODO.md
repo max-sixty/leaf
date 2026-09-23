@@ -171,9 +171,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   front of every tool-result hook, so Leaf can answer more events itself.
   Rewriting the hook path in a compiled language is the further step if that
   is not enough.
-- **#28 — Threads slides over:** the panel overlays the page at every width, so
-  the page never moves for it; delete the push strip, `COVERING`, and `main`'s
-  panel offset. See the [layout model](notes/layout-model.md).
 - **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
   `@layer`; the earlier trial changed chrome styling. See the
   [dependency survey](notes/dependency-survey.md).

@@ -2,7 +2,6 @@
  * Panel visibility belongs to thread-panel; the class here only renders that state. */
 import { iconElement } from "../icons.js";
 import { focused } from "../keyboard/scopes.js";
-import { COVERING } from "../chrome-layout.js";
 import { registerReadingArrangement } from "../reading-regions.js";
 import { el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";
@@ -43,8 +42,6 @@ panelFoot.append(generalRow);
 panel.append(panelHead, narrowingView, threadsFrame, panelFoot);
 
 export const inPanel = (panelIsOpen) => panelIsOpen() && under(focused(), panel);
-const covering = matchMedia(COVERING);
-export const panelWouldCover = () => covering.matches;
 
 let readingArrangement = null;
 export function mountPanelReadingRegion() {

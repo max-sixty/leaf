@@ -15,6 +15,20 @@ small product fixes needed to make the tests pass. Changes to workflows,
 Tend's configuration, CODEOWNERS, or agent instructions still require the
 control-plane owner's fresh approval under the repository ruleset.
 
+## Yolo test environment
+
+Tend provides `uv`, but does not install Leaf's project dependencies or browser
+system libraries before the agent starts. The agent can sync Python dependencies;
+it cannot use sudo, Docker, or `wt`, or run Leaf's WebKit tests, browser previews,
+`/ui-sweep`, or `scripts/verify-site-local.sh` in this sandbox. Where `CLAUDE.md`
+or `tests/CLAUDE.md` calls for one of those local checks, use the equivalent
+GitHub Actions run on the candidate branch and report what was not run locally.
+The pull request `ci` run covers the everyday and website gates. If the change
+needs nightly test coverage, dispatch `ci` on the candidate branch, wait for its
+`nightly` job, and verify the run used the exact head being judged. A browser
+interaction or performance claim that CI does not establish remains unverified;
+leave that change for maintainer review rather than merging it automatically.
+
 Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
 description is `main`'s commit message for that change rather than review
 scaffolding that the merge discards. Hold a claim in it to the standard the diff
@@ -90,13 +104,10 @@ to read.
 
 Before approving a product change, choose the smallest test selection that
 exercises the failures the diff could introduce. Select from the product paths
-and contracts in the diff, not from the test files it happens to touch. Run it
-locally when the yolo sandbox has its dependencies. The sandbox lacks the system
-libraries for WebKit and cannot install them, so use the pull request's CI run
-for browser tests. Verify those tests passed on the exact head being approved;
-do not count an unrun local browser test as a pass. A docs-only or
-generated-workflow change may need no additional test; a selected failure
-withholds approval.
+and contracts in the diff, not from the test files it happens to touch. Run
+what the sandbox supports locally and use **Yolo test environment** for browser
+and nightly cases. A docs-only or generated-workflow change may need no
+additional test; a selected failure withholds approval.
 
 For a change that can alter browser startup, apply `CLAUDE.md`'s **Working on the
 repository** performance rule. Read the candidate profile from CI and compare it with
@@ -112,9 +123,9 @@ together.
 
 Nearly every test drives a real browser, so the CI traceback can name a symptom
 several boundaries after its cause. Find the first violated contract, reproduce at
-the lowest boundary the yolo sandbox can run, then determine whether the product,
-test, or execution environment owns it. Push a browser fix to a pull request and
-use its CI run to verify the failing case on the new head. Failure movement,
+the lowest boundary the sandbox can run, then determine whether the product,
+test, or execution environment owns it. Use **Yolo test environment** to verify
+a browser fix after pushing it to a pull request. Failure movement,
 determinism, and clustering can guide that search; none decides who owns the fix.
 
 Two test-owned failures recur here:
@@ -136,12 +147,6 @@ Two test-owned failures recur here:
   behaviour the test names, so the next wording reddens main again.
   `tests/CLAUDE.md` owns the fix under **A test cannot assert over noise it makes
   itself**. The PR is against the test.
-
-## Weekly: interface sweep
-
-The yolo sandbox cannot run `/ui-sweep`'s browser journey or install WebKit's
-system libraries. Survey source and CI evidence for interface defects; leave a
-visual or interaction claim unverified when it needs a live browser.
 
 ## Weekly: vendored browser dependencies
 
@@ -172,5 +177,5 @@ registry: rerunning them after an unrelated registry change is how the bundle
 and the lint stay unable to disagree. Pierre and Shiki must move together when
 their compatibility requires it.
 
-Verify the rebuilt bundle in the pull request's CI browser suite on the exact
-head. The browser tests load the bundles, so a bad rebuild surfaces there.
+Verify the rebuilt bundle through **Yolo test environment**. The browser tests
+load the bundles, so a bad rebuild surfaces there.

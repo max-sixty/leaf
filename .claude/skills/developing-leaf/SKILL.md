@@ -91,15 +91,17 @@ tight semantic container when it has none.
 ## Preview a shipped example
 
 From the repository root, run `scripts/preview.py <example> --export` for a
-standalone static rendering. Start `scripts/preview.py <example>` for an
-interactive preview: `--background` detaches the watcher and prints its URL,
-and a foreground run holds the terminal. The page lives at
-`.tmp/previews/<example>` for as long as its watcher does, following source and
-runtime edits at one URL and keeping its feedback across them. Repeating the command
-while the watcher runs prints where it answers; any other start builds the page
-fresh from the fixture at a new URL, discarding what the last watcher left. Use
-`--slot <name>` for another copy. A refused update appears in the terminal or the
-background log named at startup. Fix the input and the watcher retries.
+standalone static rendering. `scripts/preview.py <example>` serves an interactive
+preview the way a dev server runs: in the foreground, printing its URL and serving
+until it is stopped. Run it as the host runs any long-running command, in Claude
+Code with `run_in_background`, and read the URL from its output; stop it the same
+way, with Ctrl-C or the runner's stop, which ends the server with it. The page lives
+at `.tmp/previews/<example>` for as long as that process does, following source and
+runtime edits at one URL and keeping its feedback across them. Each start builds the
+page fresh from the fixture at a new URL, discarding what the last run left, and a
+start into a slot another preview is still serving is refused. Use `--slot <name>`
+for another copy. A refused update appears in the preview's output; fix the input and
+it retries.
 
 A preview takes no task claim: it serves through the browser suite's process-owned
 server, with the real HTTP and event log, and its presses go nowhere but the page's
@@ -118,20 +120,16 @@ previews stay claimless, and the session the user talks to starts any `--user`
 preview: a subagent's claim is that session's claim, so that session's Stop hook
 would answer for the preview's moves either way.
 
-When finished with a preview, run the matching preview command with `--stop` (and
-`--user` for a user slot); it waits for the watcher and server to stop and leaves the
-page readable until the slot's next start. Ctrl-C stops a foreground preview. A start
-that names a different source, runtime, or `--user` choice for a slot another watcher
-holds replaces that watcher. A change to the fixture's seeded history is refused
-while the watcher runs; run the command again to rebuild from it.
+Stop a preview when finished with it; its page stays readable until the slot's next
+start. A change to the fixture's seeded history is refused while the preview runs;
+restart it to rebuild from the new history.
 
 ### In Codex
 
-1. Start the preview with `--user`, which serves it at
+1. Start the preview with `--user` as a long-running command, which serves it at
    `.tmp/previews/<example>-user`. `codex start` claims the page, and the
-   durable service `--user` puts up keeps that URL answering while the watcher
-   runs. A later start of a stopped preview builds a new page, which needs
-   `codex start` again.
+   durable service `--user` puts up keeps that URL answering while the preview
+   runs. A restarted preview is a new page, which needs `codex start` again.
 2. Call `mcp__codex_app__open_in_codex` with the destination's fragment URL as a
    browser target and `placement: "right"`.
 3. Run `<root>/bin/leaf codex start <root>/.tmp/previews/<example>-user` so
@@ -183,22 +181,22 @@ git worktree add --detach "$baseline_root" "$baseline_commit"
 Use `$baseline_root` as the baseline and `$candidate_root` as the candidate.
 Choose the sources that isolate the change: one shared authored source for a
 runtime change, or each checkout's copy when the authored content changed. Give
-the pair a comparison-specific `<slot>` name; each start replaces whatever an
+the pair a comparison-specific `<slot>` name; each start discards whatever an
 earlier run left in it. Add `--user` to both when the pair's URLs go to the user,
 or a comment they leave on either page reaches nobody.
 
 ```bash
 "$candidate_root/scripts/preview.py" --source <baseline-source.html> \
   --runtime "$baseline_root" \
-  --slot <slot>-baseline --background
+  --slot <slot>-baseline
 "$candidate_root/scripts/preview.py" --source <candidate-source.html> \
   --runtime "$candidate_root" \
-  --slot <slot>-candidate --background
+  --slot <slot>-candidate
 ```
 
-Each command verifies the checkout launcher, prepares its independent page,
-watches that runtime and source, and prints its exact URL. After stopping both
-previews, remove the temporary checkout:
+Run each as its own long-running command. Each verifies the checkout launcher,
+prepares its independent page, watches that runtime and source, and prints its exact
+URL. After stopping both previews, remove the temporary checkout:
 
 ```bash
 git worktree remove "$baseline_root"

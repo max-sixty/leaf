@@ -134,9 +134,9 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * Enter on an already-focused grip, so no focus event would repaint the line.
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
- * every x-upgrade module loads on every page, so a scope declared at the top level is
- * reference content
- * for a widget the page hasn't got. The dispatch scope leaves through the weak map; the
+ * a module stays loaded after the last element it upgraded leaves — a version activation
+ * replaces main, a panel body is rebuilt — so a scope declared at the top level would go
+ * on as reference content for a widget the page no longer has. The dispatch scope leaves through the weak map; the
  * enumerable reference prunes its element when it disconnects. A connected control that
  * stops answering a key says so in the row's `when`, where every surface can read it.
  *

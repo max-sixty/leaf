@@ -78,14 +78,14 @@
 #              `leaf reply`, reply before any other work, including the work this
 #              event asks for: give the answer, or say what you are about to do and
 #              where the result will appear. Once that work lands, report it with
-#              `leaf reply <page> --to <event-id> --initiates`. `leaf reply` checks
-#              any saved page edit and makes it live before posting. If a revision
-#              removes what the thread is anchored on, move the thread in the reply
-#              that reports it with `--section <id>` (narrowed by `--quote` or
-#              `--part` if needed), or `--detach` it if its subject has left the page.
-#              Add `--awaits` only if your reply's prose asks the reader something.
-#              Your reply renders as Markdown, so show code or markup in a fenced
-#              block.
+#              `leaf reply <page> --to <address> --initiates`, where `<address>` is
+#              the event's `obligation.response.to`. `leaf reply` checks any saved
+#              page edit and makes it live before posting. If a revision removes what
+#              the thread is anchored on, move the thread in the reply that reports it
+#              with `--section <id>` (narrowed by `--quote` or `--part` if needed), or
+#              `--detach` it if its subject has left the page. Add `--awaits` only if
+#              your reply's prose asks the reader something. Your reply renders as
+#              Markdown, so show code or markup in a fenced block.
 #      clause 8, does not apply:
 #        when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
 #        text: The widget is in a thread message: continue the work the reader's
@@ -130,7 +130,7 @@
 #            "handling": {
 #              "h1": "Acknowledge this delivery before anything else, by your host contract's route where it leaves acknowledgement to you: until then the reader's message reads Sent or Queued rather than Picked up.",
 #              "h2": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words.",
-#              "h3": "Answer with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply. Where you answer with `leaf reply`, reply before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <event-id> --initiates`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something. Your reply renders as Markdown, so show code or markup in a fenced block."
+#              "h3": "Answer with `leaf reply <page> --for <event-id>`, or with your final message on a host that sends it as the reply. Where you answer with `leaf reply`, reply before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the reader something. Your reply renders as Markdown, so show code or markup in a fenced block."
 #            },
 #            "events": [
 #              {
@@ -222,14 +222,14 @@
 #              on a host that sends it as the reply. Where you answer with `leaf reply`,
 #              reply before any other work, including the work this event asks for: give
 #              the answer, or say what you are about to do and where the result will appear.
-#              Once that work lands, report it with `leaf reply <page> --to <event-id>
-#              --initiates`. `leaf reply` checks any saved page edit and makes it live
-#              before posting. If a revision removes what the thread is anchored on, move
-#              the thread in the reply that reports it with `--section <id>` (narrowed
-#              by `--quote` or `--part` if needed), or `--detach` it if its subject has
-#              left the page. Add `--awaits` only if your reply's prose asks the reader
-#              something. Your reply renders as Markdown, so show code or markup in a fenced
-#              block.
+#              Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+#              where `<address>` is the event's `obligation.response.to`. `leaf reply`
+#              checks any saved page edit and makes it live before posting. If a revision
+#              removes what the thread is anchored on, move the thread in the reply that
+#              reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+#              or `--detach` it if its subject has left the page. Add `--awaits` only if
+#              your reply's prose asks the reader something. Your reply renders as Markdown,
+#              so show code or markup in a fenced block.
 #
 # After changing a clause, re-record this file and review the diff:
 #
@@ -258,14 +258,14 @@ comment:
         on a host that sends it as the reply. Where you answer with `leaf reply`,
         reply before any other work, including the work this event asks for: give
         the answer, or say what you are about to do and where the result will appear.
-        Once that work lands, report it with `leaf reply <page> --to <event-id>
-        --initiates`. `leaf reply` checks any saved page edit and makes it live
-        before posting. If a revision removes what the thread is anchored on, move
-        the thread in the reply that reports it with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Add `--awaits` only if your reply's prose asks the reader
-        something. Your reply renders as Markdown, so show code or markup in a fenced
-        block.
+        Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the reader something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
 
 comment with a drawing:
   event:
@@ -302,14 +302,14 @@ comment with a drawing:
         on a host that sends it as the reply. Where you answer with `leaf reply`,
         reply before any other work, including the work this event asks for: give
         the answer, or say what you are about to do and where the result will appear.
-        Once that work lands, report it with `leaf reply <page> --to <event-id>
-        --initiates`. `leaf reply` checks any saved page edit and makes it live
-        before posting. If a revision removes what the thread is anchored on, move
-        the thread in the reply that reports it with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Add `--awaits` only if your reply's prose asks the reader
-        something. Your reply renders as Markdown, so show code or markup in a fenced
-        block.
+        Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the reader something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
 
 comment awaiting a version:
   event:
@@ -379,14 +379,14 @@ suggestion:
         on a host that sends it as the reply. Where you answer with `leaf reply`,
         reply before any other work, including the work this event asks for: give
         the answer, or say what you are about to do and where the result will appear.
-        Once that work lands, report it with `leaf reply <page> --to <event-id>
-        --initiates`. `leaf reply` checks any saved page edit and makes it live
-        before posting. If a revision removes what the thread is anchored on, move
-        the thread in the reply that reports it with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Add `--awaits` only if your reply's prose asks the reader
-        something. Your reply renders as Markdown, so show code or markup in a fenced
-        block.
+        Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the reader something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
 
 design comment:
   event:
@@ -417,14 +417,14 @@ design comment:
         on a host that sends it as the reply. Where you answer with `leaf reply`,
         reply before any other work, including the work this event asks for: give
         the answer, or say what you are about to do and where the result will appear.
-        Once that work lands, report it with `leaf reply <page> --to <event-id>
-        --initiates`. `leaf reply` checks any saved page edit and makes it live
-        before posting. If a revision removes what the thread is anchored on, move
-        the thread in the reply that reports it with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Add `--awaits` only if your reply's prose asks the reader
-        something. Your reply renders as Markdown, so show code or markup in a fenced
-        block.
+        Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the reader something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
 
 reaction on the page:
   event:
@@ -467,14 +467,14 @@ reply:
         on a host that sends it as the reply. Where you answer with `leaf reply`,
         reply before any other work, including the work this event asks for: give
         the answer, or say what you are about to do and where the result will appear.
-        Once that work lands, report it with `leaf reply <page> --to <event-id>
-        --initiates`. `leaf reply` checks any saved page edit and makes it live
-        before posting. If a revision removes what the thread is anchored on, move
-        the thread in the reply that reports it with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Add `--awaits` only if your reply's prose asks the reader
-        something. Your reply renders as Markdown, so show code or markup in a fenced
-        block.
+        Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the reader something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
 
 reaction on a message:
   event:
@@ -579,14 +579,14 @@ pick inside a thread:
         on a host that sends it as the reply. Where you answer with `leaf reply`,
         reply before any other work, including the work this event asks for: give
         the answer, or say what you are about to do and where the result will appear.
-        Once that work lands, report it with `leaf reply <page> --to <event-id>
-        --initiates`. `leaf reply` checks any saved page edit and makes it live
-        before posting. If a revision removes what the thread is anchored on, move
-        the thread in the reply that reports it with `--section <id>` (narrowed
-        by `--quote` or `--part` if needed), or `--detach` it if its subject has
-        left the page. Add `--awaits` only if your reply's prose asks the reader
-        something. Your reply renders as Markdown, so show code or markup in a fenced
-        block.
+        Once that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+        where `<address>` is the event's `obligation.response.to`. `leaf reply`
+        checks any saved page edit and makes it live before posting. If a revision
+        removes what the thread is anchored on, move the thread in the reply that
+        reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+        or `--detach` it if its subject has left the page. Add `--awaits` only if
+        your reply's prose asks the reader something. Your reply renders as Markdown,
+        so show code or markup in a fenced block.
     - when: {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}
       text: >-
         The widget is in a thread message: continue the work the reader's answer

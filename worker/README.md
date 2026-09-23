@@ -215,8 +215,7 @@ before that timestamp through twenty minutes after keeps the scan unsampled.
 Historical Worker and Container logs are available in Workers Observability because
 `wrangler.toml` enables it. Agents may inspect the complete Cloudflare envelope,
 including request metadata, through the Observability API. `wrangler tail` streams the
-same records live under the agent administration token; the Tend CI token holds no tail
-permission.
+same records live under the agent administration token.
 
 Each public document emits one `component=leaf-startup` record from the inline
 bootstrap, including when the module graph fails. It identifies the route, release,

@@ -739,7 +739,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 
 
 @cli.command(
-    short_help="Print one page's unacknowledged events and reports, then exit.",
+    short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
         "Watch every page this session holds — plus PAGE, claimed first, when "
         "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION
@@ -752,7 +752,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     help="Confirm receipt of this complete delivery before waiting.",
 )
 def wait(dir: str | None, ack: str | None) -> None:
-    """Print one page's unacknowledged events and reports, then exit."""
+    """Confirm a delivery, if given, then wait for the next batch."""
     from leaf.session import cmd_wait
 
     if dir is not None and ack is not None:

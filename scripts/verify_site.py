@@ -144,7 +144,6 @@ def undrawn_reply(url: str, debug: dict, served: str) -> str:
                     "/".join(name for name in message["classes"] if name != "lf-msg"),
                     f"mid={message['mid']}",
                     f"attempt={message['attempt']}",
-                    f"stream={message['stream']}",
                     f"text={'yes' if message['hasText'] else 'no'}",
                     f"visible={'yes' if message['visible'] else 'no'}",
                     f"busy={'yes' if message['busy'] else 'no'}",

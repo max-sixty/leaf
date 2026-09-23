@@ -25,7 +25,7 @@ from leaf.host import (
     message_identity,
     session_harness,
 )
-from leaf.locations import page_key, paths_same
+from leaf.locations import page_key
 from leaf.machine import pid_alive, state_home
 from leaf.schema import (
     ACTIVITY_GRACE_SECS,
@@ -708,9 +708,7 @@ def restore_page_claim(
         page.restore_claim(expected, previous)
 
 
-def open_session_turn(
-    session_id: str, delivered: PageTransaction | None = None
-) -> None:
+def open_session_turn(session_id: str) -> None:
     """Clear the turn-ended stamp on every page one session holds.
 
     A turn belongs to the session, not to the page whose batch opened it. The
@@ -720,18 +718,11 @@ def open_session_turn(
     the next leaf tells its own reader the agent left when its turn ended and to
     nudge it in the terminal.
 
-    A delivery names the page its batch came from, which is already open under
-    the transaction the batch left under — clearing it there is what keeps it
-    from being read between the two. A prompt names none: nothing was delivered,
-    so every page the session holds is a sibling. Each sibling takes its own
-    transaction, the way the Stop hook takes them, and a sibling the turn never
-    touches still falls to the fifteen-minute grace on its own claim age.
+    Each page takes its own transaction, the way the Stop hook takes them, and
+    a page the turn never touches still falls to the fifteen-minute grace on its
+    own claim age.
     """
-    if delivered is not None:
-        delivered.open_turn(session_id)
     for page_dir in owned_pages(session_id):
-        if delivered is not None and paths_same(page_dir, delivered.page_dir):
-            continue
         try:
             with PageTransaction(page_dir) as page:
                 page.open_turn(session_id)

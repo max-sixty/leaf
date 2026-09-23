@@ -92,7 +92,8 @@ def canonical_workflows(
     means Sent, queue acceptance means Queued, entry into an exact agent turn
     means Picked up, and a matching effective work claim means Working. Replies
     and authored state settle the source move, so the workflow disappears instead
-    of becoming a second outcome surface. Consecutive inputs retain distinct
+    of becoming a second outcome surface; a failed response instead keeps an
+    answered workflow whose next actor is the reader. Consecutive inputs retain distinct
     workflows even though the conversation's single response obligation is
     addressed to the newest one.
     """

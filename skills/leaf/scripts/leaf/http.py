@@ -1288,10 +1288,15 @@ class SpecimenEndpoint(PageEndpoint):
 
     def _content(self, status: int, ctype: str, body: bytes) -> Response:
         if ctype.startswith("text/html"):
+            # A live child lays out as a block of its containing page (theme.css). Every
+            # child arrives inert, so its startup cannot take focus from the page; the
+            # host releases a live one once it presents. A passive replay demonstrates a
+            # whole window and never takes input.
             scope = html.escape(self.page_root + "/", quote=True)
+            contained = "" if self.passive else " data-lf-contained"
             body = re.sub(
                 rb"<html\b",
-                f'<html data-lf-contained data-lf-user-scope="{scope}"'.encode(),
+                f'<html{contained} data-lf-user-scope="{scope}"'.encode(),
                 body,
                 count=1,
                 flags=re.IGNORECASE,
@@ -1299,7 +1304,7 @@ class SpecimenEndpoint(PageEndpoint):
             passive = b" data-lf-specimen-passive" if self.passive else b""
             body = re.sub(
                 rb"<body\b",
-                b"<body data-lf-contained inert" + passive,
+                b"<body inert" + passive,
                 body,
                 count=1,
                 flags=re.IGNORECASE,

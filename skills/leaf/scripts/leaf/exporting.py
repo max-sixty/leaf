@@ -589,6 +589,7 @@ def _export_document(page, request, url: str, name: str) -> str:
                   frame.srcdoc = source;
                   frame.removeAttribute('src');
                   frame.removeAttribute('data-lf-contained');
+                  frame.style.removeProperty('height');
                   frame.removeAttribute('inert');
                   frame.dataset.lfExported = '';
                 }""",

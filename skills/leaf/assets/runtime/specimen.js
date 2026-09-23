@@ -1,7 +1,10 @@
 /* A specimen is a normally served Leaf page with its own disposable event log.
  * The server captures an authored template and its layer; this owner handles the
- * frame's readiness, reset, and explicit focus entry and return. Passive
- * demonstrations use the same host and remain inert throughout their playback. */
+ * frame's readiness and reset. The child arrives inert, so its startup cannot take
+ * focus from the page; this owner releases a live child once it presents, and after
+ * that focus entering the frame is entry, the way it is for any iframe. The child's
+ * final Escape asks the frame's owner to take focus back with `lf-specimen-return`. Passive demonstrations use the
+ * same host and remain inert throughout their playback. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl } from "./context.js";
 import { discardPageStorage } from "./storage.js";
@@ -69,24 +72,14 @@ function presented(frame, url, signal) {
 export function mountSpecimen(frame, { template, passive = false }) {
   if (!template) throw new Error("a specimen needs an authored template id");
   let current = null;
-  let returnTo = null;
-  let active = false;
   let destroyed = false;
   let operation = null;
   let closing = null;
   let loading = null;
-  frame.inert = true;
+  frame.inert = passive;
   frame.toggleAttribute("data-lf-contained", true);
   if (!passive) frame.dataset.lfExport = "document";
 
-  const leave = () => {
-    if (!active) return;
-    active = false;
-    frame.inert = true;
-    if (frame.contentDocument?.body) frame.contentDocument.body.inert = true;
-    returnTo?.focus({ preventScroll: true });
-    frame.dispatchEvent(new Event("lf-specimen-leave"));
-  };
   const release = (url) => request(new URL("api/release", url), {});
 
   function retire() {
@@ -106,7 +99,6 @@ export function mountSpecimen(frame, { template, passive = false }) {
   }
 
   async function replace() {
-    leave();
     await retire();
     if (destroyed) throw new DOMException("specimen destroyed", "AbortError");
     const { url } = await request(pageUrl("api/specimens"), { template, passive });
@@ -114,7 +106,9 @@ export function mountSpecimen(frame, { template, passive = false }) {
     try {
       if (destroyed) throw new DOMException("specimen destroyed", "AbortError");
       loading = new AbortController();
-      return await presented(frame, current, loading.signal);
+      const doc = await presented(frame, current, loading.signal);
+      if (!passive) doc.body.inert = false;
+      return doc;
     } catch (error) {
       await retire();
       throw error;
@@ -139,26 +133,10 @@ export function mountSpecimen(frame, { template, passive = false }) {
   const host = {
     ready: null,
     reset,
-    enter(destination = document.activeElement) {
-      if (passive) throw new Error("a passive specimen cannot receive focus");
-      if (!frame.contentDocument?.body.hasAttribute("data-lf-presented"))
-        throw new Error("the specimen has not presented");
-      returnTo = destination;
-      active = true;
-      frame.inert = false;
-      const body = frame.contentDocument.body;
-      body.inert = false;
-      body.tabIndex = -1;
-      body.focus({ preventScroll: true });
-      frame.dispatchEvent(new Event("lf-specimen-enter"));
-    },
-    leave,
     destroy() {
       if (closing) return closing;
       destroyed = true;
-      leave();
       loading?.abort();
-      frame.removeEventListener("lf-specimen-return", leave);
       window.removeEventListener("pagehide", departing);
       // Retire synchronously even on pagehide. An allocation already in flight
       // still has to answer so replace() can release that child's exact URL.
@@ -170,7 +148,6 @@ export function mountSpecimen(frame, { template, passive = false }) {
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
-  frame.addEventListener("lf-specimen-return", leave);
   host.ready = reset();
   return host;
 }

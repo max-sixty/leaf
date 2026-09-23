@@ -1975,7 +1975,7 @@ def test_a_live_specimen_exports_as_an_isolated_rendered_document(
     child.get_by_text("More context", exact=True).click()
     expect(child.get_by_text("Native disclosure survives.")).to_be_visible()
     expect(child.locator("script")).to_have_count(0)
-    expect(page.get_by_role("button", name="Enter specimen")).to_have_count(0)
+    expect(page.get_by_role("button", name="Reset", exact=True)).to_have_count(0)
     assert requests == [out.as_uri()]
 
 

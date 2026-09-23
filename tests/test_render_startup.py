@@ -489,7 +489,7 @@ def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     if contained:
         host = context.new_page()
         host.goto(url, wait_until="load")
-        expect(host.get_by_role("button", name="Enter specimen")).to_be_enabled()
+        expect(host.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
         url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")

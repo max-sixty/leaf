@@ -93,11 +93,12 @@ has tried; settle that before building it.
   whose first block is an `lf-ask` opens 48px lower than one that starts with its
   own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
   `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
-  children. Inside a 32rem specimen, that margin plus `main`'s 72px top padding
-  leaves 120px of blank space above the question.
-- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user scrolling an
-  entered `lf-specimen` reported that scrolling got stuck, with no reproduction yet.
-  Settle it after the scrolling changes land.
+  children. Inside a specimen, whose `main` pads only 24px, it leaves 72px of blank
+  space above the question.
+- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
+  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+  The frame now takes its page's height, so nothing scrolls inside it; check that the
+  report no longer reproduces once the scrolling changes land.
 
 ### The agent's text interface
 

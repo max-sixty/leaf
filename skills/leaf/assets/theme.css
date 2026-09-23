@@ -524,6 +524,20 @@ body { position: static !important; box-sizing: border-box !important;
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
+  /* A live specimen is a block of its containing page, and its frame takes the body's
+   * height (lf-specimen.js). So the body keeps to its content rather than filling the
+   * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
+   * wheel reaches the containing page. The page's rhythm is set for a window; a block
+   * takes a block's. The banner keeps only its one row of actions (chrome.css). An open
+   * auxiliary surface covers the window, so the page stands at least a window tall
+   * while one is open, or a short specimen's Threads would have no room to list. */
+  html[data-lf-live][data-lf-contained]:not(.lf-copy) {
+    --lf-banner-h: 48px;
+    overflow-y: hidden;
+    body { min-height: 0; }
+    body[data-lf-auxiliary-surface] { min-height: 32rem; }
+    main { padding-block: 24px; }
+  }
 }
 /* The Asks tray narrows the body's page shell on wide screens and covers it on compact
  * ones; the thread panel and the Leaves tray stand over the page at every width and take

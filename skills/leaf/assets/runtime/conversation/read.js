@@ -12,7 +12,7 @@
    mark it read: answering its widget does, and so does its thread's Mark read control.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). */
-import { shownRect } from "../geometry.js";
+import { shownBand, shownRect } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
@@ -34,31 +34,38 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
-// A child viewport does not know when its iframe is hidden by the parent page.
-// Require each containing frame to stand wholly inside its parent's shown region.
-// This is deliberately conservative for a partially visible frame.
-function frameIsFullyVisible() {
-  for (let current = window; current !== current.top;) {
+// A child viewport does not know how much of it the parent page shows. Walk each
+// containing frame and cut this viewport down to what its owner shows of it, through
+// the owner's viewport and every clipping ancestor, in this window's coordinates. A
+// frame taller than its owner's viewport, as a live specimen is, shows a band of its
+// page the way the top page's own viewport does.
+function frameBand() {
+  let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+  let x = 0;
+  let y = 0;
+  for (let current = window; current !== current.top; ) {
     let frame;
     try {
       frame = current.frameElement;
     } catch {
-      return false;
+      return null;
     }
-    if (!frame || !frame.checkVisibility()) return false;
+    if (!frame || !frame.checkVisibility()) return null;
     const owner = frame.ownerDocument.defaultView;
     const box = frame.getBoundingClientRect();
-    if (
-      box.width <= 0 ||
-      box.height <= 0 ||
-      box.left < 0 ||
-      box.top < 0 ||
-      box.right > owner.innerWidth ||
-      box.bottom > owner.innerHeight
-    )
-      return false;
+    x += box.left + frame.clientLeft;
+    y += box.top + frame.clientTop;
+    const cut = (rect) => {
+      band = {
+        left: Math.max(band.left, rect.left - x),
+        top: Math.max(band.top, rect.top - y),
+        right: Math.min(band.right, rect.right - x),
+        bottom: Math.min(band.bottom, rect.bottom - y),
+      };
+    };
+    cut({ left: 0, top: 0, right: owner.innerWidth, bottom: owner.innerHeight });
     const modal = owner.document.querySelector("dialog:modal");
-    if (modal && !under(frame, modal)) return false;
+    if (modal && !under(frame, modal)) return null;
     for (let ancestor = upFrom(frame); ancestor; ancestor = upFrom(ancestor)) {
       const style = owner.getComputedStyle(ancestor);
       if (
@@ -67,24 +74,17 @@ function frameIsFullyVisible() {
         style.visibility === "hidden" ||
         style.display === "none"
       )
-        return false;
-      if (!/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`))
-        continue;
-      const clip = ancestor.getBoundingClientRect();
-      if (
-        box.left < clip.left ||
-        box.top < clip.top ||
-        box.right > clip.right ||
-        box.bottom > clip.bottom
-      )
-        return false;
+        return null;
+      const shown = shownBand(ancestor);
+      if (shown) cut(shown);
     }
+    if (band.right <= band.left || band.bottom <= band.top) return null;
     current = owner;
   }
-  return true;
+  return band;
 }
 
-function visibleInterval(body, clips) {
+function visibleInterval(body, clips, band) {
   if (!body.checkVisibility()) return null;
   for (let owner = body; owner; owner = upFrom(owner))
     if (owner.inert || owner.getAttribute?.("aria-hidden") === "true") return null;
@@ -93,8 +93,15 @@ function visibleInterval(body, clips) {
   const box = body.getBoundingClientRect();
   // Sticky run headings are left out of what is shown (geometry.js, visibleBand), so a
   // message hidden under one is not read.
-  const shown = shownRect(body, clips);
-  if (!shown || box.width <= 0 || box.height <= 0) return null;
+  const clipped = shownRect(body, clips);
+  if (!clipped || box.width <= 0 || box.height <= 0) return null;
+  const shown = {
+    left: Math.max(clipped.left, band.left),
+    top: Math.max(clipped.top, band.top),
+    right: Math.min(clipped.right, band.right),
+    bottom: Math.min(clipped.bottom, band.bottom),
+  };
+  if (shown.bottom <= shown.top) return null;
   // The open thread panel stands over the right of the page and occludes what it stands
   // over, the way a clip cuts what it does not hold: a message reaching under its edge
   // has not been shown whole, and the full-width rule withholds it.
@@ -158,13 +165,10 @@ export function createReadTracking({ markRead, showThread }) {
   }
 
   function scan() {
-    if (
-      !presented ||
-      document.visibilityState !== "visible" ||
-      !document.hasFocus() ||
-      !frameIsFullyVisible()
-    )
+    if (!presented || document.visibilityState !== "visible" || !document.hasFocus())
       return;
+    const band = frameBand();
+    if (!band) return;
     const candidates = new Map(
       actionableUnread().map(({ item }) => [item.message, item]),
     );
@@ -182,7 +186,7 @@ export function createReadTracking({ markRead, showThread }) {
       const key = item && keyOf(item);
       if (!item || authored || completed.has(key) || refusedAutomatic.has(key))
         continue;
-      const visible = visibleInterval(body, clips);
+      const visible = visibleInterval(body, clips, band);
       if (!visible) continue;
       let tracked = coverage.get(body);
       if (
@@ -246,7 +250,7 @@ export function createReadTracking({ markRead, showThread }) {
     addEventListener("load", scheduleScan, true);
     // Moving a specimen frame in its parent changes exposure without a scroll or
     // resize inside the child. Observe each containing frame in its own viewport.
-    for (let current = window; current !== current.top;) {
+    for (let current = window; current !== current.top; ) {
       let frame;
       try {
         frame = current.frameElement;

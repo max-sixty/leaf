@@ -103,7 +103,8 @@ def test_specimens_use_captured_resources_and_independent_event_logs(server, pag
     root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    assert b"data-lf-contained" in document and b" inert" in document
+    assert b"<html data-lf-contained" in document
+    assert not re.search(rb"<body[^>]*\binert", document)
     assert fetch(child + "/theme.css") == (200, captured_theme)
     [module_path] = re.findall(rb'src="([^"]+/page/specimen.js)"', document)
     assert module_path == f"{root}/page/specimen.js".encode()

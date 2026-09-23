@@ -194,9 +194,9 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     parent_before = events_model.read_events(serve.page_dir)
     first = page.locator("#first-practice")
     second = page.locator("#second-practice")
-    enter = first.get_by_role("button", name="Enter specimen")
-    expect(enter).to_be_enabled()
-    expect(second.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    reset = first.get_by_role("button", name="Reset", exact=True)
+    expect(reset).to_be_enabled()
+    expect(second.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
     # The host's controls stand with its label, outside the indented child page.
     controls = first.locator(".lf-specimen-controls").bounding_box()
     frame = first.locator("iframe").bounding_box()
@@ -208,11 +208,11 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
     child.lf_traffic = Traffic(child)
     child_url = child.url
     assert child.url != other.url
-    assert child.locator("body").evaluate("body => body.inert")
-    assert other.locator("body").evaluate("body => body.inert")
+    # Each frame takes its page's height, so the containing page scrolls it whole.
+    for practice in (child, other):
+        assert practice.evaluate("document.documentElement.scrollHeight <= innerHeight")
 
-    enter.press("Enter")
-    expect(first.get_by_role("button", name="Return to page")).to_be_visible()
+    # The first click lands on the child's control; there is no entry step.
     with sending(child, "the specimen choice"):
         child.locator("#child-a .lf-pick").click()
     expect(child.locator("#child-a .lf-pick")).to_have_attribute("aria-checked", "true")
@@ -252,15 +252,11 @@ def test_live_specimens_keep_real_gestures_and_drafts_inside_the_child(browser, 
         "scope => Object.keys(localStorage).some(key => key.startsWith(scope))",
         old_scope,
     )
-    first.get_by_role("button", name="Return to page").click()
-    expect(enter).to_be_focused()
-    second.get_by_role("button", name="Enter specimen").click()
     other.locator(".lf-threads-toggle").click()
     other.locator(".lf-general textarea").fill("Keep the other specimen's draft.")
     other_scope = other.evaluate("location.pathname")
-    second.get_by_role("button", name="Return to page").click()
-    first.get_by_role("button", name="Reset", exact=True).click()
-    expect(enter).to_be_enabled()
+    reset.click()
+    expect(reset).to_be_enabled()
     reset_child = first.locator("iframe").element_handle().content_frame()
     assert reset_child.url != child_url
     expect(reset_child.locator("#child-a .lf-pick")).to_have_attribute(
@@ -362,7 +358,8 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
     """Destroy awaits allocation; a detached widget can create a fresh child later."""
     page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
     specimen = page.locator("#first-practice")
-    expect(specimen.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    reset = specimen.get_by_role("button", name="Reset", exact=True)
+    expect(reset).to_be_enabled()
     previous = specimen.locator("iframe").get_attribute("src")
     page.evaluate("""() => {
         window.detachedPractice = document.querySelector('#first-practice');
@@ -372,7 +369,7 @@ def test_live_specimens_release_pending_allocations_and_can_reconnect(browser, s
         "!detachedPractice.querySelector('iframe').hasAttribute('src')"
     )
     page.evaluate("document.querySelector('main').append(detachedPractice)")
-    expect(specimen.get_by_role("button", name="Enter specimen")).to_be_enabled()
+    expect(reset).to_be_enabled()
     assert specimen.locator("iframe").get_attribute("src") != previous
     assert page.request.get(previous + "api/state").status == 404
 
@@ -415,9 +412,7 @@ def test_live_specimens_preserve_optimistic_refusal_and_child_escape(browser, se
     """Delivery rollback and nested Escape remain the ordinary child's behavior."""
     page = open_page(browser, serve(LIVE_SPECIMENS_PAGE))
     specimen = page.locator("#first-practice")
-    enter = specimen.get_by_role("button", name="Enter specimen")
-    expect(enter).to_be_enabled()
-    enter.press("Enter")
+    expect(specimen.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
     child = specimen.locator("iframe").element_handle().content_frame()
     child.lf_traffic = Traffic(child)
     held = []
@@ -447,10 +442,8 @@ def test_live_specimens_preserve_optimistic_refusal_and_child_escape(browser, se
     expect(child.locator(".lf-threads-toggle")).to_have_attribute(
         "aria-expanded", "false"
     )
-    expect(specimen.get_by_role("button", name="Return to page")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(enter).to_be_focused()
-    assert child.locator("body").evaluate("body => body.inert")
+    expect(specimen).to_be_focused()
 
 
 CONTROL_STABILITY_PAGE = leaf_page(

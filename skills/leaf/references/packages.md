@@ -508,11 +508,10 @@ value and must be removed when that value returns.
 `await mountSpecimen(frame, {template, passive})` hosts an isolated Leaf page from an
 authored `template[data-specimen]` id. `ready` resolves to the presented child
 `Document`; `reset()` replaces it with a fresh child and resolves the same way.
-`enter(returnTo)` activates the child and records the parent control to return to;
-`leave()` returns there. Size the frame with CSS. `destroy()` releases the child.
-The frame emits `lf-specimen-enter` and
-`lf-specimen-leave` when the host changes its focus boundary, including Escape
-from the child. A passive specimen stays inert for demonstration playback.
+The frame stays inert until its child presents; after that, focus moving into the
+frame is entry. The child's final Escape emits `lf-specimen-return` on the frame,
+and its owner decides where focus goes. Size the frame with CSS. `destroy()`
+releases the child. A passive specimen stays inert for demonstration playback.
 `page-authoring.md`, "Live specimens", owns the authored element and its
 isolation contract.
 

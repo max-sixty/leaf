@@ -1699,6 +1699,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
+  /* A specimen has no agent attending it, and its fixed bar would stand over its own
+     last block, since its window is exactly as tall as its page. Its banner keeps the
+     one row of actions (theme.css sizes the room); the keys remain behind `?`. */
+  html[data-lf-contained] :scope {
+    .lf-banner-status, .lf-shortcut-bar { display: none; }
+    .lf-banner { grid-template-rows: minmax(0, 1fr); }
+    .lf-banner-actions { grid-row: 1; }
+  }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
   .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;

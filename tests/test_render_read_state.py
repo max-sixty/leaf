@@ -714,9 +714,7 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     frame = specimen.locator("iframe")
     child = frame.element_handle().content_frame()
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
-    assert child.locator("body").evaluate("element => element.inert")
-    specimen.get_by_role("button", name="Enter specimen").click()
-    expect(child.locator("body")).not_to_have_attribute("inert", "")
+    child.locator(".lf-threads-toggle").focus()
     frame.evaluate("element => element.style.transform = 'translateY(1200px)'")
     child.locator(".lf-threads-toggle").evaluate("element => element.click()")
     child.locator(".lf-first-unread").evaluate("element => element.click()")
@@ -731,10 +729,14 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    # Below the first screen, the containing page has to scroll to show the specimen,
+    # and what it shows once scrolled there counts.
     clip.evaluate(
-        "element => { element.style.height = ''; element.style.overflow = ''; }"
+        "element => { element.style.height = ''; element.style.overflow = '';"
+        " element.style.marginTop = '2000px'; }"
     )
     frame.scroll_into_view_if_needed()
+    assert page.evaluate("scrollY") > 1000
     expect(child.locator(".lf-first-unread")).to_be_hidden()
 
 

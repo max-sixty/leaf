@@ -423,10 +423,13 @@ authority. The declaration applies equally to recordless verbs.
 Worker reports supply the same map with `leaf report --references '<JSON-object>'`.
 Omit the option only for a verb that declares no reference roles.
 
-An asynchronous navigation captures `retainReaderIntent()` before its first wait and
-checks the returned predicate before moving focus or scroll. Pass that same predicate to
-`reveal(target, currentIntent)`; asynchronous `lf-reveal` listeners receive it as
-`event.detail.mayReveal`. If the navigation itself opens or closes a surface that moves
+A navigation captures `retainReaderIntent()` in the gesture that starts it, before its
+first wait, and checks the returned predicate after every wait before moving focus or
+scroll: loading a file, a fragment, or a renderer is a wait, and a reader who pressed on
+in the meantime is not moved back. `reveal(target, currentIntent)` requires that same
+predicate and throws without one, since a predicate taken after a wait would carry a
+newer gesture's authority; a synchronous caller passes `retainReaderIntent()` taken in
+the same call. Asynchronous `lf-reveal` listeners receive it as `event.detail.mayReveal`. If the navigation itself opens or closes a surface that moves
 focus, `currentIntent.handoff(() => changeSurface())` preserves that synchronous focus
 transfer without renewing the original input generation. After a wait, check the
 predicate before starting that synchronous handoff. If the synchronous work already

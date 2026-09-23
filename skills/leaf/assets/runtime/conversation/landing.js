@@ -24,7 +24,7 @@
    panel's own general box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
    supplies the caller-owned return target through `landInConversation`. */
-import { shownBand, shownBox } from "../geometry.js";
+import { landingBand, shownBox } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
 import { takesLetters } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -50,16 +50,8 @@ const conversationReturns = new WeakMap();
 const landingTarget = (held, control) => {
   let room = Infinity;
   for (let parent = held.parentElement; parent; parent = parent.parentElement) {
-    const band = shownBand(parent);
-    if (!band) continue;
-    const style = getComputedStyle(parent);
-    room = Math.min(
-      room,
-      band.bottom -
-        band.top -
-        (parseFloat(style.scrollPaddingTop) || 0) -
-        (parseFloat(style.scrollPaddingBottom) || 0),
-    );
+    const band = landingBand(parent);
+    if (band) room = Math.min(room, band.bottom - band.top);
   }
   if (shownBox(held).height <= room) return held;
   const reply = control.closest(".lf-compose, .lf-say");
@@ -86,14 +78,9 @@ const conversationInputOf = (held) => {
 // line. The thread header and message bodies expose complete block boundaries; use
 // those rather than attempting to infer line boxes from prose.
 const threadLandingStart = (held, target, threadsBox) => {
-  const band = shownBand(threadsBox);
+  const band = landingBand(threadsBox);
   if (!band) return target;
-  const style = getComputedStyle(threadsBox);
-  const room =
-    band.bottom -
-    band.top -
-    (parseFloat(style.scrollPaddingTop) || 0) -
-    (parseFloat(style.scrollPaddingBottom) || 0);
+  const room = band.bottom - band.top;
   const targetBox = shownBox(target);
   const candidates = [
     ...held.querySelectorAll(

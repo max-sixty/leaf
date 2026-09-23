@@ -7,7 +7,7 @@
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
    A new agent turn, or growth of the last one, follows only while that conversation's
-   previous last message was at the foot of the visible list. Reading earlier turns
+   previous last message is visible near the end of the list. Reading earlier turns
    keeps the place hold, and a reply in another thread does not move this one.
 
    `pageOutline` reads the page's own headings, and `groupFor` names the run of threads
@@ -150,7 +150,7 @@ const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
 // An arriving reply follows the conversation only while its previous last turn is
-// already at the foot of the reader's view. A reader higher in the list keeps the
+// visible near the end of the reader's view. A reader higher in the list keeps the
 // place the list hold chose; another thread's reply never moves this one.
 function incomingAtLatest(reading, panelIsOpen) {
   if (!panelIsOpen()) return null;
@@ -182,10 +182,10 @@ function incomingAtLatest(reading, panelIsOpen) {
     );
   const band = visibleBand(threadsBox);
   if (!node || !band) return null;
-  const bottom = node.getBoundingClientRect().bottom;
+  const box = node.getBoundingClientRect();
   const unseen =
     threadsBox.scrollHeight - threadsBox.clientHeight - threadsBox.scrollTop;
-  if (unseen > 2 || bottom > band.bottom + 2 || bottom < band.top) return null;
+  if (unseen > 80 || box.top > band.bottom || box.bottom < band.top) return null;
   return {
     id: incoming.at(-1)?.id ?? nextLatest.id,
     top: threadsBox.scrollTop,

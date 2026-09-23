@@ -240,6 +240,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     )
 
     threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    threads.evaluate("el => el.scrollTop -= 40")
     before_growth = threads.evaluate("el => el.scrollTop")
     events_model.append_event(
         serve.page_dir,

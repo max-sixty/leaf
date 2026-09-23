@@ -41,16 +41,13 @@ export function loadMarkdown(onError = null) {
   const attempt = (ready ??= import("/vendor/marked.esm.js").then((module) => {
     const markdown = new module.Marked({
       breaks: true,
-      // Runtime-supplied Markdown may describe code containing angle brackets, but it
-      // never gets an HTML execution door. Widgets enter through separately validated
-      // markup fields. A line that opens with a tag starts an HTML block, which only
-      // ever arrives here as someone showing markup, so it reads as the code block it
-      // is: escaped inline, its lines and indentation would collapse into one run.
+      // This dialect has no HTML: a tag is text, in a block as in a sentence. Runtime-
+      // supplied Markdown may describe code containing angle brackets, but it never gets
+      // an HTML execution door; widgets enter through separately validated markup fields.
+      // Declining the tokens, rather than escaping what they matched, keeps a block of
+      // tags the paragraph its lines would otherwise have been.
+      tokenizer: { html: () => undefined, tag: () => undefined },
       renderer: {
-        html(token) {
-          if (!token.block) return escapeHtml(token.text);
-          return this.code({ text: token.text, lang: "html", escaped: false });
-        },
         link(token) {
           const markup = module.Renderer.prototype.link.call(this, token);
           const link = renderedElement(markup, "a");

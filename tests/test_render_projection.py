@@ -6759,11 +6759,11 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
 def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     """A message's text is Markdown, rendered here by the page's own vendored layer —
     the wire carries the log's words and nothing else. Every raw tag renders as the
-    characters it was written in: prose says Vec<T>, and swallowing it into an element
-    would lose the words in front of the user with nothing saying so. What the
+    characters it was written in, a block of tags as much as prose saying Vec<T>, and
+    swallowing it into an element would lose the words in front of the user with nothing saying so. What the
     panel adds is the page's own dress: the theme's element rules are at document level
     and reach in, a fenced block colors from the tokenizer a version's <pre><code>
-    uses, a block of raw markup reads as code, and a bare URL arrives as the link the user will want to follow."""
+    uses, and a bare URL arrives as the link the user will want to follow."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -6794,11 +6794,10 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
     expect(body.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
-    # A line opening with a tag starts an HTML block: someone showing markup, whose
-    # lines and indentation survive only as a code block.
-    expect(body.locator("pre code.language-html")).to_have_text(
-        '<lf-grid columns="3">\n  <div>a tile</div>\n</lf-grid>'
-    )
+    # Tags are text in this dialect, a block of them as much as one in a sentence, so
+    # markup shown without a fence keeps the lines it was written in.
+    markup = body.locator("p", has_text='<lf-grid columns="3">')
+    assert markup.inner_text() == '<lf-grid columns="3">\n<div>a tile</div>\n</lf-grid>'
     link = body.locator('a[href="https://example.com/notes"]')
     expect(link).to_have_attribute("target", "_blank")
     expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))

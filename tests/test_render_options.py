@@ -1929,96 +1929,6 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ).to_have_attribute("data-lf-kinds", "ask")
 
 
-def test_a_widget_move_keeps_one_target_seat_across_revisions_until_honored(
-    browser, serve
-):
-    """A widget needs no x-work declaration to acknowledge the reader's move.
-
-    Within one authored document, the owner's page-edge margin entry keeps its DOM
-    identity while durable transport acceptance advances Sent to Picked up and a real
-    claim makes it Working. A fresh revision reprojects that semantic target into its
-    new document. Once authored markup records the choice and completes the claim, the
-    margin entry disappears; the widget carries the chosen state itself.
-    """
-    url = serve(ASK_PAGE)
-    page = open_page(browser, live_url(url))
-    d = serve.page_dir
-
-    with sending(page, "the mounts choice"):
-        page.locator("#job-mounts").click()
-    action = next(
-        event
-        for event in reversed(sent_events(d))
-        if event.get("widget") == "jobs" and event.get("action") == "choose"
-    )
-    logged_action = next(
-        event for event in events_model.read_events(d) if event["id"] == action["id"]
-    )
-    receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
-    expect(receipt).to_have_attribute("data-lf-kinds", "sent")
-    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "sent"
-    )
-    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
-    expect(page.locator("#jobs > .lf-msg-sending")).to_have_count(0)
-    receipt.evaluate("node => { node.dataset.identityProbe = 'kept' }")
-
-    with service_model.PageTransaction(d) as transaction:
-        delivery_model.record_pickup(transaction, [logged_action])
-    with (
-        service_model.PageTransaction(d) as receipt_page,
-        delivery_model.receive_batch(
-            receipt_page,
-            {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
-            session_id=None,
-        ),
-    ):
-        pass
-    told(page)
-    expect(receipt).to_have_attribute("data-lf-kinds", "pickup")
-    expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
-    expect(receipt).to_have_attribute("data-identity-probe", "kept")
-
-    active = CliRunner().invoke(
-        cli_model.cli,
-        ["status", str(d), "working", "checking the mounts", "--on", "jobs"],
-    )
-    assert active.exit_code == 0, active.output
-    told(page)
-    expect(receipt).to_have_attribute("data-lf-kinds", "activity")
-    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "activity"
-    )
-    expect(receipt).to_have_attribute(
-        "aria-description", re.compile("checking the mounts")
-    )
-    expect(receipt).to_have_attribute("data-identity-probe", "kept")
-
-    # The receipt admitted this claim without an x-work declaration. Its semantic
-    # page-edge target remains a local seat after an unrelated revision, so the
-    # authoring loop cannot wedge merely because the widget has no content or
-    # conversation seat.
-    unrelated = ASK_PAGE.replace(
-        '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
-    )
-    stamp_page(d, unrelated, "Checked the surrounding plan")
-    wait_for_revision(page, 2)
-    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "activity"
-    )
-    expect(receipt).to_have_attribute(
-        "aria-description", re.compile("checking the mounts")
-    )
-
-    honored = ASK_PAGE.replace(
-        '<lf-option id="job-mounts"', '<lf-option id="job-mounts" chosen'
-    )
-    stamp_page(d, honored, "Honor the mounts choice", completes=("jobs",))
-    wait_for_revision(page, 3)
-    expect(page.locator('[data-lf-margin-for="jobs"]')).to_have_count(0)
-    expect(page.locator("#job-mounts[chosen]")).to_have_count(1)
-
-
 def test_a_send_waits_for_the_send_before_it(browser, serve):
     """The log's order is the order the user acted in, and two requests in flight are
     not: the server answers each on a thread of its own, so a pick made a moment after
@@ -2184,11 +2094,12 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(page.locator(".lf-thread-panel .lf-msg-sending")).to_have_count(0)
     expect(page.locator("#card-migration > .lf-msg-sending")).to_have_count(0)
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
+    card_button.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")
     wait_for_revision(page, 2)
-    expect(card_button).to_have_count(1)
+    expect(card_button).to_have_attribute("data-identity-probe", "kept")
 
     # A new claim belongs to v2 and does not appear in a pinned v1 page.
     claim("card-migration", "checking the fallback")

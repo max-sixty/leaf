@@ -7,9 +7,9 @@ produce the behavior and watch what it writes, rather than describing it. A live
 host behavior.
 
 ```html
-<p>Press <strong>Enter specimen</strong>, then type an answer into
-<em>Another option</em> and press Enter: that sends <code>add</code> and then
-<code>choose</code>. Press <kbd>z</kbd> twice to undo both.</p>
+<p>Press <strong>Enter specimen</strong>, then pick <em>Now</em> and then
+<em>Later</em>: each pick sends a <code>choose</code>. Press <kbd>z</kbd> to undo
+the second pick and watch the feed record it.</p>
 <lf-specimen id="try-specimen" label="release question">
   <template id="try-page" data-specimen>
     <lf-ask id="ship-ask">

@@ -138,6 +138,9 @@ export function messageReading(message, { panel, reactions, workflows }) {
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
+    seq: message.edited?.seq ?? message.seq ?? null,
+    contentVersion: message.contentVersion,
+    unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
     by: message.author === "agent" ? message.agent || "Agent" : "You",
@@ -192,6 +195,9 @@ export class MessageView {
     }
     if (panel) this.node.tabIndex = -1;
     this.node.setAttribute(panel ? "data-mid" : "data-event", model.id);
+    if (model.contentVersion) this.node.dataset.contentVersion = model.contentVersion;
+    else delete this.node.dataset.contentVersion;
+    this.node.classList.toggle("lf-unread", Boolean(model.unread));
     if (model.attempt) this.node.dataset.attempt = model.attempt;
     else delete this.node.dataset.attempt;
     if (model.pending) this.node.setAttribute("aria-busy", "true");
@@ -236,6 +242,7 @@ export class MessageView {
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
+          ${model.unread ? html`<span class="lf-unread-label">Unread</span>` : nothing}
         </span>
       `,
       this.#header,
@@ -283,6 +290,13 @@ export class MessageView {
     }
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
+    this.#commands.read.observeBody(
+      this.node,
+      this.node.querySelector(
+        panel ? ":scope > .lf-msg-body" : ":scope > .lf-conversation-body",
+      ),
+      model,
+    );
     return this.node;
   }
 
@@ -331,6 +345,7 @@ export class MessageView {
 
   retire() {
     this.#reaction?.retire();
+    this.#commands.read.forgetBody(this.node);
   }
 }
 

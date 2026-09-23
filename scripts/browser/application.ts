@@ -19,6 +19,7 @@ import {
   conversationForAttempt,
   isConversationEvent,
   isMessageEvent,
+  isReadAcknowledgement,
   pendingApprovals,
   pendingProjectionEntries,
   pendingReactions,
@@ -637,10 +638,19 @@ export function createSemanticApplication({
         localWorkflow(entriesByMessage.get(message.id), false),
       ),
       ...unresolved
-        .filter((entry: any) => entry.rejected)
+        .filter((entry: any) => entry.rejected && !isReadAcknowledgement(entry.event))
         .map((entry: any) => localWorkflow(entry, true)),
     ];
-    const threads = readThreadRecords(obligated, document, widgets, workflows);
+    const pendingReads = unresolved
+      .filter((entry: any) => isReadAcknowledgement(entry.event) && !entry.rejected)
+      .map((entry: any) => entry.event);
+    const threads = readThreadRecords(
+      obligated,
+      document,
+      widgets,
+      workflows,
+      pendingReads,
+    );
     return {
       hostAvailable,
       projection,

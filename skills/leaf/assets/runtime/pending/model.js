@@ -6,6 +6,8 @@ export const isConversationEvent = (event) =>
 
 export const isMessageEvent = (event) => isConversationEvent(event) && !event.token;
 
+export const isReadAcknowledgement = (event) => event.kind === "read";
+
 export const conversationForAttempt = (event, timestamp) => ({
   ...event,
   id: `${PENDING}${event.attempt}`,
@@ -15,7 +17,9 @@ export const conversationForAttempt = (event, timestamp) => ({
 });
 
 export const unresolvedAttempts = (entries) =>
-  entries.filter((entry) => !entry.answered).map((entry) => entry.event.attempt);
+  entries
+    .filter((entry) => !entry.answered && !isReadAcknowledgement(entry.event))
+    .map((entry) => entry.event.attempt);
 
 export const unreadMessages = (entries, receipts) => {
   const read = new Set(receipts.map((receipt) => receipt.attempt).filter(Boolean));

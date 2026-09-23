@@ -56,6 +56,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    primed,
     resized,
     round_trip,
     sending,
@@ -3325,11 +3326,21 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
 @pytest.mark.parametrize("kind", ["unresolve", "resolve", "reply"])
 @pytest.mark.parametrize("destination", ["stay", "page", "other-thread", "other-focus"])
 def test_a_thread_completion_keeps_the_readers_later_destination(
-    held_events, serve, kind, destination
+    browser, serve, kind, destination
 ):
     """A held thread operation may land only while its original intent still stands."""
-    browser, held = held_events
-    page = open_page(browser, serve(FEATURE_GALLERY))
+    held = []
+
+    def hold_operation(route):
+        if route.request.post_data_json["kind"] == "read":
+            route.continue_()
+        else:
+            held.append(route)
+
+    page = open_page(
+        primed(browser, lambda page: page.route("**/api/event", hold_operation)),
+        serve(FEATURE_GALLERY),
+    )
     resized(page, 390, 700)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3380,12 +3391,21 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
         # Accessibility and app focus travel need not emit a pointer or key gesture.
         later.focus()
 
-    held.pop(0).continue_()
+    delivered = held.pop(0)
+    attempt = delivered.request.post_data_json["attempt"]
+    delivered.continue_()
     page.unroute("**/api/event")
     round_trip(page)
     told(page)
     page.wait_for_function(RENDERED)
-    assert events_model.read_events(serve.page_dir)[-1]["kind"] == kind
+    assert (
+        next(
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event.get("attempt") == attempt
+        )["kind"]
+        == kind
+    )
     if destination == "page":
         assert not page.get_by_role("dialog").is_visible()
         expect(changes).to_be_focused()

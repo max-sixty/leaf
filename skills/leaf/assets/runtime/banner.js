@@ -31,6 +31,29 @@ export const toggleBtn = el(
 );
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
+let openThreads = null;
+let unreadThreads = 0;
+function paintThreadCounts() {
+  toggleBtn.textContent = openThreads === null ? "Threads" : `Threads (${openThreads})`;
+  toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
+  const unread = unreadThreads
+    ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
+    : null;
+  if (unread)
+    toggleBtn.setAttribute("aria-label", `${toggleBtn.textContent}, ${unread}`);
+  else toggleBtn.removeAttribute("aria-label");
+  toggleBtn.dataset.lfKeyTitle = unread
+    ? `Show or hide the thread panel; ${unread}`
+    : "Show or hide the thread panel";
+}
+export function setThreadCount(count) {
+  openThreads = count;
+  paintThreadCounts();
+}
+export function setUnreadThreadCount(count) {
+  unreadThreads = count;
+  paintThreadCounts();
+}
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome

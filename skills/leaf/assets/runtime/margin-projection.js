@@ -103,6 +103,7 @@ import { runtime } from "./context.js";
 import {
   containingReadingRegionFor,
   readingRegionFor,
+  registerReadingArrangement,
   shownRegionBounds,
 } from "./reading-regions.js";
 
@@ -365,6 +366,7 @@ export function createMarginProjection({
   previewHead.append(previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
   preview.append(previewHead, previewList);
+  let previewReadingArrangement = null;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the reader's place in it under the event id it is rendered with (reader-place.js).
   const previewPlace = placeKeeper(previewList, {
@@ -2594,7 +2596,6 @@ export function createMarginProjection({
     if (!pending && active !== previewMarginEntry) return null;
     return conversations.length === 1 ? conversations[0] : null;
   };
-
   // A live revision replaces the browser document, so DOM identity cannot carry a
   // reader standing in retained margin chrome. Carry the target and margin-entry keys
   // instead; this owner alone can revalidate those keys against the new projection and
@@ -2733,6 +2734,12 @@ export function createMarginProjection({
       changePosture(stands);
     }).observe(document.body);
     chromeRoot.append(nav, preview);
+    previewReadingArrangement ??= registerReadingArrangement({
+      owner: preview,
+      content: preview,
+      regions: [{ id: "lf-margin-preview", host: preview, body: previewList }],
+    });
+    void previewReadingArrangement.setReadingPosture("bounded");
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),

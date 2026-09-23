@@ -288,11 +288,13 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(earlier_place, abs=2)
 
 
-@pytest.mark.parametrize("later_cards", [0, 3])
+@pytest.mark.parametrize("earlier_cards,later_cards", [(0, 0), (1, 0), (0, 3)])
 def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
-    browser, serve, later_cards
+    browser, serve, earlier_cards, later_cards
 ):
     url = serve(LONG_PAGE)
+    for index in range(earlier_cards):
+        panel_comment(serve.page_dir, f"An earlier conversation {index}.")
     root = panel_comment(serve.page_dir, "A short conversation.")
     events_model.append_event(
         serve.page_dir,
@@ -310,6 +312,11 @@ def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
     page.emulate_media(reduced_motion="reduce")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    if earlier_cards:
+        page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-summary').click()
+        expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_have_attribute(
+            "open", ""
+        )
     threads = page.locator(".lf-threads")
     assert threads.evaluate("el => el.scrollHeight - el.clientHeight") == 0
 

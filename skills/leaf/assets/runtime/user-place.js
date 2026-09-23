@@ -31,11 +31,8 @@
    by frame while `following()` says the mutation is still running. */
 import { visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";
-import { pointerAt, pointerWhen } from "./pointer.js";
-
-let focusIntentAt = 0;
-for (const type of ["focusin", "keydown"])
-  document.addEventListener(type, (event) => (focusIntentAt = event.timeStamp), true);
+import { pointerAt } from "./pointer.js";
+import { recentPlaceInput } from "./user-intent.js";
 
 // The candidates in the order they may hold the place, each once: an inherited
 // reference, named items in input order, then the visible ones from the lead downward and
@@ -147,12 +144,14 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     const shown = new Set(visible);
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
     const focus = focused()?.closest?.(items);
-    const named = pointerWhen() > focusIntentAt ? [pointer, focus] : [focus, pointer];
+    const named = (
+      recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]
+    ).filter((node) => shown.has(node));
     const references = placeCandidates({
       inherited: prior?.references.find(
         (candidate) => live(candidate) && shown.has(candidate.node),
       )?.node,
-      named: named.filter((node) => shown.has(node)),
+      named,
       visible,
     })
       .filter((node) => scroller.contains(node))
@@ -163,7 +162,7 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
       }));
     if (!references.length) return null;
     standing = {
-      reference: references[0].node,
+      named: named[0] ?? null,
       references,
       at: { scrollTop: scroller.scrollTop, limit: limit() },
     };

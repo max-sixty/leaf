@@ -150,13 +150,13 @@ const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
 const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
-// The list's place hold chooses where the reader is. Follow only when it chose this
-// conversation and its latest words are still visible near the landing edge.
+// The list's place hold reports what the reader named. Follow while they have not
+// named another conversation and the latest words still meet the landing edge.
 const FOLLOW_ROOM = 80;
-function incomingAtLatest(reading, panelIsOpen, heldCard) {
+function incomingAtLatest(reading, panelIsOpen, namedCard) {
   if (!panelIsOpen()) return null;
   const card = threadsBox.querySelector(":scope > .lf-thread[open]:not([hidden])");
-  if (heldCard !== card) return null;
+  if (namedCard && namedCard !== card) return null;
   const prior = threadsBox.committedReading.rows.find(
     (row) => row.kind === "thread" && row.descriptor.id === card?.dataset.id,
   )?.descriptor;
@@ -389,7 +389,7 @@ export async function renderThreads(collection, commands) {
   let reading = rowModel(all, commands);
   configureList(commands);
   const hold = takeScrollHold(commands.panelIsOpen);
-  const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.reference);
+  const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.named);
   let held = true;
   let recovered = null;
   try {

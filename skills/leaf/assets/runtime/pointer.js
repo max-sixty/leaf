@@ -1,7 +1,6 @@
 /* The one unrounded pointer position shared by hit-test consumers. */
 let x = -1;
 let y = -1;
-let when = 0;
 
 // Read pointer events rather than legacy mouse events, whose client coordinates are
 // rounded away from the point the browser hit-tested. A snapshot keeps consumers from
@@ -9,16 +8,13 @@ let when = 0;
 const remember = (ev) => {
   x = ev.clientX;
   y = ev.clientY;
-  when = ev.timeStamp;
 };
 document.addEventListener("pointermove", remember, { capture: true });
 // A finger can arrive already down, with no preceding pointermove. The press is its
 // position too, and for a tap it is the only statement of it.
 document.addEventListener("pointerdown", remember, { capture: true });
-document.addEventListener("wheel", remember, { capture: true, passive: true });
 
 export const pointerAt = () => ({ x, y });
-export const pointerWhen = () => when;
 
 // Whether a press event was made by the keyboard rather than by the pointer, asked of
 // the event itself. A `click` with no click count is Enter or Space on the control, or

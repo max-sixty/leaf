@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { declareCoverRoom, insetBand, visibleBand } from "/runtime/geometry.js";
+import { pointerAt } from "/runtime/pointer.js";
 import { placeCandidates, placeCorrection, placeKeeper } from "/runtime/user-place.js";
 
 test("the place follows the most recent named item, then visible items", () => {
@@ -156,6 +157,56 @@ test("the band is the scroller's less a stuck cover", () => {
   scroller.append(widget);
   assert.equal(visibleBand(scroller).top, 30);
   scroller.remove();
+});
+
+test("a hold names only a visible focus or pointer target", () => {
+  const { scroller, item, scrollTo } = laidOut();
+  const nodes = ["a", "b", "c"].map((id, index) => item(id, 1000 + index * 250));
+  for (const node of nodes) node.tabIndex = 0;
+  scroller.append(...nodes);
+  scrollTo(1000);
+  const place = placeKeeper(scroller, {
+    items: ".item",
+    identity: (node) => node.dataset.id,
+  });
+  nodes[2].focus();
+  const offscreen = place.take();
+  assert.equal(offscreen.named, null);
+  assert.equal(offscreen.references[0].node, nodes[0]);
+  place.finish(offscreen);
+
+  nodes[1].focus();
+  const focused = place.take();
+  assert.equal(focused.named, nodes[1]);
+  place.finish(focused);
+
+  const originalHitTest = document.elementFromPoint;
+  document.elementFromPoint = () => nodes[0];
+  try {
+    const movement = new Event("pointermove");
+    Object.defineProperties(movement, {
+      clientX: { value: 10 },
+      clientY: { value: 50 },
+    });
+    document.dispatchEvent(movement);
+    const pointed = place.take();
+    assert.equal(pointed.named, nodes[0]);
+    place.finish(pointed);
+  } finally {
+    document.elementFromPoint = originalHitTest;
+    scroller.remove();
+  }
+});
+
+test("a wheel leaves the precise pointer position intact", () => {
+  const movement = new Event("pointermove");
+  Object.defineProperties(movement, {
+    clientX: { value: 120.5 },
+    clientY: { value: 240.25 },
+  });
+  document.dispatchEvent(movement);
+  document.dispatchEvent(new Event("wheel"));
+  assert.deepEqual(pointerAt(), { x: 120.5, y: 240.25 });
 });
 
 test("a host's first cover keeps its room from the declaration on", () => {

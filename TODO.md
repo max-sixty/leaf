@@ -137,9 +137,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.
-- **#28 — Reading-column grid:** replace `main`'s `left` offset if panel
-  movement causes scroll or maintenance trouble; current measured layouts held
-  the reader's place.
+- **#28 — Threads slides over:** the panel overlays the page at every width, so
+  the page never moves for it; delete the push strip, `COVERING`, and `main`'s
+  panel offset. See the [layout model](notes/layout-model.md).
 - **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
   `@layer`; the earlier trial changed chrome styling. See the
   [dependency survey](notes/dependency-survey.md).

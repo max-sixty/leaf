@@ -127,7 +127,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const field = document.createElement("div");
     field.className = "lf-compose-field";
     ta.before(field);
-    field.append(ta, sendBtn);
+    const hintLine = document.createElement("span");
+    hintLine.className = "lf-compose-hint";
+    hintLine.setAttribute("aria-hidden", "true");
+    const hintText = document.createElement("span");
+    const hintKey = document.createElement("kbd");
+    hintLine.append(hintText, hintKey);
+    field.append(ta, hintLine, sendBtn);
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
@@ -165,9 +171,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       renderMedia();
     };
     hydrate(ta.value);
-    // The hint goes in the placeholder, where it's visible exactly while the box is
-    // empty; the stable accessible name remains independent of that changing hint. The
-    // button's tooltip spells the send key out. The send shortcut is focus-scoped, so
+    // The placeholder keeps the complete hint; its visible copy styles the binding
+    // separately while the box is empty. The stable accessible name remains independent
+    // of that changing hint. The button's tooltip spells the send key out. The send
+    // shortcut is focus-scoped, so
     // only the focused box may claim it. Unfocused, the placeholder may carry the live
     // contextual key that enters this exact box. These readings may be functions because
     // their labels can change while the box stands.
@@ -188,8 +195,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         : contextualHint?.box === ta
           ? contextualHint.label
           : "";
-      const placeholder = suffix ? `${label()} · ${suffix}` : label();
+      const word = label();
+      const placeholder = suffix ? `${word} · ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+      if (suffix) {
+        hintText.textContent = `${word} · `;
+        hintKey.textContent = suffix;
+      }
+      field.classList.toggle("lf-compose-hinted", Boolean(suffix));
       const ariaLabel = name();
       if (ariaLabel && ta.getAttribute("aria-label") !== ariaLabel)
         ta.setAttribute("aria-label", ariaLabel);

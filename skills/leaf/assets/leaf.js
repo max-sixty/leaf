@@ -368,6 +368,7 @@ app = mountApplication({
   targetChooserOpen: () => targets.targetChooserOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
+  paintInputs: inputs.paintInputs,
   anchorPaint,
   anchorControls,
   drawingPaint,

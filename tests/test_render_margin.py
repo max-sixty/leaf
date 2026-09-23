@@ -5686,6 +5686,15 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     first_frame = marker.evaluate(
         """async marker => {
           const card = document.querySelector('.lf-margin-preview');
+          const firstFocus = event => {
+            if (!event.target.matches('.lf-margin-preview .lf-conversation-thread'))
+              return;
+            document.removeEventListener('focusin', firstFocus);
+            queueMicrotask(() => {
+              window.__firstReplyHint = card.querySelector('textarea')?.placeholder;
+            });
+          };
+          document.addEventListener('focusin', firstFocus);
           const painted = new Promise(resolve => requestAnimationFrame(() => {
             const box = card.getBoundingClientRect();
             resolve({open: card.matches(':popover-open'),
@@ -5745,10 +5754,36 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     ), geometry
     assert 319 <= geometry["cardWidth"] <= 460, geometry
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    assert page.evaluate("() => window.__firstReplyHint") == "Reply · c"
+    expect(reply).to_have_attribute("placeholder", "Reply · c")
     expect(marker).to_have_attribute("data-lf-target-selected", "")
     expect(marker).to_have_css("border-top-color", token_colour(page, "--accent"))
     expect(reply).to_be_hidden()
     thread.get_by_role("button", name="Reply", exact=True).click()
+    expect(reply).to_be_focused()
+    hint = thread.locator(".lf-compose-hint")
+    expect(hint).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(reply).to_have_attribute("placeholder", "Reply · c")
+    expect(hint).to_be_visible()
+    expect(hint.locator("kbd")).to_have_text("c")
+    assert hint.locator("kbd").evaluate(
+        "key => getComputedStyle(key).fontFamily"
+    ) == page.evaluate(
+        "() => getComputedStyle(document.body).getPropertyValue('--mono').trim()"
+    )
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    reply.fill("x")
+    reply.fill("")
+    page.keyboard.press("Escape")
+    preview.locator(".lf-margin-preview-close").click()
+    marker.click()
+    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(reply).to_be_visible()
+    expect(reply).to_have_attribute("placeholder", "Reply · c")
+    page.keyboard.press("c")
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)

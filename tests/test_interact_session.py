@@ -2258,46 +2258,6 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
     )
 
 
-def test_delivery_pointer_guides_a_long_thread_summary_without_the_newest_exchange():
-    payload = {
-        "format": delivery_model.DELIVERY_FORMAT,
-        "id": "delivery-43",
-        "batches": [
-            {
-                "page": "/tmp/page",
-                "conversations": [
-                    {
-                        "id": "thread-1",
-                        "summary_hint": {
-                            "from": "message-1",
-                            "through": "message-8",
-                            "operation": "conversation summarize",
-                            "instruction": (
-                                "This thread has become long. Read the original "
-                                "messages, then summarize this exact range; keep the "
-                                "newer exchange outside the summary."
-                            ),
-                        },
-                    }
-                ],
-            }
-        ],
-    }
-
-    prompt = codex_model.delivery_pointer_prompt("delivery-43", payload)
-    root = ElementTree.fromstring(prompt.splitlines()[1])
-    [guidance] = root.findall("summarize")
-    assert guidance.attrib == {
-        "page": "/tmp/page",
-        "conversation": "thread-1",
-        "from": "message-1",
-        "through": "message-8",
-        "operation": "conversation summarize",
-    }
-    assert "Read the original messages" in guidance.text
-    assert "newer exchange" in guidance.text
-
-
 def test_app_server_events_report_semantic_codex_progress():
     events = codex_model.AppServerEvents("codex-thread")
 
@@ -11500,15 +11460,16 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     assert session_model.cmd_wait(page_dir) == 0
     envelope = json.loads(capsys.readouterr().out)
     envelope["id"] = "<delivery>"
-    assert envelope["batches"][0]["conversations"][0]["summary_hint"]
-    pointer = codex_model.delivery_pointer_prompt(envelope["id"], envelope)
+    [batch] = envelope["batches"]
+    assert batch["conversations"][0]["summary_hint"]
+    # The event carries the ask as well as the digest, so an agent that reads only
+    # what is new is still told the thread wants summarizing.
+    [event] = batch["events"]
+    assert any("summary_hint" in batch["handling"][h] for h in event["handling"])
     snapshot.check(
         yaml_document(
-            "The summary hint from real conversation events, their wait delivery, and\n"
-            "the Codex pointer generated from that same immutable delivery.",
-            _interaction_prompt_evidence(
-                page_dir, {"delivery": envelope, "Codex task input": pointer}
-            ),
+            "The summary hint from real conversation events and their wait delivery.",
+            _interaction_prompt_evidence(page_dir, {"delivery": envelope}),
         )
     )
 

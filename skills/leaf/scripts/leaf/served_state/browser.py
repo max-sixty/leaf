@@ -23,7 +23,7 @@ def _apply_thread_attention(
     thread_by_widget: dict[str, str],
 ) -> None:
     """Attach the shared attention aggregate, with reader Asks taking precedence."""
-    reader_threads = {ask["thread"] for ask in asks["reader"]}
+    reader_threads = {ask["conversation"] for ask in asks["reader"]}
     stage_rank = {
         "sent": 0,
         "queued": 1,

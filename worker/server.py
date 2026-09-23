@@ -137,7 +137,7 @@ FAILURE_RECEIPTS = {
 CONTAINER_FAILURE = "turn_failed"
 WORKER_FAILURES = tuple(code for code in FAILURE_RECEIPTS if code != CONTAINER_FAILURE)
 AGENT_START_PATH = "/_leaf/agent/start"
-AGENT_REPLY_PATH = "/_leaf/agent/reply"
+AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
 RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
 CODEX_SOCKET = RUNTIME_DIRECTORY / "leaf-website-codex.sock"
@@ -1369,12 +1369,12 @@ class WebsitePageEndpoint(PageEndpoint):
             # the edge gives — otherwise every page served here loads with a 404 in its
             # console (`skills/leaf/assets/runtime/bootstrap.js`, `observePublicStartup`).
             return self._content(204, "application/json", b"")
-        if path not in {AGENT_START_PATH, AGENT_REPLY_PATH}:
+        if path not in {AGENT_START_PATH, AGENT_FAIL_PATH}:
             return super()._post()
         if self.posted_error:
             return self._json({"error": self.posted_error}, 400)
         try:
-            if path == AGENT_REPLY_PATH:
+            if path == AGENT_FAIL_PATH:
                 event_id, failure = _agent_failure(self.posted)
             else:
                 event_id = _agent_event(self.posted)

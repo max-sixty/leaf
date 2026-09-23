@@ -186,7 +186,7 @@ export function createAskView({
   async function materializeAsk(ask, intent = null) {
     let target = askNode(ask);
     let source = sourceNode(ask);
-    if ((!target || !source) && ask.thread) {
+    if ((!target || !source) && ask.conversation) {
       if (!panelIsOpen()) {
         if (intent) {
           if (!intent.handoff(() => setPanel(true))) return {};

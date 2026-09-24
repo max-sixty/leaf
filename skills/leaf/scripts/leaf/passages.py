@@ -118,11 +118,13 @@ def inline_markdown_words(source: str, *, added: bool = False) -> str:
     return "".join(reader.parts)
 
 
-def created_words(words: str, entry: dict) -> str:
-    """The words a user-created child shows, from the words its creating action
-    sent: its entry's `x-text-format` applied as an added child renders it."""
+def shown_words(words: str, entry: dict, *, added: bool) -> str:
+    """The words an element's text shows: its entry's `x-text-format` applied, the
+    way an `added` child (one a user created, `data-lf-added`) renders it where
+    `added`. A created child's words are its creating action's, so their readers
+    pass `added=True`."""
     if entry.get("x-text-format") == "inline-markdown":
-        return inline_markdown_words(words, added=True)
+        return inline_markdown_words(words, added=added)
     return words
 
 
@@ -474,11 +476,9 @@ class _PassageParser:
         frame = self.stack[-1] if self.stack else None
         if not frame:
             return
-        if (
-            self.registry.get(frame["tag"], {}).get("x-text-format")
-            == "inline-markdown"
-        ):
-            data = inline_markdown_words(data, added=frame["added"])
+        data = shown_words(
+            data, self.registry.get(frame["tag"], {}), added=frame["added"]
+        )
         if not frame["skip"]:
             self._write(data, frame["block"], frame["ids"])
         elif frame["shows"]:

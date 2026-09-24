@@ -3050,7 +3050,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
 
 def test_registered_control_keys_activate_once(browser, serve):
-    """A native draft button activates without a Leaf key binding. The selectable option
+    """A native draft button activates without a Leaf binding. The selectable option
     mark is the explicit exception and owns its Space row.
 
     Activation happens once per press however long the key is held. A keydown listener

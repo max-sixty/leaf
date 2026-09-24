@@ -55,6 +55,7 @@ from render_cases_widgets import (
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
+    STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
     prefixed_visual_layer,
@@ -2226,6 +2227,55 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
     assert before == after
     assert page.evaluate(
         "() => window.lfOldContour !== document.querySelector('.lf-visual-mark-shape > g > rect')"
+    )
+
+
+def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals_it(
+    browser, serve
+):
+    """A thread on a part the visual is not drawing now stays attached, to the whole
+    visual, and travelling to it asks the visual to draw the part and lands there."""
+    url = serve(
+        GENERIC_VISUAL_PAGE,
+        layer_registry=GENERIC_VISUAL_LAYER,
+        layer_widgets=STAGED_VISUAL_WIDGETS,
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "inner-comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Why does this branch?",
+            "anchor": {"section": "visual", "visual": "inner"},
+        },
+    )
+    page = open_page(browser, url)
+    inner = page.locator("#inner")
+    mark = page.locator(".lf-visual-mark-comment")
+    expect(mark).to_have_count(1)
+    expect(inner).to_be_hidden()
+    placed = page.evaluate(
+        """() => {
+          const box = (el) => el.getBoundingClientRect();
+          const mark = box(document.querySelector('.lf-visual-mark-comment'));
+          const visual = box(document.querySelector('#visual'));
+          return mark.width >= visual.width && mark.height >= visual.height;
+        }"""
+    )
+    assert placed
+
+    page.keyboard.press("t")
+    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    expect(inner).to_be_visible()
+    page.wait_for_function(
+        """() => {
+          const mark = document.querySelector('.lf-visual-mark-comment');
+          const inner = document.querySelector('#inner').getBoundingClientRect();
+          const box = mark?.getBoundingClientRect();
+          return box && box.width < inner.width + 40 && box.height < inner.height + 40;
+        }"""
     )
 
 

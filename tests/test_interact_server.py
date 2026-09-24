@@ -73,6 +73,7 @@ from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
+from leaf.served_state import reading as served_reading
 from leaf.served_state import service as served_service
 from leaf.structure import EXTERNAL_ORIGINS
 from page_fixtures import package_selection_args
@@ -4279,6 +4280,60 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         response = stream.getresponse()
         assert response.readline().decode().strip() == f"data: {snapshot.reading}"
         stream.close()
+
+
+def _coarse_write_clock(monkeypatch):
+    """Stand in for a filesystem whose write clock ticks coarsely, as Linux's does: the
+    clock holds one time until a reader waits on it, and every write made meanwhile
+    carries that time, the way two writes a few milliseconds apart share one there.
+    Returns what a write calls to take the clock's time."""
+    now = [files_model.write_clock()]
+    real_sleep = time.sleep
+
+    def waited(seconds):
+        now[0] += 1_000_000
+        real_sleep(seconds)
+
+    monkeypatch.setattr(files_model, "write_clock", lambda: now[0])
+    monkeypatch.setattr(time, "sleep", waited)
+    return lambda path: os.utime(path, ns=(now[0], now[0]))
+
+
+def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
+    page_dir, monkeypatch
+):
+    """A data file rewritten in place, to the same size, after a reading taken in the
+    write clock's tick of the write before it, still moves the page's reading:
+    `leaf wait`, the news stream, and source activation all key on that reading, and
+    an unmoved one leaves the write unheard until some later write."""
+    written = _coarse_write_clock(monkeypatch)
+    value = page_dir / schema_model.DATA_DIR / "tick.json"
+    files_model.write_json(value, {"n": 1})
+    written(value)
+    before = served_reading.page_reading(page_dir)
+    with value.open("r+") as stream:
+        stream.write('{"n": 2}')
+    written(value)
+    assert json.loads(value.read_text()) == {"n": 2}
+    assert served_reading.page_reading(page_dir) != before
+
+
+def test_neighbour_discovery_sees_a_page_made_in_one_clock_tick(page_dir, monkeypatch):
+    """A page made in the state home's pages/ after a scan taken in the write clock's
+    tick of the change before it, leaving the directory's size unchanged, is still
+    discovered: the scan is keyed on the directory's stamp, and a stamp the second
+    change left in place would hide the new page until some later write moved it."""
+    written = _coarse_write_clock(monkeypatch)
+    pages = machine_model.state_home() / "pages"
+    (pages / "first").mkdir(parents=True)
+    (pages / "placeholder").write_text("")
+    written(pages)
+    before = presence_model.neighbor_candidates()
+    (pages / "placeholder").unlink()
+    (pages / "second").mkdir()
+    written(pages)
+    assert (pages / "second").resolve() not in before
+    assert (pages / "second").resolve() in presence_model.neighbor_candidates()
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):

@@ -19,7 +19,6 @@ import hashlib
 import json
 import os
 import posixpath
-import stat as stat_type
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -298,17 +297,18 @@ def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...
     return tuple(_css_urls(parse(source)))
 
 
-def _path_stamp(path: Path) -> tuple | None:
-    """Identify a directory entry and the file it currently resolves to."""
+def _path_stamp(path: Path) -> tuple:
+    """Identify a directory entry and the file it currently resolves to: where a
+    symlink points decides whether a dependency escapes its directory, and the
+    stamp of what it resolves to decides the bytes captured."""
     try:
-        stat = path.lstat()
-    except OSError:
-        return None
-    target = file_stamp(path) if stat_type.S_ISLNK(stat.st_mode) else None
-    return (stat.st_ino, stat.st_mtime_ns, stat.st_size, stat.st_mode, target)
+        link = path.readlink()
+    except OSError:  # not a symlink, or no longer there
+        link = None
+    return (link, file_stamp(path))
 
 
-def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple | None], ...]:
+def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
     paths = [page_dir / name for name in VENDORED_FILES]
     for name in (*BROWSER_DIRS, "page", "media"):
@@ -349,7 +349,7 @@ def _capture_artifact_stamped(
     registry_json: bytes,
     declaration_sources_json: bytes,
     widget_sources_json: bytes | None,
-    input_stamps: tuple[tuple[str, tuple | None], ...],
+    input_stamps: tuple[tuple[str, tuple], ...],
 ) -> RevisionArtifact:
     """Retain one complete capture while every mutable input has the same stamp."""
     return _capture_artifact(

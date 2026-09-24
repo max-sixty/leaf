@@ -239,7 +239,8 @@ layout signals (each helper's header under `runtime/` says why); `keeps(node, na
 value)` for any name or state a reactive render writes, handed the boolean or count raw,
 since an unconditional `setAttribute` restates itself on every publication and
 `toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and
-hoisted chrome removed in `disconnectedCallback` when the owner disconnects;
+hoisted chrome removed and any `indicate` cleared with `null` in `disconnectedCallback`
+when the owner disconnects;
 `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
 owning those commands — `quoted()` before wiring input, controller command availability
 before an optimistic gesture.
@@ -450,6 +451,42 @@ exposes `entry`, `control`, `contains`, `activate`, `focus`, `update`, and `unre
 surviving key. Keep text fields, history, and other mechanical editing state in the
 widget. Publish only action and status records to the margin, with explicit `element` or
 `entries` relations when a disclosure owns another surface or entry.
+
+### Following a reference
+
+A module reaches another widget through an attribute its entry declares in `x-refers`
+(External requests and receipts, below) rather than looking the id up itself. Leaf
+resolves the attribute in the owner's own authored document first, so a widget in a
+reply finds its message's element before a page element with the same id, as the server
+does, and then in the page, which a reply's widget may name. Both verbs below
+throw a `TypeError` for an attribute the owner's entry does not declare.
+
+A key addresses elements under the named widget in one key space: a registered visual
+part's id, a projected datum's key, or, where the widget's parts have a private address,
+whatever its `lfElementsFor(key)` maps to elements under itself. `lf-code` answers its
+`hi` grammar, so `"3-5,8"` addresses those lines.
+
+`navigateToDatum(widget, attribute, key, messages)` travels to the first element a key
+addresses. Leaf resolves declared shadow trees, asks the target to hydrate lazy data,
+opens its containing disclosure, focuses that disclosure, updates the fragment, and
+announces the supplied `success` or `missing` message. A lazy target may implement
+`lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
+semantic key to the rendered projected element.
+
+#### Indicating (experimental)
+
+The signature and the `lfElementsFor` hook may change. `indicate(widget, attribute,
+key)` marks the elements a key addresses, in place of whatever that widget last
+indicated through the same attribute, and returns whether anything is marked; `null`
+clears it. Leaf paints the marked elements with `data-lf-indicated` and nothing else,
+leaving the target's own ARIA state alone, and never scrolls, focuses, reveals, hydrates,
+or announces for them, so a driver may move its indication every animation frame without
+moving the page; the driver's own narration says what the mark means.
+An indication is browser state, like hover: the log never records it, and a new revision
+does not carry it. A widget whose parts have a face of their own styles
+`[data-lf-indicated]` on them; the default is an accent outline. A target that re-renders
+what a key addresses calls `layoutChanged(this)`, and every standing indication resolves
+again.
 
 ### Commands and keyboard routes
 
@@ -1005,13 +1042,6 @@ Leaf records the default origin or `originOf(record, index)` result as JSON in
 store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
 Leaf never infers them from displayed
 text or datum keys.
-
-`navigateToDatum(widget, attribute, key, messages)` follows an `x-refers` attribute to
-another projection and travels to its opaque datum key. Leaf resolves declared shadow
-trees, asks the target to hydrate lazy data, opens its containing disclosure, focuses
-that disclosure, updates the fragment, and announces the supplied `success` or `missing`
-message. A lazy target may implement `lfRevealDatum(key)` to return its hydration promise
-and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
 
 ## Widget-local Thread surfaces
 

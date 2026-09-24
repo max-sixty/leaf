@@ -13,11 +13,11 @@
  */
 
 import {
-  currentDatum,
-  projectionReferenceDeclared,
+  addressedElements,
   referencedProjection,
+  revealVisualPart,
+  requireReference,
   sectionOf,
-  suppliedDatum,
 } from "./anchor-resolution.js";
 import {
   clippedContents,
@@ -124,15 +124,6 @@ export function createAnchorTravel({
     return true;
   }
 
-  function validateProjectionReference(owner, attribute) {
-    if (!(owner instanceof Element))
-      throw new TypeError("navigateToDatum owner must be an element");
-    if (typeof attribute !== "string" || !projectionReferenceDeclared(owner, attribute))
-      throw new TypeError(
-        `navigateToDatum ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
-      );
-  }
-
   async function navigateToDatum(
     owner,
     attribute,
@@ -140,7 +131,7 @@ export function createAnchorTravel({
     { success = "", missing = "" } = {},
   ) {
     const mayArrive = retainTravel();
-    validateProjectionReference(owner, attribute);
+    requireReference("navigateToDatum", owner, attribute);
     if (typeof key !== "string" || !key)
       throw new TypeError("navigateToDatum key must be a non-empty string");
     let source = referencedProjection(owner, attribute);
@@ -159,7 +150,7 @@ export function createAnchorTravel({
       if (missing) announce(missing);
       return false;
     }
-    let destination = currentDatum(source, key) ?? suppliedDatum(source, key);
+    let destination = addressedElements(source, key)[0] ?? null;
 
     const url = new URL(window.location.href);
     url.hash = source.id;
@@ -174,7 +165,7 @@ export function createAnchorTravel({
     await reveal(destination, mayArrive);
     if (!mayArrive()) return false;
     source = referencedProjection(owner, attribute);
-    destination = source && (currentDatum(source, key) ?? suppliedDatum(source, key));
+    destination = source && (addressedElements(source, key)[0] ?? null);
     if (!destination) {
       if (missing) announce(missing);
       return false;
@@ -320,7 +311,10 @@ export function createAnchorTravel({
     const mayArrive = retainTravel();
     const thread = currentThreads().find((candidate) => candidate.root.id === id);
     const anchor = thread?.anchor;
-    const hydrating = anchor?.datum && anchors.placedAt(id)?.status !== "outdated";
+    const status = anchors.placedAt(id)?.status;
+    const hydrating =
+      (anchor?.datum && status !== "outdated") ||
+      (anchor?.visual && status === "fallback");
     const standing = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
@@ -328,7 +322,9 @@ export function createAnchorTravel({
     if (standing || hydrating) trip(standing, { landing, keep, intent: mayArrive });
     if (hydrating) {
       const source = sectionOf(anchor);
-      const hydration = source?.lfRevealDatum?.(anchor.datum);
+      // A visual draws the state holding its part synchronously; a lazy datum may load.
+      if (anchor.visual) revealVisualPart(source, anchor.visual);
+      const hydration = anchor.datum && source?.lfRevealDatum?.(anchor.datum);
       if (hydration?.then) await hydration;
       if (!mayArrive() || sectionOf(anchor) !== source) return false;
       await refreshConversation();

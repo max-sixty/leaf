@@ -1,5 +1,6 @@
 """Mutable source, immutable revisions, and public version addresses."""
 
+import hashlib
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from stat import S_ISDIR, S_ISREG
 from typing import TypeVar
 
 from .locations import path_location
@@ -20,17 +22,82 @@ from .locations import path_location
 STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
 
 
+# The clock a filesystem stamps a write's modification time from. Linux reads the
+# kernel's coarse clock, CLOCK_REALTIME_COARSE, which Python does not name: it moves
+# once a jiffy (1–10ms by kernel build), so every write inside one tick carries the same
+# time, nanosecond fields notwithstanding — measured on a 6.8 kernel, 94% of back-to-back
+# rewrites of one file kept the time the write before set. APFS reads the fine clock,
+# and no two of 20,000 back-to-back rewrites shared a time.
+WRITE_CLOCK = 5 if sys.platform == "linux" else time.CLOCK_REALTIME
+
+# The longest a stamp waits for that clock to move past a write: twice the slowest
+# jiffy, so any tick ends inside it.
+SETTLE_NS = 20_000_000
+
+
+def write_clock() -> int:
+    """The modification time a write made now would carry."""
+    return time.clock_gettime_ns(WRITE_CLOCK)
+
+
 def file_stamp(path: Path):
-    """What the filesystem says a file is: which file, when it was last written,
-    and how big it is. A page directory holds files that are written once and read
-    on every request, so what each one says is worked out once and kept under this
-    stamp, and a file rewritten since wears a different one. A path with nothing
-    there stamps as None, which keeps nothing and reads every time."""
-    try:
-        stat = path.stat()
-    except OSError:
+    """What the filesystem says a file or directory is: which one, when it was last
+    written, and how big it is. A page directory holds files that are written once and
+    read on every request, so what each one says is worked out once and kept under this
+    stamp, and one rewritten since wears a different one. A path with nothing there
+    stamps as None, which keeps nothing and reads every time.
+
+    Every freshness key in leaf is built from these stamps — the page's reading that
+    `leaf wait`, the news stream and activation follow, neighbour discovery, and the
+    caches of parsed files — so this is where a stamp is made exact. The time alone is
+    not, while `write_clock` is still in the tick that stamped the last write: a second
+    write inside it, to the same size, would leave the stamp unmoved — a data file
+    rewritten in place, an entry added beside a removed one, an atomic replace whose
+    staging file reused the inode the one before it freed. So a stamp is not taken
+    until the clock has moved past the time it would carry. That is a wait of at most
+    one tick for a reader right behind a writer, and none for anyone else. The stamp
+    is then exact and stays the same while the path does, so a cache or a follower
+    keyed on it neither misses a write nor wakes for one that did not happen.
+
+    A time the clock does not pass within `SETTLE_NS` — a file dated ahead of the
+    clock, or one rewritten on every tick — is not waited out. Its stamp carries what
+    the path holds instead, the rule git applies to a racily clean index entry, until
+    the clock passes that time and the stamp drops it. That is one move for an
+    unchanged file, once per such time, and the price of exactness: a stamp without
+    the contents would match one taken after a same-size rewrite in the tick the
+    clock reaches the file's time."""
+    settle_by = time.monotonic_ns() + SETTLE_NS
+    while True:
+        looked = write_clock()
+        try:
+            stat = path.stat()
+            stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            if stat.st_mtime_ns < looked:
+                return stamp
+            if (
+                stat.st_mtime_ns - looked >= SETTLE_NS
+                or time.monotonic_ns() >= settle_by
+            ):
+                return (*stamp, _contents(path, stat.st_mode))
+        except OSError:
+            return None
+        time.sleep(0.001)
+
+
+def _contents(path: Path, mode: int) -> bytes | None:
+    """A digest of what a regular file holds, or of which entries a directory holds.
+    Anything else — a FIFO, a socket — holds nothing a read could name without
+    waiting on its writer."""
+    if S_ISDIR(mode):
+        with os.scandir(path) as entries:
+            held = repr(
+                sorted((entry.name, entry.inode()) for entry in entries)
+            ).encode()
+    elif S_ISREG(mode):
+        held = path.read_bytes()
+    else:
         return None
-    return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+    return hashlib.blake2b(held, digest_size=16).digest()
 
 
 # How often a reader waiting on a page looks for news: the browser's news stream,

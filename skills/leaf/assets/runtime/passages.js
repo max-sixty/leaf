@@ -99,6 +99,7 @@ import {
   inUi,
   overIn,
   pageShadowRoots,
+  shadowRootsIn,
   uiInside,
   under,
   upFrom,
@@ -415,15 +416,29 @@ export function closestAcross(node, selector) {
 // captured, the mark never painted, no error anywhere. The document first, because that
 // is where everything but a staged widget's own parts lives, and only the roots the
 // registry declares after it, so the walk sees what the capture saw.
-export const elementById = (id) => {
-  const found = document.getElementById(id);
+//
+// `root` narrows the search to one authored document (`authoredScope`), with the roots
+// declared inside it.
+export const elementById = (id, root = document) => {
+  const found =
+    root === document
+      ? document.getElementById(id)
+      : root.querySelector(`[id="${CSS.escape(id)}"]`);
   if (found) return found;
-  for (const root of pageShadowRoots()) {
-    const inside = root.getElementById(id);
+  for (const shadow of shadowRootsIn(root)) {
+    const inside = shadow.getElementById(id);
     if (inside) return inside;
   }
   return null;
 };
+
+// The root of the authored document a node stands in. A message's widget markup is a
+// document of its own, placed in that message's body; everything else is the page's
+// `main`. A widget resolving a reference among its own document's elements searches
+// here, so markup a message quotes neither answers for the page nor reaches into it.
+export const pageDocument = () => document.querySelector("body > main");
+export const authoredScope = (node) =>
+  closestAcross(node, ".lf-msg-body") ?? pageDocument();
 
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing

@@ -11,17 +11,21 @@ import { sameAnchor } from "./anchor-coordinate.js";
 import { resolvedElement, resolvedPassage } from "./resolved-target.js";
 import { inUi, under, upFrom } from "./shadow.js";
 import {
+  revealsVisualParts,
+  revealVisualPart as revealRegisteredVisualPart,
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
   visualParts as registeredVisualParts,
 } from "./visual-parts.js";
 import {
+  authoredScope,
   blockAt,
   closestAcross,
   DATUM,
   elementById,
   findQuote,
   inChrome,
+  pageDocument,
   pageQueryAll,
   quoteFrom,
   settledAway,
@@ -67,17 +71,47 @@ export function suppliedDatum(source, key) {
     : null;
 }
 
-export const projectionReferenceDeclared = (owner, attribute) =>
-  owner instanceof Element &&
-  typeof attribute === "string" &&
-  Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute);
+// The verbs that follow an `x-refers` attribute (`navigateToDatum`, `indicate`) are
+// handed it by package code, so an undeclared one is that code's error, thrown at the
+// call rather than read as a reference to nothing.
+export function requireReference(verb, owner, attribute) {
+  if (!(owner instanceof Element))
+    throw new TypeError(`${verb} owner must be an element`);
+  if (
+    typeof attribute !== "string" ||
+    !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)
+  )
+    throw new TypeError(
+      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
+    );
+}
 
-// The declaration is interpretation; deciding that a bad command argument is an error
-// belongs to anchor-travel.
+// The element an `x-refers` attribute names: in the owner's own authored document
+// first, so a widget in a message finds its message's element before a page element
+// with the same id, as the server's request check does, and then in the page beside
+// it, which a message's widget may name.
 export function referencedProjection(owner, attribute) {
-  if (!projectionReferenceDeclared(owner, attribute)) return null;
   const id = owner.getAttribute(attribute);
-  return id ? elementById(id) : null;
+  if (!id) return null;
+  const scope = authoredScope(owner);
+  const page = pageDocument();
+  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
+}
+
+// The elements under a referenced widget that a key addresses, in the one key space
+// every `x-refers` verb reads. A widget whose parts have a private address (a code
+// block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
+// registered visual part's id or a projected datum's key. Only elements under the
+// source count, so a hook cannot point a caller elsewhere in the page.
+export function addressedElements(source, key) {
+  if (typeof source.lfElementsFor === "function")
+    return [...(source.lfElementsFor(key) ?? [])].filter(
+      (element) => element instanceof Element && under(element, source),
+    );
+  const part = visualPart(source, key)?.element;
+  if (part) return [part];
+  const datum = currentDatum(source, key) ?? suppliedDatum(source, key);
+  return datum ? [datum] : [];
 }
 
 // A generated visual part keeps a semantic id the provider declaration bounds: a token
@@ -112,9 +146,15 @@ export function visualParts(visual) {
     .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
+const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
+
 export function visualPart(visual, part) {
-  return visualPartRank(visual)?.(part) >= 0
-    ? registeredVisualPart(visual, part)
+  return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
+}
+
+export function revealVisualPart(visual, part) {
+  return admitsVisualPart(visual, part)
+    ? revealRegisteredVisualPart(visual, part)
     : null;
 }
 
@@ -423,12 +463,23 @@ export function resolveAnchor(anchor, text = "") {
     // part coordinate to the containing widget.
     if (!section || settledAway(section)) return null;
     const found = visualPart(section, anchor.visual);
-    return found
-      ? resolvedElement({
-          element: found.element,
-          place: section,
-          surface: found.surface,
-        })
+    if (found)
+      return resolvedElement({
+        element: found.element,
+        place: section,
+        surface: found.surface,
+      });
+    // A declared part the visual draws only in another state stands in for the whole
+    // visual, as a lazy datum does, until travel reveals it.
+    return admitsVisualPart(section, anchor.visual) && revealsVisualParts(section)
+      ? {
+          ...resolvedElement({
+            element: section,
+            surface: wholeVisualSurface(section),
+          }),
+          exact: false,
+          status: "fallback",
+        }
       : null;
   }
 

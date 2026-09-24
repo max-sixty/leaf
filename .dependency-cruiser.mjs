@@ -99,6 +99,7 @@ const forbiddenClosures = Object.fromEntries([
     "anchor-travel.js",
     "chrome-layout.js",
     "composing/drawing-paint.js",
+    "indication.js",
     "margin-layout.js",
     "page-geometry.js",
     "target-paint.js",

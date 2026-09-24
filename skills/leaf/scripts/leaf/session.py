@@ -1,7 +1,6 @@
 """Agent status, waiting, and acknowledgement policy."""
 
 import json
-import secrets
 import sys
 import time
 from collections.abc import Callable
@@ -20,7 +19,7 @@ from .detached import StartRefused
 from .files import file_stamp, next_reading, read_json
 from .host import Harness, session_harness
 from .hosting import start_server
-from .leases import take_lease, waiter_lease_path
+from .leases import take_lease, take_session_wait, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
 from .revisioning import activate_source
@@ -246,6 +245,7 @@ class Watch:
             waiter_lease_path(page, self.session_id) for page in targets
         )
         self.leases = []
+        self.start_mark = None
         self._revived: set = set()
         self._lost: set = set()
         self._check_at: dict = {}
@@ -256,17 +256,20 @@ class Watch:
         """Hold the session lease, or every explicitly watched standalone page."""
         if self.leases:
             return True
+        if self.session_id:
+            # A host wait also marks its start, for the tool hook that tells the
+            # agent how to close the turn this wait outlives.
+            taken = take_session_wait(self.session_id)
+            if taken is None:
+                return False
+            lease, self.start_mark = taken
+            self.leases.append(lease)
+            return True
         for path in self.lease_paths:
             lease = take_lease(path)
             if lease is None:
                 self.release()
                 return False
-            # Each wait writes its own start over the last one's, so a reader can
-            # tell this wait from the one before it on the same lease
-            # (`leases.started_wait`).
-            lease.truncate(0)
-            lease.write(secrets.token_hex(8).encode())
-            lease.flush()
             self.leases.append(lease)
         return True
 
@@ -394,6 +397,10 @@ class Watch:
 
     def release(self) -> None:
         """Release this carrier's liveness proof, however it ended."""
+        # The start mark goes before the lease, so the next wait never waits on it.
+        if self.start_mark is not None:
+            self.start_mark.close()
+            self.start_mark = None
         for lease in self.leases:
             lease.close()
         self.leases.clear()

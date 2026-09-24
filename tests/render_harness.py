@@ -786,11 +786,11 @@ def told(page):
             raise AssertionError(
                 f"the page never took in what the server holds: waiting for {began}, "
                 f"the page last applied "
-                f"{page.evaluate('() => document.body.dataset.lfReading')}"
+                f"{page.evaluate('() => document.body?.dataset.lfReading')}"
             )
         try:
             page.wait_for_function(
-                "want => document.body.dataset.lfReading === want",
+                "want => document.body?.dataset.lfReading === want",
                 arg=want,
                 timeout=min(500, remaining * 1000),
                 polling=50,

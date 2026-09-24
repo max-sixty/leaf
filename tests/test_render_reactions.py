@@ -1449,8 +1449,9 @@ def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
 
 
 def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
-    """A tab stop is somewhere focus rests, not a press. A tab panel's pictures and a
-    diagram inside a stage that takes keys each keep their keyboard comment routes."""
+    """A region that holds content is not a press. A tab panel's pictures and a diagram
+    inside an application stage that takes keys each keep their keyboard comment
+    routes."""
     page_markup = leaf_page(
         "focusable holders",
         """
@@ -1458,7 +1459,7 @@ def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
 <lf-tabs id="tabs"><lf-tab id="first" label="First">
 <figure id="tabbed"><svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></figure>
 </lf-tab><lf-tab id="second" label="Second"><p>More.</p></lf-tab></lf-tabs>
-<div id="stage" tabindex="0" aria-label="Stage">
+<div id="stage" role="application" tabindex="0" aria-label="Stage">
 <lf-diagram id="flow" parts="node:S node:H"><pre>
 graph LR
   S[Start request] --> H[Handle request]

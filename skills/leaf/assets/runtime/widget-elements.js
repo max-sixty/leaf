@@ -237,10 +237,12 @@ export function quoted(el) {
 // the body under it is prose the user may point at like any other. Nothing embedded
 // (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
 // listing them would guard a gesture no listener out here can see.
-// A tab stop is a place focus rests, which a press also is; the visual reading asks
-// only for the press, so it reads the vocabulary without it.
-const TAB_STOP = "[tabindex]:not([tabindex='-1'])";
-const WORK_SELECTORS = [
+// Two kinds, read apart where the question is whether a picture is a control's
+// rendering. A press is one control whose whole box is the gesture: what it holds, an
+// icon or a thumbnail, is how the control looks. A region is somewhere a gesture can
+// land that holds content of its own: a tab stop focus rests on, a composite widget
+// whose items are the presses, an editing surface, a drag source.
+const PRESS_SELECTORS = [
   "a",
   "audio[controls]",
   "button",
@@ -251,25 +253,15 @@ const WORK_SELECTORS = [
   "summary",
   "textarea",
   "video[controls]",
-  "[contenteditable]:not([contenteditable='false'])",
-  "[draggable='true']",
-  TAB_STOP,
-  "[role='application']",
   "[role='button']",
   "[role='checkbox']",
   "[role='combobox']",
-  "[role='grid']",
-  "[role='gridcell']",
   "[role='link']",
-  "[role='listbox']",
-  "[role='menu']",
-  "[role='menubar']",
   "[role='menuitem']",
   "[role='menuitemcheckbox']",
   "[role='menuitemradio']",
   "[role='option']",
   "[role='radio']",
-  "[role='radiogroup']",
   "[role='scrollbar']",
   "[role='searchbox']",
   "[role='separator'][tabindex]",
@@ -277,16 +269,26 @@ const WORK_SELECTORS = [
   "[role='spinbutton']",
   "[role='switch']",
   "[role='tab']",
-  "[role='tablist']",
   "[role='textbox']",
-  "[role='tree']",
-  "[role='treegrid']",
   "[role='treeitem']",
 ];
-export const WORKS = WORK_SELECTORS.join(",");
-export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
-  (selector) => selector !== TAB_STOP,
-).join(",");
+const REGION_SELECTORS = [
+  "[tabindex]:not([tabindex='-1'])",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[draggable='true']",
+  "[role='application']",
+  "[role='grid']",
+  "[role='gridcell']",
+  "[role='listbox']",
+  "[role='menu']",
+  "[role='menubar']",
+  "[role='radiogroup']",
+  "[role='tablist']",
+  "[role='tree']",
+  "[role='treegrid']",
+];
+export const PRESSES = PRESS_SELECTORS.join(",");
+export const WORKS = [...PRESS_SELECTORS, ...REGION_SELECTORS].join(",");
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and

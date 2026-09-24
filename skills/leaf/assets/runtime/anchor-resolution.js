@@ -27,7 +27,7 @@ import {
   textNodesUnder,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { PRESSABLE, WORKS_WITHOUT_TAB_STOP } from "./widget-elements.js";
+import { PRESSABLE, PRESSES } from "./widget-elements.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -125,13 +125,11 @@ const outermostAcross = (element, selector) => {
   return element;
 };
 
-// A picture inside a control is that control's rendering, so the control keeps the
-// gesture and no visual reading is offered for it. What claims is a press: a platform
-// or ARIA control, or a widget's pressable offer. A tab stop alone is a place focus can
-// rest, not a press — a tab panel, a scroll region, a stage that takes keys — and the
-// pictures it holds stay pictures.
-const claimsVisualGesture = (element) =>
-  element.matches(`${WORKS_WITHOUT_TAB_STOP},${PRESSABLE}`);
+// A picture inside a press is that control's rendering, so the control keeps the
+// gesture and no visual reading is offered for it. A region that holds content — a tab
+// panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
+// pictures (widget-elements.js, PRESSES).
+const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
 
 export const unclaimedVisualGesture = (target) => {
   if (inChrome(target) || inUi(target)) return false;

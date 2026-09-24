@@ -896,12 +896,12 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     ]
 
 
-@pytest.mark.nightly  # the sync asks the host's index for the payload's wheels
+@pytest.mark.nightly  # the sync resolves the payload against the host's index
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     """The index a host configures is the only place leaf may look for its
     dependencies, and syncing the payload project is the only way it gets a
-    wheel. The lock it ships pins which versions, never where they come from:
-    the sync asks the configured index for the versions the lock names.
+    wheel. The shipped lock names versions, but a sync against another index
+    re-locks against that index rather than fetch the lock's pypi.org URLs.
 
     Both halves need a cache directory of their own, because a wheel already in
     the developer's cache answers before any index is consulted and the run would

@@ -23,7 +23,9 @@ one; with the page gone, the only command that opens its lock is one making the
 page again, so that takes two of them making the same page at the instant of the
 removal. The same argument is why nothing keyed on a session is retired here: a
 session's leases and records name no page, and a session that ended can be
-resumed.
+resumed. The one exception is a wait's start mark that no wait holds, which
+already reads as no mark and is only ever opened under its naming lock
+(`leases.retire_start_mark`).
 
 Page locks are why this is a sweep rather than a reading: they are keyed on a
 digest of the path, and nothing ever enumerates them. They are also most of what
@@ -43,7 +45,7 @@ import time
 from pathlib import Path
 
 from leaf.files import read_json
-from leaf.leases import retire_lock, take_lease
+from leaf.leases import retire_lock, retire_start_mark, take_lease
 from leaf.machine import state_home
 
 SWEEP_INTERVAL_S = 3600
@@ -81,6 +83,8 @@ def sweep() -> None:
             continue
         if page and not Path(page).is_dir():
             retire_lock(lock)
+    for mark in home.glob("sessions/*.started"):
+        retire_start_mark(mark)
 
 
 def _named_pages(record) -> list[Path] | None:

@@ -926,7 +926,7 @@ describe("product-site delivery", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/sitenote.js"),
+      new Request("https://leaf.page/theme.css"),
       env,
     );
 

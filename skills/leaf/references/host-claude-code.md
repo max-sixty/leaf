@@ -58,9 +58,10 @@ watcher will pick up new comments" as work in progress, so a session waiting on
 its page stays under Working. Each time a background command starts a
 `leaf wait`, however it spells the launcher, Leaf's `PostToolUse` hook adds
 guidance on that ending to the command's result, so it sits beside the reply that
-closes the turn. The hook learns of the wait from the session's wait lease, which
-the wait takes a moment after launch, so a background command that mentions
-`leaf wait` without starting one holds its result for a few seconds.
+closes the turn. The hook learns of the wait from a mark the wait sets when it
+takes the session's wait lease, a moment after launch, so a background command
+that mentions `leaf wait` without starting one, while no wait runs, holds its
+result for a few seconds.
 
 ## Subagents
 

@@ -11,8 +11,8 @@
 # into the tree and finds `assets/` and `packages/` beside it.
 #
 # Dependencies state the lowest version the suite passes on, with no upper cap.
-# `uv.lock` ships in the install, so a host runs the resolution the suite was
-# last green on; AGENTS.md carries why that keeps the host's index in the loop.
+# `uv.lock` ships in the install, so a host runs the versions the suite last
+# passed on.
 #
 # The dev group is what the suite and `scripts/` need on top of the runtime:
 # pytest, the accessibility checks, the demo recorder's frames, and the filesystem
@@ -92,8 +92,7 @@ dev = [
   "watchfiles>=1.1.0",
   # Every requirement a bundled package script's header declares, repeated here so
   # this lock pins what the suite runs those scripts against and a fresh machine
-  # needs no network after setup. AGENTS.md, "The install runs this tree", says why
-  # the script itself ships no lock.
+  # needs no network after setup.
   "unidiff>=1",
 ]
 

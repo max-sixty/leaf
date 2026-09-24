@@ -414,6 +414,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
+@keyframes lf-runtime-4f3c2a8d-title-pulse { 50% { opacity: .6; } }
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
 @keyframes lf-runtime-4f3c2a8d-flash {
   0% { background: var(--hi-tint); } 100% { background: var(--card); }
@@ -591,9 +592,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     white-space: normal; overflow-wrap: anywhere; }
   .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: 2px; --lf-here-ring: status-detail; }
-  .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
+  .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.6em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .lf-publication-install { flex: none; }
+  .lf-publication-link, .lf-publication-install { flex: none; }
   /* The door onto the secondary controls stands at the row's start. Its menu hangs
      inward from that door on a desk, where Approval and Threads place it near the
      viewport's right edge; the phone rule below hangs it outward from the left instead. */
@@ -1044,6 +1045,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: calc(-1 * var(--here-ring-w)); --lf-here-ring: thread-summary; }
   .lf-thread-topic { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lf-thread-topic[data-lf-pending-title] { color: var(--muted);
+    animation: lf-runtime-4f3c2a8d-title-pulse 1.8s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-thread-topic[data-lf-pending-title] { animation: none; }
+  }
   .lf-thread-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread, .lf-unread-label { color: var(--turn-ink); font-size: 10px;

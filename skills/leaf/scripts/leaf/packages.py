@@ -247,8 +247,8 @@ def check_package_scripts(package: Path) -> None:
     close that, since uv still finds the caller's `.venv` for a file with no block,
     so the block is the one guarantee: required here, where `package check` reports
     it and `package install` refuses it, and for bundled packages by the suite. Its
-    constraints follow the project's dependency policy, a floor and no cap, since
-    no lock ships beside a script (AGENTS.md, "The install runs this tree"). A
+    constraints follow the project's dependency policy, a floor and no cap
+    (AGENTS.md, "The install runs this tree"). A
     subdirectory of `scripts/` holds helpers and is not run.
     """
     scripts = package / SCRIPTS_DIR

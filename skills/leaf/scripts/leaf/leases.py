@@ -55,17 +55,28 @@ def take_lease(path: Path):
     holds the lease; closing it, or exiting, releases it. The lease's directory
     must already exist, so a stop naming a page that is gone cannot create it.
 
+    A refused exclusive lock means a lease or a `lock_is_held` question, whose
+    shared lock is momentary. A shared lock of its own tells them apart, since
+    only a lease refuses one, so a question asked at the instant a lease is taken
+    does not turn that lease away.
+
     A lease file removed between the open and the lock is taken again on the path's
     new file, as `flocked` does (`names_locked`).
     """
     require_cross_process_locking()
     while True:
         record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
-        try:
-            fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            record.close()
-            return None
+        while True:
+            try:
+                fcntl.flock(record, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                try:
+                    fcntl.flock(record, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    record.close()
+                    return None
+                fcntl.flock(record, fcntl.LOCK_UN)
         if names_locked(path, record):
             return record
         record.close()
@@ -105,9 +116,9 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
 
     One is minted for every page path a command transitions, and the key says
     nothing about which, so the file is created holding the path it guards:
-    that is how `sweep` tells a lock whose page is gone. Only its creator writes
-    it, before any other process can know the file for this page's, and the
-    content never changes after, so a lock stays the same inode for its life.
+    that is how `sweep` tells a lock whose page is gone. Its creator writes that
+    once and nothing rewrites it, so a lock stays one inode for its life; a
+    reader that meets it before the write sees no page and leaves it.
     """
     locks = state_home() / "page-locks"
     locks.mkdir(exist_ok=True)
@@ -183,19 +194,57 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
-def started_wait(session_id: str) -> str | None:
-    """The start of the wait holding this session's lease, or None while none does.
+def take_session_wait(session_id: str):
+    """Take this session's wait lease and mark the wait started, returning both
+    held, or None when another wait holds the lease.
 
-    Only the wait knows it started: a shell command that runs one can spell the
-    launcher any way the shell allows (`$LEAF wait`, `uv run leaf wait`), so a
-    reader that needs to know one began asks the lease rather than the command."""
-    path = waiter_lease_path(None, session_id)
-    if not lock_is_held(path):
-        return None
-    try:
-        return path.read_text() or None
-    except OSError:
-        return None
+    The mark is a lock on `sessions/<id>.started`, held for the wait's life and
+    removed when a tool hook names the start (`name_wait_start`). Lease and mark
+    are taken under the lock naming takes, so a reader sees a wait either not yet
+    started or started and marked, never the lease without its mark."""
+    lease_path = waiter_lease_path(None, session_id)
+    mark_path = _session_lease(session_id, "started")
+    with flocked(_session_lease(session_id, "started.lock")):
+        lease = take_lease(lease_path)
+        if lease is None:
+            return None
+        mark = open(mark_path, "a+b")  # noqa: SIM115 - held by the wait
+        # Readers ask about the mark only under the lock held here, and a wait
+        # lets its mark go before its lease, so this never waits.
+        fcntl.flock(mark, fcntl.LOCK_EX)
+        return lease, mark
+
+
+def name_wait_start(session_id: str) -> bool | None:
+    """Whether a wait has started for this session that nothing has named yet,
+    naming it if so; None when the wait holding the lease is already named, so no
+    other can start while it runs.
+
+    Naming removes the mark, which the wait goes on holding, so a start is named
+    once. The question and the removal share one lock across readers: two
+    unlinks of one name can both succeed on macOS, so a removal alone does not
+    say which reader named it."""
+    mark_path = _session_lease(session_id, "started")
+    with flocked(_session_lease(session_id, "started.lock")):
+        if lock_is_held(mark_path):
+            mark_path.unlink()
+            return True
+        if lock_is_held(waiter_lease_path(None, session_id)):
+            return None
+        return False
+
+
+def retire_start_mark(mark: Path) -> None:
+    """Remove a wait's start mark once no wait holds it.
+
+    A wait that ends before any tool hook names its start (a foreground wait,
+    which returns before its hook runs) leaves the file behind, and a mark no wait
+    holds already reads as no mark (`name_wait_start`). Every writer and reader of
+    a mark takes its naming lock first, so removing it under that lock meets none
+    of them halfway, whichever version they run."""
+    with flocked(mark.with_name(f"{mark.name}.lock")):
+        if not lock_is_held(mark):
+            mark.unlink(missing_ok=True)
 
 
 def wait_is_live(page_dir: Path, session_id: str | None) -> bool:

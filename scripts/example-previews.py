@@ -37,7 +37,7 @@ DOCS = ROOT / "docs"
 VIEWPORT = {"width": 1120, "height": 700}
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
-    ".sitenote p": ".SF NS",
+    ".lf-status-text": ".SF NS",
     ".lede": "Charter",
 }
 READY = (

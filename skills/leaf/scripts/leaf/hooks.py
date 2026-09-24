@@ -9,7 +9,7 @@ from .delivery import record_pickup
 from .event_log import read_events
 from .files import next_reading, read_json
 from .host import claim_harness
-from .leases import started_wait, waiter_lease_path
+from .leases import name_wait_start
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
@@ -168,9 +168,11 @@ def unattended_pages(
     return reasons
 
 
-# How long a tool hook looks for a wait to take this session's lease. The hook fires
-# as soon as the host has spawned a background command, and a `leaf wait` takes the
-# lease about 0.3s later warm, 2.5s after a plugin update leaves uv to sync first.
+# How long a tool hook looks for a wait to start. The hook fires as soon as the host
+# has spawned a background command, and a `leaf wait` takes its lease about 0.3s
+# later warm, 2.5s after a plugin update leaves uv to sync first. While no wait runs,
+# nothing but the clock says a command will start none, so one that starts none
+# holds its result this long.
 WAIT_START_S = 3
 
 # Claude Code's session list reads a session's closing line, and a background wait
@@ -190,21 +192,17 @@ WAIT_STARTED = (
 
 
 def announce_wait(session_id: str) -> bool:
-    """Whether a wait has started for this session that no tool hook has named yet.
+    """Whether a wait has started for this session that no tool hook has named,
+    naming it if so.
 
-    The wait's own lease says so (`started_wait`), not the command the hook
-    follows. A wait already named when the hook looks means this command started
-    none: a second wait is refused while one holds the lease. With no wait at all,
-    the hook looks for `WAIT_START_S`, since the command it follows may be one
-    still starting."""
-    told = waiter_lease_path(None, session_id).with_suffix(".told")
-    started = started_wait(session_id) or next_reading(
-        lambda: started_wait(session_id), None, timeout=WAIT_START_S
+    The wait's own mark says so (`leases.name_wait_start`), not the command the
+    hook follows. A wait already named settles it at once: a second wait is
+    refused while one holds the lease. Otherwise the hook looks for
+    `WAIT_START_S`, since the command it follows may be one still starting."""
+    return (
+        next_reading(lambda: name_wait_start(session_id), False, timeout=WAIT_START_S)
+        is True
     )
-    if started is None or (told.is_file() and told.read_text() == started):
-        return False
-    told.write_text(started)
-    return True
 
 
 def cmd_hook(payload: dict) -> None:

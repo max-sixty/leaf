@@ -64,6 +64,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.registry.storage import read_page_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source_history import PROTECTED_REMEDIES
@@ -129,15 +130,14 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     )
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
-    assert artifact.registry == first.check.registry
+    assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
     assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
     assert "/vendor/browser-runtime.js.map" not in artifact.resources
     assert "/vendor/browser-runtime.manifest.json" not in artifact.resources
     assert artifact_model.read_artifact(page_dir, first.revision) is artifact
     unchanged = revisioning_model.activate_source(page_dir)
-    assert not unchanged.created
-    assert unchanged.check.artifact is first.check.artifact
+    assert not unchanged.created and unchanged.revision == first.revision
 
     (authored / "value.js").write_text("export const value = 2;")
     second = revisioning_model.activate_source(page_dir)
@@ -152,8 +152,9 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     third = revisioning_model.activate_source(page_dir)
     assert third.error is None, third.error
     assert third.created and third.revision == second.revision + 1
-    assert third.check.artifact.resources["/leaf.js"].data == b"// replacement runtime"
-    assert third.check.artifact.digest != changed.digest
+    replaced = artifact_model.read_artifact(page_dir, third.revision)
+    assert replaced.resources["/leaf.js"].data == b"// replacement runtime"
+    assert replaced.digest != changed.digest
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
@@ -370,7 +371,8 @@ export { value } from "./value.js";
 
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None, activated.error
-    resource = activated.check.artifact.resources["/page/app.js"]
+    artifact = artifact_model.read_artifact(page_dir, activated.revision)
+    resource = artifact.resources["/page/app.js"]
     assert resource.dependencies == ("/page/value.js",)
     rewritten = artifact_model.rewrite_module(
         resource.data, "/page/app.js", "/revisions/captured"
@@ -5578,6 +5580,7 @@ def test_a_state_read_never_materializes_a_historical_revision_bundle(
     ):
         cache.cache_clear()
     structure_model._revisions.clear()
+    revisioning_model._held.clear()
 
     opens = Counter()
     native_open = Path.open

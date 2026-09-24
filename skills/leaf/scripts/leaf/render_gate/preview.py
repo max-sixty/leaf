@@ -4,11 +4,10 @@ import contextlib
 import sys
 from pathlib import Path
 
-from leaf.event_log import flocked
 from leaf.files import version_name
 from leaf.hosting import TemporaryPageServer
 from leaf.layer import payload_runtime_fingerprint
-from leaf.leases import transition_lock
+from leaf.leases import page_locked
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.storage import layer_metadata
 from leaf.revision_artifact import RevisionArtifact
@@ -54,11 +53,7 @@ def preview_server(
     a user out of every page on 127.0.0.1 — except that both callers drive
     Playwright, whose browser brings its own jar.
     """
-    transition = (
-        contextlib.nullcontext()
-        if transition_held
-        else flocked(transition_lock(page_dir))
-    )
+    transition = contextlib.nullcontext() if transition_held else page_locked(page_dir)
     with transition:
         _refuse_a_foreign_runtime(page_dir)
         active = {

@@ -462,17 +462,20 @@ def _body_lines(owner: dict) -> int:
     return len(body.split("\n"))
 
 
-def _numbering(owner: dict, registry: dict) -> tuple[str | None, list[int] | None]:
-    """The x-numbering attribute's reading on a data body's owner, and the numbers its
-    lines carry: 1..N without one, None when its value is unreadable (the schema's
-    error to report)."""
+def _numbering(
+    owner: dict, registry: dict
+) -> tuple[str | None, list[tuple[int, int]] | None]:
+    """The x-numbering attribute's reading on a data body's owner, and the ranges of
+    numbers its lines carry: 1..N without one, None when its value is unreadable (the
+    schema's error to report). Ranges rather than the numbers they hold, since an
+    authored range can be as long as its digits allow."""
     attr = (registry.get(owner.get("tag")) or {}).get("x-numbering")
     value = owner.get("attrs", {}).get(attr) if attr else None
     if value is None:
-        return None, list(range(1, _body_lines(owner) + 1))
+        return None, [(1, _body_lines(owner))]
     if not LINE_RANGES.fullmatch(value):
         return value, None
-    return value, [n for _, lo, hi in _spans(value) for n in range(lo, hi + 1)]
+    return value, [(lo, hi) for _, lo, hi in _spans(value)]
 
 
 def line_ref_errors(lf_elements: list, registry: dict) -> list:
@@ -493,8 +496,8 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
         # a malformed value); this gate owns only the counts and bounds, so a value
         # it cannot read is one it stands aside from rather than a traceback that
         # eats every other error.
-        value, numbers = _numbering(rec, registry)
-        if value is not None and numbers is not None:
+        value, ranges = _numbering(rec, registry)
+        if value is not None and ranges is not None:
             where = at(rec, f'{entry["x-numbering"]}="{value}"')
             last = None
             for part, lo, hi in _spans(value):
@@ -503,30 +506,31 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
                 elif last is not None and lo <= last:
                     errors.append(f"{where}: range {part} does not follow line {last}")
                 last = hi
+            numbered = sum(max(0, hi - lo + 1) for lo, hi in ranges)
             count = _body_lines(rec)
-            if len(numbers) != count:
+            if numbered != count:
                 errors.append(
-                    f"{where}: numbers {len(numbers)} lines, but the body has {count}"
+                    f"{where}: numbers {numbered} lines, but the body has {count}"
                 )
         for attr in entry.get("x-lines", ()):
             ref = rec["attrs"].get(attr)
             if ref is None or not LINE_RANGES.fullmatch(ref):
                 continue
             body_owner = rec if rec["body"].strip() else rec.get("holder") or {}
-            value, numbers = _numbering(body_owner, registry)
-            if numbers is None:
+            value, ranges = _numbering(body_owner, registry)
+            if ranges is None:
                 continue
             # A line the body leaves out still has a row: the elided one standing for
             # its stretch. So a reference may name any number from the first shown
             # line to the last, and only one past either end misses.
-            first, last = min(numbers), max(numbers)
+            first, last = min(lo for lo, _ in ranges), max(hi for _, hi in ranges)
             where = at(rec, f'{attr}="{ref}"')
             for part, lo, hi in _spans(ref):
                 if hi < lo:
                     errors.append(f"{where}: range {part} runs backwards")
                 elif lo < first or hi > last:
                     errors.append(
-                        f"{where}: line {part} is outside the {len(numbers)}-line body"
+                        f"{where}: line {part} is outside the {ranges[0][1]}-line body"
                         if value is None
                         else f"{where}: line {part} is outside the body's "
                         f'{registry[body_owner["tag"]]["x-numbering"]}="{value}"'

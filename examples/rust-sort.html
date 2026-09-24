@@ -201,9 +201,9 @@ fn merge_sort&lt;T, F&gt;(v: &amp;mut [T], mut compare: F)
     } else {
         (32, 16)
     };
- 
+
     let len = v.len();
- 
+
     let mut buf = Vec::with_capacity(len / 2);
     let mut runs = vec![];
     let mut end = len;
@@ -223,21 +223,21 @@ fn merge_sort&lt;T, F&gt;(v: &amp;mut [T], mut compare: F)
                 }
             }
         }
- 
+
         // Insert some more elements into the run if it&#x27;s too short. Insertion sort is faster than
         // merge sort on short sequences, so this significantly improves performance.
         while start &gt; 0 &amp;&amp; end - start &lt; min_run {
             start -= 1;
             insert_head(&amp;mut v[start..end], &amp;mut compare);
         }
- 
+
         // Push this run onto the stack.
         runs.push(Run {
             start: start,
             len: end - start,
         });
         end = start;
- 
+
         // Merge some pairs of adjacent runs to satisfy the invariants.
         while let Some(r) = collapse(&amp;runs) {
             let left = runs[r + 1];
@@ -307,7 +307,7 @@ fn insert_head&lt;T, F&gt;(v: &amp;mut [T], compare: &amp;mut F)
                 dest: &amp;mut v[1],
             };
             ptr::copy_nonoverlapping(&amp;v[1], &amp;mut v[0], 1);
- 
+
             for i in 2..v.len() {
                 if compare(&amp;tmp.value, &amp;v[i]) != Greater {
                     break;
@@ -353,7 +353,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
     let v_mid = v.offset(mid as isize);
     let v_end = v.offset(len as isize);
     let mut hole;
- 
+
     if mid &lt;= len - mid {
         // The left run is shorter.
         ptr::copy_nonoverlapping(v, buf, mid);
@@ -362,12 +362,12 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
             end: buf.offset(mid as isize),
             dest: v,
         };
- 
+
         // Initially, these pointers point to the beginnings of their arrays.
         let left = &amp;mut hole.start;
         let mut right = v_mid;
         let out = &amp;mut hole.dest;
- 
+
         while *left &lt; hole.end &amp;&amp; right &lt; v_end {
             // Consume the lesser side.
             // If equal, prefer the left run to maintain stability.
@@ -386,12 +386,12 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
             end: buf.offset((len - mid) as isize),
             dest: v_mid,
         };
- 
+
         // Initially, these pointers point past the ends of their arrays.
         let left = &amp;mut hole.dest;
         let right = &amp;mut hole.end;
         let mut out = v_end;
- 
+
         while v &lt; *left &amp;&amp; buf &lt; *right {
             // Consume the greater side.
             // If equal, prefer the right run to maintain stability.

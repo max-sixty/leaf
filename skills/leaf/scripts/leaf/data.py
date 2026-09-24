@@ -1,24 +1,31 @@
-"""Page-bound current data and immutable capture storage."""
+"""Page-bound external data: one plain JSON file per source.
+
+`data.json` records the contract each source id was first bound to, which it keeps
+for the page's lifetime; `data/<source>.json` holds that source's current value as
+ordinary JSON. `leaf data set` and `data capture` validate before they write, but any
+process may replace a value file, so every reading validates the value against its
+contract and reports a failing one as that source's `error` rather than its value.
+
+A source's revision is a digest of its file's bytes and `updated` its modification
+time. Nothing retains an earlier value: a reader or anchor naming a revision the
+source no longer holds is reading a replaced value. A document that must keep one
+value binds a source id nothing rewrites.
+"""
 
 import codecs
+import hashlib
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 import click
 from unidiff import PatchedFile, PatchSet, UnidiffParseError
 
-from .data_contracts import (
-    DataError,
-    payload_error,
-    working_data_bindings,
-    working_data_snapshot_references,
-)
-from .event_log import now_iso
-from .files import write_json
-from .registry.contract import is_aware_datetime
+from .data_contracts import DataError, payload_error, working_data_bindings
+from .files import json_bytes, replace_files
 from .registry.storage import read_page_registry
-from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
+from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 
 # From here to `unified_diff_manifest`, whose docstring states the division: unidiff
@@ -276,172 +283,116 @@ def unified_diff_manifest(source: str) -> dict:
     return {"files": files}
 
 
-def empty_data() -> dict:
-    return {"revision": 0, "sources": {}}
+class StaleDataError(DataError):
+    """A fragment request named a source revision the source no longer holds."""
 
 
-def _validate_stored_snapshot(
-    path: Path, source: str, snapshot: dict, snapshot_id: str | None = None
-) -> None:
-    identity = f" snapshot {snapshot_id!r}" if snapshot_id is not None else ""
-    if not isinstance(snapshot["updated"], str) or not is_aware_datetime(
-        snapshot["updated"]
-    ):
-        raise DataError(
-            f"{path}: source {source!r}{identity} updated must be an aware RFC 3339 "
-            "instant"
-        )
-    if "label" in snapshot and (
-        not isinstance(snapshot["label"], str) or not snapshot["label"]
-    ):
-        raise DataError(
-            f"{path}: source {source!r}{identity} label must be a non-empty string"
-        )
-    if "lines" in snapshot and (
-        not isinstance(snapshot["lines"], str)
-        or re.fullmatch(r"[1-9][0-9]*:[1-9][0-9]*", snapshot["lines"]) is None
-    ):
-        raise DataError(f"{path}: source {source!r}{identity} lines must be START:END")
-    if "lines" in snapshot:
-        start_text, end_text = snapshot["lines"].split(":")
-        start = int(start_text)
-        end = int(end_text)
-        if end < start:
-            raise DataError(
-                f"{path}: source {source!r}{identity} lines must end at or after "
-                "they start"
-            )
-    try:
-        json.dumps(snapshot["value"], allow_nan=False)
-    except (TypeError, ValueError) as error:
-        raise DataError(
-            f"{path}: source {source!r}{identity} value is not JSON: {error}"
-        ) from error
+def source_file(page_dir: Path, source: str) -> Path:
+    return page_dir / DATA_DIR / f"{source}.json"
 
 
-def read_data(page_dir: Path) -> dict:
-    """Read the private wire-shaped store without judging package payloads.
-
-    Payload schemas ran at `data set` or `data capture`, and re-vendoring checks
-    the stored values once against an incoming contract; this reader checks only
-    the envelope downstream consumers rely on, so `data clear` can recover a
-    source whose old value no longer passes the package's current schema and a
-    poll never reruns every package schema.
-    """
+def read_contracts(page_dir: Path) -> dict[str, str]:
+    """Source id → the contract `data.json` records for it."""
     path = page_dir / DATA_FILE
     try:
-        text = path.read_text(encoding="utf-8")
+        stored = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return empty_data()
-    except UnicodeDecodeError as error:
+        return {}
+    except (UnicodeDecodeError, ValueError) as error:
         raise DataError(f"{path}: invalid JSON ({error})") from error
+    sources = stored.get("sources") if isinstance(stored, dict) else None
+    if not isinstance(sources, dict) or set(stored) != {"sources"}:
+        raise DataError(f"{path}: data must be an object with only sources")
+    contracts = {}
+    for source, entry in sources.items():
+        if (
+            re.fullmatch(DATA_SOURCE_NAME, source) is None
+            or not isinstance(entry, dict)
+            or set(entry) != {"contract"}
+            or not isinstance(entry["contract"], str)
+            or re.fullmatch(DATA_CONTRACT_NAME, entry["contract"]) is None
+        ):
+            raise DataError(f"{path}: source {source!r} must record only a contract")
+        contracts[source] = entry["contract"]
+    return contracts
+
+
+# (source, contract declaration, revision) → validation error. Every state reading
+# re-reads each value file, and a large value costs far more to validate than to
+# digest, so a server judges each distinct value once.
+_JUDGED: dict[tuple[str, str, str], str | None] = {}
+
+
+def _value_error(source: str, contract: str, value, revision: str, registry: dict):
+    declaration = json.dumps(
+        registry.get("$data", {}).get("contracts", {}).get(contract), sort_keys=True
+    )
+    key = source, declaration, revision
+    if key not in _JUDGED:
+        if len(_JUDGED) >= 1024:
+            _JUDGED.clear()
+        _JUDGED[key] = payload_error(source, contract, value, registry)
+    return _JUDGED[key]
+
+
+def _refuse_constant(name: str):
+    """Python's reader accepts NaN and Infinity; JSON, and the browser, do not."""
+    raise ValueError(f"{name} is not JSON")
+
+
+def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> dict:
+    """One source as readers receive it: its contract, and, once a value file
+    exists, that file's revision, `updated` instant, and `value` or `error`."""
+    path = source_file(page_dir, source)
     try:
-        stored = json.loads(text)
-    except (json.JSONDecodeError, ValueError) as error:
-        raise DataError(f"{path}: invalid JSON ({error})") from error
-    if not isinstance(stored, dict) or set(stored) != {"revision", "sources"}:
-        raise DataError(
-            f"{path}: data must be an object with only revision and sources"
-        )
-    revision = stored["revision"]
-    sources = stored["sources"]
-    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
-        raise DataError(f"{path}: revision must be a non-negative integer")
-    if not isinstance(sources, dict):
-        raise DataError(f"{path}: sources must be an object")
-    for source, source_store in sources.items():
-        if (
-            not isinstance(source, str)
-            or re.fullmatch(DATA_SOURCE_NAME, source) is None
-        ):
-            raise DataError(f"{path}: invalid source name {source!r}")
-        if (
-            not isinstance(source_store, dict)
-            or "contract" not in source_store
-            or not set(source_store)
-            <= {
-                "contract",
-                "revisions",
-                "revision",
-                "updated",
-                "value",
-                "label",
-                "lines",
-                "snapshots",
-            }
-            or not isinstance(source_store["contract"], str)
-            or re.fullmatch(DATA_CONTRACT_NAME, source_store["contract"]) is None
-        ):
-            raise DataError(
-                f"{path}: source {source!r} must contain a contract and only current "
-                "value or snapshot fields"
-            )
-        revisions = source_store.get("revisions")
-        if (
-            not isinstance(revisions, list)
-            or not revisions
-            or any(
-                isinstance(item, bool)
-                or not isinstance(item, int)
-                or not 1 <= item <= revision
-                for item in revisions
-            )
-            or revisions != sorted(set(revisions))
-        ):
-            raise DataError(
-                f"{path}: source {source!r} revisions must be sorted unique positive "
-                f"integers no greater than data revision {revision}"
-            )
-        has_current = bool({"revision", "updated", "value"} & set(source_store))
-        if has_current and not {"revision", "updated", "value"} <= set(source_store):
-            raise DataError(
-                f"{path}: source {source!r} current value needs revision, updated, "
-                "and value"
-            )
-        if not has_current and ({"label", "lines"} & set(source_store)):
-            raise DataError(
-                f"{path}: source {source!r} capture metadata needs a current value"
-            )
-        if has_current:
-            source_revision = source_store["revision"]
-            if (
-                isinstance(source_revision, bool)
-                or not isinstance(source_revision, int)
-                or not 1 <= source_revision <= revision
-                or source_revision not in revisions
-            ):
-                raise DataError(
-                    f"{path}: source {source!r} revision must be a positive integer "
-                    f"no greater than data revision {revision}"
-                )
-            _validate_stored_snapshot(path, source, source_store)
-        snapshots = source_store.get("snapshots", {})
-        if not isinstance(snapshots, dict):
-            raise DataError(f"{path}: source {source!r} snapshots must be an object")
-        for snapshot_id, snapshot in snapshots.items():
-            if not isinstance(snapshot_id, str):
-                raise DataError(
-                    f"{path}: source {source!r} has invalid snapshot id {snapshot_id!r}"
-                )
-            if (
-                re.fullmatch(r"[1-9][0-9]*", snapshot_id) is None
-                or int(snapshot_id) > revision
-                or int(snapshot_id) not in revisions
-            ):
-                raise DataError(
-                    f"{path}: source {source!r} has invalid snapshot id {snapshot_id!r}"
-                )
-            if (
-                not isinstance(snapshot, dict)
-                or not {"updated", "value", "label"} <= set(snapshot)
-                or not set(snapshot) <= {"updated", "value", "label", "lines"}
-            ):
-                raise DataError(
-                    f"{path}: source {source!r} snapshot {snapshot_id!r} must contain "
-                    "updated, value, label, and optional lines"
-                )
-            _validate_stored_snapshot(path, source, snapshot, snapshot_id)
-    return stored
+        data = path.read_bytes()
+        modified = path.stat().st_mtime
+    except FileNotFoundError:
+        return {"contract": contract}
+    reading = {
+        "contract": contract,
+        "revision": hashlib.sha256(data).hexdigest()[:16],
+        "updated": datetime.fromtimestamp(modified)
+        .astimezone()
+        .isoformat(timespec="seconds"),
+    }
+    try:
+        value = json.loads(data, parse_constant=_refuse_constant)
+    except (UnicodeDecodeError, ValueError) as error:
+        return {**reading, "error": f"source {source!r} is not JSON: {error}"}
+    if error := _value_error(source, contract, value, reading["revision"], registry):
+        return {**reading, "error": error}
+    return {**reading, "value": value}
+
+
+def read_data(page_dir: Path, registry: dict | None) -> dict:
+    """Every recorded source, read and judged against `registry`.
+
+    `version` digests the source revisions, so two readings of the same values
+    compare equal whatever else changed between them. A page whose layer cannot be
+    read has no contracts to judge its values by, and reads as holding none."""
+    sources = (
+        {
+            source: read_source(page_dir, source, contract, registry)
+            for source, contract in sorted(read_contracts(page_dir).items())
+        }
+        if registry is not None
+        else {}
+    )
+    identity = json.dumps(
+        {source: reading.get("revision") for source, reading in sources.items()}
+    )
+    return {
+        "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
+        "sources": sources,
+    }
+
+
+def data_errors(stored: dict) -> list[str]:
+    """Why each source whose current value fails its contract cannot be read."""
+    return [
+        reading["error"] for reading in stored["sources"].values() if "error" in reading
+    ]
 
 
 def data_fragments(value, contract: str, registry: dict) -> dict | None:
@@ -483,65 +434,47 @@ def data_manifest(value, contract: str, registry: dict):
     }
 
 
-def browser_data_from(stored: dict, registry: dict | None) -> dict:
-    """Project a complete source store to the lightweight browser snapshot.
-
-    ``data.json`` remains the complete authority.  A contract may mark one field on
-    each item as a separately delivered fragment; page state carries the surrounding
-    manifest and the fragment door reads the omitted value from that same store.
-    """
-    # State remains readable when an older page's frozen vocabulary no longer
-    # validates against this layer. Without a trustworthy fragment declaration,
-    # send the complete value: the broken registry already prevents interaction,
-    # while the readable state lets the browser and Stop hook explain that failure.
-    if registry is None:
-        return stored
-    for source_store in stored["sources"].values():
-        source_store.pop("revisions", None)
-        for snapshot in [source_store, *source_store.get("snapshots", {}).values()]:
-            if "value" in snapshot:
-                snapshot["value"] = data_manifest(
-                    snapshot["value"], source_store["contract"], registry
-                )
-    return stored
-
-
-def browser_data(page_dir: Path, registry: dict | None) -> dict:
-    """Read and project the page's current source store for a live response."""
-    return browser_data_from(read_data(page_dir), registry)
+def browser_data_from(stored: dict, registry: dict) -> dict:
+    """The reading a browser receives: each fragmented value as its manifest, whose
+    payloads the fragment door serves from the same source file."""
+    return {
+        "version": stored["version"],
+        "sources": {
+            source: (
+                {
+                    **reading,
+                    "value": data_manifest(
+                        reading["value"], reading["contract"], registry
+                    ),
+                }
+                if "value" in reading
+                else reading
+            )
+            for source, reading in stored["sources"].items()
+        },
+    }
 
 
 def data_fragment(
-    stored: dict,
-    registry: dict,
-    *,
-    data_revision: int,
-    source: str,
-    key: str,
-    snapshot_id: str | None = None,
+    reading: dict | None, registry: dict, *, source: str, revision: str, key: str
 ) -> dict:
-    """Project one fragment from the exact source store a tab accepted."""
-    if stored["revision"] != data_revision:
-        raise DataError(
-            f"data revision {data_revision} is stale; current revision is "
-            f"{stored['revision']}"
-        )
-    source_store = stored["sources"].get(source)
-    if source_store is None:
+    """One fragment of the source value at `revision`, which must still be current.
+
+    `reading` is the source as `read_source` read it, or None where the page records
+    no such source."""
+    if reading is None:
         raise DataError(f"unknown data source {source!r}")
-    selected = source_store
-    if snapshot_id is not None:
-        selected = source_store.get("snapshots", {}).get(snapshot_id)
-        if selected is None:
-            raise DataError(f"data source {source!r} has no snapshot {snapshot_id!r}")
-    value = selected.get("value")
-    spec = data_fragments(value, source_store["contract"], registry)
+    if reading.get("revision") != revision:
+        raise StaleDataError(
+            f"data source {source!r} no longer holds revision {revision!r}"
+        )
+    value = reading.get("value")
+    spec = data_fragments(value, reading["contract"], registry)
     if spec is None:
         raise DataError(f"data source {source!r} has no fragmented value")
-    items = value[spec["items"]]
     matches = [
         item
-        for item in items
+        for item in value[spec["items"]]
         if isinstance(item, dict) and item.get(spec["key"]) == key
     ]
     if len(matches) != 1:
@@ -551,52 +484,28 @@ def data_fragment(
     if spec["value"] not in item:
         raise DataError(f"fragment {key!r} in data source {source!r} has no value")
     return {
-        "revision": stored["revision"],
         "source": source,
-        "contract": source_store["contract"],
-        **({"snapshot": snapshot_id} if snapshot_id is not None else {}),
+        "contract": reading["contract"],
+        "revision": revision,
         "key": key,
         "value": item[spec["value"]],
     }
 
 
-def read_data_fragment(
-    page_dir: Path,
-    registry: dict,
-    *,
-    data_revision: int,
-    source: str,
-    key: str,
-    snapshot_id: str | None = None,
-) -> dict:
-    """Read and project one fragment from the page's current source store."""
-    return data_fragment(
-        read_data(page_dir),
-        registry,
-        data_revision=data_revision,
-        source=source,
-        key=key,
-        snapshot_id=snapshot_id,
-    )
-
-
-def _write_source(
-    page_dir: Path, source: str, value, capture: dict | None = None
-) -> tuple[int, str]:
-    """Validate and atomically write one current value and optional capture,
-    returning the data revision and the `updated` instant it stamped."""
+def _write_source(page_dir: Path, source: str, value) -> dict:
+    """Validate and atomically replace one source's value, returning its reading."""
     try:
-        # Validate the value the store and browser will actually receive. Python's
-        # encoder accepts values JSON itself cannot express directly — tuples become
-        # arrays and non-string mapping keys become strings — so validating the
+        # Validate the value the file will actually hold. Python's encoder accepts
+        # values JSON itself cannot express directly — tuples become arrays and
+        # non-string mapping keys become strings — so validating the
         # pre-serialization object can admit a value its own schema rejects on disk.
         value = json.loads(json.dumps(value, ensure_ascii=False, allow_nan=False))
     except (TypeError, ValueError) as error:
         raise DataError(f"source {source!r} value is not JSON: {error}") from error
+    if re.fullmatch(DATA_SOURCE_NAME, source) is None:
+        raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir) as page:
         registry = read_page_registry(page_dir).registry
-        if re.fullmatch(DATA_SOURCE_NAME, source) is None:
-            raise DataError(f"invalid source name {source!r}")
         bindings, binding_errors = working_data_bindings(
             page_dir, registry, page.events
         )
@@ -607,59 +516,43 @@ def _write_source(
             )
         contract = bindings.get(source)
         if contract is None:
-            available = sorted(bindings)
             raise DataError(
                 f"source {source!r} is not bound by the page source, a version, or "
-                "a thread widget; "
-                f"choose one of {available}"
+                f"a thread widget; choose one of {sorted(bindings)}"
             )
-        stored = read_data(page_dir)
-        standing = stored["sources"].get(source)
-        if standing is not None and standing["contract"] != contract:
+        contracts = read_contracts(page_dir)
+        recorded = contracts.get(source)
+        if recorded is not None and recorded != contract:
             raise DataError(
-                f"source {source!r} is now bound to contract {contract!r}, but its "
-                f"standing snapshot uses {standing['contract']!r}; use a new source "
-                "id for the new meaning"
+                f"source {source!r} is now bound to contract {contract!r}, but it "
+                f"was recorded with {recorded!r}; use a new source id for the new "
+                "meaning"
             )
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
-        revision = stored["revision"] + 1
-        current = {
-            "revision": revision,
-            "updated": now_iso(),
-            "value": value,
-            **(capture or {}),
-        }
-        revisions = [*(standing or {}).get("revisions", []), revision]
-        source_store = {"contract": contract, "revisions": revisions, **current}
-        snapshots = (standing or {}).get("snapshots", {})
-        if capture is not None:
-            captured = {
-                key: value for key, value in current.items() if key != "revision"
+        writes = [(source_file(page_dir, source), json_bytes(value), False)]
+        if recorded is None:
+            contracts[source] = contract
+            index = {
+                "sources": {
+                    name: {"contract": contracts[name]} for name in sorted(contracts)
+                }
             }
-            snapshots = {**snapshots, str(revision): captured}
-        if snapshots:
-            source_store["snapshots"] = snapshots
-        sources = {**stored["sources"], source: source_store}
-        write_json(
-            page_dir / DATA_FILE,
-            {"revision": revision, "sources": sources},
-        )
-    return revision, current["updated"]
+            writes.append((page_dir / DATA_FILE, json_bytes(index), False))
+        replace_files(writes)
+        return read_source(page_dir, source, contract, registry)
 
 
-def cmd_data_set(
-    page_dir: Path, source: str, value, capture_label: str | None = None
-) -> None:
-    """Validate and atomically replace one source's complete current value."""
-    if capture_label is not None and not capture_label:
-        raise DataError("capture label must be a non-empty string")
-    capture = {"label": capture_label} if capture_label is not None else None
-    revision, updated = _write_source(page_dir, source, value, capture)
-    verb = "captured" if capture is not None else "set"
+def _report_write(verb: str, source: str, reading: dict) -> None:
     click.echo(
-        f"{verb} data source {source!r} at revision {revision}, updated {updated}"
+        f"{verb} data source {source!r} at revision {reading['revision']}, "
+        f"updated {reading['updated']}"
     )
+
+
+def cmd_data_set(page_dir: Path, source: str, value) -> None:
+    """Validate and atomically replace one source's complete current value."""
+    _report_write("set", source, _write_source(page_dir, source, value))
 
 
 def cmd_data_capture(
@@ -667,10 +560,9 @@ def cmd_data_capture(
     source: str,
     input_file: Path,
     lines: str | None = None,
-    label: str | None = None,
     capture_format: str = "text",
 ) -> None:
-    """Capture one UTF-8 file as the current value and an immutable snapshot."""
+    """Set one source from a UTF-8 file: whole, as a line range, or as a diff."""
     try:
         value = input_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
@@ -694,49 +586,17 @@ def cmd_data_capture(
                 f"{len(available)} lines"
             )
         value = "".join(available[start - 1 : end])
-    capture_label = input_file.name if label is None else label
-    if not capture_label:
-        raise DataError("label must be a non-empty string")
-
-    capture = {"label": capture_label}
-    if lines is not None:
-        capture["lines"] = lines
-    revision, updated = _write_source(page_dir, source, value, capture)
-    click.echo(
-        f"captured data source {source!r} as snapshot {revision}, updated {updated}"
-    )
+    _report_write("captured", source, _write_source(page_dir, source, value))
 
 
 def cmd_data_clear(page_dir: Path, source: str) -> None:
-    """Remove current and unreferenced captures, even under a changed schema."""
+    """Remove one source's value; its id keeps the contract it was recorded with."""
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
-    with PageTransaction(page_dir) as page:
-        stored = read_data(page_dir)
-        if source not in stored["sources"]:
+    with PageTransaction(page_dir):
+        try:
+            source_file(page_dir, source).unlink()
+        except FileNotFoundError:
             click.echo(f"data source {source!r} is already clear")
             return
-        registry = read_page_registry(page_dir).registry
-        referenced = working_data_snapshot_references(page_dir, registry, page.events)
-        standing = stored["sources"][source]
-        retained = {
-            snapshot_id: snapshot
-            for snapshot_id, snapshot in standing.get("snapshots", {}).items()
-            if snapshot_id in referenced.get(source, set())
-        }
-        sources = dict(stored["sources"])
-        sources[source] = {
-            "contract": standing["contract"],
-            "revisions": standing["revisions"],
-        }
-        if retained:
-            sources[source]["snapshots"] = retained
-        if sources == stored["sources"]:
-            click.echo(f"data source {source!r} is already clear")
-            return
-        revision = stored["revision"] + 1
-        write_json(
-            page_dir / DATA_FILE,
-            {"revision": revision, "sources": sources},
-        )
-    click.echo(f"cleared data source {source!r} at revision {revision}")
+    click.echo(f"cleared data source {source!r}")

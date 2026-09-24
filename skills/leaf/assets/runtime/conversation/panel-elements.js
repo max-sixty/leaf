@@ -2,7 +2,6 @@
  * Panel visibility belongs to thread-panel; the class here only renders that state. */
 import { iconElement } from "../icons.js";
 import { focused } from "../keyboard/scopes.js";
-import { COVERING } from "../chrome-layout.js";
 import { registerReadingArrangement } from "../reading-regions.js";
 import { el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";
@@ -43,8 +42,13 @@ panelFoot.append(generalRow);
 panel.append(panelHead, narrowingView, threadsFrame, panelFoot);
 
 export const inPanel = (panelIsOpen) => panelIsOpen() && under(focused(), panel);
-const covering = matchMedia(COVERING);
-export const panelWouldCover = () => covering.matches;
+// Where the open panel's edge stands over a node on the page: the x past which the node
+// is under the panel, or Infinity where nothing of the page is (the panel is shut, or the
+// node is the panel's own). The panel stands over the right of the page without covering
+// it; each reader decides how much of a node under it counts as hidden (chrome-layout.js
+// for travel, read.js for exposure).
+export const panelEdgeOver = (node) =>
+  panel.open && !under(node, panel) ? panel.getBoundingClientRect().left : Infinity;
 
 let readingArrangement = null;
 export function mountPanelReadingRegion() {

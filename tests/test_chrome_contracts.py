@@ -22,7 +22,9 @@ from render_cases_layout import (
     BANNER_ORDER,
     banner_control,
     button_radius,
+    toggle_asks,
     token_colour,
+    with_one_ask,
 )
 from render_cases_navigation import _publish
 from render_harness import (
@@ -184,6 +186,440 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
 
 
+def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Start this conversation.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Earlier answer {index}. " * 5,
+            },
+        )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    page.locator(".lf-thread[open] .lf-compose textarea").fill("A short follow-up.")
+    assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
+    threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    threads.evaluate("el => el.scrollTop -= 40")
+    near_end = threads.evaluate("el => el.scrollTop")
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "The new answer should come into view. " * 5,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
+    expect(message).to_be_visible()
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before",
+        arg=near_end,
+    )
+    assert threads.evaluate("el => el.scrollTop") > near_end
+    page.wait_for_function(
+        """id => {
+          const list = document.querySelector('.lf-threads');
+          const message = list.querySelector(`[data-mid="${id}"]`);
+          const bottom = list.getBoundingClientRect().bottom -
+            parseFloat(getComputedStyle(list).scrollPaddingBottom);
+          return message.getBoundingClientRect().bottom <= bottom + 2;
+        }""",
+        arg=newest["id"],
+    )
+
+    for length in (20, 40, 120):
+        before_growth = threads.evaluate("el => el.scrollTop")
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "edit",
+                "author": "agent",
+                "agent": "Codex",
+                "message": newest["id"],
+                "text": "The answer grows while the reader is following it. " * length,
+            },
+        )
+        page.evaluate(
+            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+        )
+        page.wait_for_function(
+            "before => document.querySelector('.lf-threads').scrollTop > before",
+            arg=before_growth,
+        )
+        page.wait_for_function(
+            """id => {
+              const list = document.querySelector('.lf-threads');
+              const message = list.querySelector(`[data-mid="${id}"]`);
+              const bottom = list.getBoundingClientRect().bottom -
+                parseFloat(getComputedStyle(list).scrollPaddingBottom);
+              return Math.abs(message.getBoundingClientRect().bottom - bottom) <= 2;
+            }""",
+            arg=newest["id"],
+        )
+
+    threads.evaluate("el => el.scrollTop -= 160")
+    earlier_place = threads.evaluate("el => el.scrollTop")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "Later answer must not pull a reader away from history.",
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(earlier_place, abs=2)
+
+
+@pytest.mark.parametrize("earlier_cards,later_cards", [(0, 0), (1, 0), (0, 3)])
+def test_incoming_reply_follows_when_the_panel_has_unfilled_room(
+    browser, serve, earlier_cards, later_cards
+):
+    url = serve(LONG_PAGE)
+    for index in range(earlier_cards):
+        panel_comment(serve.page_dir, f"An earlier conversation {index}.")
+    root = panel_comment(serve.page_dir, "A short conversation.")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "A short first answer.",
+        },
+    )
+    for index in range(later_cards):
+        panel_comment(serve.page_dir, f"A later conversation {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    if earlier_cards:
+        page.locator(f'.lf-thread[data-id="{root}"] .lf-thread-summary').click()
+        expect(page.locator(f'.lf-thread[data-id="{root}"]')).to_have_attribute(
+            "open", ""
+        )
+    threads = page.locator(".lf-threads")
+    assert threads.evaluate("el => el.scrollHeight - el.clientHeight") == 0
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "A long answer should bring its newest words into view. " * 120,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    assert message.evaluate("el => el.getBoundingClientRect().bottom") == pytest.approx(
+        threads.evaluate(
+            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+        ),
+        abs=2,
+    )
+
+
+def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, serve):
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "A conversation with a draft.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": root,
+                "text": f"Earlier answer {index}. " * 5,
+            },
+        )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    card.locator(".lf-compose textarea").fill(("A draft line.\n" * 8).strip())
+    threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    before = threads.evaluate("el => el.scrollTop")
+    prior = card.locator(".lf-msg").last
+    fold = threads.evaluate(
+        "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+    )
+    assert prior.evaluate("el => el.getBoundingClientRect().bottom") < fold - 80
+    assert prior.evaluate("el => el.getBoundingClientRect().bottom") > threads.evaluate(
+        "el => el.getBoundingClientRect().top"
+    )
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "This reply grows below the older words and above the draft. " * 20,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before", arg=before
+    )
+    assert card.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ) == pytest.approx(fold, abs=2)
+
+
+def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
+    url = serve(LONG_PAGE)
+    other = panel_comment(serve.page_dir, "An earlier conversation.")
+    selected = panel_comment(serve.page_dir, "The selected conversation.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": f"Selected answer {index}. " * 5,
+            },
+        )
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{selected}"]')
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    threads = page.locator(".lf-threads")
+    threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    last_selected = card.locator(".lf-msg").last
+    before = last_selected.evaluate("el => el.getBoundingClientRect().top")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": other,
+            "text": "This belongs to the other conversation. " * 5,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    expect(card).to_have_attribute("open", "")
+    assert last_selected.evaluate(
+        "el => el.getBoundingClientRect().top"
+    ) == pytest.approx(before, abs=2)
+
+
+@pytest.mark.parametrize("later_cards", [4, 30])
+def test_incoming_reply_follows_a_selected_thread_before_later_cards(
+    browser, serve, later_cards
+):
+    url = serve(LONG_PAGE)
+    selected = panel_comment(serve.page_dir, "The conversation I am reading.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": f"Selected answer {index}. " * 5,
+            },
+        )
+    for index in range(later_cards):
+        panel_comment(serve.page_dir, f"A later conversation {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{selected}"]')
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    card.locator(".lf-msg").last.evaluate(
+        "el => el.scrollIntoView({block: 'end', behavior: 'instant'})"
+    )
+    threads = page.locator(".lf-threads")
+    before = threads.evaluate("el => el.scrollTop")
+    assert (
+        threads.evaluate("el => el.scrollHeight - el.clientHeight - el.scrollTop") > 80
+    )
+
+    newest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": selected,
+            "text": "This new answer belongs to the selected conversation. " * 5,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before",
+        arg=before,
+    )
+    assert card.locator(f'.lf-msg[data-mid="{newest["id"]}"]').evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ) == pytest.approx(
+        threads.evaluate(
+            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+        ),
+        abs=2,
+    )
+
+    card.locator(".lf-msg").last.evaluate(
+        "el => el.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    reading_later = threads.evaluate("el => el.scrollTop")
+    also_visible = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": selected,
+            "text": "This short answer is already visible while I read later cards.",
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
+    expect(arriving).to_be_visible()
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(reading_later, abs=2)
+    assert arriving.evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ) < threads.evaluate(
+        "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom)"
+    )
+
+    if later_cards == 30:
+        threads.evaluate("el => el.scrollTop += 160")
+        reading_later = threads.evaluate("el => el.scrollTop")
+        assert card.evaluate(
+            "el => el.getBoundingClientRect().bottom"
+        ) < threads.evaluate(
+            "el => el.getBoundingClientRect().bottom - parseFloat(getComputedStyle(el).scrollPaddingBottom) - 80"
+        )
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": "A long answer must not pull me back to this conversation. "
+                * 120,
+            },
+        )
+        page.evaluate(
+            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+        )
+        assert threads.evaluate("el => el.scrollTop") == pytest.approx(
+            reading_later, abs=2
+        )
+
+
+@pytest.mark.parametrize("intent", ["focus", "pointer"])
+def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
+    url = serve(LONG_PAGE)
+    selected = panel_comment(serve.page_dir, "The conversation above.")
+    for index in range(14):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": selected,
+                "text": f"Earlier answer {index}. " * 5,
+            },
+        )
+    for index in range(4):
+        panel_comment(serve.page_dir, f"A later conversation {index}.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion="reduce")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{selected}"]')
+    card.locator(".lf-thread-summary").click()
+    expect(card).to_have_attribute("open", "")
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    threads = page.locator(".lf-threads")
+    threads.evaluate("el => el.scrollTop = el.scrollHeight")
+    before = threads.evaluate("el => el.scrollTop")
+    assert before > 0
+    later_card = threads.locator(":scope > .lf-thread:not([hidden])").last
+    if intent == "focus":
+        later_card.locator(".lf-thread-summary").focus()
+    else:
+        later_card.locator(".lf-thread-summary").hover()
+    later_top = later_card.evaluate("el => el.getBoundingClientRect().top")
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": selected,
+            "text": "A long answer should not pull me from the later cards. " * 120,
+        },
+    )
+    page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
+    )
+    assert later_card.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
+        later_top, abs=2
+    )
+
+
 def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
     """An older visible notice cannot replace a newer one already waiting."""
     page = open_page(browser, serve(leaf_page("Notice order", "<h1>Notice order</h1>")))
@@ -328,11 +764,11 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 ):
     """Submit belongs to the field while Resolve stands with the root metadata.
 
-    Growing the field carries Submit with it and leaves Resolve fixed. The textarea
-    reserves the icon's whole horizontal band, so words and a scrollbar do not run
-    underneath it. Resolve aligns with the root author and time instead of the quoted
-    target. The same geometry holds in the panel's narrowest useful window and with
-    room beside the page, in both palettes."""
+    Growing the field carries Submit with it and leaves Resolve fixed. Draft words
+    share the sent message's measure; Submit sits below them. Resolve aligns with
+    the root author and time instead of the quoted target. The same geometry holds
+    in the panel's narrowest useful window and with room beside the page, in both
+    palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
@@ -369,8 +805,9 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             right: r.right, bottom: r.bottom};
                   };
                   const own = thread.getBoundingClientRect();
-                  const padding = parseFloat(getComputedStyle(
-                    thread.querySelector('textarea')).paddingInlineEnd);
+                  const inputStyle = getComputedStyle(thread.querySelector('textarea'));
+                  const messageStyle = getComputedStyle(thread.querySelector('.lf-msg-body'));
+                  const padding = parseFloat(inputStyle.paddingInlineEnd);
                   const radius = (selector, pseudo = null) => getComputedStyle(
                     selector.startsWith('.lf-thread-panel')
                       ? document.querySelector(selector)
@@ -395,7 +832,14 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             resolveFill: radius('.lf-resolve', '::before'),
                             close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
-                          messageStart: rect('.lf-msg-body').x,
+                          message: rect('.lf-msg-body'),
+                          messageFont: messageStyle.font,
+                          inputFont: inputStyle.font,
+                          textStart: rect('.lf-compose textarea').x +
+                            parseFloat(inputStyle.borderInlineStartWidth) +
+                            parseFloat(inputStyle.paddingInlineStart),
+                          textEnd: rect('.lf-compose textarea').right -
+                            parseFloat(inputStyle.borderInlineEndWidth) - padding,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
@@ -403,22 +847,22 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 
     short = geometry()
     assert short["field"]["x"] == pytest.approx(short["compose"]["x"], abs=1)
-    assert short["field"]["x"] == pytest.approx(short["messageStart"], abs=1)
+    assert short["message"]["x"] - short["field"]["x"] == pytest.approx(8, abs=1)
     assert short["field"]["x"] - short["thread"]["x"] == pytest.approx(
         short["thread"]["right"] - short["field"]["right"], abs=1
     )
     assert short["textarea"]["right"] == pytest.approx(short["field"]["right"], abs=1)
     assert short["send"]["right"] < short["textarea"]["right"]
-    assert short["send"]["bottom"] < short["textarea"]["bottom"]
-    assert short["padding"] >= short["send"]["width"] + 10
+    assert short["send"]["y"] >= short["textarea"]["bottom"]
+    assert short["padding"] == pytest.approx(7, abs=1)
     assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
-        short["compose"]["right"], abs=1
+        short["message"]["right"], abs=1
     )
     assert short["resolve"]["right"] == pytest.approx(
         short["metadataActions"]["right"], abs=1
     )
-    assert short["metadata"]["x"] == pytest.approx(short["messageStart"], abs=1)
+    assert short["metadata"]["x"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["resolve"]["bottom"] <= short["metadata"]["bottom"] + 1
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
@@ -433,14 +877,28 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
 
     textarea.fill("First line.\nSecond line.\nThird line.\nFourth line.")
     grown = geometry()
+    assert grown["inputFont"] == grown["messageFont"]
+    assert grown["textStart"] == pytest.approx(grown["message"]["x"], abs=1)
+    assert grown["textEnd"] == pytest.approx(grown["message"]["right"], abs=1)
+    assert grown["padding"] == pytest.approx(short["padding"], abs=1)
+    assert grown["send"]["y"] >= grown["textarea"]["bottom"]
     assert grown["send"]["x"] == pytest.approx(short["send"]["x"], abs=1)
-    assert grown["send"]["bottom"] == pytest.approx(
-        grown["textarea"]["bottom"] - 6, abs=1
-    )
+    assert grown["send"]["bottom"] > grown["textarea"]["bottom"]
     assert grown["send"]["y"] > short["send"]["y"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0
+
+    textarea.fill("A long draft remains readable while scrolling. " * 120)
+    assert textarea.evaluate("el => el.scrollHeight > el.clientHeight")
+    for position in (0, 80, 99999):
+        textarea.evaluate("(el, top) => el.scrollTop = top", position)
+        scrolling = geometry()
+        assert scrolling["send"]["y"] >= scrolling["textarea"]["bottom"]
+        assert scrolling["textStart"] == pytest.approx(scrolling["message"]["x"], abs=1)
+        assert scrolling["textEnd"] == pytest.approx(
+            scrolling["message"]["right"], abs=1
+        )
 
 
 @pytest.mark.parametrize("thread_count", [1, 2])
@@ -577,8 +1035,13 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     expect(versions).to_be_visible()
     box = versions.bounding_box()
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
+    # The door's news is the shelf's to state, and it restates it on every paint. A
+    # newer version puts the urgent latest chip in the menu, so the accent the door
+    # takes is the one the page arrived at rather than one the test wrote on it.
     door = page.locator(".lf-banner-more")
-    door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
+    _publish(serve.page_dir, 3, html, "reworded the suggestion again")
+    told(page)
+    expect(door).to_have_attribute("aria-label", "More page controls, new")
     expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
 
 
@@ -985,8 +1448,43 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
     expect(media_button).to_be_focused()
 
 
-def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serve):
-    """The panel's strip reflows the page; the user stays on the words they were on.
+@pytest.mark.parametrize("width", [900, 1400])
+def test_threads_cover_the_page_and_leave_its_column_where_it_was(
+    browser, serve, width
+):
+    """Opening Threads never moves the page: the panel stands over the right of the
+    window at every width, so the reading column keeps its place, its width and its
+    wrapping, and the document neither grows nor scrolls under it. The page beside the
+    panel stays live rather than going inert behind a covering boundary."""
+    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    resized(page, width, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 900")
+    shape = """() => {
+      const main = document.querySelector('body > main').getBoundingClientRect();
+      return {
+        left: main.left, width: main.width,
+        scroll: document.scrollingElement.scrollTop,
+        tall: document.documentElement.scrollHeight,
+        shell: document.body.clientWidth,
+      };
+    }"""
+    before = page.evaluate(shape)
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
+    panel = page.locator(".lf-thread-panel").bounding_box()
+    assert panel["x"] + panel["width"] == pytest.approx(width, abs=1)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
+
+
+def test_taking_the_asks_trays_strip_leaves_the_user_on_the_same_words(browser, serve):
+    """The Asks tray's strip reflows the page; the user stays on the words they were on.
 
     Narrowing the shell narrows the reading column inside it, so the text re-wraps and
     the document grows above wherever the user is standing. The browser's scroll
@@ -995,7 +1493,7 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     for any frame in which a box on the anchor's ancestor chain changes a property on the
     suppression list — `margin`, `padding`, `width`, an inset, a transform — so the strip
     is a border and the column does not glide (theme.css, at the body strip), and the
-    panel renders on either side of the frame the shell write lands in, never inside it
+    tray renders on either side of the frame the shell write lands in, never inside it
     (`takeShell`, chrome-layout.js). The day any of these regresses, this goes red.
 
     A re-wrap moves every paragraph by a different amount, so only one of them can be
@@ -1003,10 +1501,11 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     which is the block the platform's own anchoring would have chosen; what is further
     down has grown taller and is expected to have moved.
     """
-    page = open_page(browser, serve(LONG_PAGE, comments=2))
+    page = open_page(browser, serve(with_one_ask(LONG_PAGE)))
     # Narrow enough that the strip's share of the shell re-wraps this fixture's
-    # paragraphs: the assertion below says so rather than trusting the width.
-    resized(page, 900, 640)
+    # paragraphs, and wide enough that the tray stands beside the page rather than
+    # covering it: the assertions below say so rather than trusting the width.
+    resized(page, 700, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 900")
     # The user's place: the page's own block under the window's visible top edge, which
     # the root states as scroll-padding for native focus navigation.
@@ -1023,8 +1522,8 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     assert reading, "the fixture put no paragraph under the top of the window"
     tall = page.evaluate("() => document.documentElement.scrollHeight")
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    toggle_asks(page)
+    expect(page.locator(".lf-asks-panel")).not_to_have_attribute("aria-modal", "true")
     assert page.evaluate("() => document.documentElement.scrollHeight") > tall, (
         "the window is wide enough that the strip reflowed nothing, so nothing is proved"
     )
@@ -1032,8 +1531,7 @@ def test_taking_the_panels_strip_leaves_the_user_on_the_same_words(browser, serv
     assert opened["id"] == reading["id"]
     assert opened["top"] == pytest.approx(reading["top"], abs=2)
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, open=False)
+    toggle_asks(page, open=False)
     assert page.evaluate("() => document.documentElement.scrollHeight") == tall
     closed = page.evaluate(at_the_top)
     assert closed["id"] == reading["id"]

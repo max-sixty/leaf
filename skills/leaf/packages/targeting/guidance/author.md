@@ -1,5 +1,3 @@
-# Visual targeting
-
 Use `lf-targeting` when a user needs to identify exact parts of real page markup while
 proposing changes. Put it inside `lf-ask` and put the real operable artifact in its one
 `lf-target-preview`; the user selects from the rendered result rather than a replica.
@@ -22,12 +20,12 @@ proposing changes. Put it inside `lf-ask` and put the real operable artifact in 
 
 Give an element an id when it has its own durable identity. Give repeated elements the
 same meaningful class when the user may change them together. Selection offers the
-clicked element and at most three ancestors. The user can retain and rename several
-targets, choose element or class scope, preview supported box-model changes, remove one
-change or revert the draft, and add prose for a named target before submitting once.
+chosen element and its complete authored ancestor chain.
 
-The submitted `targets` preserve an authored id when available and always include a
-structural path plus the element's complete visible text. Each style or prose `change`
-carries its target key separately. Process that key as the reference; names make the draft readable,
-but consumers must not infer identity from prose. A submitted action is the durable
-record; unsubmitted selection and preview changes stay local to the user.
+Each submitted target's `reference` identifies it: the element's authored id, or, for
+an element without one, a structural path from its nearest id-bearing ancestor or
+the preview. Its `scope` says whether a change applies to that element alone or to
+every preview element carrying its `className`. Its name, label, and visible text
+describe it but never identify it. Each style or prose `change` carries its target's
+`key` in `target`; resolve that key to the target's reference. A submitted action is
+the durable record; unsubmitted selection and preview changes stay local to the user.

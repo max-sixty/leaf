@@ -111,8 +111,10 @@ The shared `.lf-ui` face starts in the assets root's `shadow.css`, before compon
 rules. Its `:where(:root) .lf-ui` selector has class specificity and does not match inside
 shadow trees, where the host's control face applies.
 
-Chrome reserves its strip with a transparent body border (`theme.css`), preserving native
-scroll anchoring during reflow. `chrome-layout.js` must not override the user's position.
+A standing Asks tray reserves its strip with a transparent body border (`theme.css`),
+preserving native scroll anchoring during reflow. The thread panel and the Leaves tray
+stand over the page and reserve nothing. `chrome-layout.js` must not override the user's
+position.
 Reading arrangements measure available room and minimum size in the bounded candidate
 without changing current geometry, so responsive posture does not depend on the posture
 from which the measurement began.
@@ -130,7 +132,7 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | validated source markup before widget upgrade | `stageAuthoredFacets` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
-| external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
+| external data | the page data reading taken latest | `receiveState` replaces the source values; `watchData` delivers each bound source's value to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
 | accepted history | the server event log | the application publisher adopts one complete server answer |
@@ -260,8 +262,8 @@ Action prerequisites use the registry's `x-state.requires` declaration. The cont
 paints eligibility, the common browser dispatch checks it, and POST checks the same
 prerequisite against the log under the append lock. Eligibility uses the ordinary Ask
 projection without conversation seats: handing an Ask to the agent does not answer it.
-The registry's `$keys` entries own `requires`, `x-awaits.answers`, and `x-awaits.rollup`;
-`../references/packages.md`, "A widget", owns position-answer completion. Keep those
+The registry's `$state` entry owns `requires` and position-answer `completion`, and
+`$awaits` owns `answers` and `rollup`. Keep those
 readings shared rather than adding an eligibility cache or a browser Ask fold.
 
 The server supplies page and conversation Ask collections through each view's

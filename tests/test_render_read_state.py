@@ -3,7 +3,9 @@
 import json
 import re
 import threading
+import time
 
+import pytest
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
@@ -712,9 +714,7 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     frame = specimen.locator("iframe")
     child = frame.element_handle().content_frame()
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
-    assert child.locator("body").evaluate("element => element.inert")
-    specimen.get_by_role("button", name="Enter specimen").click()
-    expect(child.locator("body")).not_to_have_attribute("inert", "")
+    child.locator(".lf-threads-toggle").focus()
     frame.evaluate("element => element.style.transform = 'translateY(1200px)'")
     child.locator(".lf-threads-toggle").evaluate("element => element.click()")
     child.locator(".lf-first-unread").evaluate("element => element.click()")
@@ -729,10 +729,29 @@ def test_offscreen_specimen_cannot_acknowledge_child_viewport(browser, serve):
     page.set_viewport_size({"width": 1280, "height": 1400})
     page.wait_for_timeout(100)
     expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    # Below the first screen and taller than the window, the specimen is read through
+    # the band the containing page shows as it scrolls: its edge coming into view shows
+    # nothing, and a later scroll of the containing page shows the message.
     clip.evaluate(
-        "element => { element.style.height = ''; element.style.overflow = ''; }"
+        "element => { element.style.height = ''; element.style.overflow = '';"
+        " element.style.marginTop = '2000px'; }"
     )
-    frame.scroll_into_view_if_needed()
+    child.evaluate("""() => {
+        const spacer = document.createElement('div');
+        spacer.style.height = '3000px';
+        document.querySelector('main').append(spacer);
+    }""")
+    page.wait_for_function(
+        "() => document.querySelector('#read-practice iframe').offsetHeight > 3000"
+    )
+    page.evaluate("""() => {
+        const top = document.querySelector('#read-practice iframe')
+            .getBoundingClientRect().top;
+        scrollBy(0, top - innerHeight + 20);
+    }""")
+    page.wait_for_timeout(200)
+    expect(child.locator(".lf-first-unread")).to_have_text("Unread 1")
+    page.evaluate("scrollBy(0, 700)")
     expect(child.locator(".lf-first-unread")).to_be_hidden()
 
 
@@ -789,6 +808,98 @@ def test_shadow_package_thread_registers_its_real_message_body(browser, serve):
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}
     ]
+
+
+@pytest.mark.parametrize(("width", "under_panel"), [(900, True), (1920, False)])
+def test_a_page_seat_the_open_panel_stands_over_is_not_read(
+    browser, serve, width, under_panel
+):
+    """Exposure counts a message read once all of it has been shown. The open Threads
+    panel stands over the right of the page, so an answer in a page-side seat that
+    reaches under it has not been shown whole, however much of it is clear: at 900px
+    the diff's thread outlet runs under the panel and earns no receipt until the panel
+    closes. At 1920px the panel stands over empty margin and the same answer is read
+    with the panel open. The panel's list is narrowed to no card, so the page seat is the
+    only copy in view."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": width, "height": 900})
+    page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
+    row = page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']')
+    row.scroll_into_view_if_needed()
+    row.evaluate("""element => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const nodes = [], starts = [];
+      let text = '';
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        starts.push(text.length); nodes.push(node); text += node.data;
+      }
+      const start = text.indexOf('new route');
+      if (start < 0) throw new Error('diff phrase missing');
+      const at = offset => {
+        const index = starts.findLastIndex(value => value <= offset);
+        return [nodes[index], offset - starts[index]];
+      };
+      const range = document.createRange();
+      range.setStart(...at(start)); range.setEnd(...at(start + 'new route'.length));
+      const selection = getSelection();
+      selection.removeAllRanges(); selection.addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    }""")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("Can this route stay?")
+    with sending(page, "diff comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    # A find that matches nothing narrows the panel's list to no card, so the page seat
+    # is the one copy of the answer in view.
+    find = page.get_by_role("searchbox", name="Find in threads")
+    find.focus()
+    page.keyboard.type("nothing matches this")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
+    find.blur()
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "The route-line answer is ready.",
+        None,
+        for_event=root,
+    )
+    told(page)
+    body = page.locator(
+        f'lf-diff .lf-diff-thread-outlet .lf-conversation-msg[data-event="{reply["id"]}"]'
+        " .lf-conversation-body"
+    )
+    expect(body).to_be_visible()
+    body.scroll_into_view_if_needed()
+    read = [{"message": reply["id"], "version": reply["id"]}]
+
+    def receipt():
+        return any(event["messages"] == read for event in _read_events(serve.page_dir))
+
+    body_right = body.evaluate("element => element.getBoundingClientRect().right")
+    panel_left = page.locator(".lf-thread-panel").bounding_box()["x"]
+    assert (body_right > panel_left) == under_panel, (
+        f"the fixture put the seat's right edge at {body_right} against the panel's "
+        f"{panel_left}, so it does not test what it names"
+    )
+    if under_panel:
+        # Long enough for an observation pass to have sent a receipt had it counted.
+        page.wait_for_timeout(1500)
+        assert not receipt(), "a message partly under the open panel was marked read"
+        page.get_by_role("button", name="Close threads").click()
+        panel_settled(page, open=False)
+    deadline = time.monotonic() + 10
+    while not receipt() and time.monotonic() < deadline:
+        page.wait_for_timeout(100)
+    assert receipt(), "the answer shown whole was never marked read"
 
 
 def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):

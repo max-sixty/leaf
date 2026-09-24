@@ -1186,7 +1186,7 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
 /* A cramped row still has three cells: its words, the block reference, and the mark.
  * Separate-border spacing also puts one gap outside each end, and those two empty gaps
  * made the table's minimum 14px wider than its group under Linux's wider apparatus in a
- * page narrowed by the thread panel. Keep the ordinary gutter while there is room and
+ * page narrowed by a standing tray. Keep the ordinary gutter while there is room and
  * use the compact spacing token when the group's own box is narrow; the cells retain a
  * visible gap without clipping the mark the user presses. */
 @container (max-width: 20rem) {
@@ -1474,7 +1474,7 @@ lf-column { display: block; background: var(--field); box-sizing: border-box;
 /* Where sharing the board between columns would leave none of them readable, one column
    takes the width and the next stays visible as the cue that the board continues
    sideways. The floor still wins inside a narrower frame. The board asks its own box, so
-   a board beside an open panel answers for the room it has rather than for the room the
+   a board beside an open tray answers for the room it has rather than for the room the
    window has; snapping needs no condition of its own, since proximity snapping does
    nothing until a column offers a snap position. */
 @media screen {
@@ -1856,7 +1856,7 @@ lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
            text-decoration: none; }
 lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
 
-/* The core sidebar states its actual posture after viewport and panel-room decisions.
+/* The core sidebar states its actual posture after viewport and tray-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
  * their sticky behavior and an in-flow ToC stays open. The shell inset moves the fixed map
  * beside a standing left workspace.
@@ -2175,7 +2175,9 @@ lf-specimen[data-lf-specimen-live]::before { content: "live specimen"; }
 lf-specimen[data-lf-specimen-live][label]::before { content: "live specimen · " attr(label); }
 lf-specimen[data-lf-specimen-live]:has(> [data-lf-said="label"])::before { content: none; }
 lf-specimen[data-lf-specimen-live] > [data-lf-said="label"]::before { content: "live specimen · "; }
-/* Like the label, host controls describe the exhibit; they stand outside its gutter. */
+/* Like the label, host controls describe the exhibit; they stand outside its gutter.
+ * The frame's height is a placeholder until its child presents and the widget sizes it
+ * to the child's page. */
 .lf-specimen-controls { display: table-caption; margin-bottom: 10px; }
 .lf-specimen-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .lf-specimen-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }

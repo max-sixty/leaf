@@ -30,7 +30,7 @@
    content and margin controls cannot re-seat it. A region too small for
    the compact control yields to the viewport so the user keeps their response.
    When the target fills the viewport, the viewport still caps the field. When a
-   covering panel leaves no usable band for the response bar, placement withdraws it
+   thread panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
    Threads list takes it; an unrelated focused control keeps it. A partially exposed
    page remains interactive whenever the bar fits its actual remaining room. Shift+Enter
@@ -124,7 +124,7 @@ let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createResponseSurface({
-  panelCovers,
+  panelIsOpen,
   landIn,
   setPanel,
   activeInlineThread,
@@ -163,15 +163,15 @@ export function createResponseSurface({
     reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
-  // Floating UI stays inside the document page shell. Body already ends at a standing
-  // right panel's edge through its margin, while the root scrollport owns the browser's
-  // gutter. A covering sheet is the one strip body does not yield, so its width comes off
-  // here.
+  // Floating UI stays inside the document page shell, whose right edge stops short of the
+  // root scrollport's gutter. The thread panel stands over the page rather than taking a
+  // strip, so an open panel's own left edge bounds it too.
   const rightEdge = (bounds = null) =>
     (bounds?.right ??
-      (panelCovers()
-        ? innerWidth - panel.offsetWidth
-        : Math.min(innerWidth, shellRight()))) - 8;
+      Math.min(
+        shellRight(),
+        panel.open ? panel.getBoundingClientRect().left : Infinity,
+      )) - 8;
   // The response surface lives in the viewport plane and Floating UI follows the passage
   // through every scroll ancestor. Every caller therefore reasons in the same coordinates:
   // rects, the pointer, and the banner's own band. The fixed floor covers the ordinary
@@ -745,7 +745,7 @@ export function createResponseSurface({
     const previousOrigin = fabOrigin;
     const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
-    const returnToPanel = leavingBar && panelCovers() && !fabFits();
+    const returnToPanel = leavingBar && panelIsOpen() && !fabFits();
     const returnTarget = leavingBar ? handBackTo(previous, previousOrigin) : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&

@@ -98,6 +98,16 @@ has tried; settle that before building it.
   posture from its own size (#30), then the playground, visual review and Ask onto
   the grid (#31). **Unconfirmed:** that one global threshold suits the comparison and
   queue-with-detail pages.
+- **Trim a heading's margin at the top of a page when a block wraps it.** A page
+  whose first block is an `lf-ask` opens 48px lower than one that starts with its
+  own heading: the Ask's `h2` margin collapses through the boxless `lf-ask` to
+  `main`'s edge, and the `--lf-block-frame` trim reaches only `main`'s direct
+  children. Inside a specimen, whose `main` pads only 24px, it leaves 72px of blank
+  space above the question.
+- **Unconfirmed: scrolling a live specimen sometimes sticks.** A user reported it
+  while a specimen still scrolled inside a fixed-height frame, with no reproduction.
+  The frame now takes its page's height, so nothing scrolls inside it; check that the
+  report no longer reproduces once the scrolling changes land.
 
 ### The agent's text interface
 
@@ -114,10 +124,17 @@ has tried; settle that before building it.
   several open Asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
   Ask alone does not explain the wait.
-- **Give each delivery-loop rule one home.** The acknowledge-then-reply order and
-  what the delivery statuses mean are still written in several places.
-  [The audit](notes/guidance-duplication.md) lists every site and proposes a home
-  for each rule.
+- **Decide whether requests earn their weight.** A request (`x-request`, `leaf
+  receipt`) is a non-undoable one-shot operation the user asks the host to run, with
+  one pending attempt per control and a `succeeded`/`failed` receipt. Leaf never
+  runs it, and a receipt carries no structured result. Its users are Command Hub's
+  `lf-operations`, monitoring's `lf-release-actions` and the developer gallery's
+  `lf-job-requests`, none backed by a real integration, while the lifecycle reaches
+  `requests.py`, workflows, Asks, admission, the runtime's pending model and margin,
+  and the Codex adapter's failure receipts. Once the Command Hub redesign settles
+  whether its operations stay, either remove requests and recast the remaining
+  operations as Asks, or keep them and cut what only the gallery uses: projected
+  holders (`records`, one seat per data row).
 
 ## Etc
 
@@ -180,9 +197,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   front of every tool-result hook, so Leaf can answer more events itself.
   Rewriting the hook path in a compiled language is the further step if that
   is not enough.
-- **#28 — Threads slides over:** the panel overlays the page at every width, so
-  the page never moves for it; delete the push strip, `COVERING`, and `main`'s
-  panel offset. See the [layout model](notes/layout-model.md).
 - **CSS cascade layers:** isolate Leaf chrome from page CSS before reconsidering
   `@layer`; the earlier trial changed chrome styling. See the
   [dependency survey](notes/dependency-survey.md).

@@ -57,6 +57,7 @@ from render_cases_navigation import (
     composer_quote,
     mark_point,
     pending_text,
+    source_revision,
     wait_for_pending_mark,
 )
 from render_harness import (
@@ -2469,6 +2470,8 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     taken off the standing selection rather than off what the press changed refuses that
     press as a gesture of its own, and the mark stops opening at all."""
     page = mark_the_first_sentence(browser, serve)
+    # Wide enough that the open panel stands clear of the sentence a gesture extends into.
+    resized(page, 1920, 900)
     take(page)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     wait_for_pending_mark(page)
@@ -4612,6 +4615,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             ]
         },
     )
+    revision = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -4643,7 +4647,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "section": "patch",
             "datum": '["app.py","file"]',
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": revision,
         }
     ]
     expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
@@ -4707,7 +4711,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).to_have_attribute("data-lf-datum-label", "app.py · new line 2")
     expect(added).to_have_attribute("aria-description", "app.py · new line 2")
     expect(added).to_have_attribute("data-lf-source", "review-patch")
-    expect(added).to_have_attribute("data-lf-source-revision", "1")
+    revision = source_revision(serve.page_dir, "review-patch")
+    expect(added).to_have_attribute("data-lf-source-revision", revision)
 
     details = page.locator("lf-diff details").first
     summary = details.locator("summary")
@@ -4900,13 +4905,13 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
             "section": "patch",
             "datum": new_key,
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": revision,
         },
         {
             "section": "patch",
             "datum": new_key,
             "source": "review-patch",
-            "data_revision": 1,
+            "source_revision": revision,
             "quote": "request.token.id",
         },
     ]
@@ -4936,6 +4941,64 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "quotes => quotes.map(quote => [...quote.classList])"
     )
     assert all("detached" not in classes for classes in quote_classes), quote_classes
+
+
+def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve):
+    """A thread the diff seats is a trip like any other: Back returns to where the
+    user was reading, although the surface scrolls itself into view as it takes
+    focus."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(120))
+    url = serve(
+        leaf_page(
+            "Back from a diff thread",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f"<pre></pre></lf-diff><section id=far>{filler}</section>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+""",
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "data_revision": 1,
+            },
+        },
+    )["id"]
+    page = open_page(browser, url)
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    assert reading > 2000
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'lf-diff .lf-conversation-thread[data-thread="{root}"]')
+    ).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") < reading - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
 
 
 @pytest.mark.parametrize("scheme", ("light", "dark"))
@@ -4972,11 +5035,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
                 "section": "patch",
                 "datum": '["app.py","new",1]',
                 "source": "review-patch",
-                "data_revision": 1,
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
         },
     )
     page = open_page(browser, url, color_scheme=scheme)
+    resized(page, 1920, 900)
     thread = page.locator(
         f'lf-diff .lf-conversation-thread[data-thread="{root["id"]}"]'
     )
@@ -5459,7 +5523,7 @@ def test_a_fragmented_diff_loads_only_opened_files_and_hydrates_comment_travel(
     assert page.evaluate("window.__leafFragmentRequests") == ["first.py"]
 
     if activation == "keyboard":
-        resized(page, 600, 900)
+        resized(page, 400, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
@@ -5540,14 +5604,12 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     )
 
 
-def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
-    browser, serve, monkeypatch
-):
-    """A source write is an identity, not its second-resolution wall clock.
+def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(browser, serve):
+    """A source write is an identity, not its second-resolution modification time.
 
     Replacing a manifest inside the same second must discard its prior file keys before
-    fragments use the new data revision. A transient fragment refusal remains local to
-    that disclosure and closing and reopening it retries the exact current file.
+    fragments use the new source revision. A transient fragment refusal remains local
+    to that disclosure and closing and reopening it retries the exact current file.
     """
     authored = leaf_page(
         "changing fragmented diff",
@@ -5555,7 +5617,6 @@ def test_a_fragmented_diff_tracks_each_write_and_retries_a_failed_file(
         "collapsed><pre></pre></lf-diff>",
     )
     url = serve(authored)
-    monkeypatch.setattr(data_model, "now_iso", lambda: "2026-09-01T06:00:00-07:00")
 
     def manifest(path, old, new):
         return {
@@ -5642,6 +5703,7 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
         ]
     }
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
+    prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
     page.evaluate(
         "window.priorManifest = document.querySelector('#patch').manifestSnapshot"
@@ -5666,7 +5728,8 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
         }"""
     )
     assert result == {
-        "stale": "source review-patch revision 1 changed before loading fragment app.py",
+        "stale": f"source review-patch revision {prior} changed before loading "
+        "fragment app.py",
         "current": replacement,
     }
 

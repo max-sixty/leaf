@@ -77,8 +77,8 @@ export function createStateApplication({
     if (!sameLayer(state.layer.generation)) return;
     if (typeof state.taken !== "number")
       throw new TypeError("state must say when it was taken");
-    // Source revisions are independently monotone, even in a crossed older log read.
-    const dataChanged = acceptData(state.data);
+    // Data is ordered by when the server took the reading, even in a crossed older log read.
+    const dataChanged = acceptData(state.data, state.taken);
     const notifyChangedData = () => (dataChanged ? notifyDataSubscribers() : undefined);
     const eventSeq = state.browser?.basis?.through_seq;
     if (!Number.isInteger(eventSeq) || eventSeq < 0)

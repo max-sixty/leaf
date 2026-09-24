@@ -1489,7 +1489,7 @@ def test_an_export_embeds_only_the_widgets_its_markup_names(browser, serve, tmp_
     exporting_model.cmd_export(serve.page_dir, out, None)
     html = out.read_text(encoding="utf-8")
     imports = json.loads(
-        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', html, re.S)[1]
+        re.search(r'<script type="importmap"[^>]*>(.*?)</script>', html, re.DOTALL)[1]
     )["imports"]
     assert {"leaf:/widgets/lf-code.js", "leaf:/widgets/lf-diagram.js"} <= set(imports)
     assert not {

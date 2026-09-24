@@ -129,10 +129,16 @@ def answer_command(answer: dict) -> str:
 
 
 def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many user moves have no answer and name the command that answers
-    each, addressed as its writer takes it. `of` narrows which moves these are,
-    such as the acknowledged ones."""
-    commands = "; ".join(answer_command(item["answer"]) for item in obligations)
+    """Say how many user moves have no answer and name what answers each,
+    addressed as its writer takes it: the command, or, for a reply bound to the
+    claimant's App Server turn, that turn's final message. `of` narrows which
+    moves these are, such as the acknowledged ones."""
+    commands = "; ".join(
+        f"your final message answers {item['input']}"
+        if item.get("turn_answers")
+        else answer_command(item["answer"])
+        for item in obligations
+    )
     moves = f"user move{'s' if len(obligations) != 1 else ''}"
     return (
         f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer "
@@ -193,8 +199,13 @@ def canonical_activity(
     now_iso: str,
     stream: dict | None = None,
     reply: dict | None = None,
+    bindings: dict | None = None,
 ) -> dict:
-    """Return the one current reading of agent activity for a page snapshot."""
+    """Return the one current reading of agent activity for a page snapshot.
+
+    `bindings` are the stream's reply bindings: a response address bound to the
+    claimant's session is answered by that session's App Server turn, whose
+    final message is the reply, and its workflow says so as `turn_answers`."""
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     stream_quiet = bool(stream and _quiet(stream.get("ts"), now, WORKING_GRACE))
@@ -216,6 +227,10 @@ def canonical_activity(
     held = not present.get("unattended") and not unheld
     workflows = _canonical_workflows(interaction_evidence, present, now, held=held)
     _bind_reply(workflows, reply)
+    for item in workflows:
+        binding = (bindings or {}).get(item.get("input"))
+        if binding and binding["session"] == present.get("claim_session"):
+            item["turn_answers"] = True
 
     deadlines = []
     # Status age and turn closure can change ownership even when the primary label

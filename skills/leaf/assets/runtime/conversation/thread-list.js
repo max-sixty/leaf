@@ -6,7 +6,7 @@
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
    which changes take one. A resolution fold is followed frame by frame until it ends,
    and its completion removes its node through `renderThreads`, under the same hold.
-   A new agent turn, or growth of the last one, follows while the reader has not named
+   A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that conversation's tail must still reach the landing edge.
    Reading earlier turns keeps the place hold, and a reply in another thread does not
@@ -151,7 +151,7 @@ const takeScrollHold = (panelIsOpen) => listPlace(panelIsOpen).take();
 const finishScrollHold = (hold, panelIsOpen) =>
   listPlace(panelIsOpen).finish(hold, hasFolding);
 
-// The list's place hold reports what the reader named. Follow while they have not
+// The list's place hold reports what the user named. Follow while they have not
 // named another conversation and this conversation's tail meets the landing edge.
 const FOLLOW_ROOM = 80;
 function incomingAtLatest(reading, panelIsOpen, namedCard) {

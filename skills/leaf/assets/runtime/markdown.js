@@ -13,7 +13,7 @@ let renderInline = escapedSource;
 let ready;
 
 export const renderMarkdown = (text) => render(text);
-// The words a reader sees in rendered Markdown, for a surface that shows them as plain
+// The words a user sees in rendered Markdown, for a surface that shows them as plain
 // text: an excerpt, a label, a passage. Until the parser lands they are the source.
 export function renderedWords(html) {
   const parsed = document.createElement("template");

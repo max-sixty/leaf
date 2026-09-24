@@ -324,13 +324,13 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
         return event_contracts_model.admitted_event(page, log, dict(event))
 
     first = admit(
-        [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "index": 0}}
+        [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "rank": "0i"}}
     )
     assert first["meaning"]["coordinate"] == ["triage", "card-a", "swipe"]
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
-        log, {**STATED_SWIPE, "detail": {"card": "card-b", "to": "keep", "index": 1}}
+        log, {**STATED_SWIPE, "detail": {"card": "card-b", "to": "keep", "rank": "0r"}}
     )
     assert last["meaning"]["answer"] is None
 
@@ -339,7 +339,7 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
             log,
             {
                 **STATED_SWIPE,
-                "detail": {"card": "not-a-card", "to": "keep", "index": 1},
+                "detail": {"card": "not-a-card", "to": "keep", "rank": "0r"},
             },
         )
     assert "unknown card 'not-a-card'" in str(refused.value)
@@ -953,7 +953,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         },
     )
 
@@ -1008,12 +1008,12 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         },
     )
 
-    registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["index"][
-        "minimum"
+    registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["rank"][
+        "maxLength"
     ] = 1
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
@@ -1300,7 +1300,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
     )
     publish(page_dir)
     board = registry["lf-board"]
-    board["x-state"]["move"]["detail"]["properties"]["index"]["minimum"] = 1
+    board["x-state"]["move"]["detail"]["properties"]["rank"]["maxLength"] = 1
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-board": board}))
@@ -1310,7 +1310,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
         }
     ).encode()
     (status, body), refusal = assert_revendor_serializes_writer(
@@ -3355,9 +3355,9 @@ def test_a_self_position_record_stays_within_the_declared_ownership_relation(pag
             "type": "object",
             "properties": {
                 "to": {"type": "string"},
-                "index": {"type": "integer", "minimum": 0},
+                "rank": {"type": "string"},
             },
-            "required": ["to", "index"],
+            "required": ["to", "rank"],
             "additionalProperties": False,
         },
         "unit": "widget",
@@ -3365,7 +3365,7 @@ def test_a_self_position_record_stays_within_the_declared_ownership_relation(pag
             "kind": "position",
             "within": "lf-column",
             "value": "to",
-            "order": "index",
+            "rank": "rank",
         },
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3390,9 +3390,9 @@ def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page
                 "type": "object",
                 "properties": {
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["to", "index"],
+                "required": ["to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "widget",
@@ -3400,7 +3400,7 @@ def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page
                 "kind": "position",
                 "within": "lf-task",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -3428,7 +3428,7 @@ def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page
                     "revision": revision,
                     "widget": "parent-task",
                     "action": "move",
-                    "detail": {"to": destination, "index": 0},
+                    "detail": {"to": destination, "rank": "0i"},
                 }
             ).encode(),
         )
@@ -3475,9 +3475,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "type": "object",
                 "properties": {
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["to", "index"],
+                "required": ["to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "widget",
@@ -3485,7 +3485,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "kind": "position",
                 "within": "lf-column",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     recorders = {"lf-card": ("flag", card_verbs)}
@@ -3523,7 +3523,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "revision": revision,
                 "widget": "board",
                 "action": "move",
-                "detail": {"card": "card", "to": "done", "index": 0},
+                "detail": {"card": "card", "to": "done", "rank": "0i"},
             }
         ).encode(),
     )

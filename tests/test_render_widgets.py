@@ -5473,14 +5473,10 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
         "swipe",
     ]
     assert [event["detail"] for event in logged] == [
-        {"card": "swipe-a", "to": "session-pass", "index": 1},
-        {"card": "swipe-b", "to": "session-keep", "index": 1},
-        {"card": "swipe-c", "to": "session-pass", "index": 2},
-        {
-            "card": "swipe-d",
-            "to": "session-keep",
-            "index": 2,
-        },
+        {"card": "swipe-a", "to": "session-pass", "rank": "j"},
+        {"card": "swipe-b", "to": "session-keep", "rank": "j"},
+        {"card": "swipe-c", "to": "session-pass", "rank": "s"},
+        {"card": "swipe-d", "to": "session-keep", "rank": "s"},
     ]
 
 
@@ -5898,7 +5894,7 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "j"},
         },
     )
     told(page)
@@ -5927,7 +5923,7 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "index": 1},
+            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "j"},
         },
     )
     told(page)
@@ -6251,7 +6247,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
             "revision": 1,
             "widget": "feeders",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
         },
     )
     page = open_page(browser, url)

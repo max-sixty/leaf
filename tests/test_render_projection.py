@@ -5237,7 +5237,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     d = serve.page_dir
     for widget, action, detail in [
         ("approach", "choose", {"options": ["opt-shim"]}),
-        ("work", "move", {"card": "card-importer", "to": "col-done", "index": 0}),
+        ("work", "move", {"card": "card-importer", "to": "col-done", "rank": "0i"}),
     ]:
         append_command(
             d,
@@ -5601,9 +5601,9 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
                 "properties": {
                     "piece": {"type": "string"},
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["piece", "to", "index"],
+                "required": ["piece", "to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "piece",
@@ -5611,7 +5611,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
                 "kind": "position",
                 "within": "lf-zone",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -5688,7 +5688,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "owner",
             "action": "move",
-            "detail": {"piece": "piece", "to": "zone-b", "index": 0},
+            "detail": {"piece": "piece", "to": "zone-b", "rank": "0i"},
         },
         {
             "kind": "action",
@@ -5745,7 +5745,7 @@ def test_complete_positions_compose_across_independent_widget_owners(
 ):
     """Four independently recorded siblings share one physical order. A fresh tab
     must render their final positions in that order, rather than reapply each
-    owner's index in the original DOM order; undo retains those same nodes."""
+    owner's rank in the original DOM order; undo retains those same nodes."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-lane")
     author_test_widget(tmp_path, "lf-token", upgrade=True)
@@ -5763,9 +5763,9 @@ def test_complete_positions_compose_across_independent_widget_owners(
                 "type": "object",
                 "properties": {
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["to", "index"],
+                "required": ["to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "widget",
@@ -5773,7 +5773,7 @@ def test_complete_positions_compose_across_independent_widget_owners(
                 "kind": "position",
                 "within": "lf-lane",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -5787,7 +5787,7 @@ customElements.define("lf-token", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    const {to, index} = state.move.detail;
+    const {index, detail: {to}} = state.move;
     const parent = document.getElementById(to);
     const rest = [...parent.children].filter(child => child !== this);
     if (parent.children[index] !== this) parent.insertBefore(this, rest[index] ?? null);
@@ -5802,7 +5802,8 @@ customElements.define("lf-token", class extends HTMLElement {
     )
     url = serve(html, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     sender = open_page(browser, url)
-    for name, index in [("d", 0), ("c", 1)]:
+    # d to the top, then c right under it: ranks the browser would send.
+    for name, rank in [("d", "0i"), ("c", "0r")]:
         response = post_event(
             sender,
             url.rsplit("/versions/", 1)[0] + "/api/event",
@@ -5811,7 +5812,7 @@ customElements.define("lf-token", class extends HTMLElement {
                 "revision": 1,
                 "widget": f"token-{name}",
                 "action": "move",
-                "detail": {"to": "lane", "index": index},
+                "detail": {"to": "lane", "rank": rank},
                 "attempt": f"move-token-{name}-test-case",
             },
         )

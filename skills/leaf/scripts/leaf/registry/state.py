@@ -145,7 +145,7 @@ def validate_widget_record_contracts(
         if record:
             fields.append(record["value"])
             if record["kind"] == "position":
-                fields.append(record["order"])
+                fields.append(record["rank"])
                 if record["within"] not in declarations:
                     raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` records a "
@@ -264,12 +264,12 @@ def validate_widget_record_contracts(
                     f"value `{value}` must be a string"
                 )
             if record["kind"] == "position":
-                order = detail_properties[record["order"]]
-                if not (isinstance(order, dict) and order.get("type") == "integer"):
+                rank = detail_properties[record["rank"]]
+                if not (isinstance(rank, dict) and rank.get("type") == "string"):
                     raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` record "
-                        f"order `{record['order']}` counts the unit's "
-                        "siblings, so its detail field must be an integer"
+                        f"rank `{record['rank']}` holds a rank key, so its "
+                        "detail field must be a string"
                     )
 
 

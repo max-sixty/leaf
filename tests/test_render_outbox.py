@@ -238,7 +238,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     expect(grip).to_be_focused()
     log = events_model.read_events(serve.page_dir)
     (moved,) = actions(serve.page_dir)
-    assert moved["detail"] == {"card": "card-baffle", "to": "col-done", "index": 0}
+    assert moved["detail"] == {"card": "card-baffle", "to": "col-done", "rank": "i"}
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
     ]
@@ -377,11 +377,11 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
           const attempt = 'one-attempt-two-actions';
           const first = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
-            detail: {card: 'card-heater', to: 'col-done', index: 0},
+            detail: {card: 'card-heater', to: 'col-done', rank: '0i'},
           });
           const second = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
-            detail: {card: 'card-baffle', to: 'col-done', index: 0},
+            detail: {card: 'card-baffle', to: 'col-done', rank: '0i'},
           });
           return Promise.all([first?.delivery ?? null, second?.delivery ?? null]);
         }"""
@@ -598,7 +598,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
                 "revision": 1,
                 "widget": "sprint",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
             },
         )
 
@@ -716,12 +716,12 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     round_trip(page)
 
     assert [
-        (event["detail"]["card"], event["detail"]["to"], event["detail"]["index"])
+        (event["detail"]["card"], event["detail"]["to"], event["detail"]["rank"])
         for event in actions(serve.page_dir)
     ] == [
-        ("card-heater", "col-done", 0),
-        ("card-baffle", "col-done", 1),
-        ("card-baffle", "col-done", 0),
+        ("card-heater", "col-done", "i"),
+        ("card-baffle", "col-done", "r"),
+        ("card-baffle", "col-done", "9"),
     ]
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
@@ -891,7 +891,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-todo", "index": 2},
+            "detail": {"card": "card-heater", "to": "col-todo", "rank": "k"},
         },
     )
     page = open_page(browser, url)
@@ -909,7 +909,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
         page.evaluate(
             """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#sprint');
-              const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
+              const detail = {card: 'card-baffle', to: 'col-todo', rank: 's'};
               document.getElementById(detail.to).append(document.getElementById(detail.card));
               widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
@@ -969,9 +969,9 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
                 "properties": {
                     "card": {"type": "string"},
                     "to": {"type": "string"},
-                    "index": {"type": "integer", "minimum": 0},
+                    "rank": {"type": "string"},
                 },
-                "required": ["card", "to", "index"],
+                "required": ["card", "to", "rank"],
                 "additionalProperties": False,
             },
             "unit": "card",
@@ -979,7 +979,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
                 "kind": "position",
                 "within": "lf-column",
                 "value": "to",
-                "order": "index",
+                "rank": "rank",
             },
         }
     }
@@ -1024,7 +1024,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         page.evaluate(
             """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#outer');
-              const detail = {card: 'outer-card', to: 'outer-done', index: 0};
+              const detail = {card: 'outer-card', to: 'outer-done', rank: '0i'};
               document.getElementById(detail.to).append(document.getElementById(detail.card));
               widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
@@ -1033,7 +1033,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
     page.evaluate(
         """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
           const widget = document.querySelector('#inner');
-          const detail = {card: 'inner-card', to: 'inner-done', index: 0};
+          const detail = {card: 'inner-card', to: 'inner-done', rank: '0i'};
           document.getElementById(detail.to).append(document.getElementById(detail.card));
           widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
         }); }"""
@@ -1125,7 +1125,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
                 "revision": 1,
                 "widget": "sprint",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+                "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
             },
         )
 
@@ -1214,7 +1214,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
         },
     )
     cut.restore()
@@ -2323,7 +2323,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "index": 0},
+            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
         },
     )
     page = open_page(browser, url)

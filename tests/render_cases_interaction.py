@@ -1150,23 +1150,22 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # the verb's own shape and a schema is no help in inventing one.
 #
 # Two moves into one column, both to its head, because one move cannot say what this
-# gate has to get right. `move` folds by card, so each is its own standing entry, and
-# an absolute `#place` states one card's index and nothing about its neighbours: the
-# column ends up holding the second above the first, and re-applying the first *alone*
-# is supposed to lift it back over. Measured that way the gate called lf-board relative
-# and refused a page with nothing wrong with it. The set has to be re-applied in the
-# log's order, and with a single move on the page it passed either way.
+# gate has to get right. `move` folds by card, so each is its own standing entry with
+# its own rank: the column holds the second above the first, and re-applying either
+# set of them puts each card where its own rank says, whichever other moves stand. The
+# ranks are the ones lf-board sends: importer before the authored notes ("1"), then
+# notes before importer.
 STANDING_ACTIONS = [
     ("ab-pick", "choose", {"options": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
     ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
-    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "index": 0}),
-    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "index": 0}),
+    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "rank": "0i"}),
+    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "rank": "09"}),
     ("ab-email", "edit", {"text": "The words as the user rewrote them."}),
     ("ab-sug-410", "decide", {"outcome": "accept"}),
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "index": 0}),
-    ("ab-triage", "swipe", {"card": "ab-capacity", "to": "ab-keep", "index": 0}),
+    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "rank": "i"}),
+    ("ab-triage", "swipe", {"card": "ab-capacity", "to": "ab-keep", "rank": "i"}),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",

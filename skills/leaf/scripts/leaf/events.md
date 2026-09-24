@@ -110,7 +110,9 @@ closing one; a decision whose outcome is the widget's `x-withdrawn-as` declines 
 closes none. Historical conversation folds use this coordinate even after its
 widget retires. Every action at the coordinate competes: a later action of the
 same verb on the same unit supersedes its prior answer, while another verb leaves
-it standing.
+it standing. Coordinates are independent, so a position record places its unit by a
+rank key rather than an index: the key means the same place whichever other units'
+moves stand, and undoing or superseding one unit's move never moves another.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:

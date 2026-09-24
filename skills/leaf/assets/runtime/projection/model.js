@@ -169,8 +169,55 @@ export function projectionOrigins(authoredSnapshots, projection) {
   return [...origins.values()];
 }
 
-// Compose complete verb values in memory. Absolute placements for independent
-// coordinates share their authored container ordering and are folded before rendering.
+/* Rank keys: where a unit stands among its container's siblings, as a coordinate of its
+   own.
+
+   A position record carries a rank rather than an index. A rank is a base-36 fraction
+   written as its digits after the point, `0-9a-z`, never ending in `0`, so ordinary
+   string order is numeric order and there is always a key strictly between two others.
+   A container lists its units by rank, ties by id. An index counts siblings, so it means
+   something only against the order the other moves left; a rank means the same thing
+   whichever of the other moves stand, so undoing or superseding one card's move never
+   shifts another card.
+
+   Authored units rank by their authored index, `authoredRank(i)`, a key that does not
+   depend on how many siblings follow. `projection.py`'s `authored_rank` and `RANK`
+   state the same two rules for the Python fold and the append door; keep them aligned. */
+
+const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+export const authoredRank = (index) =>
+  "z".repeat(Math.floor(index / 35)) + DIGITS[(index % 35) + 1];
+
+const byRank = (ranks) => (a, b) =>
+  ranks[a] < ranks[b] ? -1 : ranks[a] > ranks[b] ? 1 : a < b ? -1 : a > b ? 1 : 0;
+
+// The shortest key strictly between `before` ("" is the start) and `after` (null is the
+// end). Equal bounds have nothing between them, so the key ties and ids decide.
+function rankBetween(before, after) {
+  if (after !== null && before >= after) return before;
+  if (after !== null) {
+    let n = 0;
+    while ((before[n] ?? "0") === after[n]) n += 1;
+    if (n > 0) return after.slice(0, n) + rankBetween(before.slice(n), after.slice(n));
+  }
+  const low = before ? DIGITS.indexOf(before[0]) : 0;
+  const high = after !== null ? DIGITS.indexOf(after[0]) : DIGITS.length;
+  if (high - low > 1) return DIGITS[Math.round((low + high) / 2)];
+  if (after !== null && after.length > 1) return after[0];
+  return DIGITS[low] + rankBetween(before.slice(1), null);
+}
+
+// The rank that puts `unit` at `index` among the other units a position verb's state
+// lists in `container`: the widget's own reading of where a gesture dropped it.
+export function rankAt({ value, ranks }, container, index, unit) {
+  const others = value[container].filter((id) => id !== unit);
+  return rankBetween(ranks[others[index - 1]] ?? "", ranks[others[index]] ?? null);
+}
+
+// Compose complete verb values in memory. A position record places its unit at the
+// rank it names, a coordinate of that unit's own (rank keys above), so each
+// container lists its units by rank once every standing placement is in.
 export function foldWidgetStates(authoredSnapshots, projection) {
   const states = new Map(
     [...authoredSnapshots].map(([id, authored]) => [
@@ -188,7 +235,12 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       ...new Set([...authoredSnapshots.values()].map(({ positions }) => positions)),
     ].map((value) => structuredClone(value)),
   );
-  const place = (containers, unit, record, detail) => {
+  const positionRanks = Object.fromEntries(
+    Object.values(positions).flatMap((ids) =>
+      ids.map((id, index) => [id, authoredRank(index)]),
+    ),
+  );
+  const place = (containers, ranks, unit, record, detail) => {
     const destination = containers[detail[record.value]];
     if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
       return;
@@ -196,7 +248,11 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       const index = ids.indexOf(unit);
       if (index >= 0) ids.splice(index, 1);
     }
-    destination.splice(detail[record.order], 0, unit);
+    destination.push(unit);
+    ranks[unit] = detail[record.rank];
+  };
+  const list = (containers, ranks) => {
+    for (const ids of Object.values(containers)) ids.sort(byRank(ranks));
   };
 
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {
@@ -209,18 +265,25 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     owner.entries.push(entry);
     if (spec.unit === "widget") {
       owner.state[e.action] = standing;
-      if (record?.kind === "position") place(positions, unit, record, e.detail);
+      if (record?.kind === "position")
+        place(positions, positionRanks, unit, record, e.detail);
     } else {
       const target = owner.state[e.action];
       target.units[unit] = standing;
-      if (record?.kind === "position") place(target.value, unit, record, e.detail);
+      if (record?.kind === "position")
+        place(target.value, target.ranks, unit, record, e.detail);
     }
   }
+  list(positions, positionRanks);
 
   for (const [id, owner] of states) {
     const { state, specs } = owner;
     for (const [verb, spec] of specs) {
-      if (spec.unit !== "widget" || spec.record?.kind !== "position") continue;
+      if (spec.record?.kind !== "position") continue;
+      if (spec.unit !== "widget") {
+        list(state[verb].value, state[verb].ranks);
+        continue;
+      }
       const record = spec.record;
       const container = Object.keys(positions).find((key) =>
         positions[key].includes(id),
@@ -228,8 +291,9 @@ export function foldWidgetStates(authoredSnapshots, projection) {
       if (!container) continue;
       state[verb].value = container;
       state[verb].detail[record.value] = container;
-      state[verb].detail[record.order] = positions[container].indexOf(id);
-      owner.order = [container, positions[container].indexOf(id)];
+      state[verb].detail[record.rank] = positionRanks[id];
+      state[verb].index = positions[container].indexOf(id);
+      owner.order = [container, state[verb].index];
     }
   }
 

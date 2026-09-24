@@ -5,6 +5,7 @@
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { quoteFrom, textNodesUnder } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
+import { authoredRank } from "./model.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,
@@ -25,8 +26,9 @@ import { readApplication } from "../semantic-state.js";
 
    - `attribute`: sorted owned ids carrying the declared attribute;
    - `value`: the attribute string, or `null` when absent;
-   - `position`: ordered id lists per container; an individual widget also names its
-     containing id and index;
+   - `position`: ordered id lists per container and each listed unit's authored rank
+     (projection/model.js); an individual widget also names its containing id and rank,
+     and its index among that container's identified children;
    - `body`: the data body's exact words, with source-layout indentation removed;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 
@@ -88,13 +90,16 @@ function initialState(widget, spec) {
   const record = spec.record;
   if (spec.unit !== "widget") {
     const value = {};
-    if (record?.kind === "position" && spec.unit !== "widget")
-      for (const container of widget.querySelectorAll(record.within))
-        if (container.id && recordedOwner(container) === widget)
-          value[container.id] = [...container.children]
-            .filter((part) => part.id)
-            .map((part) => part.id);
-    return { value, units: {} };
+    if (record?.kind !== "position") return { value, units: {} };
+    const ranks = {};
+    for (const container of widget.querySelectorAll(record.within))
+      if (container.id && recordedOwner(container) === widget) {
+        value[container.id] = [...container.children]
+          .filter((part) => part.id)
+          .map((part) => part.id);
+        value[container.id].forEach((id, index) => (ranks[id] = authoredRank(index)));
+      }
+    return { value, ranks, units: {} };
   }
   let value = null;
   if (record?.kind === "attribute")
@@ -105,16 +110,15 @@ function initialState(widget, spec) {
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
   else if (record?.kind === "position") {
     const container = widget.closest(record.within);
+    const index = container
+      ? [...container.children].filter((part) => part.id).indexOf(widget)
+      : 0;
     value = container?.id ?? null;
     return {
       action: null,
       value,
-      detail: {
-        [record.value]: value,
-        [record.order]: container
-          ? [...container.children].filter((part) => part.id).indexOf(widget)
-          : 0,
-      },
+      index,
+      detail: { [record.value]: value, [record.rank]: authoredRank(index) },
     };
   } else if (record?.kind === "body") value = decodeBodyRecord(widget);
   return { action: null, value, detail: record ? { [record.value]: value } : {} };

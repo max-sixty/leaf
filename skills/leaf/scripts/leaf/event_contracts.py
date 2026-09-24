@@ -22,6 +22,7 @@ from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.page_view import PageView
 from leaf.projection import (
+    RANK,
     generated_children,
     page_reading,
     record_members,
@@ -172,6 +173,12 @@ def position_record_error(
         return (
             f"position record destination {target_id!r} is <{target['tag']}>, "
             f"not <{record['within']}>"
+        )
+    rank = event["detail"][record["rank"]]
+    if not RANK.fullmatch(rank):
+        return (
+            f"position record rank {rank!r} is not a rank key: base-36 digits "
+            "0-9a-z not ending in 0"
         )
 
     def holder(node: dict):

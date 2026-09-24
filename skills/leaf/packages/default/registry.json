@@ -662,7 +662,7 @@
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
   "lf-board": {
-    "description": "A kanban board the user edits directly: cards move between columns or reorder within one — dragged by the grip, moved with direct column buttons on phones, or moved by keyboard (the grip is a button: Enter grabs, arrows move, Enter drops) — and each completed move reaches the agent as a `move` action naming the card, target column, and position. Children are lf-column elements only. Write the board as you mean it and leave it alone afterwards: recorded moves carry onto later versions (see `$restated` in `registry.json`). Replay preserves the exact position, but the user-origin reading, version diff, and restatement gate compare a card's column only: a reorder within one column is deliberately not called out as a separate state change, because raw indexes do not compose when neighbouring cards move. A move rests on its card, so a rewrite retracts it through the card (see lf-card), never the board.",
+    "description": "A kanban board the user edits directly: cards move between columns or reorder within one — dragged by the grip, moved with direct column buttons on phones, or moved by keyboard (the grip is a button: Enter grabs, arrows move, Enter drops) — and each completed move reaches the agent as a `move` action naming the card, target column, and the card's rank there. Children are lf-column elements only. Write the board as you mean it and leave it alone afterwards: recorded moves carry onto later versions (see `$restated` in `registry.json`). Replay preserves the exact position, but the user-origin reading, version diff, and restatement gate compare a card's column only: a reorder within one column is not called out as a separate state change. A move rests on its card, so a rewrite retracts it through the card (see lf-card), never the board.",
     "type": "object",
     "properties": {
       "id": {
@@ -687,15 +687,14 @@
             "to": {
               "type": "string"
             },
-            "index": {
-              "type": "integer",
-              "minimum": 0
+            "rank": {
+              "type": "string"
             }
           },
           "required": [
             "card",
             "to",
-            "index"
+            "rank"
           ],
           "additionalProperties": false
         },
@@ -704,7 +703,7 @@
           "kind": "position",
           "within": "lf-column",
           "value": "to",
-          "order": "index"
+          "rank": "rank"
         }
       }
     },

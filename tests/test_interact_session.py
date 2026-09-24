@@ -8222,14 +8222,40 @@ def test_a_later_codex_start_names_the_running_transport(
         return started.returncode, out.strip(), err
 
     try:
-        assert start()[:2] == (0, "Codex delivery started for task codex-thread")
+        release_start = tmp_path / "release-codex-start"
+        started = under_codex(
+            shlex.join(
+                [
+                    *LEAF_COMMAND,
+                    "codex",
+                    "start",
+                    str(page),
+                    "--codex-path",
+                    os.path.relpath(program),
+                ]
+            ),
+            environment,
+            hold_until=release_start,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         # Each start claims the page for its own short-lived Codex, as the delivery
         # test below explains; keep the claim alive so the adapter stays up. The
         # refused start restores this claim, and the joining one comes last.
+        wait_for(
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+            bool,
+            failure="the detached Codex carrier did not start",
+        )
         claim = service_model.page_claim(page)
         files_model.write_json(
             service_model.claim_path(page), {**claim, "pid": os.getpid()}
         )
+        release_start.touch()
+        out, err = started.communicate(timeout=60)
+        assert started.returncode == 0, f"{out}{err}"
+        assert out.strip() == "Codex delivery started for task codex-thread"
         status, _, err = start("--app-server", "unix:///tmp/elsewhere.sock")
         assert status != 0
         assert "not through App Server unix:///tmp/elsewhere.sock" in err

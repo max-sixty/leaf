@@ -465,6 +465,9 @@ VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.s
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"
 PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+# A package's own command-line tools, run by `leaf package run` from wherever the
+# package is installed or bundled. A page never vendors them: they are the agent's.
+SCRIPTS_DIR = "scripts"
 GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored

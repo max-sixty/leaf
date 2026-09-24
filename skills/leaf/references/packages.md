@@ -10,13 +10,15 @@ result that `page init` vendors after composing the kernel and packages.
 Leaf's bundled `default` package reaches every page. Any other package reaches only the
 pages that select it by name or path. Presentation or behavior used by only one page
 stays in that version, in its `<style>` and its inline modules or `page/`. Everything
-reusable belongs to a package. Leaf creates, checks, and installs the whole directory:
+reusable belongs to a package. Leaf creates, checks, installs, and runs the whole
+directory:
 
 ```bash
 leaf package init PACKAGE
 leaf package init PACKAGE --widget lf-callout
 leaf package check PACKAGE
 leaf package install PACKAGE
+leaf package run NAME SCRIPT [ARGS]...
 ```
 
 `package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
@@ -50,11 +52,11 @@ leaf package install packages/callout
 leaf page init --package callout PAGE
 ```
 
-The copy holds the package contract below and nothing else in the source directory,
-so a README and the author's own tests stay behind. A name that a bundled or already
-installed package answers to is refused rather than replaced; remove the installed
-directory to replace one. A page records the bare name, so re-vendoring it on another
-machine needs the same package installed there.
+The copy holds the package contract below, `scripts/` included, and nothing else in
+the source directory, so a README and the author's own tests stay behind. A name that
+a bundled or already installed package answers to is refused rather than replaced;
+remove the installed directory to replace one. A page records the bare name, so
+re-vendoring it on another machine needs the same package installed there.
 
 Leaf also ships optional packages that select by bare name. `code-review` trials
 guidance-led review authoring without adding widgets; select it or your own review
@@ -91,7 +93,7 @@ package/
 ├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
-├── scripts/            bundled packages only: producer tools; never vendored
+├── scripts/            command-line tools `leaf package run` runs; never vendored
 ├── icon.svg            optional replacement by path
 └── leaf.js             optional runtime replacement
 ```
@@ -866,10 +868,24 @@ the other.
 
 `data set` is the one write. A value that has to be derived from a file — a text
 excerpt, a patch split into files — is the producer's to build, and a contract that
-needs more than `jq` says how in its producer `guidance`. A bundled package may ship
-that tool under `scripts/`, which neither a page nor `package install` copies; its
-guidance names it as `<leaf-packages>/<package>/scripts/<tool>`, and `leaf page
-guidance` prints the placeholder as this install's absolute packages directory.
+needs more than `jq` says how in its producer `guidance`. A package may ship that tool
+as a Python file under `scripts/`, declaring its dependencies in inline script metadata
+(PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
+package by the name `--package` selects it by, bundled or installed, and runs the
+script with `uv run --script` in the environment its header declares, apart from
+Leaf's own. The script owns stdin, stdout, and the exit status, so guidance prints the
+pipeline with no path in it:
+
+```bash
+git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE review-patch
+```
+
+`package check` and `package install` refuse a `scripts/*.py` without that header,
+since uv would run it in whatever project the caller's directory reaches, and refuse a
+constraint other than a `>=` floor. A subdirectory of `scripts/` holds helpers and is
+not checked or run. A page never vendors `scripts/`. When a producer upstream of `data set` fails and
+writes nothing, `data set` refuses the empty input and points back at that producer's
+own error.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new

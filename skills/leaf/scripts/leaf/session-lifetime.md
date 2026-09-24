@@ -264,7 +264,9 @@ conversation store or response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs
-only delivery and leaves every page up.
+only delivery and leaves every page up. Printing that URL is what commits the start:
+a service whose caller has gone before hearing it disables the record it wrote and
+exits, since the caller's stop may already have run and found nothing to stop.
 
 ## Lifetime
 

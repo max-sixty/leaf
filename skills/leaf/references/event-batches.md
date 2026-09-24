@@ -2,7 +2,7 @@
 
 ## One envelope on every transport
 
-Every carrier presents the same immutable object:
+Every carrier presents an immutable object of the same shape:
 
 ```json
 {
@@ -25,8 +25,9 @@ The id is eight lowercase hexadecimal characters and addresses this envelope in 
 machine's immutable delivery store.
 
 Some hosts deliver it inline; others deliver a pointer that `leaf delivery read <id>`
-resolves to the same object. Your host contract names which. These differ only in
-transport. Process every batch and every event.
+resolves to the same object. Your host contract names which. The shape is the same on
+every carrier, and the `handling` is written for the one that delivered it: who
+acknowledges, and how a reply is given. Process every batch and every event.
 
 Each event retains its stored identity, fields and order, less the browser's
 retry key `attempt`, then adds these delivery readings:

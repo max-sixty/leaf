@@ -40,6 +40,7 @@ from interact_support import (
     read_page_data,
     record_claim,
     running_http_server,
+    wait_for,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -4830,6 +4831,56 @@ def test_a_refused_request_line_writes_nothing_into_the_pipe_nobody_drains(page_
             assert answered.status == 200
     finally:
         hosting_model.cmd_stop(page_dir)
+
+
+def test_a_stop_ends_a_server_whose_caller_left_while_it_announced(page_dir, spawn):
+    """A serving child whose caller goes away before hearing the URL withdraws
+    its start, and that withdrawal is a transition of its own. A stop arriving
+    after the child took its lease must wait for the lease without holding the
+    transition, or the two block each other forever.
+
+    A pipe already full holds the child at its announcement with its lease taken
+    and its record enabled; closing the reading end is the caller leaving.
+    """
+    assert service_model.claim_page(page_dir)
+    reader, writer = os.pipe()
+    os.set_blocking(writer, False)
+    try:
+        while True:
+            os.write(writer, b"\0" * 65536)
+    except BlockingIOError:
+        pass
+    os.set_blocking(writer, True)
+    child = spawn(
+        [*LEAF_COMMAND, "server", "_serve", str(page_dir)],
+        stdout=writer,
+        stderr=writer,
+        start_new_session=True,
+    )
+    os.close(writer)
+    service = page_dir / "service.json"
+    # The record is written after the lease, inside the same transition, so an
+    # enabled record proves the lease too.
+    wait_for(
+        lambda: service.exists() and json.loads(service.read_text())["enabled"],
+        bool,
+        failure="the child did not record its service",
+    )
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)), daemon=True
+    )
+    stopping.start()
+    wait_for(
+        lambda: not json.loads(service.read_text())["enabled"],
+        bool,
+        failure="the stop did not disable the record",
+    )
+    os.close(reader)
+    stopping.join(timeout=30)
+    assert stopped == ["stopped server"]
+    assert child.wait(timeout=10) is not None
+    assert not json.loads(service.read_text())["enabled"]
 
 
 def test_an_upgrade_is_answered_by_the_key_gate_like_any_other_request(server):

@@ -44,6 +44,9 @@ from .thread_context import (
 )
 
 DELIVERY_FORMAT = "leaf-delivery-v2"
+# The routes that carry a delivery to an agent: `leaf wait`'s output, a pointer
+# queued with `codex queue`, and a turn Leaf starts over Codex App Server.
+CARRIERS = ("wait", "queue", "app-server")
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
@@ -156,7 +159,8 @@ def batch_data(
     *,
     as_of_seq: int | None = None,
 ) -> dict:
-    """Freeze one complete ordered page batch for every delivery carrier."""
+    """Capture one complete ordered page batch, less the `handling` that
+    `freeze_delivery` writes for its carrier."""
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
@@ -191,17 +195,7 @@ def batch_data(
             )
         return readings[revision]
 
-    threads = batch_threads(events, batch, within)
-    # The digest carries a thread's summary hint, and the clause asking the agent to
-    # act on it rides the event: a reader skimming a batch for what is new reads its
-    # events and can skip the digest.
-    hints = {
-        thread["id"]: thread["summary_hint"]
-        for thread in threads
-        if "summary_hint" in thread
-    }
     captured = []
-    clause_ids: dict[str, str] = {}
     for event in batch:
         conversations = memberships.get(event["id"], [])
         entry = {
@@ -222,38 +216,73 @@ def batch_data(
             if response is not None
             else None
         )
-        hint = next((hints[c] for c in conversations if c in hints), None)
-        if clauses := event_clauses(
-            {
-                **event,
-                **({"obligation": obligation} if obligation else {}),
-                **({"summary_hint": hint} if hint else {}),
-            },
-            registry,
-        ):
-            entry["handling"] = [
-                clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
-                for clause in clauses
-            ]
         if obligation is not None:
             entry["obligation"] = obligation
         captured.append(entry)
     return {
         "page": str(page_dir),
         "through_seq": through_seq,
-        "conversations": threads,
-        "handling": {identity: text for text, identity in clause_ids.items()},
+        "conversations": batch_threads(events, batch, within),
         "events": captured,
+    }
+
+
+def handled(batch: dict, carrier: str) -> dict:
+    """One captured batch with the `handling` its page's layer gives `carrier`.
+
+    The envelope's shape is every carrier's, but its handling is not: a clause's
+    `when` reads the carrier beside the event, and the event's thread digest, so
+    each carrier's agent is told only its own route (who acknowledges, and whether
+    the final message is the reply) rather than every route with a condition
+    naming its own. That makes handling a fact of the freeze, not of the capture:
+    a Codex record collects batches before it knows which transport will offer
+    it, and only the freeze does."""
+    if carrier not in CARRIERS:
+        raise ValueError(f"unknown delivery carrier {carrier!r}")
+    registry = _registry(Path(batch["page"]))
+    # A clause asking the agent to act on a thread (name it, summarize it) rides the
+    # event and reads the thread's digest, so the event says only what applies to
+    # its own thread: a reader skimming a batch for what is new reads its events and
+    # can skip the digest.
+    digests = {thread["id"]: thread for thread in batch["conversations"]}
+    clause_ids: dict[str, str] = {}
+    events = []
+    for event in batch["events"]:
+        entry = {
+            key: value
+            for key, value in event.items()
+            if key not in {"handling", "obligation"}
+        }
+        owed = {"obligation": event["obligation"]} if "obligation" in event else {}
+        digest = next(
+            (digests[c] for c in event["conversations"] if c in digests), None
+        )
+        read = {**entry, **owed, "carrier": carrier}
+        if digest is not None:
+            read["conversation"] = digest
+        clauses = event_clauses(read, registry)
+        refs = [
+            clause_ids.setdefault(clause["text"], f"h{len(clause_ids) + 1}")
+            for clause in clauses
+        ]
+        events.append({**entry, **({"handling": refs} if refs else {}), **owed})
+    return {
+        **batch,
+        "handling": {identity: text for text, identity in clause_ids.items()},
+        "events": events,
     }
 
 
 def freeze_delivery(
     batches: list[dict],
     *,
+    carrier: str,
     delivery_id: str | None = None,
     created_at: float | None = None,
 ) -> dict:
-    """Persist and return one immutable delivery envelope."""
+    """Persist and return one immutable delivery envelope, handled for the
+    `carrier` that will deliver it."""
+    batches = [handled(batch, carrier) for batch in batches]
     lock = _delivery_lock_path()
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):

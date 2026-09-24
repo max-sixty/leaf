@@ -1556,7 +1556,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+        with pytest.raises(SystemExit, match="answered by this turn's messages"):
             cmd_reply(
                 page_dir,
                 comment["id"],

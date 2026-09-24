@@ -30,6 +30,7 @@ import {
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
+import { pushEntry, replaceEntry } from "./history.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import { renderedParent, upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
@@ -49,9 +50,8 @@ export function createAnchorTravel({
     return retainUserIntent({ available: () => intent === travelIntent });
   };
 
-  // The browser saves the current scroll position onto the entry a push leaves and
-  // restores it when Back traverses to it, which is the native restoration history
-  // travel keeps (version.js). A push therefore comes before the trip moves anything.
+  // A push leaves the current scroll position on the entry it leaves, and Back
+  // restores it there (history.js), so the push comes before the trip moves anything.
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
   // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
@@ -70,8 +70,8 @@ export function createAnchorTravel({
     const continuing = landing && stillLanded();
     journey = landing && { token: journeyPrefix + ++trips, landing };
     const state = journey && { lfJourney: journey.token };
-    if (continuing) history.replaceState(state, "", url);
-    else history.pushState(state, "", url);
+    if (continuing) replaceEntry(url, state);
+    else pushEntry(url, state);
   }
 
   // A trip whose destination is already in front of the user moves nothing and records

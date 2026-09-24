@@ -54,9 +54,9 @@ relative to `runtime/` unless stated otherwise.
 | Revision installs and continuity | `version.js`, `version-chooser.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
 | Shared repaint and geometry | `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `pointer.js` |
 | Chrome assembly and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading regions and scrolling | `reading-regions.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
+| Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard commands and their projections | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `navigation.js`, `user-intent.js`, `walk-position.js` |
+| Focus and navigation | `focus.js`, `navigation.js`, `history.js`, `user-intent.js`, `walk-position.js` |
 | Asks | `asks/view.js`, `asks/view-elements.js`, `asks/model.js` |
 | Comment capture and entry | `composing/`, `drafts.js`, `media.js` |
 | Threads and reply surfaces | `conversation/`, `thread-panel.js` |
@@ -208,7 +208,8 @@ Startup order is load-bearing:
 8. Start the shared dressing passes and wait for the current coordinator publication,
    including controller-registered widget preparation and the dressing region.
 9. Present the optional runtime-owned page-interface region that composes those widgets.
-10. Mark `body` `data-lf-upgraded="1"`.
+10. Land a fresh URL's fragment in the upgraded geometry (`version.js`, `aimArrival`,
+    which lands it again once the page presents), then mark `body` `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer is applied and reconciled, then current
     coordinator readiness presents the page. The feed waits a bounded time for that
     answer and then presents without one,

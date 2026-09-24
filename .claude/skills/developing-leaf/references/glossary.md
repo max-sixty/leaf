@@ -173,7 +173,9 @@ are canonical normalized chords matched against keyboard events.
 for a command; code, the register, and package authors use it. A shortcut is the whole
 key sequence a user presses to reach the command, a sequence prefix included (`g d`),
 and it is the only word user-visible text uses. *Keyboard route* is wider than either:
-any keyboard path to an action, Tab to a native control included.
+any keyboard path to an action, Tab to a native control included. A row's `routes` are
+its extra keyed meanings, each with its own id and binding; a route is never another
+name for a binding or a shortcut.
 
 The keyboard help presentations are:
 

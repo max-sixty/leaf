@@ -4,7 +4,7 @@
    written beside it: `control` is where a row says which control it duplicates, and this
    projection follows liveness too, so a disabled Ask does not advertise a shortcut the
    dispatcher has withdrawn. A row inside a sequence scope carries that sequence's steps,
-   so a destination reached through `g` says the whole route.
+   so a destination reached through `g` says the whole shortcut.
 
    The pass runs in the standing chrome's frame, so every name it writes goes through
    `keeps` and says nothing where the control already says it. Restated title or shortcut
@@ -19,10 +19,10 @@ const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ??
 const shortcutIn = (scope, row) =>
   [...stepsBefore(scope), labelOf(row)].filter(Boolean).join(" ");
 
-/** The complete route one command advertises, for a control whose own route spans more
- * than one row and so cannot be painted by the pass below. Resolved by command id rather
+/** The complete shortcut one command advertises, for a control whose own shortcut spans
+ * more than one row and so cannot be painted by the pass below. Resolved by command id rather
  * than by row identity: a scope may carry another owner's command as a row of its own —
- * a `g` destination wraps the declaration it stands for — and the route the user
+ * a `g` destination wraps the declaration it stands for — and the shortcut the user
  * presses is the one that scope prefixes. */
 export function commandShortcut(id) {
   for (const scope of pageScopes())

@@ -5280,8 +5280,8 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
     """Recorded identities become dependencies, literal detail text does not, and a
-    re-vendor may not change the record form the fold reads the admitted command
-    through."""
+    re-vendor may not change the fold unit or record form the fold reads the
+    admitted command through."""
     from copy import deepcopy
 
     from leaf.files import latest_revision
@@ -5327,6 +5327,13 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     del recordless["lf-options"]["x-state"]["choose"]["record"]
     assert "changes its admitted record form" in "\n".join(
         candidate_vocabulary_gaps(page_dir, events, document, recordless, revision)
+    )
+    # The fold unit decides the shape a verb's state takes, so a candidate that moves
+    # it would fold the admitted command into a different reading.
+    reunited = deepcopy(registry)
+    reunited["lf-options"]["x-state"]["choose"]["unit"] = "annotation"
+    assert "changes its admitted fold unit" in "\n".join(
+        candidate_vocabulary_gaps(page_dir, events, document, reunited, revision)
     )
 
 

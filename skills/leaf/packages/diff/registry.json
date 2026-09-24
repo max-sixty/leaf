@@ -3,7 +3,7 @@
     "contracts": {
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "guidance": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script, `packages/diff/scripts/patch_manifest.py` in the Leaf skill directory, into the source:\n\n```bash\ngit diff <base>...<head> | uv run <skill-dir>/packages/diff/scripts/patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
+        "guidance": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | uv run <leaf-packages>/diff/scripts/patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
         "records": {
           "items": "files",
           "key": "key",

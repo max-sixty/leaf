@@ -8,7 +8,7 @@
 Reads a UTF-8 patch on stdin and writes the manifest JSON on stdout, ready for
 `leaf data set`:
 
-    git diff main... | packages/diff/scripts/patch_manifest.py | leaf data set PAGE SOURCE
+    git diff main... | uv run patch_manifest.py | leaf data set PAGE SOURCE
 
 The manifest is the form of the contract whose `patch` fields `/api/state` defers
 (`records.deferred`), so a large review sends each file's patch only when its

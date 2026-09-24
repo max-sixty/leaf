@@ -152,8 +152,9 @@ def admitted_contract_error(
 
     The stored meaning already fixes the identities admission derived, so no
     candidate can move those. What folds still read through the vocabulary is the
-    verb's declaration — its record form, created child, update field, or request
-    binding — and that must stay what the event's own captured registry said. The
+    verb's declaration — its fold unit, which decides the shape its state takes,
+    its record form, created child, update field, or request binding — and that
+    must stay what the event's own captured registry said. The
     candidate side comes from the document being checked, except that thread widgets
     live in their frozen markup for the page's whole lifetime.
     """
@@ -178,6 +179,7 @@ def admitted_contract_error(
     before = recorded_registry[recorded["tag"]]["x-state"][event["action"]]
     after = entry["x-state"][event["action"]]
     for field, label in (
+        ("unit", "fold unit"),
         ("record", "record form"),
         ("creates", "creates declaration"),
         ("update", "update field"),

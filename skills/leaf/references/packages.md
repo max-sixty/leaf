@@ -91,7 +91,7 @@ package/
 ├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
-├── scripts/            producer tools a contract's guidance names; never vendored
+├── scripts/            bundled packages only: producer tools; never vendored
 ├── icon.svg            optional replacement by path
 └── leaf.js             optional runtime replacement
 ```
@@ -866,8 +866,10 @@ the other.
 
 `data set` is the one write. A value that has to be derived from a file — a text
 excerpt, a patch split into files — is the producer's to build, and a contract that
-needs more than `jq` says how in its producer `guidance`, naming the script its package
-ships under `scripts/` when it has one.
+needs more than `jq` says how in its producer `guidance`. A bundled package may ship
+that tool under `scripts/`, which neither a page nor `package install` copies; its
+guidance names it as `<leaf-packages>/<package>/scripts/<tool>`, and `leaf page
+guidance` prints the placeholder as this install's absolute packages directory.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new

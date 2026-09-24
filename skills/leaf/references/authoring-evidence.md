@@ -71,16 +71,15 @@ source its page-lifetime contract:
 ```
 
 Then set the source. Text is one JSON string, of the whole file or an inclusive line
-range; a patch goes through the `diff` package's producer script, which splits it
-into files and refuses an entry `lf-diff` cannot present:
+range:
 
 ```bash
 jq -Rs . SKILL.md | leaf data set <page> leaf-skill
 sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
-git diff 8f61c2a^! | uv run <skill-dir>/packages/diff/scripts/patch_manifest.py | leaf data set <page> pr-patch-8f61c2a
 ```
 
-`leaf page guidance <page> producer` carries each contract's own instructions.
+A patch goes through the `diff` package's producer script; `leaf page guidance <page>
+producer` gives the command, as it gives each contract's own instructions.
 
 A bound widget shows its source's current value, in every version and thread that
 binds it. Evidence a review must keep exactly gets a source id of its own, such as the

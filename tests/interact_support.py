@@ -110,7 +110,6 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
-@cache
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     """Write revision `revision` of `data` under the page's current registry.
 
@@ -131,6 +130,7 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     return write_artifact(page_dir, revision, artifact)
 
 
+@cache
 def model_layer(*packages: str) -> dict:
     """The vocabulary `page init` vendors for one package selection.
 

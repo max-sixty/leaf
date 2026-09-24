@@ -4579,3 +4579,21 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert browser_model.discovered_executable() is None
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
+
+
+def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
+    """A reader of `leaf page guidance` with no skill loaded, such as a worker the
+    author assigns, gets a command it can run as printed: the bundled producer
+    script's absolute path on this machine, not a placeholder."""
+    page = tmp_path / "patch-page"
+    initialized = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "diff", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    producer = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "producer"]
+    )
+    assert producer.exit_code == 0, producer.output
+    assert "<leaf-packages>" not in producer.output
+    [script] = re.findall(r"uv run (\S+patch_manifest\.py)", producer.output)
+    assert Path(script).is_absolute() and Path(script).is_file()

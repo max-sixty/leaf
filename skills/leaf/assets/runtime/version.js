@@ -1753,7 +1753,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (!postureTransitions.size && scrollersSettled()) recordRegions(moved);
+      if (!compositionChanges.size && scrollersSettled()) recordRegions(moved);
     });
   };
 
@@ -1777,17 +1777,15 @@ export function createVersionController({
       .sort(([, a], [, b]) => a.top - b.top)[0]?.[0];
   };
 
-  const postureTransitions = new Map();
+  // Each composition change in progress (`preserveReadingRegions`), by its owner: the
+  // user's intent when it began and the regions it may hide or reveal.
+  const compositionChanges = new Map();
 
-  // A region handed to another scroller keeps the place recorded before the handover.
-  // The composition bracket below owns any shift inside it.
-  function restoreShifted(shifted) {
-    if (postureTransitions.size) return;
-    const currentIntent = retainUserIntent();
-    if (!currentIntent()) return;
-    const candidates = shifted
-      .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region));
+  // Restore each region from its recorded reading, the one the user is working first so
+  // that a box two regions share lands where that one left it. Inside a composition,
+  // only the composition's own scrollers are restored: document travel belongs to the
+  // navigation that changed it, including native history.
+  function restoreRegions(candidates, currentIntent, owner = null) {
     const active = activeReadingRegion(candidates);
     const ordered = active
       ? [active, ...candidates.filter(({ id }) => id !== active.id)]
@@ -1796,11 +1794,24 @@ export function createVersionController({
     for (const region of ordered) {
       const reading = regionViews.get(region.id);
       const box = effectiveScroller(region);
+      if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
       if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
       restoreRegion(reading, region, currentIntent);
       restored.add(box);
     }
+  }
+
+  // A region handed to another scroller keeps the place recorded before the handover.
+  // A composition change in progress owns any shift inside it.
+  function restoreShifted(shifted) {
+    if (compositionChanges.size) return;
+    const currentIntent = retainUserIntent();
+    if (!currentIntent()) return;
+    const candidates = shifted
+      .map(({ region }) => region)
+      .filter((region) => shownRegionBounds(region));
+    restoreRegions(candidates, currentIntent);
     // A control the user is standing on is where they are, more exactly than any
     // passage near it: keep it in view in whichever box scrolls it now.
     const held = focused();
@@ -1812,8 +1823,6 @@ export function createVersionController({
   function readingRegionTransition({
     phase,
     owner,
-    from,
-    to,
     regions,
     cancelled,
     retained,
@@ -1825,63 +1834,43 @@ export function createVersionController({
       requestAnimationFrame(() => restoreShifted(shifted));
       return;
     }
-    // A composition swap captures the intact view before hiding any region. Its
-    // eventual restore owns the whole change; nested posture probes must not replace
-    // that reading with an intermediate layout.
+    // A composition change captures the intact view before hiding any region, and its
+    // restore owns the whole change: one nested inside it, such as tabs inside a
+    // switching tab, must not replace that reading with an intermediate layout.
     if (
       cancelled ||
-      [...postureTransitions.keys()].some(
+      [...compositionChanges.keys()].some(
         (ancestor) => ancestor !== owner && under(owner, ancestor),
       )
     ) {
-      postureTransitions.delete(owner);
+      compositionChanges.delete(owner);
       return;
     }
     if (phase === "before") {
-      if (retained && postureTransitions.has(owner)) {
-        postureTransitions.get(owner).currentIntent = retainUserIntent();
+      if (retained && compositionChanges.has(owner)) {
+        compositionChanges.get(owner).currentIntent = retainUserIntent();
         return;
       }
       const blocks = textBlocks();
-      const active = activeReadingRegion(regions, blocks);
-      const captured =
-        from === "flow" ? regions.filter(({ id }) => id === active?.id) : regions;
-      for (const region of captured)
+      for (const region of regions)
         if (shownRegionBounds(region))
           regionViews.set(region.id, captureRegion(region, blocks));
-      postureTransitions.set(owner, {
+      compositionChanges.set(owner, {
         currentIntent: retainUserIntent(),
-        to,
         regions: regions.map(({ id }) => id),
       });
       return;
     }
-    const transition = postureTransitions.get(owner);
-    postureTransitions.delete(owner);
-    if (!transition?.currentIntent()) return;
+    const change = compositionChanges.get(owner);
+    compositionChanges.delete(owner);
+    if (!change?.currentIntent()) return;
     const live = new Map(readingRegions().map((region) => [region.id, region]));
-    // A posture can change because its owner was hidden. Keep that region's cached
-    // reading for its return, but continuity must not reveal it over a newer choice.
-    const candidates = transition.regions
+    // A composition can hide a region. Keep its recorded reading for its return, but
+    // continuity must not reveal it over a newer choice.
+    const candidates = change.regions
       .map((id) => live.get(id))
       .filter((region) => region && shownRegionBounds(region));
-    const active = activeReadingRegion(candidates);
-    const restored = new Set();
-    const ordered = active
-      ? [active, ...candidates.filter(({ id }) => id !== active.id)]
-      : candidates;
-    for (const region of ordered) {
-      const reading = regionViews.get(region.id);
-      const box = effectiveScroller(region);
-      // A composition retains its own scrollers. Document travel belongs to the
-      // navigation that changed the composition, including native history. A posture
-      // change can still carry a region between its inner scroller and the document.
-      if (transition.to === null && !under(box, owner)) continue;
-      if (!reading || restored.has(box)) continue;
-      if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
-      restoreRegion(reading, region, transition.currentIntent);
-      restored.add(box);
-    }
+    restoreRegions(candidates, change.currentIntent, owner);
   }
 
   let readingContinuityInstalled = false;

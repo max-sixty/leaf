@@ -67,7 +67,10 @@ export function keySequenceTemplate(model, { id = null, label = false } = {}) {
       model.steps,
       (_step, index) => index,
       (step) =>
-        html`<kbd data-lf-sequence-step-state=${step.state} aria-hidden="true"
+        html`<kbd
+          class="lf-key-badge"
+          data-lf-sequence-step-state=${step.state}
+          aria-hidden="true"
           >${step.text}</kbd
         >`,
     )}</span

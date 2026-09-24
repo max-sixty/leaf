@@ -641,7 +641,7 @@ def clear_of_the_bottom_chrome(page, selector):
     """Scroll the page to its end and measure one box against the shortcut bar.
 
     The bar is the fixed chrome a page's last line has to scroll clear of; a page whose
-    end room is missing leaves that line under it however far the reader scrolls."""
+    end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
         """selector => {
           const page = document.scrollingElement;
@@ -710,7 +710,7 @@ def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
 <lf-workspace id="held-workspace">
   <lf-ask id="held-ask">
     <h2>Which release should go out?</h2>
-    <div id="ask-context" style="height: 900px">The context the reader weighs.</div>
+    <div id="ask-context" style="height: 900px">The context the user weighs.</div>
     <lf-options id="held-options" choose>
       <lf-option id="held-ship">Ship it</lf-option>
       <lf-option id="held-hold">Hold it</lf-option>

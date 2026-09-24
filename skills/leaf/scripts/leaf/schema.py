@@ -408,6 +408,7 @@ EXTENSION_SCHEMA = {
         "x-space": {"enum": ["wide", "available"]},
         "x-measure": {"enum": ["surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
+        "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},

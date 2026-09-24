@@ -223,7 +223,7 @@ checkout launcher. A served page follows that reference's stop, init, start
 sequence. Fix or report a compatibility refusal without falling back to the
 installed plugin.
 
-A page that explains how a Leaf interface behaves lets the reader operate it;
+A page that explains how a Leaf interface behaves lets the user operate it;
 `references/specimen-explainers.md` covers that pattern.
 
 ## Refresh the public catalog stills

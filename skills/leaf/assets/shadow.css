@@ -27,14 +27,18 @@
  * no test and no browser gate reads a rule that never applied. */
 :where(:root) .lf-ui { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-/* A key badge has one face in the document and in declared shadow trees. Chrome
-   repeats this box in its adopted sheet for badges inside its own scope. */
+/* A key badge has one face in the document, in the chrome, and in declared shadow
+   trees: a binding's steps, a transient hint code, and a control's binding seat all
+   wear it. Where it stands is each surface's. A seat a widget builds empty draws
+   nothing until a binding is written into it. */
 .lf-key-badge { box-sizing: border-box;
     min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
     border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
     color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
     line-height: 1.478; text-align: center; white-space: nowrap;
-    display: none; z-index: 1; user-select: none; -webkit-user-select: none; }
+    display: inline-flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none; }
+.lf-key-badge:empty { display: none; }
 .lf-external-mark { display: inline-block; width: .75em; height: .75em;
                     margin-inline-start: .24em; vertical-align: .03em;
                     fill: none; stroke: currentColor; stroke-width: 1.5;
@@ -588,8 +592,7 @@ leaf-anchor-note { display: contents; }
           white-space: nowrap; color: var(--muted); font: inherit; pointer-events: none; }
 .lf-compose-field.lf-compose-hinted > textarea:placeholder-shown + .lf-compose-placeholder {
           display: block; }
-.lf-compose-placeholder .lf-key-badge { display: inline-flex; align-items: center;
-          justify-content: center; background: transparent; color: var(--muted); }
+.lf-compose-placeholder .lf-key-badge { background: transparent; color: var(--muted); }
 .lf-compose-field > textarea:not(.lf-fab-input) { display: block; box-sizing: border-box;
           width: 100%; min-width: 0; min-height: calc(var(--lf-icon-action-hit) + 12px);
           padding-inline-end: calc(var(--lf-icon-action-hit) + 12px); }

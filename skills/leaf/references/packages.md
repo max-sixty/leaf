@@ -208,6 +208,7 @@ widget's role on the page:
 | `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
+| `x-history`          | `lf-activity`                                                  |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
@@ -686,8 +687,12 @@ words while the shared element wires each offered child into the server-projecte
 request seat, registers its answer, and paints its lifecycle. A package that needs
 another control shape uses the same widget controller: request entries carry
 availability, `request` carries the seat lifecycle, and `dispatch({kind: "request",
-verb, detail})` sends it. `watchHistory` remains the audit-log surface for widgets
-that intentionally render events themselves.
+verb, detail})` sends it.
+
+A widget that renders the page's history declares `x-history` and reads it through
+`watchHistory(owner, callback)`: the server's rows, newest first, each already
+carrying its thread, whether it was undone, and a gesture's words as the document it
+was made in had them. The widget words those facts; it does not fold the log.
 
 ```js
 defineRequestElement("lf-operations", {

@@ -311,6 +311,42 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
 
 
+def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
+    """The served history words a pick from the document it was made in.
+
+    A later version that removes the question leaves the row naming the option the
+    user picked, by its title, and a withdrawn pick stays a row marked undone. A page
+    whose markup holds no widget declaring `x-history` is not served the reading.
+    """
+    question = model.leaf_page(
+        "Route",
+        """<h1>Route</h1>
+<lf-options id="route" choose>
+  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+  <lf-option id="slow">Slow path</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    retired = model.leaf_page(
+        "Route", '<h1>Route</h1><lf-activity id="feed"></lf-activity>'
+    )
+    pick = {"kind": "action", "widget": "route", "action": "choose"}
+    events = (
+        {**pick, "detail": {"options": ["fast"]}},
+        {**pick, "detail": {"options": ["slow"]}},
+        {"kind": "undo", "undoes": "e2"},
+    )
+
+    history = model.reading({1: question, 2: retired}, events)["history"]
+    assert [(row["id"], row["gesture"], row["undone"]) for row in history] == [
+        ("e2", {"form": "choice", "chosen": ["Slow path"]}, True),
+        ("e1", {"form": "choice", "chosen": ["Fast path"]}, False),
+    ]
+
+    unwatched = question.replace('<lf-activity id="feed"></lf-activity>', "")
+    assert "history" not in model.reading(unwatched, events)
+
+
 def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     """A deck's Ask is answered by its standing state, so admission marks the swipe
     that empties the queue as the answer and no swipe before it.

@@ -4188,6 +4188,11 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "reply in a thread awaiting a version": {"kind": "reply", **owes("version")},
+        "reply in a long thread": {
+            "kind": "reply",
+            "summary_hint": {"from": "m1", "through": "m8"},
+            **owes("reply"),
+        },
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "pick adding an option": {

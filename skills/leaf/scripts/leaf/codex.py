@@ -1058,26 +1058,10 @@ def _collecting_record(session_id: str) -> tuple[Path, dict] | None:
     return current[0] if current else None
 
 
-def delivery_pointer_prompt(delivery_id: str, payload: dict | None = None) -> str:
+def delivery_pointer_prompt(delivery_id: str) -> str:
     delivery = ElementTree.Element(
         "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
     )
-    if payload is not None:
-        for batch in payload["batches"]:
-            for conversation in batch["conversations"]:
-                if hint := conversation.get("summary_hint"):
-                    guidance = ElementTree.SubElement(
-                        delivery,
-                        "summarize",
-                        {
-                            "page": batch["page"],
-                            "conversation": conversation["id"],
-                            "from": hint["from"],
-                            "through": hint["through"],
-                            "operation": hint["operation"],
-                        },
-                    )
-                    guidance.text = hint["instruction"]
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
 
@@ -1113,7 +1097,7 @@ def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
         if payload is None:
             raise RuntimeError("the Codex delivery payload is missing")
         return PreparedDelivery(
-            delivery_pointer_prompt(path.stem, payload), payload, record_path=path
+            delivery_pointer_prompt(path.stem), payload, record_path=path
         )
 
     while True:
@@ -1140,7 +1124,7 @@ def offer_delivery(path: Path, record: dict) -> PreparedDelivery:
     record["state"] = "offering"
     write_record(path, record)
     return PreparedDelivery(
-        delivery_pointer_prompt(path.stem, payload), payload, record_path=path
+        delivery_pointer_prompt(path.stem), payload, record_path=path
     )
 
 

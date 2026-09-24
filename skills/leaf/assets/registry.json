@@ -66,7 +66,7 @@
     "contracts": {}
   },
   "$events": {
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state, x-report, and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named user events reached their next consumer, or with phase `failed` and a host `failure` code that the host gave up on them with no answer coming; it is never a claim that work has begun. A failed `receipt` carrying a host `failure` code is the host giving up on a request; one without it is the agent's own outcome. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns, if any. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state, x-report, and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named user events reached their next consumer, or with phase `failed` and a host `failure` code that the host gave up on them with no answer coming; it is never a claim that work has begun. A failed `receipt` carrying a host `failure` code is the host giving up on a request; one without it is the agent's own outcome. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns and the `summary_hint` its thread's digest carries, each if any. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
         {
@@ -188,6 +188,19 @@
             }
           },
           "text": "If this event's conversation has a null `title` in the batch's `conversations`, name it with `leaf conversation title <page> <conversation-id> --text \"<a few words>\"`, so the thread panel lists its subject rather than its opening words."
+        },
+        {
+          "when": {
+            "required": [
+              "summary_hint"
+            ],
+            "not": {
+              "required": [
+                "token"
+              ]
+            }
+          },
+          "text": "This event's thread has grown long, and its entry in the batch's `conversations` carries a `summary_hint`. Once you have replied, read the messages from its `from` through its `through` and summarize them with `leaf conversation summarize <page> <conversation-id> --from <from> --through <through>`, as the Leaf skill's `references/conversation-threads.md`, \"Summarize a long discussion\", says."
         },
         {
           "when": {
@@ -377,7 +390,7 @@
     "answering": {
       "reply": [
         {
-          "text": "Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf observes over App Server, your final message is the reply instead, and `leaf reply` refuses the event. Where you answer with `leaf reply`, reply before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something. Your reply renders as Markdown, so show code or markup in a fenced block."
+          "text": "Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf observes over App Server, your turn's first and final messages are the reply instead, and `leaf reply` refuses the event: open with a message to the user before your first tool call, and finish the reply in your final message. Where you answer with `leaf reply`, reply before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something. Your reply renders as Markdown, so show code or markup in a fenced block."
         },
         {
           "when": {

@@ -82,8 +82,9 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `obligation` a delivery captured when the
-    event owns an answer (`workflows` owns that derivation). A `when` can therefore
-    read the obligation as well as the record, and an event owing nothing is told
+    event owns an answer (`workflows` owns that derivation) and the `summary_hint`
+    its thread's digest carries (`thread_context` owns that one). A `when` can
+    therefore read either as well as the record, and an event owing nothing is told
     nothing about answering: a pick before Done, or a message a newer one in its
     thread answers through. A project layer restates a kind's clauses merge-patch
     style, so the event carries the rule the page was vendored with. A missing or

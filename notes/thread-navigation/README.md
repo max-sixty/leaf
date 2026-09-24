@@ -18,7 +18,7 @@ The page-local sketch uses Escape to collapse its selected mock conversation; it
 keyboard behavior is illustrative rather than the runtime contract.
 
 ```sh
-scripts/preview.py --source notes/thread-navigation/playground.html --slot thread-navigation --user --background
+scripts/preview.py --source notes/thread-navigation/playground.html --slot thread-navigation --user
 ```
 
 The companion log and `threads.json` supply the release discussion fixture and its

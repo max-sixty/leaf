@@ -24,6 +24,7 @@ import pytest
 import tinycss2
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -684,10 +685,10 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$data"]["contracts"]["diff-files"]["fragments"] = {
+    registry["$data"]["contracts"]["diff-files"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     registry_path.write_text(json.dumps(registry))
     index = page_dir / "index.html"
@@ -701,7 +702,7 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
         page_dir, event_model.read_events(page_dir)
     )
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="fragment keys must be unique"):
+    with pytest.raises(data_model.DataError, match="record keys must be unique"):
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
@@ -797,9 +798,7 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
-    data_model.cmd_data_set(
-        page_dir, "review-patch", data_model.unified_diff_manifest(patch)
-    )
+    data_model.cmd_data_set(page_dir, "review-patch", patch_manifest(patch))
     first_layer = artifact_model.read_artifact(page_dir, first.revision).registry[
         "$layer"
     ]["generation"]
@@ -1885,7 +1884,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
     # The created option is the action's own unit, and the stamp names its tag.
-    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery-user", "add"]
+    assert accepted["meaning"]["unit"] == "delivery-user"
     assert accepted["meaning"]["creates"] == "lf-option"
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -2032,8 +2031,8 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "choose"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
             },
@@ -3402,7 +3401,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": {"kind": "page", "revision": 1}},
+                "meaning": {"document": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,
@@ -4213,10 +4212,10 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$data"]["contracts"]["patch-list"]["fragments"] = {
+    registry["$data"]["contracts"]["patch-list"]["records"] = {
         "items": "files",
         "key": "key",
-        "value": "patch",
+        "deferred": "patch",
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     activated = revisioning_model.activate_source(

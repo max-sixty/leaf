@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from example_data import patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
@@ -40,6 +41,7 @@ from interact_support import (
     stamp,
     state_json,
     suggest,
+    write_revision,
 )
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
@@ -3840,73 +3842,18 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
 
-def test_text_capture_sets_the_selected_lines_and_clear_keeps_the_contract(
-    page_dir, tmp_path
+def test_a_patch_piped_through_the_diff_script_sets_one_deferred_row_per_file(
+    page_dir,
 ):
-    """Capture admits file text through the typed source boundary, as the source's
-    current value, and clear removes that value while the id keeps its contract."""
-    declare_data_input(
-        page_dir, "leaf-skill", {"type": "string"}, contract="text-document"
-    )
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_bytes(b"one\r\ntwo\r\nthree")
-    runner = CliRunner()
-
-    captured = runner.invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "leaf-skill",
-            "--file",
-            str(text_file),
-            "--lines",
-            "2:3",
-        ],
-    )
-    assert captured.exit_code == 0, captured.output
-    stored = read_page_data(page_dir)
-    source = stored["sources"]["leaf-skill"]
-    assert source["value"] == "two\nthree"
-    assert f"at revision {source['revision']}" in captured.output
-
-    wrong_shape = runner.invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "leaf-skill",
-            "--file",
-            str(text_file),
-            "--format",
-            "unified-diff",
-            "--lines",
-            "1:1",
-        ],
-    )
-    assert wrong_shape.exit_code != 0
-    assert "lines can only select part of a text capture" in wrong_shape.output
-    assert read_page_data(page_dir) == stored
-
-    data_model.cmd_data_clear(page_dir, "leaf-skill")
-    assert read_page_data(page_dir)["sources"] == {
-        "leaf-skill": {"contract": "text-document"}
-    }
-    assert check(page_dir).exit_code == 0
-
-
-def test_unified_diff_capture_builds_one_lazy_fragment_per_file(page_dir, tmp_path):
+    """The diff package's producer script turns a Git patch into the contract's
+    manifest on stdout, which `leaf data set` stores as it would any value."""
     declare_data_input(
         page_dir,
         "review-patch",
         {"type": "object"},
         contract="unified-diff",
     )
-    patch = tmp_path / "review.patch"
-    patch.write_text(
-        """diff --git a/app.py b/app.py
+    patch = """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1,2 +1,2 @@
@@ -3939,20 +3886,11 @@ diff --git a/src/second file.py b/src/second file.py
 -OLD = True
 +NEW = True
 """
-    )
 
     result = CliRunner().invoke(
         cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "review-patch",
-            "--file",
-            str(patch),
-            "--format",
-            "unified-diff",
-        ],
+        ["data", "set", str(page_dir), "review-patch"],
+        input=json.dumps(patch_manifest(patch)),
     )
 
     assert result.exit_code == 0, result.output
@@ -4014,8 +3952,8 @@ def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
 +new
 """
 
-    with pytest.raises(data_model.DataError, match="invalid quoted Git path"):
-        data_model.unified_diff_manifest(patch)
+    with pytest.raises(ValueError, match="invalid quoted Git path"):
+        patch_manifest(patch)
 
 
 @pytest.mark.parametrize(
@@ -4093,35 +4031,9 @@ rename to new.py
         ),
     ],
 )
-def test_unified_diff_capture_rejects_evidence_the_widget_cannot_render(
-    page_dir, tmp_path, patch_text, message
-):
-    declare_data_input(
-        page_dir,
-        "review-patch",
-        {"type": "object"},
-        contract="unified-diff",
-    )
-    patch = tmp_path / "unsupported.patch"
-    patch.write_text(patch_text)
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "data",
-            "capture",
-            str(page_dir),
-            "review-patch",
-            "--file",
-            str(patch),
-            "--format",
-            "unified-diff",
-        ],
-    )
-
-    assert result.exit_code != 0
-    assert message in result.output
-    assert read_page_data(page_dir)["sources"] == {}
+def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
+    with pytest.raises(ValueError, match=re.escape(message)):
+        patch_manifest(patch_text)
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
@@ -4658,7 +4570,7 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     followed = [follower.next(), follower.next()]
     assert followed == events_model.read_events(page_dir)[len(standing) :]
     assert followed[0]["id"] == json.loads(reported.output)["id"]
-    assert followed[0]["meaning"]["coordinate"] == ["t-parser", "t-parser", "status"]
+    assert followed[0]["meaning"]["unit"] == "t-parser"
     assert followed[1]["id"] == json.loads(opened.output)["id"]
     assert follower.stop(signal.SIGTERM) == (0, "")
 
@@ -4868,7 +4780,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
     )
-    files_model.write_revision(
+    write_revision(
         page_dir,
         2,
         (page_dir / "index.html").read_bytes(),
@@ -5326,15 +5238,15 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
         reading = node["inputs"]["document"]
         if isinstance(value, str):
             assert reading["value"] == patch
-            assert "fragments" not in reading
+            assert "deferred" not in reading
         else:
             assert reading["value"] == {
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
-            assert reading["fragments"]["file"] == str(
+            assert reading["deferred"]["file"] == str(
                 data_model.source_file(page_dir, "reading-patch")
             )
-            assert reading["fragments"]["revision"] == reading["origin"]["revision"]
+            assert reading["deferred"]["revision"] == reading["origin"]["revision"]
         assert read_page_data(page_dir)["sources"]["reading-patch"]["value"] == value
 
 
@@ -5423,10 +5335,10 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "action": "edit",
             "detail": {"text": text},
             "meaning": {
-                "coordinate": [identity, identity, "edit"],
+                "unit": identity,
                 "depends": [identity],
                 "answer": None,
-                "document": {"kind": "page", "revision": 2},
+                "document": "page",
             },
             "seq": seq,
         }
@@ -5487,10 +5399,10 @@ def test_projected_verbatim_includes_generated_children():
         "action": "add",
         "detail": {"item": "new-item", "text": "Generated item."},
         "meaning": {
-            "coordinate": ["list", "new-item", "add"],
+            "unit": "new-item",
             "depends": ["list", "new-item"],
             "creates": "lf-item",
-            "document": {"kind": "page", "revision": 1},
+            "document": "page",
         },
         "seq": 1,
     }

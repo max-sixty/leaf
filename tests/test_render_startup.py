@@ -9,6 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 import pytest
 from click.testing import CliRunner
+from example_data import patch_manifest
 from interact_support import (
     append_command,
     record_claim,
@@ -2040,7 +2041,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        data_model.unified_diff_manifest(MULTI_HUNK_PATCH),
+        patch_manifest(MULTI_HUNK_PATCH),
     )
     page = open_page(browser, url, context=context)
 
@@ -4085,9 +4086,8 @@ def test_a_captured_source_stays_pointable_and_pinned_in_an_export(
 """,
     )
     url = live_url(serve(source_page))
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_bytes(b"# Leaf\r\n\r\nOriginal instructions.\r\n")
-    data_model.cmd_data_capture(serve.page_dir, "leaf-skill", text_file, "1:3")
+    skill_text = "# Leaf\n\nOriginal instructions.\n"
+    data_model.cmd_data_set(serve.page_dir, "leaf-skill", skill_text)
 
     page = open_page(browser, url)
     expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
@@ -4126,7 +4126,7 @@ def test_a_captured_source_stays_pointable_and_pinned_in_an_export(
         "pinned the reviewed source",
     )
     wait_for_revision(page, 2)
-    data_model.cmd_data_capture(serve.page_dir, "leaf-skill-reviewed", text_file, "1:3")
+    data_model.cmd_data_set(serve.page_dir, "leaf-skill-reviewed", skill_text)
     expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"

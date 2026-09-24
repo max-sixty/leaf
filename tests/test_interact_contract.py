@@ -306,7 +306,7 @@ def test_a_pick_names_only_options_its_group_holds():
             "detail": {"option": "live-mine", "text": "My own way"},
         },
     )
-    assert add["meaning"]["coordinate"] == ["live-pick", "live-mine", "add"]
+    assert add["meaning"]["unit"] == "live-mine"
     added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
     assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
 
@@ -364,7 +364,7 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     first = admit(
         [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "rank": "0i"}}
     )
-    assert first["meaning"]["coordinate"] == ["triage", "card-a", "swipe"]
+    assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
@@ -408,11 +408,7 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
         "widget": "live-pick",
         "detail": {"options": ["live-gps"]},
     }
-    assert admit(choose_live)["meaning"]["coordinate"] == [
-        "live-pick",
-        "live-pick",
-        "choose",
-    ]
+    assert admit(choose_live)["meaning"]["unit"] == "live-pick"
     assert (
         refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
     )
@@ -528,8 +524,8 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "choose"],
+                "document": "page",
+                "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
             },
@@ -782,8 +778,8 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": {"kind": "page", "revision": 1},
-                "coordinate": ["d1", "d1", "decide"],
+                "document": "page",
+                "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
             },
@@ -1905,10 +1901,10 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
                 "builds": {
                     "description": "Build facts.",
                     "schema": {"type": "object"},
-                    "fragments": {"items": "rows", "key": "id", "value": "id"},
+                    "records": {"items": "rows", "key": "id", "deferred": "id"},
                 }
             },
-            "fragments must name distinct",
+            "records must name distinct",
         ),
     ],
 )
@@ -2139,7 +2135,7 @@ def _page_owned_fragmented_source(page_dir):
     contract = {
         "description": "Page-owned file payloads.",
         "schema": schema,
-        "fragments": {"items": "files", "key": "key", "value": "patch"},
+        "records": {"items": "files", "key": "key", "deferred": "patch"},
     }
     widget = element_declaration("lf-local-data")
     widget["properties"]["source"] = {
@@ -2183,14 +2179,14 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
     """A same-named contract cannot redirect old readers to a different field."""
     authored = _page_owned_fragmented_source(page_dir)
     declarations = json.loads(authored.read_text())
-    declarations["$data"]["contracts"]["local-files"]["fragments"]["value"] = "body"
+    declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(
         page_dir, events_model.read_events(page_dir)
     )
-    assert "schema or fragment coordinate changes" in activation.error
-    with pytest.raises(data_model.DataError, match="schema or fragment coordinate"):
+    assert "schema or record declaration changes" in activation.error
+    with pytest.raises(data_model.DataError, match="schema or record declaration"):
         data_model.cmd_data_set(
             page_dir,
             "files",
@@ -2198,7 +2194,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
         )
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code != 0
-    assert "schema or fragment coordinate" in revendored.output
+    assert "schema or record declaration" in revendored.output
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
@@ -3751,7 +3747,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": {"kind": "page"}}
+    on_page = {"document": "page"}
 
     def owes(kind):
         return {"answer": {"kind": kind}}
@@ -3810,12 +3806,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": {"kind": "thread"}},
+            "meaning": {"document": "thread"},
             **owes("reply"),
         },
         "pick inside a thread over App Server": {
             "kind": "action",
-            "meaning": {"document": {"kind": "thread"}},
+            "meaning": {"document": "thread"},
             **owes("turn"),
         },
         "resolve": {"kind": "resolve"},
@@ -5284,7 +5280,8 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
     """Recorded identities become dependencies, literal detail text does not, and a
-    re-vendor may not reinterpret the admitted meaning."""
+    re-vendor may not change the fold unit or record form the fold reads the
+    admitted command through."""
     from copy import deepcopy
 
     from leaf.files import latest_revision
@@ -5328,8 +5325,15 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     )
     recordless = deepcopy(registry)
     del recordless["lf-options"]["x-state"]["choose"]["record"]
-    assert "changes admitted meaning" in "\n".join(
+    assert "changes its admitted record form" in "\n".join(
         candidate_vocabulary_gaps(page_dir, events, document, recordless, revision)
+    )
+    # The fold unit decides the shape a verb's state takes, so a candidate that moves
+    # it would fold the admitted command into a different reading.
+    reunited = deepcopy(registry)
+    reunited["lf-options"]["x-state"]["choose"]["unit"] = "annotation"
+    assert "changes its admitted fold unit" in "\n".join(
+        candidate_vocabulary_gaps(page_dir, events, document, reunited, revision)
     )
 
 
@@ -5357,8 +5361,8 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": {"kind": "page", "revision": 1},
-            "coordinate": ["sug-a", "sug-a", "label"],
+            "document": "page",
+            "unit": "sug-a",
             "depends": ["sug-a"],
         },
     }

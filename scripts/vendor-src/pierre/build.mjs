@@ -35,18 +35,15 @@ const result = await build({
   metafile: true,
 });
 
+// An input's package is the directory after its last `node_modules/`: the copy
+// esbuild read, nested or not.
 const packageRoots = new Set();
 for (const input of Object.keys(result.metafile.inputs)) {
-  const relative = input.split("node_modules/").at(-1);
-  if (relative === input) continue;
-  const parts = relative.split("/");
-  packageRoots.add(
-    path.join(
-      work,
-      "node_modules",
-      ...(parts[0].startsWith("@") ? parts.slice(0, 2) : parts.slice(0, 1)),
-    ),
-  );
+  const at = input.lastIndexOf("node_modules/");
+  if (at === -1) continue;
+  const parts = input.slice(at).split("/");
+  const name = parts.slice(0, parts[1].startsWith("@") ? 3 : 2);
+  packageRoots.add(path.resolve(work, input.slice(0, at), ...name));
 }
 const notices = [...packageRoots].sort().map((root) => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "package.json")));

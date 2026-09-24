@@ -17,6 +17,7 @@ the live page, read here off the document the gesture was made in.
 from collections.abc import Callable
 from pathlib import Path
 
+from .events import event_document
 from .passages import collapse, spoken
 from .projection import frozen_thread_reading
 from .revision_artifact import read_registry
@@ -95,12 +96,12 @@ class GestureWords:
         self._documents: dict[int | None, _Document] = {}
 
     def _document(self, event: dict) -> _Document | None:
-        meaning = event.get("meaning")
-        if meaning is None:
+        if event.get("meaning") is None:
             return None
-        revision = meaning["document"].get("revision")
+        document = event_document(event)
+        revision = document.get("revision")
         if revision not in self._documents:
-            if meaning["document"]["kind"] == "thread":
+            if document["kind"] == "thread":
                 structure = thread_structure(self.events)
                 self._documents[revision] = _Document(
                     [fragment.content for fragment in structure.fragments.values()],

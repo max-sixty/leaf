@@ -260,51 +260,6 @@ def test_the_python_instructions_name_every_module_they_own():
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
 
 
-def test_the_tooling_instructions_place_every_vendored_bundle():
-    """Whether a rebuild reproduces its bytes must be named where sessions read.
-
-    `scripts/AGENTS.md` says a clean `git status` after `vendor.py <bundle>` is the
-    check that the bundle still matches the script, and that the check holds only for
-    the bundles whose every fetched input is pinned. That sentence is what a session
-    consults before reading a rebuild's diff as drift or as an upstream patch, so a
-    bundle it never places has no answer either way — which is how `floating-ui`, whose
-    pins cover its whole closure, and `mcp-app`, whose do not, both went unplaced. The
-    names come from `vendor.py` rather than a list here, for the reason the routing
-    above states: a list is the second copy, and the bundle added without the sentence
-    would stay green.
-    """
-    tree = ast.parse((ROOT / "scripts" / "vendor.py").read_text(encoding="utf-8"))
-    bundles = {
-        key.value
-        for node in ast.walk(tree)
-        for target in (
-            node.targets
-            if isinstance(node, ast.Assign)
-            else [node.target]
-            if isinstance(node, ast.AnnAssign)
-            else []
-        )
-        if isinstance(target, ast.Name) and target.id in {"BUILDS", "COPIES"}
-        for key in node.value.keys
-        if isinstance(key, ast.Constant)
-    }
-    paragraphs = [
-        paragraph
-        for paragraph in (ROOT / "scripts" / "AGENTS.md")
-        .read_text(encoding="utf-8")
-        .split("\n\n")
-        if paragraph.startswith("A bundle reproduces its tracked bytes exactly")
-    ]
-
-    assert bundles, "no bundles read — an empty set places itself"
-    assert len(paragraphs) == 1, (
-        "scripts/AGENTS.md no longer opens one paragraph with "
-        f"'A bundle reproduces its tracked bytes exactly': {len(paragraphs)} found"
-    )
-    unplaced = sorted(name for name in bundles if f"`{name}`" not in paragraphs[0])
-    assert not unplaced, f"unplaced in scripts/AGENTS.md: {unplaced}"
-
-
 def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
     """A gate `uv run pytest tests` does not reach must be named where sessions read.
 
@@ -4576,3 +4531,21 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert browser_model.discovered_executable() is None
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
+
+
+def test_producer_guidance_names_a_bundled_script_by_its_path_here(tmp_path):
+    """A reader of `leaf page guidance` with no skill loaded, such as a worker the
+    author assigns, gets a command it can run as printed: the bundled producer
+    script's absolute path on this machine, not a placeholder."""
+    page = tmp_path / "patch-page"
+    initialized = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "diff", str(page)]
+    )
+    assert initialized.exit_code == 0, initialized.output
+    producer = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "producer"]
+    )
+    assert producer.exit_code == 0, producer.output
+    assert "<leaf-packages>" not in producer.output
+    [script] = re.findall(r"uv run (\S+patch_manifest\.py)", producer.output)
+    assert Path(script).is_absolute() and Path(script).is_file()

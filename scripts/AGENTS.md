@@ -3,7 +3,8 @@
 These scripts are developer tooling: the installed plugin is the whole tracked tree,
 so a host copies these along with it, but nothing under `skills/leaf` reads them at
 runtime. Python tools use the environment pinned by the root `pyproject.toml` and
-`uv.lock`; the browser contributor build uses `package.json` and `package-lock.json`.
+`uv.lock`; the JavaScript builds — the browser framework and every vendored bundle —
+use `package.json` and `package-lock.json`.
 
 Because the payload is the tracked tree, what a script generates lands under `.tmp/`
 unless a committed path is where the output's reader finds it: the vendored bundles
@@ -128,10 +129,11 @@ installation, page initialization, source activation, and export copy or consume
 the committed browser output without invoking a compiler.
 
 `vendor.py` rebuilds the other third-party bundles — all of them by default, or the
-ones you name. Every version it pins sits in one table there. The page payload the
-browser build bundles (Lit and Signals) is pinned in `package.json` instead, as is
-`esbuild`, which that build and every bundle here share; `vendor.py` reads both
-from there. Each bundle lands in the package whose widget
+ones you name — from the same install. `package.json` is the one manifest for every
+JavaScript version that ships: it pins each package a build's own source imports,
+`esbuild` among them, and `package-lock.json` settles the rest of every closure, so
+a package another one depends on is held where its dependant's range and the lock
+put it. Each bundle lands in the package whose widget
 imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
@@ -140,12 +142,10 @@ contains exactly one `/* LEAF_PIERRE_LANGUAGES */` sentinel; `vendor.py` replace
 with one `"<name>": () => import("@shikijs/langs/<name>"),` entry for every registry
 language before bundling.
 
-A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
-which holds for `marked`, `sortable`, `agentic-mermaid`, `floating-ui`, `highlight`,
-`jsdiff`, and `webawesome`, so a clean `git status` after a run is the check that the
-bundle still matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
-dependencies and inherit its ranges, so a diff from one of those can be an upstream
-patch rather than drift.
+Run `npm ci` first. After it, every bundle reproduces its tracked bytes exactly, so a
+clean `git status` after `vendor.py` is the check that the bundles still match the
+lock and the script; CI's `test` job runs it. A diff means the lock moved without a
+rebuild, or the script or registry changed.
 
 `webawesome` builds a chrome entry and an optional-widget entry with shared chunks.
 The chrome entry loads the standard search and copy controls; optional widgets
@@ -154,5 +154,6 @@ are registered once in the document and declared shadow stages. The chrome entry
 shared chunks live under `assets/vendor/`; the optional entry remains in the default
 package's vendor directory. Page vendoring composes both into the page's vendor root.
 
-Rerun a bundle after changing its pin or the registry input it reads; do not patch a
-generated bundle or `examples/corpus.html` directly.
+Rerun `vendor.py` after `npm install` moves a pin or the lock, or after changing the
+registry input a bundle reads; do not patch a generated bundle or
+`examples/corpus.html` directly.

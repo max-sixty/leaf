@@ -307,6 +307,12 @@ npm run typecheck --prefix worker
 npm test --prefix worker
 ```
 
+The root `package-lock.json` has a gate of its own too. It is what every committed
+browser bundle is built from, so a pull request's `test` job rebuilds them all and
+fails on any byte they differ by; `wt merge` does not. Before landing a change to
+`package.json` or its lock directly, run `npm ci`, `npm run build:browser`, and
+`uv run scripts/vendor.py`, and commit what they change.
+
 `tests/runtime/` is the other thing `uv run pytest tests` does not reach, and the one
 both landing paths run anyway: the shipped runtime's folds, which `npm run test:runtime`
 answers in under a second against the modules under `skills/leaf/assets/runtime/`

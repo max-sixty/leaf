@@ -91,6 +91,7 @@ package/
 ├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
+├── scripts/            bundled packages only: producer tools; never vendored
 ├── icon.svg            optional replacement by path
 └── leaf.js             optional runtime replacement
 ```
@@ -842,8 +843,7 @@ complete value using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
-leaf data capture PAGE release-notes --file CHANGELOG.md --lines 20:44
-leaf data capture PAGE review-patch --file change.patch --format unified-diff
+sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci
 ```
 
@@ -864,12 +864,12 @@ rewrites that source. Source revisions and event sequences are independent: an o
 may contain new data, and a new event response may contain old data, so neither orders
 the other.
 
-`data capture` reads a UTF-8 file without making the author copy it into markup.
-The default `text` format can select an inclusive `START:END` line range. The
-`unified-diff` format validates a Git patch and builds the file-fragmented manifest the
-diff widget consumes; an entry the widget's declaration does not support is rejected
-rather than silently omitted. The captured file's path is never stored or sent to
-users.
+`data set` is the one write. A value that has to be derived from a file — a text
+excerpt, a patch split into files — is the producer's to build, and a contract that
+needs more than `jq` says how in its producer `guidance`. A bundled package may ship
+that tool under `scripts/`, which neither a page nor `package install` copies; its
+guidance names it as `<leaf-packages>/<package>/scripts/<tool>`, and `leaf page
+guidance` prints the placeholder as this install's absolute packages directory.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new
@@ -880,21 +880,20 @@ discover the ids, contracts, widgets, and documents it needs without parsing mar
 Every source value goes to every user of the page, including fields a module does not
 paint. Do not put credentials or private host state in it.
 
-A contract whose values contain large independently useful payloads may declare a
-`fragments` coordinate: the top-level array field, each item's unique key field, and the
-payload field. The source file still holds the complete value, and readings validate
-all of it. `/api/state` sends the array as a lightweight manifest with that payload
-field omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one payload
-using the delivery `watchData` handed it. A request naming a source revision the file no
-longer holds is refused instead of combining a new payload with an old manifest. This is how a collapsed `lf-diff` can show
-thousands of files without transferring or rendering every patch first.
-`records` names the same `items` and `key` fields without splitting payload delivery;
-when a contract declares both, they must agree. Both forms validate non-empty,
-unique string keys before a source replacement is accepted.
+A contract whose value holds keyed rows declares `records`: the top-level array field
+and each row's key field. A source replacement is accepted only when every row has a
+non-empty, unique string key. Rows that each carry a large, independently useful
+payload may name that field `deferred`. The source file still holds the complete value,
+and readings validate all of it, but `/api/state` sends each row with that field
+omitted; a widget uses `loadDataFragment(snapshot, key)` to fetch one row's payload
+using the delivery `watchData` handed it. A request naming a source revision the file
+no longer holds is refused instead of combining a new payload with an old manifest.
+This is how a collapsed `lf-diff` can show thousands of files without transferring or
+rendering every patch first.
 
 ```json
 {
-  "fragments": { "items": "files", "key": "key", "value": "patch" },
+  "records": { "items": "files", "key": "key", "deferred": "patch" },
   "schema": {
     "type": "object",
     "properties": {

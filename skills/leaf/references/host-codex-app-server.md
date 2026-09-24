@@ -3,7 +3,7 @@
 This contract is for a Codex task Leaf reaches over Codex App Server
 (`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
 is a client of the task's server: it starts the turns that carry user input and takes
-each turn's final message as its reply. A terminal task is on App Server when its
+each turn's opening and final messages as its reply. A terminal task is on App Server when its
 environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or
 when the user gave you the task's App Server endpoint; it hands its own page over, as
 "Hand a page over from a terminal" describes. A host that starts the task itself, as
@@ -22,9 +22,12 @@ delivers to this task over App Server.
 
 ## Replies
 
-Each slice contains at most one plain reply. Write that reply as the turn's normal
-final message. Leaf streams it into the addressed thread and commits its completed
-text through the same reply contract as `leaf reply`; do not run `leaf reply` for
+Each slice contains at most one plain reply, and your turn's first message and final
+message write it. Before your first tool call, open with a short message to the user:
+the answer, or what you are about to do. Leaf streams it into the addressed thread at
+once, so the user reads it while you work. Later working messages stay in Codex. Your
+final message completes the reply, and Leaf commits the opening and the final message
+together through the same reply contract as `leaf reply`. Do not run `leaf reply` for
 that response, which refuses it as bound to this delivery's final message. The
 final message cannot move or detach its thread, so the thread keeps its anchor. If
 the user resolves the thread before the turn completes, the reply still posts and
@@ -35,7 +38,7 @@ clauses name.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message; read it with `leaf delivery read <id>`, and Leaf binds its reply to the
-final message the same way. Wherever `leaf reply` refuses an event as bound to this
+turn's messages the same way. Wherever `leaf reply` refuses an event as bound to this
 delivery's final message, answer it there.
 
 ## Activity

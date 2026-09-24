@@ -155,6 +155,25 @@ customElements.define('lf-test-visual', class extends HTMLElement {
 });
 """
 }
+# The same visual drawn in two steps, as an animation or stepper draws it: `inner`
+# appears only in the second, which its registration's `reveal` draws on request.
+STAGED_VISUAL_WIDGETS = {
+    "lf-test-visual.js": GENERIC_VISUAL_WIDGETS["lf-test-visual.js"].replace(
+        "    this.visualRegistration = registerVisualParts(this, () => this.parts);",
+        """    inner.style.display = 'none';
+    this.visualRegistration = registerVisualParts(
+      this,
+      () => this.parts.filter((part) => part.id !== 'inner' || inner.style.display !== 'none'),
+      {
+        reveal: (id) => {
+          if (id !== 'inner') return;
+          inner.style.display = '';
+          this.visualRegistration.update();
+        },
+      },
+    );""",
+    )
+}
 SHADOW_VISUAL_PAGE = leaf_page(
     "shadow visual clipping",
     """

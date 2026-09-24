@@ -12,6 +12,8 @@ import { runtimeOwnsScrollerStop } from "./reach.js";
 import { resolvedElement, resolvedPassage } from "./resolved-target.js";
 import { inUi, under, upFrom } from "./shadow.js";
 import {
+  revealsVisualParts,
+  revealVisualPart as revealRegisteredVisualPart,
   visualPart as registeredVisualPart,
   visualPartAt as registeredVisualPartAt,
 } from "./visual-parts.js";
@@ -99,6 +101,11 @@ export const declaredVisualParts = (visual) => {
 export function visualPart(visual, part) {
   if (!declaredVisualParts(visual).has(part)) return null;
   return registeredVisualPart(visual, part);
+}
+
+export function revealVisualPart(visual, part) {
+  if (!declaredVisualParts(visual).has(part)) return null;
+  return revealRegisteredVisualPart(visual, part);
 }
 
 export function visualPartAt(visual, target) {
@@ -410,12 +417,24 @@ export function resolveAnchor(anchor, text = "") {
     // part coordinate to the containing widget.
     if (!section || !visualPartAttribute(section) || settledAway(section)) return null;
     const found = visualPart(section, anchor.visual);
-    return found
-      ? resolvedElement({
-          element: found.element,
-          place: section,
-          surface: found.surface,
-        })
+    if (found)
+      return resolvedElement({
+        element: found.element,
+        place: section,
+        surface: found.surface,
+      });
+    // A declared part the visual draws only in another state stands in for the whole
+    // visual, as a lazy datum does, until travel reveals it.
+    return declaredVisualParts(section).has(anchor.visual) &&
+      revealsVisualParts(section)
+      ? {
+          ...resolvedElement({
+            element: section,
+            surface: wholeVisualSurface(section),
+          }),
+          exact: false,
+          status: "fallback",
+        }
       : null;
   }
 

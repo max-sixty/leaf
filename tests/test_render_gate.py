@@ -69,6 +69,7 @@ from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
     GENERIC_VISUAL_PAGE,
     GENERIC_VISUAL_WIDGETS,
+    STAGED_VISUAL_WIDGETS,
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
@@ -1229,6 +1230,21 @@ def test_the_render_gate_validates_a_registered_visual_inventory(browser, serve)
                 GENERIC_VISUAL_PAGE,
                 layer_registry=GENERIC_VISUAL_LAYER,
                 layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+        )
+        == []
+    )
+
+
+def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, serve):
+    """A part the visual draws only in another state resolves through its reveal."""
+    assert (
+        render_gate_model.render_version(
+            browser,
+            serve(
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=STAGED_VISUAL_WIDGETS,
             ),
         )
         == []

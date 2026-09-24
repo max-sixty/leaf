@@ -4,7 +4,13 @@
  * both directions it needs: a durable token resolves to the current rendered element,
  * and a rendered hit resolves to the nearest registered part. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
- * package may name one descendant to exclude decorative paint from a compound part. */
+ * package may name one descendant to exclude decorative paint from a compound part.
+ *
+ * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
+ * hold every declared part at every moment. Its registration names `reveal(id)`, which
+ * synchronously moves the visual to a state whose inventory holds that part. A declared
+ * part missing from the current inventory then stands in for the whole visual until
+ * travel or the render gate asks for it, rather than detaching. */
 
 import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
@@ -21,25 +27,41 @@ const words = (value) =>
  * `read` returns ordered `{id, element, label, surface?}` records. Call `update()` after
  * any rendering or geometry change, including in-place attribute or style changes; it
  * emits the same layout signal used by every other package-owned geometry change.
+ * `reveal(id)`, when given, draws the state that holds declared part `id` before it
+ * returns, so the next `read` includes it.
  */
-export function registerVisualParts(source, read) {
+export function registerVisualParts(source, read, { reveal = null } = {}) {
   if (!(source instanceof Element))
     throw new TypeError("Visual parts need an Element source");
   if (typeof read !== "function")
     throw new TypeError("Visual parts need an ordered reading function");
+  if (reveal !== null && typeof reveal !== "function")
+    throw new TypeError("A visual part reveal must be a function");
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
-  registrations.set(source, read);
+  registrations.set(source, { read, reveal });
   return { update: () => layoutChanged(source) };
 }
 
 const hasVisualParts = (source) => registrations.has(source);
 
+/** Whether a part absent from the current inventory can still be drawn on request. */
+export const revealsVisualParts = (source) =>
+  Boolean(registrations.get(source)?.reveal);
+
+/** Draw the state that holds part `id`, when the source can and does not already. */
+export function revealVisualPart(source, id) {
+  const reveal = registrations.get(source)?.reveal;
+  if (reveal && !visualPart(source, id)) reveal(id);
+  return visualPart(source, id);
+}
+
 export function visualPartProblems(source, declared) {
   if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
   try {
-    const ids = new Set(visualParts(source).map((part) => part.id));
-    const missing = [...declared].filter((id) => !ids.has(id));
+    // Each declared part must resolve in some state the visual can draw: the current
+    // one, or the one its reveal draws.
+    const missing = [...declared].filter((id) => !revealVisualPart(source, id));
     return missing.length
       ? [`did not register declared parts ${missing.join(", ")}`]
       : [];
@@ -49,7 +71,7 @@ export function visualPartProblems(source, declared) {
 }
 
 function visualParts(source) {
-  const read = registrations.get(source);
+  const read = registrations.get(source)?.read;
   if (!read) return [];
   const seenIds = new Set();
   const seenElements = new Set();

@@ -61,8 +61,8 @@ are summarized in the appendix.
 - A rail marker stands 22px past the column. A marker whose own block has grown past the
   rail's inner edge stands as a pin on that block. No block is resized for a marker, so
   `data-lf-yield` goes.
-- Column pages have a rail. Sheets (and so workspaces) and pages with right-hand
-  sidenotes have pins. `data-rail="right" | "none"` on `main` overrides either default.
+- Column pages have a rail; every other page (sheets, and so workspaces) has pins.
+  `data-rail="right" | "none"` on `main` overrides either default.
 - `o` shows or hides the annotation layer: the markers that only report (threads,
   reactions, changes, receipts, claims) and the durable marks on anchored passages.
   Contributed controls stay. The layer is tab view state, and hiding it changes no
@@ -96,7 +96,9 @@ content beside it. So the rail is declared, not placed.
 | CSS property (`--lf-rail: none`) | Lives in the agent's CSS | The claim is computed on `main` itself, and a container query cannot style its own host, so it needs numeric switch arithmetic. Invisible to the Python side |
 | Inferred from the page's form, with no override | Nothing to learn | A column page cannot give its right margin to its own notes; a sheet with a prose body cannot keep the rail |
 
-**Recommendation:** default by the page's form, overridable by one attribute.
+**Decided** (24 September): default by the page's form, overridable by one attribute.
+Max: "the agent decides … we should do the simplest thing and then we can adjust
+later".
 
 - **Column page** (`main` without `data-width="wide|available"`): rail.
   - A document read top to bottom is where a marker beside each passage reads best, and
@@ -105,12 +107,11 @@ content beside it. So the rail is declared, not placed.
   (`packages/default/theme.css:204-216`): pins.
   - On a sheet the rail can stand hundreds of pixels from the card a marker is about.
   - A workspace's panes scroll on their own, so their markers are pins anyway.
-- **Column page with a right-hand `aside.sidenote`**: pins.
-  - The notes and the rail claim the same strip (`--strip-r` takes the wider of the two,
-    `theme.css:694`), and markers stand over notes today (`theme.css` ~1313). The right
-    margin should have one owner.
-  - Two consequences follow. Below 1152px the notes fold inline and the page still has
-    no rail. And a pin beside a paragraph overlaps a note's left edge by a few pixels.
+- **No further inference.** A column page with right-hand `aside.sidenote`s keeps the
+  default rail. The notes and the rail claim the same strip (`--strip-r` takes the wider
+  of the two, `theme.css:694`), and markers stand over notes (`theme.css` ~1313), so an
+  agent that hangs notes on the right writes `data-rail="none"`. `page-authoring.md`
+  says so beside the numbers below.
 - **Overrides:** `data-rail="right"` and `data-rail="none"`. A left rail would be a new
   feature, not another value.
 - **Panes:** never a rail of their own. The mechanism is keyed on a region, so a pane
@@ -507,7 +508,7 @@ Phases 2 to 4 each land on their own and leave the app coherent.
      tests.
    - The largest phase, roughly −600/+400 lines (*estimate*).
 3. **The rail is declared (A).**
-   - `data-rail`, and the sheet and sidenote defaults.
+   - `data-rail`, and the sheet default.
    - `page-authoring.md` and the glossary.
 4. **`o` (E).**
 
@@ -528,19 +529,17 @@ Phases 3 and 4 are independent of each other.
 
 ## Decisions for Max
 
-- **#1 — Wide blocks:** B3 (the marker on a figure grown past the rail is a pin on the
-  figure) over the proposal's B1 (figures stop short of the rail). B4 (markers step out
-  beside figures) is the look pass's alternate.
-- **#2 — Defaults:** sheets, workspaces and right-sidenote pages default to pins, and
-  sheets gain up to 95px.
+- **#1 — Wide blocks:** decided, B3 (the marker on a figure grown past the rail is a pin
+  on the figure). B4 stays the look pass's alternate.
+- **#2 — Defaults:** decided: column pages have a rail, every other page pins, and the
+  agent overrides with `data-rail`; no sidenote inference.
 - **#3 — Pin look and touch size:** decided on the look pass's stills.
 - **#4 — Tab order:** contributed controls (a suggestion's ✓/✗) move after the content in
   tab order, the price of inserting nothing into the page.
 - **#5 — `o`:** it hides reporting markers and durable marks but keeps contributed
   controls. It is tab state. Explicit requests (`t`, Threads, the Page Map) open the card
   without revealing the layer.
-- **#6 — Declared, not placed:** the rail is an attribute on `main`, not an `<lf-rail>`
-  element.
+- **#6 — Declared, not placed:** decided, an attribute on `main`.
 
 ## Appendix: probes
 

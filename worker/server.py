@@ -62,7 +62,7 @@ from leaf.service import (
 from starlette.responses import Response
 
 PORT = 8080
-WEBSITE_AGENT = "Leaf guide"
+WEBSITE_AGENT = "The agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
 
@@ -146,7 +146,7 @@ LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # directory, so the contract arrives inline rather than as a path.
 HOSTED_INSTRUCTIONS = """## On leaf.page
 
-You are Leaf guide for one public leaf.page session. This host started the task and
+You are the agent for one public leaf.page session. This host started the task and
 serves its page: the page directory in your working directory, which is the complete
 scope of this task. The `leaf` command takes `.` as the page path. Skip "Hand a page
 over from a terminal" above: this host already serves the page and carries its input,

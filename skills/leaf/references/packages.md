@@ -483,9 +483,10 @@ semantic key to the rendered projected element.
 The signature and the `lfElementsFor` hook may change. `indicate(widget, attribute,
 key)` marks the elements a key addresses, in place of whatever that widget last
 indicated through the same attribute, and returns whether anything is marked; `null`
-clears it. Leaf paints the marked elements with `data-lf-indicated` and
-`aria-current="true"`, and never scrolls, focuses, reveals, hydrates, or announces for
-them, so a driver may move its indication every animation frame without moving the page.
+clears it. Leaf paints the marked elements with `data-lf-indicated` and nothing else,
+leaving the target's own ARIA state alone, and never scrolls, focuses, reveals, hydrates,
+or announces for them, so a driver may move its indication every animation frame without
+moving the page; the driver's own narration says what the mark means.
 An indication is browser state, like hover: the log never records it, and a new revision
 does not carry it. A widget whose parts have a face of their own styles
 `[data-lf-indicated]` on them; the default is an accent outline. A target that re-renders

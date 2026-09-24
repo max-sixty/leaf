@@ -10621,7 +10621,7 @@ def test_a_widget_indicates_lines_of_a_code_block_without_moving_the_page(
     a driver standing for a film, and the code block whose lines it is executing.
 
     The mark is the page's own state, like hover, so it is asserted where a user meets
-    it: the lines the key names wear it and say `aria-current`, nothing else does, the
+    it: the lines the key names wear it and nothing else does, the
     block's authored `hi` line keeps its own face, a comment painted on a marked line
     still paints, and neither the scroll nor the focus moves as the indication does."""
     url = serve(
@@ -10652,13 +10652,13 @@ print(bracket(3))
     def marked():
         return lines.evaluate_all(
             """ls => ls.flatMap((l, i) => l.hasAttribute('data-lf-indicated')
-                   ? [[i + 1, l.getAttribute('aria-current')]] : [])"""
+                   ? [i + 1] : [])"""
         )
 
     # Asked for before the block had lines; resolved when the render stated them. No
     # comment stands yet, so no thread list lays itself out and says so on the way.
     expect(indicated).to_have_count(2)
-    assert marked() == [[3, "true"], [4, "true"]]
+    assert marked() == [3, 4]
     expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
 
     events_model.append_event(
@@ -10677,7 +10677,7 @@ print(bracket(3))
         """() => [...(CSS.highlights.get('lf-mark') ?? [])]
                    .some(r => r.toString().includes('steel'))"""
     )
-    assert marked() == [[3, "true"], [4, "true"]]
+    assert marked() == [3, 4]
 
     faces = lines.evaluate_all(
         "ls => ls.map(l => getComputedStyle(l, '::before').boxShadow)"
@@ -10686,12 +10686,12 @@ print(bracket(3))
 
     before = page.evaluate("[scrollY, document.activeElement.localName]")
     assert page.evaluate("document.querySelector('#film').point('2,5')") is True
-    assert marked() == [[2, "true"], [5, "true"]]
+    assert marked() == [2, 5]
     expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
     assert page.evaluate("document.querySelector('#film').point('9')") is False
     assert marked() == []
     page.evaluate("document.querySelector('#film').point('3')")
-    assert marked() == [[3, "true"]]
+    assert marked() == [3]
     assert "steel" in painted(page, "lf-mark")
     assert page.evaluate("[scrollY, document.activeElement.localName]") == before
 

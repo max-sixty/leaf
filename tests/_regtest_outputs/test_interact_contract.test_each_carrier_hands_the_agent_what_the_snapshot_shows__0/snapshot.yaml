@@ -87,18 +87,20 @@ leaf wait:
             its opening words.
           h3: >-
             Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-            observes over App Server, your final message is the reply instead, and
-            `leaf reply` refuses the event. Where you answer with `leaf reply`,
-            reply before any other work, including the work this event asks for:
-            give the answer, or say what you are about to do and where the result
-            will appear. Once that work lands, report it with `leaf reply <page>
-            --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`.
-            `leaf reply` checks any saved page edit and makes it live before posting.
-            If a revision removes what the thread is anchored on, move the thread
-            in the reply that reports it with `--section <id>` (narrowed by `--quote`
-            or `--part` if needed), or `--detach` it if its subject has left the
-            page. Add `--awaits` only if your reply's prose asks the user something.
-            Your reply renders as Markdown, so show code or markup in a fenced block.
+            observes over App Server, your turn's first and final messages are the
+            reply instead, and `leaf reply` refuses the event: open with a message
+            to the user before your first tool call, and finish the reply in your
+            final message. Where you answer with `leaf reply`, reply before any
+            other work, including the work this event asks for: give the answer,
+            or say what you are about to do and where the result will appear. Once
+            that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+            where `<address>` is the event's `obligation.response.to`. `leaf reply`
+            checks any saved page edit and makes it live before posting. If a revision
+            removes what the thread is anchored on, move the thread in the reply
+            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
+            if needed), or `--detach` it if its subject has left the page. Add `--awaits`
+            only if your reply's prose asks the user something. Your reply renders
+            as Markdown, so show code or markup in a fenced block.
         events:
           - kind: comment
             revision: 1
@@ -160,18 +162,20 @@ Codex queue:
             its opening words.
           h3: >-
             Answer with `leaf reply <page> --for <event-id>`. In a Codex task Leaf
-            observes over App Server, your final message is the reply instead, and
-            `leaf reply` refuses the event. Where you answer with `leaf reply`,
-            reply before any other work, including the work this event asks for:
-            give the answer, or say what you are about to do and where the result
-            will appear. Once that work lands, report it with `leaf reply <page>
-            --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`.
-            `leaf reply` checks any saved page edit and makes it live before posting.
-            If a revision removes what the thread is anchored on, move the thread
-            in the reply that reports it with `--section <id>` (narrowed by `--quote`
-            or `--part` if needed), or `--detach` it if its subject has left the
-            page. Add `--awaits` only if your reply's prose asks the user something.
-            Your reply renders as Markdown, so show code or markup in a fenced block.
+            observes over App Server, your turn's first and final messages are the
+            reply instead, and `leaf reply` refuses the event: open with a message
+            to the user before your first tool call, and finish the reply in your
+            final message. Where you answer with `leaf reply`, reply before any
+            other work, including the work this event asks for: give the answer,
+            or say what you are about to do and where the result will appear. Once
+            that work lands, report it with `leaf reply <page> --to <address> --initiates`,
+            where `<address>` is the event's `obligation.response.to`. `leaf reply`
+            checks any saved page edit and makes it live before posting. If a revision
+            removes what the thread is anchored on, move the thread in the reply
+            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
+            if needed), or `--detach` it if its subject has left the page. Add `--awaits`
+            only if your reply's prose asks the user something. Your reply renders
+            as Markdown, so show code or markup in a fenced block.
         events:
           - kind: comment
             revision: 1
@@ -235,10 +239,12 @@ Codex App Server:
                 its opening words.
               h3: >-
                 Answer with `leaf reply <page> --for <event-id>`. In a Codex task
-                Leaf observes over App Server, your final message is the reply instead,
-                and `leaf reply` refuses the event. Where you answer with `leaf
-                reply`, reply before any other work, including the work this event
-                asks for: give the answer, or say what you are about to do and where
+                Leaf observes over App Server, your turn's first and final messages
+                are the reply instead, and `leaf reply` refuses the event: open
+                with a message to the user before your first tool call, and finish
+                the reply in your final message. Where you answer with `leaf reply`,
+                reply before any other work, including the work this event asks
+                for: give the answer, or say what you are about to do and where
                 the result will appear. Once that work lands, report it with `leaf
                 reply <page> --to <address> --initiates`, where `<address>` is the
                 event's `obligation.response.to`. `leaf reply` checks any saved

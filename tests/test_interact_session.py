@@ -3359,7 +3359,7 @@ def test_a_delivery_bound_final_is_the_only_plain_reply_writer(page_dir):
     with service_model.PageTransaction(page_dir) as page:
         page.open_turn("codex-thread", "turn-2")
 
-    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+    with pytest.raises(SystemExit, match="answered by this turn's messages"):
         conversation_model.cmd_reply(
             page_dir,
             comment["id"],
@@ -3394,7 +3394,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
 
     conversation_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
 
-    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+    with pytest.raises(SystemExit, match="answered by this turn's messages"):
         conversation_model.cmd_reply(
             page_dir,
             comment["id"],
@@ -7740,7 +7740,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     [payload] = attempted
     [(path, queue)] = codex_records("codex-thread")
     assert queue["state"] == "offering"
-    with pytest.raises(SystemExit, match="bound to this delivery's final message"):
+    with pytest.raises(SystemExit, match="answered by this turn's messages"):
         conversation_model.cmd_reply(
             page,
             comment["id"],

@@ -308,8 +308,6 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
             page.set_viewport_size({"width": width, "height": 900})
             page.wait_for_function(BOTH_STAMPS)
         assert published.evaluate(layout) == normal.evaluate(layout)
-    normal.close()
-    published.close()
 
 
 def test_product_pages_are_published_as_complete_page_records(site):

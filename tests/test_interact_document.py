@@ -1370,6 +1370,13 @@ fn merge_sort()
                 'lines="1505-1506,1550-1553"> (line 10): numbers 6 lines, but the body has 5'
             ],
         ),
+        # A range is counted, never expanded, so a huge one is a quick refusal.
+        (
+            "1-1000000000",
+            "1",
+            "1",
+            ["numbers 1000000000 lines, but the body has 5"],
+        ),
         # Source lines count from 1, so no excerpt quotes a line 0.
         ("0-4", "1", "1", ["<lf-code> (line 10): '0-4' does not match"]),
         (

@@ -93,18 +93,27 @@
     };
   }
 
-  // The Asks tray is the one surface that takes a strip, so a user who left it open
-  // left page geometry, and its saved shape must reach the document before the module
-  // graph that builds its contents. The theme consumes these provisional root facts;
-  // restoreUserView replaces them with live state. Every other surface stands over the
-  // page and has no shape to hold before it arrives.
+  // Two surfaces take a strip: the Asks tray on the left, and the thread panel on the
+  // right beside a sheet. A user who left one open left page geometry, and its saved
+  // shape must reach the document before the module graph that builds its contents, or
+  // the page paints full width and then narrows under the user's place. The theme
+  // consumes these provisional root facts and decides from them, as it does for the live
+  // surface, whether the strip is taken at this window; restoreUserView replaces them
+  // with live state. The Leaves tray and a thread panel over a column page stand over
+  // the page and have no shape to hold before they arrive.
   try {
     const scope = root.dataset.lfUserScope ?? "";
     const auxiliarySurface = localStorage.getItem(scope + "lf-auxiliary-surface");
-    if (auxiliarySurface === "asks") root.toggleAttribute("data-lf-restore-asks", true);
+    if (auxiliarySurface === "asks" || auxiliarySurface === "threads")
+      root.dataset.lfRestoreSurface = auxiliarySurface;
 
     const trayWidth = parseFloat(localStorage.getItem(scope + "lf-tray-slot-width"));
     if (trayWidth) root.style.setProperty("--lf-tray-slot-choice", `${trayWidth}px`);
+    const panelWidth = parseFloat(
+      localStorage.getItem(scope + "lf-thread-panel-width"),
+    );
+    if (panelWidth)
+      root.style.setProperty("--lf-thread-panel-width", `${panelWidth}px`);
   } catch {
     // A page that cannot remember still starts in the default arrangement.
   }

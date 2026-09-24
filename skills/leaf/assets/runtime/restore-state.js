@@ -56,6 +56,6 @@ export function restoreUserView({
   restoreAuxiliarySurface();
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
   const root = document.documentElement;
-  root.removeAttribute("data-lf-restore-asks");
+  delete root.dataset.lfRestoreSurface;
   removeRuntimeRootStyle(root, "--lf-tray-slot-choice");
 }

@@ -53,14 +53,6 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **Check that each carrier's agent follows its own delivery route.** Deliveries
-  now carry `handling` written for their carrier: only `leaf wait` tells the agent
-  to acknowledge, naming `leaf wait --ack`, and only App Server says the final
-  message is the reply. Paired runs on 2026-09-23, before that, had the leaf.page
-  agent invent `leaf delivery ack` and post an early `leaf reply`. Rerun
-  `verify_site.py local` for the App Server route, and paired Claude Code runs
-  to check that acknowledgement stays as prompt now that its clause names the
-  command.
 
 ## Next
 

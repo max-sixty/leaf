@@ -1756,7 +1756,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
   lf-shot > input.lf-shotflip { display: none; }
   lf-shot > .lf-shotcomparison { display: block; aspect-ratio: auto; border: 0;
     overflow: visible; }
-  lf-shot > .lf-shotcomparison::part(comparison) { display: block; }
+  /* The before frame sits in the component's second part (lf-shot.js), and paper
+   * puts it on top. */
+  lf-shot > .lf-shotcomparison::part(comparison) { display: flex;
+    flex-direction: column-reverse; }
   lf-shot > .lf-shotcomparison::part(before),
   lf-shot > .lf-shotcomparison::part(after) { position: relative; width: auto;
     height: auto; clip-path: none !important; }

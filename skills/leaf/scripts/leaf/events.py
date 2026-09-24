@@ -82,9 +82,11 @@ class UndoReading:
         threads: dict | None = None,
         within: dict | None = None,
         withdrawn: set | None = None,
+        newest: int,
     ):
         self.events_by_id = {event["id"]: event for event in events}
         self.withdrawn = taken_back(events) if withdrawn is None else withdrawn
+        self.newest = newest
         if threads is None:
             if within is None:
                 raise TypeError("within is required when threads are not supplied")
@@ -147,6 +149,18 @@ class UndoReading:
                 f"{target['kind']} events cannot be taken back (the kinds that can "
                 f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
             )
+        elif (
+            target["kind"] == "action"
+            and target["meaning"].get("places")
+            and target["revision"] < self.newest
+        ):
+            # A later revision absorbed the move and its markup places the unit
+            # (`StateProjection.absorbed`), so taking the move back would restore
+            # nothing; a new move changes where the unit stands.
+            return (
+                f"move {target['id']} was made on r{target['revision']}, and "
+                f"r{self.newest} now places its unit; move it again instead"
+            )
         return None
 
 
@@ -154,6 +168,7 @@ def undo_error(
     event: dict,
     events: list,
     within: dict,
+    newest: int,
 ) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
@@ -173,8 +188,10 @@ def undo_error(
 
     `within` is the published page's containment, as every other fold of the
     threads takes it: a thread an action settled, and a version's `restated`
-    inside that widget reopened, is open here as it is in `page state`."""
-    return UndoReading(events, within=within).error(event)
+    inside that widget reopened, is open here as it is in `page state`.
+    `newest` is the page's newest revision, which places every unit a move made
+    on an earlier one put."""
+    return UndoReading(events, within=within, newest=newest).error(event)
 
 
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
@@ -481,26 +498,6 @@ def report_settlements(events: list, upto=None) -> dict:
         for identity in note_settlements(event, "report"):
             at[identity] = max(at.get(identity, 0), event["revision"])
     return at
-
-
-def taken_in(events: list, upto=None) -> set[str]:
-    """Ids of the page actions a stamped version has taken in: one whose note follows
-    the action in the log and supersedes the revision it was made on. A note stamped
-    over the very revision the user acted on was written before the move reached
-    anyone, and no version takes in a move made in frozen thread markup."""
-    taken = set()
-    newest = 0  # the newest revision a note later in the log stamped
-    for event in reversed(events):
-        if event["kind"] == "note":
-            if upto is None or event["revision"] <= upto:
-                newest = max(newest, event["revision"])
-        elif (
-            event["kind"] == "action"
-            and event_document(event)["kind"] == "page"
-            and newest > event["revision"]
-        ):
-            taken.add(event["id"])
-    return taken
 
 
 def action_rests_on(event: dict, within: dict) -> list:

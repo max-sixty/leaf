@@ -1133,12 +1133,14 @@ def test_server_round_trip(server, page_dir):
     assert state["cursor"] == 0  # no user event acknowledged yet
     assert state["events"][-1]["id"] == posted["id"]
     # A widget action rides the same channel; half-formed ones are refused at the edge.
+    # A move is made on the newest revision, which the vendored file above made r3.
+    newest = files_model.list_revisions(page_dir)[-1]
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "action",
-                "revision": 2,
+                "revision": newest,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
@@ -2113,7 +2115,7 @@ def test_undo_candidates_keep_only_standing_user_gestures():
         },
     ]
     empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
-    undo_reading = event_folds_model.UndoReading(events, within={})
+    undo_reading = event_folds_model.UndoReading(events, within={}, newest=1)
 
     candidates = served_document.browser_undo_candidates(
         events, empty, empty, undo_reading=undo_reading

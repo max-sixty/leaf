@@ -352,6 +352,16 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
         return None
 
     if page_rec:
+        # A rank lies between the neighbours of the revision the move was made on,
+        # and a later revision can shift them, so a move is placed on the newest
+        # one. The later version that takes it in then writes it where it went.
+        newest = view.revisions[-1]
+        if record_kind == "position" and revision != newest:
+            return (
+                f"<{tag}> action {event['action']!r} was made on r{revision}, and "
+                f"r{newest} is newer: a move is placed among the newest version's "
+                "units, so make it again there"
+            )
         reading = readings.page(document, revision)
         projection, parser, spk = reading.projection, reading.document, reading.spoken
         byid = parser.by_id
@@ -586,7 +596,7 @@ def _conversation_presentation_error(view, event: dict, events: list) -> str | N
 def _withdrawal_error(view, event: dict, events: list) -> str | None:
     if event["kind"] != "undo":
         return None
-    return undo_error(event, events, view.within)
+    return undo_error(event, events, view.within, view.revisions[-1])
 
 
 def admission_error(

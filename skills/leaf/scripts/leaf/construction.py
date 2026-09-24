@@ -212,7 +212,7 @@ def constructed_content(
                 else:
                     node["attrs"].pop(record["attr"], None)
                 node["authority"] = authority
-        elif kind == "position" and event["id"] not in projection.taken_in:
+        elif kind == "position" and event["id"] not in projection.absorbed:
             owner.setdefault("authored", {})["placement"] = {"parent": parents[unit]}
             placed[(widget, event["action"])] = record
 

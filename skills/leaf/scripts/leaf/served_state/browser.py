@@ -138,7 +138,9 @@ def browser_state(
     active_within = active_page.within
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
-    undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
+    undo_reading = UndoReading(
+        events, threads=threads, withdrawn=withdrawn, newest=active_revision
+    )
     live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     conversation, conversation_reading = browser_conversation(
         events, active_registry, threads, live_reply, data

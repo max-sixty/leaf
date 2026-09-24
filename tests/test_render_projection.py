@@ -5232,14 +5232,16 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 
 def test_render_reports_markup_the_log_replays_over(browser, serve):
     """The static gate refuses a version that rewords what a decision rests on,
-    but `chosen`, a card's place, and their kind say nothing a text diff can
-    see — a version asserting them against the log used to lose silently, replay
-    painting the user's state back over the author's intent. The render gate
-    reports exactly that: an id the author changed since the previous version
-    and replay then wrote. Silence on a pick (carrying the old markup forward) and
-    honor (authoring the decided state) both stay clean, because silence changes
-    no id and honor makes the replay a no-op. A move has no silence: the version
-    after it writes the card where it went, and places it from then on."""
+    but `chosen` and its kind say nothing a text diff can see — a version asserting
+    one against the log used to lose silently, replay painting the user's state back
+    over the author's intent. The render gate reports exactly that: an id the author
+    changed since the previous version and replay then wrote. Silence (carrying the
+    old markup forward) and honor (authoring the decided state) both stay clean,
+    because silence changes no id and honor makes the replay a no-op.
+
+    A move is not that case. Any later revision absorbs it and places the card
+    itself, so replay never writes a card over a version; the static gate is what
+    holds the version to where the move put it."""
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail in [
@@ -5270,31 +5272,24 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     moved = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
-
-    # A different order in the move's own column is a real placement conflict.
-    reordered = honored.replace(IMPORTER_CARD, "").replace(
-        "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
-    )
-    failures = preview(reordered)
-    assert len(failures) == 1 and "id=work" in failures[0], failures
-
-    # The other option asserted beside that order: both widgets changed and replay
-    # overrides both, so the author must hear.
-    contradicted = reordered.replace('id="opt-shim" chosen', 'id="opt-shim"').replace(
-        'id="opt-stage"', 'id="opt-stage" chosen'
-    )
-    failures = preview(contradicted)
-    assert len(failures) == 2, failures
-    assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
-    assert any("id=work" in f and "card-importer" in f for f in failures), failures
 
     # v2 writes the move and says nothing about the pick; v3 honors both.
     assert render_gate_model.render_version(browser, stamp(2, moved)) == []
+    honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
     assert render_gate_model.render_version(browser, stamp(3, honored)) == []
 
-    # Taken in, the move no longer places the card: v4's order is the page's.
-    assert preview(reordered) == []
+    # v4 asserts the other option and reorders the moved card's column: replay
+    # overrides the pick, so the author must hear; the order is v4's own.
+    contradicted = honored.replace('id="opt-shim" chosen', 'id="opt-shim"')
+    contradicted = contradicted.replace(
+        'id="opt-stage"', 'id="opt-stage" chosen'
+    ).replace(IMPORTER_CARD, "")
+    contradicted = contradicted.replace(
+        "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
+    )
+    failures = preview(contradicted)
+    assert len(failures) == 1, failures
+    assert "id=approach" in failures[0] and "opt-stage" in failures[0], failures
 
 
 @pytest.mark.parametrize(

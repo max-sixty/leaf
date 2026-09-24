@@ -1,10 +1,11 @@
 /* lf-swipe-deck: a position-recorded classification queue with one activation path.
  * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
  * those buttons, whose click handler first places one card optimistically and then sends
- * the same absolute action the runtime replays after reload, sync, or undo. A classified
- * card can withdraw its own action and return to the queue. Every classification is one
- * `swipe`; the deck's Ask is answered while the queue stands empty, so returning any card
- * reopens it. Complete projection supplies the ordered cards in every pile;
+ * the same absolute action the runtime replays after reload, sync, or undo. A card the
+ * user classified returns to the front of the queue with a new `swipe` there, since a
+ * later version may already have written the classification in, and an undo would then
+ * restore nothing. Every classification is one `swipe`; the deck's Ask is answered while
+ * the queue stands empty, so returning any card reopens it. Complete projection supplies the ordered cards in every pile;
  * this module places the retained nodes and carries only the live pointer gesture. A
  * card's parent pile presents whether it is unseen, passed, or kept. The complete
  * painted reading is memoized, so a broad action heartbeat that changes no deck state
@@ -232,10 +233,16 @@ customElements.define(
       this.#painted = reading;
     };
 
+    // A card the user sent to a verdict pile, while the deck takes swipes.
     #returnable(card) {
-      return this.#controller
-        .read()
-        .actions.swipe?.undo.find((event) => event.detail?.card === card.id);
+      const { actions, state } = this.#controller.read();
+      const queue = this.#pile("unseen");
+      return Boolean(
+        actions.swipe?.available &&
+        queue &&
+        card.parentElement !== queue &&
+        state.swipe?.units[card.id],
+      );
     }
 
     #returnControl(card) {
@@ -245,18 +252,23 @@ customElements.define(
       button.setAttribute("aria-label", `Return ${title} to queue`);
       button.hidden = true;
       button.addEventListener("click", async () => {
-        const event = this.#returnable(card);
-        if (!event || this.#returning.has(card.id)) return;
+        if (!this.#returnable(card) || this.#returning.has(card.id)) return;
         const refocus = document.activeElement === button;
+        const queue = this.#pile("unseen");
+        const detail = {
+          card: card.id,
+          to: queue.id,
+          rank: rankAt(this.#controller.read().state.swipe, queue.id, 0, card.id),
+        };
         this.#returning.add(card.id);
+        this.#place(card, queue, 0);
         this.#render();
+        layoutChanged(this);
         let returned = false;
         try {
           returned = Boolean(
-            await this.#controller.dispatch({
-              kind: "undo",
-              target: event.attempt ?? event.id,
-            })?.delivery,
+            await this.#controller.dispatch({ kind: "action", verb: "swipe", detail })
+              ?.delivery,
           );
         } finally {
           this.#returning.delete(card.id);

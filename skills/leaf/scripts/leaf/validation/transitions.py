@@ -3,6 +3,7 @@
 from leaf.passages import EMPTY, collapse, created_words, enclosing_of
 from leaf.projection import (
     NO_RECORD,
+    Placement,
     StateProjection,
     action_subjects,
     folded_value,
@@ -14,11 +15,12 @@ from leaf.registry.contract import created_child
 from .markup import at
 
 
-def _placed(placement: tuple) -> str:
-    container, before = placement
-    if container is None:
+def _placed(placement: Placement) -> str:
+    if placement.container is None:
         return "outside every container"
-    return f"in {container!r} after {before}" if before else f"first in {container!r}"
+    if placement.after is None:
+        return f"first in {placement.container!r} among the units both versions list"
+    return f"in {placement.container!r} right after {placement.after!r}"
 
 
 # A verb with no declared record form (decide — the honoring version
@@ -102,8 +104,8 @@ def restatement_errors(
         if f_cur == f_fold:
             continue  # writing the folded state is honoring: the state-level echo
         position = spec["record"]["kind"] == "position"
-        # Silence is no answer to a position: the version takes the move in, and
-        # from then on its markup places the unit (`StateProjection.taken_in`).
+        # Silence is no answer to a position: this version absorbs the move, and
+        # from then on its markup places the unit (`StateProjection.absorbed`).
         if not position and f_cur == markup_value(unit, spec, prev_byid, was, registry):
             continue  # no active change — replay resolves silence
         if unit in declared:
@@ -111,13 +113,19 @@ def restatement_errors(
             continue
         where = at(rec, f"id={unit!r}")
         made = f"their {e['action']} (on r{e['revision']})"
+        if position and e["id"] in projection.absorbed:
+            errors.append(
+                f"{where}: the markup takes it out of {f_fold.container!r}, where "
+                f"the user moved it and an earlier version wrote it. Keep it in "
+                f"that container, or mark it `restated` to take the move back."
+            )
+            continue
         if position:
             errors.append(
-                f"{where}: the markup puts it {_placed(f_cur)} where {made} left "
-                f"it {_placed(f_fold)}. A version writes the order the user left, "
-                f"as `leaf page state` shows it: once stamped, the version's markup "
-                f"is where the unit stands. Write it there, or add `restated` to "
-                f"retract the move and ask again."
+                f"{where}: {made} put it {_placed(f_fold)}, and the markup puts it "
+                f"{_placed(f_cur)}. Write it where `leaf page state` shows it: "
+                f"once stamped, the version's markup places it. Or mark it "
+                f"`restated` to take the move back."
             )
             continue
         errors.append(

@@ -119,7 +119,9 @@ def page_action_unsettled(
     records it. The note of a later version settles the rest: a verb with no
     authored record form, whose note is the document's answer to it, and a move
     that owed nothing, which that version has taken in whether or not its markup
-    records it (`StateProjection.taken_in`).
+    records it. The version must follow the move in the log and supersede the
+    revision it was made on; a note stamped over the very revision the user
+    acted on was written before the move reached anyone.
     """
     _widget, unit, _verb = coordinate
     byid = page.document.by_id
@@ -132,7 +134,13 @@ def page_action_unsettled(
     recorded = reading is not NO_RECORD and reading[0] == reading[1]
     if owed and reading is not NO_RECORD:
         return not recorded
-    return source["id"] not in page.projection.taken_in and not recorded
+    versioned = any(
+        event["kind"] == "note"
+        and event["seq"] > source["seq"]
+        and event["revision"] > source["revision"]
+        for event in page.events
+    )
+    return not versioned and not recorded
 
 
 def canonical_workflows(

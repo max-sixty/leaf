@@ -5374,7 +5374,8 @@ def test_a_refused_return_restores_the_classification(browser, serve):
 
 
 def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
-    """A ledger row withdraws its own classification, including the finishing one."""
+    """A classified card returns to the front of the queue, including the one whose
+    classification finished the deck."""
     page = open_page(browser, serve(SWIPE_PAGE))
     deck = page.locator("#session-triage")
 
@@ -5422,9 +5423,65 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
         "button", name="Return Index account sessions to queue", exact=True
     ).click()
     round_trip(page)
-    expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
+    # A returned card goes to the front of the queue, so it is the one decided next.
+    assert page.eval_on_selector_all(
+        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["swipe-d", "swipe-b"]
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(second).to_be_focused()
+    expect(final).to_be_focused()
+
+
+def _kept(card_id: str) -> str:
+    """SWIPE_PAGE with one queued card written into the keep pile, after the card
+    the page already kept: what a version writes after the user kept it."""
+    start = SWIPE_PAGE.index(f'<lf-swipe-card id="{card_id}">')
+    card = SWIPE_PAGE[start : SWIPE_PAGE.index("</lf-swipe-card>", start)]
+    card += "</lf-swipe-card>"
+    return SWIPE_PAGE.replace(card, "").replace(
+        "<p>The revocation primitive.</p></lf-swipe-card>",
+        f"<p>The revocation primitive.</p></lf-swipe-card>{card}",
+    )
+
+
+def test_a_card_a_later_version_wrote_into_its_pile_returns_to_the_queue(
+    browser, serve
+):
+    """Once a version writes a swipe in, its markup places the card and an undo of the
+    swipe would restore nothing. Returning the card is a new swipe to the front of
+    the queue, so it still works, and the earlier swipe is no longer offered."""
+    url = serve(SWIPE_PAGE)
+    swiped = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "session-triage",
+            "action": "swipe",
+            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "2"},
+        },
+    )
+    stamp_page(serve.page_dir, _kept("swipe-a"), "kept")
+    page = open_page(browser, live_url(url))
+    wait_for_revision(page, 2)
+    expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
+    offered = """() => window.__lfRuntimeImport('/runtime/widget-api.js').then(
+        ({widgetController}) => widgetController(
+          document.getElementById('session-triage')).read().actions.swipe.undo
+          .map(event => event.id))"""
+    assert swiped["id"] not in page.evaluate(offered)
+
+    page.locator("#swipe-a").get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    ).click()
+    round_trip(page)
+    assert page.eval_on_selector_all(
+        "#session-queue > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
+    returned = actions(serve.page_dir)[-1]
+    assert (returned["action"], returned["revision"]) == ("swipe", 2)
+    assert returned["detail"]["to"] == "session-queue"
+    expect(page.locator("#swipe-a")).to_be_focused()
 
 
 def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
@@ -5708,13 +5765,7 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
     page.evaluate("window.__lfHeld[0].finish()")
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
 
-    card = SWIPE_PAGE[SWIPE_PAGE.index('<lf-swipe-card id="swipe-a">') :]
-    card = card[: card.index("</lf-swipe-card>") + len("</lf-swipe-card>")]
-    kept = SWIPE_PAGE.replace(card, "").replace(
-        "<p>The revocation primitive.</p></lf-swipe-card>",
-        f"<p>The revocation primitive.</p></lf-swipe-card>{card}",
-    )
-    stamp_page(serve.page_dir, kept, "second")
+    stamp_page(serve.page_dir, _kept("swipe-a"), "second")
     wait_for_revision(page, 2)
 
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)

@@ -71,6 +71,10 @@ def state_meaning(event: dict, entry: dict, document: str) -> dict:
     # tag lets registry-free readers keep the action resting on it regardless.
     if creates := spec.get("creates"):
         meaning["creates"] = creates["child"]
+    # A move places its unit by a rank only until a version takes it in, and a
+    # registry-free reader asks which actions those are (`UndoReading`).
+    if (spec.get("record") or {}).get("kind") == "position":
+        meaning["places"] = True
     return meaning
 
 

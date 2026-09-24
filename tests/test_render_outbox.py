@@ -34,6 +34,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
+    REPLAYED_PAGE,
     SETTLED_PAGE,
     CutOff,
     Traffic,
@@ -1991,35 +1992,57 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
 def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     """Which version a gesture was made against decides whether `z` is *offered*, and
     says nothing about whether an undo must be *heard*. A tab holding an older version
-    can still gesture — `?pin` is a URL a user keeps, and a tab mid-composition holds
-    its version too — so its undo reaches a tab that has moved on, and that tab applied
-    the action being withdrawn (replay takes every action up to the version it reads).
+    can still take back its gesture — `?pin` is a URL a user keeps, and a tab
+    mid-composition holds its version too — so its undo reaches a tab that has moved
+    on, and that tab applied the action being withdrawn (replay takes every action up
+    to the version it reads).
 
     Refusing to hear it there leaves the newer tab showing a gesture the log no longer
-    holds, and only until someone reloads it. A version written after the move takes
-    it in and states its placement itself, so there the restore is a no-op; this move
-    is made on v1 after v2 was stamped, so v2 has not taken it in and must catch up."""
-    url = serve(BOARD_PAGE)
+    holds, and only until someone reloads it. A pick is the case: a later version may
+    leave it to the log, where a later version writes a move in and places the card
+    itself, so a move is no longer the user's to take back."""
+    url = serve(REPLAYED_PAGE)
     pinned = open_page(browser, url + "&pin")
     moved_on = open_page(browser, live_url(url))
 
-    d = serve.page_dir
-    stamp_page(d, BOARD_PAGE, "unchanged")
+    pinned.locator("#opt-shim").click()
+    round_trip(pinned)
+    expect(moved_on.locator("lf-option[chosen]")).to_have_attribute("id", "opt-shim")
+
+    stamp_page(serve.page_dir, REPLAYED_PAGE, "unchanged")
     wait_for_revision(moved_on, 2)
     expect(moved_on).not_to_have_url(re.compile("/versions/"))
     expect(pinned).to_have_url(re.compile("v1"))
-
-    pinned.locator("#card-baffle .lf-grip").focus()
-    for key in ["Enter", "ArrowRight", "Enter"]:
-        pinned.keyboard.press(key)
-    round_trip(pinned)
-    # Replay carries the v1 move onto v2, so this tab is showing it.
-    expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
+    # Replay carries the v1 pick onto v2, so this tab is showing it.
+    expect(moved_on.locator("lf-option[chosen]")).to_have_attribute("id", "opt-shim")
 
     undo(pinned)
     told(moved_on)
     told(moved_on)
-    expect(moved_on.locator("#col-todo #card-baffle")).to_have_count(1)
+    expect(moved_on.locator("lf-option[chosen]")).to_have_count(0)
+
+
+def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
+    browser, serve
+):
+    """A move's rank lies between the neighbours of the version it was made on, so the
+    door takes a move only on the newest one. A tab still holding v1 after v2 exists
+    sees its move refused and the card back where it stood; the log keeps nothing."""
+    url = serve(BOARD_PAGE)
+    pinned = open_page(browser, url + "&pin")
+    stamp_page(serve.page_dir, BOARD_PAGE.replace("Sprint<", "Sprint two<"), "v2")
+    expect(pinned).to_have_url(re.compile("v1"))
+
+    pinned.locator("#card-baffle .lf-grip").focus()
+    with pinned.expect_response(
+        lambda response: "/api/event" in response.url and response.status == 400
+    ):
+        for key in ["Enter", "ArrowRight", "Enter"]:
+            pinned.keyboard.press(key)
+    round_trip(pinned)
+    expect(pinned.locator("#col-todo #card-baffle")).to_have_count(1)
+    assert actions(serve.page_dir) == []
+    consume_browser_errors(pinned, "400")
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):

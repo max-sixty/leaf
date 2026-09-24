@@ -755,22 +755,26 @@ def _write_board(page_dir, todo, done=()):
     )
 
 
+def _move(page_dir, card, to, rank, revision=1):
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "b1",
+            "action": "move",
+            "detail": {"card": card, "to": to, "rank": rank},
+        },
+    )
+
+
 def _drop_x_between_a_and_b(page_dir):
     """v1 has todo `a b c` and x in done; the user drops x between a and b, at the
     rank lf-board computes between their authored ranks."""
     _write_board(page_dir, "abc", "x")
     publish(page_dir)
-    move = append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "b1",
-            "action": "move",
-            "detail": {"card": "x", "to": "c-todo", "rank": "1i"},
-        },
-    )
+    move = _move(page_dir, "x", "c-todo", "1i")
     assert _todo_order(page_dir) == ["a", "x", "b", "c"]
     return move
 
@@ -785,54 +789,91 @@ def test_a_version_that_leaves_a_move_to_the_log_is_refused(page_dir):
     _write_board(page_dir, "nabc", "x")
     result = check(page_dir)
     assert result.exit_code == 1, result.output
-    assert "id='x'" in result.output and "move (on r1)" in result.output
+    assert "id='x'" in result.output and "move (on r1) put it in 'c-todo'" in (
+        result.output
+    )
+    assert "right after 'a'" in result.output
 
 
 def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     """Once a version writes the move, its markup is where the card stands: the rank
-    no longer places it, and undoing the move leaves the order the version wrote."""
+    no longer places it, and the move is no longer the user's to take back, since
+    the markup would decide the order an undo restored."""
     move = _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
     assert check(page_dir).exit_code == 0, check(page_dir).output
     publish(page_dir, 2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
-    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]})
-    assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
+    with pytest.raises(events_model.EventRefused, match="now places its unit"):
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]}
+        )
 
 
-def test_a_version_that_writes_the_card_elsewhere_in_its_column_is_refused(page_dir):
-    """The move's column is not all it decided: `a b c x` puts x in the column the
-    user chose and contradicts where in it they put x."""
+def test_a_version_after_the_one_that_wrote_a_move_orders_its_column(page_dir):
+    """Absorbed, a move holds later versions to its column and no more, as a
+    written-back pick holds them to the pick: reordering the column is the version's
+    to do, and taking the card out of it is taking the move back."""
     _drop_x_between_a_and_b(page_dir)
-    _write_board(page_dir, "abcx")
+    _write_board(page_dir, "naxbc")
+    publish(page_dir, 2)
+    _write_board(page_dir, "nacxb")
     result = check(page_dir)
-    assert result.exit_code == 1, result.output
-    assert "id='x'" in result.output
-    _write_board(page_dir, "axbc")
-    assert check(page_dir).exit_code == 0
+    assert result.exit_code == 0, result.output
+    _write_board(page_dir, "nacb", "x")
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "takes it out of 'c-todo'" in result.output
+    assert "move (on r1) put it" not in result.output
+
+
+@pytest.mark.parametrize(
+    ("todo", "passes"),
+    [
+        ("baxc", True),  # a and b swapped: x still right after a
+        ("naxbmc", True),  # cards added around the gap
+        ("axc", True),  # b dropped
+        ("abxc", False),
+        ("abcx", False),
+        ("xabc", False),
+    ],
+)
+def test_the_gate_holds_a_move_to_the_gap_it_was_dropped_into(page_dir, todo, passes):
+    """The user put x between a and b: right after a, among the cards both versions
+    list. A version that keeps that says what the user said however it arranges or
+    adds cards elsewhere."""
+    _drop_x_between_a_and_b(page_dir)
+    _write_board(page_dir, todo)
+    assert (check(page_dir).exit_code == 0) == passes, check(page_dir).output
 
 
 def test_a_reorder_within_one_column_reaches_the_gate(page_dir):
     """A card moved up its own column changes no container, so a reading of the
-    column alone would take a version that ignores the move as recording it."""
+    column alone would take a version that ignores the move as recording it. At the
+    top, no card both versions list precedes it."""
     _write_board(page_dir, "abc")
     publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "b1",
-            "action": "move",
-            "detail": {"card": "c", "to": "c-todo", "rank": "0i"},
-        },
-    )
+    _move(page_dir, "c", "c-todo", "0i")
     assert _todo_order(page_dir) == ["c", "a", "b"]
     _write_board(page_dir, "abcn")
-    assert check(page_dir).exit_code == 1
-    _write_board(page_dir, "cabn")
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "first in 'c-todo' among the units both versions list" in result.output
+    _write_board(page_dir, "ncab")
     assert check(page_dir).exit_code == 0
+
+
+def test_a_move_on_a_replaced_revision_is_refused(page_dir):
+    """A rank read on r1 lands in another gap on r2 once r2 adds a card above it, so
+    the door takes a move only on the newest revision."""
+    _write_board(page_dir, "abc", "x")
+    publish(page_dir)
+    _write_board(page_dir, "nabc", "x")
+    publish(page_dir, 2)
+    with pytest.raises(events_model.EventRefused, match="r2 is newer"):
+        _move(page_dir, "x", "c-todo", "1i")
+    _move(page_dir, "x", "c-todo", "2i", revision=2)
+    assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
 
 
 def test_page_inspection_preserves_exact_user_state_and_its_edit_routes(page_dir):

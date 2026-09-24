@@ -120,11 +120,13 @@ same verb on the same unit supersedes its prior answer, while another verb leave
 it standing. Coordinates are independent, so a position record places its unit by a
 rank key rather than an index: the key means the same place whichever other units'
 moves stand, and undoing or superseding one unit's move never moves another. The key
-lies between neighbours of the revision the move was made on, so it places the unit
-only until a version takes the move in (`events.taken_in`: a note later in the log,
-over a later revision). `version check` holds that version's markup to the place the
-fold left, and from then on the markup places the unit; the move still stands, as a
-written-back pick does, and undoing it leaves the order the version wrote.
+lies between neighbours of the revision the move was made on, so the door admits a
+page move only on the newest revision, and admission marks it `meaning.places`. The
+key places the unit until a later revision absorbs the move. `version check` holds
+that revision's markup to the move's container and to the nearest unit both
+revisions list before it, and from then on the markup places the unit. The move
+still stands in its container, as a written-back pick does, and it can no longer be
+undone: the markup decides the order an undo would have restored.
 
 Dependency identities come from the fold unit and the attribute-set and position
 record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:

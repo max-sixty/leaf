@@ -128,10 +128,11 @@ that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
 Its unanswered-work guard reads `activity.obligations`, selected from the same
 `workflows` projection the browser reads; it does not reconstruct conversations
-itself. The App Server adapter presents at most one plain reply in each turn's
-chronological delivery slice. Its completed final-answer item finishes that exact
-response; the hook lets the provider turn close, and the observer commits the same text
-through the canonical reply writer when the terminal notification arrives.
+itself. The App Server adapter presents at most one thread reply in each turn's
+chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
+workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
+exact response; the hook lets the provider turn close, and the observer commits the
+same text through the canonical reply writer when the terminal notification arrives.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded host records the same
 transition from the queued turn's App Server `turn/started` notification. A
@@ -230,7 +231,8 @@ enter a later Codex turn. Leaf's unobserved queue command never calls `turn/star
 With an App Server the adapter holds two connections instead. One observes: it resumes
 the task, keeps the subscription that resume opens, and projects the turns Leaf did not
 start — the user's own work in the terminal, and a queued pointer the task picks up by
-itself. The other belongs to one delivery for one turn: it resumes, reads the task's
+itself. It binds a reply only to a delivery frozen for App Server: a queued pointer's
+delivery owes a plain `reply`, which its agent writes with `leaf reply`. The other belongs to one delivery for one turn: it resumes, reads the task's
 status, starts the turn while the task is idle, and follows that turn to its reply on
 the connection it started it on. Two connections may resume one thread and both then
 receive everything it says, so the observer passes over a delivery this process is

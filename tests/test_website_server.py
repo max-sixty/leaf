@@ -47,6 +47,7 @@ from leaf.revision_artifact import Resource
 from leaf.revisioning import activate_source
 from leaf.schema import ASSETS, VENDORED_FILES
 from leaf.served_state import page as served_page
+from leaf.service import delivery_reply_attempt
 from playwright.sync_api import expect
 from render_harness import LONG_PAGE, consume_browser_errors, open_page, told
 from websockets.exceptions import ConnectionClosedError
@@ -402,12 +403,11 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
                         "events": [
                             {
                                 "id": "user-event",
-                                "obligation": {
-                                    "response": {
-                                        "kind": "reply",
-                                        "to": "user-event",
-                                        "for": "user-event",
-                                    }
+                                "answer": {
+                                    "kind": "turn",
+                                    "to": "user-event",
+                                    "for": "user-event",
+                                    "attempt": "leaf-delivery-1",
                                 },
                             }
                         ],
@@ -872,12 +872,18 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     )
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
-    assert delivered["obligation"]["response"]["kind"] == response_kind
+    # Frozen for App Server, a reply is the turn's to write with its messages.
+    assert (
+        delivered["answer"]["kind"]
+        == {"reply": "turn", "receipt": "receipt"}[response_kind]
+    )
     replacements = {
         str(page_dir): "/page",
         event["id"]: "user-event",
         event["ts"]: "2026-09-22T10:00:00-07:00",
         payload["id"]: "00000001",
+        # The turn's reply attempt is derived from the delivery id.
+        delivery_reply_attempt(payload["id"]): delivery_reply_attempt("00000001"),
         str(payload["created_at"]): "1790096400.0",
     }
     serialized = json.dumps(outgoing)

@@ -7,7 +7,6 @@ from pathlib import Path
 import click
 
 from leaf.schema import (
-    ACK_BATCH_INSTRUCTION,
     EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
@@ -691,7 +690,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
         "Watch every page this session holds — plus PAGE, claimed first, when "
-        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION
+        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)

@@ -581,6 +581,14 @@ def test_corpus_is_generated_from_the_examples():
     assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
         "specimen conversations changed — rerun scripts/corpus.py"
     )
+    committed_page = {
+        path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()
+        for path in corpus.CORPUS_PAGE.rglob("*")
+        if path.is_file()
+    }
+    assert corpus.build_page() == committed_page, (
+        "an example's own elements changed — rerun scripts/corpus.py"
+    )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
     )

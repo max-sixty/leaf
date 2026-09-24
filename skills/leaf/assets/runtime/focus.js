@@ -150,6 +150,19 @@ export function declareCovering({ surface, landing }) {
 export function releaseFocus() {
   document.body.focus({ preventScroll: true });
 }
+
+// Letting go of what the user stands on, the standing scope's Escape, is a landing that
+// also ends what stood there with them: the thread card beside the target they held.
+// Other landings reach the page without letting go of anything — `g p`, a surface
+// closing — so the release is its own act rather than something read off focus leaving.
+let released = () => {};
+export function declareRelease(release) {
+  released = release;
+}
+export function release() {
+  released();
+  letGo();
+}
 export function letGo() {
   const covering = coveringSurface();
   if (covering) {

@@ -236,11 +236,13 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     status = page.locator(".lf-banner .lf-status-text")
     expect(status).to_have_text(
         "This is an example on the Leaf website. Leaf guide replies and revises "
-        "this private copy. Install Leaf"
+        "this private copy. Other examples Install Leaf"
     )
-    expect(status.locator("a")).to_have_attribute("href", "/#install")
+    assert status.locator("a").evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    ) == ["/examples/", "/#install"]
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
-    expect(status).to_have_attribute("title", status.text_content())
+    expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
 
 

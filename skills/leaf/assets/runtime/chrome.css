@@ -591,9 +591,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     white-space: normal; overflow-wrap: anywhere; }
   .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
     outline-offset: 2px; --lf-here-ring: status-detail; }
-  .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
+  .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.6em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .lf-publication-install { flex: none; }
+  .lf-publication-link, .lf-publication-install { flex: none; }
   /* The door onto the secondary controls stands at the row's start. Its menu hangs
      inward from that door on a desk, where Approval and Threads place it near the
      viewport's right edge; the phone rule below hangs it outward from the left instead. */

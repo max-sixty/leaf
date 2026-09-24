@@ -99,12 +99,12 @@ acknowledged at stop:
     Leaf needs attention:
     - <page>: 1 acknowledged user move with no answer (`leaf reply <page> --for event-2`).
 
-    Each named command writes the answer its move is owed; in a Codex task Leaf observes over App Server, the reply is your final message instead. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    Each named command writes the answer its move is owed; in a Codex task Leaf observes over App Server, your turn's first and final messages are the reply instead. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf reply <page> --for event-2`); answer before idling. Each named command writes the answer its move is owed; in a Codex task Leaf observes over App Server, the reply is your final message instead. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
+    1 acknowledged user move with no answer (`leaf reply <page> --for event-2`); answer before idling. Each named command writes the answer its move is owed; in a Codex task Leaf observes over App Server, your turn's first and final messages are the reply instead. Read current obligations with `leaf page state <page>` and conversation history with `leaf conversation read <page> <id>`.
 
 answer: |
   replied in event-2

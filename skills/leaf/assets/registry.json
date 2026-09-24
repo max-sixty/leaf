@@ -464,7 +464,7 @@
               }
             }
           },
-          "text": "Your final message in this turn is the reply: Leaf posts it to the thread when the turn ends, and `leaf reply` refuses this event. Do the work the event asks for first, then give the answer, or say what changed and where it appears. The final message leaves the thread on its anchor."
+          "text": "Your turn's first and final messages are the reply, and `leaf reply` refuses this event. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the thread at once, and later working messages stay in Codex. Finish the reply in your final message: the answer, or what changed and where it appears. The reply leaves the thread on its anchor."
         },
         {
           "text": "Your reply renders as Markdown, so show code or markup in a fenced block."

@@ -169,6 +169,12 @@ opens a sequence and `s` opens a chooser. A scope is the command-resolution mech
 that these interactions may make applicable. Commands have stable dotted ids; bindings
 are canonical normalized chords matched against keyboard events.
 
+*Binding* and *shortcut* name two things. A binding is one chord a scope's row declares
+for a command; code, the register, and package authors use it. A shortcut is the whole
+key sequence a user presses to reach the command, a sequence prefix included (`g d`),
+and it is the only word user-visible text uses. *Keyboard route* is wider than either:
+any keyboard path to an action, Tab to a native control included.
+
 The keyboard help presentations are:
 
 - **Shortcut bar**: the always-visible compact projection of commands applicable in

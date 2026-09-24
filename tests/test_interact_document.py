@@ -3,6 +3,7 @@
 import hashlib
 import json
 import math
+import os
 import queue
 import re
 import signal
@@ -15,7 +16,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
-from example_data import patch_manifest
+from example_data import captured_value, patch_manifest
 from interact_support import (
     COMMAND_SUBJECTS,
     OPTIONS,
@@ -4612,6 +4613,26 @@ def test_events_follow_resumes_after_the_last_seq_its_reader_saw(page_dir, spawn
     assert follower.stop(signal.SIGINT) == (0, "")
 
 
+def test_events_follow_ends_when_its_log_is_replaced(page_dir, spawn):
+    """A follower's position is an offset into the file it opened. A log renamed
+    into its place is another file, whose same offset is the middle of a different
+    history under the wrong seqs, so the follower ends with the error a removed
+    log gets rather than stalling or printing from there."""
+    _tasks_version(page_dir, "active")
+    publish(page_dir)
+    follower = Follower(spawn, page_dir)
+    for _ in events_model.read_events(page_dir):
+        follower.next()
+
+    log = page_dir / "events.jsonl"
+    replacement = page_dir / "events.jsonl.new"
+    replacement.write_bytes(log.read_bytes() + log.read_bytes())
+    os.replace(replacement, log)
+
+    follower.process.wait(timeout=STATED_TIMEOUT)
+    assert follower.stop(signal.SIGTERM) == (1, f"{log} is gone\n")
+
+
 def test_page_state_points_to_a_users_suggestion_record(page_dir):
     """`suggestion: true` is the user proposing exact replacement words rather
     than describing a change, and the loop owes that a different answer — taken
@@ -5355,7 +5376,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
                 "unit": identity,
                 "depends": [identity],
                 "answer": None,
-                "document": "page",
+                "scope": "page",
             },
             "seq": seq,
         }
@@ -5419,7 +5440,7 @@ def test_projected_verbatim_includes_generated_children():
             "unit": "new-item",
             "depends": ["list", "new-item"],
             "creates": "lf-item",
-            "document": "page",
+            "scope": "page",
         },
         "seq": 1,
     }
@@ -5429,3 +5450,13 @@ def test_projected_verbatim_includes_generated_children():
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
+
+
+def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
+    """A patch is captured whole: a `lines` range beside `"format": "unified-diff"`
+    is refused rather than silently dropped, and the same range on text applies."""
+    source = tmp_path / "change.patch"
+    source.write_text("one\ntwo\nthree\n")
+    with pytest.raises(ValueError, match="takes the whole patch"):
+        captured_value(source, {"format": "unified-diff", "lines": "1:2"})
+    assert captured_value(source, {"lines": "2:3"}) == "two\nthree\n"

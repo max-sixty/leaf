@@ -163,7 +163,7 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     """A visual's authored part tokens each name one stable generated target."""
     errors = []
     for rec in lf_elements:
-        parts = visual_parts(rec, registry)
+        parts = visual_parts(rec, registry).tokens
         duplicates = sorted({part for part in parts if parts.count(part) > 1})
         if duplicates:
             errors.append(

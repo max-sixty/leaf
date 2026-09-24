@@ -36,8 +36,8 @@ from leaf.registry.contract import (
     event_spec,
     schema_error,
     state_specs,
+    verb_writer,
     visual_parts,
-    writer,
 )
 from leaf.registry.reactions import reaction_tokens
 from leaf.requests import (
@@ -103,13 +103,11 @@ def declared_event_error(event: dict, tag: str, registry: dict):
         other = entry.get("x-state", {}).get(event["action"])
         if other is not None:
             return (
-                f"<{tag}> {event['action']!r} is a verb the {writer(other)} "
+                f"<{tag}> {event['action']!r} is a verb the {verb_writer(other)} "
                 f"writes; this {kind} came from the {WRITERS[kind]}"
             )
         declared = sorted(
-            verb
-            for verb, declared_spec in state_specs(entry)
-            if writer(declared_spec) == WRITERS[kind]
+            verb for verb, _spec in state_specs(entry, writer=WRITERS[kind])
         )
         return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
             f"; it declares {declared}" if kind == "report" and declared else ""
@@ -283,7 +281,7 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     if visual not in available:
         return (
             f"visual anchor {visual!r} is not declared on section {section!r}; "
-            f"known: {list(available)}"
+            f"{available}"
         )
     return None
 

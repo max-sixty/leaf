@@ -154,7 +154,12 @@ def playwright_driver():
     except Exception as error:
         # Newer Playwright raises the failed initialization future itself and has
         # already closed the manager. Check that future so unrelated errors surface.
-        future = manager._connection.playwright_future
+        # A start refused before any connection exists (the sync API called under a
+        # running event loop) has no future to check, and is not the driver's.
+        connection = getattr(manager, "_connection", None)
+        if connection is None:
+            raise
+        future = connection.playwright_future
         if not future.done() or future.cancelled() or future.exception() is not error:
             raise
         raise DriverNotStarted(str(error).strip().splitlines()[0]) from error

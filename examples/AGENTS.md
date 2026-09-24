@@ -140,7 +140,8 @@ complete current value. A reserved `$captures` object instead maps a source id t
 `file` and optional `format` or `lines`; the file is a sibling of the
 example. The format defaults to `text`, where `lines` may select an inclusive
 range; a large unified diff stays in its `.patch` source and is captured with
-`"format": "unified-diff"`, which runs the `diff` package's `patch_manifest.py` on it.
+`"format": "unified-diff"`, which runs the `diff` package's `patch_manifest.py` on the
+whole file and refuses `lines`.
 Builders set captures first and then current values through `leaf data set`, so
 binding, contract validation,
 live preview, browser sweeps, and the static site all exercise the

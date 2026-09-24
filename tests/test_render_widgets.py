@@ -1217,7 +1217,7 @@ def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
     page = open_page(browser, live_url(serve(example)))
     page.get_by_role("tab", name="CallDiff").click()
     held = []
-    page.route("**/api/data*", lambda route: held.append(route))
+    page.route("**/api/deferred*", lambda route: held.append(route))
     page.get_by_role("link", name="src/summary.rs:259").first.click()
     page.wait_for_function(
         "() => document.querySelector('#pr-exact-patch').shadowRoot.querySelector('details[open]') !== null"
@@ -1230,7 +1230,7 @@ def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
     before = page.evaluate(
         "() => ({url: location.href, y: document.scrollingElement.scrollTop})"
     )
-    page.unroute("**/api/data*")
+    page.unroute("**/api/deferred*")
     for route in held:
         route.continue_()
     line = page.locator(
@@ -10070,7 +10070,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
     page.on(
         "request",
         lambda request: (
-            fetched.append(request.url) if "/api/data" in request.url else None
+            fetched.append(request.url) if "/api/deferred" in request.url else None
         ),
     )
     # Focused as `focusDestination` leaves a host that an in-page link named.

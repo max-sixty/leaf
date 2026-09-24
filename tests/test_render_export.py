@@ -1261,13 +1261,13 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
 
 
-def test_interactive_export_hydrates_captured_data_fragments_offline(
+def test_interactive_export_hydrates_captured_deferred_values_offline(
     browser, serve, tmp_path
 ):
-    """A frozen interactive copy keeps unopened fragmented payloads usable."""
+    """A frozen interactive copy keeps unopened deferred payloads usable."""
     serve(
         leaf_page(
-            "offline fragmented data",
+            "offline deferred data",
             '<h1>Review</h1><lf-diff id="patch" source="review-patch" collapsed>'
             "<pre></pre></lf-diff>",
         )
@@ -1277,7 +1277,7 @@ def test_interactive_export_hydrates_captured_data_fragments_offline(
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n'
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
-    interactive = tmp_path / "fragmented-interactive.html"
+    interactive = tmp_path / "deferred-interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -2182,7 +2182,7 @@ OPEN_EDIT = {
     "action": "edit",
     "detail": {"text": "The sample workshop is in the red room."},
     "meaning": {
-        "document": "page",
+        "scope": "page",
         "unit": "d-open",
         "depends": ["d-open"],
         "answer": None,

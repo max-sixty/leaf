@@ -12,7 +12,7 @@ import {
   commands,
   langForPath,
   layoutChanged,
-  loadDataFragment,
+  loadDeferred,
   listWalkPosition,
   offer,
   paintKeys,
@@ -425,7 +425,7 @@ async function parsedFiles(source) {
   return files;
 }
 
-function fragmentError(details, error) {
+function deferredError(details, error) {
   const box = document.createElement("div");
   box.className = "lf-error";
   box.dataset.lfGen = "1";
@@ -959,14 +959,14 @@ customElements.define(
       const rendering = this.rendering;
       entry.loading = (async () => {
         try {
-          const patch = await loadDataFragment(this.manifestSnapshot, entry.record.key);
+          const patch = await loadDeferred(this.manifestSnapshot, entry.record.key);
           if (rendering !== this.rendering || !this.isConnected) return;
           if (typeof patch !== "string")
-            throw new Error("the fragment is not unified patch text");
+            throw new Error("the deferred patch is not unified patch text");
           const files = await parsedFiles(patch);
           if (files.length !== 1 || files[0].name !== entry.record.path)
             throw new Error(
-              `the fragment for ${entry.record.path} does not contain that one file`,
+              `the deferred patch for ${entry.record.path} does not contain that one file`,
             );
           const rendered = await renderFile(files[0], this.sharedStyles, true);
           if (rendering !== this.rendering || !this.isConnected) return;
@@ -982,7 +982,7 @@ customElements.define(
         } catch (error) {
           if (rendering !== this.rendering || !this.isConnected) return;
           entry.failed = true;
-          fragmentError(entry.details, error);
+          deferredError(entry.details, error);
         } finally {
           entry.loading = null;
         }

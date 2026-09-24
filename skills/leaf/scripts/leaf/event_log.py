@@ -4,13 +4,12 @@ import contextlib
 import json
 import os
 import secrets
-import time
 from collections.abc import Iterator
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
-from leaf.files import LOOK_S, file_stamp, read_json
+from leaf.files import file_stamp, next_reading, read_json
 from leaf.schema import CURSOR_FILE, EVENTS_FILE
 
 try:
@@ -220,32 +219,56 @@ def read_events(page_dir: Path) -> list:
     return _parse_events(path.read_bytes())
 
 
+def _line_start(data: bytes, n: int) -> int:
+    """Where line `n + 1` of `data` starts: past its `n`th newline, or at its end."""
+    at = 0
+    for _ in range(n):
+        at = data.find(b"\n", at) + 1
+        if not at:
+            return len(data)
+    return at
+
+
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     """Every event after seq `after`, then each one appended from here on, forever.
 
-    The trigger is the log's own stamp, looked at every `LOOK_S` — the look the
-    browser's news stream makes over the whole page, narrowed to the one file a
-    follower reads. A moved stamp reads only the bytes past what was already read,
-    and only through the last newline: the line after it is an append mid-flush,
-    whose rest moves the stamp again. Seq is the line number, so the lines read
-    are counted whether or not they parse, exactly as `_parse_events` counts them.
+    The trigger is the log's own stamp (`next_reading`), the look the browser's news
+    stream makes over the whole page, narrowed to the one file a follower reads. A
+    moved stamp reads only the bytes past what was already read, and only through the
+    last newline: the line after it is an append mid-flush, whose rest moves the stamp
+    again. Seq is the line number, so the lines read are counted whether or not they
+    parse, exactly as `_parse_events` counts them; the lines at or before `after` are
+    counted without being parsed.
+
+    The offset read so far is a position in the file first opened, and appends
+    only ever grow that file. A log that is another file now (a rename put a new
+    one in its place) or shorter than what was read is not the log being
+    followed, and reading on from the old offset would print its middle under the
+    wrong seqs, so the follower ends there, as it does when the log is removed.
     """
     log = page_dir / EVENTS_FILE
+    gone = FileNotFoundError(f"{log} is gone")
     read = lines = 0
-    said = None
+    followed = None
+    stamp = file_stamp(log)
     while True:
-        stamp = file_stamp(log)
         if stamp is None:
-            raise FileNotFoundError(f"{log} is gone")
-        if stamp != said:
-            said = stamp
+            raise gone
+        try:
             with open(log, "rb") as f:
+                opened = os.fstat(f.fileno())
+                followed = followed or opened.st_ino
+                if opened.st_ino != followed or opened.st_size < read:
+                    raise gone
                 f.seek(read)
                 data = f.read()
-            complete = data[: data.rfind(b"\n") + 1]
-            for event in _parse_events(complete, lines):
-                if event["seq"] > after:
-                    yield event
-            read += len(complete)
-            lines += complete.count(b"\n")
-        time.sleep(LOOK_S)
+        except FileNotFoundError:
+            raise gone from None
+        complete = data[: data.rfind(b"\n") + 1]
+        unread = _line_start(complete, max(0, after - lines))
+        yield from _parse_events(
+            complete[unread:], lines + complete.count(b"\n", 0, unread)
+        )
+        read += len(complete)
+        lines += complete.count(b"\n")
+        stamp = next_reading(lambda: file_stamp(log), stamp)

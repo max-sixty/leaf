@@ -112,12 +112,15 @@ export const invalidVisualProviders = (declarations) =>
     .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => {
-        const attribute = entry["x-visual"].parts;
-        const declared = (el.getAttribute(attribute) ?? "")
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
-        const problems = visualPartProblems(el, declared);
+        const { parts, prefixes } = entry["x-visual"];
+        const problems = prefixes
+          ? visualPartProblems(el, [], (id) =>
+              prefixes.some((p) => id !== p && id.startsWith(p)),
+            )
+          : visualPartProblems(
+              el,
+              (el.getAttribute(parts) ?? "").trim().split(/\s+/).filter(Boolean),
+            );
         return { tag, id: el.id, problems };
       }),
     )

@@ -38,6 +38,11 @@ WAIT_BATCH_OUTPUT_INSTRUCTION = (
 
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+# What a refused element name is told, so the author need not read WIDGET_NAME.
+WIDGET_NAME_RULE = (
+    "an element name is `lf-` followed by hyphen-separated words of lowercase "
+    f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
+)
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
@@ -396,6 +401,19 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {"parts": _ATTRIBUTE_NAME},
                     "required": ["parts"],
+                    "additionalProperties": False,
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "prefixes": {
+                            "type": "array",
+                            "items": {"type": "string", "pattern": "^\\S+$"},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        }
+                    },
+                    "required": ["prefixes"],
                     "additionalProperties": False,
                 },
             ]

@@ -638,7 +638,6 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "uv.lock",
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
-        "hooks/scripts/wait-started.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
@@ -3644,7 +3643,7 @@ def test_package_init_widget_validates_its_tag_without_writing(tmp_path, monkeyp
     )
 
     assert result.exit_code != 0
-    assert "must match" in result.output
+    assert "invalid widget tag 'risk-note': an element name is `lf-`" in result.output
     assert not package.exists()
 
 

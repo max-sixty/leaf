@@ -112,7 +112,7 @@ export { ago, clocked, clockValue, quietSince } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
-export { loadDataFragment, watchData } from "./data.js";
+export { loadDeferred, watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   declarationFor,

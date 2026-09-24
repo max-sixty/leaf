@@ -347,6 +347,53 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     assert "history" not in model.reading(unwatched, events)
 
 
+def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
+    """An added option is in no document, so its words come from the `add` that
+    wrote it, as its inline Markdown shows them. The pick of it reads by those
+    words even after the add is undone, since that is what the user picked, and an
+    id an undone add freed and a later add reused reads each gesture by the add
+    standing when that gesture was made."""
+    question = model.leaf_page(
+        "Route",
+        """<h1>Route</h1>
+<lf-options id="route" choose>
+  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+
+    def add(text):
+        return {
+            "kind": "action",
+            "widget": "route",
+            "action": "add",
+            "detail": {"option": "route-mine", "text": text},
+        }
+
+    pick = {
+        "kind": "action",
+        "widget": "route",
+        "action": "choose",
+        "detail": {"options": ["route-mine"]},
+    }
+    events = (
+        add("**Ship** half"),
+        pick,
+        {"kind": "undo", "undoes": "e2"},
+        {"kind": "undo", "undoes": "e1"},
+        add("Ship everything"),
+        pick,
+    )
+
+    history = model.reading(question, events)["history"]
+    assert [(row["id"], row["gesture"]) for row in history] == [
+        ("e6", {"form": "choice", "chosen": ["Ship everything"]}),
+        ("e5", {"form": "add", "words": "Ship everything"}),
+        ("e2", {"form": "choice", "chosen": ["Ship half"]}),
+        ("e1", {"form": "add", "words": "Ship half"}),
+    ]
+
+
 def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     """A deck's Ask is answered by its standing state, so admission marks the swipe
     that empties the queue as the answer and no swipe before it.
@@ -524,7 +571,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
@@ -778,7 +825,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
@@ -2111,7 +2158,7 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
 
 
-def _page_owned_fragmented_source(page_dir):
+def _page_owned_deferred_source(page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -2177,7 +2224,7 @@ def _page_owned_fragmented_source(page_dir):
 
 def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
     """A same-named contract cannot redirect old readers to a different field."""
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
@@ -2198,7 +2245,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["description"] = (
         "A clearer description of the same file payloads."
@@ -2571,7 +2618,8 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid element declaration names: ['{tag}']" in result.output
+    assert f"invalid element declaration names ['{tag}']" in result.output
+    assert "an element name is `lf-` followed by" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
@@ -3747,7 +3795,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": "page"}
+    on_page = {"scope": "page"}
 
     def owes(kind):
         return {"answer": {"kind": kind}}
@@ -3806,12 +3854,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("reply"),
         },
         "pick inside a thread over App Server": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("turn"),
         },
         "resolve": {"kind": "resolve"},
@@ -5361,7 +5409,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": "page",
+            "scope": "page",
             "unit": "sug-a",
             "depends": ["sug-a"],
         },

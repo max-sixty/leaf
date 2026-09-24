@@ -100,9 +100,15 @@ def patch_manifest(patch: str) -> dict:
 
 def captured_value(file: Path, spec: dict):
     """One `$captures` entry's value: the file's text, an inclusive `lines` range of
-    it, or, for `"format": "unified-diff"`, the patch's file manifest."""
+    it, or, for `"format": "unified-diff"`, the whole patch's file manifest. A
+    patch is captured whole, so a `lines` range beside that format is refused."""
     text = file.read_text(encoding="utf-8")
     if spec.get("format") == "unified-diff":
+        if "lines" in spec:
+            raise ValueError(
+                f"{file}: a unified-diff capture takes the whole patch, not lines "
+                f"{spec['lines']}"
+            )
         return patch_manifest(text)
     if (lines := spec.get("lines")) is None:
         return text

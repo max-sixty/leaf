@@ -1,6 +1,0 @@
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PostToolUse",
-    "additionalContext": "`leaf wait` is now watching your pages in the background. Claude Code's session list shows this session as Working while it runs, and groups it by the closing line of your reply. If this turn leaves anything only the user can give (an answer on the page, or a decision about other work), end your closing reply with a line `needs input: <what you want back>`. Only when nothing waits on the user or on work you still have running (this watcher aside), end it instead with a line `result: <what you delivered>`, which files the session under Completed. Keep either line to 200 characters or fewer, on its own line, not in a code block."
-  }
-}

@@ -9105,12 +9105,11 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     """Two readings of the same fault on one page: the command hub told the user
     nothing, at rest, about what could be pressed and what had already been.
 
-    The chip. A chip that opens a worker list and a badge that counts finished tasks
-    computed the same ground (238,234,222), the same ink, the same 999px corner and the
-    same 11.5px size. Nothing separated them until the pointer was already on one, and
-    the ink they differ in is a fact about their content rather than about being
-    pressable. What separates them now is the marker the runtime writes on a control it
-    built, which is the one thing on the page that already knows the answer.
+    The count. A count that opens a worker list and a badge that counts finished tasks
+    once computed the same ground, ink, corner and size, and nothing separated them until
+    the pointer was already on one. The count is a tile now, but what says it can be
+    pressed is still the marker the runtime writes on a control it built, which is the
+    one thing on the page that already knows the answer.
 
     The request. A one-shot request is spent for good the moment its receipt lands, and a
     spent one kept its border at full strength and differed from a live one only by ink -
@@ -9128,11 +9127,6 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     chip = page.locator('.lf-command-facts > [role="button"]').first
     badge = page.locator(".lf-task-progress").first
     worn, still = chip.evaluate(face), badge.evaluate(face)
-    assert (worn["background"], worn["radius"], worn["size"]) == (
-        still["background"],
-        still["radius"],
-        still["size"],
-    ), "the fixture no longer has two pills that look alike, so this proves nothing"
     assert worn["offer"] == "button" and still["offer"] is None
     assert worn["cursor"] == "pointer" and still["cursor"] != "pointer", (
         f"a chip that opens a section and one that counts something read the same: "

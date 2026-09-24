@@ -140,6 +140,9 @@ def codex_run(
 
     from leaf.codex_adapter import run_adapter
     from leaf.detached import Handshake
+    from leaf.leases import release_on_termination
+
+    release_on_termination()
 
     # Tests run the carrier in the foreground, where nobody waits on a handshake.
     with Handshake(handshake) if handshake is not None else nullcontext() as answer:
@@ -731,10 +734,12 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 )
 def wait(dir: str | None, ack: str | None) -> None:
     """Confirm a delivery, if given, then wait for the next batch."""
+    from leaf.leases import release_on_termination
     from leaf.session import cmd_wait
 
     if dir is not None and ack is not None:
         raise click.UsageError("PAGE and --ack cannot be used together")
+    release_on_termination()
     try:
         outcome = cmd_wait(resolve_dir(dir) if dir else None, ack=ack)
     except RuntimeError as error:

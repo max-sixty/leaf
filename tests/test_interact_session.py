@@ -7874,6 +7874,36 @@ def test_a_connection_failure_in_the_delivery_loop_is_retried(
     assert attempts == ["codex-thread", "codex-thread"]
 
 
+def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
+    monkeypatch, tmp_path
+):
+    """Once a task owns no page, its adapter removes the log it wrote, and its
+    leases and locks go with their holders. Retiring, it reads every task's
+    delivery records and removes those whose pages are gone, so an ended task
+    leaves nothing; a record over a standing page stays for a later adapter of
+    its task."""
+    for name in CLAUDE_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: [])
+    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    standing = tmp_path / "standing"
+    standing.mkdir()
+    for task, page in (("ended-task", tmp_path / "gone"), ("codex-thread", standing)):
+        history = codex_model.delivery_dir(task) / "history"
+        history.mkdir(parents=True)
+        files_model.write_json(
+            history / "delivered.json",
+            {"format": codex_model.RECORD_FORMAT, "batches": [{"page": str(page)}]},
+        )
+    codex_adapter_model.adapter_log_path("codex-thread").write_text("started\n")
+
+    assert codex_adapter_model.run_adapter("codex") == 0
+    kept = codex_model.delivery_dir("codex-thread")
+    assert list(leases_model.sessions_home().iterdir()) == [kept]
+    assert [path.name for path in kept.rglob("*.json")] == ["delivered.json"]
+
+
 def test_a_delivery_already_being_carried_holds_back_the_next_one(
     codex_claimed_page, monkeypatch
 ):
@@ -9564,9 +9594,12 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert second.returncode == 2
     assert "another `leaf wait` is already active" in second.stderr
 
+    # Stopping a background command sends SIGTERM, which the wait unwinds from,
+    # so its lease file goes with it rather than outliving the session.
     first.terminate()
     first.communicate(timeout=10)
-    assert not leases_model.lock_is_held(lease_path)
+    assert not lease_path.exists()
+    assert not any(leases_model.sessions_home().iterdir())
 
 
 def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
@@ -9582,6 +9615,33 @@ def test_a_question_about_a_lease_does_not_turn_its_taker_away(tmp_path):
     assert lease is not None
     assert leases_model.take_lease(path) is None
     lease.close()
+
+
+def test_a_lock_file_ends_with_its_holder_and_a_waiting_taker_follows_the_name(
+    tmp_path,
+):
+    """A purpose lock's holder removes its file on the way out, so a session's
+    locks leave nothing behind. A taker already waiting on that file wakes holding
+    a lock on nothing anyone can find, so it takes the lock again on the name, and
+    excludes the next taker as a lock should."""
+    path = tmp_path / "purpose.lock"
+    entered = threading.Event()
+    release = threading.Event()
+
+    def take():
+        with events_model.flocked(path):
+            entered.set()
+            assert release.wait(10)
+
+    taker = threading.Thread(target=take)
+    with events_model.flocked(path):
+        taker.start()
+        time.sleep(0.2)  # the taker opens the file and waits on this lock
+    assert entered.wait(10)
+    assert leases_model.lock_is_held(path)
+    release.set()
+    taker.join(10)
+    assert not path.exists()
 
 
 def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(tmp_path):
@@ -10754,7 +10814,7 @@ def test_a_wait_that_ends_unnamed_leaves_no_start_mark():
     """A foreground wait returns before any tool hook runs, so nothing names its
     start; ending takes its mark with it, and the session's next wait is a new
     start. A named start's mark is already gone, and ending does not mind."""
-    mark = machine_model.state_home() / "sessions" / "s1.started"
+    mark = leases_model.session_state_path("s1", "started")
     for named in (False, True):
         watch = session_model.Watch(
             host_model.ClaudeCodeHarness(session="s1", agent="Claude")

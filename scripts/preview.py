@@ -668,7 +668,7 @@ def run_preview(
     source: Path, page: Path, launcher: Path, runtime: Path, user: bool
 ) -> None:
     """Take the slot, build it fresh, and serve it until this process ends."""
-    from leaf.leases import take_lease
+    from leaf.leases import release_lease, take_lease
 
     lease = take_lease(preview_lease(page))
     if lease is None:
@@ -676,9 +676,11 @@ def run_preview(
             f"another preview is serving {page}; stop that process, or choose "
             "another --slot"
         )
-    with lease:
+    try:
         discard_preview(page)
         serve_preview(source, page, launcher, runtime, user)
+    finally:
+        release_lease(lease)
 
 
 def serve_preview(

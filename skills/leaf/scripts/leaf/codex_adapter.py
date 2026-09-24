@@ -58,8 +58,8 @@ from .codex import (
     offer_delivery,
     open_stream_turn,
     record_path,
+    retire_gone_task_records,
     retry_delay,
-    session_state_path,
     set_stream_activity,
     start_app_server_delivery,
     stop_app_server,
@@ -74,7 +74,13 @@ from .detached import Handshake, start_detached
 from .event_log import flocked, read_cursor
 from .files import read_json
 from .host import CodexHarness, session_harness
-from .leases import adapter_is_live, adapter_lease_path, take_lease
+from .leases import (
+    adapter_is_live,
+    adapter_lease_path,
+    release_lease,
+    session_state_path,
+    take_lease,
+)
 from .machine import state_home
 from .schema import EVENTS_FILE
 from .service import (
@@ -587,7 +593,6 @@ def adapter_start_lock_path(session_id: str) -> Path:
 def capture_batch(session_id: str, reading) -> bool:
     """Persist one watcher batch in the session's collecting record."""
     lock = delivery_lock_path(session_id)
-    lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         captured = append_batch(
             session_id,
@@ -649,7 +654,6 @@ def _record_receipt(path: Path, batch_index: int) -> None:
 def _recover_receipt(session_id: str) -> bool:
     """Reconcile one accepted batch while its session still owns the page."""
     lock = delivery_lock_path(session_id)
-    lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         records = delivery_records(session_id)
         for path, record in records:
@@ -698,7 +702,6 @@ def _offer_queued_delivery(
         # Saying so is not work done: the loop goes on watching pages meanwhile.
         return False
     lock = delivery_lock_path(session_id)
-    lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         records = delivery_records(session_id)
         unoffered = next(
@@ -783,7 +786,7 @@ def run_adapter(
     lease.flush()
     watch = Watch(harness)
     if not watch.acquire():
-        lease.close()
+        release_lease(lease)
         raise RuntimeError(
             "another `leaf wait` is already active; stop it before starting delivery"
         )
@@ -791,7 +794,6 @@ def run_adapter(
     observer = None
     followers: list[tuple[threading.Thread, DeliveryTurn]] = []
     start_lock = adapter_start_lock_path(harness.session)
-    start_lock.parent.mkdir(parents=True, exist_ok=True)
 
     def follow(turn: DeliveryTurn) -> None:
         """Follow one started turn on its own thread, off the delivery loop.
@@ -812,6 +814,20 @@ def run_adapter(
         followers.append((follower, turn))
         follower.start()
 
+    def retire() -> None:
+        """Let this adapter's leases go, and with them, once the task owns no page,
+        the log this run wrote. Taken under the start lock, so no successor starts
+        until it is done; a task that still owns a page keeps the log for the next
+        adapter it starts. On the way out it retires every task's delivery records
+        whose pages are gone (`retire_gone_task_records`)."""
+        nonlocal leases_released
+        if not owned_pages(harness.session):
+            adapter_log_path(harness.session).unlink(missing_ok=True)
+        retire_gone_task_records()
+        watch.release()
+        release_lease(lease)
+        leases_released = True
+
     try:
         if app_server is not None:
             observer = TaskObserver(app_server, harness.session)
@@ -827,9 +843,7 @@ def run_adapter(
                 if not recovered:
                     with flocked(start_lock):
                         if not owned_pages(harness.session):
-                            watch.release()
-                            lease.close()
-                            leases_released = True
+                            retire()
                             return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
@@ -877,9 +891,7 @@ def run_adapter(
                     ):
                         time.sleep(1)
                         continue
-                    watch.release()
-                    lease.close()
-                    leases_released = True
+                    retire()
                     return reading.outcome or 0
             # A second a pass, as well as each time a page moves: the queued offer
             # and receipt recovery above answer to Codex, not to the page's files.
@@ -898,7 +910,7 @@ def run_adapter(
             follower.join(timeout=3)
         if not leases_released:
             watch.release()
-            lease.close()
+            release_lease(lease)
 
 
 def cmd_codex_start(
@@ -919,15 +931,10 @@ def cmd_codex_start(
     if app_server is not None:
         check_app_server_endpoint(app_server)
     launch_lock = adapter_start_lock_path(session_id)
-    launch_lock.parent.mkdir(parents=True, exist_ok=True)
     with starting_claim(page_dir), flocked(launch_lock):
-        if adapter_is_live(session_id):
-            record = adapter_lease_path(session_id).read_text()
-            try:
-                running = json.loads(record)["app_server"]
-            except (ValueError, KeyError, TypeError):
-                # An adapter built before the record named its transport.
-                return f"Codex delivery is already active for task {session_id}"
+        record = _running_adapter(session_id)
+        if record is not None:
+            running = record["app_server"]
             if app_server is not None and app_server != running:
                 raise RuntimeError(
                     f"Codex delivery is already active for task {session_id}"
@@ -951,6 +958,19 @@ def cmd_codex_start(
             timeout=START_TIMEOUT,
         )
     return f"Codex delivery started for task {session_id}{_transport(app_server)}"
+
+
+def _running_adapter(session_id: str) -> dict | None:
+    """The live adapter's lease record, naming its transport, or None when no
+    adapter holds the lease. An adapter can let go between the question and the
+    read, since only its retirement takes the start lock, and its record goes with
+    it; that reads as no adapter."""
+    if not adapter_is_live(session_id):
+        return None
+    try:
+        return json.loads(adapter_lease_path(session_id).read_text())
+    except FileNotFoundError:
+        return None
 
 
 def _transport(app_server: str | None) -> str:

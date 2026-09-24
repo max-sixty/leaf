@@ -38,6 +38,7 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    pass_write_tick,
     publish,
     read_page_data,
     record_claim,
@@ -3493,14 +3494,6 @@ def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
     stream.close()
 
 
-def _pass_write_tick() -> None:
-    """Let the filesystem clock move past the last write. A stamp taken inside that
-    write's tick also carries what the file holds, and the one after it does not
-    (`files.file_stamp`), so two readings of one page at rest agree only once both
-    are taken past it."""
-    time.sleep(time.clock_getres(files_model.WRITE_CLOCK))
-
-
 def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_dir):
     """The stream says what reading the page is at, once on arrival and again each
     time it changes, and the reading it names for a page at rest is the one a state
@@ -3508,7 +3501,7 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     only when they differ. Nothing else rides it: an append is news, and the state
     carrying it still comes by asking."""
     publish(page_dir)
-    _pass_write_tick()
+    pass_write_tick()
     stream, heard = _news(server)
     first = heard()
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
@@ -3524,7 +3517,7 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
     # stream's next look puts right. A state read never names one, taking its
     # reading under the log's own lease. So the agreement is read from a stream
     # opened once the append has landed, where both sides stamp a page at rest.
-    _pass_write_tick()
+    pass_write_tick()
     settled, heard_at_rest = _news(server)
     assert heard_at_rest() == json.loads(fetch(f"{server}/api/state")[1])["reading"]
     settled.close()

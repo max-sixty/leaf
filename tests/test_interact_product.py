@@ -24,6 +24,7 @@ from interact_support import (
     fragment_errors,
     live_versions,
     page_state,
+    pass_write_tick,
     publish,
     published,
     state_json,
@@ -61,6 +62,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
 
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.created and initial.revision == 1
+    pass_write_tick()
     existing = revisioning_model.activate_source(page_dir)
     assert existing.error is None and not existing.created and existing.revision == 1
     # A page whose reading has not moved answers from its last activation rather than
@@ -82,6 +84,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     assert unchanged.revision == 2 and files_model.list_revisions(page_dir) == [1, 2]
 
     source.write_text(PAGE.replace("</section>", ""))
+    pass_write_tick()
     refused = revisioning_model.activate_source(page_dir)
     assert refused.revision == 2 and not refused.created
     assert refused.error and "issue" not in refused.error

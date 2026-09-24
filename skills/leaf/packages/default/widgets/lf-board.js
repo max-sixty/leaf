@@ -8,7 +8,7 @@
  * and Escape or focus loss restores the origin. During a gesture the board wears
  * .lf-dragging for the whole gesture — the runtime's poll gates on it (no
  * version-follow, no foreign-action replay mid-gesture) — and a completed move
- * reports through #send as one absolute `move` action, indistinguishable on
+ * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. renderState receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
@@ -39,6 +39,7 @@ import {
   scrollerFor,
   PRESS,
   onMotionPreferenceChange,
+  rankAt,
   reducedMotion,
   scrollBehavior,
 } from "/runtime/widget-api.js";
@@ -469,7 +470,8 @@ customElements.define(
         );
     }
 
-    // One completed move, drag or keyboard: an absolute placement, sent once. The
+    // One completed move, drag or keyboard: the card's rank among the destination's
+    // other cards, sent once, so the move stays put whichever other moves stand. The
     // notice's word follows the branch the user can see — a card kept in its column
     // was reordered, not moved to where it already was. A refusal is restored by the
     // layer from the declared record plus its outbox, never from this gesture's DOM
@@ -481,7 +483,12 @@ customElements.define(
         detail: {
           card: card.id,
           to: to.id,
-          index: this.#cards(to).indexOf(card),
+          rank: rankAt(
+            this.#controller.read().state.move,
+            to.id,
+            this.#cards(to).indexOf(card),
+            card.id,
+          ),
         },
       });
       // A gesture can outlive the reading that enabled it. If admission has already

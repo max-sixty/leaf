@@ -13,8 +13,8 @@ single validating append door, per-event attribution, undo, and `version check`,
 and Leaf already has the coordinator a CRDT exists to avoid. SQLite as the authority
 would be the derived current-state file `AGENTS.md` rules out.
 
-What is wrong sits below that boundary. Most findings reduce to two missing
-identities: a row and a position.
+What is wrong sits below that boundary. Most findings reduce to one missing
+identity: a row.
 
 ## Row identity
 
@@ -75,16 +75,8 @@ row from the key and `bind`, at the door only (`lf-job-requests.js` repeats it).
 
 ## Position
 
-A `position` record stores an integer sibling index. The fold replays only winning
-moves, each splicing at an index measured against a list that included the moves it
-dropped, so undoing one card's move can shift another. (inferred; no reproducer yet)
-`markup_value` compares only the container, so a reorder within one container is
-invisible to `version check`. (read)
-
-Proposal: order as a `value`-recorded `rank` verb holding a fractional rank string (Figma's
-fractional indexing). Each row's order stands on its own coordinate, undo is exact,
-and `version check` compares it like any value. Boards keep the container record and
-take the rank in place of `index`. Write the undo reproducer before changing it.
+`markup_value` compares only a position record's container, so a reorder within one
+container is invisible to `version check`. (read)
 
 ## Read cost
 

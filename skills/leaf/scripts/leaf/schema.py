@@ -60,15 +60,13 @@ _RECORD_POSITION = {
         "kind": {"const": "position"},
         "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
         "value": {"type": "string", "minLength": 1},
-        # Where the unit sits among its siblings. Comparison stays at the
-        # container's granularity (see $state) — but a reader that has to *state*
-        # a position needs both halves, and taking a move back is one: the runtime
-        # reads the authored placement off the page before replay touches it, and
-        # a record naming only the column would put a card back on the right list
-        # in the wrong place.
-        "order": {"type": "string", "minLength": 1},
+        # The detail field holding the unit's rank among its container's siblings.
+        # Comparison stays at the container's granularity (see $state), but a
+        # reader that has to *state* a position needs both halves: a record naming
+        # only the column would put a card back on the right list in the wrong place.
+        "rank": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "within", "value", "order"],
+    "required": ["kind", "within", "value", "rank"],
     "additionalProperties": False,
 }
 _RECORD_BODY = {
@@ -405,6 +403,7 @@ EXTENSION_SCHEMA = {
         "x-space": {"enum": ["wide", "available"]},
         "x-measure": {"enum": ["surface", "group"]},
         "x-bound": {"enum": ["start", "end"]},
+        "x-history": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},

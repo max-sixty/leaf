@@ -7,7 +7,7 @@ repo_root=$(git rev-parse --show-toplevel)
 log="$repo_root/.tmp/wrangler-dev.log"
 release=${LEAF_SITE_RELEASE:-$(jq --raw-output .release "$repo_root/.tmp/site/_leaf/site.json")}
 
-# Chrome and Docker share this host, which is only ever true here: a reader's container
+# Chrome and Docker share this host, which is only ever true here: a user's container
 # runs on Cloudflare, so nothing in production starts one on the machine drawing the
 # page. Chromium answers a host IP-address change by flushing its socket pools with
 # ERR_NETWORK_CHANGED, loopback included, and starting a container adds a host interface.

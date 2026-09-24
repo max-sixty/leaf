@@ -207,6 +207,7 @@ widget's role on the page:
 | `x-page-navigation`  | `lf-tabs`                                                      |
 | `x-visual`           | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts`  |
 | `x-bound`            | `lf-activity`                                                  |
+| `x-history`          | `lf-activity`                                                  |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
@@ -249,7 +250,11 @@ detail}`: `action` is null for authored state; `value` is the typed record value
 the verb's name for a recordless verb that stands (null means undecided); `detail`
 retains generated-child labels and other declared event data. A per-part verb's state
 contains `units`, keyed by unit id, and a position verb's also contains `value`, a map
-from container id to the complete ordered ids it holds. Missing recordless units are
+from container id to the complete ordered ids it holds, and `ranks`, each listed unit's
+rank. A position record carries a rank rather than an index, so a unit's placement
+stands whichever other moves stand: dispatch `rankAt(state.<verb>, container, index,
+unit)` from `runtime/widget-api.js` for a unit dropped at `index` among the container's
+other units. Missing recordless units are
 undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 The controller ignores the renderer's return value. A live editor or pointer/keyboard
@@ -552,13 +557,13 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
         "properties": {
           "card": { "type": "string" },
           "to": { "type": "string" },
-          "index": { "type": "integer", "minimum": 0 }
+          "rank": { "type": "string" }
         },
-        "required": ["card", "to", "index"],
+        "required": ["card", "to", "rank"],
         "additionalProperties": false
       },
       "unit": "card",
-      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "order": "index" }
+      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "rank": "rank" }
     }
   },
   "x-awaits": {
@@ -685,8 +690,12 @@ words while the shared element wires each offered child into the server-projecte
 request seat, registers its answer, and paints its lifecycle. A package that needs
 another control shape uses the same widget controller: request entries carry
 availability, `request` carries the seat lifecycle, and `dispatch({kind: "request",
-verb, detail})` sends it. `watchHistory` remains the audit-log surface for widgets
-that intentionally render events themselves.
+verb, detail})` sends it.
+
+A widget that renders the page's history declares `x-history` and reads it through
+`watchHistory(owner, callback)`: the server's rows, newest first, each already
+carrying its thread, whether it was undone, and a gesture's words as the document it
+was made in had them. The widget words those facts; it does not fold the log.
 
 ```js
 defineRequestElement("lf-operations", {

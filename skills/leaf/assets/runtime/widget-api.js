@@ -11,6 +11,8 @@ import { defineRequestElement } from "./request-elements.js";
 
 export { LitElement, html } from "../vendor/browser-runtime.js";
 export { widgetController } from "./widget-controller.js";
+// The rank a position record carries for a unit dropped at an index in a container.
+export { rankAt } from "./projection/model.js";
 export async function mountSpecimen(frame, options) {
   const owner = await import("./specimen.js");
   return owner.mountSpecimen(frame, options);

@@ -19,8 +19,6 @@ const lifecycles = new WeakMap();
 let lifecycleObserver = null;
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
-let orderedRenders = new Map();
-let orderedRenderQueued = false;
 const gestureDeferred = new Set();
 
 document.addEventListener(DRAGGING_CHANGED, () => {
@@ -63,38 +61,6 @@ function refreshAncestorControllers(owner) {
     const pending = [...ancestorRefreshes];
     ancestorRefreshes.clear();
     for (const lifecycle of pending) lifecycle.refresh();
-  });
-}
-
-function queueOrderedRender(id, reading, handle, render) {
-  let release;
-  const completion = new Promise((resolve) => {
-    release = resolve;
-  });
-  void handle.present(reading, completion);
-  const previous = orderedRenders.get(id);
-  orderedRenders.set(id, { render, release });
-  // The replacement hold is already installed, so the superseded publication cannot
-  // briefly look presented between two semantic readings in this rendering turn.
-  previous?.release();
-  if (orderedRenderQueued) return;
-  orderedRenderQueued = true;
-  queueMicrotask(() => {
-    orderedRenderQueued = false;
-    const pending = orderedRenders;
-    orderedRenders = new Map();
-    const order = applicationState.read().effective.widgets.keys();
-    for (const id of order) {
-      const queued = pending.get(id);
-      if (!queued) continue;
-      pending.delete(id);
-      queued.render();
-      queued.release();
-    }
-    for (const queued of pending.values()) {
-      queued.render();
-      queued.release();
-    }
   });
 }
 
@@ -171,9 +137,6 @@ function createWidgetController(owner) {
   const selected = applicationState.selectWidget(descriptor);
   const stateDeclaration = descriptor.declaration["x-state"] ?? {};
   const stateVerbs = new Set(Object.keys(stateDeclaration));
-  const orderedPosition = Object.values(stateDeclaration).some(
-    (spec) => spec.unit === "widget" && spec.record?.kind === "position",
-  );
   const subscriptions = new Set();
   let deferred = false;
   let deferredReading = null;
@@ -265,25 +228,6 @@ function createWidgetController(owner) {
     }
   };
 
-  const scheduleRender = (reading, callbacks) => {
-    if (!orderedPosition) {
-      presentRender(reading, callbacks);
-      return;
-    }
-    const handle = render();
-    if (!handle) {
-      presentRender(reading, callbacks);
-      return;
-    }
-    queueOrderedRender(descriptor.id, reading, handle, () => {
-      if (owner.isConnected && stopSelection)
-        presentRender(
-          reading,
-          callbacks.filter((callback) => subscriptions.has(callback)),
-        );
-    });
-  };
-
   const holdRender = (reading) => {
     deferredReading = reading;
     const handle = render();
@@ -307,7 +251,7 @@ function createWidgetController(owner) {
     const hold = deferredHold;
     deferredReading = null;
     deferredHold = null;
-    scheduleRender(latest, [...subscriptions]);
+    presentRender(latest, [...subscriptions]);
     hold?.release();
   };
 
@@ -319,7 +263,7 @@ function createWidgetController(owner) {
         gestureDeferred.add(resumeGestureRender);
       return;
     }
-    scheduleRender(reading, [...subscriptions]);
+    presentRender(reading, [...subscriptions]);
   };
 
   const connect = () => {
@@ -378,7 +322,7 @@ function createWidgetController(owner) {
         throw new TypeError("A widget subscription needs a callback");
       subscriptions.add(callback);
       if (!stopSelection) connect();
-      else scheduleRender(read(), [callback]);
+      else presentRender(read(), [callback]);
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
@@ -481,7 +425,7 @@ function createWidgetController(owner) {
         const hold = deferredHold;
         deferredReading = null;
         deferredHold = null;
-        if (subscriptions.size) scheduleRender(latest, [...subscriptions]);
+        if (subscriptions.size) presentRender(latest, [...subscriptions]);
         hold?.release();
         invalidateDom();
         return latest;

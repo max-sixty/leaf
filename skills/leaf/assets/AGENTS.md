@@ -452,8 +452,8 @@ Each Thread's `unread` is the one reading of what the user has not read. The
 Threads toggle's dot and label, the panel's **Unread** jump and per-thread counts, the
 **New since you last looked** boundaries, a margin entry's dot and its Page Map row
 all paint it, so they change together. Reading is bookkeeping and never moves the
-reader: a mark inside a conversation is drawn in room the content keeps whether or not
-it is unread, so a receipt changes no box the reader is looking at. The server counts
+user: a mark inside a conversation is drawn in room the content keeps whether or not
+it is unread, so a receipt changes no box the user is looking at. The server counts
 a reply, reaction, widget answer, resolve, or reopen as reading what the thread held
 before it; the page adds exposure: a whole prose body shown in one surface, whatever
 its own scrollers still hold, since geometry cannot tell how much of a wide code line

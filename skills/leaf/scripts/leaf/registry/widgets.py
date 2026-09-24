@@ -634,6 +634,7 @@ def _validate_widget_interactions(
             "x-shadow",
             "x-thread-surface",
             "x-conversation",
+            "x-history",
         )
         if entry.get(key) and not entry["x-upgrade"]
     ]

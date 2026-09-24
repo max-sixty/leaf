@@ -136,6 +136,7 @@
           <a href="#x-example"><code>x-example</code></a>
           <a href="#x-exhibit"><code>x-exhibit</code></a>
           <a href="#x-guidance"><code>x-guidance</code></a>
+          <a href="#x-history"><code>x-history</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-language"><code>x-language</code></a>
           <a href="#x-lines"><code>x-lines</code></a>
@@ -341,6 +342,27 @@
                 package-wide guidance, so instructions travel with the contribution they
                 explain rather than with whichever package happened to distribute it.
               </p>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-history">
+            <h3><code>x-history</code></h3>
+            <div class="reference-copy">
+              <p>
+                <code>true</code>: the module renders the page's history, so a page
+                whose markup holds one is served the <code>history</code> reading beside
+                its state and a page without one does not pay for it.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-history contract">Full contract</summary>
+                <p>
+                  The reading is the newest 50 logged moves, newest first, each naming
+                  who moved, what they did, the thread it belongs to and that thread's
+                  title, whether a later undo took it back, and for a widget gesture the
+                  words its ids had in the document it was made in, so a later version
+                  rewording or removing what was chosen leaves the row as made. The
+                  module reads it through <code>watchHistory</code>.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-inline">

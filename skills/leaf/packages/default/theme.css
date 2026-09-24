@@ -35,9 +35,12 @@
     * var(--lf-grid-gap)) / var(--lf-grid-count)), 1fr)));
   gap: var(--lf-grid-gap);
   align-items: start;
-  margin: 24px 0;
   container: lf-grid / inline-size;
 }
+/* An authored grid is a block in the page's flow and takes a block's margin. A box a
+ * package marks as a grid sits wherever that package places it, often as an item of
+ * its own grid, where a margin does not collapse into the gap and adds to it. */
+lf-grid { margin: 24px 0; }
 lf-grid[columns="1"] { --lf-grid-count: 1; }
 lf-grid[columns="2"] { --lf-grid-count: 2; }
 lf-grid[columns="3"] { --lf-grid-count: 3; }
@@ -51,6 +54,11 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
 /* The gap is the space between cells. A widget's own block margins are for the page's
  * flow and would add to it, so the reset outranks any one-tag widget rule. */
 :is(lf-grid, :where([data-lf-reading-role="grid"])) > :nth-child(n) { margin: 0; }
+/* A surface fills its cell. A table sizes to its content, so a table of short rows
+ * stood in a third of a half-page cell beside a log that filled the other half. */
+:is(lf-grid, :where([data-lf-reading-role="grid"])) > :is(table, * > table) {
+  width: 100%;
+}
 @container lf-grid (width < 600px) {
   :is(lf-grid, :where([data-lf-reading-role="grid"])) > * {
     grid-column: var(--lf-grid-stack, auto);

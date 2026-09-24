@@ -88,6 +88,8 @@ it does not become another kind of page, so its comments and anchors stay put.
   holds a surface — a metric, chart, table, list or log, with at most a caption —
   rather than paragraphs; a row of headline numbers is a grid of `lf-metric` tiles.
   A grid of paragraphs is prose cut into columns, and reads worse than the column.
+  A grid stands at the wide width, centred on the column, so it lines up with the
+  prose around it; give it `data-width="available"` only when the tiles are the page.
 - **A comparison** is `lf-compare`, which keeps its variants paired at any width.
 - **Controls beside evidence** is a playground, which declares how its controls
   operate its preview. Use an `lf-workspace` of plain panes for task regions that

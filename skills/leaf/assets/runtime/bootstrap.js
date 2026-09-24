@@ -108,7 +108,7 @@
       root.dataset.lfRestoreSurface = auxiliarySurface;
 
     const trayWidth = parseFloat(localStorage.getItem(scope + "lf-tray-slot-width"));
-    if (trayWidth) root.style.setProperty("--lf-tray-slot-choice", `${trayWidth}px`);
+    if (trayWidth) root.style.setProperty("--lf-tray-slot-width", `${trayWidth}px`);
     const panelWidth = parseFloat(
       localStorage.getItem(scope + "lf-thread-panel-width"),
     );

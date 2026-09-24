@@ -35,16 +35,15 @@ let activeResize = null;
  * would not slide in with the tray it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
-export function drawnEdge({ side, noun, wide, min, prop, key, over, when, land }) {
+export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
   const handles = new Set();
   let chosen = wide;
-  // What the window will allow. Beside the page, half of it, which is the bargain a
-  // strip-taking region's covering query strikes for its default width — the page keeps
-  // at least what the region takes — asked here of whatever width this user chose. Over
-  // the page the region takes nothing from it, so the only bound there is the window
-  // itself. `over` is asked rather than stored, so no reading of it can hold an answer
-  // from a window that has gone.
-  const cap = () => document.documentElement.clientWidth / (over() ? 1 : 2);
+  // What the window will allow: the window itself. How much of the page a region may take
+  // before it covers the page instead is not this bound's to say; the room the region
+  // leaves decides that, the same way on either side (auxiliary-surfaces.js,
+  // `standsBeside`), so a user drawing a region past a usable page gets the region they
+  // drew, covering the page, rather than an edge that stops short of their hand.
+  const cap = () => document.documentElement.clientWidth;
   // The floor gives way to the cap and not the other way about: a window too narrow for
   // the floor is still the window, and a region wider than the one it stands in has put
   // its own controls off the screen. Asked in two places and written once — of a width the

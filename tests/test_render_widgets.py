@@ -9098,9 +9098,10 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     overlap on any window under about 1320px, which is most of them, so the strip comes
     out of the page the way the thread panel's does on the other side.
 
-    Below twice the tray's own width there is no strip to take, and it covers instead —
-    the same bargain at the same ratio the panel strikes, so a user who has learned
-    one edge has learned the other."""
+    Where the strip would leave less than a usable page beside it, it covers instead —
+    the rule the panel follows, asked of the room the tray leaves rather than of the
+    window, so a narrow window and a tray drawn wide on a wide one come to the same
+    answer, and a user who has learned one edge has learned the other."""
     page = open_page(browser, serve(ASKS_PAGE))
     geometry = """() => ({
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
@@ -9113,9 +9114,10 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     resized(page, 1200, 800)
     banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
-    page.wait_for_function(
-        """() => getComputedStyle(document.body).borderLeftWidth !== '0px'"""
-    )
+    covering = page.locator("body[data-lf-covering-surface='lf-asks']")
+    strip = "() => getComputedStyle(document.body).borderLeftWidth"
+    page.wait_for_function(f"() => ({strip})() !== '0px'")
+    expect(covering).to_have_count(0)
     wide = page.evaluate(geometry)
     assert wide["column"] >= wide["tray"], (
         f"the tray covers the column: it ends at {wide['tray']} and the column "
@@ -9123,12 +9125,33 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     )
     assert wide["sideways"] == 0, "the page scrolls sideways with the tray up"
 
-    # Narrow enough and the strip is more than the page can give, so it covers.
-    resized(page, 560, 800)
-    page.wait_for_function(
-        """() => getComputedStyle(document.body).borderLeftWidth === '0px'"""
-    )
+    # At 610 the default 300px strip would leave 310, short of a usable page.
+    resized(page, 610, 800)
+    expect(covering).to_have_count(1)
+    assert page.evaluate(strip) == "0px"
     assert page.evaluate(geometry)["sideways"] == 0
+    resized(page, 1200, 800)
+    expect(covering).to_have_count(0)
+
+    # Drawn wide enough on a wide window, the strip is more than the page can give,
+    # so the tray covers. One step back and the page has its usable width again.
+    edge = page.locator(".lf-asks-panel > .lf-edge")
+    edge.focus()
+    for _ in range(40):
+        if covering.count():
+            break
+        page.keyboard.press("ArrowRight")
+    expect(covering).to_have_count(1)
+    left = page.evaluate(
+        """() => innerWidth
+             - document.querySelector('.lf-asks-panel').getBoundingClientRect().width"""
+    )
+    assert left < 320, f"the tray covered with {left}px of page beside it"
+    assert page.evaluate(strip) == "0px"
+    page.keyboard.press("ArrowLeft")
+    expect(covering).to_have_count(0)
+    beside = page.evaluate(geometry)
+    assert beside["column"] >= beside["tray"], beside
 
 
 def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):

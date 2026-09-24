@@ -1526,7 +1526,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px)); margin: 0;
     overflow: hidden; }
-  .lf-margin-preview[data-lf-thread]:popover-open { display: flex; flex-direction: column; }
+  .lf-margin-preview[data-lf-thread]:not([hidden]) { display: flex; flex-direction: column; }
   .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-close { flex: none; }

@@ -2569,9 +2569,12 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
+    # Out of the thread onto what it is about, then letting go of that takes the card.
+    page.keyboard.press("Escape")
+    expect(page.locator("#map-11")).to_be_focused()
+    expect(preview).to_be_visible()
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
-    page.keyboard.press("Escape")
 
     page.evaluate(
         """() => new Promise(resolve => {
@@ -3720,7 +3723,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
-    page.keyboard.press("Escape")
+    leave_card_by_its_target(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.locator(".lf-page-map-dialog")
@@ -5050,6 +5053,10 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     thread.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(thread).to_have_attribute("aria-expanded", "true")
+    # Out of the thread onto the block it is about; letting go of that takes the card.
+    page.keyboard.press("Escape")
+    expect(page.locator("#how-cap")).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(thread).to_have_attribute("aria-expanded", "false")
@@ -5629,7 +5636,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss conversation")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to page")
     expect(preview.locator(".lf-conversation-thread")).to_be_focused()
     expect(preview.locator("textarea")).to_be_visible()
     expect(preview.locator("textarea")).to_have_value("Keep this draft visible.")
@@ -5637,11 +5644,17 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.locator(".lf-margin-preview-close").click()
     page.keyboard.press("Enter")
     expect(preview.locator("textarea")).to_be_visible()
+    # The card is anchored to a target and hoisted into the chrome, so it lands the
+    # user on that target rather than on the marker it hung from, which a `t` from
+    # the page would never have stood them on. Letting go of the target takes the card.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    assert page.evaluate(
+        "() => document.activeElement !== document.body && "
+        "!document.activeElement.closest('.lf-chrome')"
+    )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    # The card is anchored to a passage and hoisted into the chrome, so it lands the
-    # user on the page rather than on the marker it hung from, which a `t` from the
-    # page would never have stood them on.
     assert page.evaluate("() => document.activeElement === document.body")
     # The walk is over the markers the viewport holds and never scrolls to reach one,
     # which is what this case is named for. So it starts at the first of them and steps
@@ -5769,7 +5782,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
           document.addEventListener('focusin', firstFocus);
           const painted = new Promise(resolve => requestAnimationFrame(() => {
             const box = card.getBoundingClientRect();
-            resolve({open: card.matches(':popover-open'),
+            resolve({open: !card.hidden,
                      thread: card.hasAttribute('data-lf-thread'),
                      opacity: getComputedStyle(card).opacity,
                      left: box.left,
@@ -6009,6 +6022,11 @@ def test_a_new_anchored_comment_keeps_the_users_conversation_view(
         )
         assert page.evaluate("() => document.activeElement === document.body")
     else:
+        # A card's conversation releases to the passage it is about, beside which the
+        # card stays; letting go of the passage takes both.
+        expect(preview).to_be_visible()
+        expect(page.locator("#mounts-p")).to_be_focused()
+        page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
@@ -6055,7 +6073,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
             preview.locator(f'.lf-conversation-thread[data-thread="{sent["id"]}"]')
         ).to_be_focused()
 
-    # The thread releases to the surface holding it.
+    # The thread releases to what holds it, which then lets go.
     page.keyboard.press("Escape")
     if panel_open:
         # In Threads the thread releases to the whole panel, which closes on the next.
@@ -6063,7 +6081,36 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
         page.keyboard.press("Escape")
         expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
     else:
+        # A card's thread releases to the target it is about, and the card stays
+        # beside it until the user lets go of that.
+        expect(preview).to_be_visible()
+        assert page.evaluate(
+            "() => !document.activeElement.closest('.lf-chrome') && "
+            "document.activeElement !== document.body"
+        )
+        page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
+ON_THE_PAGE = (
+    "() => document.activeElement !== document.body && "
+    "!document.activeElement.closest('.lf-chrome')"
+)
+
+
+def leave_card_by_its_target(page):
+    """Escape from a card's thread onto the target it is about, then let go of both.
+
+    The card stays beside the target the first press lands on, because the user still
+    stands at it; letting go of the target is what takes the card down.
+    """
+    preview = page.locator(".lf-margin-preview")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_visible()
+    assert page.evaluate(ON_THE_PAGE)
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
 
@@ -6075,10 +6122,140 @@ def seeded_thread(page, page_dir, passage):
     with sending(page, f"the comment on {passage}"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(page_dir)[-1]
-    page.keyboard.press("Escape")  # out of the reply box the send landed in
-    page.keyboard.press("Escape")  # and off the card holding it
+    page.keyboard.press(
+        "Escape"
+    )  # out of the thread the send landed in, onto its passage
+    page.keyboard.press("Escape")  # and letting go of the passage takes the card
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     return sent
+
+
+def test_standing_on_a_commented_element_shows_its_thread_beside_it(browser, serve):
+    """A thread belongs to the element it is about, so both stand together.
+
+    Arriving at the element by keyboard puts its card up without taking the user off
+    the element; the element keeps its ring and the card stands clear of it. A press
+    on the element leaves the card, since the user is still there, while a press
+    anywhere else on the page, or letting go, takes it down.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1201, 900)
+    sent = seeded_thread(page, serve.page_dir, "#mounts-p")
+    preview = page.locator(".lf-margin-preview")
+    card = preview.locator(f'.lf-conversation-thread[data-thread="{sent["id"]}"]')
+    passage = page.locator("#mounts-p")
+
+    # Keyboard modality, then the user lands on the element as a go-to hint puts them.
+    page.keyboard.press("Tab")
+    passage.evaluate("node => { node.tabIndex = -1; node.focus(); }")
+    assert passage.evaluate("node => node.matches(':focus-visible')")
+    expect(card).to_be_visible()
+    expect(passage).to_be_focused()
+    boxes = page.evaluate(
+        """() => ({
+          card: document.querySelector('.lf-margin-preview').getBoundingClientRect(),
+          passage: document.querySelector('#mounts-p').getBoundingClientRect(),
+        })"""
+    )
+    card_box, passage_box = boxes["card"], boxes["passage"]
+    assert (
+        card_box["left"] >= passage_box["right"]
+        or card_box["top"] >= passage_box["bottom"]
+        or card_box["bottom"] <= passage_box["top"]
+    ), boxes
+
+    # Letting go of the element takes its card.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+
+    # A pointer on the passage the card is about is standing there too, holding
+    # nothing, and Escape takes the card from there.
+    passage.evaluate("node => node.removeAttribute('tabindex')")
+    marker = page.locator('[data-lf-margin-for="mounts-p"] .lf-margin-marker')
+    marker.click()
+    expect(card).to_be_focused()
+    passage.click()
+    expect(preview).to_be_visible()
+    assert page.evaluate("() => document.activeElement === document.body")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    # A press elsewhere on the page is standing somewhere else.
+    marker.click()
+    expect(card).to_be_focused()
+    page.locator("h1").click()
+    expect(preview).to_be_hidden()
+
+
+def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, serve):
+    """With Threads open, the panel's one expanded thread is the element's card.
+
+    Arriving at a commented element by keyboard expands that element's thread in the
+    list, brings it into the list's view, and leaves the user on the element, with no
+    margin card beside it. A thread of that element already expanded is where the user
+    is on it, perhaps mid-reply, so it stays. A pointer that lands on an element asked
+    for nothing there, and the list stays as it is.
+    """
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 380)
+    first = seeded_thread(page, serve.page_dir, "#mounts-p")
+    second = seeded_thread(page, serve.page_dir, "#heater-p")
+    third = seeded_thread(page, serve.page_dir, "#mounts-p")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    threads = page.locator(".lf-thread-panel")
+    expanded = threads.locator(".lf-thread[open]")
+    # Its title whole in the list's view: the thread the list shows is the one it names.
+    in_view = """thread => {
+      const list = thread.closest('leaf-thread-list').getBoundingClientRect();
+      const box = thread.querySelector(':scope > .lf-thread-summary')
+        .getBoundingClientRect();
+      return box.top >= list.top && box.bottom <= list.bottom;
+    }"""
+
+    def card(sent):
+        return threads.locator(f'.lf-thread[data-id="{sent["id"]}"]')
+
+    # Keyboard modality without Tab, whose own landing in the list would scroll it.
+    def arrive(selector):
+        page.keyboard.press("Shift")
+        page.locator(selector).evaluate("node => { node.tabIndex = -1; node.focus(); }")
+        expect(page.locator(selector)).to_be_focused()
+        assert page.locator(selector).evaluate("node => node.matches(':focus-visible')")
+
+    for passage, sent in (("#heater-p", second), ("#mounts-p", first)):
+        # Out of the list's view first, so the arrival has to bring it back.
+        card(sent).evaluate(
+            """thread => {
+              const list = thread.closest('leaf-thread-list');
+              list.scrollTop = thread.offsetTop > list.scrollHeight / 2
+                ? 0 : list.scrollHeight;
+            }"""
+        )
+        assert not card(sent).evaluate(in_view)
+        arrive(passage)
+        expect(expanded).to_have_attribute("data-id", sent["id"])
+        expect(page.locator(passage)).to_be_focused()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        page.wait_for_function(
+            f"() => ({in_view})(document.querySelector("
+            f"'.lf-thread-panel .lf-thread[data-id=\"{sent['id']}\"]'))"
+        )
+
+    # The user opens the element's other thread; arriving back at the element keeps it.
+    card(third).locator(":scope > .lf-thread-summary").click()
+    expect(expanded).to_have_attribute("data-id", third["id"])
+    arrive("#mounts-p")
+    expect(expanded).to_have_attribute("data-id", third["id"])
+
+    # A pointer on the other element focuses it without keyboard arrival.
+    page.locator("#heater-p").click()
+    expect(page.locator("#heater-p")).to_be_focused()
+    assert not page.locator("#heater-p").evaluate(
+        "node => node.matches(':focus-visible')"
+    )
+    expect(expanded).to_have_attribute("data-id", third["id"])
 
 
 def test_a_note_walked_on_inside_the_panel_is_left_by_the_list_holding_it(
@@ -6154,12 +6331,12 @@ def test_a_marker_pressed_with_threads_open_is_left_by_its_thread(browser, serve
 
 @pytest.mark.parametrize("entry", ["note", "comment"])
 def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, entry):
-    """The card a press put up is one level to take off whatever thread it shows.
+    """The card a press put up adds no level whatever thread it shows.
 
-    `t` walks the card on to the next thread without adding a level, so the one Escape
-    still closes it. The landing is the page: neither the note nor the control `c` was
-    pressed from is standing any more, and the margin entry the card now hangs from is
-    one the user never stood on.
+    `t` walks the card on to the next thread without adding a level, so the way out is
+    still the thread's target and then the page: neither the note nor the control `c`
+    was pressed from is standing any more, and the margin entry the card now hangs from
+    is one the user never stood on.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6186,11 +6363,9 @@ def test_a_card_stays_its_press_to_take_off_when_it_moves_on(browser, serve, ent
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(card).to_be_focused()
 
-    # The card is the one level standing, and it lands the user on the page it is
-    # anchored to rather than on the margin control it hangs from.
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    # The card lands the user on the target it is anchored to rather than on the
+    # margin control it hangs from.
+    leave_card_by_its_target(page)
 
 
 def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve):
@@ -6199,8 +6374,9 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     The card holds the margin's context while it is up, so a cluster the user unfolded
     stays open as `t` walks the card on to a thread on a different entry. Landing on the
     entry the card now hangs from would hand the next press a fold belonging to an entry
-    somewhere else, so the card lands on the page and the cluster answers after it, at
-    the entry the user actually unfolded.
+    somewhere else, so the card lands on its target and the cluster answers next, at the
+    entry the user actually unfolded. Standing there is standing at another target,
+    which takes the card.
     """
     page = open_page(
         browser,
@@ -6243,14 +6419,15 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     expect(options).to_be_visible()
 
     page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    expect(preview).to_be_visible()
+    expect(page.locator("#insert")).to_be_focused()
     expect(options).to_be_visible()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
 
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
+    expect(preview).to_be_hidden()
 
 
 @pytest.mark.parametrize("second", ["note", "marker"])
@@ -6260,9 +6437,8 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     """A press from outside replaces what the card shows rather than stacking a level.
 
     The card shows one thread, so the second note or marker changes its contents and
-    leaves one card standing, as a pointer press would have after the first card
-    light-dismissed. One Escape closes it, and the landing is the page it is anchored
-    to: neither note nor marker is a place the user was standing.
+    leaves one card standing. Its way out is the target it is anchored to and then the
+    page: neither note nor marker is a place the user was standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
@@ -6287,10 +6463,8 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     expect(card).to_be_focused()
 
     # One card is standing whichever press put this thread in it, so there is one way
-    # out of it: the page it is anchored to.
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    # out of it: the target it is anchored to.
+    leave_card_by_its_target(page)
 
 
 # Read the card with the selected target's whole control cluster. A card the rail cannot
@@ -6632,16 +6806,14 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    leave_card_by_its_target(page)
     marker.hover()
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    page.keyboard.press("Escape")
+    leave_card_by_its_target(page)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()

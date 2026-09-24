@@ -7,7 +7,10 @@
    edge on the visible edge, takes the room from the cluster's left edge to that edge
    within the same measures, and stands under the cluster when its whole height fits
    there (`below`), else over it when it fits there (`above`), else under it again. It
-   crosses the reading column by no more than the rail's shortfall.
+   crosses the reading column by no more than the rail's shortfall. Where that crossing
+   reaches the `target` the card is about, under and over are measured from the target
+   and cluster together, so a user standing on the target sees it and its threads at
+   once.
 
    The card is never shortened to make any of that true. Its height is capped by the
    boundary alone, and the spot is then clamped inside the boundary, so a card too tall
@@ -25,6 +28,7 @@ const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 export function threadCardGeometry({
   cluster,
+  target = null,
   boundary,
   gap,
   minWidth,
@@ -39,8 +43,10 @@ export function threadCardGeometry({
     ? Math.min(preferred, room)
     : clamp(boundary.right - cluster.left, minimum, preferred);
   const height = heightAt(width);
-  const under = cluster.bottom + gap;
-  const over = cluster.top - gap - height;
+  const x = beside ? cluster.right + gap : boundary.right - width;
+  const clears = !beside && target && x < target.right ? [cluster, target] : [cluster];
+  const under = Math.max(...clears.map((box) => box.bottom)) + gap;
+  const over = Math.min(...clears.map((box) => box.top)) - gap - height;
   const placement = beside
     ? "right"
     : under + height <= boundary.bottom || over < boundary.top
@@ -49,7 +55,7 @@ export function threadCardGeometry({
   const y = { right: cluster.top, below: under, above: over }[placement];
   return {
     placement,
-    x: beside ? cluster.right + gap : boundary.right - width,
+    x,
     y: clamp(y, boundary.top, boundary.bottom - height),
     width,
     detached: cluster.bottom <= boundary.top || cluster.top >= boundary.bottom,

@@ -5511,8 +5511,8 @@ RING_SCOPE_SURFACE = {
     ),
     "the thread list": (".lf-thread-panel.open", None),
     "a walked thread": (".lf-thread-panel.open", None),
-    "an inline thread": (".lf-margin-preview:popover-open", None),
-    "a thread card": (".lf-margin-preview:popover-open", None),
+    "an inline thread": (".lf-margin-preview:not([hidden])", None),
+    "a thread card": (".lf-margin-preview:not([hidden])", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
     "passage search": (".lf-page-search:not([hidden])", None),
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.

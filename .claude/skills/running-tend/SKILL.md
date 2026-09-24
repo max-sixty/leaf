@@ -7,8 +7,12 @@ description: Project-specific guidance loaded by tend workflows alongside AGENTS
 
 ## Landing
 
-Work from Tend lands as a pull request that a maintainer merges. The bot has
-write access, and the `Merge access` ruleset holds merging to admins.
+Tend uses `merge: yolo`. Merge a pull request without waiting for maintainer
+approval when it makes a modest change that fixes tests, the relevant CI checks
+pass on the exact pull request head, and the claimed fix is verified by those
+checks. This includes test-owned failures and small product fixes needed to make
+the tests pass. Changes to workflows, Tend's configuration, CODEOWNERS, or agent
+instructions require the control-plane owner's fresh approval.
 
 Merging squashes, and the repository is set to `PR_TITLE` / `PR_BODY`, so a
 description is `main`'s commit message for that change rather than review

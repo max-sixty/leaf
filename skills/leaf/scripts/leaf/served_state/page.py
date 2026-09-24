@@ -50,6 +50,7 @@ def project_activity(
         now,
         (live_stream or {}).get("activity"),
         canonical_stream_reply(present, now, (live_stream or {}).get("reply")),
+        (live_stream or {}).get("reply_bindings"),
     )
 
 

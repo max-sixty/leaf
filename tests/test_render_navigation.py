@@ -8577,6 +8577,125 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     expect(page.locator("#second-decision")).to_be_focused()
 
 
+def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
+    """The Ask walk records the same history the thread walk does: one entry for a walk
+    to Asks somewhere else however far it goes, so Back returns to where the user was
+    reading before it, and a walk that crosses from threads to Asks is still one walk."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
+    url = serve(
+        leaf_page(
+            "Back from an ask",
+            f"""
+<h1 id="h">Back from an ask</h1>
+<section id="near"><p>A question sits at the top.</p></section>
+<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
+<lf-options id="first" choose>
+  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
+  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
+</lf-options></lf-ask>
+<section id="above">{filler}</section>
+<lf-ask id="second-decision"><h2>Who fills them?</h2>
+<lf-options id="second" choose>
+  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
+  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
+</lf-options></lf-ask>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "above"},
+            "text": "A question about the filler.",
+        },
+    )
+    page = open_page(browser, url)
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    assert reading > 2000
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#second-decision")).to_be_focused()
+    scroll_settled(page)
+    landed = page.evaluate("document.scrollingElement.scrollTop")
+    assert landed < reading - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.keyboard.press("Shift+a")
+    expect(page.locator("#first-decision")).to_be_focused()
+    scroll_settled(page)
+    walked = page.evaluate("document.scrollingElement.scrollTop")
+    assert walked < landed - 1000
+    assert page.evaluate("history.length") == entries + 1
+
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+    # From the bottom again: `t` travels to the thread just below the first Ask, and
+    # `a` from there to the second continues that walk rather than starting another,
+    # so one Back skips the thread's landing and returns to the bottom.
+    page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
+    page.keyboard.press("t")
+    page.wait_for_function("() => document.activeElement?.closest('[data-thread]')")
+    scroll_settled(page)
+    page.keyboard.press("a")
+    expect(page.locator("#second-decision")).to_be_focused()
+    scroll_settled(page)
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+
+def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):
+    """An Ask in front of the user whose arrival region is not still moves the page,
+    since the arrival puts the region's start at the top of the window, and a press
+    that moves the page records where the user was reading. A draft declares no region,
+    so its region runs up from the heading its context starts under."""
+    context = "".join(f"<p>Context paragraph {n}.</p>" for n in range(8))
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(40))
+    url = serve(
+        leaf_page(
+            "Back from a draft",
+            f"""
+<h1 id="h">Back from a draft</h1>
+<section id="above">{filler}</section>
+<h2 id="context">The invitation</h2>
+{context}
+<lf-draft id="note" needed><pre>The sample workshop is in the blue room.</pre></lf-draft>
+<section id="below">{filler}</section>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    page.evaluate(
+        "document.scrollingElement.scrollBy({top: document.getElementById('note')"
+        ".getBoundingClientRect().top - 70, behavior: 'instant'})"
+    )
+    assert page.evaluate(
+        "document.getElementById('context').getBoundingClientRect().bottom < 0"
+    )
+    reading = page.evaluate("document.scrollingElement.scrollTop")
+    entries = page.evaluate("history.length")
+
+    page.keyboard.press("a")
+    expect(page.locator("#note")).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("document.scrollingElement.scrollTop") < reading - 100
+    assert page.evaluate("history.length") == entries + 1
+    page.go_back()
+    page.wait_for_function(
+        "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
+    )
+
+
 def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_rest(
     browser, serve
 ):

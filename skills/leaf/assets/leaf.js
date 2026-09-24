@@ -491,6 +491,8 @@ asks = createAskView({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   setOpenTray: (...args) => trays.setOpenTray(...args),
   trayCovers,
+  depart: anchorTravel.depart,
+  stay: anchorTravel.stay,
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),

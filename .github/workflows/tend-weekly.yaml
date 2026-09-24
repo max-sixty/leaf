@@ -32,6 +32,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.TEND_BOT_TOKEN }}
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
@@ -47,8 +48,8 @@ jobs:
       - uses: max-sixty/tend/codex@0.3.2
         with:
           github_token: ${{ secrets.TEND_BOT_TOKEN }}
-          merge: restricted
-          control_plane_owner: ""
+          merge: yolo
+          control_plane_owner: "@max-sixty"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           codex_auth_json: ${{ secrets.CODEX_AUTH_JSON }}
           bot_name: leaf-agent

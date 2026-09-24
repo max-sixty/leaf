@@ -24,10 +24,7 @@ WIDGET_KINDS = {"action", "report", "request"}
 # them and `$events.answering` explains them.
 ANSWER_KINDS = ("reply", "version", "markup", "receipt")
 ANSWER_ASK_INSTRUCTION = (
-    "Each named command writes the answer its move is owed; in a Codex task Leaf "
-    "observes over App Server, your turn's first and final messages are the reply "
-    "instead. Read current "
-    "obligations with `leaf page state <page>` and conversation history with "
+    "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (

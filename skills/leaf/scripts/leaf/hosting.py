@@ -431,13 +431,21 @@ def cmd_serve(
         write_json(page_dir / SERVICE_FILE, service)
         url = page_url(service["host"], service["port"], token)
 
-    _announce_server(page_dir, url, detached)
-    threading.Thread(
-        target=stop_when_service_ends,
-        args=(page_dir,),
-        daemon=True,
-    ).start()
     try:
+        try:
+            _announce_server(page_dir, url, detached)
+        except BrokenPipeError:
+            # Whoever started this server went away before hearing where it is,
+            # and its stop may already have run and found nothing to stop. The
+            # announcement is the start's commit, so a failed one withdraws it.
+            with flocked(transition_lock(page_dir)):
+                write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+            return
+        threading.Thread(
+            target=stop_when_service_ends,
+            args=(page_dir,),
+            daemon=True,
+        ).start()
         httpd.serve_forever()
     finally:
         httpd.server_close()
@@ -490,7 +498,15 @@ def start_server(
     # the record and the port and finishes its startup note. Otherwise it exits
     # having named its own reason — a stale bind, a taken port, or a flag the
     # running server contradicts.
-    url = child.stdout.readline().strip()
+    try:
+        url = child.stdout.readline().strip()
+    except BaseException:
+        # Abandoning the handshake closes it before this caller's own cleanup
+        # runs, so a child that has not yet announced withdraws its start rather
+        # than coming up behind a stop that found nothing to stop.
+        child.stdout.close()
+        child.stderr.close()
+        raise
     if not url:
         print(
             child.stderr.read().strip() or f"the server for {page_dir} did not start",

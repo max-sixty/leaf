@@ -20,7 +20,12 @@ def test_live_response_evidence_keeps_its_attempt_without_text():
     assert evidence["has_text"] is True
     assert "text" not in evidence
 
-    workflow = {"input": "user-input", "response": None, "condition": None}
+    workflow = {
+        "input": "user-input",
+        "stage": "picked_up",
+        "response": None,
+        "condition": None,
+    }
     activity._bind_reply(
         [workflow],
         {

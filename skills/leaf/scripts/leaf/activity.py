@@ -85,13 +85,16 @@ def _reply_evidence(reply: dict) -> dict:
 
 
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
-    """Bind provisional response progress only to the exact input it names."""
+    """Bind provisional response progress only to the exact input it names.
+
+    A durable response outranks it: a host's failure reply has already answered
+    the input, and the turn's leftover stream must not paint it as still replying."""
     if reply is None or not reply.get("responds"):
         return
     workflow = next(
         (item for item in workflows if item.get("input") == reply["responds"]), None
     )
-    if workflow is None:
+    if workflow is None or workflow["stage"] == "answered":
         return
     workflow["response"] = _reply_evidence(reply)
     workflow["stage"] = "replying"

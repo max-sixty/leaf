@@ -59,6 +59,14 @@ export function layerFact(name) {
 
 export const declarationFor = (el, key) => registry[el?.localName]?.[key];
 
+// The x-state verb whose detail `outcome` decides which of a tag's retirable members
+// leave the page (x-retired-when), the same reserved field Python's `deciding_verb`
+// reads.
+export const decidingVerb = (tag) =>
+  Object.entries(registry[tag]?.["x-state"] ?? {}).find(
+    ([, spec]) => "outcome" in (spec.detail?.properties ?? {}),
+  )?.[0] ?? null;
+
 export const elementsDeclaring = (root, key, { direct = false } = {}) => {
   const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
   return candidates.filter((el) => declarationFor(el, key) !== undefined);

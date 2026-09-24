@@ -235,7 +235,7 @@ customElements.define(
     }
 
     renderState(state) {
-      const value = state.activity.value;
+      const value = state.state.value;
       if (value === this.getAttribute("state")) return;
       if (value === null) this.removeAttribute("state");
       else this.setAttribute("state", value);

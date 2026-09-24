@@ -181,7 +181,7 @@ the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event.
 
 Actions and reports share the registry-declared coordinate of owner widget,
-fold unit, and facet. Admission records the command's declared meaning in the
+fold unit, and verb. Admission records the command's declared meaning in the
 event, so historical readers do not need a surviving widget to recover it.
 Python derives winners, retractions, settlement, asks, threads, and updates in
 one transaction-consistent browser view. JavaScript combines that view with

@@ -1,27 +1,23 @@
 """Conversation writes and the host-neutral delivery-bound reply lifecycle."""
 
-import json
 import sys
 from pathlib import Path
 
-from leaf.asks import local_ask_entry, page_awaiting_values
+from leaf.asks import local_ask_entry
 from leaf.delivery import current_responses, record_pickup
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import (
-    latest_published,
     latest_revision,
     require_revision,
     revision_path,
-    version_revisions,
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
 from leaf.passages import active_enclosing
 from leaf.projection import (
     generated_children,
-    markup_facet,
     page_reading,
     retirement_outcomes,
     rewritten_bodies,
@@ -32,7 +28,6 @@ from leaf.service import PageTransaction, delivery_reply_attempt
 from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
 from leaf.validation.admission import (
-    VERSION_THREAD_RECOURSE,
     check_markup,
     logged_id,
     read_text_arg,
@@ -249,61 +244,6 @@ def thread_of(page_dir: Path, message_id: str) -> str:
     return thread_roots(read_events(page_dir))[message_id]
 
 
-def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bool:
-    """Whether the page still owes this root the authored answer it asked for.
-
-    Both readings below project markup alone: the empty event lists are the gate's
-    subject rather than an omission. The user's own pick lives in the log, and
-    folding it in moved whichever side of the comparison it happened to fall on —
-    before the proposal it answered the originating revision, after it the current
-    one — so the same markup resolved or refused according to where one press
-    landed in the log. A stamped version is what this thread asked for, so an
-    unstamped live revision cannot settle it.
-    """
-    from leaf.registry.storage import require_registry
-
-    version = latest_published(page_dir, events)
-    revision = version_revisions(events)[version]
-    if revision <= root["revision"]:
-        return True
-    registry = require_registry(page_dir)
-    document = parse_revision(page_dir, revision)
-    page = page_reading(document, [], registry, revision)
-    projection, parser, spk = page.projection, page.document, page.spoken
-    awaiting = page_awaiting_values(document, projection, spk, registry)
-    target = root["anchor"]["section"]
-    if awaiting.get(target, False):
-        return True
-
-    current = parser.by_id.get(target)
-    if current is None:
-        return True
-    response = root["response"]
-    current_entry = registry.get(current["tag"], {})
-    if (current_entry.get("x-conversation") or {}).get("response") != response:
-        return True
-
-    original_revision = root["revision"]
-    original_document = parse_revision(page_dir, original_revision)
-    original_page = page_reading(original_document, [], registry, original_revision)
-    original_projection = original_page.projection
-    original = original_page.document
-    original_spk = original_page.spoken
-    original_awaiting = page_awaiting_values(
-        original,
-        original_projection,
-        original_spk,
-        registry,
-    )
-    if original_awaiting.get(target, False):
-        return False
-
-    spec = current_entry["x-state"][response["verb"]]
-    current_answer = markup_facet(target, spec, parser.by_id, spk, registry)
-    original_answer = markup_facet(target, spec, original.by_id, original_spk, registry)
-    return current_answer == original_answer
-
-
 def _current_anchor(
     page_dir: Path,
     events: list,
@@ -343,7 +283,7 @@ def _capture_anchor(
 
     registry = require_registry(page_dir)
     page = page_reading(document, events, registry, revision)
-    decided = retirement_outcomes(page.projection.actions, registry)
+    decided = retirement_outcomes(page.projection.actions)
     edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
@@ -439,11 +379,8 @@ def cmd_reply(
     response address from an ordinary CLI writer.
 
     ``failure`` records a host-owned failure code alongside its presentation text;
-    ordinary agent answers omit it. A failure receipt also answers a conversation
-    that asked for a version: it says no version is coming, which is the one thing
-    a reply there may say.
+    ordinary agent answers omit it.
     """
-    answered_kinds = {"reply"} if failure is None else {"reply", "version"}
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
@@ -520,20 +457,11 @@ def cmd_reply(
             to = expected["to"]
         else:
             expected = responses.get(for_event)
-            if expected is None or expected["kind"] not in answered_kinds:
-                if expected is not None and expected["kind"] == "version":
-                    root_id, _ = _thread_root(
-                        page_dir, events, to or expected["conversation"]
-                    )
-                    refusal = (
-                        f"thread {root_id!r} requires a page version and cannot "
-                        f"take a reply; {VERSION_THREAD_RECOURSE}"
-                    )
-                else:
-                    held = logged_id(events, for_event, responses)
-                    refusal = f"event {for_event!r} takes no reply; " + (
-                        held or f"this page's log holds no event {for_event!r}"
-                    )
+            if expected is None or expected["kind"] != "reply":
+                held = logged_id(events, for_event, responses)
+                refusal = f"event {for_event!r} takes no reply; " + (
+                    held or f"this page's log holds no event {for_event!r}"
+                )
                 if when_settled == "skip":
                     return None
                 if when_settled != "post" or to is None:
@@ -542,27 +470,9 @@ def cmd_reply(
                 to = expected["to"] if expected["kind"] == "reply" else for_event
         assert to is not None
         root_id, root = _thread_root(page_dir, events, to)
-        if (
-            failure is None
-            and (thread_obligation(events, responses, root_id) or {}).get("kind")
-            == "version"
-        ):
-            if when_settled == "skip":
-                return None
-            sys.exit(
-                f"thread {root_id!r} requires a page version and cannot take a reply; "
-                f"{VERSION_THREAD_RECOURSE}"
-            )
         if for_event is not None:
             expected = responses.get(for_event)
-            if expected not in (
-                {"kind": "reply", "to": to, "for": for_event},
-                *(
-                    [{"kind": "version", "conversation": root_id}]
-                    if "version" in answered_kinds
-                    else []
-                ),
-            ):
+            if expected != {"kind": "reply", "to": to, "for": for_event}:
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
@@ -899,18 +809,7 @@ def cmd_resolve(page_dir: Path, to: str) -> dict:
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
-        events = page.events
-        root_id, root = _thread_root(page_dir, events, to)
-        if (
-            root
-            and (root.get("response") or {}).get("kind") == "version"
-            and _version_response_unanswered(page_dir, events, root)
-        ):
-            sys.exit(
-                f"thread {root_id!r} requires a page version that answers its "
-                "originating Ask, or changes its declared answer if it was already "
-                "answered, before the agent can resolve it"
-            )
+        _message(page_dir, page.events, to)
         event = {
             "kind": "resolve",
             "author": "agent",
@@ -926,8 +825,6 @@ def cmd_report(
     widget: str,
     verb: str,
     fields: tuple,
-    *,
-    references: str | None = None,
 ) -> dict:
     """A worker's provisional news: a declared state change folded onto a page
     widget, admitted the way the append door admits a user's action,
@@ -945,12 +842,6 @@ def cmd_report(
         if not eq or not name:
             sys.exit(f"detail fields are name=value, got {field!r}")
         detail[name] = value
-    parsed_references = None
-    if references is not None:
-        try:
-            parsed_references = json.loads(references)
-        except json.JSONDecodeError as error:
-            sys.exit(f"references must be one JSON object: {error.msg}")
     with PageTransaction(page_dir) as page:
         events = page.events
         activate_source(page_dir, events)
@@ -962,6 +853,5 @@ def cmd_report(
             "action": verb,
             "detail": detail,
             "revision": require_revision(page_dir),
-            **({"references": parsed_references} if references is not None else {}),
         }
         return append_admitted(page, event)

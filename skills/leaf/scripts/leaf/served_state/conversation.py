@@ -190,7 +190,7 @@ def browser_conversation(
             "projection": browser_projection(
                 reading.projection, scope="conversation", within={}, floors={}
             ),
-            "asks": asks,
+            "asks": {key: asks[key] for key in ("all", "user", "unanswered")},
             "requests": requests,
             "threads": rendered_threads,
             # Through the withdrawal, like every other fold: an approval a user

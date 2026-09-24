@@ -271,7 +271,7 @@ customElements.define(
       // reason `#watchDraft` leaves a closed box closed. On a page that has just loaded,
       // startup hands the focus to the page after this runs either way.
       const pending = loadEdit(this.id);
-      const authored = reading.authored.body.value;
+      const authored = reading.authored.edit.value;
       if (pending !== null && pending !== authored)
         this.#open(pending, undefined, false);
       else if (pending === authored) clearEdit(this.id);
@@ -348,7 +348,7 @@ customElements.define(
             run: () => this.#close(false),
           },
         ],
-        { answer: () => this.#controller.read().state.body.value.trim() || "Empty" },
+        { answer: () => this.#controller.read().state.edit.value.trim() || "Empty" },
       );
       commands(this, this.#commandScope);
     }
@@ -504,9 +504,9 @@ customElements.define(
     #renderHistory(reading) {
       this.#paintAvailability();
       if (this.#sending) return;
-      const authored = reading.authored.body.value;
+      const authored = reading.authored.edit.value;
       const actions = reading.actions.edit.history;
-      const standing = reading.state.body.value;
+      const standing = reading.state.edit.value;
       const key = JSON.stringify([
         authored,
         standing,
@@ -588,7 +588,7 @@ customElements.define(
         notice("Save or cancel the open edit before restoring history");
         return;
       }
-      if (text === this.#controller.read().state.body.value) return;
+      if (text === this.#controller.read().state.edit.value) return;
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
       this.#refreshMargin();
@@ -610,7 +610,7 @@ customElements.define(
       const ta = offer("textarea", "lf-draft-edit");
       ta.name = "edit";
       // A set-aside edit outranks the authored text here too: reopening resumes it.
-      const effective = this.#controller.read().state.body.value;
+      const effective = this.#controller.read().state.edit.value;
       ta.value = seed ?? loadEdit(this.id) ?? effective;
       ta.setAttribute("aria-label", `Edit ${this.id}`);
       ta.addEventListener("input", () => {
@@ -664,7 +664,7 @@ customElements.define(
       if (!this.#ta || this.#sending) return;
       if (!this.#available()) return;
       const text = this.#ta.value;
-      if (text === this.#controller.read().state.body.value) {
+      if (text === this.#controller.read().state.edit.value) {
         this.#close(true);
         return;
       }
@@ -700,8 +700,8 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     renderState(state) {
-      if (this.#body.textContent !== state.body.value)
-        this.#body.textContent = state.body.value;
+      if (this.#body.textContent !== state.edit.value)
+        this.#body.textContent = state.edit.value;
     }
   },
 );

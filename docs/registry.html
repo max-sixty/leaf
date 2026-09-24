@@ -184,10 +184,10 @@
                   and evidence the user needs before the control; the nested widget
                   still owns the answer and its fold or Request lifecycle. The banner,
                   Asks tray, <code>a</code>/<code>A</code> ask walk, standing ring, and
-                  <code>page state</code> name the region while action eligibility,
-                  replay, and Request projection name the nested widget. An arrival
-                  focuses that widget's answering control but scrolls to the region's
-                  start. <code>version check</code> requires the leading heading and one
+                  <code>page state</code> name the region while replay and Request
+                  projection name the nested widget. An arrival focuses that widget's
+                  answering control but scrolls to the region's start.
+                  <code>version check</code> requires the leading heading and one
                   non-quoted nested Ask source so the two identities cannot be
                   ambiguous.
                 </p>
@@ -198,45 +198,36 @@
             <h3><code>x-awaits</code></h3>
             <div class="reference-copy">
               <p>
-                What x-awaits declares: a tag either originates a standing Ask for the
-                user or, with <code>rollup: true</code>, aggregates descendant Asks
-                through a nested plan.
+                What x-awaits declares: a tag originates a standing Ask for the user.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-awaits contract">Full contract</summary>
                 <p>
-                  A local Ask always names the x-state verbs that answer it. The
-                  standing answer is identified by its owning widget and verb, so its
-                  complete durable record may fold on the widget or on a detail-named
-                  part; no parallel completion flag is needed. A roll-up owner can
-                  expose and gate on descendant Asks without entering the Asks list
-                  itself. The banner's count, the <code>a</code>/<code>A</code> ask walk
-                  that steps asks, the command reference dialog's row, and conditional
-                  x-state actions are readings of one projection, so nothing names a tag
-                  and a new widget joins by declaring. Quoted material decides nothing —
-                  an exhibited Ask is a mention (x-exhibit). <code>region</code> says
-                  the widget supplies the answer control but not its own title: every
-                  matching local Ask must stand inside an x-ask-surface, whose direct
-                  heading owns the question's reading and arrival. A widget that also
-                  declares x-conversation puts a box under its own Ask, and a
-                  conversation standing in that box takes the Ask off the user's list
-                  for as long as it waits on the agent — whoever opened it. That is not
-                  an answer: the widget's state is untouched, so a version still has to
-                  record what the words settled, and an action's
-                  <code>requires</code> reads the Ask as open. An ordinary reply or
-                  resolve hands the conversation back. A version-response conversation
-                  takes no reply; only authored state in a later version that answers an
-                  originating open Ask, or changes its declared answer when the Ask was
-                  already answered, unlocks the agent's resolve. User actions in the log
-                  do not substitute for that version. A widget inside a thread presents
-                  an Ask like one on the page, with one bound set by frozen thread
-                  markup: the thread's own reply box is already that seat, so only an
-                  action can answer it there. <code>when</code> selects Leaf elements
-                  that originate Asks, <code>answers</code> names exactly the x-state
-                  verbs that settle one, <code>rollup</code> carries the logical OR of
-                  descendant Asks, <code>until</code> can require a distinct completion
-                  verb for a matching thread Ask, and <code>all</code> names a blanket
-                  answer offered by the banner.
+                  The Ask states when it is answered as a condition on the widget's
+                  standing state (<code>answered</code>), so the answer is a reading of
+                  state the fold already keeps rather than a flag beside it, and the
+                  action whose admission makes that condition hold is the one admission
+                  marks as the answer. The banner's count, the <code>a</code>/<code
+                    >A</code
+                  >
+                  ask walk that steps asks, and the command reference dialog's row are
+                  readings of one projection, so nothing names a tag and a new widget
+                  joins by declaring. Quoted material decides nothing — an exhibited Ask
+                  is a mention (x-exhibit). <code>region</code> says the widget supplies
+                  the answer control but not its own title: every matching local Ask
+                  must stand inside an x-ask-surface, whose direct heading owns the
+                  question's reading and arrival. A widget that also declares
+                  x-conversation puts a box under its own Ask, and a conversation
+                  standing in that box takes the Ask off the user's list for as long as
+                  it waits on the agent — whoever opened it. That is not an answer: the
+                  widget's state is untouched, so a version still has to record what the
+                  words settled. An ordinary reply or resolve hands the conversation
+                  back. A widget inside a thread presents an Ask like one on the page,
+                  with one bound set by frozen thread markup: the thread's own reply box
+                  is already that seat, so only an action can answer it there.
+                  <code>when</code> selects Leaf elements that originate Asks,
+                  <code>answered</code> says which standing state answers one, and
+                  <code>all</code> names a blanket answer offered by the banner.
                 </p>
               </details>
             </div>
@@ -289,24 +280,13 @@
                   Ask leaves their list while that conversation waits on the agent,
                   rather than being counted a second time under a box they have already
                   used. It is not an answer — the widget's own state is untouched, so
-                  its controls still work and an action's <code>requires</code> still
-                  reads the Ask as open. A conversation with
-                  <code>response: {kind: version, verb: &lt;answer&gt;}</code> carries
-                  that declaration on its root comment, has no inline reply control, and
-                  refuses <code>leaf reply</code>: the agent either incorporates it in a
-                  later version or opens a separate thread when that revision depends on
-                  the user. To unlock resolve, authored state in the later version must
-                  answer an originating open Ask, or change the named answer's authored
-                  record when the Ask was already answered. User actions in the log do
-                  not substitute for that version. The named verb must be one of
-                  x-awaits' answers with an attribute or value record, so the resolve
-                  gate can compare the originating and current versions without naming a
-                  widget. A <code>hold</code> comment is such a conversation like any
-                  other. <code>hold</code> labels a stronger send route whose comment
-                  carries <code>holds</code> naming this widget: that route remains
-                  available after ordinary roots, the unresolved held thread is the
-                  hold, resolution releases it, and undoing resolution restores it
-                  atomically. Dropping the widget drops only the inline view.
+                  its controls still work and the Ask still reads as unanswered. A
+                  <code>hold</code> comment is a seat conversation like any other.
+                  <code>hold</code> labels a stronger send route whose comment carries
+                  <code>holds</code> naming this widget: that route remains available
+                  after ordinary roots, the unresolved held thread is the hold,
+                  resolution releases it, and undoing resolution restores it atomically.
+                  Dropping the widget drops only the inline view.
                 </p>
               </details>
             </div>
@@ -585,9 +565,8 @@
                 What x-report declares, once per widget with an agent channel: report
                 verbs a worker folds onto the page through <code>leaf report</code>,
                 each with a detail schema (the payload half of the log's
-                forever-contract, exactly as x-state's), a semantic facet, a fold unit,
-                and a required record form drawn from $state's vocabulary minus
-                <code>body</code>.
+                forever-contract, exactly as x-state's), a fold unit, and a required
+                record form drawn from $state's vocabulary minus <code>body</code>.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-report contract">Full contract</summary>
@@ -596,12 +575,13 @@
                   detail field that is the report's short human-readable news; naming it
                   lets the canonical update feed expose those words without guessing
                   from a widget, verb, or field name. The owning Leaf element, unit, and
-                  facet together name one independently standing fact; verbs on the same
-                  tag and facet share their unit and record form, and an action outranks
-                  a report at that coordinate. A report moves declared state only, never
-                  the page's words, which is what keeps the passage reading untouched by
-                  it. The runtime paints a standing report live (data-lf-reported); it
-                  is provisional news, standing only until a version answers it. How a
+                  verb together name one independently standing fact; a report verb that
+                  shares its name with an x-state verb states the same fact, so the two
+                  share their unit and record form, and an action outranks a report at
+                  that coordinate. A report moves declared state only, never the page's
+                  words, which is what keeps the passage reading untouched by it. The
+                  runtime paints a standing report live (data-lf-reported); it is
+                  provisional news, standing only until a version answers it. How a
                   version answers a standing report is $report's.
                 </p>
               </details>
@@ -672,28 +652,29 @@
             <h3><code>x-retired-when</code></h3>
             <div class="reference-copy">
               <p>
-                On a member: the owner's action outcome that takes this element off the
-                page (a suggestion's <code>lf-old</code> under <code>accept</code>).
+                On a member: the owner's decision outcome that takes this element off
+                the page (a suggestion's <code>lf-old</code> under <code>accept</code>).
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-retired-when contract">
                   Full contract
                 </summary>
                 <p>
-                  Requires x-owners. Every outcome named by one owner's members belongs
-                  to the same facet, so only one settlement can stand. The layer renders
-                  the settlement whole, following the log's standing state both ways —
-                  reconciliation paints data-lf-state="&lt;outcome&gt;" on the owner and
-                  data-lf-retired on the members that outcome retires, takes both off
-                  when a later widget-unit verb on that facet displaces the decision in
-                  the fold, and one theme rule hides the marked members — so no module
-                  owes any of it, though one may paint the same sooner as its own
-                  gesture (renderRetired). Those attributes are rendered output for CSS,
-                  export, and checks; semantic consumers read the publisher's explicit
-                  outcome rather than reading them back. The file's reading takes the
-                  fact from the log, and <code>version check</code> licenses dropping
-                  the member's ids on it; <code>version check --render</code> reports a
-                  settled member still showing words, or a mark the log never decided.
+                  Requires x-owners. The outcome is a value of the
+                  <code>outcome</code> detail field on the owner's one deciding verb, so
+                  only one settlement can stand. The layer renders the settlement whole,
+                  following the log's standing state both ways — reconciliation paints
+                  data-lf-state="&lt;outcome&gt;" on the owner and data-lf-retired on
+                  the members that outcome retires, takes both off when undo or a
+                  retraction removes the deciding action from the fold, and one theme
+                  rule hides the marked members — so no module owes any of it, though
+                  one may paint the same sooner as its own gesture (renderRetired).
+                  Those attributes are rendered output for CSS, export, and checks;
+                  semantic consumers read the publisher's explicit outcome rather than
+                  reading them back. The file's reading takes the fact from the log, and
+                  <code>version check</code> licenses dropping the member's ids on it;
+                  <code>version check --render</code> reports a settled member still
+                  showing words, or a mark the log never decided.
                 </p>
               </details>
             </div>
@@ -759,42 +740,35 @@
               <p>
                 What x-state declares, once per widget with an action channel: each
                 verb's detail schema (the payload half of the log's forever-contract),
-                its semantic facet, fold unit, optional current-state
-                <code>requires</code>, optional created-child <code>creates</code>,
-                optional <code>completion</code>, optional semantic
-                <code>references</code> role map, and the record form its state takes in
-                markup.
+                its fold unit, optional created-child <code>creates</code>, and the
+                record form its state takes in markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-state contract">Full contract</summary>
                 <p>
-                  The owning Leaf element, unit, and facet together name one
-                  independently standing fact: verbs on the same tag and facet share
-                  their unit and record form, competing verbs there supersede one
-                  another, and distinct facets coexist. The framework composes the last
-                  surviving action per coordinate with typed authored values and gives
-                  every widget its complete state through renderState, and one
+                  Each verb is its own state: the owning Leaf element, the unit, and the
+                  verb together name one independently standing fact, the latest
+                  surviving action of that verb there supersedes its predecessors, and
+                  different verbs coexist. The framework composes the last surviving
+                  action per coordinate with typed authored values and gives every
+                  widget its complete state through renderState, keyed by verb, and one
                   declaration drives the POST and re-vendor contract gates,
                   <code>version check</code>'s state gate (a version whose markup
                   actively contradicts the fold without <code>restated</code> is
                   refused; writing the folded state is honoring; re-emitting the
                   previous version's state is blessed silence), construction-linked
                   inspection, the runtime's user-origin reading, and the version diff's
-                  state half. The browser uses <code>requires</code> for its controls
-                  and common send door; POST interprets the same prerequisite against
-                  the authoritative fold under the append lock. One detail field name is
-                  reserved: <code>resolves</code> names the comment thread an x-awaits
-                  answer closes. Admission records its effect in meaning.answer: a
-                  thread id closes it, null answers without closing, and an absent field
-                  means the action is not an answer. Historical settlement uses the
-                  admitted owner-unit-facet coordinate even after the widget retires;
-                  independent facets on the widget coexist. A report cannot declare
-                  resolves. Optional references maps package- or page-named roles to the
-                  same {} or {via, where} target contract as x-refers; matching stable
-                  target records travel beside detail and must resolve uniquely in the
-                  sending source document. Ids and structural anchors become direct
-                  dependencies. The facet, unit, requires, creates, and record forms are
-                  $state's.
+                  state half. When an action's admission makes its widget's x-awaits
+                  <code>answered</code> condition hold, admission records meaning.answer
+                  on it: the widget's authored <code>resolves</code> attribute, read
+                  from the sending document, names the comment thread the answer closes,
+                  and null answers without closing one, which is also what a decision
+                  whose outcome is the widget's x-withdrawn-as records: it leaves the
+                  page as if nothing had been proposed. Historical settlement uses the
+                  admitted owner-unit-verb coordinate even after the widget retires. One
+                  detail field name is reserved: <code>outcome</code>, on the one
+                  widget-unit verb that decides which retirable members leave the page
+                  (x-retired-when). The unit, creates, and record forms are $state's.
                 </p>
               </details>
             </div>
@@ -922,11 +896,22 @@
               <p>
                 On a holder with retirable slots: the outcome an undecided Leaf element
                 stands as when a later version takes it back unanswered — a withdrawn
-                suggestion leaves the page where a <code>reject</code> would — which is
-                what lets that version drop the ids inside the slots the outcome
-                retires. Hedged, because there the author asserts a state the user never
-                gave: only whole, and never while a thread is anchored in it.
+                suggestion leaves the page where a <code>reject</code> outcome would —
+                which is what lets that version drop the ids inside the slots the
+                outcome retires.
               </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-withdrawn-as contract">
+                  Full contract
+                </summary>
+                <p>
+                  The same outcome chosen by the user declines the proposal, so it
+                  answers the Ask without closing the widget's
+                  <code>resolves</code> thread. Hedged, because there the author asserts
+                  a state the user never gave: only whole, and never while a thread is
+                  anchored in it.
+                </p>
+              </details>
             </div>
           </section>
           <section class="reference-entry" id="x-word">

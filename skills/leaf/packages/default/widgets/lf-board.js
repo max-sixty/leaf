@@ -567,7 +567,7 @@ customElements.define(
     // The complete column composition names every card in its final order. Measure
     // once around that placement so FLIP animates the resulting layout together.
     renderState(state) {
-      const columns = state.placement.value;
+      const columns = state.move.value;
       const cards = [...this.querySelectorAll(":scope > lf-column > lf-card")];
       if (
         Object.entries(columns).every(([id, order]) => {

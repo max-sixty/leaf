@@ -11,7 +11,7 @@ import { readApplication } from "../semantic-state.js";
    inverse action, or restoration statement is retained.
 
    `rememberAuthoredParents` records parent identities before imports for anchor
-   ownership. `stageAuthoredFacets` decodes source elements while their validated
+   ownership. `stageAuthoredStates` decodes source elements while their validated
    attributes, member order, and data bodies are intact. The complete staged document
    enters the application publisher before its content modules render. Page revisions
    and frozen thread markup use the same boundary, so presentation never becomes a
@@ -28,7 +28,7 @@ import { readApplication } from "../semantic-state.js";
    - `position`: ordered id lists per container; an individual widget also names its
      containing id and index;
    - `body`: the data body's exact words, with source-layout indentation removed;
-   - no record: `null` for a widget facet, an empty unit map otherwise.
+   - no record: `null` for a widget verb, an empty unit map otherwise.
 
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
    declared record. A custom outer container must not capture or restore a nested
@@ -44,7 +44,7 @@ const ownedRecordMembers = (widget, selector) =>
     (member) => recordedOwner(member) === widget,
   );
 
-export function domFacet(el, record) {
+export function domValue(el, record) {
   if (record.kind === "attribute")
     return ownedRecordMembers(el, `[${record.attr}]`)
       .map((o) => o.id)
@@ -84,7 +84,7 @@ function decodeBodyRecord(widget) {
   return lines.map((line) => line.slice(cut)).join("\n");
 }
 
-function initialFacet(widget, spec) {
+function initialState(widget, spec) {
   const record = spec.record;
   if (spec.unit !== "widget") {
     const value = {};
@@ -120,13 +120,13 @@ function initialFacet(widget, spec) {
   return { action: null, value, detail: record ? { [record.value]: value } : {} };
 }
 
-export function stageAuthoredFacets(root = document, existing = authoredStates()) {
+export function stageAuthoredStates(root = document, existing = authoredStates()) {
   const captured = new Map();
   const byTag = new Map();
-  for (const { tag, spec } of stateSpecs()) {
-    const facets = byTag.get(tag) ?? new Map();
-    facets.set(spec.facet, spec);
-    byTag.set(tag, facets);
+  for (const { tag, verb, spec } of stateSpecs()) {
+    const specs = byTag.get(tag) ?? new Map();
+    specs.set(verb, spec);
+    byTag.set(tag, specs);
   }
   const positions = {};
   for (const [tag, specs] of byTag) {
@@ -149,7 +149,7 @@ export function stageAuthoredFacets(root = document, existing = authoredStates()
         specs,
         positions,
         state: Object.fromEntries(
-          [...specs].map(([facet, spec]) => [facet, initialFacet(widget, spec)]),
+          [...specs].map(([verb, spec]) => [verb, initialState(widget, spec)]),
         ),
       });
     }
@@ -157,5 +157,5 @@ export function stageAuthoredFacets(root = document, existing = authoredStates()
   return captured;
 }
 
-export const stateCoordinate = (owner, unit, spec) =>
-  JSON.stringify([owner, unit, spec.facet]);
+export const stateCoordinate = (owner, unit, verb) =>
+  JSON.stringify([owner, unit, verb]);

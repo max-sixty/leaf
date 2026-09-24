@@ -120,7 +120,7 @@ def inline_markdown_words(source: str, *, added: bool = False) -> str:
 
 def collapse(text: str) -> str:
     """One space per whitespace run, none at the edges — the reading every quote and
-    facet comparison uses, the browser's quoteFrom in Python."""
+    state comparison uses, the browser's quoteFrom in Python."""
     return COLLAPSE.sub(" ", text).strip(" ")
 
 
@@ -209,7 +209,7 @@ class _PassageParser:
     the way a captured quote is; `owner[i]` is the ids enclosing text[i], outermost
     first, so a match can name the section it fell in and be re-read within it.
 
-    `decided` is the accept/reject each suggestion stands under (`asks`).
+    `decided` is the outcome each suggestion stands under (`retirement_outcomes`).
     A decision retires a slot — the registry's `x-retired-when` names which outcome —
     and the browser's anchor pass reads the same key (`quotable` in leaf.js), so
     this reading drops it the same way. A decision that leaves its
@@ -593,7 +593,7 @@ def spoken(document: SourceDocument, registry: dict) -> dict:
     same. Keyed on words, an image-only option and a card holding one diagram were
     in no chain at all, so `action_rests_on` dropped them from what an action rests
     on where the browser's `restsOn` keeps them (a floor stopped replaying on one
-    side only), and `markup_facet` read a version that honoured a pick on such an
+    side only), and `markup_value` read a version that honoured a pick on such an
     option as showing no pick, which is the state gate refusing the very version
     that agreed with the user."""
     p = page_passages(document, registry)

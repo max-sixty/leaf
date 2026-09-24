@@ -107,9 +107,9 @@ import { projectView, readApplication } from "./semantic-state.js";
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk } from "./walk-position.js";
 import {
-  domFacet,
+  domValue,
   rememberAuthoredParents,
-  stageAuthoredFacets,
+  stageAuthoredStates,
   stateCoordinate,
 } from "./projection/authored.js";
 import { whenApplicationRegionsPresented } from "./semantic-state.js";
@@ -772,10 +772,10 @@ export function createVersionController({
     }
     // The state half: block keys catch words, and a pure state change — a card
     // in a different column, a pick on a different option — has no text of its
-    // own. Compare declared facets instead: the base version's state (its markup
+    // own. Compare declared state instead: the base version's state (its markup
     // plus both folds as of it — a report standing at the base painted there
     // just as an action did, so what the user saw includes it) against the
-    // live DOM, which already wears the current folds. Body facets are words and
+    // live DOM, which already wears the current folds. Body records are words and
     // the block keys above own them.
     const baseRevision = stamped(baseVersion)?.revision;
     if (baseRevision == null)
@@ -783,7 +783,7 @@ export function createVersionController({
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
     const baseProjection = projectView(baseView, baseReading.conversation);
-    for (const { tag, spec } of stateSpecs()) {
+    for (const { tag, verb, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {
         if (inChrome(widget) || quoted(widget)) continue;
@@ -797,12 +797,12 @@ export function createVersionController({
           const baseEl = doc.getElementById(el.id);
           if (!baseEl) continue; // new to this version: the content half marks it
           // A user's action outranks provisional agent news on the same fact;
-          // otherwise the standing writer is the report. The facet coordinate
+          // otherwise the standing writer is the report. The verb's coordinate
           // means an unrelated fact on this unit never enters the choice.
-          const coordinate = stateCoordinate(widget.id, el.id, spec);
+          const coordinate = stateCoordinate(widget.id, el.id, verb);
           const writer = baseProjection.desired.get(coordinate);
-          const before = writer ? writer.value : domFacet(baseEl, spec.record);
-          const now = domFacet(el, spec.record);
+          const before = writer ? writer.value : domValue(baseEl, spec.record);
+          const now = domValue(el, spec.record);
           if (before === now) continue;
           // The element the change reads on: the option now picked, or the moved
           // card itself.
@@ -1258,12 +1258,11 @@ export function createVersionController({
     // The arriving revision's source is the complete page baseline. Capture it before
     // insertion can connect a custom element and turn authored input into presentation.
     rememberAuthoredParents(source);
-    const sourceAuthored = stageAuthoredFacets(source, new Map());
-    const sourceDescriptors = stageWidgetDescriptors(
-      source,
-      { kind: "page", revision: target.revision },
-      live,
-    );
+    const sourceAuthored = stageAuthoredStates(source, new Map());
+    const sourceDescriptors = stageWidgetDescriptors(source, {
+      kind: "page",
+      revision: target.revision,
+    });
     // Elements whose attributes the patch rewrote in place. What a dressing pass reads
     // off an attribute — a word an element says, the language of a code block — is
     // owed again, and these are the roots the install dresses beside the arrivals.
@@ -1278,11 +1277,10 @@ export function createVersionController({
         // which declared elements enclose it.
         rememberAuthoredParents(arriving, parent);
         markDeclared(arriving, MARKED_IN_PAGE);
-        const descriptors = stageWidgetDescriptors(
-          arriving,
-          { kind: "page", revision: target.revision },
-          live,
-        );
+        const descriptors = stageWidgetDescriptors(arriving, {
+          kind: "page",
+          revision: target.revision,
+        });
         descriptorStages.push(descriptors);
         // Bind the actual arrival before insertion can synchronously connect its
         // custom element. The publisher still holds the outgoing document until the
@@ -1329,7 +1327,7 @@ export function createVersionController({
           markDeclared(element, MARKED_IN_PAGE);
           touched.push(element);
         },
-        // An element going is not the same as its name going. Authored facet capture
+        // An element going is not the same as its name going. Authored state capture
         // still needs to forget removed upgraded owners here; the complete incoming
         // descriptor inventory below decides which identities actually retired.
         retire: (element) => {
@@ -1377,12 +1375,12 @@ export function createVersionController({
     if (comparedFrom !== null) showComparison(comparedFrom);
     // Use the arriving descriptor: the current label still names the previous revision.
     notice(`Updated to ${target.label}`, { background: true });
-    const authoredFacets = new Map(
+    const nextAuthored = new Map(
       [...prior.authored].filter(
         ([id]) => prior.descriptors.get(id)?.document.kind === "thread",
       ),
     );
-    for (const [id, value] of sourceAuthored) authoredFacets.set(id, value);
+    for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
     const arrivedDescriptors = new Map();
     for (const stage of descriptorStages)
       for (const [id, value] of stage.descriptors) arrivedDescriptors.set(id, value);
@@ -1411,7 +1409,7 @@ export function createVersionController({
       ...prior,
       revision: target.revision,
       stamp: target.version ?? null,
-      authored: authoredFacets,
+      authored: nextAuthored,
       descriptors,
     };
   }

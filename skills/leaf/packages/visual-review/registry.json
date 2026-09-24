@@ -261,7 +261,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "disposition",
         "unit": "case"
       }
     },

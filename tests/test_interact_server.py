@@ -33,7 +33,6 @@ from interact_support import (
     check,
     declare_data_input,
     fetch,
-    let_a_pick_settle_a_thread,
     live_versions,
     neighbour_page,
     publish,
@@ -1865,7 +1864,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     assert status == 200, body
     accepted = json.loads(body)["state"]["events"][-1]
     # The created option is the action's own unit, and the stamp names its tag.
-    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery-user", "added"]
+    assert accepted["meaning"]["coordinate"] == ["delivery", "delivery-user", "add"]
     assert accepted["meaning"]["creates"] == "lf-option"
     # The server's enrichment does not alter retry identity.
     status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -1925,13 +1924,12 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
     assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
-    assert entry["coordinate"] == ["delivery", "delivery", "selection"]
-    assert entry["spec"]["facet"] == "selection"
+    assert entry["coordinate"] == ["delivery", "delivery", "choose"]
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
     assert view["coverage"] == [
-        {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
+        {"event": accepted, "coordinate": ["delivery", "delivery", "choose"]}
     ]
 
 
@@ -1997,7 +1995,6 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         1: structure_model.SourceDocument(old_page),
         2: structure_model.SourceDocument(new_page),
     }
-    let_a_pick_settle_a_thread(page_dir)
     (page_dir / "index.html").write_text(old_page)
     publish(page_dir, 1)
     reaction = event_model.append_event(
@@ -2012,10 +2009,10 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"], "resolves": reaction["id"]},
+            "detail": {"options": ["flag-first"]},
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
-                "coordinate": ["picks", "picks", "selection"],
+                "coordinate": ["picks", "picks", "choose"],
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
             },
@@ -3167,360 +3164,6 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     )
     assert status == 400
     assert "unknown action widget" in json.loads(body)["error"]
-
-
-@pytest.mark.parametrize("in_thread", [False, True])
-def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
-    server, page_dir, in_thread
-):
-    """A child attribute record closes the sender's standing decision."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["defer"] = {
-        "detail": {"type": "object", "additionalProperties": False},
-        "facet": "deferral",
-        "unit": "widget",
-        "requires": {"target": "self", "awaiting": True},
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "</section>",
-            '<lf-ask id="eligibility-decision"><h3>Which option?</h3>'
-            '<lf-options id="eligibility-options" choose>'
-            '<lf-option id="eligibility-a">A</lf-option>'
-            '<lf-option id="eligibility-b">B</lf-option>'
-            "</lf-options></lf-ask></section>",
-        )
-    )
-
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    widget = "eligibility-options"
-    option = "eligibility-a"
-    if in_thread:
-        event_model.append_event(
-            page_dir,
-            {
-                "kind": "comment",
-                "id": "c-eligibility",
-                "author": "user",
-                "revision": revision,
-                "text": "change this task",
-            },
-        )
-        reply = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "reply",
-                str(page_dir),
-                "--to",
-                "c-eligibility",
-                "--for",
-                "c-eligibility",
-                "--text",
-                "Here it is:",
-                "--markup",
-                (
-                    '<lf-ask id="thread-options-decision"><h3>Which option?</h3>'
-                    '<lf-options id="thread-options" choose>'
-                    '<lf-option id="thread-a">A</lf-option>'
-                    '<lf-option id="thread-b">B</lf-option>'
-                    "</lf-options></lf-ask>"
-                ),
-            ],
-        )
-        assert reply.exit_code == 0, reply.output
-        widget = "thread-options"
-        option = "thread-a"
-
-    choose = {
-        "kind": "action",
-        "revision": revision,
-        "widget": widget,
-        "action": "choose",
-        "detail": {"options": [option]},
-    }
-    nonanswer = {**choose, "action": "defer", "detail": {}}
-    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
-    assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
-    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
-    before = len(event_model.read_events(page_dir))
-
-    status_code, body = fetch(
-        f"{server}/api/event", data=json.dumps(nonanswer).encode()
-    )
-
-    assert status_code == 400
-    assert "action 'defer' is unavailable" in json.loads(body)["error"]
-    assert "no longer awaiting the user" in json.loads(body)["error"]
-    assert len(event_model.read_events(page_dir)) == before
-
-
-def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, page_dir):
-    """A remark in the widget's own seat leaves the pick that would answer it open.
-
-    Two readings of one reducer, and this door takes the one that asks whether the
-    request is *answered*. A conversation standing in the seat takes the request off
-    the user's list — the banner stops counting it, and
-    `test_page_state_takes_a_seated_question_off_the_users_list` holds that — but
-    it records nothing: the group still holds no pick and its controls still offer
-    one. A gate reading the user's list instead would refuse the pick for the
-    user's having written in the box the page put under the question, which is
-    refusing them the answer they were asked for. It would also refuse it silently:
-    `lf-options` paints a pick before this door sees it, so the option would flip,
-    nothing would be logged, no notice would fire, and the next poll would put it
-    back."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["choose"]["requires"] = {
-        "target": "self",
-        "awaiting": True,
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "</section>",
-            '<lf-ask id="seated-decision"><h3>Which option?</h3>'
-            '<lf-options id="seated-options" choose>'
-            '<lf-option id="seated-a">A</lf-option>'
-            '<lf-option id="seated-b">B</lf-option>'
-            "</lf-options></lf-ask></section>",
-        )
-    )
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    event_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": revision,
-            "anchor": {"section": "seated-options"},
-            "text": "neither — cap the retries instead",
-        },
-    )
-    choose = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "seated-options",
-        "action": "choose",
-        "detail": {"options": ["seated-a"]},
-    }
-    status_code, body = fetch(f"{server}/api/event", data=json.dumps(choose).encode())
-    assert status_code == 200, body
-    # And the answer does close it, so the gate is reading the request rather than
-    # ignoring the declaration outright.
-    again = {**choose, "detail": {"options": ["seated-b"]}}
-    status_code, body = fetch(f"{server}/api/event", data=json.dumps(again).encode())
-    assert status_code == 400
-    assert "no longer awaiting the user" in json.loads(body)["error"]
-
-
-def test_server_checks_recursive_parent_prerequisite_under_append_lock(
-    server, page_dir
-):
-    """A custom scalar reads the declared roll-up, including request phases."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"]["rollup"] = True
-    scalar = {"type": "string", "pattern": "^[0-9]+$"}
-    detail = {
-        "type": "object",
-        "properties": {"slots": scalar},
-        "required": ["slots"],
-        "additionalProperties": False,
-    }
-    record = {"kind": "value", "attr": "slots", "value": "slots"}
-    registry["lf-quota"] = {
-        "description": "A project-defined absolute scalar control.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "slots": scalar,
-            "restated": {"type": "boolean"},
-        },
-        "required": ["id", "slots"],
-        "additionalProperties": False,
-        "x-owners": ["lf-task"],
-        "x-content": "empty",
-        "x-upgrade": True,
-        "x-state": {
-            "move": {
-                "detail": {
-                    "type": "object",
-                    "properties": {
-                        "to": {"type": "string"},
-                        "index": {"type": "integer", "minimum": 0},
-                    },
-                    "required": ["to", "index"],
-                    "additionalProperties": False,
-                },
-                "facet": "placement",
-                "unit": "widget",
-                "record": {
-                    "kind": "position",
-                    "within": "lf-task",
-                    "value": "to",
-                    "order": "index",
-                },
-            },
-            "increase": {
-                "detail": detail,
-                "facet": "capacity",
-                "unit": "widget",
-                "record": record,
-                "requires": {
-                    "target": "owner",
-                    "awaiting": False,
-                },
-            },
-            "decrease": {
-                "detail": detail,
-                "facet": "capacity",
-                "unit": "widget",
-                "record": record,
-            },
-        },
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-    (page_dir / "widgets" / "lf-quota.js").write_text("export default class {}\n")
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace(
-            "</section>",
-            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="blocked">'
-            "<strong>Task</strong>"
-            '<lf-agent id="quota-worker" state="waiting" on="quota-task">'
-            '<strong>Worker</strong><lf-worktree id="quota-tree" '
-            'source="project-worktrees"></lf-worktree></lf-agent>'
-            '<lf-quota id="quota" slots="1"></lf-quota>'
-            '<lf-ask id="quota-intervention-decision"><h3>Proceed?</h3>'
-            '<lf-options id="quota-intervention" choose>'
-            '<lf-option id="quota-ready" chosen>Ready</lf-option>'
-            "</lf-options></lf-ask>"
-            '<lf-ask id="quota-operations-decision"><h3>Restart?</h3>'
-            '<lf-operations id="quota-operations" target="quota-task" '
-            'worker="quota-worker" worktree="quota-tree">'
-            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask>"
-            '<lf-task id="quota-child" status="active"><strong>Child</strong>'
-            '<lf-ask id="quota-child-decision"><h3>Is the child ready?</h3>'
-            '<lf-options id="quota-child-review" choose>'
-            '<lf-option id="quota-child-ready">Ready</lf-option>'
-            "</lf-options></lf-ask></lf-task>"
-            "</lf-task>"
-            '<lf-task id="quota-destination" status="active">'
-            "<strong>Destination</strong></lf-task>"
-            "</lf-tasks></section>",
-        )
-    )
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-
-    event = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota",
-        "action": "increase",
-        "detail": {"slots": "2"},
-    }
-    # The policy choice is answered, but the ready host operation is still the
-    # user's turn and therefore closes an action requiring the parent not to ask.
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-    assert status == 400
-    assert "still awaiting the user" in json.loads(body)["error"]
-
-    requested = {
-        "kind": "request",
-        "revision": revision,
-        "widget": "quota-operations",
-        "action": "restart",
-        "detail": {
-            "target": "quota-task",
-            "worker": "quota-worker",
-            "worktree": "quota-tree",
-        },
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(requested).encode())[0] == 200
-
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": revision,
-            "widget": "quota-task",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "revision": revision,
-            "widget": "quota-child",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    # Work status remains orthogonal, while the open child request keeps the parent
-    # aggregate awaiting even though its direct intervention is answered.
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-    assert status == 400
-    assert "still awaiting the user" in json.loads(body)["error"]
-
-    child_choice = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota-child-review",
-        "action": "choose",
-        "detail": {"options": ["quota-child-ready"]},
-    }
-    assert (
-        fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
-    )
-    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
-
-    # Clearing the direct answer reopens that intervention and closes capacity under
-    # the same lock.
-    choose = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota-intervention",
-        "action": "choose",
-        "detail": {"options": []},
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
-    increase = {**event, "detail": {"slots": "4"}}
-    status, body = fetch(f"{server}/api/event", data=json.dumps(increase).encode())
-    assert status == 400
-    assert "still awaiting the user" in json.loads(body)["error"]
-
-    decrease = {**event, "action": "decrease", "detail": {"slots": "0"}}
-    assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
-
-    # Placement is projected too. After the absolute move, admission reads the
-    # active destination rather than the blocked parent in authored markup.
-    move = {
-        "kind": "action",
-        "revision": revision,
-        "widget": "quota",
-        "action": "move",
-        "detail": {"to": "quota-destination", "index": 0},
-    }
-    assert fetch(f"{server}/api/event", data=json.dumps(move).encode())[0] == 200
-    increase_after_move = {**event, "detail": {"slots": "1"}}
-    assert (
-        fetch(f"{server}/api/event", data=json.dumps(increase_after_move).encode())[0]
-        == 200
-    )
-    assert [
-        logged["action"]
-        for logged in event_model.read_events(page_dir)
-        if logged["kind"] == "action"
-    ] == ["choose", "increase", "choose", "decrease", "move", "increase"]
 
 
 def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring(
@@ -5503,55 +5146,6 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
         assert "matching x-conversation hold target" in json.loads(body)["error"]
-
-
-def test_a_version_response_comment_requires_its_declared_exact_section(
-    server, page_dir
-):
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    publish(page_dir)
-    event = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "Add the camera first.",
-        "anchor": {"section": "choice"},
-        "response": {"kind": "version", "verb": "choose"},
-        "attempt": "version_response_good_1",
-    }
-
-    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
-
-    assert status == 200, body
-    assert event_model.read_events(page_dir)[-1]["response"] == {
-        "kind": "version",
-        "verb": "choose",
-    }
-
-    forged = {
-        **event,
-        "anchor": {"section": "plan"},
-        "attempt": "version_response_forged_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
-    assert status == 400
-    assert "exact-section x-conversation response target" in json.loads(body)["error"]
-
-    wrong_verb = {
-        **event,
-        "response": {"kind": "version", "verb": "answer"},
-        "attempt": "version_response_wrong_verb_1",
-    }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_verb).encode())
-    assert status == 400
-    assert "exact-section x-conversation response target" in json.loads(body)["error"]
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):

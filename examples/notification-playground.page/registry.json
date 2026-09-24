@@ -14,7 +14,7 @@
       "author": "All notification controls, including event pressure, belong to one exact page-owned value schema and one Playground submission."
     },
     "x-upgrade": true,
-    "x-awaits": {"region": true, "answers": ["choose"]},
+    "x-awaits": {"region": true, "answered": {"choose": {}}},
     "x-state": {
       "choose": {
         "detail": {
@@ -49,7 +49,6 @@
           "required": ["values", "instruction"],
           "additionalProperties": false
         },
-        "facet": "configuration",
         "unit": "widget"
       }
     },

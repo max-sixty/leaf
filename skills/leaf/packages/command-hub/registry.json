@@ -216,7 +216,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "activity",
         "unit": "widget",
         "update": "doing",
         "record": {
@@ -331,9 +330,6 @@
       },
       "hold": "Send & pause"
     },
-    "x-awaits": {
-      "rollup": true
-    },
     "x-report": {
       "status": {
         "detail": {
@@ -355,7 +351,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "status",
         "unit": "widget",
         "record": {
           "kind": "value",

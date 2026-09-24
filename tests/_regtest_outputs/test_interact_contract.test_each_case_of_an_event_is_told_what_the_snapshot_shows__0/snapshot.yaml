@@ -444,30 +444,6 @@ comment with a pasted image:
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
-comment awaiting a version:
-  event:
-    carrier: wait
-    kind: comment
-    obligation:
-      response:
-        kind: version
-  told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
-    - text: >-
-        This conversation asks for a new version of the page rather than a reply,
-        and `leaf reply` refuses it. Make the change it asks for, stamp the version,
-        then close it with `leaf resolve <page> --to <conversation-id>`, which refuses
-        until a stamped version's authored state answers the Ask the conversation
-        came from, or changes its declared answer where the Ask was already answered.
-        If the change needs clarification first, ask in a separate thread on the
-        same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
-        there hands both threads back to you.
-
 comment a newer message answers through:
   event:
     carrier: wait
@@ -688,35 +664,6 @@ reply with a pasted image:
     - text: >-
         Your reply renders as Markdown, so show code or markup in a fenced block.
 
-reply in a thread awaiting a version:
-  event:
-    carrier: wait
-    kind: reply
-    obligation:
-      response:
-        kind: version
-  told:
-    - when: {"required": ["carrier"], "properties": {"carrier": {"const": "wait"}}, "not": {"required": ["token"]}}
-      text: >-
-        Acknowledge this delivery before anything else by starting the next background
-        wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the
-        delivery's `id`: until then the user's message reads Sent rather than Picked
-        up.
-    - when: {"not": {"required": ["token"]}}
-      text: >-
-        The user answered in a thread; the batch's `conversations` carries the thread's
-        context, and `leaf conversation read <page> <conversation-id>` reads its
-        history in pages.
-    - text: >-
-        This conversation asks for a new version of the page rather than a reply,
-        and `leaf reply` refuses it. Make the change it asks for, stamp the version,
-        then close it with `leaf resolve <page> --to <conversation-id>`, which refuses
-        until a stamped version's authored state answers the Ask the conversation
-        came from, or changes its declared answer where the Ask was already answered.
-        If the change needs clarification first, ask in a separate thread on the
-        same Ask with `leaf comment <page> --section <ask-id>`; the user's answer
-        there hands both threads back to you.
-
 reply in a long thread:
   event:
     carrier: wait
@@ -852,6 +799,35 @@ pick before Done:
         This move owes no answer of its own: it answers no Ask, a later move on
         the same widget carries the answer, or it does not finish the answer yet,
         such as a pick before the Done its group waits for.
+
+decided suggestion:
+  event:
+    carrier: wait
+    kind: action
+    action: decide
+    meaning:
+      document:
+        kind: page
+    obligation:
+      response:
+        kind: markup
+  told:
+    - text: >-
+        The user already sees the action applied.
+    - when: {"required": ["action"], "properties": {"action": {"const": "decide"}}}
+      text: >-
+        The user decided a suggestion, and `detail.outcome` says which way: `accept`
+        keeps the lf-new branch and `reject` keeps the lf-old branch. The next version
+        writes the kept branch in as settled prose with its ids and drops the suggestion.
+    - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["document"], "properties": {"document": {"required": ["kind"], "properties": {"kind": {"const": "thread"}}}}}}}}
+      text: >-
+        If you need clarification, ask in a thread on the picked option. To override
+        the pick in a later version, mark the element `restated` and say why in
+        the version note.
+    - text: >-
+        It answers the page's Ask, so the page shows it as waiting on you until
+        the markup records it. Continue the work it selects or unblocks, then write
+        it in and stamp a version.
 
 pick inside a thread:
   event:

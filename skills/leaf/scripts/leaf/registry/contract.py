@@ -244,6 +244,32 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def decides(spec: dict) -> bool:
+    """Whether one verb is a deciding verb: its detail declares the reserved
+    `outcome`, which says which retirable members leave the page (x-retired-when,
+    x-withdrawn-as). The runtime's `decidingVerb` reads the same field."""
+    return "outcome" in spec["detail"].get("properties", {})
+
+
+def deciding_verbs(entry: dict) -> list[str]:
+    """Every x-state verb of one declaration that decides; validation holds it to one."""
+    return [verb for verb, spec in entry.get("x-state", {}).items() if decides(spec)]
+
+
+def deciding_verb(entry: dict) -> str | None:
+    """The one deciding x-state verb, or None."""
+    return next(iter(deciding_verbs(entry)), None)
+
+
+def deciding_outcomes(entry: dict) -> list[str]:
+    """The outcomes the deciding verb may stand under; empty without one."""
+    verb = deciding_verb(entry)
+    if verb is None:
+        return []
+    schema = entry["x-state"][verb]["detail"]["properties"]["outcome"]
+    return list(schema.get("enum", [])) if isinstance(schema, dict) else []
+
+
 def state_specs(entry: dict):
     """The state and report verb declarations on one element declaration."""
     for channel in ("x-state", "x-report"):

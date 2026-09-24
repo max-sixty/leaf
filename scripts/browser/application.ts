@@ -7,7 +7,7 @@
 import { createApplicationPublisher } from "./snapshot.ts";
 import {
   foldProjection,
-  foldedFacet,
+  foldedValue,
   foldWidgetStates,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
@@ -36,7 +36,6 @@ type Thread = Parameters<typeof conversational>[0];
 type Event = Thread["root"];
 
 interface ActionSpec {
-  facet: string;
   unit: string;
   record?: { kind: string; value: string; attr?: string };
 }
@@ -75,8 +74,6 @@ interface WireAsks {
   all: WireAsk[];
   user: WireAsk[];
   unanswered: WireAsk[];
-  awaiting: Record<string, boolean>;
-  unanswered_awaiting: Record<string, boolean>;
 }
 
 interface WireWorkflow {
@@ -85,7 +82,7 @@ interface WireWorkflow {
   input: string | null;
   subject: { kind: "conversation" | "widget"; id: string };
   coordinate: unknown;
-  answer: { kind: "reply" | "version" | "markup" | "receipt" } | null;
+  answer: { kind: "reply" | "markup" | "receipt" } | null;
   stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
   ts: string | null;
   detail: string;
@@ -237,27 +234,10 @@ const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
 const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
   event.widget === descriptor.id;
 
-const projectedPosition = (projection: any, id: string) =>
-  [...projection.desired.values()].find(
-    ({ unit, spec }: any) => unit === id && spec.record?.kind === "position",
-  );
-
-const projectedParent = (
-  descriptors: ReadonlyMap<string, WidgetDescriptor>,
-  projection: any,
-  child: WidgetDescriptor,
-) => {
-  const moved = projectedPosition(projection, child.id);
-  const parentId = moved ? moved.e.detail[moved.spec.record.value] : child.parent?.id;
-  return typeof parentId === "string" ? descriptors.get(parentId) : undefined;
-};
-
 const NO_ASKS = {
   all: [] as AskRecord[],
   user: [] as AskRecord[],
   unanswered: [] as AskRecord[],
-  awaiting: {} as Record<string, boolean>,
-  unansweredAwaiting: {} as Record<string, boolean>,
 };
 
 const askRecord = (ask: WireAsk): AskRecord => ({
@@ -270,9 +250,8 @@ const askRecord = (ask: WireAsk): AskRecord => ({
 
 /* The admitted Ask reading, page asks before conversation asks.
  *
- * Which Asks a document holds, which of them the user still owes, and every
- * declared target's awaiting value are folded by `leaf.asks` under the same page
- * transaction as the rest of this state. Nothing here folds those declarations
+ * Which Asks a document holds and which of them the user still owes are folded
+ * by `leaf.asks` under the same page transaction as the rest of this state. Nothing here folds those declarations
  * again, so an answer reaches these lists when the state its POST returns is
  * adopted — one reading after the widget state the user sees change at once. */
 function normalizedAsks(
@@ -289,43 +268,7 @@ function normalizedAsks(
     all: records("all"),
     user: records("user"),
     unanswered: records("unanswered"),
-    awaiting: { ...page?.awaiting, ...thread?.awaiting },
-    unansweredAwaiting: {
-      ...page?.unanswered_awaiting,
-      ...thread?.unanswered_awaiting,
-    },
   };
-}
-
-function requirementMatches(
-  root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
-  descriptor: WidgetDescriptor,
-  requirement: { target: "self" | "owner"; awaiting: boolean },
-) {
-  if (requirement.target === "self")
-    return (
-      Boolean(root.effective.asks.unansweredAwaiting[descriptor.id]) ===
-      requirement.awaiting
-    );
-  const declaredOwners = (descriptor.declaration["x-owners"] ?? []) as string[];
-  let child: WidgetDescriptor | undefined = descriptor;
-  const visited = new Set([descriptor.id]);
-  while (child) {
-    const parent = projectedParent(
-      root.document.descriptors as ReadonlyMap<string, WidgetDescriptor>,
-      root.effective.projection,
-      child,
-    );
-    if (!parent || visited.has(parent.id)) return false;
-    visited.add(parent.id);
-    if (declaredOwners.includes(parent.tag))
-      return (
-        Boolean(root.effective.asks.unansweredAwaiting[parent.id]) ===
-        requirement.awaiting
-      );
-    child = parent;
-  }
-  return false;
 }
 
 function widgetReading(
@@ -336,7 +279,7 @@ function widgetReading(
   const currentDescriptor = JSON.stringify(registered) === JSON.stringify(descriptor);
   // A live revision connects and prepares replacement nodes before their complete
   // document capture is adopted. An id shared with the outgoing node must not lend the
-  // replacement its old semantic facets during that preparation window.
+  // replacement its old semantic state during that preparation window.
   const current = currentDescriptor
     ? root.effective.widgets.get(descriptor.id)
     : undefined;
@@ -344,12 +287,7 @@ function widgetReading(
     ? root.document.authored.get(descriptor.id)?.state
     : undefined;
   const declaration = descriptor.declaration;
-  const actionSpecs = (declaration["x-state"] ?? {}) as Record<
-    string,
-    ActionSpec & {
-      requires?: { target: "self" | "owner"; awaiting: boolean };
-    }
-  >;
+  const actionSpecs = (declaration["x-state"] ?? {}) as Record<string, ActionSpec>;
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -379,8 +317,7 @@ function widgetReading(
           currentDescriptor &&
           root.effective.hostAvailable &&
           root.phase !== "waiting" &&
-          !descriptor.quoted &&
-          (!spec.requires || requirementMatches(root, descriptor, spec.requires)),
+          !descriptor.quoted,
         unavailable: root.effective.hostAvailable
           ? null
           : "no agent or server is available",
@@ -468,13 +405,12 @@ function widgetReading(
   );
   const provenanceEntries = (current?.entries ?? []) as unknown as {
     e: Event;
-    spec: ActionSpec;
     unit: string;
     value: unknown;
   }[];
   const provenance = Object.fromEntries(
-    provenanceEntries.map(({ e, spec, unit, value }) => [
-      `${spec.facet}:${unit}`,
+    provenanceEntries.map(({ e, unit, value }) => [
+      `${e.action}:${unit}`,
       { event: e, unit, value },
     ]),
   );
@@ -720,7 +656,7 @@ export function createSemanticApplication({
       // A worker row with no report dates its claim from the active revision, while
       // report-backed rows render the accepted update sequence. Keep both inside the
       // publication signature so their public watchers cannot miss a state read whose
-      // projection and widget facets happen to be unchanged.
+      // projection and widget state happen to be unchanged.
       updates: active?.updates ?? [],
       publishedAt: active?.published_at ?? null,
       pendingApprovals: pendingApprovals(unresolved, receipts),
@@ -1014,10 +950,10 @@ export function createSemanticApplication({
             ? {
                 unit,
                 spec,
-                coordinate: JSON.stringify([event.widget, unit, spec.facet]),
+                coordinate: JSON.stringify([event.widget, unit, event.action]),
                 localOrder,
                 e: { ...event, id: localId },
-                value: spec.record ? foldedFacet(event, spec.record) : event.action,
+                value: spec.record ? foldedValue(event, spec.record) : event.action,
               }
             : null;
       publish({

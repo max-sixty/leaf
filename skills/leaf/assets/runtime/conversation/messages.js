@@ -3,7 +3,7 @@
    Generated metadata, prose, workflow and reaction placement have one owner. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. The fragment is captured inertly before its first upgrade; panel
-   presentation waits for preparation before capturing typed authored facets. */
+   presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import {
   loadMarkdown,
@@ -16,7 +16,7 @@ import { isReaction, moved } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import {
   rememberAuthoredParents,
-  stageAuthoredFacets,
+  stageAuthoredStates,
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
@@ -98,7 +98,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
-    const authored = stageAuthoredFacets(template.content, new Map());
+    const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {

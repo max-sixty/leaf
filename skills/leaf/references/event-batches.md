@@ -48,7 +48,7 @@ retry key `attempt`, then adds these delivery readings:
 - `conversations` lists every conversation the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
 - `obligation`, when present, freezes the answer the event owned at capture. Its
-  `as_of_seq` is evidence age, and `response` names the answer (`reply`, `version`,
+  `as_of_seq` is evidence age, and `response` names the answer (`reply`,
   `markup` or `receipt`) with the address it is written under; the event's `answering`
   clauses say how to write it. Until the answer is written, the Stop hook holds the
   turn open and `leaf status idle` refuses. Re-read current state before writing

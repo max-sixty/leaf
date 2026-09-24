@@ -925,18 +925,12 @@ def resolve(dir: str, to: str, as_json: bool) -> None:
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
 @click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
-@click.option(
-    "--references",
-    metavar="JSON",
-    help="role-to-stable-target-reference object declared by the report verb",
-)
 @click.option("--json", "as_json", is_flag=True, help="print the report event instead")
 def report(
     dir: str,
     widget: str,
     verb: str,
     fields: tuple,
-    references: str | None,
     as_json: bool,
 ) -> None:
     """Report a state change onto a page widget, as a worker.
@@ -948,7 +942,7 @@ def report(
     """
     from leaf.conversation import cmd_report
 
-    accepted = cmd_report(resolve_dir(dir), widget, verb, fields, references=references)
+    accepted = cmd_report(resolve_dir(dir), widget, verb, fields)
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
         return

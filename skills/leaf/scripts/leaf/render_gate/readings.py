@@ -38,7 +38,7 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
     return page_passages(
         document,
         registry,
-        decided=retirement_outcomes(projection.actions, registry),
+        decided=retirement_outcomes(projection.actions),
         rewrites=rewritten_bodies(projection.actions),
         additions=generated_children(projection.desired, authored_ids),
         source=source,
@@ -191,7 +191,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                 reading = page_reading(
                     SourceDocument(markup), state["events"], registry, here
                 )
-                outcomes = retirement_outcomes(reading.projection.actions, registry)
+                outcomes = retirement_outcomes(reading.projection.actions)
                 holders = []
                 for h in retirement_holders(reading.document, registry):
                     declared = slots[h["tag"]]

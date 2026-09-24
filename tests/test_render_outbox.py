@@ -521,7 +521,8 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     assert [request["attempt"] for request in requests].count(first_attempt[0]) == 1
     assert len(refused) == 1
     assert [
-        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+        (event["widget"], event["detail"].get("outcome", event["action"]))
+        for event in actions(serve.page_dir)
     ] == [
         ("sug-refill", "accept"),
         ("sug-thistle", "accept"),
@@ -973,7 +974,6 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
                 "required": ["card", "to", "index"],
                 "additionalProperties": False,
             },
-            "facet": "placement",
             "unit": "card",
             "record": {
                 "kind": "position",
@@ -995,7 +995,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
-    for (const [id, order] of Object.entries(state.placement.value)) {
+    for (const [id, order] of Object.entries(state.move.value)) {
       const column = document.getElementById(id);
       for (const card of order) column.append(document.getElementById(card));
     }
@@ -1392,8 +1392,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "reject",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "reject"},
         },
     )
 
@@ -1405,7 +1405,8 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     expect(page.locator("#sug-refill lf-new")).to_be_hidden()
     assert [
-        (event["widget"], event["action"]) for event in actions(serve.page_dir)
+        (event["widget"], event["detail"].get("outcome", event["action"]))
+        for event in actions(serve.page_dir)
     ] == [
         ("sug-refill", "accept"),
         ("sug-refill", "reject"),
@@ -1707,7 +1708,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
 def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     """The walk steps past what it has already taken and reaches the gesture before
     it — the edit here, whose authored text comes back with its paragraphs, where
-    the facet a comparison reads is collapsed. That is what withdrawing buys over
+    the state a comparison reads is collapsed. That is what withdrawing buys over
     stating a counter-gesture: a second press would otherwise land on a statement
     the first press had just made and put the user back where they started."""
     page = open_page(browser, serve(UNDO_PAGE))
@@ -1773,7 +1774,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serv
 
 
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
-    """Withdrawing an accept renders the null settlement facet. The same suggestion
+    """Withdrawing an accept renders the null decision. The same suggestion
     regains its old passage and decision controls without replacing its subtree."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     old = page.locator("#sug-refill lf-old")
@@ -1799,7 +1800,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
         "undo left more than one Accept record for the same suggestion"
     )
     (accepted,) = actions(serve.page_dir)
-    assert accepted["action"] == "accept"
+    assert accepted["detail"] == {"outcome": "accept"}
     assert [
         e["undoes"]
         for e in events_model.read_events(serve.page_dir)
@@ -2057,7 +2058,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     round_trip(two)
     expect(one.locator("#sug-refill lf-new")).to_be_hidden()
     assert [
-        e.get("action", e["kind"])
+        e["detail"]["outcome"] if e["kind"] == "action" else e["kind"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] in ("action", "undo")
     ] == ["accept", "undo", "reject"]
@@ -2615,8 +2616,8 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "author": "user",
             "revision": 1,
             "widget": "sug-thistle",
-            "action": "accept",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
     holding(page, held_states, 1, "candidate read")
@@ -2709,7 +2710,9 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     undo = suggestion_control(page, "sug-refill", "undo")
     expect(undo).to_be_enabled()
-    assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
+    assert [event["detail"]["outcome"] for event in actions(serve.page_dir)] == [
+        "accept"
+    ]
     # One fault, one report, from the region whose renderer raised it. The gesture's own
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.

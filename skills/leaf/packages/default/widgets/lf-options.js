@@ -46,7 +46,7 @@
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
  * is whole, posted as an `answer` action and held as the Ask's closing
- * condition (x-awaits.until). Answered is paint on the press, never a wider word, and the
+ * condition (x-awaits.answered). Answered is paint on the press, never a wider word, and the
  * set can still change after — each later toggle still reaches the agent, who reads the log.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
@@ -394,7 +394,7 @@ customElements.define(
 
     #picked() {
       const ids = new Set(
-        this.reading?.state.selection?.detail.options ?? this.#authoredChoice().options,
+        this.reading?.state.choose?.detail.options ?? this.#authoredChoice().options,
       );
       return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
@@ -413,7 +413,7 @@ customElements.define(
 
     // The one statement a live channel can't derive: the set is whole. One press,
     // one `answer` action, and the decision this group stands as is discharged
-    // (x-awaits.until). One-way — a later toggle still reaches the agent, so there
+    // (x-awaits.answered). One-way — a later toggle still reaches the agent, so there
     // is nothing to take back — and the answer is paint rather than a fold, so
     // the pressed control's own line holds still.
     #doneRow() {
@@ -423,7 +423,7 @@ customElements.define(
     }
 
     // The press paints the completed answer before the log replies. The outbox carries
-    // that recordless facet beside recorded actions and refusal restores the prior state.
+    // that recordless verb beside recorded actions and refusal restores the prior state.
     // The promise still makes one press one action however many times the button is hit
     // while the first is in the wire.
     #answer() {
@@ -455,7 +455,7 @@ customElements.define(
     #syncDone() {
       if (!this.#done) return;
       this.#done.available = this.#available("answer");
-      this.#done.answered = this.reading?.state.completion?.value === "answer";
+      this.#done.answered = Boolean(this.reading?.state.answer?.action);
       this.#done.busy = Boolean(this.#answering);
     }
 
@@ -669,25 +669,25 @@ customElements.define(
       this.#refreshAvailability();
       const state = reading.state;
       const stateKey = JSON.stringify([
-        state.selection?.detail ?? null,
-        state.completion?.value ?? null,
+        state.choose?.detail ?? null,
+        state.answer?.value ?? null,
       ]);
-      if ((state.selection || state.completion) && stateKey !== this.#stateKey) {
+      if ((state.choose || state.answer) && stateKey !== this.#stateKey) {
         this.#stateKey = stateKey;
         document.dispatchEvent(new CustomEvent("lf-answered"));
       }
     };
 
     renderState(state) {
-      // Authored facets are captured after upgrade because widgets may arrange their
-      // source nodes while connecting. Until that typed facet publishes, state has no
+      // Authored state is captured after upgrade because widgets may arrange their
+      // source nodes while connecting. Until that typed state publishes, it has no
       // selection at all; preserve the authored initial condition. A reading that does
       // carry a selection is always authoritative, including accepted replay.
-      const detail = state.selection?.detail ?? this.#authoredChoice();
+      const detail = state.choose?.detail ?? this.#authoredChoice();
       const added = Object.fromEntries(
-        Object.entries(state.added?.units ?? {}).map(([id, facet]) => [
+        Object.entries(state.add?.units ?? {}).map(([id, standing]) => [
           id,
-          facet.detail.text,
+          standing.detail.text,
         ]),
       );
       for (const option of this.#addition.reconcile(added, this.#done))

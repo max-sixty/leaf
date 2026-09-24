@@ -131,7 +131,7 @@ Each mutable fact has one writer:
 
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
-| authored widget state | validated source markup before widget upgrade | `stageAuthoredFacets` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
+| authored widget state | validated source markup before widget upgrade | `stageAuthoredStates` decodes typed initial values; the application admits them atomically with descriptors, revision identity, and a matching server reading |
 | external data | the page data reading taken latest | `receiveState` replaces the source values; `watchData` delivers each bound source's value to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision whose executable identity is this document's is patched onto the authored page in place; one whose differs navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
@@ -197,7 +197,7 @@ Startup order is load-bearing:
 3. Restore the user's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
 5. Index passage fences and authored parent identities, then capture each widget's
-   immutable descriptor and typed authored facets from the source DOM.
+   immutable descriptor and typed authored state from the source DOM.
 6. Publish that complete document contract once. No component is connected because
    Leaf still needs it to discover semantic input.
 7. Import the modules declared by `x-upgrade` for the tags this document contains, and
@@ -258,13 +258,9 @@ those readings and combines them with authored state and unresolved gestures;
 coverage and provenance. Widget controllers keep desired state separate from proof of
 rendering.
 
-Action prerequisites use the registry's `x-state.requires` declaration. The controller
-paints eligibility, the common browser dispatch checks it, and POST checks the same
-prerequisite against the log under the append lock. Eligibility uses the ordinary Ask
-projection without conversation seats: handing an Ask to the agent does not answer it.
-The registry's `$state` entry owns `requires` and position-answer `completion`, and
-`$awaits` owns `answers` and `rollup`. Keep those
-readings shared rather than adding an eligibility cache or a browser Ask fold.
+Whether an Ask is answered is the registry's `$awaits.answered` condition over standing
+state, which Python evaluates. Keep that reading on the server rather than adding a
+browser Ask fold.
 
 The server supplies page and conversation Ask collections through each view's
 `document.asks` and the conversation's `asks`. The publisher combines them page first;
@@ -298,19 +294,14 @@ on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document. A declared
 `x-thread-surface` seats the canonical composer and Thread views inside the widget on
-the terms in `../references/packages.md`, "Widget-local Thread surfaces". A root
-declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
-view text-only and refuses an agent reply because the next authored version is its
-response. Dropping the owner drops only the inline seat.
+the terms in `../references/packages.md`, "Widget-local Thread surfaces". Dropping
+the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
 later version does not revive retracted state. Python's projection uses
 containment, not a global id lookup, when deciding which detailed parts an action
 rests on.
-
-Version-response conversations and their resolution rules are defined in
-`../scripts/leaf/events.md`, "Threads".
 
 ## The widget vocabulary stays open
 

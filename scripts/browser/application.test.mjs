@@ -3,12 +3,12 @@ import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
 
-const spec = { unit: "widget", facet: "decision" };
+const spec = { unit: "widget" };
 const descriptor = {
   id: "choice",
   tag: "lf-choice",
   document: { kind: "page", revision: 1 },
-  declaration: { "x-state": { accept: spec, reject: spec } },
+  declaration: { "x-state": { decide: spec } },
   parent: null,
   ancestors: [],
   quoted: false,
@@ -21,8 +21,6 @@ const noAsks = () => ({
   all: [],
   user: [],
   unanswered: [],
-  awaiting: {},
-  unanswered_awaiting: {},
 });
 const wireAsk = (id, tag, source = id, sourceTag = tag, conversation = null) => ({
   id,
@@ -31,12 +29,12 @@ const wireAsk = (id, tag, source = id, sourceTag = tag, conversation = null) => 
   source_tag: sourceTag,
   conversation,
 });
-const coordinate = ["choice", "choice", "decision"];
-const action = (attempt, action = "accept") => ({
+const coordinate = ["choice", "choice", "decide"];
+const action = (attempt, outcome = "accept") => ({
   kind: "action",
   widget: "choice",
-  action,
-  detail: {},
+  action: "decide",
+  detail: { outcome },
   revision: 1,
   attempt,
 });
@@ -61,7 +59,7 @@ const state = (taken, events = []) => ({
           projection: {
             entries: events.map((event) => ({
               event,
-              coordinate: [event.widget, event.widget, "decision"],
+              coordinate: [event.widget, event.widget, event.action],
               spec,
               scope: "page",
               value: event.action,
@@ -81,7 +79,7 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
   app.captureDocument({
     ...app.read().document,
     registry: Object.fromEntries([
-      ["lf-choice", { "x-state": { accept: spec, reject: spec } }],
+      ["lf-choice", { "x-state": { decide: spec } }],
       ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
     ]),
     authored: new Map([
@@ -89,9 +87,9 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
         "choice",
         {
           tag: "lf-choice",
-          specs: new Map([["decision", spec]]),
+          specs: new Map([["decide", spec]]),
           positions: {},
-          state: { decision: { action: null, value: null, detail: {} } },
+          state: { decide: { action: null, value: null, detail: {} } },
         },
       ],
       ...extraAuthored,
@@ -105,8 +103,9 @@ const setup = (extraDescriptors = [], extraAuthored = []) => {
   app.adopt(state(1));
   return app;
 };
-const decision = (app) =>
-  app.read().effective.widgets.get("choice").state.decision.action;
+// The standing decision's outcome, or null while the widget is undecided.
+const outcomeOf = (state) => state?.decide.detail.outcome ?? null;
+const decision = (app) => outcomeOf(app.read().effective.widgets.get("choice").state);
 
 test("semantic publication opens before subscribers and seals the newest nested epoch", async () => {
   const document = {};
@@ -170,7 +169,7 @@ test("one synchronous immutable reading combines authored, accepted, and later p
   const app = setup();
   const seen = [];
   app
-    .select((root) => root.effective.widgets.get("choice").state.decision.action)
+    .select((root) => outcomeOf(root.effective.widgets.get("choice").state))
     .subscribe((value) => seen.push([value, app.read().unresolved.length]));
   const prepared = state(2, [{ ...action("first"), id: "e1", seq: 1 }]);
   app.enqueue(action("first"), "now");
@@ -186,7 +185,7 @@ test("one synchronous immutable reading combines authored, accepted, and later p
   assert.equal(app.read().unresolved.length, 2);
   assert.throws(() => app.read().effective.widgets.set("wrong", {}), TypeError);
   assert.throws(() => {
-    app.read().unresolved[1].event.action = "accept";
+    app.read().unresolved[1].event.action = "other";
   }, TypeError);
   app.reject("later");
   assert.equal(decision(app), "accept");
@@ -197,32 +196,32 @@ test("one widget selection publishes optimistic state and delivery without writa
   const selected = app.selectWidget(descriptor);
   const seen = [];
   const stop = selected.subscribe((reading) => seen.push(reading));
-  assert.equal(selected.read().actions.accept.available, true);
-  assert.equal(selected.read().authored.decision.action, null);
+  assert.equal(selected.read().actions.decide.available, true);
+  assert.equal(selected.read().authored.decide.action, null);
   app.enqueue(action("first"), "now");
-  assert.equal(selected.read().authored.decision.action, null);
-  assert.equal(selected.read().state.decision.action, "accept");
+  assert.equal(selected.read().authored.decide.action, null);
+  assert.equal(outcomeOf(selected.read().state), "accept");
   assert.deepEqual(selected.read().delivery, [
     {
       attempt: "first",
       kind: "action",
-      verb: "accept",
+      verb: "decide",
       answered: false,
       rejected: false,
     },
   ]);
-  assert.equal(seen.at(-1).actions.accept.standing[0].event.attempt, "first");
+  assert.equal(seen.at(-1).actions.decide.standing[0].event.attempt, "first");
   assert.throws(() => {
-    selected.read().actions.accept.available = false;
+    selected.read().actions.decide.available = false;
   }, TypeError);
   assert.throws(() => {
-    selected.read().authored.decision.value = "corrupt";
+    selected.read().authored.decide.value = "corrupt";
   }, TypeError);
   const beforeUnrelated = seen.length;
   app.acceptData({ version: "unrelated", sources: { unrelated: { value: true } } }, 1);
   assert.equal(seen.length, beforeUnrelated);
   app.reject("first");
-  assert.equal(selected.read().state.decision.action, null);
+  assert.equal(outcomeOf(selected.read().state), null);
   stop();
 });
 
@@ -237,21 +236,21 @@ test("an offline document publishes every host command as unavailable", () => {
   };
   const app = setup([[commands.id, commands]]);
   const pending = app.enqueue(action("first"), "now");
-  assert.equal(app.selectWidget(commands).read().actions.accept.available, true);
+  assert.equal(app.selectWidget(commands).read().actions.decide.available, true);
   assert.equal(app.selectWidget(commands).read().requests.run.available, true);
   assert.equal(
-    app.selectWidget(commands).read().actions.accept.undo[0].id,
+    app.selectWidget(commands).read().actions.decide.undo[0].id,
     pending.localId,
   );
 
   app.setHostAvailable(false);
   const reading = app.selectWidget(commands).read();
-  assert.equal(reading.actions.accept.available, false);
-  assert.equal(reading.actions.accept.unavailable, "no agent or server is available");
+  assert.equal(reading.actions.decide.available, false);
+  assert.equal(reading.actions.decide.unavailable, "no agent or server is available");
   assert.equal(reading.requests.run.available, false);
   assert.equal(reading.requests.run.unavailable, "no agent or server is available");
-  assert.deepEqual(reading.actions.accept.undo, []);
-  assert.equal(reading.state.decision.action, "accept");
+  assert.deepEqual(reading.actions.decide.undo, []);
+  assert.equal(outcomeOf(reading.state), "accept");
 });
 
 test("projected requests expose one lifecycle per data record", () => {
@@ -303,98 +302,14 @@ test("projected requests expose one lifecycle per data record", () => {
   assert.equal(reading.requests.restart.available, false);
 });
 
-test("an owner requirement follows publisher-projected position with authored fallback", () => {
-  const oldOwner = {
-    ...descriptor,
-    id: "old-column",
-    tag: "lf-column",
-    declaration: { "x-awaits": { rollup: true } },
-  };
-  const newOwner = { ...oldOwner, id: "new-column" };
-  const required = {
-    ...descriptor,
-    id: "required-choice",
-    parent: { id: newOwner.id, tag: newOwner.tag },
-    ancestors: [{ id: newOwner.id, tag: newOwner.tag }],
-    declaration: {
-      ...descriptor.declaration,
-      "x-awaits": { answers: ["accept", "reject"] },
-    },
-    ask: { answers: ["accept", "reject"], empty: {} },
-  };
-  const child = {
-    ...descriptor,
-    id: "card",
-    tag: "lf-card",
-    parent: { id: oldOwner.id, tag: oldOwner.tag },
-    ancestors: [{ id: oldOwner.id, tag: oldOwner.tag }],
-    declaration: {
-      "x-owners": ["lf-column"],
-      "x-state": {
-        choose: {
-          ...spec,
-          requires: { target: "owner", awaiting: true },
-        },
-      },
-    },
-  };
-  const app = setup([
-    [oldOwner.id, oldOwner],
-    [newOwner.id, newOwner],
-    [required.id, required],
-    [child.id, child],
-  ]);
-  const moved = {
-    ...action("move", "move"),
-    id: "e-move",
-    seq: 1,
-    widget: child.id,
-    detail: { parent: newOwner.id },
-  };
-  const position = {
-    unit: "widget",
-    facet: "position",
-    record: { kind: "position", value: "parent" },
-  };
-  const read = state(2, [moved]);
-  read.browser.views[1].document.asks = {
-    ...noAsks(),
-    all: [wireAsk(required.id, required.tag)],
-    user: [wireAsk(required.id, required.tag)],
-    unanswered: [wireAsk(required.id, required.tag)],
-    awaiting: { [required.id]: true, [newOwner.id]: true, [oldOwner.id]: false },
-    unanswered_awaiting: {
-      [required.id]: true,
-      [newOwner.id]: true,
-      [oldOwner.id]: false,
-    },
-  };
-  read.browser.views[1].document.projection = {
-    entries: [
-      {
-        event: moved,
-        coordinate: [child.id, child.id, position.facet],
-        spec: position,
-        scope: "page",
-        value: newOwner.id,
-      },
-    ],
-    actions: [moved.id],
-    reports: [],
-    desired: [moved.id],
-  };
-  app.adopt(read);
-  assert.equal(app.selectWidget(child).read().actions.choose.available, true);
-});
-
 test("widget undo candidates name only exact currently standing attempts", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);
   const pending = app.enqueue(action("first"), "now");
-  assert.equal(selected.read().actions.accept.undo[0].attempt, "first");
-  assert.equal(selected.read().actions.accept.undo[0].id, pending.localId);
+  assert.equal(selected.read().actions.decide.undo[0].attempt, "first");
+  assert.equal(selected.read().actions.decide.undo[0].id, pending.localId);
   app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo" }, "now");
-  assert.deepEqual(selected.read().actions.accept.undo, []);
+  assert.deepEqual(selected.read().actions.decide.undo, []);
 });
 
 test("widget action history excludes terminal coverage records", () => {
@@ -403,7 +318,7 @@ test("widget action history excludes terminal coverage records", () => {
   const read = state(2);
   read.browser.views[1].coverage = [{ event: terminal, coordinate: null }];
   app.adopt(read);
-  assert.deepEqual(app.selectWidget(descriptor).read().actions.accept.history, []);
+  assert.deepEqual(app.selectWidget(descriptor).read().actions.decide.history, []);
 });
 
 test("the selected revision keeps carried action history from earlier revisions", () => {
@@ -428,7 +343,7 @@ test("the selected revision keeps carried action history from earlier revisions"
     app
       .selectWidget(current)
       .read()
-      .actions.accept.history.map(({ id }) => id),
+      .actions.decide.history.map(({ id }) => id),
     ["e-old"],
   );
 });
@@ -503,7 +418,7 @@ test("document capture and its matching admitted reading publish atomically", ()
       root.authoritative?.active.revision ?? null,
       root.document.descriptors.get("next")?.document.revision ?? null,
       root.document.authored.has("next"),
-      root.effective.widgets.get("next")?.state.decision.action ?? null,
+      outcomeOf(root.effective.widgets.get("next")?.state),
     ])
     .subscribe((tuple) => seen.push(tuple));
   const nextDescriptor = {
@@ -519,9 +434,9 @@ test("document capture and its matching admitted reading publish atomically", ()
         "next",
         {
           tag: "lf-choice",
-          specs: new Map([["decision", spec]]),
+          specs: new Map([["decide", spec]]),
           positions: {},
-          state: { decision: { action: null, value: null, detail: {} } },
+          state: { decide: { action: null, value: null, detail: {} } },
         },
       ],
     ]),
@@ -886,9 +801,9 @@ test("filtered widget state is selected inside the publisher", () => {
   const app = setup();
   const accepted = { ...action("first"), id: "e1", seq: 1 };
   app.adopt(state(2, [accepted]));
-  assert.equal(app.selectWidgets([]).get("choice").state.decision.action, null);
-  assert.equal(app.selectWidgets(["e1"]).get("choice").state.decision.action, "accept");
-  assert.equal(app.selectWidgets(null).get("choice").state.decision.action, "accept");
+  assert.equal(outcomeOf(app.selectWidgets([]).get("choice").state), null);
+  assert.equal(outcomeOf(app.selectWidgets(["e1"]).get("choice").state), "accept");
+  assert.equal(outcomeOf(app.selectWidgets(null).get("choice").state), "accept");
 });
 
 test("receipt adoption keeps attempts until presentation proof and preserves dependent undo", () => {
@@ -1046,8 +961,6 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     all: [frozen],
     user: [frozen],
     unanswered: [frozen],
-    awaiting: { "frozen-choice": true },
-    unanswered_awaiting: { "frozen-choice": true },
   };
   accepted.browser.conversation.threads = [
     {
@@ -1158,7 +1071,6 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   for (const phase of ["waiting", "offline"]) {
     app.setPhase(phase);
     assert.deepEqual(app.read().effective.asks.all, []);
-    assert.deepEqual(app.read().effective.asks.awaiting, {});
   }
 
   const read = state(2);
@@ -1174,15 +1086,11 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     all: [page],
     user: [page],
     unanswered: [page],
-    awaiting: { choice: true },
-    unanswered_awaiting: { choice: true },
   };
   read.browser.conversation.asks = {
     all: [frozen],
     user: [],
     unanswered: [],
-    awaiting: { "frozen-choice": false },
-    unanswered_awaiting: { "frozen-choice": false },
   };
   app.adopt(read);
 
@@ -1206,8 +1114,6 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     ],
     user: [record],
     unanswered: [record],
-    awaiting: { choice: true, "frozen-choice": false },
-    unansweredAwaiting: { choice: true, "frozen-choice": false },
   });
   assert.throws(() => {
     app.read().effective.asks.all[0].sourceId = "other";
@@ -1227,13 +1133,12 @@ test("the publisher carries the server's Ask reading, page asks before thread as
 test("a standing report supplies desired widget state", () => {
   const valueSpec = {
     unit: "widget",
-    facet: "decision",
     record: { kind: "value", attr: "choice", value: "choice" },
   };
   const source = {
     ...descriptor,
     declaration: {
-      "x-state": { accept: valueSpec },
+      "x-state": { preview: valueSpec },
       "x-report": { preview: valueSpec },
     },
   };
@@ -1256,7 +1161,7 @@ test("a standing report supplies desired widget state", () => {
     entries: [
       {
         event: report,
-        coordinate,
+        coordinate: [source.id, source.id, "preview"],
         spec: valueSpec,
         scope: "page",
         value: "reported",
@@ -1269,11 +1174,11 @@ test("a standing report supplies desired widget state", () => {
 
   app.adopt(accepted);
   assert.equal(
-    app.read().effective.widgets.get(source.id).state.decision.action,
+    app.read().effective.widgets.get(source.id).state.preview.action,
     "preview",
   );
   assert.equal(
-    app.read().effective.widgets.get(source.id).state.decision.value,
+    app.read().effective.widgets.get(source.id).state.preview.value,
     "reported",
   );
 });

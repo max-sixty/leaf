@@ -99,7 +99,7 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
                     )
                 continue
             detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
-            verb = f"{e['action']} {detail}".strip()  # a bare reject carries no detail
+            verb = f"{e['action']} {detail}".strip()  # a bare answer carries no detail
             said = words.says(e) if words else {}
             said.pop(e["widget"], None)
             if said:

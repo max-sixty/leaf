@@ -768,7 +768,7 @@ customElements.define(
 
     renderState(state) {
       if (!this.#ready) return true;
-      const configuration = state.configuration;
+      const configuration = state.choose;
       const projected =
         configuration?.action === "choose"
           ? JSON.stringify(configuration.detail.values)

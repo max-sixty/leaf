@@ -636,7 +636,7 @@ export function renderSaid(root) {
 // The runtime's three provenance states are said here too. Page Map makes them visible
 // and navigable in a live page, while this quiet word keeps each one attached to its
 // target for assistive technology and for a standalone copy whose chrome was removed.
-// They compose into the element's one quiet span, so independent facets can name user,
+// They compose into the element's one quiet span, so independent verbs can name user,
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)

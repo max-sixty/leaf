@@ -202,7 +202,7 @@ def ask_surface_errors(lf_elements: list, registry: dict) -> list:
     One leading direct heading is the question's visible title and the region owns its
     reading and arrival, while the x-awaits or request widget owns the answer. Requiring
     both a title and one structural source makes that split unambiguous for the browser
-    walk and for `page state`; aggregate-only rollups are targets rather than sources.
+    walk and for `page state`.
     Liveness still comes from the source's canonical Ask projection.
     """
 

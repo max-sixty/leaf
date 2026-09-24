@@ -9,6 +9,8 @@ from leaf.schema import ATTRIBUTE_KEYS, DATA_SOURCE_NAME, EXTENSION_SCHEMA, WIDG
 
 from .contract import (
     RegistryError,
+    deciding_outcomes,
+    deciding_verb,
     declares_string,
     json_validator,
     reference_relation_error,
@@ -17,6 +19,7 @@ from .contract import (
     visual_part_attribute,
 )
 from .state import (
+    validate_deciding_verb,
     validate_widget_record_contracts,
     validate_widget_retirement,
     validate_widget_state_relations,
@@ -248,12 +251,13 @@ def validate_widget_relations(
         properties, said = _validate_widget_structure(
             tag, entry, registry, declarations, data, path
         )
-        awaits, response = _validate_widget_predicates(tag, entry, properties, path)
-        _validate_widget_interactions(tag, entry, properties, awaits, response, path)
+        awaits = _validate_widget_predicates(tag, entry, properties, path)
+        _validate_widget_interactions(tag, entry, properties, awaits, path)
         validate_widget_state_relations(tag, entry, declarations, path)
         validate_widget_record_contracts(
             tag, entry, properties, said, registry, declarations, path
         )
+        validate_deciding_verb(tag, entry, path)
         validate_widget_retirement(tag, entry, slots, declarations, path)
 
 
@@ -481,9 +485,7 @@ def _validate_widget_structure(
     return properties, said
 
 
-def _validate_widget_predicates(
-    tag: str, entry: dict, properties: dict, path
-) -> tuple[dict, dict | None]:
+def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
     # A predicate names attributes and values the page can actually carry, or its
     # widget silently disappears from every consumer. The value's kind follows the
     # attribute's own schema — a flag is there or it isn't, an enum admits what it
@@ -498,7 +500,7 @@ def _validate_widget_predicates(
     if request.get("ask") is True and entry.get("x-awaits") is not None:
         raise RegistryError(
             f"{path}: <{tag}> declares both x-request.ask and x-awaits — one "
-            "widget cannot own both a lifecycle request and a state Ask or rollup"
+            "widget cannot own both a lifecycle request and a state Ask"
         )
     if entry.get("x-ask-surface"):
         if "id" not in entry.get("required", []):
@@ -519,7 +521,10 @@ def _validate_widget_predicates(
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
-        ("x-awaits", awaits.get("until", {}).get("when", {})),
+        *(
+            ("x-awaits", condition.get("when", {}))
+            for condition in awaits.get("answered", {}).values()
+        ),
         ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
         ("x-work", entry.get("x-work", {}).get("when", {})),
     ]
@@ -574,12 +579,6 @@ def _validate_widget_predicates(
             f"{path}: <{tag}> x-conversation predicate attributes are authored "
             f"and static, but {dynamic} are written by value records"
         )
-    response = conversation.get("response")
-    if response and (entry.get("x-awaits") is None or awaits.get("rollup")):
-        raise RegistryError(
-            f"{path}: <{tag}> x-conversation requires a version response but "
-            "declares no x-awaits standing Ask"
-        )
     data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
     if dynamic := sorted(data_bindings & mutable_values):
         raise RegistryError(
@@ -592,7 +591,7 @@ def _validate_widget_predicates(
             f"`{measured['at']}` is an authored snapshot instant, but is written "
             "by a value record"
         )
-    return awaits, response
+    return awaits
 
 
 def _validate_widget_interactions(
@@ -600,7 +599,6 @@ def _validate_widget_interactions(
     entry: dict,
     properties: dict,
     awaits: dict,
-    response: dict | None,
     path,
 ) -> None:
     work = entry.get("x-work")
@@ -621,59 +619,24 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> declares a conversation work seat but declares "
             "no x-conversation"
         )
-    # A blanket answer is one of this widget's own verbs, so the log records it
-    # the way every other decision is recorded.
-    answers = awaits.get("answers", [])
-    if awaits.get("rollup"):
-        local_fields = sorted(set(awaits) - {"rollup"})
-        if local_fields:
-            raise RegistryError(
-                f"{path}: <{tag}> x-awaits rollup also declares local Ask "
-                f"fields {local_fields}"
-            )
-    elif entry.get("x-awaits") is not None and not answers:
+    answered = awaits.get("answered", {})
+    if entry.get("x-awaits") is not None and not answered:
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits local Ask declares no answer verbs"
+            f"{path}: <{tag}> x-awaits local Ask declares no `answered` condition"
         )
-    if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
+    if unknown := sorted(set(answered) - set(entry.get("x-state", {}))):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"
+            f"{path}: <{tag}> x-awaits answers with undeclared x-state verbs {unknown}"
         )
-    if awaits.get("rollup") and "id" not in entry.get("required", []):
+    # A blanket answer is one decision per Ask, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the Ask.
+    if (blanket := awaits.get("all")) and (
+        deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
+    ):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits rollup through descendants does "
-            "not require an id"
+            f"{path}: <{tag}> x-awaits blanket answer `{blanket}` is not an outcome "
+            "of a deciding verb that answers its Ask"
         )
-    if (blanket := awaits.get("all")) and blanket not in entry.get("x-state", {}):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits answers every one at once with "
-            f"`{blanket}`, which it does not declare as an x-state verb"
-        )
-    if blanket and blanket not in answers:
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
-            "its answer verbs"
-        )
-    # The until verb closes an Ask, so it too is one of the widget's own
-    # verbs — same rule as `all`, same reason.
-    if (until := awaits.get("until")) and until["verb"] not in entry.get("x-state", {}):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits holds Asks open until `{until['verb']}`, "
-            "which it does not declare as an x-state verb"
-        )
-    if response:
-        verb = response["verb"]
-        if verb not in answers:
-            raise RegistryError(
-                f"{path}: <{tag}> x-conversation version response names `{verb}`, "
-                "which x-awaits does not declare as an answer verb"
-            )
-        record = entry.get("x-state", {}).get(verb, {}).get("record") or {}
-        if record.get("kind") not in {"attribute", "value"}:
-            raise RegistryError(
-                f"{path}: <{tag}> x-conversation version response verb `{verb}` "
-                "has no attribute or value record for a version to change"
-            )
     needs_upgrade = [
         key
         for key in (

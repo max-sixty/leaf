@@ -14,7 +14,7 @@
       "author": "The page module owns ordered filter rows; the Playground package owns their aggregate reset, restore, copy, and submission path."
     },
     "x-upgrade": true,
-    "x-awaits": {"region": true, "answers": ["choose"]},
+    "x-awaits": {"region": true, "answered": {"choose": {}}},
     "x-state": {
       "choose": {
         "detail": {
@@ -58,7 +58,6 @@
           "required": ["values", "instruction"],
           "additionalProperties": false
         },
-        "facet": "configuration",
         "unit": "widget"
       }
     },

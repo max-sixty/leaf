@@ -671,7 +671,11 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     with sending(page, "the map decision"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert (sent["kind"], sent["widget"], sent["action"]) == ("action", target, action)
+    assert (sent["kind"], sent["widget"], sent["detail"]["outcome"]) == (
+        "action",
+        target,
+        action,
+    )
     expect(page.locator(MARGIN_RESPONSES)).to_have_count(0)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
@@ -780,7 +784,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
     with sending(page, "the accept"):
         page.keyboard.press("Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert (sent["kind"], sent["widget"], sent["action"]) == (
+    assert (sent["kind"], sent["widget"], sent["detail"]["outcome"]) == (
         "action",
         "sug-thistle",
         "accept",

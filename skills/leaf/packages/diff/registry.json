@@ -92,7 +92,6 @@
           ],
           "additionalProperties": false
         },
-        "facet": "review",
         "unit": "file"
       }
     },

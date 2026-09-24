@@ -7,14 +7,9 @@
    proof. Local editing defers the render region at its newest unpublished reading. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import { runtime } from "./context.js";
+import { decidingVerb } from "./registry.js";
 import { renderRetired, settlementSlots } from "./passages.js";
-import {
-  captureWidgetReference,
-  descriptorStillMatches,
-  resolveWidgetReference,
-  widgetDescriptor,
-} from "./widget-descriptors.js";
+import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
 import { DRAGGING_CHANGED } from "./widget-elements.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
@@ -35,13 +30,10 @@ document.addEventListener(DRAGGING_CHANGED, () => {
   for (const resume of pending) resume();
 });
 
-const { registry } = runtime;
-
 function renderSettlement(owner, state) {
   const outcomes = settlementSlots()[owner.localName];
   if (!outcomes) return;
-  const spec = registry[owner.localName]["x-state"][Object.keys(outcomes)[0]];
-  const outcome = state[spec.facet].action;
+  const outcome = state[decidingVerb(owner.localName)].detail?.outcome ?? null;
   if (outcomes[outcome]) owner.setAttribute(PAGE_PAINT_ATTRIBUTE.settlement, outcome);
   else owner.removeAttribute(PAGE_PAINT_ATTRIBUTE.settlement);
   renderRetired(owner, outcome);
@@ -168,53 +160,6 @@ const undoCandidate = (reading, target) => {
     .find((event) => event.attempt === wanted || event.id === wanted);
 };
 
-const plainObject = (value) =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
-
-const exactKeys = (value, keys) =>
-  plainObject(value) &&
-  Object.keys(value).length === keys.length &&
-  keys.every((key) => key in value);
-
-const validTargetReference = (reference) => {
-  if (reference?.kind === "id")
-    return (
-      exactKeys(reference, ["kind", "id"]) &&
-      typeof reference.id === "string" &&
-      Boolean(reference.id)
-    );
-  if (reference?.kind !== "structure") return false;
-  const keys = "anchor" in reference ? ["kind", "anchor", "path"] : ["kind", "path"];
-  return (
-    exactKeys(reference, keys) &&
-    (!("anchor" in reference) ||
-      (typeof reference.anchor === "string" && Boolean(reference.anchor))) &&
-    Array.isArray(reference.path) &&
-    reference.path.every(
-      (step) =>
-        exactKeys(step, ["tree", "tag"]) &&
-        ["light", "shadow"].includes(step.tree) &&
-        typeof step.tag === "string" &&
-        Boolean(step.tag),
-    )
-  );
-};
-
-function validateReferences(descriptor, command) {
-  const channel = command.kind === "action" ? "x-state" : "x-request";
-  const roles = Object.keys(
-    descriptor.declaration[channel]?.[command.verb]?.references ?? {},
-  ).sort();
-  const supplied = "references" in command ? command.references : {};
-  if (
-    !exactKeys(supplied, roles) ||
-    Object.values(supplied).some((reference) => !validTargetReference(reference))
-  )
-    throw new TypeError(
-      `Widget ${command.kind} ${command.verb} references must match declared roles ${JSON.stringify(roles)}`,
-    );
-}
-
 function createWidgetController(owner) {
   if (!(owner instanceof Element))
     throw new TypeError("A widget controller needs an Element owner");
@@ -224,9 +169,9 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
-  const stateFacets = new Set(
+  const stateVerbs = new Set(
     ["x-state", "x-report"].flatMap((channel) =>
-      Object.values(descriptor.declaration[channel] ?? {}).map(({ facet }) => facet),
+      Object.keys(descriptor.declaration[channel] ?? {}),
     ),
   );
   const orderedPosition = ["x-state", "x-report"].some((channel) =>
@@ -277,7 +222,7 @@ function createWidgetController(owner) {
     }
     const handle = render();
     const failures = [];
-    const complete = [...stateFacets].every((facet) => facet in reading.state);
+    const complete = [...stateVerbs].every((verb) => verb in reading.state);
     if (complete && firstRender) {
       try {
         owner.renderState?.(reading.state);
@@ -320,7 +265,7 @@ function createWidgetController(owner) {
           : undefined;
       // An incomplete startup reading has no DOM to present, but its ticket still
       // commits so the provisional publication can settle. Its subscribers first run
-      // when the publisher supplies every declared facet.
+      // when the publisher supplies every declared verb.
       void handle.present(reading, completion, (reason) => failSoft(owner, reason));
     }
   };
@@ -390,7 +335,7 @@ function createWidgetController(owner) {
       render();
       stopSelection = selected.subscribe(publish);
       // A data renderer may remount a nested widget without changing its semantic
-      // reading. Its own controller restores its facets; a parent controller may own
+      // reading. Its own controller restores its state; a parent controller may own
       // its placement, so refresh each mounted ancestor once for the new parent. The
       // remembered parent prevents the parent's corrective reparenting from looping.
       if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
@@ -507,7 +452,6 @@ function createWidgetController(owner) {
         throw new TypeError(
           "Widget action and request commands need {kind, verb, detail}",
         );
-      if (semantic) validateReferences(descriptor, command);
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const before = read();
       if (undo && !undoCandidate(before, command.target)) return null;
@@ -518,22 +462,12 @@ function createWidgetController(owner) {
           : before.requests[command.verb]?.available)
       )
         return null;
-      if (
-        semantic &&
-        Object.values(command.references ?? {}).some(
-          (reference) => resolveWidgetReference(owner, reference).status !== "resolved",
-        )
-      )
-        return null;
       const delivery = dispatchWidget(
         descriptor,
         undo ? { kind: "undo", target: commandTarget(command.target) } : command,
       );
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
-    },
-    reference(target) {
-      return immutable(captureWidgetReference(owner, target));
     },
     defer() {
       if (deferred) throw new Error("Widget presentation is already deferred");

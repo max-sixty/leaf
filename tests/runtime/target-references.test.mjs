@@ -11,7 +11,6 @@ import test from "node:test";
 import {
   captureTargetReference,
   resolveTargetReference,
-  targetReferenceBoundary,
 } from "/runtime/target-references.js";
 
 const scope = (markup) => {
@@ -48,35 +47,6 @@ test("a repeated id is ambiguous and carries no element", () => {
   const repeated = resolveTargetReference(root, reference);
   assert.equal(repeated.status, "ambiguous");
   assert.ok(!Object.hasOwn(repeated, "element"));
-});
-
-test("a path across a fragment's roots anchors on the nearest id it passes", () => {
-  const root = scope("");
-  const template = document.createElement("template");
-  template.innerHTML =
-    '<section id="fragment-anchor"><p>One</p></section><aside><em>Two</em></aside>';
-  const paragraph = template.content.querySelector("p");
-  const emphasis = template.content.querySelector("em");
-  const boundary = targetReferenceBoundary(template.content.children);
-  root.append(template.content);
-
-  const anchored = captureTargetReference(boundary, paragraph);
-  assert.deepEqual(anchored, {
-    kind: "structure",
-    anchor: "fragment-anchor",
-    path: [{ tree: "light", tag: "p" }],
-  });
-  // Nothing on the way up carries an id, so the whole path stands on the boundary.
-  const unanchored = captureTargetReference(boundary, emphasis);
-  assert.deepEqual(unanchored, {
-    kind: "structure",
-    path: [
-      { tree: "light", tag: "aside" },
-      { tree: "light", tag: "em" },
-    ],
-  });
-  assert.equal(resolveTargetReference(boundary, anchored).status, "resolved");
-  assert.equal(resolveTargetReference(boundary, unanchored).status, "resolved");
 });
 
 test("a step through a declared shadow tree says which tree it crossed", () => {

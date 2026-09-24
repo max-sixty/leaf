@@ -61,6 +61,7 @@ from leaf import conversation as conversation_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import host as host_model
@@ -987,7 +988,7 @@ def test_only_one_plain_reply_can_bind_the_app_server_final_message():
     }
     assert (
         codex_model.stream_reply_target(
-            payload({"kind": "version", "conversation": "thread-1"})
+            payload({"kind": "markup", "action": "event-1"})
         )
         is None
     )
@@ -4597,7 +4598,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "detail": {"options": ["a"]},
         "meaning": {
             "document": {"kind": "page", "revision": 1},
-            "coordinate": ["w", "w", "selection"],
+            "coordinate": ["w", "w", "choose"],
             "depends": ["a", "w"],
             "answer": None,
         },
@@ -4805,7 +4806,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(page_dir, ca
             "detail": {"card": "x", "to": "y", "index": 0},
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
-                "coordinate": ["b", "x", "position"],
+                "coordinate": ["b", "x", "move"],
                 "depends": ["b", "x", "y"],
             },
         },
@@ -5715,8 +5716,8 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "author": "user",
             "revision": 1,
             "widget": "thread-answer",
-            "action": "accept",
-            "detail": {"resolves": target["id"]},
+            "action": "decide",
+            "detail": {"outcome": "accept"},
         },
     )
 
@@ -5852,39 +5853,6 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     assert "obligation" not in retried
 
 
-def test_a_delivery_addresses_a_version_response_explicitly(page_dir, capsys):
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-options"]["x-conversation"] = {
-        "when": {"choose": [True]},
-        "response": {"kind": "version", "verb": "choose"},
-    }
-    registry_path.write_text(json.dumps(registry))
-    version = page_dir / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    publish(page_dir)
-    serving(page_dir, 1)
-    proposal = events_model.append_event(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Add the camera first.",
-            "anchor": {"section": "choice"},
-            "response": {"kind": "version", "verb": "choose"},
-        },
-    )
-
-    assert session_model.cmd_wait(page_dir) == 0
-    _, _, [event] = delivered(capsys.readouterr().out)
-    assert event["id"] == proposal["id"]
-    assert event["obligation"] == {
-        "as_of_seq": event["seq"],
-        "response": {"kind": "version", "conversation": proposal["id"]},
-    }
-
-
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a conversation is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
@@ -5910,8 +5878,8 @@ SETTLING_ACCEPT = {
     "author": "user",
     "revision": 1,
     "widget": "sug-refill",
-    "action": "accept",
-    "detail": {"resolves": "c1"},
+    "action": "decide",
+    "detail": {"outcome": "accept"},
 }
 
 
@@ -5925,9 +5893,9 @@ def _settling_page(page_dir):
 
 
 def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, capsys):
-    """A gesture settles a conversation through `detail.resolves`, and the widget
-    it is made on need not stand in that conversation — for the one shipped
-    settling verb, `lf-suggestion`'s accept, it stands on the page and in no
+    """A gesture settles a conversation through its widget's `resolves`, and the
+    widget it is made on need not stand in that conversation — for the one shipped
+    settling verb, `lf-suggestion`'s decide, it stands on the page and in no
     thread at all. Reading the sending widget alone therefore left the gesture
     that closes a thread as the one gesture arriving with nothing behind it."""
     _settling_page(page_dir)
@@ -5940,8 +5908,9 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
         event_contracts_model.action_contract_error(
             page_view_model.PageView(page_dir),
             events[-1],
-            events,
-            registry_storage.require_registry(page_dir),
+            event_meaning_model.AdmissionReadings(
+                events, registry_storage.require_registry(page_dir)
+            ),
         )
         is None
     )
@@ -5990,8 +5959,8 @@ def test_exact_thread_history_and_wait_share_indirect_resolution_events(
             "author": "user",
             "revision": 1,
             "widget": "sug-refill",
-            "action": "reject",
-            "detail": {},
+            "action": "decide",
+            "detail": {"outcome": "reject"},
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
@@ -6062,12 +6031,13 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     only a rewritten answer reopens the thread; the user's subsequent question
     resumes either conversation, and delivery agrees with page state."""
     (page_dir / "index.html").write_text(PICKS_PAGE)
-    let_a_pick_settle_a_thread(page_dir)
+    let_a_pick_settle_a_thread(page_dir, "which")
     serving(page_dir, 1)
     opened = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
+            "id": "which",
             "author": "user",
             "text": "which of these?",
             "anchor": {"section": "picks"},
@@ -6082,7 +6052,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"], "resolves": opened["id"]},
+            "detail": {"options": ["flag-first"]},
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -9735,7 +9705,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     answered, and the hook must say nothing. Without it a guard that blocked on
     every acknowledged comment would pass the other arm."""
     (claimed / "index.html").write_text(PICKS_PAGE)
-    let_a_pick_settle_a_thread(claimed)
+    let_a_pick_settle_a_thread(claimed, "which")
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
@@ -9744,7 +9714,8 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     )
     assert lease
     asked = events_model.append_event(
-        claimed, {"kind": "comment", "author": "user", "text": "which of these?"}
+        claimed,
+        {"kind": "comment", "id": "which", "author": "user", "text": "which of these?"},
     )
     publish(claimed, 1)
     append_command(
@@ -9755,7 +9726,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"], "resolves": asked["id"]},
+            "detail": {"options": ["flag-first"]},
         },
     )
     note = {
@@ -9919,79 +9890,6 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     )
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
-    lease.close()
-
-
-def test_a_clarification_thread_carries_a_version_response_while_the_user_owns_it(
-    claimed, capsys
-):
-    version = claimed / "index.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
-    publish(claimed)
-    session_model.cmd_status(claimed, "waiting", "")
-    session = service_model.page_claim(claimed)
-    lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(claimed, session["id"])
-    )
-    assert lease
-    older_question = events_model.append_event(
-        claimed,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "anchor": {"section": "choice"},
-            "text": "Should the existing camera job include mounting?",
-        },
-    )
-    proposal = events_model.append_event(
-        claimed,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "choice"},
-            "response": {"kind": "version", "verb": "choose"},
-            "text": "Add the camera first.",
-        },
-    )
-    receive_through(claimed, last_deliverable_seq(claimed))
-
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
-    events_model.append_event(
-        claimed,
-        {"kind": "resolve", "author": "agent", "parent": older_question["id"]},
-    )
-
-    question = events_model.append_event(
-        claimed,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "anchor": {"section": "choice"},
-            "text": "Should the mounting cost be part of the option?",
-        },
-    )
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    assert capsys.readouterr().out == ""
-
-    answered = events_model.append_event(
-        claimed,
-        {
-            "kind": "reply",
-            "author": "user",
-            "parent": question["id"],
-            "text": "Yes.",
-        },
-    )
-    receive_through(claimed, last_deliverable_seq(claimed))
-    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
-    reason = json.loads(capsys.readouterr().out)["reason"]
-    assert proposal["id"] in reason
-    assert f"--for {answered['id']}" in reason
-
     lease.close()
 
 
@@ -11359,21 +11257,13 @@ def _interaction_prompt_evidence(page, value):
     return stable(value)
 
 
-@pytest.mark.parametrize("response", ["reply", "version", "receipt"])
+@pytest.mark.parametrize("response", ["reply", "receipt"])
 def test_agent_sees_the_complete_interaction_recovery(
     claimed, capsys, snapshot, response
 ):
     """The real hook and CLI outputs, from unpicked input through settlement."""
     page = claimed
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
-    if response == "version":
-        registry_path = page / "registry.json"
-        registry = json.loads(registry_path.read_text())
-        registry["lf-options"]["x-conversation"] = {
-            "when": {"choose": [True]},
-            "response": {"kind": "version", "verb": "choose"},
-        }
-        registry_path.write_text(json.dumps(registry))
     if response == "receipt":
         source = source.replace(
             "</section>",
@@ -11419,14 +11309,6 @@ def test_agent_sees_the_complete_interaction_recovery(
                 "author": "user",
                 "revision": 1,
                 "text": "Add the camera first.",
-                **(
-                    {
-                        "anchor": {"section": "choice"},
-                        "response": {"kind": "version", "verb": "choose"},
-                    }
-                    if response == "version"
-                    else {}
-                ),
             },
         )
     observations["unpicked at prompt"] = hook("UserPromptSubmit")
@@ -11465,7 +11347,7 @@ def test_agent_sees_the_complete_interaction_recovery(
                 if result.output.startswith("{")
                 else result.output
             )
-        elif response == "receipt":
+        else:
             result = CliRunner().invoke(
                 cli_model.cli,
                 [
@@ -11476,23 +11358,6 @@ def test_agent_sees_the_complete_interaction_recovery(
                     "--text",
                     "Restarted the worker.",
                 ],
-            )
-            assert result.exit_code == 0, result.output
-            observations["answer"] = (
-                json.loads(result.output)
-                if result.output.startswith("{")
-                else result.output
-            )
-        else:
-            (page / "index.html").write_text(
-                source.replace('id="flag-first"', 'id="flag-first" chosen')
-            )
-            # The public version answers the choice; resolve then closes its thread.
-            stamped = stamp(page, "Choose the flag-first rollout.")
-            assert stamped.exit_code == 0, stamped.output
-            observations["stamped answer"] = stamped.output
-            result = CliRunner().invoke(
-                cli_model.cli, ["resolve", str(page), "--to", sent["id"]]
             )
             assert result.exit_code == 0, result.output
             observations["answer"] = (
@@ -11718,11 +11583,20 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     lease.close()
 
 
-def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
+@pytest.mark.parametrize("declared", ["shipped", "done-only"])
+def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
     """A multiple-choice Ask finishes with Done. Until then a tick is the user's
     own unfinished answer: it is not agent work, the banner does not count it as an
     update waiting, the delivery tells the agent it owes nothing, and Stop does not
-    hold the turn. Done hands the Ask over, and the answer it owes is a version."""
+    hold the turn. Done hands the Ask over, and the answer it owes is a version.
+
+    The tick is held because it is a move on a widget whose Ask stands open, not
+    because `choose` happens to answer some other group: a layer answering the
+    group only by its Done holds the tick the same way."""
+    if declared == "done-only":
+        registry = files_model.read_json(claimed / "registry.json")
+        registry["lf-options"]["x-awaits"]["answered"] = {"answer": {}}
+        files_model.write_json(claimed / "registry.json", registry)
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -11789,13 +11663,13 @@ DECK_PAGE = PAGE.replace(
 
 def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     """An Ask's answer can span units: a deck's cards are each swiped, and only the
-    last one's `finish` answers the Ask. Before the finish the user is still
+    swipe that empties the queue answers the Ask. Before it the user is still
     answering and the agent owes nothing; once it lands, every sorted card is owed
     its place in the markup, not only the one that finished the deck."""
     (page_dir / "index.html").write_text(DECK_PAGE)
     publish(page_dir)
 
-    def sort(card, index, action="swipe"):
+    def sort(card, index):
         return append_command(
             page_dir,
             {
@@ -11803,7 +11677,7 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "triage",
-                "action": action,
+                "action": "swipe",
                 "detail": {"card": card, "to": "keep", "index": index},
             },
         )
@@ -11812,14 +11686,15 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
     sort("card-b", 1)
     assert state_json(page_dir)["workflows"] == []
 
-    sort("card-c", 2, action="finish")
+    sort("card-c", 2)
     owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
     assert owed_cards == ["card-a", "card-b", "card-c"]
 
 
 def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
-    """The page's rule holds in thread markup: a swipe before the deck's finish is
-    the user still answering, so no reply is owed and the Ask stays theirs."""
+    """The page's rule holds in thread markup: a swipe that leaves the queue
+    standing is the user still answering, so no reply is owed and the Ask stays
+    theirs."""
     activated = revisioning_model.activate_source(page_dir, [])
     assert activated.error is None and activated.revision == 1
     events_model.append_event(
@@ -11840,7 +11715,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
         },
     )
 
-    def sort(card, index, action):
+    def sort(card, index):
         return append_command(
             page_dir,
             {
@@ -11848,17 +11723,17 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
                 "author": "user",
                 "revision": 1,
                 "widget": "triage",
-                "action": action,
+                "action": "swipe",
                 "detail": {"card": card, "to": "keep", "index": index},
             },
         )
 
-    sort("card-a", 0, "swipe")
+    sort("card-a", 0)
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
     assert [ask["source"] for ask in sorting["asks"]] == ["triage"]
 
-    sort("card-b", 1, "finish")
+    sort("card-b", 1)
     finished = state_json(page_dir)
     assert finished["asks"] == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [

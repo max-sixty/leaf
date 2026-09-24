@@ -2137,7 +2137,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
 
 
 def test_the_published_page_counts_every_declared_ask(served_example, browser):
-    """The inventory includes request Decisions and excludes aggregate roll-ups."""
+    """The inventory includes request Decisions beside state Asks."""
     _, url = served_example("command-hub")
     page = open_page(browser, url)
     decisions = page.locator(".lf-asks")

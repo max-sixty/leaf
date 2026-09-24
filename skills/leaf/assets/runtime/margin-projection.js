@@ -702,11 +702,7 @@ export function createMarginProjection({
   }
 
   function placeThreadPreview({ dismissDetached = false } = {}) {
-    if (
-      !preview.matches(":popover-open") ||
-      !preview.hasAttribute("data-lf-thread") ||
-      !previewMarginEntry?.isConnected
-    )
+    if (!preview.matches(":popover-open") || !previewMarginEntry?.isConnected)
       return false;
     // A row the rail has no room for is withheld and has no box. A card placed against
     // that empty box stood in the boundary's corner over the words the user pressed,
@@ -2140,7 +2136,6 @@ export function createMarginProjection({
         )
       : null;
     const title = labelWords(targetHeading || quoted || entry.title);
-    keeps(preview, "data-lf-thread", "");
     keeps(preview, "aria-label", `Conversation for ${spokenSubject(title)}`);
     previewNav.hidden = threadItems.length < 2;
     const selectedIndex = Math.max(0, threadItems.indexOf(selected));
@@ -2357,8 +2352,7 @@ export function createMarginProjection({
   // pointer, hands focus to the margin entry the view hangs from, since that is where
   // the pointer is.
   const inlineThreadView = {
-    showing: () =>
-      preview.matches(":popover-open") && preview.hasAttribute("data-lf-thread"),
+    showing: () => preview.matches(":popover-open"),
     dismiss: () => closePreview(),
   };
 
@@ -2636,8 +2630,7 @@ export function createMarginProjection({
     if (
       !pinnedKey ||
       previewEntry?.key !== pinnedKey ||
-      !preview.matches(":popover-open") ||
-      !preview.hasAttribute("data-lf-thread")
+      !preview.matches(":popover-open")
     )
       return null;
     const held = preview.contains(active)

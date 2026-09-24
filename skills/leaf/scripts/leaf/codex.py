@@ -56,6 +56,7 @@ from .event_log import flocked
 from .files import read_json, write_json
 from .host import Harness
 from .machine import state_home
+from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
     owned_pages,
@@ -1241,17 +1242,19 @@ def append_batch(
     if not fresh:
         return None
 
+    # A record carries at most one thread reply, so the turn an App Server offer
+    # starts has one reply to write with its messages.
     replies = sum(
-        obligation["response"]["kind"] == "reply"
+        event["answer"]["kind"] in THREAD_ANSWER_KINDS
         for entry in record["batches"]
         for event in entry["events"]
-        if (obligation := event.get("obligation")) is not None
+        if "answer" in event
     )
     responses = current_responses(page_dir, transaction.events)
     selected = []
     for event in fresh:
         response = responses.get(event["id"])
-        if response is not None and response["kind"] == "reply":
+        if response is not None and response["kind"] in THREAD_ANSWER_KINDS:
             if replies:
                 break
             replies += 1
@@ -1259,12 +1262,7 @@ def append_batch(
     if not selected:
         return None
 
-    data = batch_data(
-        page_dir,
-        transaction,
-        selected,
-        as_of_seq=max(event["seq"] for event in fresh),
-    )
+    data = batch_data(page_dir, transaction, selected)
     entry = {
         **data,
         "session": session_id,
@@ -1282,40 +1280,36 @@ def delivery_owed_moves(payload: dict) -> list[dict]:
         {"page": batch["page"], "responds": event["id"]}
         for batch in payload["batches"]
         for event in batch["events"]
-        if event.get("obligation") is not None
-    ]
-
-
-def delivery_reply_targets(payload: dict) -> list[dict]:
-    """Every plain reply address the moves in one delivery are owed.
-
-    A move's response address is not the move: a widget gesture inside a frozen
-    conversation is answered on the conversation that holds it. Reading both halves
-    from the delivery keeps every writer — the provider's own final answer and a
-    host receipt written when there will be no final answer — addressing the same
-    place.
-    """
-    return [
-        {
-            "page": batch["page"],
-            "reply_to": obligation["response"]["to"],
-            "responds": obligation["response"]["for"],
-        }
-        for batch in payload["batches"]
-        for event in batch["events"]
-        if (obligation := event.get("obligation")) is not None
-        and obligation["response"]["kind"] == "reply"
+        if "answer" in event
     ]
 
 
 def stream_reply_target(payload: dict) -> dict | None:
-    """Return the one plain reply address a provider message may answer."""
-    targets = delivery_reply_targets(payload)
+    """The one reply address a delivery's turn writes with its own messages.
+
+    It is the delivery's `turn` answer, which only a delivery frozen for App
+    Server holds: a pointer queued for `leaf reply` names a plain reply even when
+    a turn Leaf observes picks it up. A move's response address is not the move: a
+    widget gesture inside a frozen conversation is answered on the conversation
+    that holds it. Reading both halves from the delivery keeps every writer — the
+    provider's own final answer and a host receipt written when there will be no
+    final answer — addressing the same place.
+    """
+    targets = [
+        {
+            "page": batch["page"],
+            "reply_to": event["answer"]["to"],
+            "responds": event["answer"]["for"],
+        }
+        for batch in payload["batches"]
+        for event in batch["events"]
+        if "answer" in event and event["answer"]["kind"] == "turn"
+    ]
     return targets[0] if len(targets) == 1 else None
 
 
 def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:
-    """Resolve one task-owned delivery identity to its plain reply address."""
+    """Resolve one task-owned delivery identity to the reply its turn writes."""
     path = record_path(session_id, delivery_id)
     records = (path, path.parent / "history" / path.name)
     if not any(

@@ -103,7 +103,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
     regtest.write("\n".join(outputs))
 
 
-def test_wait_help_requires_a_complete_batch():
+def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
     result = CliRunner().invoke(
         cli_model.cli,
         ["wait", "--help"],
@@ -113,11 +113,8 @@ def test_wait_help_requires_a_complete_batch():
     assert result.exit_code == 0
     assert "--forward" not in result.output
     normalized = " ".join(result.output.split())
-    for instruction in (
-        schema_model.WAIT_BATCH_OUTPUT_INSTRUCTION,
-        schema_model.ACK_BATCH_INSTRUCTION,
-    ):
-        assert " ".join(instruction.split()) in normalized
+    instruction = schema_model.WAIT_BATCH_OUTPUT_INSTRUCTION
+    assert " ".join(instruction.split()) in normalized
 
 
 def test_agent_interaction_command_help(regtest):

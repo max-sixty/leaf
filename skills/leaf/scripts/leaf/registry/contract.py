@@ -81,25 +81,24 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     vendored `$events`: the event kind's `handling` clauses, then the `answering`
     clauses of the answer it owes, each kept when its `when` schema matches.
 
-    `entry` is the event record, plus the `obligation` a delivery captured when the
-    event owns an answer (`workflows` owns that derivation), the `conversation`
-    digest of the thread it belongs to (`thread_context` owns that one), and the
-    `carrier` delivering it. A `when` can therefore read any of them as well as
-    the record, so a clause states the case a delivery is in rather than naming a
-    condition the delivery already settles: a thread's missing title, or which
-    route acknowledges and which answers. An event owing nothing is told nothing
-    about answering: a pick before Done, or a message a newer one in its thread
-    answers through. A project layer restates a kind's clauses merge-patch
-    style, so the event carries the rule the page was vendored with. A missing or
-    invalid registry leaves the event unexplained; it never substitutes instructions
-    from a different layer. What each case of each kind receives from the shipped
-    layer, clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
+    `entry` is the event record, plus the `answer` a delivery captured when the
+    event owes one, routed for the carrier delivering it (`workflows` and
+    `delivery` own those derivations), and the `conversation` digest of the thread
+    it belongs to (`thread_context` owns that one). A `when` can therefore read any
+    of them as well as the record, so a clause states the case a delivery is in
+    rather than naming a condition the delivery already settles, such as a
+    thread's missing title. An event owing nothing is told nothing about
+    answering: a pick before Done, or a message a newer one in its thread answers
+    through. A project layer restates a kind's clauses merge-patch style, so the
+    event carries the rule the page was vendored with. A missing or invalid
+    registry leaves the event unexplained; it never substitutes instructions from a
+    different layer. What each case of each kind receives from the shipped layer,
+    clause by clause, is snapshotted in `tests/_regtest_outputs/`, by
     `test_each_case_of_an_event_is_told_what_the_snapshot_shows`."""
     declared = (registry or {}).get("$events", {})
     clauses = list(declared.get("handling", {}).get(entry["kind"]) or [])
-    if obligation := entry.get("obligation"):
-        answer = obligation["response"]["kind"]
-        clauses += declared.get("answering", {}).get(answer) or []
+    if answer := entry.get("answer"):
+        clauses += declared.get("answering", {}).get(answer["kind"]) or []
     return [
         clause
         for clause in clauses

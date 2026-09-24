@@ -133,7 +133,10 @@ class TaskObserver:
     This connection resumes the task and keeps the subscription that resume opens,
     so it sees the user's own turns in the terminal and a queued pointer the task
     picks up by itself. It projects their activity onto every page the task claims,
-    and binds a pointer turn's reply, because no follower of Leaf's ever will.
+    and binds the reply of an adopted App Server delivery whose follower is gone,
+    because no follower of Leaf's ever will. A queued pointer's reply is not the
+    turn's to write: that delivery names a plain reply for `leaf reply`, so the
+    turn is watched and opened on its pages but binds nothing.
 
     Two connections may resume one thread and both then receive everything it says,
     so every notification about a turn a `DeliveryTurn` is carrying arrives here too.
@@ -325,7 +328,8 @@ class TaskObserver:
         A turn reached this way is one nobody is following: a pointer the task
         picked up by itself, or a delivery whose carrier process died while its turn
         ran on. A live follower's turn is excluded by `carried`, which is held from
-        before the turn exists.
+        before the turn exists. Only the second has a reply to bind, since only a
+        delivery frozen for App Server owes a `turn` answer.
         """
         turn_id = turn["id"]
         if turn_id in self.bindings:

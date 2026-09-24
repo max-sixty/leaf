@@ -146,7 +146,8 @@ Raw diagnostic history belongs to `leaf events --conversation`, and the page's
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
 batches from several pages and must resolve identically in every host. The file's
-`leaf-delivery-v2` format, id, capture time, and batches never change. Delivery
+`leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
+batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf
 delivery read <id>`.

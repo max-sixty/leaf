@@ -15,25 +15,29 @@ unpicked at prompt:
       Leaf needs attention:
       - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-      If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
-
 unpicked at stop:
   decision: block
   reason: |-
     Leaf needs attention:
     - <page>: 1 update you haven't picked up. `leaf wait` prints them.
 
-    If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live. The agent handling the batch must address every event.
-
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up; read them with `leaf wait` before idling. If output is truncated, acknowledge nothing; rerun with enough output capacity for the whole batch. If you handle the batch yourself, read it fully, then acknowledge it before any other work. If forwarding it, acknowledge once it durably arrives there. Run `leaf wait --ack <delivery-id>` in the background to acknowledge its captured batches and wait for the next batch while the page remains live.
+    1 update nobody has picked up; read them with `leaf wait` before idling
 
 delivered:
-  format: leaf-delivery-v2
+  format: leaf-delivery-v3
   id: <delivery>
   created_at: <time>
+  carrier: wait
+  acknowledge: >-
+    Whoever ran the `leaf wait` that printed this delivery acknowledges it; until
+    then the user's moves read Sent rather than Picked up. If the output was cut
+    off, acknowledge nothing and rerun the wait with room for the whole envelope.
+    If you handle it, acknowledge before any other work; if you forward it, acknowledge
+    once it durably arrives there. To acknowledge, start `leaf wait --ack <delivery>`
+    as the next background task: it confirms this delivery and waits for the next.
   batches:
     - page: <page>
       through_seq: 2
@@ -76,11 +80,9 @@ delivered:
           says:
             commands: Restart
           handling: [h1, h2]
-          obligation:
-            as_of_seq: 2
-            response:
-              kind: receipt
-              request: event-2
+          answer:
+            kind: receipt
+            request: event-2
 
 acknowledged at stop:
   decision: block

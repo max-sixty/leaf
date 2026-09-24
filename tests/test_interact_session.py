@@ -180,7 +180,9 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             transaction,
             [stored[event["id"]] for event in events],
         )
-    return delivery_model.freeze_delivery([batch], carrier="wait")
+    return delivery_model.freeze_delivery(
+        [batch], carrier="wait", acknowledge=session_model.wait_acknowledgement(None)
+    )
 
 
 def delivery_through(page_dir: Path, seq: int) -> str:
@@ -772,7 +774,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
 
     delivery = freeze_events(page_dir, [moved])
     [event] = delivery["batches"][0]["events"]
-    assert "obligation" not in event
+    assert "answer" not in event
     claimed = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
     assert claimed.exit_code == 0, claimed.output
     state, attention = reading()
@@ -965,27 +967,36 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert delivery_model.delivery_path(history.stem).is_file()
 
 
-def test_only_one_plain_reply_can_bind_the_app_server_final_message():
-    def payload(*responses):
+def test_only_one_turn_reply_can_bind_the_app_server_final_message():
+    """A turn binds its messages to the delivery's one `turn` answer. A plain
+    `reply` is `leaf reply`'s even when a turn Leaf observes picks the delivery up,
+    as it does a pointer queued before Leaf observed the task."""
+
+    def payload(*answers):
         return {
             "id": "delivery-1",
             "batches": [
                 {
                     "page": "/tmp/page",
-                    "events": [
-                        {"obligation": {"response": response}} for response in responses
-                    ],
+                    "events": [{"answer": answer} for answer in answers],
                 }
             ],
         }
 
-    assert codex_model.stream_reply_target(
-        payload({"kind": "reply", "to": "thread-1", "for": "event-1"})
-    ) == {
+    def turn(to, event):
+        return {"kind": "turn", "to": to, "for": event, "attempt": "leaf-delivery-1"}
+
+    assert codex_model.stream_reply_target(payload(turn("thread-1", "event-1"))) == {
         "page": "/tmp/page",
         "reply_to": "thread-1",
         "responds": "event-1",
     }
+    assert (
+        codex_model.stream_reply_target(
+            payload({"kind": "reply", "to": "thread-1", "for": "event-1"})
+        )
+        is None
+    )
     assert (
         codex_model.stream_reply_target(
             payload({"kind": "markup", "action": "event-1"})
@@ -994,7 +1005,7 @@ def test_only_one_plain_reply_can_bind_the_app_server_final_message():
     )
     assert codex_model.stream_reply_target(
         payload(
-            {"kind": "reply", "to": "thread-1", "for": "event-1"},
+            turn("thread-1", "event-1"),
             {"kind": "receipt", "request": "request-1"},
         )
     ) == {
@@ -1004,18 +1015,22 @@ def test_only_one_plain_reply_can_bind_the_app_server_final_message():
     }
     assert (
         codex_model.stream_reply_target(
-            payload(
-                {"kind": "reply", "to": "thread-1", "for": "event-1"},
-                {"kind": "reply", "to": "thread-2", "for": "event-2"},
-            )
+            payload(turn("thread-1", "event-1"), turn("thread-2", "event-2"))
         )
         is None
     )
 
 
 def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differs():
-    assert hooks_model._stream_answers(
-        {
+    obligation = {
+        "input": "widget-action",
+        "answer": {
+            "kind": "turn",
+            "to": "widget-owner-thread",
+            "for": "widget-action",
+            "attempt": "leaf-delivery-1",
+        },
+        "response": {
             "state": "active",
             "settles": True,
             "has_text": True,
@@ -1024,9 +1039,11 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
             "reply_to": "widget-owner-thread",
             "responds": "widget-action",
         },
-        {"input": "widget-action"},
-        {"claim_session": "codex-thread", "claim_turn": "leaf-turn"},
-    )
+    }
+    assert hooks_model._turn_wrote(obligation, {"claim_turn": "leaf-turn"})
+    # A plain reply is `leaf reply`'s to write, whatever a draft says.
+    plain = {**obligation, "answer": {**obligation["answer"], "kind": "reply"}}
+    assert not hooks_model._turn_wrote(plain, {"claim_turn": "leaf-turn"})
 
 
 def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
@@ -1164,11 +1181,8 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
     payload = files_model.read_json(delivery_model.delivery_path(path.stem))
     delivered_events = payload["batches"][0]["events"]
     assert [event["text"] for event in delivered_events] == ["first", "second"]
-    assert "obligation" not in delivered_events[0]
-    assert (
-        delivered_events[1]["obligation"]["response"]["for"]
-        == delivered_events[1]["id"]
-    )
+    assert "answer" not in delivered_events[0]
+    assert delivered_events[1]["answer"]["for"] == delivered_events[1]["id"]
 
 
 def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
@@ -3190,6 +3204,71 @@ def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_
     ]
 
 
+def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
+    """A pointer frozen for the queue names a plain `reply`, and that is what its
+    agent is told to write. The observer still opens the turn it lands in, but
+    binds nothing to the turn's messages, so `leaf reply` answers it rather than
+    refusing it as the turn's."""
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer this next"},
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        transaction.take_claim(
+            host_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
+        )
+        path, _, _ = codex_model.append_batch(
+            "codex-thread",
+            page_dir,
+            transaction,
+            service_model.unacknowledged(transaction.events, transaction.cursor),
+        )
+    queued = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    [event] = queued.payload["batches"][0]["events"]
+    assert event["answer"]["kind"] == "reply"
+
+    client = codex_adapter_model.TaskObserver("ws://127.0.0.1:1", "codex-thread")
+    client._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {
+                    "id": "queued-turn",
+                    "status": "inProgress",
+                    "items": [
+                        {
+                            "id": "queued-input",
+                            "type": "userMessage",
+                            "content": [{"type": "text", "text": queued.prompt}],
+                        }
+                    ],
+                },
+            },
+        }
+    )
+    assert client.bindings == {}
+    [workflow] = served_page.full_state(page_dir, events_model.read_events(page_dir))[
+        "activity"
+    ]["obligations"]
+    assert workflow["stage"] == "picked_up"
+    assert workflow["answer"] == {
+        "kind": "reply",
+        "to": comment["id"],
+        "for": comment["id"],
+    }
+
+    posted = conversation_model.cmd_reply(
+        page_dir,
+        None,
+        "Answered with leaf reply",
+        "",
+        for_event=comment["id"],
+        identity={"session": "codex-thread"},
+    )
+    assert posted["responds"] == comment["id"]
+
+
 def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
     comment = events_model.append_event(
         page_dir,
@@ -4619,7 +4698,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         events_model.append_event(page_dir, event)
 
     assert session_model.cmd_wait(page_dir) == 0
-    _, header, shown = delivered(capsys.readouterr().out)
+    envelope, header, shown = delivered(capsys.readouterr().out)
     handling = header["handling"]
     assert len(handling.values()) == len(set(handling.values()))
     assert shown[0]["handling"][0] in shown[1]["handling"]
@@ -4633,9 +4712,10 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         if c.get("when") == {"required": ["drawing"]}
     ]
     replying = [c["text"] for c in declared["answering"]["reply"] if "when" not in c]
-    # A message is told to acknowledge before anything else, then its own clauses,
-    # then how to write the reply it owes.
-    assert plain[0].startswith("Acknowledge this delivery before anything else")
+    # The delivery says once how to acknowledge it, and no event repeats it. A
+    # message is told its own clauses, then how to write the reply it owes.
+    assert f"`leaf wait --ack {envelope['id']}`" in envelope["acknowledge"]
+    assert not any("--ack" in text for text in handling.values())
     assert plain[-len(replying) :] == replying
     # A drawn comment is told everything a plain one is, and how to read its drawing.
     assert reading_a_drawing in drawn
@@ -4665,9 +4745,8 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     active = registry_contract.event_clauses(
         {
             **comment,
-            "obligation": {"response": {"kind": "reply"}},
+            "answer": {"kind": "reply"},
             "conversation": {"title": None},
-            "carrier": "wait",
         },
         registry,
     )
@@ -4715,8 +4794,8 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     digests = {digest["id"]: digest for digest in batch["conversations"]}
 
     def case(event):
-        """The event as its clauses read it: with its conversation and carrier."""
-        read = {**event, "carrier": "queue"}
+        """The event as its clauses read it: with its conversation."""
+        read = dict(event)
         if event["conversations"]:
             read["conversation"] = digests[event["conversations"][0]]
         return read
@@ -5468,7 +5547,7 @@ def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
     assert [e["id"] for e in shown] == [followed["id"]]
-    assert shown[0]["obligation"]["response"] == {
+    assert shown[0]["answer"] == {
         "kind": "reply",
         "to": followed["id"],
         "for": followed["id"],
@@ -5725,7 +5804,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     _, header, shown = delivered(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [accepted["id"]]
     assert shown[0]["conversations"] == [origin["id"], target["id"]]
-    assert shown[0]["obligation"]["response"] == {
+    assert shown[0]["answer"] == {
         "kind": "reply",
         "to": origin["id"],
         "for": accepted["id"],
@@ -5815,10 +5894,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys.readouterr().out)
     assert [event["id"] for event in shown] == [requested["id"]]
-    assert shown[0]["obligation"] == {
-        "as_of_seq": shown[0]["seq"],
-        "response": {"kind": "receipt", "request": requested["id"]},
-    }
+    assert shown[0]["answer"] == {"kind": "receipt", "request": requested["id"]}
     [thread] = header["conversations"]
     assert thread["id"] == root["id"]
     carried = next(
@@ -5850,7 +5926,7 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     assert session_model.cmd_wait(page_dir) == 0
     _, _, [retried] = delivered(capsys.readouterr().out)
     assert retried["id"] == requested["id"]
-    assert "obligation" not in retried
+    assert "answer" not in retried
 
 
 # A page whose suggestion answers c1, which is the one shipped shape where the
@@ -7839,7 +7915,8 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     assert [
         conversation["id"] for conversation in payload["batches"][0]["conversations"]
     ] == ["first"]
-    assert payload["batches"][0]["events"][0]["obligation"]["as_of_seq"] == 2
+    # Frozen for App Server, the comment's reply is the turn's to write.
+    assert payload["batches"][0]["events"][0]["answer"]["kind"] == "turn"
 
     # Accepting the first delivery receipts it, so the second comment is collected
     # into a record of its own rather than joining the one already in a turn.
@@ -9007,7 +9084,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf codex start" in reason and str(page) in reason
 
-    # Pending output still has to cross context and be acknowledged before handling.
+    # Pending output still has to cross context: the remedy is to poll the wait
+    # already running, and nothing tells this task to start one in the background.
+    # The delivery the poll yields says how this harness acknowledges it.
     events_model.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
     lease = leases_model.take_waiter_lease(
         leases_model.waiter_lease_path(page, session["id"])
@@ -9015,10 +9094,14 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert "leaf wait --ack" in reason and "must address every event" in reason
     assert "`leaf wait` before the first batch" in reason
     assert "rearmed `leaf wait --ack` afterward" in reason
-    assert schema_model.ACK_BATCH_INSTRUCTION in reason
+    assert "background" not in reason
+    acknowledge = session_model.wait_acknowledgement(
+        host_model.CodexHarness("codex-thread", "Codex")
+    )("0a1b2c3d")
+    assert "run `leaf wait --ack 0a1b2c3d` in unified exec" in acknowledge
+    assert "background" not in acknowledge
     lease.close()
 
     receive_through(page, 1)
@@ -9583,23 +9666,26 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
     assert service_model.claim_page(second)
-    for page in (claimed, second):
+    for page, comment in ((claimed, "c1"), (second, "c2")):
         events_model.append_event(
-            page, {"kind": "comment", "author": "user", "text": "look at this"}
+            page,
+            {"kind": "comment", "id": comment, "author": "user", "text": "look"},
         )
+        receive_through(page, last_deliverable_seq(page))
+        session_model.cmd_status(page, "waiting", "")
 
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
 
     assert str(claimed) in reason and str(second) in reason
-    assert reason.count("you haven't picked up") == 2
-    assert reason.count(schema_model.ACK_BATCH_INSTRUCTION) == 1
+    assert reason.count("acknowledged user move with no answer") == 2
+    assert reason.count(schema_model.ANSWER_ASK_INSTRUCTION) == 1
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
-    assert reason.index(str(second)) < reason.index(schema_model.ACK_BATCH_INSTRUCTION)
+    assert reason.index(str(second)) < reason.index(schema_model.ANSWER_ASK_INSTRUCTION)
     snapshot.check(
         yaml_document(
-            "Two pages carry distinct debts and one shared acknowledgment instruction.",
+            "Two pages carry distinct debts and one shared answering instruction.",
             {
                 "Stop": {
                     "decision": "block",
@@ -9797,7 +9883,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
         page.bind_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     reason = json.loads(capsys.readouterr().out)["reason"]
-    assert f"your final message answers {asked['id']}" in reason
+    assert f"your turn's final message for {asked['id']}" in reason
     assert "leaf reply <page>" not in reason
     with service_model.PageTransaction(claimed) as page:
         page.clear_delivery_reply_binding(session["id"], asked["id"], "a1")
@@ -10461,7 +10547,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 update nobody has picked up" in refused.output
-    assert schema_model.ACK_BATCH_INSTRUCTION in refused.output
+    assert "read them with `leaf wait` before idling" in refused.output
     assert "read them with `leaf wait` before idling" in refused.output
     assert files_model.read_json(claimed / "status.json")["state"] != "idle"
 
@@ -11317,8 +11403,11 @@ def test_agent_sees_the_complete_interaction_recovery(
     serving(page, 1)
     wait = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
     assert wait.exit_code == 0, wait.output
-    envelope = json.loads(wait.output)
-    envelope["id"] = "<delivery>"
+    # The id recurs in the acknowledgement's command, so it is replaced wherever
+    # it is written.
+    envelope = json.loads(
+        wait.output.replace(json.loads(wait.output)["id"], "<delivery>")
+    )
     observations["delivered"] = envelope
     receive_through(page, last_deliverable_seq(page))
     session = service_model.page_claim(page)
@@ -11444,8 +11533,8 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
-    envelope = json.loads(capsys.readouterr().out)
-    envelope["id"] = "<delivery>"
+    printed = capsys.readouterr().out
+    envelope = json.loads(printed.replace(json.loads(printed)["id"], "<delivery>"))
     [batch] = envelope["batches"]
     assert batch["conversations"][0]["summary_hint"]
     # The event carries the ask as well as the digest, so an agent that reads only
@@ -11560,8 +11649,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     delivery = delivery_through(claimed, last_deliverable_seq(claimed))
     [batch] = delivery_model.read_delivery(delivery)["batches"]
     edited, event = batch["events"]
-    assert "obligation" not in edited
-    assert event["obligation"]["response"] == workflow["answer"]
+    assert "answer" not in edited
+    assert event["answer"] == workflow["answer"]
     told = [batch["handling"][ref] for ref in event["handling"]]
     assert any("write it in and stamp a version" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
@@ -11621,7 +11710,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     delivery = delivery_through(claimed, last_deliverable_seq(claimed))
     [batch] = delivery_model.read_delivery(delivery)["batches"]
     [event] = batch["events"]
-    assert "obligation" not in event
+    assert "answer" not in event
     told = [batch["handling"][ref] for ref in event["handling"]]
     assert any(text.startswith("This move owes no answer") for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))

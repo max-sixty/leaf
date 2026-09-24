@@ -6143,18 +6143,15 @@ def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve
 
 def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
     page = browser.new_page()
-    try:
-        page.set_content(
-            '<iframe srcdoc="<button id=first>First</button>'
-            '<button id=second>Second</button>"></iframe>'
-        )
-        page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
-        page.frame_locator("iframe").locator("#first").focus()
-        assert page.evaluate(RING_NEW_STOP) == "new"
-        page.frame_locator("iframe").locator("#second").focus()
-        assert page.evaluate(RING_NEW_STOP) == "new"
-    finally:
-        page.close()
+    page.set_content(
+        '<iframe srcdoc="<button id=first>First</button>'
+        '<button id=second>Second</button>"></iframe>'
+    )
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    page.frame_locator("iframe").locator("#first").focus()
+    assert page.evaluate(RING_NEW_STOP) == "new"
+    page.frame_locator("iframe").locator("#second").focus()
+    assert page.evaluate(RING_NEW_STOP) == "new"
 
 
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(

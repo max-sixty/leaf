@@ -9502,15 +9502,15 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     assert not leases_model.lock_is_held(lease_path)
 
 
-def test_the_state_home_retires_what_stands_for_a_gone_page_or_holder(
+def test_the_state_home_retires_what_stands_for_a_gone_page(
     page_dir, tmp_path, monkeypatch
 ):
     """The first `leaf` command an hour after the last sweep removes each record
-    whose subject is gone: a claim, a delivery or a Codex task's delivery record,
-    live or archived, once every page it names is gone; a lock or lease file once
-    nothing holds it, with a wait's `.told` beside it. What still stands for
-    something stays, and so does a record naming no page in a shape this version
-    reads, since another version may be reading it."""
+    once every page it names is gone: a claim, a delivery, a Codex task's delivery
+    record, live or archived, and a page lock nobody holds. What still stands for
+    a page stays, and so does a record naming no page in a shape this version
+    reads, since another version may be reading it: an older leaf's empty lock,
+    or a delivery in another format."""
     home = machine_model.state_home()
     gone = tmp_path / "gone"
     shutil.copytree(page_dir, gone)
@@ -9546,16 +9546,15 @@ def test_the_state_home_retires_what_stands_for_a_gone_page_or_holder(
     )
 
     # A transition mints its page's lock, which stays after it.
-    for page in (page_dir, gone):
-        with events_model.flocked(leases_model.transition_lock(page)):
-            pass
-    locks = sorted((home / "page-locks").iterdir())
-    assert leases_model.transition_lock(page_dir) in locks
-    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "held"))
-    ended = leases_model.take_lease(leases_model.waiter_lease_path(None, "ended"))
-    ended.close()
-    told = leases_model.waiter_lease_path(None, "ended").with_suffix(".told")
-    told.write_text("token")
+    # Naming a page's lock mints it, so each is named once, here.
+    live_lock, gone_lock, held_lock = (
+        leases_model.transition_lock(page_dir),
+        leases_model.transition_lock(gone),
+        leases_model.page_lock(gone, "preview"),
+    )
+    held = leases_model.take_lease(held_lock)
+    older = home / "page-locks" / f"{'0' * 32}.transition.lock"
+    older.touch()
     # Any command the fixture ran swept a moment ago; this one is the hour later.
     (home / "swept").unlink(missing_ok=True)
 
@@ -9568,10 +9567,9 @@ def test_the_state_home_retires_what_stands_for_a_gone_page_or_holder(
     assert not gone_delivery.exists()
     assert not task.parent.exists()
     assert kept_task.exists()
-    assert not any(path.exists() for path in locks)
-    assert leases_model.waiter_lease_path(None, "held").exists()
-    assert not leases_model.waiter_lease_path(None, "ended").exists()
-    assert not told.exists()
+    assert live_lock.exists() and held_lock.exists()
+    assert not gone_lock.exists()
+    assert older.exists()
 
     # Within the hour a command sweeps nothing.
     record_claim(gone, id="gone")

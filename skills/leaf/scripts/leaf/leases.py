@@ -2,6 +2,7 @@
 
 import functools
 import hashlib
+import os
 import sys
 from pathlib import Path
 
@@ -76,11 +77,10 @@ def retire_lock(path: Path) -> None:
     Its lock is taken, without waiting, before the file goes, so a holder keeps
     it; the file goes while that lock is held, so a process that opened it
     meanwhile finds it unnamed once its own lock succeeds, and takes the lock
-    again on a new file (`names_locked`). A leaf too old to ask that could hold
-    the removed file beside a new holder of its successor, but only by opening
-    the file inside the few microseconds between this lock and the removal.
-    Those same microseconds are the one moment a `take_lease` or a
-    `lock_is_held` meets this lock rather than a holder's."""
+    again on a new file (`names_locked`). A leaf too old to ask that would hold
+    the removed file beside a new holder of its successor if it opened the file
+    between this lock and the removal, so a caller removes only a lock no such
+    leaf has reason to open (`sweep`)."""
     require_cross_process_locking()
     try:
         record = open(path, "r+b")  # noqa: SIM115 - closed by the with below
@@ -102,13 +102,25 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
     locks that can meet init cannot live in the prospective page directory. The
     resolved path gives every process the same lock while the purpose keeps the
     contract transition independent from the page's current session claim.
-    One is minted for every page path a command transitions, so `sweep`
-    removes each while nothing holds it.
+
+    One is minted for every page path a command transitions, and the key says
+    nothing about which, so the file is created holding the path it guards:
+    that is how `sweep` tells a lock whose page is gone. Only its creator writes
+    it, before any other process can know the file for this page's, and the
+    content never changes after, so a lock stays the same inode for its life.
     """
     locks = state_home() / "page-locks"
     locks.mkdir(exist_ok=True)
-    key = hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()[:32]
-    return locks / f"{key}.{purpose}.lock"
+    page = str(page_dir.resolve())
+    key = hashlib.sha256(page.encode()).hexdigest()[:32]
+    path = locks / f"{key}.{purpose}.lock"
+    try:
+        created = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        return path
+    with os.fdopen(created, "w", encoding="utf-8") as record:
+        record.write(page)
+    return path
 
 
 def transition_lock(page_dir: Path) -> Path:

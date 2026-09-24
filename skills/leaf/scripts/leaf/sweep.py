@@ -2,37 +2,39 @@
 
 Every record in the state home stands for something that lives somewhere else,
 and leaf rarely sees that subject end. A page goes with the worktree or scratch
-directory that held it (`wt remove`, a temp-directory cleanup); a process that
-held a lease exits. No leaf process is there at either moment, so a record is
-retired by the first sweep that finds its subject gone, whichever version wrote
-it. A missing page or an unheld lock is the same fact to every reader.
+directory that held it (`wt remove`, a temp-directory cleanup), and no leaf
+process is there at the moment. So a record is retired by the first sweep that
+finds its subject gone, whichever version wrote it: a missing page is the same
+fact to every reader.
 
-There are two subjects:
+The subject is a page. A claim names it as `page`; an immutable delivery, and a
+Codex task's delivery record, live or archived under `history/`, name each
+batch's `page`; a page lock holds the path it guards (`leases.page_lock`). A
+record goes once every page it names is gone, since nothing can act on it again:
+answering a delivery or holding a claim needs the page. A record that names no
+page this version can read stays, since another version may be reading it
+(AGENTS.md, "The reader throws it away").
 
-- A page. A claim names it as `page`; an immutable delivery, and a Codex task's
-  delivery record, live or archived under `history/`, name each batch's
-  `page`. The record goes once every page it names is gone: nothing can act on
-  it again, since answering a delivery or holding a claim needs the page. A
-  record that names no page this version can read stays, since another version
-  may be reading it (AGENTS.md, "The reader throws it away").
-- A holder. A lock or lease file means something only while a process holds
-  it, whether it guards a page transition (`page-locks/`), a wait or adapter
-  lease, or a Codex task's start and records. Nobody holding it is its end:
-  `leases.retire_lock` removes it under its own lock, and every taker re-checks
-  the path after locking (`event_log.names_locked`), so the next one simply
-  makes a new file. A wait's `.told` stands for the start token in the wait
-  lease beside it, and goes with that lease's holder.
+A page lock also has to be unheld, and it is removed under its own lock
+(`leases.retire_lock`), so a taker of this version that opened it meanwhile
+takes the lock again on a new file (`event_log.names_locked`). A leaf too old to
+re-check could end up holding the removed file beside another process's new
+one; with the page gone, the only command that opens its lock is one making the
+page again, so that takes two of them making the same page at the instant of the
+removal. The same argument is why nothing keyed on a session is retired here: a
+session's leases and records name no page, and a session that ended can be
+resumed.
 
-Page locks are why this has to be a sweep rather than a reading: they are keyed
-on a digest of the page's path, and nothing ever enumerates them. They are also
-most of what accumulated, because every page any command transitions mints one
-(`leases.page_lock`), and site builds and previews make and discard pages by the
-dozen.
+Page locks are why this is a sweep rather than a reading: they are keyed on a
+digest of the path, and nothing ever enumerates them. They are also most of what
+accumulated, since every page path any command transitions mints one, and site
+builds and previews make and discard pages by the dozen. A lock an older leaf
+minted holds no path, so it stays.
 
 What stays: `pages/`, whose entries are pages rather than records about them;
-`packages/`; `access.json`; `deliveries.lock`, one file for the whole machine;
-and every name this version does not write, which belongs to the version that
-does.
+`packages/`; `access.json`; `deliveries.lock`; `sessions/` but for Codex task
+records; and every name this version does not write, which belongs to the
+version that does.
 
 The sweep runs at most once per `SWEEP_INTERVAL_S`, from the first `leaf`
 command after that much time, so its cost is what that interval wrote."""
@@ -41,22 +43,13 @@ import time
 from pathlib import Path
 
 from leaf.files import read_json
-from leaf.leases import lock_is_held, retire_lock, take_lease
+from leaf.leases import retire_lock, take_lease
 from leaf.machine import state_home
 
 SWEEP_INTERVAL_S = 3600
 
 # The stamp whose mtime is the last sweep's start.
 SWEPT = "swept"
-
-# Lock and lease files, by where they sit in the state home.
-LOCKS = (
-    "page-locks/*.lock",
-    "sessions/*.wait",
-    "sessions/*.adapter",
-    "sessions/*.start",
-    "sessions/*.delivery.lock",
-)
 
 
 def sweep_if_due() -> None:
@@ -75,18 +68,19 @@ def sweep_if_due() -> None:
 
 
 def sweep() -> None:
-    """Remove every record whose subject is gone (see the module docstring)."""
+    """Remove every record whose pages are gone (see the module docstring)."""
     home = state_home()
     for path in [*home.glob("claims/*.json"), *home.glob("deliveries/*.json")]:
         _retire_page_record(path)
     for records in home.glob("sessions/*.deliveries"):
         _retire_task_records(records)
-    for pattern in LOCKS:
-        for path in home.glob(pattern):
-            retire_lock(path)
-    for told in home.glob("sessions/*.told"):
-        if not lock_is_held(told.with_suffix(".wait")):
-            told.unlink(missing_ok=True)
+    for lock in home.glob("page-locks/*.lock"):
+        try:
+            page = lock.read_text(encoding="utf-8")
+        except (FileNotFoundError, UnicodeDecodeError):
+            continue
+        if page and not Path(page).is_dir():
+            retire_lock(lock)
 
 
 def _named_pages(record) -> list[Path] | None:

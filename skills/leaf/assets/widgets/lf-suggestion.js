@@ -386,8 +386,9 @@ customElements.define(
       return before || after || this.id;
     }
 
-    accept() {
-      return this.#decide("accept");
+    // The banner's blanket answer (x-awaits.all) calls the deciding verb by name.
+    decide(outcome) {
+      return this.#decide(outcome);
     }
 
     // A press makes the reversible decision locally and the outbox carries that exact

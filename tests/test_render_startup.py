@@ -1779,7 +1779,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     """A pure state change has no text of its own, so the content diff was blind
     to it: a card in a new column read as nothing changed. The state half
-    compares declared facets, so the author moving a card between versions —
+    compares declared state, so the author moving a card between versions —
     with no user action behind it — marks the card itself. The card alone:
     an id'd element nested inside it rode along rather than changing columns,
     and marking it too would double-tint one move."""

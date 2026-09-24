@@ -13,12 +13,15 @@ from leaf.anchor_capture import capture_anchor
 from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.document_reading import read_document
 from leaf.event_log import EventRefused
-from leaf.event_meaning import admit_widget_event, direct_dependencies
+from leaf.event_meaning import (
+    AdmissionReadings,
+    admit_widget_event,
+    direct_dependencies,
+)
 from leaf.events import build_threads, spoken_turns, taken_back, undo_error
 from leaf.files import version_revisions
 from leaf.page_view import PageView
 from leaf.projection import (
-    frozen_thread_reading,
     generated_children,
     page_reading,
     record_members,
@@ -313,20 +316,21 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     return None
 
 
-def action_contract_error(view, event: dict, events: list, registry: dict):
+def action_contract_error(view, event: dict, readings: AdmissionReadings):
     """Why a fresh action violates its declaration or current applicability.
 
     Validity is derived inside the append transaction from the action's authored
     document and the standing log; a browser's possibly stale reading never
     authorizes this boundary.
     """
+    registry = readings.registry
     revision = event["revision"]
     document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection a record is judged against
     # are the same frozen fragments, and parsing them twice was two readings that
     # could only ever agree.
-    thread = frozen_thread_reading(events, registry)
+    thread = readings.thread
     thread_projection = thread.projection
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
@@ -348,7 +352,7 @@ def action_contract_error(view, event: dict, events: list, registry: dict):
         return None
 
     if page_rec:
-        reading = page_reading(document, events, registry, revision)
+        reading = readings.page(document, revision)
         projection, parser, spk = reading.projection, reading.document, reading.spoken
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
@@ -450,10 +454,10 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     return None
 
 
-def _action_error(view, event: dict, events: list, registry: dict):
+def _action_error(view, event: dict, readings: AdmissionReadings):
     if event["kind"] != "action":
         return None
-    return action_contract_error(view, event, events, registry)
+    return action_contract_error(view, event, readings)
 
 
 def _request_error(view, event: dict, events: list, registry: dict):
@@ -580,7 +584,13 @@ def _withdrawal_error(view, event: dict, events: list) -> str | None:
 
 
 def admission_error(
-    view, events: list, event: dict, registry: dict, *, capture_anchors: bool = False
+    view,
+    events: list,
+    event: dict,
+    registry: dict,
+    readings: AdmissionReadings,
+    *,
+    capture_anchors: bool = False,
 ) -> str | None:
     """The first failing gate for one event, in append-door order.
 
@@ -593,7 +603,7 @@ def admission_error(
     return (
         _revision_error(view, event)
         or _approval_error(view, event, events, registry)
-        or _action_error(view, event, events, registry)
+        or _action_error(view, event, readings)
         or _request_error(view, event, events, registry)
         or _report_error(view, event, registry)
         or _receipt_error(view, event, events)
@@ -621,14 +631,13 @@ def admitted_event(
     kind = event.get("kind")
     if kind not in contracts:
         raise EventRefused(f"kind must be one of {sorted(contracts)}")
+    readings = AdmissionReadings(events, registry)
     if error := admission_error(
-        view, events, event, registry, capture_anchors=capture_anchors
+        view, events, event, registry, readings, capture_anchors=capture_anchors
     ):
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
-        event = admit_widget_event(
-            view.document(event["revision"]), event, events, registry
-        )
+        event = admit_widget_event(view.document(event["revision"]), event, readings)
     if error := event_record_error(contracts[kind], {**APPEND_STAMPED, **event}):
         raise EventRefused(f"{kind} event is invalid: {error}")
     return event

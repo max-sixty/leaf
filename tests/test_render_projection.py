@@ -5847,7 +5847,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     poll replays the user's own gestures back at them. The finding names the widget,
     both verbs, and what moved.
 
-    Two facets on one unit prove both can stand while exercising the two readings that
+    Two verbs on one unit prove both can stand while exercising the two readings that
     catch different things. The count is markup, so `shallowSigs` sees it; the caption
     is text, which that signature excludes on purpose, so only the verb's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
@@ -7308,7 +7308,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         wherever it stands — and `a` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
-    the decision stands until (x-awaits.until). The thread's own reply box is the words'
+    x-awaits.answered names for a `multiple` group. The thread's own reply box is the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
 
@@ -7422,7 +7422,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a thread set whose `x-awaits.until` names `answer`.
+    # a `multiple` set, whose x-awaits.answered condition is a standing `answer`.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):

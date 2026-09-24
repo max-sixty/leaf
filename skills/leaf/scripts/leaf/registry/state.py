@@ -5,6 +5,7 @@ from leaf.schema import ELEMENT_ID
 from .contract import (
     RegistryError,
     deciding_outcomes,
+    deciding_verbs,
     declares_string,
     json_validator,
     state_specs,
@@ -305,11 +306,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
     # A detail field named `outcome` is reserved: it is the decision an owner's
     # retirable members leave the page under (x-retired-when, x-withdrawn-as). One
     # verb per tag decides, for the whole widget, over a closed set of words.
-    deciding = [
-        verb
-        for verb, spec in entry.get("x-state", {}).items()
-        if "outcome" in spec["detail"].get("properties", {})
-    ]
+    deciding = deciding_verbs(entry)
     if len(deciding) > 1:
         raise RegistryError(
             f"{path}: <{tag}> x-state verbs {deciding} all declare detail field "
@@ -334,7 +331,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
         )
 
 
-def validate_awaiting_units(declarations: dict, path) -> None:
+def validate_answered_conditions(declarations: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
     # more fundamental structural errors. Each answering verb's condition reads state
     # the verb itself keeps: a whole-widget value, a standing action, or, for a verb

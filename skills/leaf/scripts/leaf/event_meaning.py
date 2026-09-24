@@ -5,9 +5,34 @@ projection tests those identities against the document it reads, so moving a
 referenced element still changes containment without changing an old event.
 """
 
+from functools import cached_property
+
 from leaf.asks import answer_verbs, answering_action
-from leaf.projection import frozen_thread_reading, page_reading
+from leaf.projection import frozen_thread_reading, page_reading, with_action
 from leaf.thread_context import thread_structure
+
+
+class AdmissionReadings:
+    """The page and frozen-thread readings one admission folds, each built once.
+
+    The contract gates and the meaning stamped after them read the same log, so
+    they share one fold of it rather than each paying for their own."""
+
+    def __init__(self, events: list, registry: dict):
+        self.events = events
+        self.registry = registry
+        self._pages: dict = {}
+
+    @cached_property
+    def thread(self):
+        return frozen_thread_reading(self.events, self.registry)
+
+    def page(self, document, revision: int):
+        if revision not in self._pages:
+            self._pages[revision] = page_reading(
+                document, self.events, self.registry, revision
+            )
+        return self._pages[revision]
 
 
 def direct_dependencies(event: dict, spec: dict) -> list[str]:
@@ -46,7 +71,7 @@ def state_meaning(event: dict, entry: dict, document: dict) -> dict:
 
 
 def answer_meaning(
-    sender, record: dict, event: dict, events: list, registry: dict
+    sender, record: dict, event: dict, readings: AdmissionReadings
 ) -> tuple[bool, str | None]:
     """Whether this admitted action answers its widget's Ask, and the thread it closes.
 
@@ -57,18 +82,22 @@ def answer_meaning(
     whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
     been proposed, so it answers the Ask and closes no thread: turning a fix down
     leaves the question it was written for open."""
+    registry = readings.registry
     entry = registry[record["tag"]]
     if event["kind"] != "action" or event["action"] not in answer_verbs(entry):
         return False, None
     withdrawn = entry.get("x-withdrawn-as")
     declined = withdrawn is not None and event["detail"].get("outcome") == withdrawn
-    window = [*events, {**event, "id": "pending", "seq": len(events) + 1}]
     if event["meaning"]["document"]["kind"] == "page":
-        reading = page_reading(sender, window, registry, event["revision"])
-        projection, byid, spk = reading.projection, sender.by_id, reading.spoken
+        reading = readings.page(sender, event["revision"])
+        byid = sender.by_id
     else:
-        reading = frozen_thread_reading(window, registry)
-        projection, byid, spk = reading.projection, reading.by_id, reading.spoken
+        reading = readings.thread
+        byid = reading.by_id
+    candidate = {**event, "id": "pending", "seq": len(readings.events) + 1}
+    projection = with_action(
+        reading.projection, candidate, entry["x-state"][event["action"]]
+    )
     return (
         answering_action(
             byid[event["widget"]],
@@ -76,7 +105,7 @@ def answer_meaning(
             event["action"],
             projection,
             byid,
-            spk,
+            reading.spoken,
             registry,
         ),
         None if declined else record["attrs"].get("resolves"),
@@ -88,10 +117,11 @@ def request_unit(event: dict, spec: dict) -> str:
     return event["detail"][spec["unit"]] if "unit" in spec else event["widget"]
 
 
-def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dict:
+def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict:
     """Stamp server-owned meaning after command validation, under the append lock.
 
     `sender` is the authored document of the revision the command names."""
+    events, registry = readings.events, readings.registry
     record = sender.by_id.get(event["widget"])
     document = {"kind": "page", "revision": event["revision"]}
     if record is None:
@@ -105,7 +135,7 @@ def admit_widget_event(sender, event: dict, events: list, registry: dict) -> dic
         admitted["meaning"] = {"document": document, "unit": unit}
     else:
         admitted["meaning"] = state_meaning(event, entry, document)
-        answers, closes = answer_meaning(sender, record, admitted, events, registry)
+        answers, closes = answer_meaning(sender, record, admitted, readings)
         if answers:
             admitted["meaning"]["answer"] = closes
     return admitted

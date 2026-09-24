@@ -161,8 +161,8 @@ for.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup. A frozen widget
-keeps the user's Ask open until its `x-awaits.answered` condition holds. Moves on its
-answering verbs before then have not been handed over: they carry no receipt and
+keeps the user's Ask open until its `x-awaits.answered` condition holds. Moves on the
+widget before then have not been handed over: they carry no receipt and
 require no agent reply, and the move that answers carries the receipt and hands the
 turn to the agent. Undoing it returns the Ask to the user and removes the reply
 obligation. A frozen widget move that answers no Ask, such as a card moved

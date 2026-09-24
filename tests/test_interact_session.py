@@ -61,6 +61,7 @@ from leaf import conversation as conversation_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import host as host_model
@@ -987,7 +988,7 @@ def test_only_one_plain_reply_can_bind_the_app_server_final_message():
     }
     assert (
         codex_model.stream_reply_target(
-            payload({"kind": "version", "conversation": "thread-1"})
+            payload({"kind": "markup", "action": "event-1"})
         )
         is None
     )
@@ -5892,9 +5893,9 @@ def _settling_page(page_dir):
 
 
 def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, capsys):
-    """A gesture settles a conversation through `detail.resolves`, and the widget
-    it is made on need not stand in that conversation — for the one shipped
-    settling verb, `lf-suggestion`'s accept, it stands on the page and in no
+    """A gesture settles a conversation through its widget's `resolves`, and the
+    widget it is made on need not stand in that conversation — for the one shipped
+    settling verb, `lf-suggestion`'s decide, it stands on the page and in no
     thread at all. Reading the sending widget alone therefore left the gesture
     that closes a thread as the one gesture arriving with nothing behind it."""
     _settling_page(page_dir)
@@ -5907,8 +5908,9 @@ def test_a_page_ask_that_settles_a_thread_carries_its_conversation(page_dir, cap
         event_contracts_model.action_contract_error(
             page_view_model.PageView(page_dir),
             events[-1],
-            events,
-            registry_storage.require_registry(page_dir),
+            event_meaning_model.AdmissionReadings(
+                events, registry_storage.require_registry(page_dir)
+            ),
         )
         is None
     )
@@ -11568,11 +11570,20 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     lease.close()
 
 
-def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
+@pytest.mark.parametrize("declared", ["shipped", "done-only"])
+def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
     """A multiple-choice Ask finishes with Done. Until then a tick is the user's
     own unfinished answer: it is not agent work, the banner does not count it as an
     update waiting, the delivery tells the agent it owes nothing, and Stop does not
-    hold the turn. Done hands the Ask over, and the answer it owes is a version."""
+    hold the turn. Done hands the Ask over, and the answer it owes is a version.
+
+    The tick is held because it is a move on a widget whose Ask stands open, not
+    because `choose` happens to answer some other group: a layer answering the
+    group only by its Done holds the tick the same way."""
+    if declared == "done-only":
+        registry = files_model.read_json(claimed / "registry.json")
+        registry["lf-options"]["x-awaits"]["answered"] = {"answer": {}}
+        files_model.write_json(claimed / "registry.json", registry)
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)

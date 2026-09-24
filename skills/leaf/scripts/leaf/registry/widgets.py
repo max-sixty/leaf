@@ -9,6 +9,8 @@ from leaf.schema import ATTRIBUTE_KEYS, DATA_SOURCE_NAME, EXTENSION_SCHEMA, WIDG
 
 from .contract import (
     RegistryError,
+    deciding_outcomes,
+    deciding_verb,
     declares_string,
     json_validator,
     reference_relation_error,
@@ -625,6 +627,15 @@ def _validate_widget_interactions(
     if unknown := sorted(set(answered) - set(entry.get("x-state", {}))):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits answers with undeclared x-state verbs {unknown}"
+        )
+    # A blanket answer is one decision per Ask, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the Ask.
+    if (blanket := awaits.get("all")) and (
+        deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
+    ):
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits blanket answer `{blanket}` is not an outcome "
+            "of a deciding verb that answers its Ask"
         )
     needs_upgrade = [
         key

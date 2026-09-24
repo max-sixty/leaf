@@ -3,7 +3,7 @@
    Generated metadata, prose, workflow and reaction placement have one owner. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. The fragment is captured inertly before its first upgrade; panel
-   presentation waits for preparation before capturing typed authored facets. */
+   presentation waits for preparation before capturing typed authored state. */
 import { html, render, nothing } from "../../vendor/browser-runtime.js";
 import {
   loadMarkdown,

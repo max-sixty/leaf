@@ -455,7 +455,7 @@ customElements.define(
     #syncDone() {
       if (!this.#done) return;
       this.#done.available = this.#available("answer");
-      this.#done.answered = this.reading?.state.answer?.value === "answer";
+      this.#done.answered = Boolean(this.reading?.state.answer?.action);
       this.#done.busy = Boolean(this.#answering);
     }
 

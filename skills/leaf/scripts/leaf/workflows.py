@@ -30,11 +30,11 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 
-A user move on an Ask the user has not finished answering — a pick before
-the Done its group declares, a swipe before the deck's queue is empty — has not been
-handed over yet, so it is no workflow at all: the user is still composing the
-answer, and the finishing move carries the receipt. Once the Ask is answered,
-every move in its answer is owed.
+A user move on a widget whose own Ask the user has not finished answering — a
+pick before the Done its group declares, a swipe before the deck's queue is empty —
+has not been handed over yet, so it is no workflow at all: the user is still
+composing the answer, and the finishing move carries the receipt. Once the Ask is
+answered, every move on that widget is owed (`asks.part_of_ask`).
 
 A host that gives up on a move writes the failure its answer takes
 (`conversation.fail_answer`), each carrying `failure`: a reply in the
@@ -44,7 +44,7 @@ answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
-from .asks import answers_ask, ask_answered
+from .asks import ask_answered, part_of_ask
 from .events import spoken_turns
 from .projection import (
     NO_RECORD,
@@ -405,7 +405,7 @@ def canonical_workflows(
             # and whose tag declares the verb.
             record = by_id[source["widget"]]
             entry = page.registry[record["tag"]]
-            owed = answers_ask(record, entry, source["action"])
+            owed = part_of_ask(record, entry)
             if owed and not ask_answered(
                 record, entry, projection, by_id, spoken, page.registry
             ):

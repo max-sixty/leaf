@@ -3288,6 +3288,12 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
             {"answered": {"submit": {}}},
             "answers with undeclared x-state verbs",
         ),
+        (
+            "lf-suggestion",
+            "x-awaits",
+            {"answered": {"decide": {}}, "all": "approve"},
+            "blanket answer `approve` is not an outcome",
+        ),
     ],
 )
 def test_check_refuses_a_predicate_no_page_could_carry(

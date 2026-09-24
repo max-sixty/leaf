@@ -279,7 +279,7 @@ function widgetReading(
   const currentDescriptor = JSON.stringify(registered) === JSON.stringify(descriptor);
   // A live revision connects and prepares replacement nodes before their complete
   // document capture is adopted. An id shared with the outgoing node must not lend the
-  // replacement its old semantic facets during that preparation window.
+  // replacement its old semantic state during that preparation window.
   const current = currentDescriptor
     ? root.effective.widgets.get(descriptor.id)
     : undefined;
@@ -656,7 +656,7 @@ export function createSemanticApplication({
       // A worker row with no report dates its claim from the active revision, while
       // report-backed rows render the accepted update sequence. Keep both inside the
       // publication signature so their public watchers cannot miss a state read whose
-      // projection and widget facets happen to be unchanged.
+      // projection and widget state happen to be unchanged.
       updates: active?.updates ?? [],
       publishedAt: active?.published_at ?? null,
       pendingApprovals: pendingApprovals(unresolved, receipts),

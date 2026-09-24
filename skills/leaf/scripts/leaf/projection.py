@@ -14,7 +14,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
-from leaf.registry.contract import state_specs
+from leaf.registry.contract import decides, state_specs
 from leaf.registry.state import retirement_slots
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
@@ -429,6 +429,22 @@ def state_projection(
     )
 
 
+def with_action(
+    projection: StateProjection, event: dict, spec: dict
+) -> StateProjection:
+    """The projection with one newer action standing at its admitted coordinate.
+
+    An action made against the window this projection folds is the latest at its
+    coordinate and no floor of that window can have retracted it, so admission
+    reads a candidate this way instead of folding the whole log again."""
+    coordinate = tuple(event["meaning"]["coordinate"])
+    entry = (event, spec)
+    return projection._replace(
+        actions={**projection.actions, coordinate: entry},
+        desired={**projection.desired, coordinate: entry},
+    )
+
+
 def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
@@ -581,10 +597,10 @@ def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its standing deciding action names.
 
     Which verb decides is the registry's word: the one whose detail declares the
-    reserved `outcome` (`deciding_verb`), whose value `x-retired-when` and
+    reserved `outcome` (`decides`), whose value `x-retired-when` and
     `x-withdrawn-as` name, so nothing here knows a widget or verb by name."""
     return {
         widget: e["detail"]["outcome"]
         for (widget, _unit, _verb), (e, spec) in actions.items()
-        if "outcome" in spec["detail"].get("properties", {})
+        if decides(spec)
     }

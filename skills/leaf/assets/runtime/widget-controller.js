@@ -335,7 +335,7 @@ function createWidgetController(owner) {
       render();
       stopSelection = selected.subscribe(publish);
       // A data renderer may remount a nested widget without changing its semantic
-      // reading. Its own controller restores its facets; a parent controller may own
+      // reading. Its own controller restores its state; a parent controller may own
       // its placement, so refresh each mounted ancestor once for the new parent. The
       // remembered parent prevents the parent's corrective reparenting from looping.
       if (parentChanged && applicationState.read().document.authored.has(descriptor.id))

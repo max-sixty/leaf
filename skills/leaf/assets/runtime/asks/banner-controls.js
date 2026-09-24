@@ -95,29 +95,29 @@ export function createAskBannerControls(progress, activateBulk) {
   const progressFace = face(progress, "progress");
   const bulk = new Map();
 
-  function registerBulk(verb, label) {
-    if (bulk.has(verb)) return bulk.get(verb).control;
+  function registerBulk(outcome, label) {
+    if (bulk.has(outcome)) return bulk.get(outcome).control;
     const control = el("button", "lf-btn lf-answer-all", "");
     control.type = "button";
-    control.onclick = () => activateBulk(verb);
+    control.onclick = () => activateBulk(outcome);
     const owner = face(control, "bulk");
     const initial = Object.freeze({
       busy: false,
       offered: false,
       text: `${label} all (0)`,
       title: `${label} every one still waiting on you`,
-      verb,
+      outcome,
     });
     owner.model = initial;
     owner.commit();
     registerBannerControl({
-      key: `blanket:${verb}`,
+      key: `blanket:${outcome}`,
       control,
       rank: BANNER_CONTROL_RANK.blanket,
       conditional: true,
     });
     showNews(control, false);
-    bulk.set(verb, { control, owner });
+    bulk.set(outcome, { control, owner });
     return control;
   }
 
@@ -125,7 +125,9 @@ export function createAskBannerControls(progress, activateBulk) {
     try {
       await Promise.all([
         progressFace.present(model.progress),
-        ...model.bulk.map((reading) => bulk.get(reading.verb).owner.present(reading)),
+        ...model.bulk.map((reading) =>
+          bulk.get(reading.outcome).owner.present(reading),
+        ),
       ]);
     } catch (error) {
       try {

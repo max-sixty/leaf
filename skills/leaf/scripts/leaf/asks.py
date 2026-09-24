@@ -58,15 +58,17 @@ def answer_verbs(entry: dict) -> dict:
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
 
-def answers_ask(record: dict, entry: dict, verb: str) -> bool:
-    """Whether a user's verb on one authored widget is part of that widget's own
-    Ask's answer: the authored instance asks, and x-awaits names the verb among
-    those whose state answers it. Every swipe on a deck is part of the answer the
-    last one completes, and so is a pick on a group whose Done answers it."""
-    awaits = entry.get("x-awaits") or {}
-    if not asking(record["attrs"], awaits.get("when")):
-        return False
-    return verb in answer_verbs(entry)
+def part_of_ask(record: dict, entry: dict) -> bool:
+    """Whether a user's move on one authored widget is part of that widget's own
+    Ask's answer: the authored instance originates an x-awaits Ask.
+
+    The one rule for when a move is handed over. While the Ask stands unanswered
+    every move on its widget is the user still composing the answer — a swipe
+    before the queue empties, a pick or an added option before a group's Done —
+    and once its `answered` condition holds every standing move there is owed as
+    part of it. Which verb happens to finish the answer does not decide it."""
+    awaits = entry.get("x-awaits")
+    return awaits is not None and asking(record["attrs"], awaits.get("when"))
 
 
 def verb_answers(

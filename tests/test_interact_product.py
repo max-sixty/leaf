@@ -1430,7 +1430,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "detail": {"options": ["backfill-first"]},
             "meaning": {
                 "document": {"kind": "page", "revision": 1},
-                "coordinate": ["plan-options", "plan-options", "selection"],
+                "coordinate": ["plan-options", "plan-options", "choose"],
                 "depends": ["backfill-first", "plan-options"],
             },
         },

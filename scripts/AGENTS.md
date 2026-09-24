@@ -27,7 +27,7 @@ file says which script owns what, and the rules that hold across them.
   A preview that re-vendored on every save could therefore only ever show a revision
   arriving as a fresh document, which is the half of the behavior a user is least
   likely to be looking for.
-  `--export` writes the browser-drawn result as one standalone file instead.
+  `--export` instead writes the page as one file that opens offline.
   A preview runs in the foreground like a dev server, and each start builds its page
   fresh. It takes no task claim; `--user` claims the page so a user's presses reach
   this session. `/developing-leaf` states which to choose.

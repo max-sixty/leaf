@@ -90,8 +90,8 @@ The main owners are:
   complete source reading, and the `version check` command;
 - `passages` and `anchor_capture`: the file-side text reading and authored
   anchor construction;
-- `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
-  and standalone export;
+- `render_checks` and `render_gate/`: browser probes and validation;
+- `exporting`: a stamped version as one file that opens offline;
 - `data` and `data_contracts`: typed snapshot storage, commands, bindings, and
   registry-contract validation;
 - `media` and `publishing`: page-bound media and public version stamps;
@@ -144,7 +144,7 @@ Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
 owns the probe readings and the finding each becomes, `version` owns retry
 policy, `page_code` owns the run plain `version check` gives a page's own code,
 `preview` owns ephemeral servers, `browser` owns the launch the two
-user-path gates share — `exporting` is its other caller — and `command` owns the
+user-path gates share, and `command` owns the
 CLI boundary. Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`

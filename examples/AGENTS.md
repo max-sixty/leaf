@@ -51,9 +51,7 @@ under `versions/` remain historical inputs only when the page's version story us
 The nightly run puts each boundary to the smallest corpus that can answer it. Every
 authored source runs the render gate in both palettes. The feature gallery runs Axe at
 desktop and phone widths in both palettes, while focused accessibility tests own chrome
-and specialist surfaces it does not contain. The generated corpus is exported once;
-the test reveals every outer tab before inspecting the complete static payload.
-Authored-content sweeps quote four unlike source pages and resolve anchors written from
+and specialist surfaces it does not contain. Authored-content sweeps quote four unlike source pages and resolve anchors written from
 the same four. Shared runtime mechanisms use causal representatives instead of
 repeating the same gesture over every page, and each sweep fails when its representative
 contains nothing to inspect. A widget that stands in no source page is one the
@@ -244,5 +242,5 @@ stay around to re-run.
 
 Run `scripts/preview.py [page]` to create a fresh vendored page, copy its
 companion log, data, and media, and serve it at a local URL. Add `--export` to
-write the rendered page as a standalone review file. Use `page init` and the
+write it as one review file that opens offline. Use `page init` and the
 normal server commands for an authored page outside this corpus.

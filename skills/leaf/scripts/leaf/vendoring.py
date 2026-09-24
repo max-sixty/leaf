@@ -50,6 +50,7 @@ from .schema import (
 from .service import PageTransaction, claim_path
 from .structure import SourceDocument, parse_revision
 from .validation.compatibility import candidate_vocabulary_gaps
+from .validation.source import check_source
 from .work import widget_work_without_targets
 
 
@@ -127,6 +128,19 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
             page_target=page_target,
             selected=selected,
         )
+        events = page.events
+    # The re-vendored layer is in place, but the page shows it only once index.html
+    # activates, which runs the same check `version check` does. Say now what would
+    # hold it back, rather than leave the next read to refuse it unseen.
+    check = check_source(page_dir, events, allow_transition=False)
+    if check.errors:
+        print(
+            f"re-vendored {page_dir}, but index.html will not activate until "
+            "`leaf version check` passes:",
+            file=sys.stderr,
+        )
+        for error in check.errors:
+            print(f"  - {error}", file=sys.stderr)
 
 
 class _VendoredLayer(NamedTuple):

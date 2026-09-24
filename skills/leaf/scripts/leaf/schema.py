@@ -20,27 +20,29 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
-# The operations that settle a user move the agent owes, as `workflows` addresses
-# them and `$events.answering` explains them.
-ANSWER_KINDS = ("reply", "version", "markup", "receipt")
+# The operations that settle a user move the agent owes, as `workflows` and
+# `activity` address them and `$events.answering` explains them. A `turn` answer is
+# a thread reply the claimant's turn writes with its own opening and final messages.
+ANSWER_KINDS = ("reply", "turn", "markup", "receipt")
+# The answer kinds that post a message in a thread.
+THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
 ANSWER_ASK_INSTRUCTION = (
     "Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and conversation history with "
     "`leaf conversation read <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "Print one page's complete ordered batch, conversation context, and response "
-    "requirements as an immutable delivery. `leaf delivery read <id>` reads that same delivery."
-)
-ACK_BATCH_INSTRUCTION = (
-    "If output is truncated, acknowledge nothing; rerun with enough output capacity "
-    "for the whole batch. If you handle the batch yourself, read it fully, then "
-    "acknowledge it before any other work. If forwarding it, acknowledge once it "
-    "durably arrives there. Run `leaf wait --ack <delivery-id>` in the "
-    "background to acknowledge its captured batches and wait for the next batch while the page remains live."
+    "requirements as an immutable delivery, whose `acknowledge` says how to confirm "
+    "it. `leaf delivery read <id>` reads that same delivery."
 )
 
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+# What a refused element name is told, so the author need not read WIDGET_NAME.
+WIDGET_NAME_RULE = (
+    "an element name is `lf-` followed by hyphen-separated words of lowercase "
+    f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
+)
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
@@ -203,15 +205,17 @@ STATE_SCHEMA = {
         "required": ["detail", "unit"],
         "additionalProperties": False,
         # An agent's verb moves declared state only, never body words — so the
-        # passage reading never has to model one — and its record is required: the
-        # gate compares record forms, and a recordless report would be a claim nothing
-        # could check a version against. Only the user adds children, and only a
-        # report carries update prose.
+        # passage reading never has to model one — and never a part's place, which
+        # the stamped version owns and a rank reads between the neighbours a widget
+        # shows the user. Its record is required: the gate compares record forms,
+        # and a recordless report would be a claim nothing could check a version
+        # against. Only the user adds children, and only a report carries update
+        # prose.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
             "properties": {
-                "record": {"properties": {"kind": {"not": {"const": "body"}}}},
+                "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
                 "creates": False,
             },
         },
@@ -401,6 +405,19 @@ EXTENSION_SCHEMA = {
                     "required": ["parts"],
                     "additionalProperties": False,
                 },
+                {
+                    "type": "object",
+                    "properties": {
+                        "prefixes": {
+                            "type": "array",
+                            "items": {"type": "string", "pattern": "^\\S+$"},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        }
+                    },
+                    "required": ["prefixes"],
+                    "additionalProperties": False,
+                },
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
@@ -450,6 +467,9 @@ VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.s
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 GUIDANCE_DIR = "guidance"
 PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+# A package's own command-line tools, run by `leaf package run` from wherever the
+# package is installed or bundled. A page never vendors them: they are the agent's.
+SCRIPTS_DIR = "scripts"
 GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored

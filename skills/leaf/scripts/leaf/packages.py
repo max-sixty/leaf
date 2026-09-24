@@ -9,6 +9,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
 from .files import fsync_parents, json_bytes, read_json, replace_files
 from .layer import (
     LayerComposition,
@@ -37,8 +45,10 @@ from .schema import (
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
+    SCRIPTS_DIR,
     VENDORED_FILES,
     WIDGET_NAME,
+    WIDGET_NAME_RULE,
 )
 
 
@@ -213,11 +223,96 @@ def package_page_overlap(paths: list):
     return None
 
 
+# PEP 723's reference reading of an inline metadata block.
+INLINE_METADATA = re.compile(
+    r"(?m)^# /// (?P<type>[a-zA-Z0-9-]+)$\s(?P<content>(^#(| .*)$\s)+)^# ///$"
+)
+
+
+def floor_error(specifier: SpecifierSet) -> str | None:
+    """Why a version constraint is not a floor with no cap, or None."""
+    operators = {spec.operator for spec in specifier}
+    if operators != {">="}:
+        return "must state a floor (>=) and nothing else"
+    return None
+
+
+def check_package_scripts(package: Path) -> None:
+    """Refuse a script `package run` could not run apart from the caller's project.
+
+    `uv run --script` builds an environment of its own only for a file that
+    carries an inline `script` metadata block (PEP 723); a file without one runs in
+    whatever project or virtual environment the caller's directory reaches, so a
+    producer would depend on where the agent ran it. `--no-project` does not
+    close that, since uv still finds the caller's `.venv` for a file with no block,
+    so the block is the one guarantee: required here, where `package check` reports
+    it and `package install` refuses it, and for bundled packages by the suite. Its
+    constraints follow the project's dependency policy, a floor and no cap, since
+    no lock ships beside a script (AGENTS.md, "The install runs this tree"). A
+    subdirectory of `scripts/` holds helpers and is not run.
+    """
+    scripts = package / SCRIPTS_DIR
+    if not (scripts.exists() or scripts.is_symlink()):
+        return
+    if not scripts.is_dir():
+        sys.exit(f"{scripts} must be a directory")
+    for path in sorted(scripts.glob("*.py")):
+        if not path.is_file():
+            sys.exit(f"{path} must be a file")
+        script_requirements(path)
+
+
+def script_requirements(path: Path) -> list[Requirement]:
+    """The dependencies one package script's inline metadata declares, held to the
+    policy `check_package_scripts` states; a script that breaks it is refused."""
+    blocks = [
+        match
+        for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
+        if match["type"] == "script"
+    ]
+    if len(blocks) != 1:
+        sys.exit(
+            f"{path} needs one inline `# /// script` metadata block (PEP 723) "
+            "declaring its dependencies, so `leaf package run` runs it in an "
+            "environment of its own"
+        )
+    content = "".join(
+        line[2:] if line.startswith("# ") else line[1:]
+        for line in blocks[0]["content"].splitlines(keepends=True)
+    )
+    try:
+        metadata = tomllib.loads(content)
+        dependencies = metadata.get("dependencies", [])
+        python = metadata.get("requires-python", ">=0")
+        if not (
+            isinstance(dependencies, list)
+            and all(isinstance(value, str) for value in dependencies)
+            and isinstance(python, str)
+        ):
+            raise ValueError(
+                "dependencies must be a list of strings and requires-python a string"
+            )
+        requirements = [Requirement(value) for value in dependencies]
+        python = SpecifierSet(python)
+    except (ValueError, InvalidRequirement, InvalidSpecifier) as error:
+        sys.exit(f"{path}: invalid script metadata ({error})")
+    if error := floor_error(python):
+        sys.exit(f"{path}: requires-python {error}")
+    for requirement in requirements:
+        if requirement.url is not None or (error := floor_error(requirement.specifier)):
+            sys.exit(
+                f"{path}: dependency {str(requirement)!r} "
+                f"{error or 'must name a version floor, not a URL'}"
+            )
+    return requirements
+
+
 def validate_package_dir(package: Path) -> list:
     if (package.exists() or package.is_symlink()) and not package.is_dir():
         sys.exit(f"{package} must be a directory")
     if package.is_dir():
         checked_inputs([package])
+        check_package_scripts(package)
     protected = protected_package_paths(package)
     paths = input_paths([package]) if package.is_dir() else [package]
     if overlap := package_page_overlap(paths):
@@ -254,12 +349,14 @@ def check_package(
 
 
 def copy_package_contract(package: Path, staged: Path) -> None:
-    """Copy exactly what a layer input reads into an empty directory.
+    """Copy exactly what a layer input reads, and the package's scripts, into an
+    empty directory.
 
     The rest of the source directory — a README, the author's own tests, `.git` —
     belongs to the author rather than to the package, so it reaches neither a
     staged candidate nor the store. Absent package directories are created empty,
-    as `package init` creates them.
+    as `package init` creates them; `scripts/` is copied only when it exists,
+    since most packages ship none.
     """
     for name in VENDORED_FILES:
         source = package / name
@@ -272,6 +369,8 @@ def copy_package_contract(package: Path, staged: Path) -> None:
             shutil.copytree(source, target)
         else:
             target.mkdir()
+    if (package / SCRIPTS_DIR).is_dir():
+        shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:
@@ -300,7 +399,7 @@ def init_starter_widget(
 ) -> None:
     """Add one checked upgraded-content starter without replacing package members."""
     if re.fullmatch(WIDGET_NAME, widget) is None:
-        sys.exit(f"widget tag {widget!r} must match {WIDGET_NAME}")
+        sys.exit(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
     module_name = f"{widget}.js"
     module_path = package / "widgets" / module_name
     if widget in composition.registry:
@@ -414,3 +513,32 @@ def cmd_package_install(source: Path) -> Path:
             os.rename(staged, destination)
         print(f"installed {destination}")
         return destination
+
+
+def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
+    """Run one of a package's `scripts/` in the environment its header declares.
+
+    The package is found by the lookup `page init --package NAME` resolves
+    through, so a producer command in guidance names a package and a script
+    rather than a path on this machine, and an installed package's tools run on
+    the same terms as a bundled one's. Each script is a Python file whose inline
+    metadata (PEP 723) declares its dependencies; `uv run --script` builds that
+    environment, apart from Leaf's own. The run replaces this process, so the
+    script owns stdin, stdout, stderr, and the exit status.
+    """
+    if (
+        re.fullmatch(HTML_NAME, name) is None
+        or (package := named_package(name)) is None
+    ):
+        sys.exit(
+            f"unknown package {name!r}; name a bundled package or one "
+            "`leaf package install` added"
+        )
+    scripts = package / SCRIPTS_DIR
+    available = sorted(path.name for path in scripts.glob("*.py") if path.is_file())
+    if script not in available:
+        offered = ", ".join(available) or "none"
+        sys.exit(f"package {name!r} has no script {script!r}; available: {offered}")
+    command = ["uv", "run", "--quiet", "--script", str(scripts / script), *arguments]
+    sys.stdout.flush()
+    os.execvp(command[0], command)

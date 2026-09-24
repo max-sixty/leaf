@@ -581,6 +581,14 @@ def test_corpus_is_generated_from_the_examples():
     assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
         "specimen conversations changed — rerun scripts/corpus.py"
     )
+    committed_page = {
+        path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()
+        for path in corpus.CORPUS_PAGE.rglob("*")
+        if path.is_file()
+    }
+    assert corpus.build_page() == committed_page, (
+        "an example's own elements changed — rerun scripts/corpus.py"
+    )
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
     )
@@ -653,7 +661,7 @@ def test_no_example_writes_another_example_s_sentences():
     def words(html: str) -> list[str]:
         # <main> only: shared delivery markup is absent from authored examples, while
         # page-specific titles, styles, and modules legitimately differ in the head.
-        body = html[html.index("<main>") + len("<main>") : html.rindex("</main>")]
+        body = html[re.search(r"<main\b[^>]*>", html).end() : html.rindex("</main>")]
         return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
 
     seen: dict[tuple, str] = {}
@@ -1406,7 +1414,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "card-x",
                 "depends": ["b", "card-x", "col-done"],
             },
@@ -1422,7 +1430,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "action": "choose",
             "detail": {"options": ["backfill-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "plan-options",
                 "depends": ["backfill-first", "plan-options"],
             },

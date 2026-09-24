@@ -1919,8 +1919,9 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     Every declared `x-upgrade` tag used to import on every page, so a triage board
     with no diff anywhere on it fetched Pierre's renderer, and that one module was
-    more than half the bytes the page moved. The board's own module is the
-    population: a page that asked for nothing would satisfy every refusal below and
+    more than half the bytes the page moved. The board page's own modules, the board,
+    its grid and its activity feed, are the population: a page that asked for nothing
+    would satisfy every refusal below and
     say nothing about which of them holds.
 
     The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
@@ -1933,7 +1934,11 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     page = open_page(browser, serve(example), context=context)
 
     modules = sorted(p for p in asked if p.startswith("/widgets/"))
-    assert modules == ["/widgets/lf-board.js"], modules
+    assert modules == [
+        "/widgets/lf-activity.js",
+        "/widgets/lf-board.js",
+        "/widgets/lf-grid.js",
+    ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "agentic-mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]

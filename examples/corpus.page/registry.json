@@ -1,0 +1,51 @@
+{
+  "lf-merge-film": {
+    "description": "An animated, scrubbable film of worktrunk's wt merge, drawn as one SVG in the page's colours, with flags that re-plot the run. Its commits, refs, worktrees and hook chips are commentable visual parts while they are on screen. Each paint dispatches a bubbling film-frame event naming the current step, its caption and the run's status per step.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-visual": {
+      "prefixes": [
+        "commit:",
+        "ref:",
+        "tree:",
+        "hook:"
+      ]
+    },
+    "x-space": "available"
+  },
+  "lf-merge-steps": {
+    "description": "The steps of a merge film, told beside it. Its content is one authored <ol>: an <li data-chapter> per step, each with an <h3> title, a <p> saying what the step does, and an empty <p class=\"this-run\">. The module marks the step playing, how this run treats each step, and fills this-run with why a step was skipped or stopped; a click on a step plays the film named by `for` from it.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "for": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id",
+      "for"
+    ],
+    "additionalProperties": false,
+    "x-content": "markup",
+    "x-refers": {
+      "for": {}
+    },
+    "x-upgrade": true
+  }
+}

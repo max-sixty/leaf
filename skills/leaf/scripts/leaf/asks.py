@@ -169,11 +169,13 @@ def quoted_in(rec: dict, registry: dict) -> bool:
 def projected_action_holders(
     projection: StateProjection, byid: dict, registry: dict
 ) -> dict[str, dict]:
-    """Unit id → its enclosing vocabulary widget after standing position records."""
+    """Unit id → its enclosing vocabulary widget after standing position records
+    no later revision has absorbed; an absorbed move leaves its unit where the
+    markup has it."""
     holders = {}
     for (_owner, unit, _verb), (event, spec) in projection.desired.items():
         record = spec.get("record") or {}
-        if record.get("kind") != "position":
+        if record.get("kind") != "position" or event["id"] in projection.absorbed:
             continue
         target = byid.get(event["detail"][record["value"]])
         unit_rec = byid.get(unit)

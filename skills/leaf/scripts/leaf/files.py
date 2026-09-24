@@ -5,8 +5,11 @@ import os
 import re
 import secrets
 import sys
+import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypeVar
 
 from .locations import path_location
 
@@ -30,15 +33,38 @@ def file_stamp(path: Path):
     return (stat.st_ino, stat.st_mtime_ns, stat.st_size)
 
 
-# How often a reader waiting on a page looks for news: the browser's news stream, and
-# `leaf events --follow`. The look is a re-stat rather than an in-process signal because
-# an append does not have to come from the reader's process — `leaf reply` and every
-# other command write these same files from outside a server, and a follower has no
-# server at all — so one mechanism covers a browser's POST and an agent's command alike.
-# Measured at 70us a look of the whole page, 0.14% of a core per open tab, against the
-# full state read and log parse a timed poll cost every two seconds whether or not
-# anything had happened.
+# How often a reader waiting on a page looks for news: the browser's news stream,
+# `leaf events --follow`, and `leaf wait`. The look is a re-stat rather than an
+# in-process signal because an append does not have to come from the reader's process —
+# `leaf reply` and every other command write these same files from outside a server,
+# and a follower has no server at all — so one mechanism covers a browser's POST and an
+# agent's command alike. Measured at 70us a look of the whole page, 0.14% of a core per
+# open tab, against the full state read and log parse a timed poll cost every two
+# seconds whether or not anything had happened.
 LOOK_S = 0.05
+
+
+Reading = TypeVar("Reading")
+
+
+def next_reading(
+    look: Callable[[], Reading], seen: Reading, timeout: float | None = None
+) -> Reading:
+    """The first reading `look` gives that differs from `seen`, looking every
+    `LOOK_S` — the one wait a synchronous follower of page files makes. With
+    `timeout`, the reading at that many seconds is returned whether or not it moved,
+    for a follower that also owes something to the clock rather than the files.
+
+    `look` is a stamp, never the content: the follower reads what moved only once
+    this says something did, so a quiet page costs stat calls and nothing more."""
+    deadline = None if timeout is None else time.monotonic() + timeout
+    while True:
+        reading = look()
+        if reading != seen:
+            return reading
+        if deadline is not None and time.monotonic() >= deadline:
+            return reading
+        time.sleep(LOOK_S)
 
 
 VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")

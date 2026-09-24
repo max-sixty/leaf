@@ -133,6 +133,21 @@ def adapter_is_live(session_id: str) -> bool:
     return lock_is_held(adapter_lease_path(session_id))
 
 
+def started_wait(session_id: str) -> str | None:
+    """The start of the wait holding this session's lease, or None while none does.
+
+    Only the wait knows it started: a shell command that runs one can spell the
+    launcher any way the shell allows (`$LEAF wait`, `uv run leaf wait`), so a
+    reader that needs to know one began asks the lease rather than the command."""
+    path = waiter_lease_path(None, session_id)
+    if not lock_is_held(path):
+        return None
+    try:
+        return path.read_text() or None
+    except OSError:
+        return None
+
+
 def wait_is_live(page_dir: Path, session_id: str | None) -> bool:
     """Whether this ownership scope's exact wait lease is held now."""
     lease_path = waiter_lease_path(page_dir, session_id)

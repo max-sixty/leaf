@@ -79,28 +79,26 @@ def board_markup(board: dict[str, list[str]]) -> str:
     )
 
 
-def absorbed(board: dict[str, list[str]], move: dict) -> dict[str, list[str]]:
-    """The board with one recorded `move` written into the authored arrangement."""
-    placed = {
-        column: [card for card in cards if card != move["card"]]
-        for column, cards in board.items()
+def folded_board(page_dir: Path) -> dict[str, list[str]]:
+    """The board as `leaf page state` reads it, the user's move folded in: the order
+    an agent writes into its next version."""
+
+    def nodes(content):
+        for node in content:
+            if isinstance(node, dict):
+                yield node
+                yield from nodes(node["content"])
+
+    content = json.loads(run_leaf("page", "state", str(page_dir)))["content"]
+    by_id = {node["attrs"].get("id"): node for node in nodes(content)}
+    return {
+        column: [
+            card["attrs"]["id"]
+            for card in by_id[column]["content"]
+            if isinstance(card, dict)
+        ]
+        for column, _label in COLUMNS
     }
-    placed[move["to"]].insert(move["index"], move["card"])
-    return placed
-
-
-def last_move(page_dir: Path) -> dict:
-    """The detail of the last board move the user made on this page."""
-    moves = []
-    for line in (page_dir / "events.jsonl").read_text().splitlines():
-        if not line.strip():
-            continue
-        event = json.loads(line)
-        if event["kind"] == "action" and event.get("action") == "move":
-            moves.append(event["detail"])
-    if not moves:
-        raise RuntimeError("the demo recorded no board move to answer")
-    return moves[-1]
 
 
 def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
@@ -457,7 +455,7 @@ def shoot_stills(
     `references/conversation-loop.md` asks of any turn. Ack has already re-armed the
     wait, whose held lease is the proof the browser renders."""
     (page_dir / "index.html").write_text(
-        demo_page(2, absorbed(BOARD, last_move(page_dir))), encoding="utf-8"
+        demo_page(2, folded_board(page_dir)), encoding="utf-8"
     )
     run_leaf(
         "version",

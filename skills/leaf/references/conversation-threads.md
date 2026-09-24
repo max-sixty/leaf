@@ -103,10 +103,6 @@ detached thread open under **No longer in this version**, and `page state` repor
 null current anchor and the prior anchor as `detached_from`. A later reply may move it
 to a genuine replacement. Open a new thread for a different subject.
 
-A thread the user opened as a request for change is delivered with a `version`
-obligation: the next stamped version is its answer rather than a reply, and its
-delivered `answering` clause says when it can be resolved.
-
 A declared visual part is held only while a live conversation's current anchor names
 it, so a version may drop the part once every thread on it has moved, detached, or
 been resolved, and `version check` names those three moves while one still holds it.

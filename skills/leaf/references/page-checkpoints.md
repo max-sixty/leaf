@@ -16,7 +16,7 @@ A browser at the live root follows new revisions; a browser pinned to
 ## Sign-off and ending
 
 To finish, handle every event in the complete delivered batch and write the answer
-each acknowledged move's `obligation` names (`references/event-batches.md`). A
+each acknowledged move's `answer` names (`references/event-batches.md`). A
 finished record, including a quick page that became one, ends on a stamped final
 revision that honors standing Asks and reports. An unstamped quick page can go idle directly.
 Idling ends the interaction but does not delete the page directory.

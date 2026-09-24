@@ -657,9 +657,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
-def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
-    server, page_dir
-):
+def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -743,10 +741,8 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
     }
 
     held = data["sources"]["review-patch"]["revision"]
-    fragment_url = (
-        f"{server}/api/data?source_revision={held}&source=review-patch&key=src%2Fa.py"
-    )
-    status, body = fetch(fragment_url)
+    deferred_url = f"{server}/api/deferred?source_revision={held}&source=review-patch&key=src%2Fa.py"
+    status, body = fetch(deferred_url)
     assert status == 200
     assert json.loads(body) == {
         "revision": held,
@@ -758,19 +754,19 @@ def test_fragmented_data_sends_a_manifest_then_serves_one_exact_payload(
 
     # Each source keeps its own revision, so replacing another leaves this one read.
     data_model.cmd_data_set(page_dir, "other-patch", {"files": []})
-    assert fetch(fragment_url)[0] == 200
+    assert fetch(deferred_url)[0] == 200
 
     data_model.cmd_data_set(
         page_dir,
         "review-patch",
         {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
     )
-    status, body = fetch(fragment_url)
+    status, body = fetch(deferred_url)
     assert status == 409
     assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
 
 
-def test_historical_fragment_reads_keep_the_document_revision_and_layer(
+def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -832,16 +828,17 @@ def test_historical_fragment_reads_keep_the_document_revision_and_layer(
     held = historical["data"]["sources"]["review-patch"]["revision"]
     connection.request(
         "GET",
-        f"/api/data?source_revision={held}&source=review-patch&key=app.py&t=" + TOKEN,
+        f"/api/deferred?source_revision={held}&source=review-patch&key=app.py&t="
+        + TOKEN,
         headers={"Leaf-View-Revision": str(first.revision)},
     )
     response = connection.getresponse()
-    fragment = json.loads(response.read())
+    deferred = json.loads(response.read())
     connection.close()
 
     assert response.status == 200
     assert response.getheader("Leaf-Layer") == first_layer
-    assert fragment["value"] == patch
+    assert deferred["value"] == patch
 
 
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
@@ -1133,12 +1130,14 @@ def test_server_round_trip(server, page_dir):
     assert state["cursor"] == 0  # no user event acknowledged yet
     assert state["events"][-1]["id"] == posted["id"]
     # A widget action rides the same channel; half-formed ones are refused at the edge.
+    # A move is made on the newest revision, which the vendored file above made r3.
+    newest = files_model.list_revisions(page_dir)[-1]
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "action",
-                "revision": 2,
+                "revision": newest,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
@@ -2031,7 +2030,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": reaction["id"],
@@ -2112,8 +2111,10 @@ def test_undo_candidates_keep_only_standing_user_gestures():
             "text": "answered",
         },
     ]
-    empty = projection_model.StateProjection({}, {}, {}, {}, {})
-    undo_reading = event_folds_model.UndoReading(events, within={})
+    empty = projection_model.StateProjection({}, {}, {}, {}, {}, frozenset())
+    undo_reading = event_folds_model.UndoReading(
+        events, within={}, absorbed=frozenset()
+    )
 
     candidates = served_document.browser_undo_candidates(
         events, empty, empty, undo_reading=undo_reading
@@ -3401,7 +3402,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
             page_dir,
             {
                 "id": first["id"],
-                "meaning": {"document": "page"},
+                "meaning": {"scope": "page"},
                 "kind": "request",
                 "author": "user",
                 "revision": 1,
@@ -4277,11 +4278,11 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
             json.loads(fetch(f"{server.origin}/registry.json")[1]) == snapshot.registry
         )
         held = projection["data"]["sources"]["patches"]["revision"]
-        status, fragment = fetch(
-            f"{server.origin}/api/data?source_revision={held}&source=patches&key=a.py"
+        status, deferred = fetch(
+            f"{server.origin}/api/deferred?source_revision={held}&source=patches&key=a.py"
         )
         assert status == 200
-        assert json.loads(fragment)["value"] == "old"
+        assert json.loads(deferred)["value"] == "old"
 
         stream = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
         stream.request("GET", f"/api/news?t={TOKEN}")

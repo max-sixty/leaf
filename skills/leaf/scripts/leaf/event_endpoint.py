@@ -133,7 +133,9 @@ def _execute_event(
             event["author"] = "page" if event["kind"] == "error" else "user"
             try:
                 append_admitted(page, event, capture_anchors=capture_anchors)
-            except (EventRefused, RegistryError) as error:
+            except EventRefused as error:
+                return event_rejection(event, error.user)
+            except RegistryError as error:
                 return event_rejection(event, str(error))
             claim = page.active_claim
             # Input no carrier will pick up: the claiming session holds no wait

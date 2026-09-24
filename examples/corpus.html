@@ -1041,6 +1041,179 @@
         }
       }
     </style>
+<!-- wt-merge.html authored styles -->
+<style>
+      lf-merge-film {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+      #lede code {
+        white-space: nowrap;
+      }
+      lf-merge-film .film-stage {
+        position: relative;
+        line-height: 0;
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        overflow: hidden;
+      }
+      lf-merge-film .film-stage.film-seekable {
+        cursor: pointer;
+      }
+      lf-merge-film .film-stage svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      lf-merge-film .film-stage g.film-picked {
+        filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 55%, transparent));
+      }
+      lf-merge-film .film-inspect {
+        position: absolute;
+        max-width: 300px;
+        padding: 10px 12px;
+        display: grid;
+        gap: 4px;
+        font: var(--t-6) / 1.45 var(--sans);
+        background: var(--card);
+        color: var(--ink);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        box-shadow: 0 8px 24px var(--shade);
+        pointer-events: none;
+      }
+      lf-merge-film .film-inspect strong {
+        font-family: var(--mono);
+      }
+      lf-merge-film .film-inspect[hidden] {
+        display: none;
+      }
+      lf-merge-film .film-bar {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: center;
+      }
+      lf-merge-film .film-scrub {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+      lf-merge-film .film-play,
+      lf-merge-film .film-speed {
+        min-width: 5.5em;
+        padding: 4px 10px;
+        font: inherit;
+        font-size: var(--t-5);
+        border-radius: var(--r);
+        border: 1px solid var(--border-2);
+        background: var(--card);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      lf-merge-film .film-flags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        margin: 0;
+        padding: 8px 12px;
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--field);
+      }
+      lf-merge-film .film-flags legend {
+        padding: 0 4px;
+        color: var(--muted);
+        font-size: var(--t-6);
+      }
+      lf-merge-film .film-flags label {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        cursor: pointer;
+        font-size: var(--t-6);
+      }
+
+      /* The step list: every step's title and outcome, the one playing open. */
+      lf-merge-steps ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 2px;
+        align-content: start;
+      }
+      lf-merge-steps li {
+        margin: 0;
+        padding: 6px 10px 6px 12px;
+        border-left: 3px solid transparent;
+        border-radius: 0 var(--r) var(--r) 0;
+        cursor: pointer;
+      }
+      lf-merge-steps h3 {
+        margin: 0;
+        font-size: var(--t-5);
+        font-weight: 600;
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+      }
+      lf-merge-steps h3::after {
+        margin-left: auto;
+        font: 500 var(--t-6) / 1 var(--sans);
+        color: var(--muted);
+      }
+      lf-merge-steps .step-n {
+        min-width: 1ch;
+        font: 600 var(--t-6) / 1 var(--mono);
+        color: var(--muted);
+      }
+      lf-merge-steps li[data-state="skip"] h3 {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      lf-merge-steps li[data-state="skip"] h3::after {
+        content: "skipped";
+      }
+      lf-merge-steps li[data-state="fail"] h3,
+      lf-merge-steps li[data-state="fail"] h3::after {
+        color: var(--danger);
+      }
+      lf-merge-steps li[data-state="fail"] h3::after {
+        content: "stops here";
+      }
+      lf-merge-steps li[data-state="unreached"] {
+        opacity: 0.45;
+      }
+      lf-merge-steps li[data-state="unreached"] h3::after {
+        content: "not reached";
+      }
+      lf-merge-steps p {
+        display: none;
+        margin: 4px 0 0;
+        font-size: var(--t-5);
+      }
+      lf-merge-steps li[data-now] {
+        background: var(--accent-tint);
+        border-left-color: var(--accent);
+      }
+      lf-merge-steps li[data-now] p {
+        display: block;
+      }
+      lf-merge-steps .this-run {
+        color: var(--ink-2);
+        font-style: italic;
+      }
+      lf-merge-steps .this-run:empty {
+        display: none;
+      }
+      lf-merge-steps .this-run[data-tone="ok"] {
+        color: var(--ok-ink);
+      }
+      lf-merge-steps .this-run[data-tone="bad"] {
+        color: var(--danger-ink);
+      }
+    </style>
 <!-- feature-gallery.html authored styles -->
 <style>
       .bg-feature-detail {
@@ -1478,31 +1651,76 @@ catalog.</p>
         blocker. Move a card if you would ship differently.
       </p>
 
-      <lf-board id="release-board">
-        <lf-column id="col-blocking" label="Blocking release">
-          <lf-card id="card-migration"
-            ><strong>Migration reruns on every deploy</strong> The version stamp never
-            lands. The next migration applies credits and is not idempotent.</lf-card
-          >
-        </lf-column>
-        <lf-column id="col-next" label="Fix in 2.4.1">
-          <lf-card id="card-tz"
-            ><strong>Digest email uses server timezone</strong> Cosmetic for most,
-            wrong-day for UTC+13.</lf-card
-          >
-          <lf-card id="card-export"
-            ><strong>CSV export quotes numerics</strong> Breaks one customer's
-            downstream import.</lf-card
-          >
-        </lf-column>
-        <lf-column id="col-defer" label="Defer from 2.4">
-          <lf-card id="card-logout"
-            ><strong>Logout fails with an expired session</strong> The user can retry
-            safely, and the shared-session cleanup is not ready for this
-            release.</lf-card
-          >
-        </lf-column>
-      </lf-board>
+      <lf-grid id="triage-layout" columns="3fr 1fr">
+        <lf-board id="release-board">
+          <lf-column id="col-blocking" label="Blocking release" tone="danger">
+            <lf-card id="card-migration"
+              ><strong>Migration reruns on every deploy</strong> The version stamp never
+              lands. The next migration applies credits and is not idempotent.</lf-card
+            >
+          </lf-column>
+          <lf-column id="col-next" label="Fix in 2.4.1">
+            <lf-card id="card-tz"
+              ><strong>Digest email uses server timezone</strong> Cosmetic for most,
+              wrong-day for UTC+13.</lf-card
+            >
+            <lf-card id="card-export"
+              ><strong>CSV export quotes numerics</strong> Breaks one customer's
+              downstream import.</lf-card
+            >
+            <lf-card id="card-retry"
+              ><strong>Webhook retries ignore Retry-After</strong> Three partners rate
+              limit us during their own deploys; we back off on a fixed
+              schedule.</lf-card
+            >
+          </lf-column>
+          <lf-column id="col-defer" label="Defer from 2.4">
+            <lf-card id="card-logout"
+              ><strong>Logout fails with an expired session</strong> The user can retry
+              safely, and the shared-session cleanup is not ready for this
+              release.</lf-card
+            >
+            <lf-card id="card-avatar"
+              ><strong>Avatar upload rejects HEIC</strong> iPhone photos need a
+              conversion step. Four reports this quarter.</lf-card
+            >
+          </lf-column>
+          <lf-column id="col-repro" label="Needs a repro" tone="warn">
+            <lf-card id="card-search"
+              ><strong>Search misses renamed projects</strong> One report, on a
+              workspace migrated from v1. The reindex job ran clean.</lf-card
+            >
+          </lf-column>
+        </lf-board>
+
+        <lf-grid id="triage-status" columns="1">
+          <lf-grid id="triage-counts" columns="2">
+            <lf-metric id="count-blocking" value="1">blocking</lf-metric>
+            <lf-metric id="count-open" value="7" delta="-3" direction="up-bad"
+              >open since Monday</lf-metric
+            >
+          </lf-grid>
+          <section class="panel" id="triage-moves">
+            <h2>Recent moves</h2>
+            <lf-activity id="triage-activity"></lf-activity>
+          </section>
+        </lf-grid>
+      </lf-grid>
+
+      <section id="triage-why">
+        <h2>Why the migration blocks and nothing else does</h2>
+        <p>
+          The deploy script writes the schema version after the post-deploy hook, and
+          the hook exits non-zero on a warning. So the stamp never lands, and every
+          deploy runs 0041 again. 0041 only adds a column, so rerunning it is a no-op.
+          0042 credits every account that was billed twice in March. Run twice, it pays
+          twice.
+        </p>
+        <p>
+          Every other card is either cosmetic, has a safe retry, or affects one customer
+          who has a workaround. None gets worse by waiting a week.
+        </p>
+      </section>
 </lf-tab>
 
 <lf-tab id="corpus-ideas-to-implement" label="Ideas">
@@ -2124,182 +2342,218 @@ export const summarize = checks =>
         The production canary is paused at 25%. Customer checkout is healthy, but
         finance export is one row short and must reconcile before traffic expands.
       </p>
-
-      <lf-grid id="lp-status" columns="3">
-        <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-        <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
-        <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
-      </lf-grid>
-
-      <aside class="callout" id="lp-current-state">
-        <strong>Paused at 25%</strong>
-        Automatic promotion stopped when the finance-parity check failed. The candidate
-        remains live for canary traffic while Ledger traces a partial-refund fixture
-        mismatch; the exact failing producer is not yet established.
-      </aside>
-      <p id="lp-hold-policy">
-        <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
-        sooner if a customer guardrail fails.
+      <p id="lp-tags">
+        <span class="tag warn">Paused at 25%</span>
+        <span class="tag danger">Finance export failing</span>
+        <span class="tag ok">Checkout healthy</span>
       </p>
-      <lf-release-actions
-        id="lp-release-actions"
-        candidate="checkout-v2"
-        stable="checkout-v1"
-      >
-        <lf-release-action verb="rollback">
-          <strong>Request rollback to checkout-v1</strong>
-          <p>
-            Ready; returns traffic to the stable release without repairing the missing
-            finance row.
-          </p>
-        </lf-release-action>
-      </lf-release-actions>
 
-      <lf-grid id="lp-evidence" columns="1fr 1fr">
-        <section id="lp-checks">
-          <h2>Checks</h2>
-          <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
-          <table id="lp-checks-table">
-            <thead>
-              <tr>
-                <th>Check</th>
-                <th>Result</th>
-                <th>Observed / required</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr id="lp-check-errors">
-                <th scope="row">Error rate</th>
-                <td>
-                  <span class="release-check-result" data-status="pass">Pass</span>
-                </td>
-                <td><code>0.11%</code> / below <code>0.50%</code></td>
-              </tr>
-              <tr id="lp-check-latency">
-                <th scope="row">p95 latency</th>
-                <td>
-                  <span class="release-check-result" data-status="pass">Pass</span>
-                </td>
-                <td><code>184 ms</code> / below <code>300 ms</code></td>
-              </tr>
-              <tr id="lp-check-orders">
-                <th scope="row">Order parity</th>
-                <td>
-                  <span class="release-check-result" data-status="pass">Pass</span>
-                </td>
-                <td><code>2,000</code> / <code>2,000</code></td>
-              </tr>
-              <tr id="lp-check-finance">
-                <th scope="row">Finance export</th>
-                <td>
-                  <span class="release-check-result" data-status="fail">Fail</span>
-                </td>
-                <td><code>1,998</code> / <code>1,999</code> rows</td>
-              </tr>
-              <tr id="lp-check-rollback">
-                <th scope="row">Rollback target</th>
-                <td>
-                  <span class="release-check-result" data-status="pass">Pass</span>
-                </td>
-                <td>3 batches / zero delta</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-        <section id="lp-log">
-          <h2>Run log</h2>
-          <p id="lp-log-note">
-            Example snapshot ending at 14:24:44. New events append without moving a user
-            who has scrolled back.
-          </p>
-          <lf-text-document
-            id="lp-live-log"
-            source="release-log"
-            data-bound="end"
-          ></lf-text-document>
-        </section>
+      <lf-grid id="lp-layout" columns="2fr 1fr">
+        <lf-grid id="lp-body" columns="1">
+          <lf-grid id="lp-status" columns="4">
+            <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
+              >checks passing</lf-metric
+            >
+            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
+              >p95 latency</lf-metric
+            >
+            <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
+          </lf-grid>
+          <section id="lp-decision">
+            <aside class="callout warn" id="lp-current-state">
+              <strong>Paused at 25%</strong>
+              Automatic promotion stopped when the finance-parity check failed. The
+              candidate remains live for canary traffic while Ledger traces a
+              partial-refund fixture mismatch; the exact failing producer is not yet
+              established.
+            </aside>
+            <p id="lp-hold-policy">
+              <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
+              sooner if a customer guardrail fails.
+            </p>
+            <lf-release-actions
+              id="lp-release-actions"
+              candidate="checkout-v2"
+              stable="checkout-v1"
+            >
+              <lf-release-action verb="rollback">
+                <strong>Request rollback to checkout-v1</strong>
+                <p>
+                  Ready; returns traffic to the stable release without repairing the
+                  missing finance row.
+                </p>
+              </lf-release-action>
+            </lf-release-actions>
+          </section>
+          <section class="panel" id="lp-traffic">
+            <h2>Candidate traffic since deploy</h2>
+            <lf-chart
+              id="lp-traffic-chart"
+              kind="line"
+              y="share of checkout traffic (%)"
+            >
+              <pre>
+minutes since deploy, checkout-v2
+0, 0
+1, 5
+2, 10
+3, 25
+4, 25
+5, 25
+6, 25
+</pre>
+            </lf-chart>
+          </section>
+          <section class="panel" id="lp-checks">
+            <h2>Checks</h2>
+            <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
+            <table id="lp-checks-table">
+              <thead>
+                <tr>
+                  <th>Check</th>
+                  <th>Result</th>
+                  <th>Observed / required</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="lp-check-errors">
+                  <th scope="row">Error rate</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>0.11%</code> / below <code>0.50%</code></td>
+                </tr>
+                <tr id="lp-check-latency">
+                  <th scope="row">p95 latency</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>184 ms</code> / below <code>300 ms</code></td>
+                </tr>
+                <tr id="lp-check-orders">
+                  <th scope="row">Order parity</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>2,000</code> / <code>2,000</code></td>
+                </tr>
+                <tr id="lp-check-finance">
+                  <th scope="row">Finance export</th>
+                  <td>
+                    <span class="release-check-result" data-status="fail">Fail</span>
+                  </td>
+                  <td><code>1,998</code> / <code>1,999</code> rows</td>
+                </tr>
+                <tr id="lp-check-rollback">
+                  <th scope="row">Rollback target</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td>3 batches / zero delta</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section class="panel" id="lp-log">
+            <h2>Run log</h2>
+            <p id="lp-log-note">
+              Example snapshot ending at 14:24:44. New events append without moving a
+              user who has scrolled back.
+            </p>
+            <lf-text-document
+              id="lp-live-log"
+              source="release-log"
+              data-bound="end"
+            ></lf-text-document>
+          </section>
+        </lf-grid>
+        <lf-grid id="lp-rail" columns="1">
+          <section class="panel" id="lp-steps">
+            <h2 id="lp-steps-heading">Release steps</h2>
+            <lf-milestones id="lp-release-steps">
+              <lf-milestone id="lp-step-build" status="done" when="14:18">
+                <strong>Build and verify the candidate</strong> Image signed and
+                provenance recorded.
+              </lf-milestone>
+              <lf-milestone id="lp-step-canary" status="done" when="14:22">
+                <strong>Deploy the 25% canary</strong> Candidate serving production
+                checkout traffic.
+              </lf-milestone>
+              <lf-milestone id="lp-step-checks" status="blocked" when="now">
+                <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
+                expected rows.
+              </lf-milestone>
+              <lf-milestone id="lp-step-promote" status="planned">
+                <strong>Expand to 100%</strong>
+              </lf-milestone>
+              <lf-milestone id="lp-step-observe" status="planned">
+                <strong>Observe and complete</strong>
+              </lf-milestone>
+            </lf-milestones>
+          </section>
+          <section class="panel" id="lp-release">
+            <h2>Release</h2>
+            <dl class="facts" id="lp-release-facts">
+              <dt>Environment</dt>
+              <dd>Production</dd>
+              <dt>Candidate</dt>
+              <dd><code>checkout-v2</code></dd>
+              <dt>Stable</dt>
+              <dd><code>checkout-v1</code></dd>
+              <dt>Observed</dt>
+              <dd>14:24:44</dd>
+            </dl>
+            <details id="lp-release-notes">
+              <summary>Release notes · 3 changes</summary>
+              <ul>
+                <li>Keep partial-refund state through checkout retries.</li>
+                <li>Write refund adjustments to the finance export.</li>
+                <li>Add parity checks before production promotion.</li>
+              </ul>
+            </details>
+            <details id="lp-release-owners">
+              <summary>Release owners · 5</summary>
+              <lf-roster id="lp-owners">
+                <lf-agent id="lp-agent-deployer" state="waiting">
+                  <strong>deployer</strong> Holding promotion at 25% while finance
+                  parity is red.
+                </lf-agent>
+                <lf-agent id="lp-agent-ledger" state="working">
+                  <strong>ledger</strong> Reconciling <code>co_18427</code> against the
+                  candidate export.
+                </lf-agent>
+                <lf-agent id="lp-agent-finance" state="blocked">
+                  <strong>finance</strong> Waiting for the missing export row before
+                  signing off.
+                </lf-agent>
+                <lf-agent id="lp-agent-observer" state="idle">
+                  <strong>observer</strong> Ready to watch the release after promotion.
+                </lf-agent>
+                <lf-agent id="lp-agent-builder" state="done">
+                  <strong>builder</strong> Signed the candidate and recorded its
+                  provenance.
+                </lf-agent>
+              </lf-roster>
+            </details>
+
+            <details id="lp-rollback-procedure">
+              <summary>Rollback procedure · 3 steps</summary>
+              <ol class="steps">
+                <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
+                <li>Drain the candidate after active sessions finish.</li>
+                <li>Verify order counts and finance-export isolation.</li>
+              </ol>
+            </details>
+            <details id="lp-code-changes">
+              <summary>Code changes · 2 files, +18 −4</summary>
+              <lf-diff id="lp-release-diff" source="release-patch">
+                <pre></pre>
+              </lf-diff>
+            </details>
+          </section>
+        </lf-grid>
       </lf-grid>
-
-      <section id="lp-release">
-        <h2>Release</h2>
-        <dl class="facts" id="lp-release-facts">
-          <dt>Environment</dt>
-          <dd>Production</dd>
-          <dt>Candidate</dt>
-          <dd><code>checkout-v2</code></dd>
-          <dt>Stable</dt>
-          <dd><code>checkout-v1</code></dd>
-          <dt>Observed</dt>
-          <dd>14:24:44</dd>
-        </dl>
-        <h3 id="lp-steps-heading">Release steps</h3>
-        <lf-milestones id="lp-release-steps">
-          <lf-milestone id="lp-step-build" status="done" when="14:18">
-            <strong>Build and verify the candidate</strong> Image signed and provenance
-            recorded.
-          </lf-milestone>
-          <lf-milestone id="lp-step-canary" status="done" when="14:22">
-            <strong>Deploy the 25% canary</strong> Candidate serving production checkout
-            traffic.
-          </lf-milestone>
-          <lf-milestone id="lp-step-checks" status="blocked" when="now">
-            <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
-            expected rows.
-          </lf-milestone>
-          <lf-milestone id="lp-step-promote" status="planned">
-            <strong>Expand to 100%</strong>
-          </lf-milestone>
-          <lf-milestone id="lp-step-observe" status="planned">
-            <strong>Observe and complete</strong>
-          </lf-milestone>
-        </lf-milestones>
-        <details id="lp-release-notes">
-          <summary>Release notes · 3 changes</summary>
-          <ul>
-            <li>Keep partial-refund state through checkout retries.</li>
-            <li>Write refund adjustments to the finance export.</li>
-            <li>Add parity checks before production promotion.</li>
-          </ul>
-        </details>
-        <details id="lp-release-owners">
-          <summary>Release owners · 5</summary>
-          <lf-roster id="lp-owners">
-            <lf-agent id="lp-agent-deployer" state="waiting">
-              <strong>deployer</strong> Holding promotion at 25% while finance parity is
-              red.
-            </lf-agent>
-            <lf-agent id="lp-agent-ledger" state="working">
-              <strong>ledger</strong> Reconciling <code>co_18427</code> against the
-              candidate export.
-            </lf-agent>
-            <lf-agent id="lp-agent-finance" state="blocked">
-              <strong>finance</strong> Waiting for the missing export row before signing
-              off.
-            </lf-agent>
-            <lf-agent id="lp-agent-observer" state="idle">
-              <strong>observer</strong> Ready to watch the release after promotion.
-            </lf-agent>
-            <lf-agent id="lp-agent-builder" state="done">
-              <strong>builder</strong> Signed the candidate and recorded its provenance.
-            </lf-agent>
-          </lf-roster>
-        </details>
-
-        <details id="lp-rollback-procedure">
-          <summary>Rollback procedure · 3 steps</summary>
-          <ol class="steps">
-            <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
-            <li>Drain the candidate after active sessions finish.</li>
-            <li>Verify order counts and finance-export isolation.</li>
-          </ol>
-        </details>
-        <details id="lp-code-changes">
-          <summary>Code changes · 2 files, +18 −4</summary>
-          <lf-diff id="lp-release-diff" source="release-patch">
-            <pre></pre>
-          </lf-diff>
-        </details>
-      </section>
 </lf-tab>
 
 <lf-tab id="corpus-pr-walkthrough" label="PR">
@@ -2767,6 +3021,110 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           </details>
         </section>
       </details>
+</lf-tab>
+
+<lf-tab id="corpus-wt-merge" label="Merge film">
+<lf-workspace id="merge-workspace">
+        <header>
+          <h1>Watch <code>wt merge</code> land a branch</h1>
+          <p id="lede">
+            Worktrunk's <code>wt merge</code> takes a finished branch to main in one
+            command: commit, squash, rebase, test, merge, then clean up. The film draws
+            each step from the flags below it, so ticking <code>--no-ff</code> or a
+            failing test re-plots the run, including the three ways it stops early.
+            Hover a commit, branch, worktree or hook to see what it is; Alt-click one to
+            comment on it.
+          </p>
+        </header>
+        <lf-grid id="merge-regions" columns="2fr 1fr">
+          <lf-pane id="merge-film-pane" label="Film">
+            <lf-merge-film id="merge-film"></lf-merge-film>
+          </lf-pane>
+          <lf-pane id="merge-steps-pane" label="Steps">
+            <header><h2>The steps, as this run takes them</h2></header>
+            <lf-merge-steps id="merge-steps" for="merge-film">
+              <ol>
+                <li id="step-setup" data-chapter="setup">
+                  <h3>Before</h3>
+                  <p>
+                    A branch in its own worktree, with commits and perhaps edits not yet
+                    committed. Main may have moved on since the branch forked.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-commit" data-chapter="commit">
+                  <h3><span class="step-n">1</span> Commit</h3>
+                  <p>
+                    Uncommitted edits become a commit of their own. The default run
+                    skips this, because the squash stages them itself.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-squash" data-chapter="squash">
+                  <h3><span class="step-n">2</span> Squash</h3>
+                  <p>
+                    Every commit since the fork, plus any edits, becomes one commit. The
+                    old tip is backed up to <code>refs/wt-backup/&lt;branch&gt;</code>
+                    first, so the squash can be undone.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-rebase" data-chapter="rebase">
+                  <h3><span class="step-n">3</span> Rebase</h3>
+                  <p>
+                    The work is replayed onto main's current tip, which gives it new
+                    hashes. A conflict stops the merge here, with the rebase left open
+                    to resolve.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-premerge" data-chapter="premerge">
+                  <h3><span class="step-n">4</span> Pre-merge hooks</h3>
+                  <p>
+                    Hooks from <code>.config/wt.toml</code> run on the exact tree that
+                    will land, as local CI. A failure aborts, and main never moves.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-merge" data-chapter="merge">
+                  <h3><span class="step-n">5</span> Merge</h3>
+                  <p>
+                    Main fast-forwards to the branch tip, so history stays linear.
+                    <code>--no-ff</code> records a merge commit instead.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-preremove" data-chapter="preremove">
+                  <h3><span class="step-n">6</span> Pre-remove hooks</h3>
+                  <p>
+                    A last hook before the worktree is deleted; if it fails, the
+                    worktree stays.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-cleanup" data-chapter="cleanup">
+                  <h3><span class="step-n">7</span> Cleanup</h3>
+                  <p>
+                    The worktree and branch are removed in the background, and the shell
+                    lands in main's worktree.
+                  </p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-postmerge" data-chapter="postmerge">
+                  <h3><span class="step-n">8</span> Post-merge hooks</h3>
+                  <p>Background hooks run from main after the prompt is back.</p>
+                  <p class="this-run"></p>
+                </li>
+                <li id="step-end" data-chapter="end">
+                  <h3>After</h3>
+                  <p>Where the run ended, and what it did.</p>
+                  <p class="this-run"></p>
+                </li>
+              </ol>
+            </lf-merge-steps>
+          </lf-pane>
+        </lf-grid>
+      </lf-workspace>
 </lf-tab>
 
 <lf-tab id="corpus-security-boundary" label="Security">
@@ -5770,7 +6128,7 @@ switch --readers checkout-api,orders-api</code></pre>
               reach it.
             </lf-card>
           </lf-column>
-          <lf-column id="bg-work-done" label="Done"></lf-column>
+          <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>
         </lf-board>
         <p id="bg-feedback">
           To ask for a refinement, comment on the sample that shows it and say what

@@ -35,6 +35,7 @@ from interact_support import (
     _report_body_record,
     _report_detail_drift,
     _report_no_record,
+    _report_position_record,
     _report_says_attr,
     _report_undeclared_attr,
     _report_without_overruled,
@@ -347,6 +348,53 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     assert "history" not in model.reading(unwatched, events)
 
 
+def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
+    """An added option is in no document, so its words come from the `add` that
+    wrote it, as its inline Markdown shows them. The pick of it reads by those
+    words even after the add is undone, since that is what the user picked, and an
+    id an undone add freed and a later add reused reads each gesture by the add
+    standing when that gesture was made."""
+    question = model.leaf_page(
+        "Route",
+        """<h1>Route</h1>
+<lf-options id="route" choose>
+  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+
+    def add(text):
+        return {
+            "kind": "action",
+            "widget": "route",
+            "action": "add",
+            "detail": {"option": "route-mine", "text": text},
+        }
+
+    pick = {
+        "kind": "action",
+        "widget": "route",
+        "action": "choose",
+        "detail": {"options": ["route-mine"]},
+    }
+    events = (
+        add("**Ship** half"),
+        pick,
+        {"kind": "undo", "undoes": "e2"},
+        {"kind": "undo", "undoes": "e1"},
+        add("Ship everything"),
+        pick,
+    )
+
+    history = model.reading(question, events)["history"]
+    assert [(row["id"], row["gesture"]) for row in history] == [
+        ("e6", {"form": "choice", "chosen": ["Ship everything"]}),
+        ("e5", {"form": "add", "words": "Ship everything"}),
+        ("e2", {"form": "choice", "chosen": ["Ship half"]}),
+        ("e1", {"form": "add", "words": "Ship half"}),
+    ]
+
+
 def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
     """A deck's Ask is answered by its standing state, so admission marks the swipe
     that empties the queue as the answer and no swipe before it.
@@ -524,7 +572,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "action": "choose",
             "detail": {"options": ["flag-first"]},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "picks",
                 "depends": ["flag-first", "picks"],
                 "answer": "c1",
@@ -645,9 +693,9 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     second_validation = threading.Event()
     validation_calls = 0
 
-    def expose_validation_gap(event, events, within):
+    def expose_validation_gap(event, events, within, absorbed):
         nonlocal validation_calls
-        error = real_undo_error(event, events, within)
+        error = real_undo_error(event, events, within, absorbed)
         with validation_lock:
             validation_calls += 1
             call = validation_calls
@@ -778,7 +826,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "action": "decide",
             "detail": {"decision": "approved"},
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "d1",
                 "depends": ["d1"],
                 "answer": None,
@@ -2111,7 +2159,7 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
 
 
-def _page_owned_fragmented_source(page_dir):
+def _page_owned_deferred_source(page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -2177,7 +2225,7 @@ def _page_owned_fragmented_source(page_dir):
 
 def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_dir):
     """A same-named contract cannot redirect old readers to a different field."""
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["records"]["deferred"] = "body"
     authored.write_text(json.dumps(declarations))
@@ -2198,7 +2246,7 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(page_
 
 
 def test_page_owned_data_contract_description_can_improve(page_dir):
-    authored = _page_owned_fragmented_source(page_dir)
+    authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     declarations["$data"]["contracts"]["local-files"]["description"] = (
         "A clearer description of the same file payloads."
@@ -2534,6 +2582,9 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
         # A report moves declared state only, never body words — the schema is
         # where the paint-only constraint lives, so a body record never parses.
         (_report_body_record, "registry extensions are invalid"),
+        # Nor a part's place: the stamped version owns where a unit stands, and a
+        # rank is read between the neighbours a widget shows the user.
+        (_report_position_record, "registry extensions are invalid"),
         # The gate compares record forms, so a recordless report declares
         # nothing a version could be checked against.
         (_report_no_record, "registry extensions are invalid"),
@@ -2571,7 +2622,8 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid element declaration names: ['{tag}']" in result.output
+    assert f"invalid element declaration names ['{tag}']" in result.output
+    assert "an element name is `lf-` followed by" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
@@ -3657,15 +3709,15 @@ How this text reaches the agent, by example
 3. Earlier, the agent started `leaf wait` in the background and went idle. The
    agent does nothing in this step: `leaf wait`, a leaf process, notices the new
    line and builds a delivery for it. The comment is owed a reply, which the
-   delivery records as its `obligation` (step 4). For the instructions, `leaf
-   wait` reads the clauses under `$events.handling.comment` in the page's copy of
-   registry.json, then those under `$events.answering.reply`, the answer it owes.
-   Each clause has a `text` and may have a `when`, a JSON Schema that must hold
-   for the clause to apply. It is tested against the log line together with its
-   `obligation`, its `conversation`'s entry in the delivery's `conversations`
-   (step 4), and `carrier`, the route delivering it: `wait` here, `queue` or
-   `app-server` for the two Codex routes. There are @COUNT@; here they all are,
-   with whether the comment satisfies each `when`:
+   delivery records as its `answer` (step 4): a `reply` for `leaf reply` here,
+   where the Codex App Server route would record a `turn`, which the turn's own
+   messages write. For the instructions, `leaf wait` reads the clauses under
+   `$events.handling.comment` in the page's copy of registry.json, then those
+   under `$events.answering.reply`, the answer it owes. Each clause has a `text`
+   and may have a `when`, a JSON Schema that must hold for the clause to apply.
+   It is tested against the log line together with its `answer` and its
+   `conversation`'s entry in the delivery's `conversations` (step 4). There are
+   @COUNT@; here they all are, with whether the comment satisfies each `when`:
 
 @CLAUSES@
 
@@ -3676,13 +3728,14 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The whole output, indented here (leaf prints it on one line):
+   The envelope's `acknowledge` says once, for the whole delivery, how the agent
+   confirms it. The whole output, indented here (leaf prints it on one line):
 
 @DELIVERY@
 
-5. The agent follows `handling`: it replies in the thread with `leaf reply`, edits
-   the page if warranted, and runs `leaf wait --ack <delivery-id>` to confirm receipt and wait
-   for the next one.
+5. The agent follows `acknowledge`: it starts `leaf wait --ack <delivery-id>` to
+   confirm receipt and wait for the next one. It follows `handling`: it replies in
+   the thread with `leaf reply` and edits the page if warranted.
 
 What this file records
 ----------------------
@@ -3692,11 +3745,11 @@ skills/leaf/assets/registry.json (the file `leaf page init` copies into a page).
 Each top-level key below names a case and holds:
 
   event:  the input: a log line's `kind`, the kind of answer its delivery
-          says it owes (`obligation`), the `carrier` delivering it, and the
-          fields some `when` reads, its `conversation`'s among them, and
-          nothing else. A field no `when` names, such as a comment's `anchor`
-          or `text`, cannot change what the agent is told, so it is left out;
-          the test checks both halves of that.
+          says it owes (`answer`), and the fields some `when` reads, its
+          `conversation`'s among them, and nothing else. A field no `when`
+          names, such as a comment's `anchor` or `text`, cannot change what
+          the agent is told, so it is left out; the test checks both halves of
+          that.
   told:   the output, the clauses that apply to that line, in order. Each
           clause has a `text` and may have a `when`:
   when:   the clause's `when`, exactly as registry.json writes it: a JSON
@@ -3706,9 +3759,8 @@ Each top-level key below names a case and holds:
 
 The walkthrough's comment is the first case. No `when` reads any field of its
 log line from step 2 except `kind`, so the case is that line cut down to `kind`,
-the reply it owes, its carrier and its new conversation's missing title, and it
-gets the clauses marked "applies" in step 3. It is
-recorded as:
+the reply it owes and its new conversation's missing title, and it gets the
+clauses marked "applies" in step 3. It is recorded as:
 
 @RECORDED@
 
@@ -3747,27 +3799,16 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
     # Each case holds its `kind` and the fields some `when` reads, and nothing else:
     # a field no `when` names cannot change what the agent is told.
-    on_page = {"document": "page"}
+    on_page = {"scope": "page"}
 
     def owes(kind):
-        return {"obligation": {"response": {"kind": kind}}}
+        return {"answer": {"kind": kind}}
 
     untitled = {"conversation": {"title": None}}
     titled = {"conversation": {"title": "Tuesday backfill"}}
     cases = {
         "comment": {"kind": "comment", **untitled, **owes("reply")},
-        "comment over the Codex queue": {
-            "kind": "comment",
-            "carrier": "queue",
-            **untitled,
-            **owes("reply"),
-        },
-        "comment over App Server": {
-            "kind": "comment",
-            "carrier": "app-server",
-            **untitled,
-            **owes("reply"),
-        },
+        "comment over App Server": {"kind": "comment", **untitled, **owes("turn")},
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {"format": "leaf-drawing/2", "strokes": [[[0, 0], [9, 9]]]},
@@ -3817,8 +3858,13 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "pick inside a thread": {
             "kind": "action",
-            "meaning": {"document": "thread"},
+            "meaning": {"scope": "thread"},
             **owes("reply"),
+        },
+        "pick inside a thread over App Server": {
+            "kind": "action",
+            "meaning": {"scope": "thread"},
+            **owes("turn"),
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
@@ -3828,8 +3874,6 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "report": {"kind": "report"},
         "error": {"kind": "error"},
     }
-    # Every case is delivered by `leaf wait` unless it names another carrier.
-    cases = {name: {"carrier": "wait", **event} for name, event in cases.items()}
     told = {
         name: registry_contract.event_clauses(event, registry)
         for name, event in cases.items()
@@ -3840,7 +3884,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     assert {event["kind"] for event in cases.values()} == set(declared)
 
     def owed(event):
-        return event.get("obligation", {}).get("response", {}).get("kind")
+        return event.get("answer", {}).get("kind")
 
     assert {owed(event) for event in cases.values()} - {None} == set(answering)
     read = {
@@ -3851,7 +3895,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         for field in fields_named(clause["when"])
     }
     for name, event in cases.items():
-        unread = set(event) - {"kind", "obligation"} - read
+        unread = set(event) - {"kind", "answer"} - read
         assert not unread, (name, unread)
     for kind, clauses in declared.items():
         reached = [told[name] for name, event in cases.items() if event["kind"] == kind]
@@ -3885,15 +3929,14 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     page_events = registry_storage.load_registry(page_dir)["$events"]
     page_clauses = [
         *page_events["handling"]["comment"],
-        *page_events["answering"][delivered["obligation"]["response"]["kind"]],
+        *page_events["answering"][delivered["answer"]["kind"]],
     ]
     [conversation] = batch["conversations"]
     applying = registry_contract.event_clauses(
         {
             **record,
-            "obligation": delivered["obligation"],
+            "answer": delivered["answer"],
             "conversation": conversation,
-            "carrier": "wait",
         },
         registry_storage.load_registry(page_dir),
     )
@@ -3995,16 +4038,19 @@ A carrier is the route that takes new user input to the agent's task:
                      Codex's queue accepts it.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
-                     turn's final message as the reply. Leaf acknowledges the
-                     delivery once it enters that turn. leaf.page's hosted
-                     agent and a `leaf codex launch` terminal use this carrier.
+                     turn's opening and final messages as the reply. Leaf
+                     acknowledges the delivery once it enters that turn.
+                     leaf.page's hosted agent and a `leaf codex launch`
+                     terminal use this carrier.
 
 Each carrier freezes a delivery of its own. The envelope's shape is the same on
-all three, but not its `handling`: a clause's `when` reads which carrier delivers
-it (`wait`, `queue` or `app-server`), so each agent is told only its own route,
-who acknowledges and whether its final message is the reply. The agent's
-standing instructions (its host contract, and on leaf.page the developer
-instructions) are not part of a delivery; test_website_server records
+all three, and it names its `carrier`. Two things differ, each stated once:
+`acknowledge` says how the agent confirms the delivery, or is null where the
+carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf reply`,
+except on App Server, where it is a `turn` the turn's own messages write. The
+`handling` follows from the answer, so each agent is told only its own route.
+The agent's standing instructions (its host contract, and on leaf.page the
+developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
 
 What this file records
@@ -4081,6 +4127,10 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
         json.loads(waited)["id"]: "11111111",
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
+        # The turn's reply attempt is derived from the delivery id.
+        service_model.delivery_reply_attempt(
+            prepared.payload["id"]
+        ): service_model.delivery_reply_attempt("33333333"),
         str(page_dir): "/path/to/page",
     }
 
@@ -4092,6 +4142,8 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     def readable(printed: str) -> dict:
         delivery = json.loads(pin(printed))
         delivery["created_at"] = 1790046750.29
+        if delivery["acknowledge"] is not None:
+            delivery["acknowledge"] = Prose(delivery["acknowledge"])
         for batch in delivery["batches"]:
             batch["handling"] = {
                 ref: Prose(text) for ref, text in batch["handling"].items()
@@ -5361,7 +5413,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "action": "label",
         "detail": {},
         "meaning": {
-            "document": "page",
+            "scope": "page",
             "unit": "sug-a",
             "depends": ["sug-a"],
         },

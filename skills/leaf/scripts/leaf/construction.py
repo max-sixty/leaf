@@ -13,7 +13,7 @@ from pathlib import Path
 from .data import data_manifest, deferred_records, source_file
 from .projection import (
     StateProjection,
-    authored_rank,
+    folded_positions,
     generated_children,
     recorded_owner,
     retirement_outcomes,
@@ -98,13 +98,10 @@ def constructed_content(
     """
     roots = deepcopy(parser.content)
     by_id = {}
-    containers = {}
-    # Where each identified node stands among its identified siblings; a position
-    # record replaces its unit's with the rank it names.
-    ranks = {}
+    # The id of each identified node's nearest identified ancestor.
+    parents = {}
 
-    def prepare(items):
-        ranked = 0
+    def prepare(items, parent=None):
         for node in items:
             if isinstance(node, str):
                 continue
@@ -112,9 +109,7 @@ def constructed_content(
             node["source"] = {"line": node.pop("line"), "column": node.pop("column")}
             if identity:
                 by_id[identity] = node
-                containers[identity] = items
-                ranks[identity] = authored_rank(ranked)
-                ranked += 1
+                parents[identity] = parent
             if conversation is not None:
                 node["edit"] = {
                     "kind": "conversation",
@@ -133,7 +128,7 @@ def constructed_content(
             inputs = input_readings(node["attrs"], entry, stored, page_dir, registry)
             if inputs:
                 node["inputs"] = inputs
-            prepare(node["content"])
+            prepare(node["content"], identity or parent)
 
     prepare(roots)
     # Created child id → its owner, so a record the owner states reaches the children
@@ -163,14 +158,10 @@ def constructed_content(
                     "kind": "conversation",
                     "conversation": conversation,
                 }
-            ranks[identity] = authored_rank(
-                sum(
-                    isinstance(n, dict) and "id" in n["attrs"] for n in owner["content"]
-                )
-            )
             owner["content"].append(child)
             by_id[identity] = child
-            containers[identity] = owner["content"]
+    # Owner and verb → the position record a standing move places units by.
+    placed = {}
     ordered = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
     for (widget, unit, _verb), (event, spec) in ordered:
         owner = by_id.get(unit)
@@ -221,30 +212,30 @@ def constructed_content(
                 else:
                     node["attrs"].pop(record["attr"], None)
                 node["authority"] = authority
-        elif kind == "position":
-            target = by_id[value]
-            previous = containers[unit]
-            owner.setdefault("authored", {})["placement"] = {
-                "parent": next(
-                    (i for i, n in by_id.items() if n["content"] is previous), None
-                )
-            }
-            previous.remove(owner)
-            children = target["content"]
-            ranks[unit] = event["detail"][record["rank"]]
-            key = (ranks[unit], unit)
-            at = next(
-                (
-                    i
-                    for i, child in enumerate(children)
-                    if isinstance(child, dict)
-                    and (sibling := child["attrs"].get("id"))
-                    and (ranks[sibling], sibling) > key
-                ),
-                len(children),
-            )
-            children.insert(at, owner)
-            containers[unit] = children
+        elif kind == "position" and event["id"] not in projection.absorbed:
+            owner.setdefault("authored", {})["placement"] = {"parent": parents[unit]}
+            placed[(widget, event["action"])] = record
+
+    # Each container lists its units in the fold's order, in the slots its authored
+    # units held and after them.
+    for (widget, verb), record in placed.items():
+        order = folded_positions(
+            widget, verb, record, parser.by_id, spoken, registry, projection
+        )
+        units = {unit for listed in order.values() for unit in listed}
+        for container, listed in order.items():
+            content = by_id[container]["content"]
+            slots = [
+                i
+                for i, node in enumerate(content)
+                if isinstance(node, dict) and node["attrs"].get("id") in units
+            ]
+            nodes = [by_id[unit] for unit in listed]
+            for i, node in zip(slots, nodes, strict=False):
+                content[i] = node
+            content.extend(nodes[len(slots) :])
+            for i in reversed(slots[len(nodes) :]):
+                content.pop(i)
 
     outcomes = retirement_outcomes(projection.actions)
 

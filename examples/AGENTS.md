@@ -35,9 +35,12 @@ developer what result to inspect. For injected chrome whose state comes from
 outside one document, name that condition and exercise it in the gallery's browser
 test. The developer pages use the same companion version, log, and data conventions as
 an example. The website publishes them as references linked outside the visual examples
-catalog. `corpus.html` and `corpus.data.json` are generated from these sources;
-edit the source page and regenerate the corpus instead of patching either output
-(`test_corpus_is_generated_from_the_examples` holds the two to their sources).
+catalog. `corpus.html`, `corpus.data.json` and `corpus.page/` are generated from these
+sources; edit the source page and regenerate the corpus instead of patching an output
+(`test_corpus_is_generated_from_the_examples` holds them to their sources).
+`corpus.page/` carries each element an example owns, a declaration whose module ships
+under the example's `page/widgets/`, so the corpus's markup still names a declared
+element.
 
 Current pages and tests use only the current interface. When an interface changes,
 remove obsolete ids, aliases, and assertions instead of preserving both forms. Files
@@ -140,7 +143,8 @@ complete current value. A reserved `$captures` object instead maps a source id t
 `file` and optional `format` or `lines`; the file is a sibling of the
 example. The format defaults to `text`, where `lines` may select an inclusive
 range; a large unified diff stays in its `.patch` source and is captured with
-`"format": "unified-diff"`, which runs the `diff` package's `patch_manifest.py` on it.
+`"format": "unified-diff"`, which runs the `diff` package's `patch_manifest.py` on the
+whole file and refuses `lines`.
 Builders set captures first and then current values through `leaf data set`, so
 binding, contract validation,
 live preview, browser sweeps, and the static site all exercise the

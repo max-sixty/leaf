@@ -3,6 +3,7 @@
 import json
 import re
 import subprocess
+import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -84,11 +85,13 @@ def example_versions(source: Path) -> list[Path]:
 def patch_manifest(patch: str) -> dict:
     """The `diff` package's producer script's manifest for one patch.
 
-    It runs the way an agent runs it, `uv run` in the environment its inline
-    metadata declares, so the fixtures and the suite exercise that command rather
-    than an import of it. A refused patch raises with the script's stderr."""
+    It runs as a process, reading stdin and writing stdout as an agent's pipeline
+    does, but under this project's interpreter rather than `leaf package run`: the
+    dev group carries the script's `unidiff` at the version `uv.lock` pins, so the
+    fixtures and the suite read the same manifest on every machine and fetch nothing.
+    A refused patch raises with the script's stderr."""
     produced = subprocess.run(
-        ["uv", "run", "--quiet", str(PATCH_MANIFEST)],
+        [sys.executable, str(PATCH_MANIFEST)],
         input=patch.encode("utf-8"),
         capture_output=True,
         check=False,
@@ -100,9 +103,15 @@ def patch_manifest(patch: str) -> dict:
 
 def captured_value(file: Path, spec: dict):
     """One `$captures` entry's value: the file's text, an inclusive `lines` range of
-    it, or, for `"format": "unified-diff"`, the patch's file manifest."""
+    it, or, for `"format": "unified-diff"`, the whole patch's file manifest. A
+    patch is captured whole, so a `lines` range beside that format is refused."""
     text = file.read_text(encoding="utf-8")
     if spec.get("format") == "unified-diff":
+        if "lines" in spec:
+            raise ValueError(
+                f"{file}: a unified-diff capture takes the whole patch, not lines "
+                f"{spec['lines']}"
+            )
         return patch_manifest(text)
     if (lines := spec.get("lines")) is None:
         return text

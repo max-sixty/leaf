@@ -388,7 +388,14 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 
 
 def check(d):
-    return CliRunner().invoke(cli_model.cli, ["version", "check", str(d)])
+    """`version check`, in-process. A page that runs its own code has the check start
+    Playwright, whose sync API refuses a thread already driving another instance —
+    which a worker holding the session `browser` fixture is — so the command gets a
+    thread of its own."""
+    with ThreadPoolExecutor(1) as pool:
+        return pool.submit(
+            CliRunner().invoke, cli_model.cli, ["version", "check", str(d)]
+        ).result()
 
 
 def read_page_data(page_dir) -> dict:
@@ -695,7 +702,7 @@ ACCEPT = {
     "action": "decide",
     "detail": {"outcome": "accept"},
     "meaning": {
-        "document": "page",
+        "scope": "page",
         "unit": "sug-a",
         "depends": ["sug-a"],
         "answer": "c1",
@@ -762,6 +769,15 @@ def _report_body_record(registry):
     registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "body",
         "value": "status",
+    }
+
+
+def _report_position_record(registry):
+    registry["lf-task"]["x-state"]["status"]["record"] = {
+        "kind": "position",
+        "within": "lf-column",
+        "value": "status",
+        "rank": "status",
     }
 
 
@@ -1174,14 +1190,26 @@ def under_codex(spawn, codex_program):
         "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 
-    def start(command, env, *, app_server=False, **kwargs) -> subprocess.Popen:
+    def start(
+        command, env, *, app_server=False, hold_until=None, **kwargs
+    ) -> subprocess.Popen:
         # `app-server` is the whole difference between the app's shared host and
         # one session's own process — same program, same ancestry, one word in
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
+        shell_command = f"{command}; exit"
+        if hold_until is not None:
+            # Keep the fake task alive until a test hands its claim to the
+            # worker. Otherwise the adapter can see a dead claimant between
+            # communicate() and that handoff, unlike a real Codex task.
+            shell_command = (
+                f"{command}; result=$?; "
+                f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
+                "exit $result"
+            )
         return spawn(
-            [str(codex_program), "-c", runner, *hosting, f"{command}; exit"],
+            [str(codex_program), "-c", runner, *hosting, shell_command],
             env={**env, "PYTHONHOME": sys.base_prefix},
             **kwargs,
         )

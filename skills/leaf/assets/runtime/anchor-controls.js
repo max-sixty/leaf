@@ -17,12 +17,11 @@ import {
   repeat,
 } from "../vendor/browser-runtime.js";
 import {
-  declaredVisualParts,
   fragmentId,
   resolveAnchor,
   unclaimedVisualGesture,
   visualAt,
-  visualPart,
+  visualParts,
   visualSelector,
 } from "./anchor-resolution.js";
 import { registerMarginContribution } from "./margin-entries.js";
@@ -100,12 +99,12 @@ export function createAnchorControls({
           anchor: { section: found.id },
           label: labelAnchor({ section: found.id }).replace(/^§\s*/, "") || found.id,
         },
-        ...[...declaredVisualParts(candidate)].flatMap((token) => {
-          const part = visualPart(candidate, token);
-          return part && unclaimedVisualGesture(part.element)
-            ? [{ anchor: { section: found.id, visual: part.id }, label: part.label }]
-            : [];
-        }),
+        ...visualParts(candidate)
+          .filter((part) => unclaimedVisualGesture(part.element))
+          .map((part) => ({
+            anchor: { section: found.id, visual: part.id },
+            label: part.label,
+          })),
       ];
       const seat = visualActionSeat(candidate);
       const group = groups.get(seat) ?? [];

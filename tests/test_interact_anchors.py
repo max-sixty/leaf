@@ -414,6 +414,55 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
     assert "--part needs --section" in unseated.output
 
 
+def declare_part_prefixes(page_dir, *prefixes):
+    """Give the page's diagram part-id prefixes in place of its authored list."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-diagram"]["x-visual"] = {"prefixes": list(prefixes)}
+    registry_path.write_text(json.dumps(registry))
+
+
+def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
+    """A picture drawn from data cannot list its parts in markup, so its widget
+    declares their kinds: any id a prefix begins is a part a comment may name, with
+    nothing authored on the element, and one outside them is refused by name."""
+    declare_part_prefixes(page_dir, "node:")
+    published(page_dir)
+
+    named = comment(
+        page_dir, "--section", "flow", "--part", "node:B", "--text", "and this?"
+    )
+    assert named.exit_code == 0, named.output
+    assert json.loads(named.output)["anchor"] == {"section": "flow", "visual": "node:B"}
+
+    outside = comment(page_dir, "--section", "flow", "--part", "edge:B", "--text", "x")
+    assert outside.exit_code != 0
+    assert "ids starting with 'node:'" in outside.output
+
+    refused = event_contracts_model.visual_anchor_error(
+        {"anchor": {"section": "flow", "visual": "edge:B"}},
+        {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
+        json.loads((page_dir / "registry.json").read_text()),
+    )
+    assert refused == (
+        "visual anchor 'edge:B' is not declared on section 'flow'; "
+        "ids starting with 'node:'"
+    )
+    for unrenderable in ("node:", "node:a b"):
+        assert event_contracts_model.visual_anchor_error(
+            {"anchor": {"section": "flow", "visual": unrenderable}},
+            {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
+            json.loads((page_dir / "registry.json").read_text()),
+        ), unrenderable
+
+    # The file lists none of these parts, so markup cannot drop one; a declaration
+    # that stops admitting a part a thread holds is what drops it.
+    declare_part_prefixes(page_dir, "edge:")
+    dropped = check(page_dir)
+    assert dropped.exit_code != 0
+    assert "flow · node:B" in dropped.output
+
+
 def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     """The reply and replacement anchor are one durable act. The raw opening keeps
     where the question was asked, while every current-state reading follows the new
@@ -1151,7 +1200,7 @@ def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
             "widget": "note",
             "action": "scribble",
             "meaning": {
-                "document": "page",
+                "scope": "page",
                 "unit": "note",
                 "depends": ["note"],
             },

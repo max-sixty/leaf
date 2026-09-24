@@ -66,27 +66,9 @@
     "contracts": {}
   },
   "$events": {
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named user events reached their next consumer, or with phase `failed` and a host `failure` code that the host gave up on them with no answer coming; it is never a claim that work has begun. A failed `receipt` carrying a host `failure` code is the host giving up on a request; one without it is the agent's own outcome. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`, `receipt`), for the event that owns that answer. A `when` matches the delivered event: its record plus the `obligation` it owns and its `conversation`'s entry in the batch's digest, each if any, and the `carrier` delivering it (`wait`, `queue` or `app-server`), so a clause states one case plainly rather than naming a condition the delivery already settles. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. Layers extend widget behavior through x-state and x-request; they cannot add or change transport kinds. `page init` checks the existing log against these records before it re-vendors, so a recorded event never becomes unreadable. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than a move: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named user events reached their next consumer, or with phase `failed` and a host `failure` code that the host gave up on them with no answer coming; it is never a claim that work has begun. A failed `receipt` carrying a host `failure` code is the host giving up on a request; one without it is the agent's own outcome. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `turn`, `markup`, `receipt`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `conversation`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by carrier is not a clause: the delivery states once who acknowledges it, and routes a thread reply as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
-        {
-          "when": {
-            "required": [
-              "carrier"
-            ],
-            "properties": {
-              "carrier": {
-                "const": "wait"
-              }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
-            }
-          },
-          "text": "Acknowledge this delivery before anything else by starting the next background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the delivery's `id`: until then the user's message reads Sent rather than Picked up."
-        },
         {
           "when": {
             "required": [
@@ -169,24 +151,6 @@
         }
       ],
       "reply": [
-        {
-          "when": {
-            "required": [
-              "carrier"
-            ],
-            "properties": {
-              "carrier": {
-                "const": "wait"
-              }
-            },
-            "not": {
-              "required": [
-                "token"
-              ]
-            }
-          },
-          "text": "Acknowledge this delivery before anything else by starting the next background wait with `leaf wait --ack <delivery-id>`, where `<delivery-id>` is the delivery's `id`: until then the user's message reads Sent rather than Picked up."
-        },
         {
           "when": {
             "not": {
@@ -289,7 +253,7 @@
               {
                 "not": {
                   "required": [
-                    "obligation"
+                    "answer"
                   ]
                 }
               },
@@ -301,10 +265,10 @@
                   "properties": {
                     "meaning": {
                       "required": [
-                        "document"
+                        "scope"
                       ],
                       "properties": {
-                        "document": {
+                        "scope": {
                           "const": "thread"
                         }
                       }
@@ -337,10 +301,10 @@
                   "properties": {
                     "meaning": {
                       "required": [
-                        "document"
+                        "scope"
                       ],
                       "properties": {
-                        "document": {
+                        "scope": {
                           "const": "thread"
                         }
                       }
@@ -374,10 +338,10 @@
               "properties": {
                 "meaning": {
                   "required": [
-                    "document"
+                    "scope"
                   ],
                   "properties": {
-                    "document": {
+                    "scope": {
                       "const": "thread"
                     }
                   }
@@ -391,7 +355,7 @@
           "when": {
             "not": {
               "required": [
-                "obligation"
+                "answer"
               ]
             }
           },
@@ -422,32 +386,34 @@
     "answering": {
       "reply": [
         {
-          "when": {
-            "required": [
-              "carrier"
-            ],
-            "properties": {
-              "carrier": {
-                "enum": [
-                  "wait",
-                  "queue"
-                ]
-              }
-            }
-          },
-          "text": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `obligation.response.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
+          "text": "Answer with `leaf reply <page> --for <event-id>` before any other work, including the work this event asks for: give the answer, or say what you are about to do and where the result will appear. Once that work lands, report it with `leaf reply <page> --to <address> --initiates`, where `<address>` is the event's `answer.to`. `leaf reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something."
+        },
+        {
+          "text": "Your reply renders as Markdown, so show code or markup in a fenced block."
         },
         {
           "when": {
             "required": [
-              "carrier"
+              "meaning"
             ],
             "properties": {
-              "carrier": {
-                "const": "app-server"
+              "meaning": {
+                "required": [
+                  "scope"
+                ],
+                "properties": {
+                  "scope": {
+                    "const": "thread"
+                  }
+                }
               }
             }
           },
+          "text": "The widget is in a thread message: continue the work the user's answer selects or unblocks, and answer in that thread."
+        }
+      ],
+      "turn": [
+        {
           "text": "Your turn's first and final messages are the reply, and `leaf reply` refuses this event. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the thread at once, and later working messages stay in Codex. Finish the reply in your final message: the answer, or what changed and where it appears. The reply leaves the thread on its anchor."
         },
         {
@@ -461,10 +427,10 @@
             "properties": {
               "meaning": {
                 "required": [
-                  "document"
+                  "scope"
                 ],
                 "properties": {
-                  "document": {
+                  "scope": {
                     "const": "thread"
                   }
                 }
@@ -814,7 +780,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}}, "required": ["document", "unit", "depends"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "answer": {"type": ["string", "null"], "minLength": 1}, "creates": {"type": "string", "pattern": "^lf-[a-z0-9]+(-[a-z0-9]+)*$"}, "among": {"type": "array", "items": {"type": "string", "minLength": 1}}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
             "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
@@ -835,7 +801,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}}, "required": ["document", "unit"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}}, "required": ["scope", "unit"], "additionalProperties": false},
             "source_revision": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
             "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
@@ -924,7 +890,7 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "meaning": {"type": "object", "properties": {"document": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["document", "unit", "depends"], "additionalProperties": false},
+            "meaning": {"type": "object", "properties": {"scope": {"enum": ["page", "thread"]}, "unit": {"type": "string", "minLength": 1}, "depends": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["scope", "unit", "depends"], "additionalProperties": false},
             "revision": {"type": "integer", "minimum": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
@@ -1010,13 +976,13 @@
     "x-retired-when": "On a member: the owner's decision outcome that takes this element off the page (a suggestion's `lf-old` under `accept`). Requires x-owners. The outcome is a value of the `outcome` detail field on the owner's one deciding verb, so only one settlement can stand. The layer renders the settlement whole, following the log's standing state both ways — reconciliation paints data-lf-state=\"<outcome>\" on the owner and data-lf-retired on the members that outcome retires, takes both off when undo or a retraction removes the deciding action from the fold, and one theme rule hides the marked members — so no module owes any of it, though one may paint the same sooner as its own gesture (renderRetired). Those attributes are rendered output for CSS, export, and checks; semantic consumers read the publisher's explicit outcome rather than reading them back. The file's reading takes the fact from the log, and `version check` licenses dropping the member's ids on it; `version check --render` reports a settled member still showing words, or a mark the log never decided.",
     "x-says": "Attributes whose values the user sees as words, and where each renders. `after` goes inside the element's own content, ahead of the apparatus that ends it, so a word does not land on the far side of a control that closes the row. `before` goes at the element's start, ahead of chrome as well: leading chrome is not something the words stand beside, it is a module speaking for the whole element, so an element's opening words go above it; where a declaration names two at that edge they render in the order the declaration lists them. The runtime writes them as selectable text the user can quote and comment on, where `content: attr()` would paint glyphs into no text node.",
     "x-shadow": "The module renders the page's words into an open shadow tree, which the passage walk, the selection capture and every question asked by id cross; a shadow root on a host whose entry lacks it is a render-gate finding.",
-    "x-state": "What x-state declares, once per widget with state: each verb's detail schema (the payload half of the log's forever-contract), its fold unit, the record form its state takes in markup, and who writes it. A verb is the user's unless it declares `writer: \"agent\"`: the user writes theirs through the page as `action` events, and the agent reports its own through `leaf report` as `report` events, so every coordinate has one writer. A user verb may declare a created child (`creates`). An agent verb requires a record form other than `body`, since a report moves declared state and never the page's words, which keeps the passage reading untouched by it; it may name with `update` the required non-empty string detail field that is the report's short human-readable news, which the canonical update feed exposes without guessing from a widget, verb, or field name. The runtime paints a standing report live (data-lf-reported); it is provisional news, standing only until a version answers it, as $report says. Each verb is its own state: the owning Leaf element, the unit, and the verb together name one independently standing fact, the latest surviving action of that verb there supersedes its predecessors, and different verbs coexist. The framework composes the last surviving action per coordinate with typed authored values and gives every widget its complete state through renderState, keyed by verb, and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence), construction-linked inspection, the runtime's user- and report-origin readings, and the version diff's state half. When an action's admission makes its widget's x-awaits `answered` condition hold, admission records meaning.answer on it: the widget's authored `resolves` attribute, read from the sending document, names the comment thread the answer closes, and null answers without closing one, which is also what a decision whose outcome is the widget's x-withdrawn-as records: it leaves the page as if nothing had been proposed. Historical settlement uses the admitted owner-unit-verb coordinate even after the widget retires. One detail field name is reserved: `outcome`, on the one user widget-unit verb that decides which retirable members leave the page (x-retired-when). The unit, creates, and record forms are $state's.",
+    "x-state": "What x-state declares, once per widget with state: each verb's detail schema (the payload half of the log's forever-contract), its fold unit, the record form its state takes in markup, and who writes it. A verb is the user's unless it declares `writer: \"agent\"`: the user writes theirs through the page as `action` events, and the agent reports its own through `leaf report` as `report` events, so every coordinate has one writer. A user verb may declare a created child (`creates`). An agent verb requires a record form other than `body`, since a report moves declared state and never the page's words, which keeps the passage reading untouched by it; it may name with `update` the required non-empty string detail field that is the report's short human-readable news, which the canonical update feed exposes without guessing from a widget, verb, or field name. The runtime paints a standing report live (data-lf-reported); it is provisional news, standing only until a version answers it, as $report says. Each verb is its own state: the owning Leaf element, the unit, and the verb together name one independently standing fact, the latest surviving action of that verb there supersedes its predecessors, and different verbs coexist. The framework composes the last surviving action per coordinate with typed authored values and gives every widget its complete state through renderState, keyed by verb, and one declaration drives the POST and re-vendor contract gates, `version check`'s state gate (a version whose markup actively contradicts the fold without `restated` is refused; writing the folded state is honoring; re-emitting the previous version's state is blessed silence, except for a position whose container the version changes, which it writes), construction-linked inspection, the runtime's user- and report-origin readings, and the version diff's state half. When an action's admission makes its widget's x-awaits `answered` condition hold, admission records meaning.answer on it: the widget's authored `resolves` attribute, read from the sending document, names the comment thread the answer closes, and null answers without closing one, which is also what a decision whose outcome is the widget's x-withdrawn-as records: it leaves the page as if nothing had been proposed. Historical settlement uses the admitted owner-unit-verb coordinate even after the widget retires. One detail field name is reserved: `outcome`, on the one user widget-unit verb that decides which retirable members leave the page (x-retired-when). The unit, creates, and record forms are $state's.",
     "x-thread-surface": "The upgraded widget can seat the canonical response composer and Thread views beside exact projected datums. Its module subscribes through consumeThreads, selects Threads from the public collection, and places them in its own outlets. The returned handle can open Comment from one of the widget's projected elements. Leaf owns anchors, drafts, response modes, submission, Thread rendering, reply and reaction state, settlement, focus, receipts, and margin-projection fallback. A placement claims that active composer or Thread locally for the current reconciliation; unloaded, filtered, collapsed, outdated, or otherwise undisplayable datums receive no placement and remain in the global Threads index plus the ordinary fallback.",
     "x-text-format": "Inline Markdown in this element's direct text nodes. Its existing element children remain HTML. The browser formats those words with the shared safe Markdown parser, while file-side passage and revision readings use the same visible words. A generated child with this declaration interprets the user's line breaks as hard breaks; source HTML line wraps remain ordinary whitespace.",
     "x-tone": "The attribute that names one of the layer's semantic tints, held to `$tones.names`, which the theme has a rule for.",
     "x-upgrade": "A module at widgets/<tag>.js enhances the element in the browser, imported where a page's markup carries the tag rather than for the whole layer. `page init` refuses a layer declaring it with no module beside it, and the render gate a module that defines no element for a widget the page contains. Required.",
     "x-verbatim": "An upgraded element that preserves its own authored words and the order and identity of nested upgraded widget boundaries, which makes those words quotable. Each nested upgraded widget keeps its own word and fence contract, so its generated rendering is not a claim by the wrapper. Without this promise the passage reader treats the widget as opaque, since its module may insert or replace words. The render gate refuses changed wrapper prose or removed and reordered nested ownership boundaries.",
-    "x-visual": "How a rendered picture exposes stable Comment targets. `whole` anchors the picture on the authored widget. Every declared provider also supplies its own visual surface for whole-widget aim and marks, so chrome paint stays above the widget's drawing. For `{parts: ATTR}`, its module calls `registerVisualParts(source, read)` once; `read` returns the complete current `{id, element, label, surface?}` inventory. Core admits only ids authored in ATTR and derives token lookup and deepest-part hit testing from that inventory. `surface` defaults to `element` and may name one descendant whose native paint excludes decoration from the contour. It changes paint only: `element` remains the semantic hit and travel target. Marks and aim follow an SVG surface's painted geometry primitives; a surface with none, and every other element, uses the shown box. Targeting a mapped part stores its id as `anchor.visual` while the widget remains the semantic seat. A missing token or registration detaches on replay rather than widening to the whole picture. The registration's `update()` signals any rendering or geometry change, including an in-place attribute or style change. The render gate validates every record and requires each authored token to resolve.",
+    "x-visual": "How a rendered picture exposes stable Comment targets. `whole` anchors the picture on the authored widget. Every declared provider also supplies its own visual surface for whole-widget aim and marks, so chrome paint stays above the widget's drawing. For `{parts: ATTR}` or `{prefixes: [PREFIX, …]}`, its module calls `registerVisualParts(source, read)` once; `read` returns the complete current `{id, element, label, surface?}` inventory. Core admits only ids authored in ATTR or, under `prefixes`, any longer id one of them begins, such as `commit:3f2a` under `commit:`: a picture drawn from data whose parts the author cannot list declares their kinds rather than enumerating them. Core derives token lookup and deepest-part hit testing from that inventory. `surface` defaults to `element` and may name one descendant whose native paint excludes decoration from the contour. It changes paint only: `element` remains the semantic hit and travel target. Marks and aim follow an SVG surface's painted geometry primitives; a surface with none, and every other element, uses the shown box. Targeting a mapped part stores its id as `anchor.visual` while the widget remains the semantic seat. A missing token or registration detaches on replay rather than widening to the whole picture. The registration's `update()` signals any rendering or geometry change, including an in-place attribute or style change. The render gate validates every record, requires each authored token to resolve, and refuses a registered id its prefixes do not admit.",
     "x-space": "The default width capacity an element needs beyond the prose measure: `wide` takes the vocabulary's shared capped evidence width, while `available` takes all room the page shell can give after enclosing frames, chrome, and actual margin residents. The declaration says nothing about how the package arranges content inside that allocation. An authored occurrence may override the default with data-width=column|wide|available; the runtime resolves that choice into data-lf-space and the theme allocates it without moving the prose axis.",
     "x-measure": "How the element uses the width of the frame holding it. Undeclared, it is text and keeps the reading measure inside a frame wider than the column. `surface` (a chart, table, log or listing) fills the frame; x-space wide or available implies it. `group` only holds other blocks (tabs, a comparison, a grid, a pane), so it passes the measure through to them instead of holding everything it contains to the width of a paragraph. The runtime paints the declaration as data-lf-measure; the theme declares the plain HTML elements the same way.",
     "x-bound": "The element holds its own height and scrolls inside it, so a long log or feed never grows the page: `start` opens at its first line and `end` follows its newest entry while the user is at the end, and stays where the user scrolled back to otherwise. An authored occurrence may state or override it with data-bound=start|end; the runtime paints it as data-lf-bound.",
@@ -1029,7 +995,7 @@
   "$state": {
     "unit": "\"widget\" for a verb absolute across the group (choose toggles every sibling), or the detail field naming the element the verb is absolute per (move's \"card\").",
     "creates": "An optional created-child contract `{child, words}` on an x-state verb. The verb's fold unit names the detail field carrying the new child's canonical element id, and `words` names the detail field carrying its non-empty prose; the detail holds exactly those two required fields and the verb declares no record form. While the action stands, the sender has a direct `child` with that id and words, on the action's own owner-unit-verb coordinate: an action of another verb leaves it standing, and undoing or retracting the action removes it. Admission stamps the child tag in `meaning.creates`, so registry-free readers keep the action resting on its child before any markup holds it. The append door refuses an id the sending document already holds. Re-vendoring preserves the declaration for every recorded action.",
-    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value, rank} — the enclosing `within` element, compared at that granularity, while `rank` names the string detail field holding the unit's rank among its container's siblings: a base-36 fraction key, digits 0-9a-z not ending in 0, that sorts as a string, so a container lists its units by rank (ties by id) and each unit's placement stands whichever other moves stand or are undone. Authored units rank by authored index, and a widget computes a dropped unit's rank between its new neighbours' with `rankAt` from `runtime/widget-api.js`. Equal ranks are a known limit: two tabs dropping into one gap, or a carried move meeting the rank a later version gave an authored unit, tie, and the id order can put the later drop outside the gap it was dropped into. A position record's unit is always a part (a widget cannot place itself), because only the widget holding the container can read the neighbours a rank lies between; {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. Within one tag and unit, body and position are each one physical slot; value slots are keyed by their host attr, and attribute-set slots by their descendant attr. Distinct verbs cannot claim the same slot. A node has one place across tags as well: the nearest recording widget above it places it. The framework captures the typed initial value once, composes it with surviving winners and local gestures, and renders the resulting complete widget state. An absent value attribute starts at null, an attribute set at its authored ids, and a recordless verb at null (undecided). Position records compose ordered containers before rendering, so undo and refusal do not reset or rebuild the DOM."
+    "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value, rank} — the enclosing `within` element and the nearest unit both documents list before it there, while `rank` names the string detail field holding the unit's rank among its container's siblings: a base-36 fraction key, digits 0-9a-z not ending in 0, that sorts as a string, so a container lists its units by rank (ties by id) and a unit's placement stands whichever other moves stand or are undone. Authored units rank by authored index, and a widget computes a dropped unit's rank between its new neighbours' with `rankAt` from `runtime/widget-api.js`. A rank lies among the container's authored units on the revision the move was made on, which admission records as `meaning.among`. While a later revision authors that container the same way, the rank lands in the same gap and places the unit; a revision that authors it differently absorbs the move, writing the unit where the fold left it, which `version check` holds it to, and its markup places the unit from then on. Every later revision keeps that placement unless it marks the unit `restated`, and an absorbed move can no longer be undone; a new move changes where the unit stands. The append door refuses a move made on an older revision whose container the newest one authors differently. Equal ranks are a known limit: two tabs dropping into one gap tie, and the id order can put the later drop outside the gap it was dropped into. A position record's unit is always a part (a widget cannot place itself), because only the widget holding the container can read the neighbours a rank lies between; {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. Within one tag and unit, body and position are each one physical slot; value slots are keyed by their host attr, and attribute-set slots by their descendant attr. Distinct verbs cannot claim the same slot. A node has one place across tags as well: the nearest recording widget above it places it. The framework captures the typed initial value once, composes it with surviving winners and local gestures, and renders the resulting complete widget state. An absent value attribute starts at null, an attribute set at its authored ids, and a recordless verb at null (undecided). Position records compose ordered containers before rendering, so undo and refusal do not reset or rebuild the DOM."
   },
   "$report": {
     "answering": "Explicit, by typed id. `version stamp` puts a `report` target in the note's `settles` relation for every standing report the stamped revision answered: one whose recorded state the markup writes is absorbed, and one on an element marked `overruled` is overruled — the why belongs in the note's text. Replay stops a settled report at that revision. Silence — markup unchanged — settles nothing, so the report keeps painting. `version check` refuses the third thing, markup that contradicts a standing report it never settles, and refuses an `overruled` with nothing to overrule, exactly as the reviewer gate polices `restated`.",
@@ -1050,7 +1016,7 @@
   },
   "$restated": {
     "description": "A boolean attribute saying this revision has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
-    "why": "A move, pick, edit or accept is recorded in the log against the revision it was made on, and the page reconciles every standing action onto every later revision. A decision therefore survives a new save on its own, and re-emitting a widget as you first wrote it does not undo it. A move that answers no Ask never needs carrying into later markup; an Ask's answer on a widget with a record form does (`authoring-revisions.md`, Honor user state). The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
+    "why": "A move, pick, edit or accept is recorded in the log against the revision it was made on, and the page reconciles every standing action onto every later revision. A decision therefore survives a new save on its own, and re-emitting a widget as you first wrote it does not undo it. A moved card is written into the markup of a version that changes its container's cards, and an Ask's answer on a widget with a record form is written in too; other decisions need not be (`authoring-revisions.md`, Honor user state). The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
     "when": "Only where a later revision has to change words the user decided on, and the change could change their decision: an error you found in a draft they rewrote, or a picked option in a live Ask whose words were wrong in a way that undermines the pick. Write the new words, mark that element, and say why in the next stamp's note — to the user this reads as a decision undone and asked again, and the note is where a version explains itself. Where the correction leaves the decision sound, or the Ask is settled and kept as the record of what the user was asked and chose, leave the decided words as they stand and put the correction beside them. `version check` refuses a revision that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
     "once": "It belongs to the one revision that does the rewriting. Stamping records the retraction in the log, so it holds for good — later revisions leave the attribute off, and `version check` refuses one that repeats it.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
@@ -1078,12 +1044,16 @@
       "example": "<p class=\"lede\">One paragraph saying what this page decides.</p>"
     },
     ".tag": {
-      "description": "An inline chip label.",
+      "description": "An inline chip label. Add `ok`, `warn` or `danger` to draw it in that status tone.",
       "example": "<span class=\"tag\">experimental</span>"
     },
     ".callout": {
-      "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote).",
+      "description": "An aside set off from the prose — a tinted field with a hairline border. For something the user must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when the callout reports a status, as `class=\"callout warn\"` for a paused release; its tint and title take the tone and its prose stays in the body's ink.",
       "example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
+    },
+    "section.panel": {
+      "description": "One titled region of a sheet page (`<main data-width=\"available\">`): a card holding one surface, such as a table, a log or a list of steps, with a short heading that names it. Lay a dashboard out as panels in an lf-grid so every region is drawn alike; the page's argument stays in the prose and the callout.",
+      "example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
     },
     "aside.sidebar": {
       "description": "Page-level supporting material in the left margin: local navigation, a compact legend, or stable reference facts that remain useful while the user moves through a long page. Use one, as a direct child of main near the page's opening, rather than beside the one paragraph it concerns; that local annotation is an aside.sidenote. On a roomy live screen the first such child sits left of the prose and sticks beneath Leaf's banner; a fine-pointer lf-toc can use that margin as a fixed reading map instead. Where the page's own box has no room for the strip — a narrow window, a second margin resident, or the Asks tray taking part of a middling one — and on paper or in a standalone copy, the sidebar returns to ordinary flow where it was authored. An accidental second sidebar also stays in flow instead of occupying the first. Keep the contents compact enough to scan in about 240px. The wrapper supplies placement, not a visual panel, so what it holds keeps its own voice; an lf-toc is the usual navigation occupant but the idiom is not coupled to that widget. Its content remains part of the page and may be selected or commented on unless the occupant itself declares apparatus.",

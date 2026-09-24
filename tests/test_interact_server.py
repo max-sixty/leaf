@@ -1069,8 +1069,7 @@ def test_server_round_trip(server, page_dir):
         "/theme.css",
         "/registry.json",
         "/widgets/lf-tabs.js",
-        render_checks_model.PROBE_ROUTE,
-        render_checks_model.STANDALONE_ROUTE,
+        *render_checks_model.PROBE_SOURCES,
     ]:
         assert fetch(server + path)[0] == 200, path
     for path in [

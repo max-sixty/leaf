@@ -13,7 +13,6 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import events as conversation_model
-from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
@@ -1782,9 +1781,7 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
 
 
-def test_authored_blocks_choose_column_wide_or_available_space(
-    browser, serve, tmp_path
-):
+def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     """One authored width contract applies to native and package blocks. An occurrence
     wins over a package default, and column remains the prose measure when nested in a
     wider section rather than inheriting its containing block's allocation."""
@@ -1826,21 +1823,6 @@ def test_authored_blocks_choose_column_wide_or_available_space(
     assert page.evaluate("document.documentElement.scrollWidth") == page.evaluate(
         "document.documentElement.clientWidth"
     )
-
-    exported = exporting_model.export_page(browser, page.url, serve.page_dir, "v1.html")
-    assert 'data-width="wide"' in exported
-    assert 'data-lf-space="wide"' in exported
-    copy_path = tmp_path / "authored-widths.html"
-    copy_path.write_text(exported)
-    copy = browser.new_page(viewport={"width": 1726, "height": 900})
-    copy.goto(copy_path.as_uri(), wait_until="load")
-    expect(copy.locator("#wide")).to_have_attribute("data-lf-space", "wide")
-    assert copy.locator("#wide").evaluate("el => el.getBoundingClientRect().width") > (
-        copy.locator("#nested-column").evaluate(
-            "el => el.getBoundingClientRect().width"
-        )
-    )
-    copy.close()
 
     next_source = source.replace(' data-width="wide"', "", 1)
     stamp_page(serve.page_dir, next_source, "remove an authored width")
@@ -1937,75 +1919,6 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     assert printed["head"] <= 1 and printed["foot"] <= 1, (
         f"a sheet held {printed['head']:.0f}px over the first line and "
         f"{printed['foot']:.0f}px under the last, for chrome it does not print"
-    )
-
-
-def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
-    browser, serve, tmp_path
-):
-    """A standing reaction survives export with the rail reserved for its mark. A wide
-    board later in the copy must spend the room inside that rail rather than run past
-    the page's own box; the live render gate cannot inspect this rewritten file.
-
-    The rail the copy has to keep is the one the live page measured, which is why this
-    reads the live number first and asks the copy for that number rather than for a
-    non-zero one. The cascade leaves a floor under `--rail` — the generated marker's own
-    width — so a copy that lost the measurement still reports a strip, and a mark wider
-    than the floor then hangs over the room the file lays its content out in. That is
-    the standing trap `prepareExport` names where it sweeps the root's inline custom
-    properties: `--rail` is measured furniture the copy still has, not a reading of the
-    exporter's window, and adding it to that sweep is the mistake this case exists to
-    catch."""
-    url = serve(RAIL_AND_WIDE_PAGE)
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "shorten",
-            "anchor": {
-                "section": "old-line",
-                "quote": "Refill every feeder each morning.",
-            },
-        },
-    )
-    live = open_page(browser, url)
-    measured = live.evaluate(
-        "() => document.documentElement.style.getPropertyValue('--rail')"
-    )
-    live_fit = live.evaluate(RAIL_FIT)
-    live.close()
-    assert measured and measured != "0px", (
-        "the live page states no rail, so a copy keeping none would prove nothing — "
-        f"{measured!r}"
-    )
-
-    out = tmp_path / "reaction-rail.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.goto(out.as_uri(), wait_until="load")
-
-    expect(
-        page.locator('.lf-margin-entry[data-lf-margin-entry-owner^="suggestion:"]')
-    ).to_have_count(0)
-    expect(page.locator(".lf-react-mark")).to_have_count(1)
-    carried = page.evaluate(
-        "() => document.documentElement.style.getPropertyValue('--rail')"
-    )
-    fit = page.evaluate(RAIL_FIT)
-    assert carried == measured, (
-        "the copy lost the rail the live page measured and fell back to the cascade's "
-        f"floor — live {measured!r}, copy {carried!r}"
-    )
-    assert fit["rail"] == live_fit["rail"], (
-        "the copy's right strip is not the one the mark was measured into — "
-        f"live {live_fit['rail']}, copy {fit['rail']}"
-    )
-    assert fit["past"] <= 1, (
-        f"the copied board stands {fit['past']:.0f}px outside the page's own box, "
-        f"using {fit['widget']:.0f}px inside {fit['content']:.0f}px of content"
     )
 
 
@@ -2794,61 +2707,7 @@ def test_a_wide_widget_gives_the_tray_its_strip(browser, serve):
     assert closed_again["sideways"] == 0
 
 
-def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
-    """A copy keeps the breakout, because it is layout the markup describes rather than
-    an affordance a handler kept — but it cannot keep the *number*. The room is measured
-    on the live page and stated inline on the root, which outranks any rule, so a copy
-    carrying it would hold the exporter's headless window forever and lay a file out for
-    a window nobody is reading it in. BAKE takes it off and the theme states the copy's
-    own, from a viewport that is honest there: a file has no thread panel to yield a
-    strip to.
-
-    The width that panel stands at is stated on the root by the same hand, and goes the
-    same way — not because a copy reads it, having no panel, but because both numbers
-    belong to a window and a user that are not this file's. The reading asks for the
-    root's whole style rather than for either name, so the day a third number is stated
-    there is the day this says so.
-
-    Both windows, because that estimate is the half that can be wrong in either
-    direction, and it was: reading 96px off the viewport puts it under the true room on a
-    narrow window, and the first draft of this stood every copied board 24px inside the
-    prose it was set beneath. The floor at the column is what answers that, and this is
-    what says the floor is still there."""
-    url = serve(WIDE_AND_NARROW_PAGE)
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = browser.new_page(viewport={"width": 1400, "height": 900})
-    page.goto(out.as_uri(), wait_until="load")
-
-    stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
-    assert stated.strip() == "", (
-        "the copy carries this window's measurements into every window it is opened "
-        f"in: {stated}"
-    )
-
-    wide = page.evaluate(ROOM_GEOMETRY)
-    assert wide["board"]["width"] > wide["column"]["width"], (
-        "a copy keeps the breakout: it is layout, not an affordance — board "
-        f"{wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
-    )
-    assert wide["board"]["left"] >= wide["room"]["left"] - 1, (
-        "past the page on the left"
-    )
-    assert wide["board"]["right"] <= wide["room"]["right"] + 1, "past the page, right"
-    assert wide["sideways"] == 0, "a copy must not scroll sideways either"
-
-    resized(page, 700, 900)
-    narrow = page.evaluate(ROOM_GEOMETRY)
-    assert abs(narrow["board"]["width"] - narrow["column"]["width"]) <= 1, (
-        "the copy's own reading of the room came in under the column and shrank the "
-        f"board inside the prose: board {narrow['board']['width']:.0f}px, column "
-        f"{narrow['column']['width']:.0f}px"
-    )
-    assert narrow["sideways"] == 0, "nor on a narrow one"
-
-
-def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
+def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
     """The page has two claims on its right margin now: a note is read out there, and a
     wide widget expands into it. A widget drawn over a note is the note lost — it is the
     thing on top — and the user loses words the page states, which is the same fault
@@ -2859,64 +2718,43 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     the other is 600px further down with nothing out there, and takes the margin where it
     stands. Asserting only the first would pass just as well for a page that refused every
     exhibit the margin because a note existed somewhere above it — the reading that held a
-    diagram to the column's own width with the margin beside it empty.
-
-    Both media, because they answer the question differently and only one of them
-    measures. The live page reads the room off the box the layout actually produced, so a
-    strip reserved by any rule at all is already out of it; a copy runs no script and the
-    theme states the room from the viewport, which knows about a strip only if the rule
-    that states the room subtracts the same one the padding added. `clear` is the same
-    answer in both, being layout rather than measurement."""
-    url = serve(NOTE_AND_WIDE_PAGE)
-    out = tmp_path / "standalone.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
-
-    page = open_page(browser, url)
+    diagram to the column's own width with the margin beside it empty."""
+    page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
     resized(page, NOTE_BAND, 900)
-    live = page.evaluate(ROOM_GEOMETRY)
+    wide = page.evaluate(ROOM_GEOMETRY)
 
-    copy_errors = []
-    copy = browser.new_page(viewport={"width": NOTE_BAND, "height": 900})
-    copy.on(
-        "console", lambda m: copy_errors.append(m.text) if m.type == "error" else None
+    assert wide["note"]["width"] > 0, (
+        "the page lost the note entirely, so this proves nothing about the margin"
     )
-    copy.on("pageerror", lambda e: copy_errors.append(str(e)))
-    copy.goto(out.as_uri(), wait_until="load")
-    copied = copy.evaluate(ROOM_GEOMETRY)
-
-    for medium, wide in (("the live page", live), ("a copy", copied)):
-        assert wide["note"]["width"] > 0, (
-            f"{medium} lost the note entirely, so this proves nothing about the margin"
+    note = wide["note"]
+    assert wide["later"]["width"] > wide["column"]["width"] + 1, (
+        f"the page never grows the unobstructed board past prose, so neither "
+        f"exhibit asks to share the note's margin: {wide}"
+    )
+    for name in ("board", "later"):
+        exhibit = wide[name]
+        across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
+        down = exhibit["top"] < note["bottom"] and exhibit["bottom"] > note["top"]
+        assert not (across and down), (
+            f"the page stands the {name} board over the note it shares the margin "
+            f"with: board {exhibit['left']:.0f}–{exhibit['right']:.0f}px across and "
+            f"{exhibit['top']:.0f}–{exhibit['bottom']:.0f}px down, note "
+            f"{note['left']:.0f}–{note['right']:.0f}px and "
+            f"{note['top']:.0f}–{note['bottom']:.0f}px"
         )
-        note = wide["note"]
-        assert wide["later"]["width"] > wide["column"]["width"] + 1, (
-            f"{medium} never grows the unobstructed board past prose, so neither "
-            f"exhibit asks to share the note's margin: {wide}"
-        )
-        for name in ("board", "later"):
-            exhibit = wide[name]
-            across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
-            down = exhibit["top"] < note["bottom"] and exhibit["bottom"] > note["top"]
-            assert not (across and down), (
-                f"{medium} stands the {name} board over the note it shares the margin "
-                f"with: board {exhibit['left']:.0f}–{exhibit['right']:.0f}px across and "
-                f"{exhibit['top']:.0f}–{exhibit['bottom']:.0f}px down, note "
-                f"{note['left']:.0f}–{note['right']:.0f}px and "
-                f"{note['top']:.0f}–{note['bottom']:.0f}px"
-            )
-        assert wide["later"]["right"] > wide["column"]["right"] + 1, (
-            f"{medium} held a board with no note anywhere near it to the column's own "
-            f"right edge: board to {wide['later']['right']:.0f}px, column to "
-            f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
-            f"not down the whole page."
-        )
-        assert wide["sideways"] == 0, (
-            f"{medium} scrolls sideways, so the room it took was not the room it had"
-        )
-        assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
-            f"{medium} shrank the board inside the measure its own prose is set to: "
-            f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
-        )
+    assert wide["later"]["right"] > wide["column"]["right"] + 1, (
+        f"the page held a board with no note anywhere near it to the column's own "
+        f"right edge: board to {wide['later']['right']:.0f}px, column to "
+        f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
+        f"not down the whole page."
+    )
+    assert wide["sideways"] == 0, (
+        "the page scrolls sideways, so the room it took was not the room it had"
+    )
+    assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
+        f"the page shrank the board inside the measure its own prose is set to: "
+        f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
+    )
 
 
 def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
@@ -3225,17 +3063,14 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
 
 
-def test_opposite_margin_residents_wait_for_the_room_they_need(
-    browser, serve, tmp_path
-):
+def test_opposite_margin_residents_wait_for_the_room_they_need(browser, serve):
     """One margin floor buys one resident, not two strips at once.
 
     At the ordinary 1152px floor, the sidenote keeps its established right margin and
     the sidebar remains in flow. Giving both their full strips there leaves only 504px
     for prose. At the combined floor of the page's own box, both may stand outside a
     full ordinary column; a window short of that floor by a live platform's stable
-    scrollbar gutter has the veto hand the strips back. A script-free copy has to make
-    the same choice from its viewport alone.
+    scrollbar gutter has the veto hand the strips back.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -3253,8 +3088,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 """,
     )
     url = serve(with_one_ask(source))
-    out = tmp_path / "margin-residents.html"
-    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);
@@ -3347,16 +3180,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
     assert repeated["noteFloat"] == "right"
     assert repeated["column"]["width"] == 720
-    page.close()
-
-    copy = browser.new_page(viewport={"width": 1200, "height": 800})
-    copy.goto(out.as_uri(), wait_until="load")
-    copied = copy.evaluate(reading)
-    assert [side["float"] for side in copied["sidebars"]] == ["none", "none"]
-    assert copied["noteFloat"] == "right"
-    assert copied["padding"] == {"left": 0, "right": 384}
-    assert copied["column"]["width"] == 720
-    assert copied["sideways"] == 0
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

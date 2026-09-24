@@ -462,7 +462,7 @@ CHART_MARKS = """(id) => {
     return {
         series,
         // A colour the module wrote into the drawing, which would freeze the scheme this
-        // browser happened to be in when the copy was exported.
+        // browser happened to be in when the drawing was made.
         painted: svg.outerHTML.match(/(?:fill|stroke)="#[0-9a-fA-F]{3,8}"/g) || [],
         // The painted box of the first tick label. Its computed font-size is the theme's
         // and cannot move; what a scaled drawing changes is the box.

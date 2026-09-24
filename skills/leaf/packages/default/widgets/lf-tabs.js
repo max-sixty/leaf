@@ -9,8 +9,10 @@
  * version carries it — this widget doesn't ride the action channel at all.
  * A tab set that is the main element's sole substantive child, below an optional
  * header, becomes the page composition: its panel id is the URL fragment, history
- * follows those panel entries. Switching views and browser history use native
- * fragment navigation to the chosen panel.
+ * follows those panel entries. A switch, by press, key, Back, or Forward, is not
+ * fragment travel, because a view is not a destination: the strip stays where it is on
+ * screen, and the view opens where this user last read it, or at its start when they
+ * never read past it. Links and anchors inside a panel keep native fragment navigation.
  * Embedded tab sets retain the ordinary framed-widget behavior.
  * While the version diff is on, a tab whose panel holds marked passages wears
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
@@ -26,6 +28,7 @@ import {
   listWalkPosition,
   offer,
   once,
+  pageScroller,
   preserveReadingRegions,
   relabel,
   selectableOffer,
@@ -52,6 +55,7 @@ customElements.define(
     #diffEvents = null;
     #historyEvents = null;
     #active = null;
+    #readings = new Map(); // root panel → the document offset its user left it at
     #root = false;
     #contextObserver = null;
     #strip = null;
@@ -113,7 +117,9 @@ customElements.define(
         // whole of when this scope holds — is always one of these buttons.
         const at = order.indexOf(document.activeElement);
         const next = order[to(at, order.length)];
-        next.focus();
+        // The strip is always on screen; focus scrolling a stuck tab back to its place
+        // in flow would move the view being left before the switch records it.
+        next.focus({ preventScroll: true });
         next.click();
         beginWalk("tab", "Tab", () =>
           listWalkPosition([...this.#buttons.values()], document.activeElement),
@@ -195,12 +201,15 @@ customElements.define(
 
     #activate(active, remember, reason) {
       if (!this.#buttons.has(active)) return;
-      if (active === this.#active) {
-        if (this.#root && reason === "ordinary") this.#navigateTo(active);
-        return Promise.resolve();
-      }
+      if (active === this.#active) return Promise.resolve();
       const previous = this.#active;
+      // A press or a traversal between views switches them; a reveal is travel to
+      // something inside the view, which the traveller lands.
+      const switched = this.#root && ["ordinary", "history"].includes(reason);
       const change = () => {
+        const from = pageScroller.scrollTop;
+        if (this.#root && previous) this.#readings.set(previous, from);
+        if (this.#root && reason === "ordinary") this.#pushLocation(active);
         for (const [panel, btn] of this.#buttons) {
           if (panel === active) panel.removeAttribute("hidden");
           else panel.setAttribute("hidden", HIDDEN);
@@ -209,6 +218,7 @@ customElements.define(
           btn.tabIndex = panel === active ? 0 : -1;
         }
         this.#active = active;
+        if (switched) pageScroller.scrollTop = this.#readingFor(active, from);
         if (remember) tabStore.set(TAB_KEY + this.id, active.id);
         const presentation = [];
         for (const panel of [previous, active].filter(Boolean)) {
@@ -216,7 +226,6 @@ customElements.define(
           if (child) presentation.push(layoutChanged(child));
         }
         presentation.push(layoutChanged(this));
-        if (this.#root && reason === "ordinary") this.#navigateTo(active);
         return Promise.all(presentation);
       };
       return this.#root && previous ? preserveReadingRegions(this, change) : change();
@@ -224,20 +233,20 @@ customElements.define(
 
     #panelForLocation(panels) {
       if (!this.#root || !location.hash) return null;
-      const target = this.#targetForLocation();
+      const target = this.#targetFor(location.hash);
       return target
         ? (panels.find((panel) => panel === target || panel.contains(target)) ?? null)
         : null;
     }
 
-    #targetForLocation() {
+    #targetFor(hash) {
       let id;
       try {
-        id = decodeURIComponent(location.hash.slice(1));
+        id = decodeURIComponent(hash.slice(1));
       } catch {
         return null;
       }
-      return document.getElementById(id);
+      return id ? document.getElementById(id) : null;
     }
 
     #syncRootContext() {
@@ -310,16 +319,43 @@ customElements.define(
     #listenForHistory() {
       if (!this.#root || this.#historyEvents) return;
       this.#historyEvents = new AbortController();
-      const followLocation = () => {
-        const panel = this.#panelForLocation([...this.#buttons.keys()]);
-        if (panel && panel !== this.#active) this.#activate(panel, true, "reveal");
-      };
-      window.addEventListener("popstate", followLocation, {
-        signal: this.#historyEvents.signal,
-      });
-      window.addEventListener("hashchange", followLocation, {
-        signal: this.#historyEvents.signal,
-      });
+      const { signal } = this.#historyEvents;
+      // A fragment naming something inside another view opens that view, and the
+      // browser lands the target.
+      window.addEventListener(
+        "hashchange",
+        () => {
+          const panel = this.#panelForLocation([...this.#buttons.keys()]);
+          if (panel && panel !== this.#active) this.#activate(panel, true, "reveal");
+        },
+        { signal },
+      );
+      // Back and Forward to a view's own entry. Chrome answers a traversal to a fragment
+      // naming an element by scrolling to that element, not by restoring the offset the
+      // entry was left at, so the set takes the traversals to its entries: one to another
+      // view switches as a press does, and one within the open view keeps the browser's
+      // restoration, which an intercepted traversal does perform.
+      window.navigation?.addEventListener(
+        "navigate",
+        (event) => {
+          if (
+            event.navigationType !== "traverse" ||
+            !event.destination.sameDocument ||
+            !event.canIntercept
+          )
+            return;
+          const view = this.#targetFor(new URL(event.destination.url).hash);
+          if (!this.#buttons.has(view)) return;
+          if (view === this.#active) event.intercept({ focusReset: "manual" });
+          else
+            event.intercept({
+              scroll: "manual",
+              focusReset: "manual",
+              handler: () => this.#activate(view, true, "history"),
+            });
+        },
+        { signal },
+      );
     }
 
     #locationFor(panel) {
@@ -333,12 +369,22 @@ customElements.define(
       history.replaceState(history.state, "", this.#locationFor(panel));
     }
 
-    #navigateTo(panel) {
+    #pushLocation(panel) {
       if (location.hash === `#${panel.id}`) return;
-      location.hash = panel.id;
-      // Fragment travel focuses its target; a tab press keeps the roving strip
-      // focused so another arrow can continue the same walk.
-      this.#buttons.get(panel).focus({ preventScroll: true });
+      history.pushState(history.state, "", this.#locationFor(panel));
+    }
+
+    // Every view starts where the strip sticks, so an offset short of that is the shared
+    // header, not a place in the view. A view read past its start reopens there; one
+    // that never was keeps the header as the user has it, clamped to the view's start
+    // so a stuck strip stays stuck.
+    #readingFor(panel, from) {
+      const start =
+        this.getBoundingClientRect().top +
+        pageScroller.scrollTop -
+        parseFloat(getComputedStyle(this.#strip).top);
+      const read = this.#readings.get(panel);
+      return read > start ? read : Math.min(from, start);
     }
 
     // One Δn chip per tab holding marked passages, so the notice's count is

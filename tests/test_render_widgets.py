@@ -229,70 +229,99 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
 ROOT_TABS_PAGE = Path(__file__).parent / "fixtures/pages/root-tabs.html"
 
 
-def test_root_tabs_reach_the_chosen_contents_and_follow_browser_history(browser, serve):
-    """Explicit selection reaches the panel start; history selects its named panel."""
-    page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
+def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
+    browser, serve
+):
+    """A tab switch is not fragment travel. The strip stays where it is on screen: a view
+    never read opens at its start when the strip is stuck and leaves the shared header
+    alone when it is not, and a view read past its start reopens where the user left it.
+    Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
+    shows the page's top."""
+    url = serve(ROOT_TABS_PAGE)
+    page = open_page(browser, url)
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
 
-    def arrival(tab, heading):
+    def switch(tab):
+        # Locator.click would scroll a sticky tab back to its static-flow box.
+        box = tab.bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
+        return settled()
+
+    def settled():
         scroll_settled(page)
-        geometry = page.evaluate(
-            """selector => ({
-          heading: document.querySelector(selector).getBoundingClientRect().top,
-          strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
-        })""",
-            heading,
-        )
-        assert geometry["heading"] >= geometry["strip"] - 1, geometry
-        expect(page.locator(heading)).to_be_in_viewport()
         return page.evaluate("scrollY")
 
     def read_at(y):
         page.evaluate("y => scrollTo({top: y, behavior: 'instant'})", y)
-        scroll_settled(page)
-        assert page.evaluate("scrollY") > 100
+        return settled()
 
-    def click_painted(tab):
-        # Locator.click would scroll a sticky tab back to its static-flow box.
-        box = tab.bounding_box()
-        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    def stuck_at_start(panel):
+        geometry = page.evaluate(
+            """selector => {
+          const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+          return {
+            panel: document.querySelector(selector).getBoundingClientRect().top,
+            strip: strip.getBoundingClientRect().toJSON(),
+            inset: parseFloat(getComputedStyle(strip).top),
+          };
+        }""",
+            panel,
+        )
+        assert geometry["strip"]["top"] == pytest.approx(geometry["inset"], abs=1)
+        assert geometry["panel"] == pytest.approx(geometry["strip"]["bottom"], abs=1)
 
-    plan_start = arrival(plan, "#plan-return h2")
-    read_at(400)
-    click_painted(evidence)
-    evidence_start = arrival(evidence, "#evidence-summary h2")
-    read_at(450)
+    expect(plan).to_have_attribute("aria-selected", "true")
+    assert settled() == 0
+    # With the header on screen, a switch leaves it there.
+    assert switch(evidence) == 0
+    assert page.url.endswith("#evidence-tab")
+    # Read Evidence past its start; Plan, never read, opens at its start under the
+    # stuck strip rather than at the top of the page.
+    evidence_read = read_at(450)
+    plan_start = switch(plan)
+    assert 0 < plan_start < evidence_read
+    stuck_at_start("#plan-tab")
+    # Evidence reopens where the user left it, and pressing the open tab moves nothing.
+    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
+    assert switch(evidence) == pytest.approx(evidence_read, abs=2)
+
+    # The keyboard walk is the same switch, and focus stays in the strip.
+    expect(evidence).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(plan).to_have_attribute("aria-selected", "true")
+    expect(plan).to_be_focused()
+    assert settled() == pytest.approx(plan_start, abs=2)
+    page.keyboard.press("ArrowRight")
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    expect(evidence).to_be_focused()
+    assert settled() == pytest.approx(evidence_read, abs=2)
+
+    # Back and Forward select the entry's view at the offset it was left at.
     page.go_back()
     expect(plan).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#plan-tab")
-    scroll_settled(page)
+    assert settled() == pytest.approx(plan_start, abs=2)
     page.go_forward()
     expect(evidence).to_have_attribute("aria-selected", "true")
     assert page.url.endswith("#evidence-tab")
-    scroll_settled(page)
+    assert settled() == pytest.approx(evidence_read, abs=2)
 
-    read_at(400)
-    click_painted(plan)
-    assert arrival(plan, "#plan-return h2") == pytest.approx(plan_start, abs=2)
-    read_at(450)
-    expect(plan).to_be_focused()
-    page.keyboard.press("ArrowRight")
-    assert arrival(evidence, "#evidence-summary h2") == pytest.approx(
-        evidence_start, abs=2
-    )
-    expect(evidence).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    assert arrival(plan, "#plan-return h2") == pytest.approx(plan_start, abs=2)
-    expect(plan).to_be_focused()
-    page.keyboard.press("ArrowRight")
-    assert arrival(evidence, "#evidence-summary h2") == pytest.approx(
-        evidence_start, abs=2
-    )
-    expect(evidence).to_be_focused()
+    # A link into a hidden view still opens it and lands on the target.
+    page.evaluate("location.hash = 'plan-rollback'")
+    expect(plan).to_have_attribute("aria-selected", "true")
+    settled()
+    expect(page.locator("#plan-rollback h2")).to_be_in_viewport()
+
+    # A fresh load that restores the remembered view opens at the page's top.
+    switch(evidence)
+    page.goto(url)
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert page.url.endswith("#evidence-tab")
+    assert settled() == 0
 
 
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
@@ -396,6 +425,7 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     page.mouse.wheel(0, 450)
     page.wait_for_function("() => document.scrollingElement.scrollTop > 100")
     scroll_settled(page)
+    plan_read = page.evaluate("scrollY")
     # Locator.click scrolls this sticky descendant back to its static-flow position.
     # A user clicks the strip where it is painted.
     work_box = work.bounding_box()
@@ -438,10 +468,15 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     )
     scroll_settled(page, scroller=detail_body)
     detail_scroll = detail.evaluate("element => element.scrollTop")
-    plan.click()
+    plan_box = plan.bounding_box()
+    page.mouse.click(
+        plan_box["x"] + plan_box["width"] / 2,
+        plan_box["y"] + plan_box["height"] / 2,
+    )
     expect(plan).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
-    expect(page.locator("#plan-return h2")).to_be_in_viewport()
+    # The document view reopens where the user left it.
+    assert page.evaluate("scrollY") == pytest.approx(plan_read, abs=2)
     work_box = work.bounding_box()
     page.mouse.click(
         work_box["x"] + work_box["width"] / 2,
@@ -475,11 +510,10 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     expect(plan).to_have_attribute("aria-selected", "true")
     work.click()
     expect(work).to_have_attribute("aria-selected", "true")
-    scroll_settled(page)
-    workspace_start = page.evaluate("scrollY")
     page.evaluate("scrollTo({top: 550, behavior: 'instant'})")
     scroll_settled(page)
-    assert page.evaluate("scrollY") > 100
+    workspace_read = page.evaluate("scrollY")
+    assert workspace_read > 100
     plan_box = plan.bounding_box()
     page.mouse.click(
         plan_box["x"] + plan_box["width"] / 2,
@@ -487,11 +521,11 @@ def test_root_tabs_allocate_the_active_workspace_and_preserve_its_pane_scroll(
     )
     expect(plan).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
-    expect(page.locator("#plan-return h2")).to_be_in_viewport()
     work.click()
     expect(work).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
-    assert page.evaluate("scrollY") == pytest.approx(workspace_start, abs=2)
+    # A flowing workspace is a view read like any other, and reopens where it was left.
+    assert page.evaluate("scrollY") == pytest.approx(workspace_read, abs=2)
     resized(page, 1440, 900)
     pane_posture(page, queue_pane, "bounded")
 

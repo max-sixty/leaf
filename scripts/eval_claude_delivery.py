@@ -142,7 +142,7 @@ def run_session(leaf_root: Path, run: Path) -> None:
             proc.stdin.close()
 
     url = None
-    waits, posted, arrived = set(), False, False
+    waits, posted, arrived, results = set(), False, False, 0
     started = time.time()
     with (run / "stream.jsonl").open("w") as stream:
         for line in proc.stdout:
@@ -165,10 +165,13 @@ def run_session(leaf_root: Path, run: Path) -> None:
                 posted = True
                 time.sleep(5)
                 post_comment(url)
-            if record.get("type") == "result" and arrived:
-                # A turn the delivered comment woke has ended; a trailing wake may
-                # follow. The setup turn's own result never starts this timer.
-                threading.Timer(20, close_stdin).start()
+            if record.get("type") == "result":
+                results += 1
+                # The first result ends the setup turn, even when the delivery landed
+                # before it did; a later one after the delivery ends a turn it woke.
+                # A trailing wake may follow, hence the grace period.
+                if results > 1 and arrived:
+                    threading.Timer(20, close_stdin).start()
             if time.time() - started > TURN_LIMIT:
                 close_stdin()
                 break

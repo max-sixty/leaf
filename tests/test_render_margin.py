@@ -154,6 +154,7 @@ DUPLICATE_REGION_PAGE = leaf_page(
   </lf-grid>
 </lf-workspace>
 """,
+    width="available",
 )
 
 DUPLICATE_REGION_COMMENTS = [

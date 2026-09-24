@@ -388,9 +388,11 @@
                   listing) fills the frame; x-space wide or available implies it.
                   <code>group</code> only holds other blocks (tabs, a comparison, a
                   grid, a pane), so it passes the measure through to them instead of
-                  holding everything it contains to the width of a paragraph. The
-                  runtime paints the declaration as data-lf-measure; the theme declares
-                  the plain HTML elements the same way.
+                  holding everything it contains to the width of a paragraph. Undeclared
+                  on an element with <code>x-content: members</code>, it is
+                  <code>group</code>: an element made of other elements is never text.
+                  The runtime paints the declaration as data-lf-measure; the theme
+                  declares the plain HTML elements the same way.
                 </p>
               </details>
             </div>

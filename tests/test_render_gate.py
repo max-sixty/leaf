@@ -108,6 +108,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
   <footer>End of queue</footer>
 </lf-workspace>
 """,
+    width="available",
 )
 
 
@@ -437,6 +438,7 @@ RECURSIVE_ROWS_PAGE = leaf_page(
   </lf-grid>
 </lf-workspace>
 """,
+    width="available",
 )
 
 

@@ -136,6 +136,7 @@ READING_REGIONS_PAGE = leaf_page(
   </lf-grid>
 </lf-workspace>
 """,
+    width="available",
 )
 
 

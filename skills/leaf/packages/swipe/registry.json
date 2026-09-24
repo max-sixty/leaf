@@ -21,6 +21,7 @@
       }
     },
     "x-content": "members",
+    "x-measure": "surface",
     "x-upgrade": true,
     "x-state": {
       "swipe": {

@@ -267,7 +267,9 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     )
     expect(field).to_be_visible()
     expect(field).to_be_focused()
-    expect(field).to_have_attribute("aria-label", "Comment on “4 of 5 checks passing”")
+    expect(field).to_have_attribute(
+        "aria-label", "Comment on “4 of 5 checks passing -1”"
+    )
     page.keyboard.type(" What must Finance decide?")
     expect(field).to_have_value(draft + " What must Finance decide?")
 

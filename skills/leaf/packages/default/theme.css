@@ -32,9 +32,11 @@
    * of no measure outranks it rather than tying with a rule on the cell. */
   --lf-measure: var(--col);
   display: grid;
+  /* The floor is itself held to the grid's width, so a one-column stack in a cell
+   * narrower than --lf-grid-min takes the cell rather than overflowing it. */
   grid-template-columns: var(--lf-grid-template, repeat(auto-fit,
-    minmax(max(var(--lf-grid-min), (100% - (var(--lf-grid-count) - 1)
-    * var(--lf-grid-gap)) / var(--lf-grid-count)), 1fr)));
+    minmax(min(100%, max(var(--lf-grid-min), (100% - (var(--lf-grid-count) - 1)
+    * var(--lf-grid-gap)) / var(--lf-grid-count))), 1fr)));
   gap: var(--lf-grid-gap);
   align-items: start;
   container: lf-grid / inline-size;
@@ -83,7 +85,7 @@ lf-grid[columns="6"] { --lf-grid-count: 6; }
  * doesn't holds the row at its full height and the box overflows into the page.
  *
  * Posture is one container query on the workspace's own box. A root workspace (the
- * page's sole content, or a root tab's) is a size container at the window's height;
+ * sole content of a sheet, or of a root tab) is a size container at the window's height;
  * when that box holds the regions (--lf-workspace-min, below) each pane's body scrolls
  * and its header and footer stay in view. When it doesn't, nothing scrolls inside and
  * the page does, with each grid keeping the columns its width allows. Any other
@@ -179,23 +181,21 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
 }
 
 @media screen {
-  /* The root workspace is the page's only authored block (what the runtime puts in
-   * main beside it, a margin cluster or generated words, is not), or a root tab's only
-   * block. It is the full width and the window's height below the banner and above the
-   * bottom chrome, and the chain of held boxes starts at it. */
+  /* A workspace is a sheet whose regions are held in view: the root workspace is the
+   * only authored block of a sheet's main (what the runtime puts in main beside it, a
+   * margin cluster or generated words, is not), or a root tab's only block. The sheet
+   * gives it its width, gutters and the margin rail's strip (theme.css, the sheet);
+   * the workspace adds only the height, the window's below the banner and above the
+   * bottom chrome, and the chain of held boxes starts at it. A workspace in a column
+   * page, or beside other blocks, flows like any block. */
   html:not(.lf-copy)
     body
-    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
-    box-sizing: border-box;
-    width: 100cqi;
-    max-width: none;
-    margin: 0;
-    padding: 0 var(--col-pad);
-    left: 0;
+    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))) {
+    padding-block: 0;
   }
   html:not(.lf-copy)
     body
-    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace,
   html:not(.lf-copy)
     body
@@ -208,7 +208,7 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   }
   html:not(.lf-copy)
     body
-    > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
+    > main:is([data-width="wide"], [data-width="available"]):has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen])))
     > lf-workspace {
     block-size: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
   }
@@ -296,10 +296,8 @@ lf-ask:has(> :is(h1, h2, h3, h4, h5, h6):first-child:nth-last-child(2)) {
   }
 }
 
-/* A copy of a root workspace is the whole workspace at the page's width. */
-html.lf-copy
-  body
-  > main:has(> lf-workspace):not(:has(> :not(lf-workspace, script, style, template, .lf-ui, [data-lf-gen]))),
+/* A copy of a root tab set is the whole set at the page's width. A copy of a workspace
+ * is its sheet's, which the sheet's own rule already draws. */
 html.lf-copy body > main:has(> lf-tabs[data-lf-tabs-context="root"]) {
   box-sizing: border-box;
   width: 100cqi;
@@ -1474,16 +1472,24 @@ lf-column > [data-lf-said="label"] { display: block; font-size: var(--t-working-
             font-weight: 600; line-height: 1.5; color: var(--ink-2);
             padding: 2px var(--lf-card-inset) 10px; }
 lf-column::before { content: attr(label); }
-/* A column's tone says what landing in it means, in the page's three status tones: its
-   field takes the tint and its heading the ink, so the blocking column reads as such
-   before a card in it is read. */
-lf-column[tone="ok"] { --lf-tone-tint: var(--ok-tint); --lf-tone-ink: var(--ok-ink); }
-lf-column[tone="warn"] { --lf-tone-tint: var(--warn-tint); --lf-tone-ink: var(--warn-ink); }
-lf-column[tone="danger"] {
-  --lf-tone-tint: var(--danger-tint); --lf-tone-ink: var(--danger-ink); }
-lf-column[tone] { background: color-mix(in srgb, var(--lf-tone-tint) 70%, var(--field)); }
-lf-column[tone]::before,
-lf-column[tone] > [data-lf-said="label"] { color: var(--lf-tone-ink); }
+/* The column's heading row: a status dot, the name, and its card count at the far
+   edge. A tone says what landing in the column means, in the page's status tones;
+   only the dot takes it, so a board reads as one surface with its blocking column
+   marked rather than as blocks of colour. A column without a tone keeps a quiet dot so
+   every heading starts at the same place. */
+lf-column { position: relative; --lf-tone-dot: var(--border-2); }
+lf-column[tone="warn"] { --lf-tone-dot: var(--warn); }
+lf-column[tone="danger"] { --lf-tone-dot: var(--danger); }
+lf-column::before,
+lf-column > [data-lf-said="label"] { padding-left: calc(var(--lf-card-inset) + 14px);
+  padding-right: calc(var(--lf-card-inset) + 2.5em);
+  background: radial-gradient(circle, var(--lf-tone-dot) 3.5px, transparent 4px)
+    no-repeat var(--lf-card-inset) 0.62em / 8px 8px; }
+lf-column > .lf-column-count { position: absolute;
+  top: calc(var(--lf-reading-column-inset) + 2px);
+  right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
+  font: 600 var(--t-working-label)/1.5 var(--sans); color: var(--muted);
+  font-variant-numeric: tabular-nums; }
 lf-column:has(> [data-lf-said="label"])::before { content: none; }
 lf-card { display: block; position: relative; background: var(--card);
           font: var(--t-5)/1.5 var(--sans);

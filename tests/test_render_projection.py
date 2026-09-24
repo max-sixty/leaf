@@ -1419,8 +1419,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
 
     copy_widths = read_copy_widths()
     assert len(copy_widths) == 6
-    assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
-    # The copy is the whole workspace at the page's width on the first frame and every
+    assert copy_widths == pytest.approx([388, 388, 388, 388, 1210, 1210], abs=1)
+    # The copy is the whole workspace at its sheet's width on the first frame and every
     # later one: a user who copies a slower page gets the same evidence.
     page.evaluate(ONE_FRAME)
     assert read_copy_widths() == pytest.approx(copy_widths, abs=1)
@@ -3101,7 +3101,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
   </lf-grid>
 </lf-workspace>
 """
-    first = leaf_page("Active region continuity", workspace_markup)
+    first = leaf_page("Active region continuity", workspace_markup, width="available")
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     right_pane = page.locator("#right-reading")
@@ -3242,7 +3242,9 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
     before = page.evaluate("document.scrollingElement.scrollTop")
     assert before == 300
 
-    revised = leaf_page("Changing offset ownership", workspace_markup)
+    revised = leaf_page(
+        "Changing offset ownership", workspace_markup, width="available"
+    )
     stamp_page(serve.page_dir, revised, "make the workspace the page")
     wait_for_revision(page, 2)
 

@@ -711,7 +711,7 @@
     "x-example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
   },
   "lf-column": {
-    "description": "One column on a board. `label` is the column heading, and the name a screen reader announces for the list of cards beneath it — so it has to read as the column's name on its own. Children are lf-card elements only; an empty column is a valid drop target. `tone` marks what landing in the column means (danger for a column that blocks, warn for one that needs a look, ok for done); the column's tint and heading carry it, so leave it off a column whose name says nothing about status.",
+    "description": "One column on a board. `label` is the column heading, and the name a screen reader announces for the list of cards beneath it — so it has to read as the column's name on its own. Children are lf-card elements only; an empty column is a valid drop target. `tone` marks what landing in the column means (danger for a column that blocks, warn for one that needs a look); a dot before the column's heading carries it, so leave it off a column whose name says nothing about status. The heading row also shows how many cards the column holds.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -724,7 +724,6 @@
       },
       "tone": {
         "enum": [
-          "ok",
           "warn",
           "danger"
         ]
@@ -919,7 +918,7 @@
     "x-example": "<lf-grid id=\"status\" columns=\"3\"><section><h3>Errors</h3><lf-metric id=\"errors\" value=\"0.11%\">error rate</lf-metric></section><section><h3>Latency</h3><lf-metric id=\"p95\" value=\"184 ms\">p95</lf-metric></section><section><h3>Traffic</h3><lf-metric id=\"traffic\" value=\"25%\">candidate</lf-metric></section></lf-grid>"
   },
   "lf-workspace": {
-    "description": "Task regions kept together while the space allows. As the sole content element of main, with the page title in its optional direct header, or as the sole content of a page tab, it takes the window's height: when that height and width hold it, each pane's body scrolls on its own and the header and footer stay in view; when they don't, the panes take their natural height and the page scrolls, with the grid keeping the columns its width allows. Anywhere else it is embedded and stays in document flow. Its direct header and footer frame exactly one body element: an lf-grid of lf-pane regions, one lf-pane, or a widget that arranges its own regions, such as a playground, alone or in an Ask of a heading and that widget. Only those take the height, so a plain div or section around one leaves it flowing. A narrow window or a standalone copy stacks the regions in authored order, so choose an order that still reads stacked.",
+    "description": "Task regions kept together while the space allows: a sheet whose regions are held in view. As the sole content element of a sheet's main (`<main data-width=\"available\">`), with the page title in its optional direct header, or as the sole content of a page tab, it takes the sheet's width and the window's height: when that height and width hold it, each pane's body scrolls on its own and the header and footer stay in view; when they don't, the panes take their natural height and the page scrolls, with the grid keeping the columns its width allows. Anywhere else it is embedded and stays in document flow. Its direct header and footer frame exactly one body element: an lf-grid of lf-pane regions, one lf-pane, or a widget that arranges its own regions, such as a playground, alone or in an Ask of a heading and that widget. Only those take the height, so a plain div or section around one leaves it flowing. A narrow window or a standalone copy stacks the regions in authored order, so choose an order that still reads stacked.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}

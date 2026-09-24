@@ -137,6 +137,7 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
+    "x-measure": "surface",
     "x-data": {
       "request": {
         "contract": "pull-request",
@@ -173,6 +174,7 @@
     ],
     "additionalProperties": false,
     "x-content": "empty",
+    "x-measure": "surface",
     "x-data": {
       "document": {
         "contract": "text-document",

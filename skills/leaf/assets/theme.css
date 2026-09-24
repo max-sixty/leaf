@@ -839,6 +839,17 @@ main {
   main[data-width="wide"] { width: min(var(--wide), var(--lf-room)); }
   main[data-width="available"] { width: min(var(--sheet-max), var(--lf-room)); }
   main:is([data-width="wide"], [data-width="available"]) > * { --lf-room: 100%; }
+  /* A sheet's title heads a page as wide as the window, above boards and tiles rather
+   * than a column of prose, so it is set a size up and heavier: at the column's size it
+   * read as a section heading among the panels. The size grows with the sheet (cqi here
+   * is the sheet's own width). */
+  main:is([data-width="wide"], [data-width="available"]) > h1,
+  main:is([data-width="wide"], [data-width="available"]) > * > header > h1 {
+    font-size: clamp(36px, 3.2cqi, 46px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
 
   /* Text keeps the reading measure in every frame; a surface fills its frame. In the
    * page's own flow the column is the measure already, so this matters in a frame wider
@@ -1165,29 +1176,34 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
-    /* Keep the reading column on the page's axis while both margin residents fit in
-       its existing gutters. If they need more room, spend the outer page edges and
-       shift only far enough to keep each resident on screen before narrowing prose. */
-    --lf-sidebar-edge: clamp(0px,
-      calc((100cqi - var(--strip-l) - var(--strip-r) - var(--col)) / 2),
-      var(--col-pad));
-    --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
-      - 2 * var(--lf-sidebar-edge)));
-    --lf-gutter: calc((100cqi - min(var(--col), var(--lf-room))) / 2);
-    --lf-shift: calc(
-      max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
-      - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
-    & :is([data-lf-space], [data-width]) {
-      --lf-space-bound: var(--lf-sidebar-shell-bound,
-        calc(50cqi - var(--lf-shift)
-          + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
-      --lf-grow-l: min(calc(var(--lf-surplus) / 2),
-        var(--lf-sidebar-free-left, 0px));
-      --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
-    }
-    & [data-lf-space][data-lf-yield~="r"] {
-      --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
-      --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
+    /* A sheet's gutters already take the widest strip (the sheet, above), so the
+       sidebar hangs in the left one and nothing below is the sheet's to do: its blocks
+       fill the sheet rather than growing out of a column. */
+    &:not([data-width="wide"], [data-width="available"]) {
+      /* Keep the reading column on the page's axis while both margin residents fit in
+         its existing gutters. If they need more room, spend the outer page edges and
+         shift only far enough to keep each resident on screen before narrowing prose. */
+      --lf-sidebar-edge: clamp(0px,
+        calc((100cqi - var(--strip-l) - var(--strip-r) - var(--col)) / 2),
+        var(--col-pad));
+      --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
+        - 2 * var(--lf-sidebar-edge)));
+      --lf-gutter: calc((100cqi - min(var(--col), var(--lf-room))) / 2);
+      --lf-shift: calc(
+        max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
+        - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
+      & :is([data-lf-space], [data-width]) {
+        --lf-space-bound: var(--lf-sidebar-shell-bound,
+          calc(50cqi - var(--lf-shift)
+            + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
+        --lf-grow-l: min(calc(var(--lf-surplus) / 2),
+          var(--lf-sidebar-free-left, 0px));
+        --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
+      }
+      & [data-lf-space][data-lf-yield~="r"] {
+        --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
+        --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
+      }
     }
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))

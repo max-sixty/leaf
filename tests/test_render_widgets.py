@@ -145,6 +145,7 @@ WORKSPACE_PAGE = leaf_page(
   <footer>2 items</footer>
 </lf-workspace>
 """,
+    width="available",
 )
 
 
@@ -591,6 +592,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
 
     held = (
         source.replace("<h1>Session-store follow-ups</h1>\n", "")
+        .replace("<main>", '<main data-width="available">')
         .replace(
             '<lf-ask id="session-triage-decision">',
             '<lf-workspace id="triage-workspace"><lf-ask id="session-triage-decision">',
@@ -617,6 +619,7 @@ def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, se
   </lf-workspace>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(embedded))
     resized(page, 1280, 720)
@@ -669,6 +672,7 @@ def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve)
   <section><h2>Section heading</h2>{LONG_PANE}</section>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(sectioned))
     resized(page, 1280, 720)
@@ -688,6 +692,7 @@ def test_a_pane_inside_a_plain_section_of_a_root_workspace_flows(browser, serve)
     direct = leaf_page(
         "a pane as the workspace body",
         f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
+        width="available",
     )
     page = open_page(browser, serve(direct))
     resized(page, 1280, 720)
@@ -717,6 +722,7 @@ def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
   </lf-ask>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(three_part))
     resized(page, 1280, 720)
@@ -736,6 +742,7 @@ def test_an_ask_with_more_than_one_answer_part_flows_in_a_root_workspace(
 
     two_part = (
         PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
+        .replace("<main>", '<main data-width="available">')
         .replace(
             '<lf-ask id="card-playground-ask">',
             '<lf-workspace id="held-workspace"><lf-ask id="card-playground-ask">',
@@ -780,6 +787,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     root = leaf_page(
         "a root workspace",
         f'<lf-workspace id="held-workspace">{LONG_PANE}</lf-workspace>',
+        width="available",
     )
     page = open_page(browser, serve(root))
     resized(page, 1280, 420)
@@ -806,6 +814,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
   </lf-pane>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 720)
@@ -846,6 +855,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
   </div></lf-pane>
 </lf-workspace>
 """,
+        width="available",
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)

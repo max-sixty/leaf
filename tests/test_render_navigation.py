@@ -8787,10 +8787,16 @@ def test_an_ask_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     else:
         # A badge labels a control the user can see: the option rows' picks stand
         # under the panel and wear none, rather than one floating over the threads.
-        expect(badges).not_to_have_count(0)
-        for i in range(badges.count()):
-            box = badges.nth(i).bounding_box()
-            assert box["x"] + box["width"] <= panel_left, box
+        # The repaint after the press replaces badges, so read the set it settles on.
+        page.wait_for_function(
+            """(left) => {
+              const shown = [...document.querySelectorAll(
+                '.lf-ask-binding-badge, [data-lf-ask-binding-badge]')];
+              return shown.length > 0 && shown.every(
+                (badge) => badge.getBoundingClientRect().right <= left);
+            }""",
+            arg=panel_left,
+        )
     assert page.evaluate("document.scrollingElement.scrollTop") == reading
     assert page.evaluate("history.length") == entries
 
